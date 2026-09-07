@@ -12,6 +12,7 @@ use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisManager;
 use Hypervel\Redis\RedisProxy;
@@ -20,6 +21,8 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 /**
  * Tests for RedisManager — the named connection manager.
@@ -146,6 +149,33 @@ class RedisManagerTest extends TestCase
         }
     }
 
+    public function testReleaseConnectionsExhaustsProxiesAndPreservesFirstCancellation(): void
+    {
+        $ordinaryFailure = new RuntimeException('First release failed.');
+        $cancellation = new CanceledException('Second release canceled.');
+        $laterCancellation = new CanceledException('Third release canceled.');
+        $first = m::mock(PhpRedisConnection::class);
+        $first->expects('release')->andThrow($ordinaryFailure);
+        $second = m::mock(PhpRedisConnection::class);
+        $second->expects('release')->andThrow($cancellation);
+        $third = m::mock(PhpRedisConnection::class);
+        $third->expects('release')->andThrow($laterCancellation);
+        $manager = $this->createManager(['first', 'second', 'third']);
+        $manager->connection('first');
+        $manager->connection('second');
+        $manager->connection('third');
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'first', $first);
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'second', $second);
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'third', $third);
+
+        try {
+            $manager->releaseConnections();
+            $this->fail('Expected the first cancellation to propagate.');
+        } catch (Throwable $throwable) {
+            $this->assertSame($cancellation, $throwable);
+        }
+    }
+
     public function testDiscardConnectionsExhaustsEveryCreatedProxy(): void
     {
         $first = m::mock(PhpRedisConnection::class);
@@ -184,6 +214,29 @@ class RedisManagerTest extends TestCase
         $this->assertSame([], $manager->connections());
     }
 
+    public function testPurgeFlushesPoolAndLetsCancellationSupersedeDiscardFailure(): void
+    {
+        $cancellation = new CanceledException('Flush canceled.');
+        $connection = m::mock(PhpRedisConnection::class);
+        $connection->expects('discard')->andThrow(new RuntimeException('Discard failed.'));
+        $poolFactory = m::mock(PoolFactory::class);
+        $poolFactory->expects('flushPool')
+            ->with('alias')
+            ->andThrow($cancellation);
+        $manager = $this->createManager(['alias'], poolFactory: $poolFactory);
+        $manager->connection('alias');
+        CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'alias', $connection);
+
+        try {
+            $manager->purge('alias');
+            $this->fail('Expected the cancellation to propagate.');
+        } catch (Throwable $throwable) {
+            $this->assertSame($cancellation, $throwable);
+        }
+
+        $this->assertSame([], $manager->connections());
+    }
+
     public function testConnectorDriverExtensionsAreIntentionallyUnavailable(): void
     {
         // REMOVED: Hypervel has one phpredis pooled transport rather than switchable connector drivers.
@@ -194,13 +247,33 @@ class RedisManagerTest extends TestCase
         $this->assertFalse(method_exists($manager, 'setDriver'));
     }
 
-    public function testEnableEventsDelegatesToRedisConfigWithoutTouchingPools(): void
+    public function testEnableEventsRefreshesOnlyExistingPoolsWithDisabledEvents(): void
     {
         $app = m::mock(ContainerContract::class);
+        $disabledPool = m::mock(RedisPool::class);
+        $disabledPool->expects('getConfig')->andReturn(['events' => false]);
+        $enabledPool = m::mock(RedisPool::class);
+        $enabledPool->expects('getConfig')->andReturn(['events' => true]);
+
+        $config = m::mock(RedisConfig::class);
+        $config->expects('enableEvents')
+            ->globally()
+            ->ordered();
+
         $poolFactory = m::mock(PoolFactory::class);
         $poolFactory->expects('getPool')->never();
-        $config = m::mock(RedisConfig::class);
-        $config->expects('enableEvents');
+        $poolFactory->expects('pools')
+            ->globally()
+            ->ordered()
+            ->andReturn([
+                'disabled' => $disabledPool,
+                'enabled' => $enabledPool,
+            ]);
+        $poolFactory->expects('flushPool')
+            ->with('disabled')
+            ->globally()
+            ->ordered();
+
         $manager = new RedisManager(
             $app,
             $poolFactory,
@@ -211,13 +284,33 @@ class RedisManagerTest extends TestCase
         $manager->enableEvents();
     }
 
-    public function testDisableEventsDelegatesToRedisConfigWithoutTouchingPools(): void
+    public function testDisableEventsRefreshesOnlyExistingPoolsWithEnabledEvents(): void
     {
         $app = m::mock(ContainerContract::class);
+        $enabledPool = m::mock(RedisPool::class);
+        $enabledPool->expects('getConfig')->andReturn(['events' => true]);
+        $disabledPool = m::mock(RedisPool::class);
+        $disabledPool->expects('getConfig')->andReturn(['events' => false]);
+
+        $config = m::mock(RedisConfig::class);
+        $config->expects('disableEvents')
+            ->globally()
+            ->ordered();
+
         $poolFactory = m::mock(PoolFactory::class);
         $poolFactory->expects('getPool')->never();
-        $config = m::mock(RedisConfig::class);
-        $config->expects('disableEvents');
+        $poolFactory->expects('pools')
+            ->globally()
+            ->ordered()
+            ->andReturn([
+                'enabled' => $enabledPool,
+                'disabled' => $disabledPool,
+            ]);
+        $poolFactory->expects('flushPool')
+            ->with('enabled')
+            ->globally()
+            ->ordered();
+
         $manager = new RedisManager(
             $app,
             $poolFactory,
@@ -323,12 +416,13 @@ class RedisManagerTest extends TestCase
      */
     private function createRedisConfig(array $validNames): RedisConfig
     {
-        $configData = [];
+        $configData = ['options' => []];
         foreach ($validNames as $name) {
             $configData[$name] = [
                 'host' => 'localhost',
                 'port' => 6379,
                 'database' => 0,
+                'options' => [],
             ];
         }
 

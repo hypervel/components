@@ -35,11 +35,11 @@ class ViewServiceProvider extends ServiceProvider
             // Next we need to grab the engine resolver instance that will be used by the
             // environment. The resolver will be used by an environment to get each of
             // the various engine implementations such as plain PHP or Blade engine.
-            $resolver = $app['view.engine.resolver'];
+            $resolver = $app->make('view.engine.resolver');
 
-            $finder = $app['view.finder'];
+            $finder = $app->make('view.finder');
 
-            $factory = $this->createFactory($resolver, $finder, $app['events']);
+            $factory = $this->createFactory($resolver, $finder, $app->make('events'));
 
             // We will also set the container instance on this view environment since the
             // view composers may be classes registered in the container, which allows

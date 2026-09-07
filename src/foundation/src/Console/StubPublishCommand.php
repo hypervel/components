@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\Command;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Events\PublishingStubs;
 use RuntimeException;
@@ -85,9 +86,15 @@ class StubPublishCommand extends Command
             __DIR__ . '/../../../routing/src/Console/stubs/middleware.stub' => 'middleware.stub',
         ];
 
-        $this->hypervel->make('events')->dispatch($event = new PublishingStubs($stubs));
+        /** @var Dispatcher $events */
+        $events = $this->hypervel->make('events');
 
-        foreach ($event->stubs as $from => $to) {
+        if ($events->hasListeners(PublishingStubs::class)) {
+            $events->dispatch($event = new PublishingStubs($stubs));
+            $stubs = $event->stubs;
+        }
+
+        foreach ($stubs as $from => $to) {
             $to = $stubsPath . DIRECTORY_SEPARATOR . ltrim($to, DIRECTORY_SEPARATOR);
             $exists = $files->exists($to);
 

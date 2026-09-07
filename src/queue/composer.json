@@ -1,6 +1,6 @@
 {
     "name": "hypervel/queue",
-    "description": "The queue package for Hypervel.",
+    "description": "The Hypervel Queue package.",
     "license": "MIT",
     "keywords": [
         "php",

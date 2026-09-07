@@ -64,7 +64,7 @@ class CacheServiceProvider extends ServiceProvider
             return;
         }
 
-        // Worker configuration is reloaded during BeforeWorkerStart.
+        // Finalize after BeforeWorkerStart rebuilds the worker configuration.
         $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event): void {
             $this->app->make(CacheManager::class)->finalizeSerializableClasses();
         });

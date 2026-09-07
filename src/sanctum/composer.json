@@ -1,6 +1,6 @@
 {
     "name": "hypervel/sanctum",
-    "description": "The Sanctum package for Hypervel.",
+    "description": "The Hypervel Sanctum package.",
     "license": "MIT",
     "keywords": [
         "php",

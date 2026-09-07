@@ -25,6 +25,7 @@ class PackageMetadataTest extends TestCase
 
         foreach ([
             'brick/math',
+            'ext-filter',
             'ext-pdo',
             'ext-swoole',
             'nesbot/carbon',
@@ -59,6 +60,7 @@ class PackageMetadataTest extends TestCase
             $this->assertNotSame('', trim($composer['require'][$dependency]));
         }
 
+        $this->assertArrayHasKey('fakerphp/faker', $composer['suggest']);
         $this->assertArrayNotHasKey('hypervel/config', $composer['require']);
     }
 }

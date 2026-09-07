@@ -12,11 +12,11 @@ use Hypervel\Support\Str;
 
 class WildcardPermission implements Wildcard
 {
-    public const WILDCARD_TOKEN = '*';
+    public const string WILDCARD_TOKEN = '*';
 
-    public const PART_DELIMITER = '.';
+    public const string PART_DELIMITER = '.';
 
-    public const SUBPART_DELIMITER = ',';
+    public const string SUBPART_DELIMITER = ',';
 
     /**
      * Create a new wildcard permission matcher.

@@ -7,12 +7,7 @@ namespace Hypervel\Container;
 use ReflectionAttribute;
 
 /**
- * Cached build instructions for a concrete class.
- *
- * Stores the result of analyzing a class via reflection: whether it exists,
- * is instantiable, has a constructor, its class-level attributes, and its
- * constructor parameters (as ParameterRecipe objects). Created once per class
- * per worker lifetime by Container::computeBuildRecipe().
+ * Cached reflection analysis used to resolve an unbound concrete class.
  *
  * @internal
  */
@@ -28,6 +23,7 @@ readonly class BuildRecipe
         public bool $hasConstructor,
         public array $classAttributes,
         public array $parameters,
+        public bool $executionScoped,
     ) {
     }
 }

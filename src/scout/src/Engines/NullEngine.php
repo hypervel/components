@@ -18,6 +18,14 @@ use Hypervel\Support\LazyCollection;
 class NullEngine extends Engine
 {
     /**
+     * Determine if this engine has operations worth observing.
+     */
+    protected function hasObservableOperations(): bool
+    {
+        return false;
+    }
+
+    /**
      * Update the given models in the search index.
      */
     public function update(EloquentCollection $models): void

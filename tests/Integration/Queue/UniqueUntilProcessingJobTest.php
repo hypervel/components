@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Queue\UniqueUntilProcessingJobTest;
 
 use Hypervel\Bus\Queueable;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Bus\Dispatchable;
@@ -18,11 +19,13 @@ use Hypervel\Tests\Integration\Queue\QueueTestCase;
 #[WithMigration('queue')]
 class UniqueUntilProcessingJobTest extends QueueTestCase
 {
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
-        $app['config']->set('queue.default', 'database');
-        $app['config']->set('cache.default', 'database');
+
+        $config = $app->make('config');
+        $config->set('queue.default', 'database');
+        $config->set('cache.default', 'database');
     }
 
     public function testShouldBeUniqueUntilProcessingReleasesLockWhenJobIsReleasedByAMiddleware()

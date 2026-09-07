@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Auth;
 
 use Hypervel\Contracts\Auth\UserProvider;
+use Hypervel\Database\ConnectionResolverInterface;
 use InvalidArgumentException;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 trait CreatesUserProviders
 {
@@ -43,11 +47,28 @@ trait CreatesUserProviders
     }
 
     /**
+     * Get the user provider name declared by the given guard.
+     */
+    public function getUserProviderName(UnitEnum|string|null $guard = null): ?string
+    {
+        if ($guard instanceof UnitEnum) {
+            $guard = (string) enum_value($guard);
+        }
+
+        $guard ??= $this->getDefaultDriver();
+        $provider = $this->app->make('config')->get("auth.guards.{$guard}.provider");
+
+        return is_string($provider) && $provider !== ''
+            ? $provider
+            : null;
+    }
+
+    /**
      * Get the provider name declared by the current default guard.
      */
     public function getDefaultUserProvider(): ?string
     {
-        return $this->app->make('config')->get('auth.guards.' . $this->getDefaultDriver() . '.provider');
+        return $this->getUserProviderName();
     }
 
     /**
@@ -67,10 +88,14 @@ trait CreatesUserProviders
      */
     protected function createDatabaseProvider(array $config): DatabaseUserProvider
     {
+        /** @var ConnectionResolverInterface $connectionResolver */
+        $connectionResolver = $this->app->make('db');
+
         return new DatabaseUserProvider(
-            $this->app->make('db')->connection($config['connection'] ?? null),
+            $connectionResolver,
             $this->app->make('hash'),
             $config['table'],
+            $config['connection'] ?? null,
         );
     }
 
@@ -80,19 +105,20 @@ trait CreatesUserProviders
     protected function createEloquentProvider(array $config): EloquentUserProvider
     {
         $provider = new EloquentUserProvider($this->app->make('hash'), $config['model']);
+        $cache = $config['cache'] ?? null;
 
-        if (! empty($config['cache']['enabled'])) {
-            $ttl = $config['cache']['ttl'] ?? 300;
+        if ($cache !== null && ($cache['enabled'] ?? false)) {
+            $ttl = $cache['ttl'] ?? EloquentUserProvider::DEFAULT_CACHE_TTL;
 
             if (! is_int($ttl) || $ttl <= 0) {
                 throw new InvalidArgumentException('The auth user cache TTL must be a positive integer.');
             }
 
             $provider->enableCache(
-                $config['cache']['store'] ?? null,
+                $cache['store'] ?? null,
                 $ttl,
-                $config['cache']['prefix'] ?? 'auth_users',
-                $config['cache']['tags'] ?? null,
+                $cache['prefix'] ?? EloquentUserProvider::DEFAULT_CACHE_PREFIX,
+                $cache['tags'] ?? null,
             );
         }
 

@@ -11,11 +11,11 @@ use JsonException;
 class PackageMetadataTest extends TestCase
 {
     /**
-     * Ensure provider discovery metadata is declared consistently.
+     * Ensure package metadata is declared consistently.
      *
      * @throws JsonException
      */
-    public function testProviderDiscoveryMetadataIsDeclared(): void
+    public function testPackageMetadataIsDeclaredConsistently(): void
     {
         $composer = json_decode(
             file_get_contents(__DIR__ . '/../../src/pagination/composer.json'),
@@ -38,5 +38,12 @@ class PackageMetadataTest extends TestCase
             PaginationServiceProvider::class,
             $rootComposer['extra']['hypervel']['providers']
         );
+        $this->assertArrayNotHasKey('hypervel/database', $composer['require']);
+        $this->assertArrayNotHasKey('hypervel/http', $composer['require']);
+        $this->assertArrayNotHasKey('hypervel/view', $composer['require']);
+        $this->assertArrayHasKey('hypervel/http', $composer['suggest']);
+        $this->assertNotSame('', trim($composer['suggest']['hypervel/http']));
+        $this->assertArrayHasKey('hypervel/view', $composer['suggest']);
+        $this->assertNotSame('', trim($composer['suggest']['hypervel/view']));
     }
 }

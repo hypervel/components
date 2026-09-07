@@ -16,6 +16,9 @@ use Hypervel\Contracts\Cache\Store as CacheStore;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Events\Dispatcher as ConcreteEventDispatcher;
+use Hypervel\Queue\Attributes\Delay;
+use Hypervel\Queue\Events\JobPayloadFinalizing;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Queue\Events\JobQueueingFailed;
@@ -29,9 +32,11 @@ use Hypervel\Tests\Queue\Fixtures\FakeSqsJobWithDeduplication;
 use Hypervel\Tests\Queue\Fixtures\FakeSqsJobWithMessageGroup;
 use Hypervel\Tests\TestCase;
 use Laravel\SerializableClosure\SerializableClosure;
+use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Uid\Uuid;
 
 class QueueSqsQueueTest extends TestCase
@@ -183,7 +188,7 @@ class QueueSqsQueueTest extends TestCase
         $this->sqs->shouldReceive('sendMessage')->once()->with(['QueueUrl' => $this->queueUrl, 'MessageBody' => $this->mockedPayload, 'DelaySeconds' => 5])->andReturn($this->mockedSendMessageResponseModel);
         $id = $queue->later($now->addSeconds(5), $this->mockedJob, $this->mockedData, $this->queueName);
         $this->assertEquals($this->mockedMessageId, $id);
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
     }
 
     public function testDelayedPushProperlyPushesJobOntoSqs()
@@ -196,7 +201,7 @@ class QueueSqsQueueTest extends TestCase
         $this->sqs->shouldReceive('sendMessage')->once()->with(['QueueUrl' => $this->queueUrl, 'MessageBody' => $this->mockedPayload, 'DelaySeconds' => $this->mockedDelay])->andReturn($this->mockedSendMessageResponseModel);
         $id = $queue->later($this->mockedDelay, $this->mockedJob, $this->mockedData, $this->queueName);
         $this->assertEquals($this->mockedMessageId, $id);
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
     }
 
     public function testPushProperlyPushesJobOntoSqs()
@@ -208,7 +213,7 @@ class QueueSqsQueueTest extends TestCase
         $this->sqs->shouldReceive('sendMessage')->once()->with(['QueueUrl' => $this->queueUrl, 'MessageBody' => $this->mockedPayload])->andReturn($this->mockedSendMessageResponseModel);
         $id = $queue->push($this->mockedJob, $this->mockedData, $this->queueName);
         $this->assertEquals($this->mockedMessageId, $id);
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
     }
 
     #[DataProvider('queueDefaultingDataProvider')]
@@ -459,7 +464,7 @@ class QueueSqsQueueTest extends TestCase
         $this->sqs->shouldReceive('sendMessage')->once()->with(['QueueUrl' => $this->queueUrl, 'MessageBody' => $this->mockedPayload])->andReturn($this->mockedSendMessageResponseModel);
         $id = $queue->push($job, $this->mockedData, $this->queueName);
         $this->assertEquals($this->mockedMessageId, $id);
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
     }
 
     public function testPendingDispatchProperlyPushesJobObjectOntoSqs()
@@ -482,7 +487,7 @@ class QueueSqsQueueTest extends TestCase
         // Destroy object to trigger dispatch.
         unset($pendingDispatch);
 
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
     }
 
     public function testPushProperlyPushesJobObjectOntoSqsFairQueue()
@@ -496,7 +501,7 @@ class QueueSqsQueueTest extends TestCase
         $this->sqs->shouldReceive('sendMessage')->once()->with(['QueueUrl' => $this->queueUrl, 'MessageBody' => $this->mockedPayload, 'MessageGroupId' => $this->mockedMessageGroupId])->andReturn($this->mockedSendMessageResponseModel);
         $id = $queue->push($job, $this->mockedData, $this->queueName);
         $this->assertEquals($this->mockedMessageId, $id);
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
     }
 
     public function testPendingDispatchProperlyPushesJobObjectOntoSqsFairQueue()
@@ -518,7 +523,7 @@ class QueueSqsQueueTest extends TestCase
         // Destroy object to trigger dispatch.
         unset($pendingDispatch);
 
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
     }
 
     public function testPushProperlyPushesJobStringOntoSqsFifoQueue()
@@ -537,7 +542,7 @@ class QueueSqsQueueTest extends TestCase
         ])->andReturn($this->mockedSendMessageResponseModel);
         $id = $queue->push($this->mockedJob, $this->mockedData, $this->fifoQueueName);
         $this->assertEquals($this->mockedMessageId, $id);
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
 
         Str::createUuidsNormally();
     }
@@ -560,7 +565,7 @@ class QueueSqsQueueTest extends TestCase
         ])->andReturn($this->mockedSendMessageResponseModel);
         $id = $queue->push($job, $this->mockedData, $this->fifoQueueName);
         $this->assertEquals($this->mockedMessageId, $id);
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
 
         Str::createUuidsNormally();
     }
@@ -584,7 +589,7 @@ class QueueSqsQueueTest extends TestCase
         ])->andReturn($this->mockedSendMessageResponseModel);
         $id = $queue->push($job, $this->mockedData, $this->fifoQueueName);
         $this->assertEquals($this->mockedMessageId, $id);
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
 
         Str::createUuidsNormally();
     }
@@ -611,7 +616,7 @@ class QueueSqsQueueTest extends TestCase
         ])->andReturn($this->mockedSendMessageResponseModel);
         $id = $queue->push($job, $this->mockedData, $this->fifoQueueName);
         $this->assertEquals($this->mockedMessageId, $id);
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
 
         Str::createUuidsNormally();
     }
@@ -634,7 +639,7 @@ class QueueSqsQueueTest extends TestCase
         ])->andReturn($this->mockedSendMessageResponseModel);
         $id = $queue->push($job, $this->mockedData, $this->fifoQueueName);
         $this->assertEquals($this->mockedMessageId, $id);
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
     }
 
     public function testPushProperlyPushesJobObjectOntoSqsFifoQueueWithDeduplicator()
@@ -662,7 +667,7 @@ class QueueSqsQueueTest extends TestCase
         ])->andReturn($this->mockedSendMessageResponseModel);
         $id = $queue->push($job, $this->mockedData, $this->fifoQueueName);
         $this->assertEquals($this->mockedMessageId, $id);
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
     }
 
     public function testPendingDispatchProperlyPushesJobObjectOntoSqsFifoQueue()
@@ -691,7 +696,7 @@ class QueueSqsQueueTest extends TestCase
         // Destroy object to trigger dispatch.
         unset($pendingDispatch);
 
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
 
         Str::createUuidsNormally();
     }
@@ -722,7 +727,7 @@ class QueueSqsQueueTest extends TestCase
         // Destroy object to trigger dispatch.
         unset($pendingDispatch);
 
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
 
         FakeSqsJobWithDeduplication::createDeduplicationIdsNormally();
     }
@@ -762,7 +767,7 @@ class QueueSqsQueueTest extends TestCase
         // Destroy object to trigger dispatch.
         unset($pendingDispatch);
 
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
 
         FakeSqsJobWithDeduplication::createDeduplicationIdsNormally();
     }
@@ -803,71 +808,53 @@ class QueueSqsQueueTest extends TestCase
         // Destroy object to trigger dispatch.
         unset($pendingDispatch);
 
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
     }
 
-    public function testDelayedPushProperlyPushesJobStringOntoSqsFifoQueueWithoutDelay()
+    public function testDelayedPushRejectsPositiveDelayForStringJobOnSqsFifoQueue(): void
     {
-        Str::createUuidsUsing(fn () => $this->createMockedUuid($this->mockedDeduplicationId));
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['createPayload'])
+            ->setConstructorArgs([$this->sqs, $this->fifoQueueName, $this->account])
+            ->getMock();
+        $queue->setContainer(m::spy(ContainerContract::class));
+        $queue->expects($this->never())->method('createPayload');
+        $this->sqs->shouldNotReceive('sendMessage');
 
-        $queue = $this->getMockBuilder(SqsQueue::class)->onlyMethods(['createPayload', 'secondsUntil', 'getQueue'])->setConstructorArgs([$this->sqs, $this->fifoQueueName, $this->account])->getMock();
-        $queue->setContainer($container = m::spy(ContainerContract::class));
-        $queue->expects($this->once())->method('createPayload')->with($this->mockedJob, $this->fifoQueueName, $this->mockedData)->willReturn($this->mockedPayload);
-        $queue->expects($this->never())->method('secondsUntil')->with($this->mockedDelay)->willReturn($this->mockedDelay);
-        $queue->expects($this->once())->method('getQueue')->with($this->fifoQueueName)->willReturn($this->fifoQueueUrl);
-        $this->sqs->shouldReceive('sendMessage')->once()->with([
-            'QueueUrl' => $this->fifoQueueUrl,
-            'MessageBody' => $this->mockedPayload,
-            'MessageGroupId' => $this->fifoQueueName,
-            'MessageDeduplicationId' => $this->mockedDeduplicationId,
-        ])->andReturn($this->mockedSendMessageResponseModel);
-        $id = $queue->later($this->mockedDelay, $this->mockedJob, $this->mockedData, $this->fifoQueueName);
-        $this->assertEquals($this->mockedMessageId, $id);
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('SQS FIFO queues do not support per-message delays.');
 
-        Str::createUuidsNormally();
+        $queue->later($this->mockedDelay, $this->mockedJob, $this->mockedData, $this->fifoQueueName);
     }
 
-    public function testDelayedPushProperlyPushesJobObjectOntoSqsFifoQueueWithoutDelay()
+    public function testDelayedPushRejectsPositiveDelayForObjectJobOnSqsFifoQueue(): void
     {
-        Str::createUuidsUsing(fn () => $this->createMockedUuid($this->mockedDeduplicationId));
-
         $job = (new FakeSqsJob)->onGroup($this->mockedMessageGroupId);
 
-        $queue = $this->getMockBuilder(SqsQueue::class)->onlyMethods(['createPayload', 'secondsUntil', 'getQueue'])->setConstructorArgs([$this->sqs, $this->fifoQueueName, $this->account])->getMock();
-        $queue->setContainer($container = m::spy(ContainerContract::class));
-        $queue->expects($this->once())->method('createPayload')->with($job, $this->fifoQueueName, $this->mockedData)->willReturn($this->mockedPayload);
-        $queue->expects($this->never())->method('secondsUntil')->with($this->mockedDelay)->willReturn($this->mockedDelay);
-        $queue->expects($this->once())->method('getQueue')->with($this->fifoQueueName)->willReturn($this->fifoQueueUrl);
-        $this->sqs->shouldReceive('sendMessage')->once()->with([
-            'QueueUrl' => $this->fifoQueueUrl,
-            'MessageBody' => $this->mockedPayload,
-            'MessageGroupId' => $this->mockedMessageGroupId,
-            'MessageDeduplicationId' => $this->mockedDeduplicationId,
-        ])->andReturn($this->mockedSendMessageResponseModel);
-        $id = $queue->later($this->mockedDelay, $job, $this->mockedData, $this->fifoQueueName);
-        $this->assertEquals($this->mockedMessageId, $id);
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['createPayload'])
+            ->setConstructorArgs([$this->sqs, $this->fifoQueueName, $this->account])
+            ->getMock();
+        $queue->setContainer(m::spy(ContainerContract::class));
+        $queue->expects($this->never())->method('createPayload');
+        $this->sqs->shouldNotReceive('sendMessage');
 
-        Str::createUuidsNormally();
+        $this->expectException(LogicException::class);
+
+        $queue->later($this->mockedDelay, $job, $this->mockedData, $this->fifoQueueName);
     }
 
-    public function testDelayedPendingDispatchProperlyPushesJobObjectOntoSqsFifoQueueWithoutDelay()
+    public function testDelayedPendingDispatchRejectsPositiveDelayOnSqsFifoQueue(): void
     {
-        Str::createUuidsUsing(fn () => $this->createMockedUuid($this->mockedDeduplicationId));
-
         $pendingDispatch = FakeSqsJob::dispatch()->onGroup($this->mockedMessageGroupId)->delay($this->mockedDelay);
 
-        $queue = $this->getMockBuilder(SqsQueue::class)->onlyMethods(['createPayload', 'getQueue'])->setConstructorArgs([$this->sqs, $this->fifoQueueName, $this->account])->getMock();
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['createPayload'])
+            ->setConstructorArgs([$this->sqs, $this->fifoQueueName, $this->account])
+            ->getMock();
         $queue->setContainer($container = $this->createSpyContainer());
-        $queue->expects($this->once())->method('createPayload')->with($pendingDispatch->getJob(), $this->fifoQueueName, '')->willReturn($this->mockedPayload);
-        $queue->expects($this->once())->method('getQueue')->with(null)->willReturn($this->fifoQueueUrl);
-        $this->sqs->shouldReceive('sendMessage')->once()->with([
-            'QueueUrl' => $this->fifoQueueUrl,
-            'MessageBody' => $this->mockedPayload,
-            'MessageGroupId' => $this->mockedMessageGroupId,
-            'MessageDeduplicationId' => $this->mockedDeduplicationId,
-        ])->andReturn($this->mockedSendMessageResponseModel);
+        $queue->expects($this->never())->method('createPayload');
+        $this->sqs->shouldNotReceive('sendMessage');
 
         $dispatcher = new BusDispatcher($container, fn () => $queue);
         $container->shouldReceive('make')
@@ -875,12 +862,51 @@ class QueueSqsQueueTest extends TestCase
             ->andReturn($dispatcher);
         Container::setInstance($container);
 
-        // Destroy object to trigger dispatch.
-        unset($pendingDispatch);
+        $this->expectException(LogicException::class);
 
-        $container->shouldHaveReceived('bound')->with('events')->twice();
+        unset($pendingDispatch);
+    }
+
+    #[DataProvider('nonPositiveFifoDelays')]
+    public function testNonPositiveAndElapsedDelaysRemainImmediateOnSqsFifoQueue(int|string $delay): void
+    {
+        $delay = $delay === 'past' ? CarbonImmutable::now()->subSecond() : $delay;
+        Str::createUuidsUsing(fn () => $this->createMockedUuid($this->mockedDeduplicationId));
+
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['createPayload', 'getQueue'])
+            ->setConstructorArgs([$this->sqs, $this->fifoQueueName, $this->account])
+            ->getMock();
+        $queue->setContainer(m::spy(ContainerContract::class));
+        $queue->expects($this->once())->method('createPayload')->with(
+            $this->mockedJob,
+            $this->fifoQueueName,
+            $this->mockedData,
+            $delay,
+        )->willReturn($this->mockedPayload);
+        $queue->expects($this->once())->method('getQueue')->with($this->fifoQueueName)->willReturn($this->fifoQueueUrl);
+        $this->sqs->shouldReceive('sendMessage')->once()->with([
+            'QueueUrl' => $this->fifoQueueUrl,
+            'MessageBody' => $this->mockedPayload,
+            'MessageGroupId' => $this->fifoQueueName,
+            'MessageDeduplicationId' => $this->mockedDeduplicationId,
+        ])->andReturn($this->mockedSendMessageResponseModel);
+
+        $this->assertSame(
+            $this->mockedMessageId,
+            $queue->later($delay, $this->mockedJob, $this->mockedData, $this->fifoQueueName),
+        );
 
         Str::createUuidsNormally();
+    }
+
+    public static function nonPositiveFifoDelays(): array
+    {
+        return [
+            'zero' => [0],
+            'negative' => [-1],
+            'past date' => ['past'],
+        ];
     }
 
     public function testPushRawStoresOverflowPayloadAndSendsItsPointer(): void
@@ -1039,9 +1065,11 @@ class QueueSqsQueueTest extends TestCase
     public function testPushRawFailsBeforeSendingWhenOverflowStorageReturnsFalse(): void
     {
         $payload = json_encode(['uuid' => 'failed-write'], JSON_THROW_ON_ERROR);
+        $path = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'failed-write';
 
         $store = m::mock(CacheRepository::class);
         $store->shouldReceive('put')->once()->andReturnFalse();
+        $store->shouldReceive('forget')->once()->with($path)->andReturnTrue();
 
         $cache = m::mock(CacheFactory::class);
         $cache->shouldReceive('store')->once()->with('database')->andReturn($store);
@@ -1063,6 +1091,40 @@ class QueueSqsQueueTest extends TestCase
         $this->expectExceptionMessage('Unable to store the SQS overflow payload');
 
         $queue->pushRaw($payload, $this->queueName);
+    }
+
+    public function testPushRawPreservesCancellationAndCleansTheAttemptedOverflowPayload(): void
+    {
+        $payload = json_encode(['uuid' => 'canceled-write'], JSON_THROW_ON_ERROR);
+        $path = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'canceled-write';
+        $cancellation = new CanceledException;
+
+        $store = m::mock(CacheRepository::class);
+        $store->shouldReceive('put')->once()->with($path, $payload)->andThrow($cancellation);
+        $store->shouldReceive('forget')->once()->with($path)->andReturnTrue();
+
+        $cache = m::mock(CacheFactory::class);
+        $cache->shouldReceive('store')->once()->with('database')->andReturn($store);
+
+        $container = m::mock(ContainerContract::class);
+        $container->shouldReceive('make')->once()->with('cache')->andReturn($cache);
+
+        $queue = new SqsQueue(
+            $this->sqs,
+            $this->queueName,
+            $this->prefix,
+            overflowStorage: ['enabled' => true, 'always' => true, 'store' => 'database'],
+        );
+        $queue->setContainer($container);
+
+        $this->sqs->shouldNotReceive('sendMessage');
+
+        try {
+            $queue->pushRaw($payload, $this->queueName);
+            $this->fail('Expected the overflow write cancellation to be rethrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testPushRawRetainsOverflowPayloadWhenSqsDeliveryIsAmbiguous(): void
@@ -1093,6 +1155,39 @@ class QueueSqsQueueTest extends TestCase
         $this->expectExceptionMessage('transport failed');
 
         $queue->pushRaw($payload, $this->queueName);
+    }
+
+    public function testPushRawRetainsOverflowPayloadWhenSqsDeliveryIsCanceled(): void
+    {
+        $payload = json_encode(['uuid' => 'canceled-delivery'], JSON_THROW_ON_ERROR);
+        $cancellation = new CanceledException;
+
+        $store = m::mock(CacheRepository::class);
+        $store->shouldReceive('put')->once()->andReturnTrue();
+        $store->shouldNotReceive('forget');
+
+        $cache = m::mock(CacheFactory::class);
+        $cache->shouldReceive('store')->once()->with('database')->andReturn($store);
+
+        $container = m::mock(ContainerContract::class);
+        $container->shouldReceive('make')->once()->with('cache')->andReturn($cache);
+
+        $queue = new SqsQueue(
+            $this->sqs,
+            $this->queueName,
+            $this->prefix,
+            overflowStorage: ['enabled' => true, 'always' => true, 'store' => 'database'],
+        );
+        $queue->setContainer($container);
+
+        $this->sqs->shouldReceive('sendMessage')->once()->andThrow($cancellation);
+
+        try {
+            $queue->pushRaw($payload, $this->queueName);
+            $this->fail('Expected the SQS delivery cancellation to be rethrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testClearFlushesTheConfiguredOverflowStore(): void
@@ -1201,6 +1296,68 @@ class QueueSqsQueueTest extends TestCase
         ];
     }
 
+    public function testBulkHonorsDelayAttributeOnStandardQueueWithoutExtraPreflightConversion(): void
+    {
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['secondsUntil'])
+            ->setConstructorArgs([$this->sqs, $this->queueName, $this->prefix])
+            ->getMock();
+        $queue->setContainer(new Container);
+        $queue->expects($this->exactly(2))->method('secondsUntil')->with(9)->willReturn(9);
+
+        $this->sqs->shouldReceive('sendMessageBatch')->once()->withArgs(
+            function (array $arguments): bool {
+                $entry = $arguments['Entries'][0];
+                $payload = json_decode($entry['MessageBody'], true, flags: JSON_THROW_ON_ERROR);
+
+                $this->assertSame(9, $entry['DelaySeconds']);
+                $this->assertSame(9, $payload['delay']);
+
+                return true;
+            }
+        )->andReturn(new Result([
+            'Successful' => [['Id' => '0', 'MessageId' => 'm1']],
+            'Failed' => [],
+        ]));
+
+        $queue->bulk([new SqsBulkAttributeDelayJob], 'data', $this->queueName);
+    }
+
+    public function testBulkRejectsDelayAttributeOnFifoBeforePayloadCreation(): void
+    {
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['createPayload'])
+            ->setConstructorArgs([$this->sqs, $this->fifoQueueName, $this->prefix])
+            ->getMock();
+        $queue->setContainer(new Container);
+        $queue->expects($this->never())->method('createPayload');
+        $this->sqs->shouldNotReceive('sendMessageBatch');
+
+        $this->expectException(LogicException::class);
+
+        $queue->bulk([new SqsBulkAttributeDelayJob], 'data', $this->fifoQueueName);
+    }
+
+    public function testMixedBulkRejectsPositiveFifoDelayBeforeTransactionLookupOrPayloadCreation(): void
+    {
+        $immediate = new FakeSqsJob;
+        $afterCommit = (new FakeSqsJob)->afterCommit()->delay(10);
+        $container = m::mock(ContainerContract::class);
+        $container->shouldNotReceive('has');
+
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['createPayload'])
+            ->setConstructorArgs([$this->sqs, $this->fifoQueueName, $this->prefix])
+            ->getMock();
+        $queue->setContainer($container);
+        $queue->expects($this->never())->method('createPayload');
+        $this->sqs->shouldNotReceive('sendMessageBatch');
+
+        $this->expectException(LogicException::class);
+
+        $queue->bulk([$immediate, $afterCommit], 'data', $this->fifoQueueName);
+    }
+
     public function testBulkSendsAllJobsInOneBatchAndPreservesOrder(): void
     {
         $queue = $this->getMockBuilder(SqsQueue::class)
@@ -1284,22 +1441,62 @@ class QueueSqsQueueTest extends TestCase
         $this->assertSame([1, 1], $batchSizes);
     }
 
-    public function testBulkUsesTheOriginalPayloadForFifoOptionsBeforeOverflow(): void
+    public function testBulkFinalizesPayloadsBeforeSizeBasedChunking(): void
+    {
+        $dispatcher = new ConcreteEventDispatcher($container = new Container);
+        $container->instance('events', $dispatcher);
+        $dispatcher->listen(JobPayloadFinalizing::class, static function (JobPayloadFinalizing $event): void {
+            $payload = $event->payload();
+            $payload['padding'] = str_repeat('x', (int) (SqsQueue::MAX_SQS_PAYLOAD_SIZE * 0.6));
+            $event->payload = json_encode($payload, JSON_THROW_ON_ERROR);
+        });
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['getQueue', 'createPayload'])
+            ->setConstructorArgs([$this->sqs, $this->queueName, $this->prefix])
+            ->getMock();
+        $queue->setContainer($container);
+        $queue->setConnectionName('sqs');
+        $queue->expects($this->once())->method('getQueue')->willReturn($this->queueUrl);
+        $queue->method('createPayload')->willReturnCallback(
+            static fn (string $job): string => json_encode(['uuid' => $job], JSON_THROW_ON_ERROR),
+        );
+        $batchSizes = [];
+        $this->sqs->shouldReceive('sendMessageBatch')->twice()->withArgs(
+            function (array $arguments) use (&$batchSizes): bool {
+                $batchSizes[] = count($arguments['Entries']);
+
+                return true;
+            },
+        )->andReturn(new Result(['Successful' => [], 'Failed' => []]));
+
+        $queue->bulk(['a', 'b'], 'data', $this->queueName);
+
+        $this->assertSame([1, 1], $batchSizes);
+    }
+
+    public function testBulkUsesTheFinalPayloadForFifoOptionsAndOverflowStorage(): void
     {
         $job = (new FakeSqsJob)->onGroup('0')->withDeduplicator(
             static fn (string $payload): string => 'dedupe-' . $payload
         );
         $payload = json_encode(['uuid' => 'fifo-overflow'], JSON_THROW_ON_ERROR);
+        $finalPayload = json_encode(['uuid' => 'fifo-overflow', 'telemetry' => 'final'], JSON_THROW_ON_ERROR);
         $path = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'fifo-overflow';
 
         $store = m::mock(CacheRepository::class);
-        $store->shouldReceive('put')->once()->with($path, $payload)->andReturnTrue();
+        $store->shouldReceive('put')->once()->with($path, $finalPayload)->andReturnTrue();
 
         $cache = m::mock(CacheFactory::class);
         $cache->shouldReceive('store')->once()->with('database')->andReturn($store);
 
-        $container = new Container;
+        $dispatcher = new ConcreteEventDispatcher($container = new Container);
         $container->instance('cache', $cache);
+        $container->instance('events', $dispatcher);
+        $dispatcher->listen(JobPayloadFinalizing::class, static function (JobPayloadFinalizing $event): void {
+            $payload = $event->payload();
+            $payload['telemetry'] = 'final';
+            $event->payload = json_encode($payload, JSON_THROW_ON_ERROR);
+        });
 
         $queue = $this->getMockBuilder(SqsQueue::class)
             ->onlyMethods(['getQueue', 'createPayload'])
@@ -1313,6 +1510,7 @@ class QueueSqsQueueTest extends TestCase
             ])
             ->getMock();
         $queue->setContainer($container);
+        $queue->setConnectionName('sqs');
         $queue->expects($this->once())->method('getQueue')->willReturn($this->fifoQueueUrl);
         $queue->expects($this->once())->method('createPayload')->willReturn($payload);
 
@@ -1328,7 +1526,7 @@ class QueueSqsQueueTest extends TestCase
         $queue->bulk([$job], 'data', $this->fifoQueueName);
 
         $this->assertSame('0', $captured['Entries'][0]['MessageGroupId']);
-        $this->assertSame('dedupe-' . $payload, $captured['Entries'][0]['MessageDeduplicationId']);
+        $this->assertSame('dedupe-' . $finalPayload, $captured['Entries'][0]['MessageDeduplicationId']);
         $this->assertSame(
             json_encode(['@pointer' => $path], JSON_THROW_ON_ERROR),
             $captured['Entries'][0]['MessageBody']
@@ -1346,15 +1544,38 @@ class QueueSqsQueueTest extends TestCase
         );
     }
 
+    #[DataProvider('defaultFifoQueueNames')]
+    public function testQueueableOptionsRejectsPositiveDelayForEffectiveFifoQueue(?string $queueName): void
+    {
+        $queue = new SqsQueue($this->sqs, $this->fifoQueueName, $this->prefix);
+
+        $this->expectException(LogicException::class);
+
+        $queue->getQueueableOptions($this->mockedJob, $queueName, 'payload', 10);
+    }
+
+    public static function defaultFifoQueueNames(): array
+    {
+        return [
+            'null uses default' => [null],
+            'empty uses default' => [''],
+        ];
+    }
+
     public function testBulkRaisesExactEventsForSuccessfulAndRejectedEntries(): void
     {
         $events = m::mock(EventDispatcher::class);
+        $events->shouldReceive('hasListeners')->with(JobPayloadFinalizing::class)->andReturnTrue();
         $events->shouldReceive('hasListeners')->with(JobQueueing::class)->andReturnTrue();
         $events->shouldReceive('hasListeners')->with(JobQueued::class)->andReturnTrue();
         $events->shouldReceive('hasListeners')->with(JobQueueingFailed::class)->andReturnTrue();
         $dispatched = [];
         $events->shouldReceive('dispatch')->andReturnUsing(
             function (object $event) use (&$dispatched): object {
+                if ($event instanceof JobPayloadFinalizing) {
+                    $event->payload .= '-final';
+                }
+
                 $dispatched[] = $event;
 
                 return $event;
@@ -1373,7 +1594,9 @@ class QueueSqsQueueTest extends TestCase
         $queue->expects($this->once())->method('getQueue')->willReturn($this->queueUrl);
         $queue->expects($this->exactly(2))->method('createPayload')->willReturnOnConsecutiveCalls('p1', 'p2');
 
-        $this->sqs->shouldReceive('sendMessageBatch')->once()->andReturn(new Result([
+        $this->sqs->shouldReceive('sendMessageBatch')->once()->withArgs(
+            static fn (array $arguments): bool => array_column($arguments['Entries'], 'MessageBody') === ['p1-final', 'p2-final'],
+        )->andReturn(new Result([
             'Successful' => [['Id' => '0', 'MessageId' => 'successful-id']],
             'Failed' => [['Id' => '1', 'Code' => 'InternalError', 'Message' => 'failed']],
         ]));
@@ -1396,9 +1619,9 @@ class QueueSqsQueueTest extends TestCase
         $this->assertCount(1, $queued);
         $this->assertCount(1, $failed);
         $this->assertSame('successful-id', $queued[0]->id);
-        $this->assertSame('p1', $queued[0]->payload);
+        $this->assertSame('p1-final', $queued[0]->payload);
         $this->assertSame('b', $failed[0]->job);
-        $this->assertSame('p2', $failed[0]->payload);
+        $this->assertSame('p2-final', $failed[0]->payload);
         $this->assertSame($exception, $failed[0]->exception);
     }
 
@@ -1451,22 +1674,94 @@ class QueueSqsQueueTest extends TestCase
 
     public function testBulkCleansEarlierWritesWhenAWriteFailsBeforeSending(): void
     {
-        $firstPayload = json_encode(['uuid' => 'first'], JSON_THROW_ON_ERROR);
-        $secondPayload = json_encode(['uuid' => 'second'], JSON_THROW_ON_ERROR);
-        $firstPath = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'first';
-        $secondPath = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'second';
+        $firstPayload = json_encode(['uuid' => 'job-1'], JSON_THROW_ON_ERROR);
+        $secondPayload = json_encode(['uuid' => 'job-2'], JSON_THROW_ON_ERROR);
+        $firstPath = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'job-1';
+        $secondPath = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'job-2';
 
         $store = m::mock(CacheRepository::class);
         $store->shouldReceive('put')->once()->with($firstPath, $firstPayload)->ordered()->andReturnTrue();
         $store->shouldReceive('put')->once()->with($secondPath, $secondPayload)->ordered()->andReturnFalse();
-        $store->shouldReceive('forget')->once()->with($firstPath)->andReturnTrue();
+        $store->shouldReceive('forget')->once()->with($firstPath)->ordered()->andReturnTrue();
+        $store->shouldReceive('forget')->once()->with($secondPath)->ordered()->andReturnTrue();
 
         $cache = m::mock(CacheFactory::class);
         $cache->shouldReceive('store')->once()->with('database')->andReturn($store);
 
         $events = m::mock(EventDispatcher::class);
+        $events->shouldReceive('hasListeners')->with(JobPayloadFinalizing::class)->andReturnFalse();
         $events->shouldReceive('hasListeners')->with(JobQueueing::class)->andReturnTrue();
         $events->shouldReceive('hasListeners')->with(JobQueueingFailed::class)->andReturnTrue();
+        $dispatched = [];
+        $events->shouldReceive('dispatch')->andReturnUsing(
+            static function (object $event) use (&$dispatched): object {
+                $dispatched[] = $event;
+
+                return $event;
+            }
+        );
+
+        $container = new Container;
+        $container->instance('cache', $cache);
+        $container->instance('events', $events);
+
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['getQueue', 'createPayload'])
+            ->setConstructorArgs([
+                $this->sqs,
+                $this->queueName,
+                $this->prefix,
+                '',
+                false,
+                ['enabled' => true, 'always' => true, 'store' => 'database'],
+            ])
+            ->getMock();
+        $queue->setContainer($container);
+        $queue->setConnectionName('sqs');
+        $queue->expects($this->once())->method('getQueue')->willReturn($this->queueUrl);
+        $queue->method('createPayload')->willReturnCallback(
+            static fn ($job): string => json_encode(['uuid' => "job-{$job}"], JSON_THROW_ON_ERROR),
+        );
+
+        $this->sqs->shouldNotReceive('sendMessageBatch');
+
+        try {
+            $queue->bulk(array_map('strval', range(1, 11)), 'data', $this->queueName);
+            $this->fail('Expected overflow storage to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('Unable to store the SQS overflow payload', $exception->getMessage());
+        }
+
+        $queueing = array_values(array_filter($dispatched, static fn ($event) => $event instanceof JobQueueing));
+        $failed = array_values(array_filter($dispatched, static fn ($event) => $event instanceof JobQueueingFailed));
+
+        $this->assertSame(array_map('strval', range(1, 10)), array_column($queueing, 'job'));
+        $this->assertSame(array_map('strval', range(1, 11)), array_column($failed, 'job'));
+        $this->assertSame($failed[0]->exception, $failed[10]->exception);
+    }
+
+    public function testBulkPreservesWriteCancellationWhileDrainingAttemptedPointers(): void
+    {
+        $firstPayload = json_encode(['uuid' => 'first'], JSON_THROW_ON_ERROR);
+        $secondPayload = json_encode(['uuid' => 'second'], JSON_THROW_ON_ERROR);
+        $firstPath = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'first';
+        $secondPath = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'second';
+        $cancellation = new CanceledException('write canceled');
+        $cleanupCancellation = new CanceledException('cleanup canceled');
+
+        $store = m::mock(CacheRepository::class);
+        $store->shouldReceive('put')->once()->with($firstPath, $firstPayload)->ordered()->andReturnTrue();
+        $store->shouldReceive('put')->once()->with($secondPath, $secondPayload)->ordered()->andThrow($cancellation);
+        $store->shouldReceive('forget')->once()->with($firstPath)->ordered()->andThrow($cleanupCancellation);
+        $store->shouldReceive('forget')->once()->with($secondPath)->ordered()->andReturnTrue();
+
+        $cache = m::mock(CacheFactory::class);
+        $cache->shouldReceive('store')->once()->with('database')->andReturn($store);
+
+        $events = m::mock(EventDispatcher::class);
+        $events->shouldReceive('hasListeners')->with(JobPayloadFinalizing::class)->andReturnFalse();
+        $events->shouldReceive('hasListeners')->with(JobQueueing::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->with(JobQueueingFailed::class)->never();
         $dispatched = [];
         $events->shouldReceive('dispatch')->andReturnUsing(
             static function (object $event) use (&$dispatched): object {
@@ -1503,17 +1798,221 @@ class QueueSqsQueueTest extends TestCase
 
         try {
             $queue->bulk(['a', 'b'], 'data', $this->queueName);
-            $this->fail('Expected overflow storage to fail.');
-        } catch (RuntimeException $exception) {
-            $this->assertStringContainsString('Unable to store the SQS overflow payload', $exception->getMessage());
+            $this->fail('Expected the overflow write cancellation to be rethrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
         }
 
-        $queueing = array_values(array_filter($dispatched, static fn ($event) => $event instanceof JobQueueing));
-        $failed = array_values(array_filter($dispatched, static fn ($event) => $event instanceof JobQueueingFailed));
+        $this->assertSame(
+            ['a', 'b'],
+            array_column(array_filter($dispatched, static fn ($event) => $event instanceof JobQueueing), 'job'),
+        );
+    }
 
-        $this->assertSame(['a', 'b'], array_column($queueing, 'job'));
-        $this->assertSame(['a', 'b'], array_column($failed, 'job'));
-        $this->assertSame($failed[0]->exception, $failed[1]->exception);
+    public function testBulkCleanupCancellationSupersedesAnOrdinaryWriteFailure(): void
+    {
+        $firstPayload = json_encode(['uuid' => 'first'], JSON_THROW_ON_ERROR);
+        $secondPayload = json_encode(['uuid' => 'second'], JSON_THROW_ON_ERROR);
+        $firstPath = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'first';
+        $secondPath = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'second';
+        $cleanupCancellation = new CanceledException;
+
+        $store = m::mock(CacheRepository::class);
+        $store->shouldReceive('put')->once()->with($firstPath, $firstPayload)->ordered()->andReturnTrue();
+        $store->shouldReceive('put')->once()->with($secondPath, $secondPayload)->ordered()->andReturnFalse();
+        $store->shouldReceive('forget')->once()->with($firstPath)->ordered()->andThrow($cleanupCancellation);
+        $store->shouldReceive('forget')->once()->with($secondPath)->ordered()->andReturnTrue();
+
+        $cache = m::mock(CacheFactory::class);
+        $cache->shouldReceive('store')->once()->with('database')->andReturn($store);
+
+        $container = new Container;
+        $container->instance('cache', $cache);
+
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['getQueue', 'createPayload'])
+            ->setConstructorArgs([
+                $this->sqs,
+                $this->queueName,
+                $this->prefix,
+                '',
+                false,
+                ['enabled' => true, 'always' => true, 'store' => 'database'],
+            ])
+            ->getMock();
+        $queue->setContainer($container);
+        $queue->expects($this->once())->method('getQueue')->willReturn($this->queueUrl);
+        $queue->expects($this->exactly(2))->method('createPayload')->willReturnOnConsecutiveCalls(
+            $firstPayload,
+            $secondPayload,
+        );
+
+        $this->sqs->shouldNotReceive('sendMessageBatch');
+
+        try {
+            $queue->bulk(['a', 'b'], 'data', $this->queueName);
+            $this->fail('Expected cleanup cancellation to supersede the write failure.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cleanupCancellation, $exception);
+        }
+    }
+
+    public function testBulkRetainsPointersAndSuppressesFailureEventsWhenSqsDeliveryIsCanceled(): void
+    {
+        $payload = json_encode(['uuid' => 'canceled-batch'], JSON_THROW_ON_ERROR);
+        $path = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'canceled-batch';
+        $cancellation = new CanceledException;
+
+        $store = m::mock(CacheRepository::class);
+        $store->shouldReceive('put')->once()->with($path, $payload)->andReturnTrue();
+        $store->shouldNotReceive('forget');
+
+        $cache = m::mock(CacheFactory::class);
+        $cache->shouldReceive('store')->once()->with('database')->andReturn($store);
+
+        $events = m::mock(EventDispatcher::class);
+        $events->shouldReceive('hasListeners')->with(JobPayloadFinalizing::class)->andReturnFalse();
+        $events->shouldReceive('hasListeners')->with(JobQueueing::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->with(JobQueueingFailed::class)->never();
+        $dispatched = [];
+        $events->shouldReceive('dispatch')->andReturnUsing(
+            static function (object $event) use (&$dispatched): object {
+                $dispatched[] = $event;
+
+                return $event;
+            }
+        );
+
+        $container = new Container;
+        $container->instance('cache', $cache);
+        $container->instance('events', $events);
+
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['getQueue', 'createPayload'])
+            ->setConstructorArgs([
+                $this->sqs,
+                $this->queueName,
+                $this->prefix,
+                '',
+                false,
+                ['enabled' => true, 'always' => true, 'store' => 'database'],
+            ])
+            ->getMock();
+        $queue->setContainer($container);
+        $queue->setConnectionName('sqs');
+        $queue->expects($this->once())->method('getQueue')->willReturn($this->queueUrl);
+        $queue->expects($this->once())->method('createPayload')->willReturn($payload);
+
+        $this->sqs->shouldReceive('sendMessageBatch')->once()->andThrow($cancellation);
+
+        try {
+            $queue->bulk(['a'], 'data', $this->queueName);
+            $this->fail('Expected the SQS delivery cancellation to be rethrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertCount(1, array_filter($dispatched, static fn ($event) => $event instanceof JobQueueing));
+    }
+
+    public function testBulkCleansOnlyTheCurrentChunkWhenItsOverflowWriteIsCanceled(): void
+    {
+        $cancellation = new CanceledException;
+        $currentPath = SqsQueue::EXTENDED_PAYLOAD_CACHE_PREFIX . 'job-11';
+        $writes = 0;
+
+        $store = m::mock(CacheRepository::class);
+        $store->shouldReceive('put')->times(11)->andReturnUsing(
+            function () use (&$writes, $cancellation): bool {
+                if (++$writes === 11) {
+                    throw $cancellation;
+                }
+
+                return true;
+            }
+        );
+        $store->shouldReceive('forget')->once()->with($currentPath)->andReturnTrue();
+
+        $cache = m::mock(CacheFactory::class);
+        $cache->shouldReceive('store')->once()->with('database')->andReturn($store);
+
+        $container = new Container;
+        $container->instance('cache', $cache);
+
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['getQueue', 'createPayload'])
+            ->setConstructorArgs([
+                $this->sqs,
+                $this->queueName,
+                $this->prefix,
+                '',
+                false,
+                ['enabled' => true, 'always' => true, 'store' => 'database'],
+            ])
+            ->getMock();
+        $queue->setContainer($container);
+        $queue->expects($this->once())->method('getQueue')->willReturn($this->queueUrl);
+        $queue->method('createPayload')->willReturnCallback(
+            static fn ($job): string => json_encode(['uuid' => "job-{$job}"], JSON_THROW_ON_ERROR)
+        );
+
+        $this->sqs->shouldReceive('sendMessageBatch')->once()->andReturn(
+            new Result(['Successful' => [], 'Failed' => []])
+        );
+
+        try {
+            $queue->bulk(array_map('strval', range(1, 11)), 'data', $this->queueName);
+            $this->fail('Expected the second chunk write cancellation to be rethrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testBulkPreservesQueueingListenerCancellationBeforeWritingOverflowPayloads(): void
+    {
+        $payload = json_encode(['uuid' => 'listener-canceled'], JSON_THROW_ON_ERROR);
+        $cancellation = new CanceledException;
+
+        $store = m::mock(CacheRepository::class);
+        $store->shouldNotReceive('put');
+        $store->shouldNotReceive('forget');
+
+        $cache = m::mock(CacheFactory::class);
+        $cache->shouldReceive('store')->once()->with('database')->andReturn($store);
+
+        $events = m::mock(EventDispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(JobPayloadFinalizing::class)->andReturnFalse();
+        $events->shouldReceive('hasListeners')->once()->with(JobQueueing::class)->andReturnTrue();
+        $events->shouldReceive('dispatch')->once()->with(m::type(JobQueueing::class))->andThrow($cancellation);
+
+        $container = new Container;
+        $container->instance('cache', $cache);
+        $container->instance('events', $events);
+
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['getQueue', 'createPayload'])
+            ->setConstructorArgs([
+                $this->sqs,
+                $this->queueName,
+                $this->prefix,
+                '',
+                false,
+                ['enabled' => true, 'always' => true, 'store' => 'database'],
+            ])
+            ->getMock();
+        $queue->setContainer($container);
+        $queue->setConnectionName('sqs');
+        $queue->expects($this->once())->method('getQueue')->willReturn($this->queueUrl);
+        $queue->expects($this->once())->method('createPayload')->willReturn($payload);
+
+        $this->sqs->shouldNotReceive('sendMessageBatch');
+
+        try {
+            $queue->bulk(['a'], 'data', $this->queueName);
+            $this->fail('Expected the queueing listener cancellation to be rethrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testBulkRetainsAmbiguousChunkPointersAndNeverWritesLaterChunks(): void
@@ -1526,6 +2025,7 @@ class QueueSqsQueueTest extends TestCase
         $cache->shouldReceive('store')->once()->with('database')->andReturn($store);
 
         $events = m::mock(EventDispatcher::class);
+        $events->shouldReceive('hasListeners')->with(JobPayloadFinalizing::class)->andReturnFalse();
         $events->shouldReceive('hasListeners')->with(JobQueueing::class)->andReturnTrue();
         $events->shouldReceive('hasListeners')->with(JobQueueingFailed::class)->andReturnTrue();
         $dispatched = [];
@@ -1572,8 +2072,8 @@ class QueueSqsQueueTest extends TestCase
         $failed = array_values(array_filter($dispatched, static fn ($event) => $event instanceof JobQueueingFailed));
 
         $this->assertSame(array_map('strval', range(1, 10)), array_column($queueing, 'job'));
-        $this->assertSame(array_map('strval', range(1, 10)), array_column($failed, 'job'));
-        $this->assertSame($failed[0]->exception, $failed[9]->exception);
+        $this->assertSame(array_map('strval', range(1, 11)), array_column($failed, 'job'));
+        $this->assertSame($failed[0]->exception, $failed[10]->exception);
     }
 
     public function testBulkDefersOnePreparedBatchUntilTheTransactionCommits(): void
@@ -1621,4 +2121,9 @@ class QueueSqsQueueTest extends TestCase
 
         $this->assertNull($queue->bulk([], 'data', $this->queueName));
     }
+}
+
+#[Delay(9)]
+class SqsBulkAttributeDelayJob
+{
 }

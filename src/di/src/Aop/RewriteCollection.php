@@ -6,9 +6,9 @@ namespace Hypervel\Di\Aop;
 
 class RewriteCollection
 {
-    public const CLASS_LEVEL = 1;
+    public const int CLASS_LEVEL = 1;
 
-    public const METHOD_LEVEL = 2;
+    public const int METHOD_LEVEL = 2;
 
     /**
      * Which methods can be rewritten.

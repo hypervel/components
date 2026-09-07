@@ -24,7 +24,10 @@ class SnapshotCommandTest extends TestCase
     public function testDefaultSnapshotLockLeavesAThirtySecondSafetyMargin(): void
     {
         $lock = m::mock(Lock::class);
-        $lock->shouldReceive('get')->once()->with('metrics:snapshot', 270)->andReturnFalse();
+        $lock->shouldReceive('get')->once()->with(
+            'metrics:snapshot',
+            270,
+        )->andReturnFalse();
 
         $this->app->make(SnapshotCommand::class)->handle(
             $lock,
@@ -32,14 +35,17 @@ class SnapshotCommandTest extends TestCase
         );
     }
 
-    public function testSnapshotLockDefaultSurvivesReplaceWholeMetricsConfiguration(): void
+    public function testSnapshotLockUsesItsDefaultWhenMetricsConfigurationIsReplaced(): void
     {
         config(['horizon.metrics' => [
             'trim_snapshots' => ['job' => 12, 'queue' => 12],
         ]]);
 
         $lock = m::mock(Lock::class);
-        $lock->shouldReceive('get')->once()->with('metrics:snapshot', 270)->andReturnFalse();
+        $lock->shouldReceive('get')->once()->with(
+            'metrics:snapshot',
+            270,
+        )->andReturnFalse();
 
         $this->app->make(SnapshotCommand::class)->handle(
             $lock,

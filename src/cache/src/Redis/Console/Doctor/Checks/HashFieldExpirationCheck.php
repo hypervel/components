@@ -20,17 +20,26 @@ final class HashFieldExpirationCheck implements EnvironmentCheckInterface
 {
     private bool $available = false;
 
+    /**
+     * Create a new hash-field expiration check instance.
+     */
     public function __construct(
         private readonly RedisConnection $redis,
         private readonly string $taggingMode,
     ) {
     }
 
+    /**
+     * Get the human-readable name of this check.
+     */
     public function name(): string
     {
         return 'Hash Field Expiration Commands';
     }
 
+    /**
+     * Run the check and return results.
+     */
     public function run(): CheckResult
     {
         $result = new CheckResult;
@@ -63,6 +72,9 @@ final class HashFieldExpirationCheck implements EnvironmentCheckInterface
         return $result;
     }
 
+    /**
+     * Get details about how to fix a failed check.
+     */
     public function getFixInstructions(): ?string
     {
         if ($this->taggingMode === 'all') {

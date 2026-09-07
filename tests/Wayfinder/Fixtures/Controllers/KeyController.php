@@ -6,11 +6,15 @@ namespace Hypervel\Tests\Wayfinder\Fixtures\Controllers;
 
 class KeyController
 {
-    public function show()
+    public function show(): void
     {
     }
 
-    public function edit()
+    public function edit(): void
+    {
+    }
+
+    public function external(): void
     {
     }
 }

@@ -327,6 +327,26 @@ class TtlHandlingIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertLessThanOrEqual(time() + 31, $scoreAfter);
     }
 
+    public function testAllModeFlushStaleProcessesTagsInDifferentClusterSlots(): void
+    {
+        $this->setTagMode(TagMode::All);
+        $firstTag = '{stale-a}';
+        $secondTag = '{stale-b}';
+        $firstTagKey = $this->allModeTagKey($firstTag);
+        $secondTagKey = $this->allModeTagKey($secondTag);
+        $this->assertRedisKeysUseDifferentClusterSlots($firstTagKey, $secondTagKey);
+
+        $this->redis()->zAdd($firstTagKey, time() - 1, 'expired-a', -1, 'forever-a');
+        $this->redis()->zAdd($secondTagKey, time() - 1, 'expired-b', -1, 'forever-b');
+
+        Cache::tags([$firstTag, $secondTag])->flushStale();
+
+        $this->assertFalse($this->redis()->zScore($firstTagKey, 'expired-a'));
+        $this->assertFalse($this->redis()->zScore($secondTagKey, 'expired-b'));
+        $this->assertSame(-1.0, $this->redis()->zScore($firstTagKey, 'forever-a'));
+        $this->assertSame(-1.0, $this->redis()->zScore($secondTagKey, 'forever-b'));
+    }
+
     public function testAllModeTaggedTouchMissingKeyReturnsFalseWithoutTagEntries(): void
     {
         $this->setTagMode(TagMode::All);

@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Foundation;
 
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\FileBasedMaintenanceMode;
+use Hypervel\Support\Json;
 use Hypervel\Testbench\TestCase;
 use JsonException;
 use Mockery as m;
@@ -20,14 +21,14 @@ class FoundationFileBasedMaintenanceModeTest extends TestCase
         parent::tearDown();
     }
 
-    public function testActiveReturnsFalseWhenFileDoesNotExist()
+    public function testActiveReturnsFalseWhenFileDoesNotExist(): void
     {
         $mode = new FileBasedMaintenanceMode;
 
         $this->assertFalse($mode->active());
     }
 
-    public function testActivateWritesJsonToCorrectPath()
+    public function testActivateWritesJsonToCorrectPath(): void
     {
         $mode = new FileBasedMaintenanceMode;
 
@@ -40,7 +41,7 @@ class FoundationFileBasedMaintenanceModeTest extends TestCase
         $this->assertSame(60, $data['retry']);
     }
 
-    public function testActiveReturnsTrueWhenFileExists()
+    public function testActiveReturnsTrueWhenFileExists(): void
     {
         $mode = new FileBasedMaintenanceMode;
 
@@ -49,7 +50,7 @@ class FoundationFileBasedMaintenanceModeTest extends TestCase
         $this->assertTrue($mode->active());
     }
 
-    public function testDataReturnsDecodedPayload()
+    public function testDataReturnsDecodedPayload(): void
     {
         $mode = new FileBasedMaintenanceMode;
 
@@ -62,7 +63,7 @@ class FoundationFileBasedMaintenanceModeTest extends TestCase
         $this->assertNull($data['retry']);
     }
 
-    public function testDeactivateDeletesFile()
+    public function testDeactivateDeletesFile(): void
     {
         $mode = new FileBasedMaintenanceMode;
 
@@ -74,7 +75,7 @@ class FoundationFileBasedMaintenanceModeTest extends TestCase
         $this->assertFileDoesNotExist(storage_path('framework/down'));
     }
 
-    public function testDeactivateDoesNothingWhenNotActive()
+    public function testDeactivateDoesNothingWhenNotActive(): void
     {
         $mode = new FileBasedMaintenanceMode;
 
@@ -136,6 +137,33 @@ class FoundationFileBasedMaintenanceModeTest extends TestCase
         $this->expectExceptionMessage('The maintenance mode file does not contain a valid payload.');
 
         (new FileBasedMaintenanceMode)->data();
+    }
+
+    public function testPayloadRoundTripsAtTheMaximumSupportedNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 1; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $mode = new FileBasedMaintenanceMode;
+        $mode->activate(['nested' => $value]);
+
+        $this->assertSame(['nested' => $value], $mode->data());
+    }
+
+    public function testActivateRejectsOneLevelOverTheMaximumNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $this->expectException(JsonException::class);
+
+        (new FileBasedMaintenanceMode)->activate(['nested' => $value]);
     }
 
     public function testDeactivateFailsWhenDeleteReturnsFalseAndFileRemains(): void

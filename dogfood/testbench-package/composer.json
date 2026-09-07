@@ -46,7 +46,7 @@
         }
     },
     "scripts": {
-        "test": "testbench package:test --parallel"
+        "test": "env OTEL_SDK_DISABLED=true testbench package:test --parallel"
     },
     "minimum-stability": "dev",
     "prefer-stable": true

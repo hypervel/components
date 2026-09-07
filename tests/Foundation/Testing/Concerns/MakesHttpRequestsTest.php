@@ -11,6 +11,9 @@ use Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests;
 use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
+use Hypervel\HttpServer\Events\RequestHandled;
+use Hypervel\HttpServer\Events\RequestReceived;
+use Hypervel\HttpServer\Events\ResponseSent;
 use Hypervel\Routing\Router;
 use Hypervel\Session\ArraySessionHandler;
 use Hypervel\Session\Store;
@@ -24,15 +27,15 @@ use ReflectionMethod;
 
 class MakesHttpRequestsTest extends TestCase
 {
-    public function testFromSetsHeaderAndSession()
+    public function testFromSetsHeaderAndSession(): void
     {
         $this->from('previous/url');
 
         $this->assertSame('previous/url', $this->defaultHeaders['referer']);
-        $this->assertSame('previous/url', $this->app['session']->previousUrl());
+        $this->assertSame('previous/url', $this->app->make('session')->previousUrl());
     }
 
-    public function testFromRouteSetsHeaderAndSession()
+    public function testFromRouteSetsHeaderAndSession(): void
     {
         $router = $this->app->make(Registrar::class);
 
@@ -41,7 +44,7 @@ class MakesHttpRequestsTest extends TestCase
         $this->fromRoute('previous-url');
 
         $this->assertSame('http://localhost/previous/url', $this->defaultHeaders['referer']);
-        $this->assertSame('http://localhost/previous/url', $this->app['session']->previousUrl());
+        $this->assertSame('http://localhost/previous/url', $this->app->make('session')->previousUrl());
     }
 
     public function testFromRemoveHeader()
@@ -145,6 +148,27 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertSame(
             'fooWithMiddleware',
             $this->app->make(MyMiddleware::class)->handle('foo', $next)
+        );
+    }
+
+    public function testWithMiddlewareRestoresExistingBinding(): void
+    {
+        $next = fn (string $request): string => $request;
+
+        $this->app->bind(
+            BoundMiddleware::class,
+            fn () => new BoundMiddleware('FromBinding')
+        );
+
+        $this->withoutMiddleware(BoundMiddleware::class);
+        $this->assertInstanceOf(FakeMiddleware::class, $this->app->make(BoundMiddleware::class));
+
+        $this->withMiddleware(BoundMiddleware::class);
+
+        $this->assertTrue($this->app->bound(BoundMiddleware::class));
+        $this->assertSame(
+            'fooFromBinding',
+            $this->app->make(BoundMiddleware::class)->handle('foo', $next)
         );
     }
 
@@ -313,6 +337,35 @@ class MakesHttpRequestsTest extends TestCase
         $this->assertSame(['foo' => 'bar'], request()->all());
     }
 
+    public function testCallDispatchesHttpServerLifecycleBeforeTermination(): void
+    {
+        $order = [];
+        $events = $this->app->make('events');
+
+        foreach ([RequestReceived::class, RequestHandled::class, ResponseSent::class] as $eventClass) {
+            $events->listen($eventClass, function (object $event) use (&$order): void {
+                $order[] = $event::class;
+            });
+        }
+
+        TerminatingMiddleware::$callback = function () use (&$order): void {
+            $order[] = 'terminate';
+        };
+
+        $this->app->make(Router::class)
+            ->get('/lifecycle', fn () => 'ok')
+            ->middleware(TerminatingMiddleware::class);
+
+        $this->get('/lifecycle')->assertOk();
+
+        $this->assertSame([
+            RequestReceived::class,
+            RequestHandled::class,
+            ResponseSent::class,
+            'terminate',
+        ], $order);
+    }
+
     public function testCallPropagatesFlashedInputToParentCoroutine()
     {
         $this->app->make(Router::class)
@@ -443,13 +496,17 @@ class MakesHttpRequestsTest extends TestCase
         ]));
 
         $response = TestResponse::fromBaseResponse(new Response);
+        $caughtException = null;
 
         try {
             $response->assertSessionHasNoErrors();
-        } catch (AssertionFailedError $e) {
-            $this->assertStringContainsString('foo is required', $e->getMessage());
-            $this->assertStringContainsString('bar is required', $e->getMessage());
+        } catch (AssertionFailedError $exception) {
+            $caughtException = $exception;
         }
+
+        $this->assertInstanceOf(AssertionFailedError::class, $caughtException);
+        $this->assertStringContainsString('foo is required', $caughtException->getMessage());
+        $this->assertStringContainsString('bar is required', $caughtException->getMessage());
     }
 
     public function testAssertSessionHas()
@@ -607,6 +664,18 @@ class MyMiddleware
     public function handle($request, $next)
     {
         return $next($request . 'WithMiddleware');
+    }
+}
+
+class BoundMiddleware
+{
+    public function __construct(private readonly string $suffix)
+    {
+    }
+
+    public function handle(string $request, callable $next): mixed
+    {
+        return $next($request . $this->suffix);
     }
 }
 

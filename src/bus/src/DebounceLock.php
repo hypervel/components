@@ -9,6 +9,7 @@ use Hypervel\Queue\Attributes\DebounceFor;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
+use Throwable;
 
 class DebounceLock
 {
@@ -31,20 +32,72 @@ class DebounceLock
      */
     public function acquire(mixed $job, ?int $debounceFor = null, ?int $maxWait = null): array
     {
-        $cache = $this->resolveCache($job);
+        [$cache, $key, $ttl, $maxWait] = $this->resolveLockValues($job, $debounceFor, $maxWait);
 
+        return $this->acquireResolvedLock($cache, $key, $ttl, $maxWait);
+    }
+
+    /**
+     * Store and register a debounce owner token for a dispatch operation.
+     *
+     * @return array{owner: string, maxWaitExceeded: bool}
+     */
+    public function acquireForDispatch(object $job, ?int $debounceFor = null, ?int $maxWait = null): array
+    {
+        [$cache, $key, $ttl, $maxWait] = $this->resolveLockValues($job, $debounceFor, $maxWait);
+        $result = $this->acquireResolvedLock($cache, $key, $ttl, $maxWait);
+
+        if (isset(class_uses_recursive($job)[Queueable::class])) {
+            $job->debounceOwner = $result['owner'];
+        }
+
+        DispatchLockContext::registerDebounce($job, $cache, $key, $result['owner']);
+
+        return $result;
+    }
+
+    /**
+     * Resolve the values needed to acquire a debounce lock.
+     *
+     * @return array{Cache, string, int, null|int}
+     */
+    protected function resolveLockValues(mixed $job, ?int $debounceFor, ?int $maxWait): array
+    {
+        $cache = $this->resolveCache($job);
         $ttl = max(($debounceFor ?? $this->getDebounceDelay($job)) * 10, 300);
 
-        $cache->put($key = static::getKey($job), $owner = Str::random(40), $ttl);
+        return [
+            $cache,
+            static::getKey($job),
+            $ttl,
+            $maxWait ?? $this->getMaxDebounceWait($job),
+        ];
+    }
+
+    /**
+     * Store a debounce owner token using resolved values.
+     *
+     * @return array{owner: string, maxWaitExceeded: bool}
+     */
+    protected function acquireResolvedLock(Cache $cache, string $key, int $ttl, ?int $maxWait): array
+    {
+        $cache->put($key, $owner = Str::random(40), $ttl);
+
+        try {
+            $maxWaitExceeded = $this->maxWaitExceeded($cache, $key, $ttl, $maxWait);
+        } catch (Throwable $exception) {
+            try {
+                static::releaseOwned($cache, $key, $owner);
+            } catch (Throwable) {
+                // A cleanup failure must not replace the acquisition failure.
+            }
+
+            throw $exception;
+        }
 
         return [
             'owner' => $owner,
-            'maxWaitExceeded' => $this->maxWaitExceeded(
-                $cache,
-                $key,
-                $ttl,
-                $maxWait ?? $this->getMaxDebounceWait($job)
-            ),
+            'maxWaitExceeded' => $maxWaitExceeded,
         ];
     }
 
@@ -93,16 +146,47 @@ class DebounceLock
      */
     public function release(mixed $job, string $owner = ''): void
     {
-        $key = static::getKey($job);
-
         $cache = $this->resolveCache($job);
 
+        static::releaseOwned($cache, static::getKey($job), $owner);
+    }
+
+    /**
+     * Remove the maximum wait timestamp for the given job.
+     */
+    public function releaseMaxWait(mixed $job): void
+    {
+        $this->resolveCache($job)->forget(static::getKey($job) . ':first_dispatched_at');
+    }
+
+    /**
+     * Release a debounce lock from already-resolved provenance.
+     *
+     * @internal
+     */
+    public static function releaseOwned(Cache $cache, string $key, string $owner = ''): void
+    {
         if ($owner !== '' && $cache->get($key) !== $owner) {
             return;
         }
 
-        $cache->forget($key);
-        $cache->forget($key . ':first_dispatched_at');
+        $exception = null;
+
+        try {
+            $cache->forget($key);
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        }
+
+        try {
+            $cache->forget($key . ':first_dispatched_at');
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
+use Generator;
 use Hypervel\Container\Container;
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Connection;
@@ -12,9 +13,11 @@ use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use LogicException;
 use Mockery as m;
 use PDO;
 use ReflectionProperty;
+use stdClass;
 
 class DatabaseConnectionFactoryTest extends TestCase
 {
@@ -180,6 +183,77 @@ class DatabaseConnectionFactoryTest extends TestCase
         $this->assertArrayNotHasKey('write', $config);
     }
 
+    public function testReadAndWriteConfigsParseTheirNestedUrls(): void
+    {
+        $factory = new FactoryTestConnectionFactory(new Container);
+        $config = [
+            'driver' => 'mysql',
+            'name' => 'mysql',
+            'database' => 'primary_database',
+            'host' => 'primary-host',
+            'username' => 'primary',
+            'password' => '',
+            'prefix' => 'app_',
+            'read' => [
+                'url' => 'mysql://reader:read-secret@read-host/read_database?strict=true',
+            ],
+            'write' => [
+                'url' => 'mysql://writer:write-secret@write-host/write_database?charset=utf8mb4',
+            ],
+        ];
+
+        $readConfig = $factory->readConfig($config);
+        $writeConfig = $factory->writeConfig($config);
+
+        $this->assertSame('read_database', $readConfig['database']);
+        $this->assertSame('read-host', $readConfig['host']);
+        $this->assertSame('reader', $readConfig['username']);
+        $this->assertSame('read-secret', $readConfig['password']);
+        $this->assertTrue($readConfig['strict']);
+        $this->assertSame('write_database', $writeConfig['database']);
+        $this->assertSame('write-host', $writeConfig['host']);
+        $this->assertSame('writer', $writeConfig['username']);
+        $this->assertSame('write-secret', $writeConfig['password']);
+        $this->assertSame('utf8mb4', $writeConfig['charset']);
+
+        foreach ([$readConfig, $writeConfig] as $endpointConfig) {
+            $this->assertSame('mysql', $endpointConfig['name']);
+            $this->assertSame('app_', $endpointConfig['prefix']);
+            $this->assertArrayNotHasKey('url', $endpointConfig);
+            $this->assertArrayNotHasKey('read', $endpointConfig);
+            $this->assertArrayNotHasKey('write', $endpointConfig);
+        }
+    }
+
+    public function testEndpointConfigsPreserveInheritedValuesForPartialOverrides(): void
+    {
+        $factory = new FactoryTestConnectionFactory(new Container);
+        $config = [
+            'driver' => 'mysql',
+            'name' => 'mysql',
+            'database' => 'primary_database',
+            'host' => 'primary-host',
+            'username' => 'primary',
+            'password' => 'secret',
+            'prefix' => 'app_',
+            'read' => ['host' => 'read-host'],
+            'write' => ['host' => 'write-host'],
+        ];
+
+        $readConfig = $factory->readConfig($config);
+        $writeConfig = $factory->writeConfig($config);
+
+        $this->assertSame('read-host', $readConfig['host']);
+        $this->assertSame('write-host', $writeConfig['host']);
+
+        foreach ([$readConfig, $writeConfig] as $endpointConfig) {
+            $this->assertSame('primary_database', $endpointConfig['database']);
+            $this->assertSame('primary', $endpointConfig['username']);
+            $this->assertSame('secret', $endpointConfig['password']);
+            $this->assertSame('app_', $endpointConfig['prefix']);
+        }
+    }
+
     public function testConfigForReadTreatsEmptyReadConfigAsBaseConfigWithReadRole(): void
     {
         $factory = new ConnectionFactory(new Container);
@@ -220,13 +294,13 @@ class DatabaseConnectionFactoryTest extends TestCase
         $this->assertNotInstanceOf(PDO::class, $readPdo->getValue($connection));
     }
 
-    public function testReadWriteConnectionSetsReadPdoConfig()
+    public function testReadWriteConnectionSetsReadConnectionConfig(): void
     {
         $connection = $this->db->getConnection('read_write');
 
-        $readPdoConfig = new ReflectionProperty(get_class($connection), 'readPdoConfig');
+        $readConnectionConfig = new ReflectionProperty(get_class($connection), 'readConnectionConfig');
 
-        $config = $readPdoConfig->getValue($connection);
+        $config = $readConnectionConfig->getValue($connection);
 
         $this->assertNotEmpty($config);
         $this->assertArrayHasKey('database', $config);
@@ -400,5 +474,244 @@ class DatabaseConnectionFactoryTest extends TestCase
         // parseConfig adds prefix and name
         $this->assertArrayHasKey('prefix', $receivedConfig);
         $this->assertSame('my-conn', $receivedConfig['name']);
+    }
+
+    public function testConfigFirstExtensionCreatesNeutralConnectionWithoutResolvingAConnector(): void
+    {
+        $container = m::mock(Container::class);
+        $factory = new ConnectionFactory($container);
+        $receivedConfig = null;
+
+        $factory->extend('http', function (array $config, ?string $name) use (&$receivedConfig): FactoryNonPdoConnection {
+            $receivedConfig = $config;
+
+            return new FactoryNonPdoConnection(
+                $config['database'] ?? '',
+                $config['prefix'],
+                $config,
+            );
+        });
+
+        $result = $factory->make([
+            'driver' => 'http',
+            'endpoint' => 'https://database.test',
+        ], 'analytics');
+
+        $this->assertInstanceOf(FactoryNonPdoConnection::class, $result);
+        $this->assertSame('analytics', $result->getName());
+        $this->assertSame('https://database.test', $result->getConfig('endpoint'));
+        $this->assertSame('analytics', $receivedConfig['name']);
+        $this->assertSame('http', $receivedConfig['driver']);
+        $this->assertSame('https://database.test', $receivedConfig['endpoint']);
+        $this->assertSame('', $receivedConfig['prefix']);
+    }
+
+    public function testConnectionExtensionMustReturnANeutralConnection(): void
+    {
+        $factory = new ConnectionFactory(new Container);
+        $factory->extend('http', static fn (): object => new stdClass);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Database connection extensions must return a Connection instance.');
+
+        $factory->make(['driver' => 'http'], 'analytics');
+    }
+
+    public function testSharedInMemorySqliteUsesTheSamePdoSubclassAndWriteConfigForEveryGeneration(): void
+    {
+        $factory = new ConnectionFactory(new Container);
+        $resolvedConfigs = [];
+        Connection::resolverFor('sqlite', function ($connection, $database, $prefix, $config) use (&$resolvedConfigs) {
+            $resolvedConfigs[] = $config;
+
+            return new FactorySqliteConnection($connection, $database, $prefix, $config);
+        });
+        $config = [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'read' => ['database' => 'ignored.sqlite'],
+            'write' => ['database' => ':memory:'],
+        ];
+
+        try {
+            $initial = $factory->makeSharedInMemorySqliteConnection($config, 'memory');
+            $pdo = $initial->getPdo();
+            $replacement = $factory->makeSqliteFromSharedPdo($pdo, $config, 'memory');
+
+            $this->assertInstanceOf(FactorySqliteConnection::class, $initial);
+            $this->assertInstanceOf(FactorySqliteConnection::class, $replacement);
+            $this->assertSame($pdo, $replacement->getPdo());
+            $this->assertCount(2, $resolvedConfigs);
+            $this->assertSame($resolvedConfigs[0], $resolvedConfigs[1]);
+            $this->assertArrayNotHasKey('read', $resolvedConfigs[0]);
+            $this->assertArrayNotHasKey('write', $resolvedConfigs[0]);
+
+            $initial->refreshFrom($replacement);
+
+            $this->assertSame($pdo, $initial->getPdo());
+        } finally {
+            Connection::flushState();
+        }
+    }
+
+    public function testSharedInMemorySqliteRejectsConfigFirstExtensionsBeforeConnectionCreation(): void
+    {
+        $factory = new ConnectionFactory(new Container);
+        $factory->extend('sqlite', static fn (): FactoryNonPdoConnection => new FactoryNonPdoConnection);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            "Pooled in-memory SQLite connections cannot use config-first extensions. Use Connection::resolverFor('sqlite', ...) to register a PDO connection subclass."
+        );
+
+        $factory->makeSharedInMemorySqliteConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ], 'memory');
+    }
+
+    public function testSharedInMemorySqliteRejectsNameSpecificExtensionsBeforeConnectionCreation(): void
+    {
+        $factory = new ConnectionFactory(new Container);
+        $factory->extend('memory', static fn (): FactoryNonPdoConnection => new FactoryNonPdoConnection);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            "Pooled in-memory SQLite connections cannot use config-first extensions. Use Connection::resolverFor('sqlite', ...) to register a PDO connection subclass."
+        );
+
+        $factory->makeSharedInMemorySqliteConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ], 'memory');
+    }
+
+    public function testSqlitePdoResolverMustReturnAPdoConnection(): void
+    {
+        $factory = new ConnectionFactory(new Container);
+        Connection::resolverFor('sqlite', static fn (): FactoryNonPdoConnection => new FactoryNonPdoConnection);
+
+        try {
+            $this->expectException(InvalidArgumentException::class);
+            $this->expectExceptionMessage('PDO connection resolvers must return a PdoConnection instance.');
+
+            $factory->makeSharedInMemorySqliteConnection([
+                'driver' => 'sqlite',
+                'database' => ':memory:',
+            ], 'memory');
+        } finally {
+            Connection::flushState();
+        }
+    }
+}
+
+class FactorySqliteConnection extends SQLiteConnection
+{
+}
+
+class FactoryTestConnectionFactory extends ConnectionFactory
+{
+    /**
+     * Get the read connection configuration.
+     *
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>
+     */
+    public function readConfig(array $config): array
+    {
+        return $this->getReadConfig($config);
+    }
+
+    /**
+     * Get the write connection configuration.
+     *
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>
+     */
+    public function writeConfig(array $config): array
+    {
+        return $this->getWriteConfig($config);
+    }
+}
+
+class FactoryNonPdoConnection extends Connection
+{
+    protected bool $driverResourcesPresent = true;
+
+    public function select(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): array
+    {
+        return [];
+    }
+
+    public function cursor(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): Generator
+    {
+        yield from [];
+    }
+
+    public function statement(string $query, array $bindings = []): bool
+    {
+        return true;
+    }
+
+    public function affectingStatement(string $query, array $bindings = []): int
+    {
+        return 0;
+    }
+
+    public function unprepared(string $query): bool
+    {
+        return true;
+    }
+
+    public function ping(): bool
+    {
+        return $this->driverResourcesPresent;
+    }
+
+    public function inTransaction(): bool
+    {
+        return false;
+    }
+
+    public function getServerVersion(): string
+    {
+        return '1.0';
+    }
+
+    protected function getDefaultDriverName(): string
+    {
+        return 'http';
+    }
+
+    protected function escapeString(string $value): string
+    {
+        return "'{$value}'";
+    }
+
+    protected function hasDriverResources(): bool
+    {
+        return $this->driverResourcesPresent;
+    }
+
+    protected function disconnectDriverResources(): void
+    {
+        $this->forgetDriverResources();
+    }
+
+    protected function forgetDriverResources(): void
+    {
+        $this->driverResourcesPresent = false;
+    }
+
+    protected function replaceDriverResources(Connection $fresh): void
+    {
+        /** @var self $fresh */
+        $driverResourcesPresent = $fresh->driverResourcesPresent;
+
+        try {
+            $this->disconnectDriverResources();
+        } finally {
+            $this->driverResourcesPresent = $driverResourcesPresent;
+        }
     }
 }

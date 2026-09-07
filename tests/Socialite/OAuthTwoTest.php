@@ -64,6 +64,107 @@ class OAuthTwoTest extends TestCase
         );
     }
 
+    public function testDirectProviderRedirectClosureIsResolvedOncePerExecution(): void
+    {
+        $resolutions = 0;
+        $provider = new OAuthTwoTestProviderStub(
+            m::mock(Request::class),
+            'client_id',
+            'client_secret',
+            function () use (&$resolutions): string {
+                ++$resolutions;
+
+                return 'https://tenant.example.com/callback';
+            },
+        );
+        $provider->stateless();
+
+        $this->assertStringContainsString(
+            'redirect_uri=https%3A%2F%2Ftenant.example.com%2Fcallback',
+            $provider->redirect()->getTargetUrl(),
+        );
+        $provider->redirect();
+
+        $this->assertSame(1, $resolutions);
+    }
+
+    public function testRedirectFormatterUsesCurrentConfigAndSetConfigInvalidatesTheResolvedUrl(): void
+    {
+        $resolutions = 0;
+        $redirectResolutions = 0;
+        $provider = new OAuthTwoTestProviderStub(
+            m::mock(Request::class),
+            'client_id',
+            'client_secret',
+            '/callback',
+        );
+        $provider->withConfig([
+            'host' => 'https://example.com',
+            'redirect' => '/callback',
+        ]);
+        $provider->withRedirectFormatter(function (array $config) use (&$resolutions): string {
+            ++$resolutions;
+
+            return $config['host'] . value($config['redirect']);
+        });
+        $provider->stateless();
+
+        $this->assertStringContainsString(
+            'redirect_uri=https%3A%2F%2Fexample.com%2Fcallback',
+            $provider->redirect()->getTargetUrl(),
+        );
+        $provider->redirect();
+        $this->assertSame(1, $resolutions);
+
+        $provider->setConfig(['redirect' => function () use (&$redirectResolutions): string {
+            ++$redirectResolutions;
+
+            return '/tenant/callback';
+        }]);
+
+        $this->assertStringContainsString(
+            'redirect_uri=https%3A%2F%2Fexample.com%2Ftenant%2Fcallback',
+            $provider->redirect()->getTargetUrl(),
+        );
+        $provider->redirect();
+
+        $this->assertSame(2, $resolutions);
+        $this->assertSame(1, $redirectResolutions);
+
+        $provider->setConfig(['host' => 'https://tenant.example.com']);
+
+        $this->assertStringContainsString(
+            'redirect_uri=https%3A%2F%2Ftenant.example.com%2Ftenant%2Fcallback',
+            $provider->redirect()->getTargetUrl(),
+        );
+        $this->assertSame(3, $resolutions);
+        $this->assertSame(2, $redirectResolutions);
+    }
+
+    public function testLiteralRedirectOverrideDoesNotEvaluateTheConfiguredClosure(): void
+    {
+        $resolutions = 0;
+        $provider = new OAuthTwoTestProviderStub(
+            m::mock(Request::class),
+            'client_id',
+            'client_secret',
+            function () use (&$resolutions): string {
+                ++$resolutions;
+
+                return 'https://ignored.example.com/callback';
+            },
+        );
+        $provider->stateless();
+        $provider->redirect();
+        $provider->redirectUrl('https://literal.example.com/callback');
+
+        $this->assertStringContainsString(
+            'redirect_uri=https%3A%2F%2Fliteral.example.com%2Fcallback',
+            $provider->redirect()->getTargetUrl(),
+        );
+        $this->assertSame(1, $resolutions);
+    }
+
     public function testRedirectGeneratesTheProperRedirectResponseWithPKCE(): void
     {
         $request = m::mock(Request::class);

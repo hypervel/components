@@ -35,7 +35,7 @@ class HypervelServerProvider extends ServerProvider
         protected Container $app,
         protected array $config,
     ) {
-        $this->publishesEvents = (bool) $this->config['scaling']['enabled'];
+        $this->publishesEvents = $this->config['scaling']['enabled'];
     }
 
     /**
@@ -55,12 +55,12 @@ class HypervelServerProvider extends ServerProvider
             // in the main process so they're shared across all workers via
             // copy-on-write. Using instance() instead of singleton() ensures
             // the object is created now, not lazily in a worker.
-            $rows = (int) $this->config['swoole_shared_state']['rows'];
+            $rows = $this->config['swoole_shared_state']['rows'];
             $table = new Table($rows);
             $table->column('count', Table::TYPE_INT);
             $table->create();
 
-            $lockRows = (int) $this->config['swoole_shared_state']['lock_rows'];
+            $lockRows = $this->config['swoole_shared_state']['lock_rows'];
             $lockTable = new Table($lockRows);
             $lockTable->column('locked_at', Table::TYPE_FLOAT);
             $lockTable->create();
@@ -141,9 +141,9 @@ class HypervelServerProvider extends ServerProvider
         $connectionName = (string) $this->config['scaling']['connection'];
         $connection = $this->app->make(RedisConfig::class)->connectionConfig($connectionName);
 
-        if ((bool) ($connection['cluster']['enable'] ?? false)) {
+        if ((bool) ($connection['cluster']['enabled'] ?? false)) {
             throw new InvalidArgumentException(sprintf(
-                "Reverb scaling does not support Redis Cluster. Disable 'reverb.servers.reverb.scaling.enabled' or set 'database.redis.%s.cluster.enable' to false.",
+                "Reverb scaling does not support Redis Cluster. Disable 'reverb.servers.reverb.scaling.enabled' or set 'database.redis.%s.cluster.enabled' to false.",
                 $connectionName,
             ));
         }

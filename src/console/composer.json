@@ -1,7 +1,7 @@
 {
     "name": "hypervel/console",
     "type": "library",
-    "description": "The console package for Hypervel.",
+    "description": "The Hypervel Console package.",
     "license": "MIT",
     "keywords": [
         "php",
@@ -31,10 +31,11 @@
     "require": {
         "php": "^8.4",
         "dragonmantank/cron-expression": "^3.4",
+        "ext-filter": "*",
         "ext-mbstring": "*",
         "ext-pcntl": "*",
         "ext-posix": "*",
-        "ext-swoole": "^6.2",
+        "ext-swoole": "^6.2.2",
         "guzzlehttp/guzzle": "^7.15.1",
         "nesbot/carbon": "^3.13.1",
         "nunomaduro/termwind": "^2.0",

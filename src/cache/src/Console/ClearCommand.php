@@ -45,7 +45,9 @@ class ClearCommand extends Command
             return $this->clearLocks();
         }
 
-        $this->hypervel['events']->dispatch(
+        $events = $this->hypervel->make('events');
+
+        $events->dispatch(
             'cache:clearing',
             [$this->argument('store'), $this->tags()]
         );
@@ -61,7 +63,7 @@ class ClearCommand extends Command
             return self::FAILURE;
         }
 
-        $this->hypervel['events']->dispatch(
+        $events->dispatch(
             'cache:cleared',
             [$this->argument('store'), $this->tags()]
         );

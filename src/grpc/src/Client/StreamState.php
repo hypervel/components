@@ -20,6 +20,7 @@ use Hypervel\Grpc\Status;
 use Hypervel\Grpc\StatusCode;
 use LogicException;
 use SplQueue;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -305,6 +306,22 @@ final class StreamState
     }
 
     /**
+     * Return the final status without waiting.
+     */
+    public function finalStatus(): ?Status
+    {
+        return $this->status;
+    }
+
+    /**
+     * Return the final transport or protocol failure without waiting.
+     */
+    public function finalFailure(): ?Throwable
+    {
+        return $this->failure;
+    }
+
+    /**
      * Wait for and remove the next serialized response message.
      */
     public function nextMessage(): ?string
@@ -351,6 +368,19 @@ final class StreamState
     public function isComplete(): bool
     {
         return $this->status !== null || $this->failure !== null;
+    }
+
+    /**
+     * Release an incomplete native stream without publishing a result.
+     */
+    public function abandonIfIncomplete(): void
+    {
+        if ($this->isComplete()) {
+            return;
+        }
+
+        $this->releaseBuffers();
+        $this->abandon();
     }
 
     /**
@@ -522,7 +552,9 @@ final class StreamState
                     continue;
                 }
 
-                $waiter->pop($remainingSeconds ?? -1);
+                if (! $waiter->pop($remainingSeconds ?? -1) && $waiter->isCanceled()) {
+                    throw new CanceledException('Waiting for a gRPC response was canceled.');
+                }
             } finally {
                 unset($this->waiters[$waiterId]);
                 $waiter->close();

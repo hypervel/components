@@ -10,6 +10,7 @@ use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 use function Hypervel\Support\now;
@@ -78,13 +79,7 @@ abstract class Lock implements LockContract
             try {
                 $result = $callback();
             } catch (Throwable $throwable) {
-                try {
-                    $this->release();
-                } catch (Throwable) {
-                    // Preserve the callback failure as primary.
-                }
-
-                throw $throwable;
+                $this->releaseAfterFailure($throwable);
             }
 
             $this->release();
@@ -118,13 +113,7 @@ abstract class Lock implements LockContract
             try {
                 $result = $callback();
             } catch (Throwable $throwable) {
-                try {
-                    $this->release();
-                } catch (Throwable) {
-                    // Preserve the callback failure as primary.
-                }
-
-                throw $throwable;
+                $this->releaseAfterFailure($throwable);
             }
 
             $this->release();
@@ -133,6 +122,24 @@ abstract class Lock implements LockContract
         }
 
         return true;
+    }
+
+    /**
+     * Release the lock while preserving the primary failure.
+     */
+    protected function releaseAfterFailure(Throwable $failure): never
+    {
+        try {
+            $this->release();
+        } catch (CanceledException $cleanupCancellation) {
+            if (! $failure instanceof CanceledException) {
+                throw $cleanupCancellation;
+            }
+        } catch (Throwable) {
+            // Preserve the callback failure as primary.
+        }
+
+        throw $failure;
     }
 
     /**

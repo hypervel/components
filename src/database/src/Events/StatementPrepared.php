@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Events;
 
-use Hypervel\Database\Connection;
+use Hypervel\Database\PdoConnection;
 use PDOStatement;
 
 class StatementPrepared
@@ -12,11 +12,11 @@ class StatementPrepared
     /**
      * Create a new event instance.
      *
-     * @param Connection $connection the database connection instance
+     * @param PdoConnection $connection the database connection instance
      * @param PDOStatement $statement the PDO statement
      */
     public function __construct(
-        public Connection $connection,
+        public PdoConnection $connection,
         public PDOStatement $statement,
     ) {
     }

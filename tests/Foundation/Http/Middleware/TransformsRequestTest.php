@@ -7,10 +7,32 @@ namespace Hypervel\Tests\Foundation\Http\Middleware\TransformsRequestTest;
 use Hypervel\Foundation\Http\Middleware\TransformsRequest;
 use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
+use Symfony\Component\HttpFoundation\ParameterBag;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
 class TransformsRequestTest extends TestCase
 {
+    public function testEmptyParameterBagIsNotReadOrReplaced(): void
+    {
+        $bag = new TrackingParameterBag;
+
+        (new ExposedTransformsRequest)->cleanBag($bag);
+
+        $this->assertSame(0, $bag->allCalls);
+        $this->assertSame(0, $bag->replaceCalls);
+    }
+
+    public function testNonEmptyParameterBagIsStillReadAndReplaced(): void
+    {
+        $bag = new TrackingParameterBag(['name' => 'Taylor']);
+
+        (new ExposedTransformsRequest)->cleanBag($bag);
+
+        $this->assertSame(1, $bag->allCalls);
+        $this->assertSame(1, $bag->replaceCalls);
+        $this->assertSame(['name' => 'Taylor'], $bag->all());
+    }
+
     public function testTransformOncePerKeyWhenMethodIsGet()
     {
         $middleware = new TruncateInput;
@@ -132,5 +154,34 @@ class TruncateInput extends TransformsRequest
     protected function transform(string $key, mixed $value): mixed
     {
         return substr($value, 0, -1);
+    }
+}
+
+class ExposedTransformsRequest extends TransformsRequest
+{
+    public function cleanBag(ParameterBag $bag): void
+    {
+        $this->cleanParameterBag($bag);
+    }
+}
+
+class TrackingParameterBag extends ParameterBag
+{
+    public int $allCalls = 0;
+
+    public int $replaceCalls = 0;
+
+    public function all(?string $key = null): array
+    {
+        ++$this->allCalls;
+
+        return parent::all($key);
+    }
+
+    public function replace(array $parameters = []): void
+    {
+        ++$this->replaceCalls;
+
+        parent::replace($parameters);
     }
 }

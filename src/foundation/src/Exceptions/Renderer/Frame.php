@@ -4,19 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Exceptions\Renderer;
 
-use Hypervel\Foundation\Concerns\ResolvesDumpSource;
+use Hypervel\Foundation\Concerns\ResolvesSourceHref;
 use Symfony\Component\ErrorHandler\Exception\FlattenException;
 
 use function Hypervel\Filesystem\join_paths;
 
 class Frame
 {
-    use ResolvesDumpSource;
-
-    /**
-     * The compiled view path (required by ResolvesDumpSource, unused by Frame).
-     */
-    protected string $compiledViewPath = '';
+    use ResolvesSourceHref;
 
     /**
      * Whether this frame is the main (first non-vendor) frame.
@@ -79,7 +74,7 @@ class Frame
     {
         return match (true) {
             ! isset($this->frame['file']) => '[internal function]',
-            ! is_string($this->frame['file']) => '[unknown file]', // @phpstan-ignore booleanNot.alwaysFalse (defensive, matches Laravel)
+            ! is_string($this->frame['file']) => '[unknown file]',
             default => str_replace($this->basePath . DIRECTORY_SEPARATOR, '', $this->frame['file']),
         };
     }
@@ -124,7 +119,7 @@ class Frame
      */
     public function args(): array
     {
-        if (! isset($this->frame['args']) || ! is_array($this->frame['args']) || count($this->frame['args']) === 0) { // @phpstan-ignore booleanNot.alwaysFalse (defensive, no native type enforcement)
+        if (! isset($this->frame['args']) || ! is_array($this->frame['args']) || count($this->frame['args']) === 0) {
             return [];
         }
 

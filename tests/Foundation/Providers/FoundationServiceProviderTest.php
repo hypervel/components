@@ -8,16 +8,23 @@ use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
 use Hypervel\Foundation\ArrayMaintenanceMode;
+use Hypervel\Foundation\Console\CliDumper;
 use Hypervel\Foundation\DevCommands;
+use Hypervel\Foundation\Http\HtmlDumper;
 use Hypervel\Foundation\MaintenanceModeManager;
+use Hypervel\Foundation\Providers\FoundationServiceProvider;
 use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Http\Request;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Clock\ClockInterface;
 use ReflectionClass;
+use ReflectionFunction;
+use ReflectionProperty;
+use Symfony\Component\VarDumper\VarDumper;
 
 class FoundationServiceProviderTest extends TestCase
 {
@@ -142,5 +149,53 @@ class FoundationServiceProviderTest extends TestCase
         $driver = (new MaintenanceModeManager($this->app))->driver();
 
         $this->assertInstanceOf(ArrayMaintenanceMode::class, $driver);
+    }
+
+    #[DataProvider('dumperFormatValues')]
+    public function testSetDumperFormatInstallsHypervelHandlerAndRestoresEnvironment(
+        string $format,
+        string $expectedDumper,
+    ): void {
+        $handlerProperty = new ReflectionProperty(VarDumper::class, 'handler');
+        $originalHandler = $handlerProperty->getValue();
+        $originalFormatExists = array_key_exists('VAR_DUMPER_FORMAT', $_SERVER);
+        $originalFormat = $_SERVER['VAR_DUMPER_FORMAT'] ?? null;
+        $sentinelHandler = static function (): void {
+        };
+
+        unset($_SERVER['VAR_DUMPER_FORMAT']);
+        VarDumper::setHandler($sentinelHandler);
+        $_SERVER['VAR_DUMPER_FORMAT'] = $format;
+
+        try {
+            $provider = new FoundationServiceProvider($this->app);
+            (new ReflectionClass($provider))->getMethod('registerDumper')->invoke($provider);
+
+            $this->assertSame($format, $_SERVER['VAR_DUMPER_FORMAT']);
+            $handler = $handlerProperty->getValue();
+            $this->assertNotSame($sentinelHandler, $handler);
+            $capturedDumpers = array_filter(
+                (new ReflectionFunction($handler))->getStaticVariables(),
+                static fn (mixed $value): bool => $value instanceof $expectedDumper,
+            );
+            $this->assertCount(1, $capturedDumpers);
+        } finally {
+            unset($_SERVER['VAR_DUMPER_FORMAT']);
+            VarDumper::setHandler($originalHandler);
+
+            if ($originalFormatExists) {
+                $_SERVER['VAR_DUMPER_FORMAT'] = $originalFormat;
+            }
+        }
+    }
+
+    public static function dumperFormatValues(): array
+    {
+        return [
+            'CLI' => ['cli', CliDumper::class],
+            'HTML' => ['html', HtmlDumper::class],
+            'blank' => ['', CliDumper::class],
+            'unknown' => ['unknown', CliDumper::class],
+        ];
     }
 }

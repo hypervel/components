@@ -9,8 +9,12 @@ use Composer\InstalledVersions;
 use Google\Protobuf\Internal\Message;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Engine\Http\V2\ClientFactoryInterface;
+use Hypervel\Grpc\ClientGrpcOperation;
 use Hypervel\Grpc\Compression;
 use Hypervel\Grpc\Exceptions\RpcException;
+use Hypervel\Grpc\GrpcOperationHandle;
+use Hypervel\Grpc\GrpcOperationResult;
+use Hypervel\Grpc\GrpcOperationRunner;
 use Hypervel\Grpc\Metadata;
 use Hypervel\Grpc\Protocol\Deadline;
 use Hypervel\Grpc\Protocol\FrameEncoder;
@@ -21,6 +25,7 @@ use Hypervel\Grpc\Protocol\ServiceMethod;
 use Hypervel\Grpc\StatusCode;
 use InvalidArgumentException;
 use LogicException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 abstract class BaseClient
@@ -66,9 +71,20 @@ abstract class BaseClient
         'server_name',
     ];
 
+    private const array RESERVED_SWOOLE_TLS_SETTING_KEYS = [
+        'ssl_verify_peer',
+        'ssl_cafile',
+        'ssl_cert_file',
+        'ssl_key_file',
+        'ssl_passphrase',
+        'ssl_host_name',
+    ];
+
     private Endpoint $endpoint;
 
     private ClientFactoryInterface $clientFactory;
+
+    private GrpcOperationRunner $operationRunner;
 
     private Metadata $defaultMetadata;
 
@@ -114,7 +130,7 @@ abstract class BaseClient
      */
     public function __construct(private readonly string $target, array $options = [])
     {
-        $this->assertKnownOptions($options, self::OPTION_KEYS, 'client');
+        $this->ensureKnownOptions($options, self::OPTION_KEYS, 'client');
 
         $connectionCount = $this->positiveIntegerOption($options, 'connections', 1);
         $this->connectTimeout = $this->positiveSecondsOption($options, 'connect_timeout', 3.0);
@@ -179,7 +195,8 @@ abstract class BaseClient
                 'ssl_cert_file' => $tls['certificate'],
                 'ssl_key_file' => $tls['private_key'],
                 'ssl_passphrase' => $tls['passphrase'],
-                'ssl_host_name' => $tls['server_name'] ?? $this->endpoint->host,
+                'ssl_host_name' => $tls['server_name']
+                    ?? rtrim($this->endpoint->host, '.'),
             ]
             : [];
 
@@ -189,6 +206,7 @@ abstract class BaseClient
         );
         $this->requestEncoder = new FrameEncoder($maxSendMessageSize);
         $this->clientFactory = Container::getInstance()->make(ClientFactoryInterface::class);
+        $this->operationRunner = Container::getInstance()->make(GrpcOperationRunner::class);
         $version = InstalledVersions::isInstalled('hypervel/grpc')
             ? InstalledVersions::getPrettyVersion('hypervel/grpc')
             : null;
@@ -222,13 +240,20 @@ abstract class BaseClient
         $this->connections = [];
         $this->retiringConnections = [];
         $failure = null;
+        $cancellation = null;
 
         foreach ($connections as $connection) {
             try {
                 $connection->close();
+            } catch (CanceledException $exception) {
+                $cancellation ??= $exception;
             } catch (Throwable $throwable) {
                 $failure ??= $throwable;
             }
+        }
+
+        if ($cancellation !== null) {
+            throw $cancellation;
         }
 
         if ($failure !== null) {
@@ -259,6 +284,7 @@ abstract class BaseClient
             $compression,
         );
         $metadata = $this->prepareMetadata($metadata);
+        [$metadata, $operationHandle] = $this->startOperation($serviceMethod, $metadata);
         [$state] = $this->startInitialAttempt(
             $serviceMethod->path(),
             $body,
@@ -266,6 +292,7 @@ abstract class BaseClient
             $compression,
             $deadline,
             false,
+            $operationHandle,
         );
 
         return new UnaryCall(
@@ -282,6 +309,7 @@ abstract class BaseClient
                 $compression,
                 $deadline,
             ),
+            operationHandle: $operationHandle,
         );
     }
 
@@ -303,6 +331,7 @@ abstract class BaseClient
         [$timeout, $compression] = $this->normalizeCallOptions($options, false);
         $deadline = Deadline::fromTimeout($timeout);
         $metadata = $this->prepareMetadata($metadata);
+        [$metadata, $operationHandle] = $this->startOperation($serviceMethod, $metadata);
         [$state, $connection] = $this->startInitialAttempt(
             $serviceMethod->path(),
             '',
@@ -310,6 +339,7 @@ abstract class BaseClient
             $compression,
             $deadline,
             true,
+            $operationHandle,
         );
 
         return new ClientStreamingCall(
@@ -321,6 +351,7 @@ abstract class BaseClient
             $connection,
             $this->requestEncoder,
             $compression,
+            $operationHandle,
         );
     }
 
@@ -347,6 +378,7 @@ abstract class BaseClient
             $compression,
         );
         $metadata = $this->prepareMetadata($metadata);
+        [$metadata, $operationHandle] = $this->startOperation($serviceMethod, $metadata);
         [$state] = $this->startInitialAttempt(
             $serviceMethod->path(),
             $body,
@@ -354,6 +386,7 @@ abstract class BaseClient
             $compression,
             $deadline,
             false,
+            $operationHandle,
         );
 
         return new ServerStreamingCall(
@@ -370,6 +403,7 @@ abstract class BaseClient
                 $compression,
                 $deadline,
             ),
+            operationHandle: $operationHandle,
         );
     }
 
@@ -391,6 +425,7 @@ abstract class BaseClient
         [$timeout, $compression] = $this->normalizeCallOptions($options, false);
         $deadline = Deadline::fromTimeout($timeout);
         $metadata = $this->prepareMetadata($metadata);
+        [$metadata, $operationHandle] = $this->startOperation($serviceMethod, $metadata);
         [$state, $connection] = $this->startInitialAttempt(
             $serviceMethod->path(),
             '',
@@ -398,6 +433,7 @@ abstract class BaseClient
             $compression,
             $deadline,
             true,
+            $operationHandle,
         );
 
         return new BidiStreamingCall(
@@ -409,6 +445,7 @@ abstract class BaseClient
             $connection,
             $this->requestEncoder,
             $compression,
+            $operationHandle,
         );
     }
 
@@ -442,24 +479,39 @@ abstract class BaseClient
         Compression $compression,
         Deadline $deadline,
         bool $pipeline,
+        ?GrpcOperationHandle $operationHandle,
     ): array {
-        $this->ensureOpen();
-        $state = $this->newStreamState($deadline);
+        $attemptCount = 0;
 
-        $requestFactory = $this->requestFactory(
-            $path,
-            $body,
-            $metadata,
-            $compression,
-            $deadline,
-            0,
-            $pipeline,
-        );
+        try {
+            $this->ensureOpen();
+            $state = $this->newStreamState($deadline);
+            $requestFactory = $this->requestFactory(
+                $path,
+                $body,
+                $metadata,
+                $compression,
+                $deadline,
+                0,
+                $pipeline,
+            );
 
-        $connection = $this->nextConnection();
-        $connection->start($requestFactory, $state, $deadline);
+            $connection = $this->nextConnection();
+            $attemptCount = 1;
+            $connection->start($requestFactory, $state, $deadline);
 
-        return [$state, $connection];
+            return [$state, $connection];
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $throwable) {
+            $operationHandle?->finish(new GrpcOperationResult(
+                $throwable instanceof RpcException ? $throwable->status() : null,
+                $throwable,
+                $attemptCount,
+            ));
+
+            throw $throwable;
+        }
     }
 
     /**
@@ -503,6 +555,28 @@ abstract class BaseClient
 
             return $state;
         };
+    }
+
+    /**
+     * Start client observers and return their final outbound metadata.
+     *
+     * @return array{Metadata, ?GrpcOperationHandle}
+     */
+    private function startOperation(ServiceMethod $serviceMethod, Metadata $metadata): array
+    {
+        if (! $this->operationRunner->hasObservers()) {
+            return [$metadata, null];
+        }
+
+        $operation = new ClientGrpcOperation(
+            $serviceMethod,
+            $this->endpoint->host,
+            $this->endpoint->port,
+            $metadata,
+        );
+        $handle = $this->operationRunner->start($operation);
+
+        return [$operation->metadata(), $handle];
     }
 
     /**
@@ -641,7 +715,7 @@ abstract class BaseClient
      */
     private function normalizeCallOptions(array $options, bool $retryable): array
     {
-        $this->assertKnownOptions($options, self::CALL_OPTION_KEYS, 'call');
+        $this->ensureKnownOptions($options, self::CALL_OPTION_KEYS, 'call');
 
         if (! $retryable && array_key_exists('retry', $options)) {
             throw new InvalidArgumentException(
@@ -689,7 +763,7 @@ abstract class BaseClient
             throw new InvalidArgumentException('The gRPC TLS option must be an array.');
         }
 
-        $this->assertKnownOptions($rawTls, self::TLS_OPTION_KEYS, 'TLS');
+        $this->ensureKnownOptions($rawTls, self::TLS_OPTION_KEYS, 'TLS');
         $suppliedKeys = array_keys($rawTls);
 
         foreach ($suppliedKeys as $key) {
@@ -792,6 +866,14 @@ abstract class BaseClient
             );
         }
 
+        foreach (self::RESERVED_SWOOLE_TLS_SETTING_KEYS as $key) {
+            if (array_key_exists($key, $settings)) {
+                throw new InvalidArgumentException(
+                    "The gRPC Swoole {$key} setting is owned by the first-class tls option.",
+                );
+            }
+        }
+
         return $settings;
     }
 
@@ -827,7 +909,7 @@ abstract class BaseClient
      * @param array<array-key, mixed> $options
      * @param list<string> $allowedKeys
      */
-    private function assertKnownOptions(array $options, array $allowedKeys, string $scope): void
+    private function ensureKnownOptions(array $options, array $allowedKeys, string $scope): void
     {
         foreach (array_keys($options) as $key) {
             if (! is_string($key) || ! in_array($key, $allowedKeys, true)) {

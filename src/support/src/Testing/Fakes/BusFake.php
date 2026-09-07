@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\ChainedBatch;
+use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Bus\PendingBatch;
 use Hypervel\Contracts\Bus\QueueingDispatcher;
 use Hypervel\Foundation\Bus\PendingChain;
@@ -555,6 +556,7 @@ class BusFake implements Fake, QueueingDispatcher
     {
         if ($this->shouldFakeJob($command)) {
             $this->commands[get_class($command)][] = $this->getCommandRepresentation($command);
+            DispatchLockContext::accept($command);
 
             return null;
         }
@@ -570,6 +572,7 @@ class BusFake implements Fake, QueueingDispatcher
     {
         if ($this->shouldFakeJob($command)) {
             $this->commandsSync[get_class($command)][] = $this->getCommandRepresentation($command);
+            DispatchLockContext::accept($command);
 
             return null;
         }
@@ -583,6 +586,7 @@ class BusFake implements Fake, QueueingDispatcher
     {
         if ($this->shouldFakeJob($command)) {
             $this->commands[get_class($command)][] = $this->getCommandRepresentation($command);
+            DispatchLockContext::accept($command);
 
             return null;
         }
@@ -596,6 +600,7 @@ class BusFake implements Fake, QueueingDispatcher
     {
         if ($this->shouldFakeJob($command)) {
             $this->commands[get_class($command)][] = $this->getCommandRepresentation($command);
+            DispatchLockContext::accept($command);
 
             return null;
         }
@@ -609,6 +614,7 @@ class BusFake implements Fake, QueueingDispatcher
     {
         if ($this->shouldFakeJob($command)) {
             $this->commandsAfterResponse[get_class($command)][] = $this->getCommandRepresentation($command);
+            DispatchLockContext::accept($command);
             return;
         }
         $this->dispatcher->dispatchAfterResponse($command, $handler);

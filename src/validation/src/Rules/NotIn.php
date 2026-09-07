@@ -24,10 +24,8 @@ class NotIn implements Stringable
 
     /**
      * Create a new "not in" rule instance.
-     *
-     * @param array|Arrayable|string|UnitEnum $values
      */
-    public function __construct($values)
+    public function __construct(array|Arrayable|UnitEnum|string $values)
     {
         if ($values instanceof Arrayable) {
             $values = $values->toArray();

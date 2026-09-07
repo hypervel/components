@@ -48,7 +48,9 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
     public function testBreadcrumbIsNotRecordedWhenDisabled()
     {
         $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.http_client_requests' => false,
+            'sentry' => $this->sentryConfigWith([
+                'breadcrumbs.http_client_requests' => false,
+            ]),
         ]);
 
         $client = $this->makeClient([
@@ -155,8 +157,10 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
     public function testSpanIsNotRecordedWhenDisabled()
     {
         $this->resetApplicationWithConfig([
-            'sentry.traces_sample_rate' => 1.0,
-            'sentry.tracing.http_client_requests' => false,
+            'sentry' => $this->sentryConfigWith([
+                'traces_sample_rate' => 1.0,
+                'tracing.http_client_requests' => false,
+            ]),
         ]);
 
         $transaction = $this->startTransaction();
@@ -199,8 +203,10 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
     public function testTracingHeadersAreAttachedWhenLocalRecordingIsDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.tracing.http_client_requests' => false,
-            'sentry.breadcrumbs.http_client_requests' => false,
+            'sentry' => $this->sentryConfigWith([
+                'tracing.http_client_requests' => false,
+                'breadcrumbs.http_client_requests' => false,
+            ]),
         ]);
         $mock = new MockHandler([new Response(200, [], 'OK')]);
         $client = new Client(['handler' => HandlerStack::create($mock)]);
@@ -216,8 +222,10 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
     public function testTransferStatsCallbackIsNotWrappedWhenLocalOutputIsDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.tracing.http_client_requests' => false,
-            'sentry.breadcrumbs.http_client_requests' => false,
+            'sentry' => $this->sentryConfigWith([
+                'tracing.http_client_requests' => false,
+                'breadcrumbs.http_client_requests' => false,
+            ]),
         ]);
         $observedOnStats = null;
         $existingOnStats = static function (TransferStats $stats): void {
@@ -240,9 +248,11 @@ class GuzzleHttpClientAspectTest extends SentryTestCase
     public function testLegacyEnableTracingOptionRecordsSpansWithoutAnExplicitSampler(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.enable_tracing' => true,
-            'sentry.traces_sample_rate' => null,
-            'sentry.breadcrumbs.http_client_requests' => false,
+            'sentry' => $this->sentryConfigWith([
+                'enable_tracing' => true,
+                'traces_sample_rate' => null,
+                'breadcrumbs.http_client_requests' => false,
+            ]),
         ]);
         $transaction = $this->startTransaction();
         $client = $this->makeClient([new Response(200, [], 'OK')]);

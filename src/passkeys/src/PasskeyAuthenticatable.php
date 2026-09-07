@@ -35,7 +35,19 @@ trait PasskeyAuthenticatable
      */
     public function passkeys(): MorphMany
     {
-        return $this->morphMany(Passkeys::passkeyModel(), 'user');
+        $passkeyModel = Passkeys::passkeyModel();
+        $instance = new $passkeyModel;
+        [$type, $id] = $this->getMorphs('user', null, null);
+
+        // Verification resolves through the configured model, so relation
+        // writes must use that model's connection rather than inherit the owner's.
+        return $this->newMorphMany(
+            $instance->newQuery(),
+            $this,
+            $instance->qualifyColumn($type),
+            $instance->qualifyColumn($id),
+            $this->getKeyName(),
+        );
     }
 
     /**

@@ -8,6 +8,7 @@ use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Pool\Exceptions\ConnectionException;
 use Hypervel\Pool\PoolOption;
+use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\PhpRedisClusterConnection;
 use Hypervel\Tests\Redis\Fixtures\FakeRedisClusterClient;
 use Hypervel\Tests\Redis\Fixtures\PhpRedisClusterConnectionStub;
@@ -18,9 +19,68 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Redis;
 use RedisCluster;
+use RedisException;
+use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class PhpRedisClusterConnectionTest extends TestCase
 {
+    public function testClusterCreationPreservesExactCancellation(): void
+    {
+        $cancellation = new CanceledException('cluster creation canceled');
+
+        try {
+            new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig(), $cancellation) extends PhpRedisClusterConnection {
+                public function __construct(
+                    ContainerContract $container,
+                    PoolInterface $pool,
+                    array $config,
+                    private CanceledException $cancellation,
+                ) {
+                    parent::__construct($container, $pool, $config);
+                }
+
+                protected function formatClusterPassword(): mixed
+                {
+                    throw $this->cancellation;
+                }
+            };
+
+            $this->fail('Expected the cancellation to escape.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
+    public function testClusterCreationPreservesTheUnderlyingFailure(): void
+    {
+        $failure = new RuntimeException('cluster unavailable');
+
+        try {
+            new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig(), $failure) extends PhpRedisClusterConnection {
+                public function __construct(
+                    ContainerContract $container,
+                    PoolInterface $pool,
+                    array $config,
+                    private RuntimeException $failure,
+                ) {
+                    parent::__construct($container, $pool, $config);
+                }
+
+                protected function formatClusterPassword(): mixed
+                {
+                    throw $this->failure;
+                }
+            };
+
+            $this->fail('Expected Redis Cluster creation to fail.');
+        } catch (ConnectionException $exception) {
+            $this->assertSame('Connection reconnect failed: cluster unavailable', $exception->getMessage());
+            $this->assertSame($failure, $exception->getPrevious());
+        }
+    }
+
     public function testIsClusterReturnsTrue()
     {
         $connection = new PhpRedisClusterConnectionStub;
@@ -91,9 +151,10 @@ class PhpRedisClusterConnectionTest extends TestCase
         $connection->setActiveConnection($client);
         $connection->shouldTransform(true);
 
-        $connection->__call('flushdb', []);
+        $result = $connection->__call('flushdb', []);
 
         $flushCalls = $client->getFlushdbCalls();
+        $this->assertTrue($result);
         $this->assertCount(3, $flushCalls);
         $this->assertSame(['127.0.0.1', 6379], $flushCalls[0]['node']);
         $this->assertSame(['127.0.0.1', 6380], $flushCalls[1]['node']);
@@ -109,12 +170,30 @@ class PhpRedisClusterConnectionTest extends TestCase
         $connection->setActiveConnection($client);
         $connection->shouldTransform(true);
 
-        $connection->__call('flushdb', ['ASYNC']);
+        $result = $connection->__call('flushdb', ['ASYNC']);
 
         $rawCalls = $client->getRawCommandCalls();
+        $this->assertTrue($result);
         $this->assertCount(2, $rawCalls);
         $this->assertSame([['127.0.0.1', 6379], 'flushdb', 'async'], $rawCalls[0]['args']);
         $this->assertSame([['127.0.0.1', 6380], 'flushdb', 'async'], $rawCalls[1]['args']);
+    }
+
+    public function testFlushdbAttemptsEveryMasterAndAggregatesFailures(): void
+    {
+        $masters = [['127.0.0.1', 6379], ['127.0.0.1', 6380], ['127.0.0.1', 6381]];
+        $client = m::mock(RedisCluster::class);
+        $client->allows('getMode')->andReturn(Redis::ATOMIC);
+        $client->expects('_masters')->once()->andReturn($masters);
+        $client->expects('flushdb')->with($masters[0])->andReturnTrue();
+        $client->expects('flushdb')->with($masters[1])->andReturnFalse();
+        $client->expects('flushdb')->with($masters[2])->andReturnTrue();
+
+        $connection = new PhpRedisClusterConnectionStub;
+        $connection->setActiveConnection($client);
+        $connection->shouldTransform(true);
+
+        $this->assertFalse($connection->__call('flushdb', []));
     }
 
     public function testScanTransformIncludesDefaultNode()
@@ -172,9 +251,206 @@ class PhpRedisClusterConnectionTest extends TestCase
         $this->assertSame($explicitNode, $scanCalls[0]['node']);
     }
 
-    public function testFormatClusterPasswordReturnsArrayWhenUsernameAndPasswordProvided()
+    public function testInfoTransformIncludesTheDefaultNodeAndSections(): void
     {
-        $connection = new class($this->getContainer(), $this->getMockedPool(), ['username' => 'myuser', 'password' => 'mypass']) extends PhpRedisClusterConnectionStub {
+        $defaultNode = ['127.0.0.1', 6379];
+        $client = m::mock(RedisCluster::class);
+        $client->allows('getMode')->andReturn(Redis::ATOMIC);
+        $client->expects('_masters')->once()->andReturn([$defaultNode]);
+        $client->expects('info')
+            ->with($defaultNode, 'server', 'memory')
+            ->andReturn(['redis_version' => '8.0.0']);
+        $client->expects('scan')->with(null, $defaultNode, '*', 10)->andReturnFalse();
+
+        $connection = new PhpRedisClusterConnectionStub;
+        $connection->setActiveConnection($client);
+        $connection->shouldTransform(true);
+
+        $this->assertSame(
+            ['redis_version' => '8.0.0'],
+            $connection->__call('info', ['server', 'memory']),
+        );
+
+        // INFO and SCAN must reuse the same resolved default node.
+        $cursor = null;
+        $connection->scan($cursor, []);
+    }
+
+    public function testInfoTransformSupportsAnUnfilteredRequest(): void
+    {
+        $defaultNode = ['127.0.0.1', 6379];
+        $client = m::mock(RedisCluster::class);
+        $client->allows('getMode')->andReturn(Redis::ATOMIC);
+        $client->expects('_masters')->once()->andReturn([$defaultNode]);
+        $client->expects('info')
+            ->with($defaultNode)
+            ->andReturn(['redis_version' => '8.0.0', 'used_memory' => 1024]);
+
+        $connection = new PhpRedisClusterConnectionStub;
+        $connection->setActiveConnection($client);
+        $connection->shouldTransform(true);
+
+        $this->assertSame(
+            ['redis_version' => '8.0.0', 'used_memory' => 1024],
+            $connection->__call('info', []),
+        );
+    }
+
+    public function testPingTransformRoutesToTheDefaultNode(): void
+    {
+        $defaultNode = ['127.0.0.1', 6379];
+        $client = m::mock(RedisCluster::class);
+        $client->allows('getMode')->andReturn(Redis::ATOMIC);
+        $client->expects('_masters')->once()->andReturn([$defaultNode]);
+        $client->expects('ping')->with($defaultNode)->andReturnTrue();
+        $client->expects('ping')->with($defaultNode, 'hello')->andReturn('hello');
+
+        $connection = new PhpRedisClusterConnectionStub;
+        $connection->setActiveConnection($client);
+        $connection->shouldTransform(true);
+
+        $this->assertTrue($connection->__call('ping', []));
+        $this->assertSame('hello', $connection->__call('ping', ['hello']));
+    }
+
+    public function testExecuteRawRoutesByTheFirstArgumentAndNormalizesNullReplies(): void
+    {
+        $client = m::mock(RedisCluster::class);
+        $client->allows('getMode')->andReturn(Redis::ATOMIC);
+        $client->expects('rawCommand')
+            ->with('{user}:1', 'GET', '{user}:1')
+            ->andReturnNull();
+
+        $connection = new PhpRedisClusterConnectionStub;
+        $connection->setActiveConnection($client);
+        $connection->shouldTransform(true);
+
+        $this->assertFalse($connection->__call('executeRaw', [['GET', '{user}:1']]));
+    }
+
+    public function testExecuteRawRoutesByTheFirstArgumentWhileQueueing(): void
+    {
+        $client = m::mock(RedisCluster::class);
+        $client->expects('getMode')->andReturn(Redis::MULTI);
+        $client->expects('rawCommand')
+            ->with('{user}:1', 'GET', '{user}:1')
+            ->andReturn($client);
+
+        $connection = new PhpRedisClusterConnectionStub;
+        $connection->setActiveConnection($client);
+        $connection->shouldTransform(true);
+
+        $this->assertSame(
+            $client,
+            $connection->__call('executeRaw', [['GET', '{user}:1']]),
+        );
+    }
+
+    public function testExecuteRawRoutesKeylessCommandsToTheDefaultNode(): void
+    {
+        $defaultNode = ['127.0.0.1', 6379];
+        $client = m::mock(RedisCluster::class);
+        $client->allows('getMode')->andReturn(Redis::ATOMIC);
+        $client->expects('_masters')->once()->andReturn([$defaultNode]);
+        $client->expects('rawCommand')
+            ->with($defaultNode, 'TIME')
+            ->andReturn(['1', '2']);
+
+        $connection = new PhpRedisClusterConnectionStub;
+        $connection->setActiveConnection($client);
+        $connection->shouldTransform(true);
+
+        $this->assertSame(['1', '2'], $connection->__call('executeRaw', [['TIME']]));
+    }
+
+    public function testEvalTransformRecursivelyNormalizesNullReplies(): void
+    {
+        $connection = new class extends PhpRedisClusterConnectionStub {
+            public function normalizeNullRepliesForTest(mixed $result): mixed
+            {
+                return $this->normalizeNullReplies($result);
+            }
+        };
+
+        $this->assertSame(
+            [false, [1, false]],
+            $connection->normalizeNullRepliesForTest([null, [1, null]]),
+        );
+    }
+
+    public function testEvalshaTransformUsesTheTopologyAwareShaCache(): void
+    {
+        $script = 'return {KEYS[1], false, ARGV[1]}';
+        $connection = new class extends PhpRedisClusterConnectionStub {
+            public array $arguments = [];
+
+            public function callEvalshaForTest(string $script, int $numkeys, mixed ...$arguments): mixed
+            {
+                return $this->callEvalsha($script, $numkeys, ...$arguments);
+            }
+
+            public function evalWithShaCache(string $script, array $keys = [], array $args = []): mixed
+            {
+                $this->arguments = [$script, $keys, $args];
+
+                return 'result';
+            }
+        };
+
+        $this->assertSame('result', $connection->callEvalshaForTest($script, 1, '{script}', 'argument'));
+        $this->assertSame([$script, ['{script}'], ['argument']], $connection->arguments);
+    }
+
+    #[DataProvider('standaloneErrorSemantics')]
+    public function testErrorClassificationPreservesStandaloneSemantics(string $error, bool $throws): void
+    {
+        $connection = new class extends PhpRedisClusterConnectionStub {
+            public function standaloneWouldThrowForTest(string $error): bool
+            {
+                return $this->standaloneWouldThrow($error);
+            }
+
+            public function scriptExceptionForTest(string $error): Throwable
+            {
+                return $this->scriptException($error);
+            }
+        };
+
+        $this->assertSame($throws, $connection->standaloneWouldThrowForTest($error));
+        $this->assertInstanceOf(
+            $throws ? RedisException::class : LuaScriptException::class,
+            $connection->scriptExceptionForTest($error),
+        );
+    }
+
+    public static function standaloneErrorSemantics(): array
+    {
+        return [
+            'ordinary error' => ['ERR invalid command', false],
+            'missing script' => ['NOSCRIPT missing script', false],
+            'no quorum' => ['NOQUORUM unavailable', false],
+            'no good slave' => ['NOGOODSLAVE unavailable', false],
+            'wrong type' => ['WRONGTYPE invalid value type', false],
+            'busy group' => ['BUSYGROUP group exists', false],
+            'missing group' => ['NOGROUP group missing', false],
+            'authentication error' => ['ERR AUTH invalid password', true],
+            'out of memory' => ['OOM command not allowed', true],
+            'busy script' => ['BUSY script is running', true],
+            'read only replica' => ['READONLY replica', true],
+            'master unavailable' => ['MASTERDOWN unavailable', true],
+            'cluster unavailable' => ['CLUSTERDOWN unavailable', true],
+            'moved slot' => ['MOVED 1 127.0.0.1:6380', true],
+            'ask redirection' => ['ASK 1 127.0.0.1:6380', true],
+            'loading dataset' => ['LOADING dataset', true],
+            'retry later' => ['TRYAGAIN later', true],
+            'cross slot' => ['CROSSSLOT different slots', true],
+            'misconfiguration' => ['MISCONF persistence unavailable', true],
+        ];
+    }
+
+    public function testFormatClusterPasswordReturnsArrayWhenUsernameAndPasswordProvided(): void
+    {
+        $connection = new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig(['username' => 'myuser', 'password' => 'mypass'])) extends PhpRedisClusterConnectionStub {
             public function formatClusterPasswordForTest(): mixed
             {
                 return $this->formatClusterPassword();
@@ -186,7 +462,7 @@ class PhpRedisClusterConnectionTest extends TestCase
 
     public function testFormatClusterPasswordPreservesZeroCredentials(): void
     {
-        $connection = new class($this->getContainer(), $this->getMockedPool(), ['username' => '0', 'password' => '0']) extends PhpRedisClusterConnectionStub {
+        $connection = new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig(['username' => '0', 'password' => '0'])) extends PhpRedisClusterConnectionStub {
             public function formatClusterPasswordForTest(): mixed
             {
                 return $this->formatClusterPassword();
@@ -211,9 +487,10 @@ class PhpRedisClusterConnectionTest extends TestCase
         $this->assertSame($options, $connection->normalizeClusterContextForTest(['stream' => $options]));
     }
 
-    #[DataProvider('clusterTransportContexts')]
-    public function testClusterContextSelectsTheExpectedTransport(array $context, bool $tls): void
+    #[DataProvider('clusterTransports')]
+    public function testClusterSchemeSelectsTheExpectedTransport(string $scheme, array $context): void
     {
+        $tls = $scheme === 'tls';
         $server = new RespServer(
             $tls ? 'tls://127.0.0.1:0' : 'tcp://127.0.0.1:0',
             $tls
@@ -238,14 +515,14 @@ class PhpRedisClusterConnectionTest extends TestCase
             new PhpRedisClusterConnection(
                 $this->getContainer(),
                 $this->getMockedPool(),
-                [
-                    'timeout' => 1.0,
+                $this->clusterConfig([
+                    'scheme' => $scheme,
+                    'context' => $context,
                     'cluster' => [
-                        'enable' => true,
-                        'seeds' => ["{$host}:{$port}"],
-                        'context' => $context,
+                        'enabled' => true,
+                        'seeds' => ["{$scheme}://{$host}:{$port}"],
                     ],
-                ],
+                ]),
             );
         } catch (ConnectionException $exception) {
             $failure = $exception;
@@ -257,21 +534,26 @@ class PhpRedisClusterConnectionTest extends TestCase
         $this->assertSame('*2', $bytes);
     }
 
-    public static function clusterTransportContexts(): array
+    public static function clusterTransports(): array
     {
         return [
-            'empty context uses plaintext' => [[], false],
-            'non-empty context uses TLS' => [[
+            'tcp' => ['tcp', []],
+            'tls without custom context' => ['tls', []],
+            'tls with custom context' => ['tls', [
                 'verify_peer' => false,
                 'verify_peer_name' => false,
                 'allow_self_signed' => true,
-            ], true],
+            ]],
         ];
     }
 
     public function testClusterOptionsUseNativeFailoverAndTcpKeepaliveConstants(): void
     {
-        $connection = new class($this->getContainer(), $this->getMockedPool(), ['options' => ['failover' => RedisCluster::FAILOVER_DISTRIBUTE, 'tcp_keepalive' => 30, 'pack_ignore_numbers' => true]]) extends PhpRedisClusterConnectionStub {
+        if (! defined(Redis::class . '::OPT_PACK_IGNORE_NUMBERS')) {
+            $this->markTestSkipped('PhpRedis does not support OPT_PACK_IGNORE_NUMBERS.');
+        }
+
+        $connection = new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig(['options' => ['failover' => RedisCluster::FAILOVER_DISTRIBUTE, 'tcp_keepalive' => 30, 'pack_ignore_numbers' => true]])) extends PhpRedisClusterConnectionStub {
             public function setOptionsForTest(RedisCluster $redis): void
             {
                 $this->setOptions($redis);
@@ -284,13 +566,17 @@ class PhpRedisClusterConnectionTest extends TestCase
         $redis->expects('setOption')
             ->with(Redis::OPT_TCP_KEEPALIVE, 30)
             ->andReturnTrue();
+        $redis->expects('setOption')
+            ->with(Redis::OPT_PACK_IGNORE_NUMBERS, true)
+            ->andReturnTrue();
+        $this->expectDefaultConnectionOptions($redis);
 
         $connection->setOptionsForTest($redis);
     }
 
-    public function testFormatClusterPasswordReturnsPlainPasswordWithoutUsername()
+    public function testFormatClusterPasswordReturnsPlainPasswordWithoutUsername(): void
     {
-        $connection = new class($this->getContainer(), $this->getMockedPool(), ['password' => 'mypass']) extends PhpRedisClusterConnectionStub {
+        $connection = new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig(['password' => 'mypass'])) extends PhpRedisClusterConnectionStub {
             public function formatClusterPasswordForTest(): mixed
             {
                 return $this->formatClusterPassword();
@@ -300,9 +586,9 @@ class PhpRedisClusterConnectionTest extends TestCase
         $this->assertSame('mypass', $connection->formatClusterPasswordForTest());
     }
 
-    public function testFormatClusterPasswordReturnsNullWhenNoPasswordProvided()
+    public function testFormatClusterPasswordReturnsNullWhenNoPasswordProvided(): void
     {
-        $connection = new class($this->getContainer(), $this->getMockedPool(), []) extends PhpRedisClusterConnectionStub {
+        $connection = new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig()) extends PhpRedisClusterConnectionStub {
             public function formatClusterPasswordForTest(): mixed
             {
                 return $this->formatClusterPassword();
@@ -312,9 +598,9 @@ class PhpRedisClusterConnectionTest extends TestCase
         $this->assertNull($connection->formatClusterPasswordForTest());
     }
 
-    public function testFormatClusterPasswordReturnsPlainPasswordWhenUsernameIsEmpty()
+    public function testFormatClusterPasswordReturnsPlainPasswordWhenUsernameIsEmpty(): void
     {
-        $connection = new class($this->getContainer(), $this->getMockedPool(), ['username' => '', 'password' => 'mypass']) extends PhpRedisClusterConnectionStub {
+        $connection = new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig(['username' => '', 'password' => 'mypass'])) extends PhpRedisClusterConnectionStub {
             public function formatClusterPasswordForTest(): mixed
             {
                 return $this->formatClusterPassword();
@@ -324,9 +610,9 @@ class PhpRedisClusterConnectionTest extends TestCase
         $this->assertSame('mypass', $connection->formatClusterPasswordForTest());
     }
 
-    public function testFormatClusterPasswordReturnsPlainPasswordWhenPasswordIsNotString()
+    public function testFormatClusterPasswordReturnsPlainPasswordWhenPasswordIsNotString(): void
     {
-        $connection = new class($this->getContainer(), $this->getMockedPool(), ['username' => 'myuser', 'password' => ['mypass']]) extends PhpRedisClusterConnectionStub {
+        $connection = new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig(['username' => 'myuser', 'password' => ['mypass']])) extends PhpRedisClusterConnectionStub {
             public function formatClusterPasswordForTest(): mixed
             {
                 return $this->formatClusterPassword();
@@ -336,7 +622,7 @@ class PhpRedisClusterConnectionTest extends TestCase
         $this->assertSame(['mypass'], $connection->formatClusterPasswordForTest());
     }
 
-    public function testDefaultNodeIsCached()
+    public function testDefaultNodeIsCached(): void
     {
         $client = m::mock(RedisCluster::class);
         $client->shouldReceive('_masters')
@@ -356,7 +642,7 @@ class PhpRedisClusterConnectionTest extends TestCase
         $connection->scan($cursor, ['match' => '*']);
     }
 
-    public function testDefaultNodeThrowsWhenNoMasters()
+    public function testDefaultNodeThrowsWhenNoMasters(): void
     {
         $client = m::mock(RedisCluster::class);
         $client->shouldReceive('_masters')
@@ -374,7 +660,57 @@ class PhpRedisClusterConnectionTest extends TestCase
         $connection->scan($cursor, ['match' => '*']);
     }
 
-    public function testReconnectClearsCachedDefaultNode()
+    public function testConnectionRebuildsItsClientOnNextAcquisitionWithoutReplayingCommand(): void
+    {
+        $exception = new RedisException('Connection lost');
+        $failedClient = m::mock(RedisCluster::class);
+        $healthyClient = m::mock(RedisCluster::class);
+        $this->expectDefaultConnectionOptions($failedClient);
+        $this->expectDefaultConnectionOptions($healthyClient);
+        $failedClient->expects('get')->once()->with('foo')->andThrow($exception);
+        $failedClient->expects('getLastError')->andReturnNull();
+        $healthyClient->expects('get')->once()->with('foo')->andReturn('bar');
+
+        $connection = new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig(), [$failedClient, $healthyClient]) extends PhpRedisClusterConnection {
+            /**
+             * Create a connection with replacement native clients.
+             *
+             * @param RedisCluster[] $clients
+             */
+            public function __construct(
+                ContainerContract $container,
+                PoolInterface $pool,
+                array $config,
+                private array $clients,
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            /**
+             * Return the next native client.
+             */
+            protected function createRedisCluster(): RedisCluster
+            {
+                return array_shift($this->clients);
+            }
+        };
+
+        try {
+            $connection->__call('get', ['foo']);
+            $this->fail('Expected the command failure to propagate.');
+        } catch (RedisException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
+
+        $this->assertFalse($connection->check());
+        $this->assertSame($failedClient, $connection->client());
+        $this->assertSame($connection, $connection->getActiveConnection());
+        $this->assertSame($healthyClient, $connection->client());
+        $this->assertTrue($connection->check());
+        $this->assertSame('bar', $connection->__call('get', ['foo']));
+    }
+
+    public function testReconnectClearsCachedDefaultNode(): void
     {
         $pool = m::mock(PoolInterface::class);
         $pool->shouldReceive('getOption')->andReturn(new PoolOption);
@@ -387,14 +723,16 @@ class PhpRedisClusterConnectionTest extends TestCase
         $clientA = m::mock(RedisCluster::class);
         $clientA->shouldReceive('_masters')->once()->andReturn([['10.0.0.1', 6379]]);
         $clientA->shouldReceive('scan')->andReturn(false);
+        $clientA->shouldReceive('setOption')->andReturnTrue();
 
         // Second client (after reconnect): master is node B
         $clientB = m::mock(RedisCluster::class);
         $clientB->shouldReceive('_masters')->once()->andReturn([['10.0.0.2', 6379]]);
         $clientB->shouldReceive('scan')->andReturn(false);
+        $clientB->shouldReceive('setOption')->andReturnTrue();
 
         $callCount = 0;
-        $connection = new class($container, $pool, ['cluster' => ['enable' => true, 'seeds' => ['10.0.0.1:6379']]], $clientA, $clientB, $callCount) extends PhpRedisClusterConnection {
+        $connection = new class($container, $pool, $this->clusterConfig(['cluster' => ['enabled' => true, 'seeds' => ['tcp://10.0.0.1:6379']]]), $clientA, $clientB, $callCount) extends PhpRedisClusterConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -403,7 +741,7 @@ class PhpRedisClusterConnectionTest extends TestCase
                 private RedisCluster $clientB,
                 private int &$callCount,
             ) {
-                // Call grandparent to merge config, then reconnect via our override
+                // Store config without invoking the parent constructor's reconnect.
                 \Hypervel\Redis\RedisConnection::__construct($container, $pool, $config);
                 $this->reconnect();
             }
@@ -431,6 +769,58 @@ class PhpRedisClusterConnectionTest extends TestCase
         // proving the cache was cleared and re-populated after reconnect.
     }
 
+    /**
+     * Create a complete Cluster Redis connection record.
+     */
+    private function clusterConfig(array $overrides = []): array
+    {
+        return array_replace([
+            'scheme' => 'tcp',
+            'username' => null,
+            'password' => null,
+            'timeout' => 1.0,
+            'read_timeout' => 0.0,
+            'context' => [],
+            'options' => [],
+            'prefix' => null,
+            'events' => false,
+            'max_retries' => 3,
+            'backoff_algorithm' => 'decorrelated_jitter',
+            'backoff_base' => 100,
+            'backoff_cap' => 1000,
+            'pool' => [
+                'min_connections' => 1,
+                'max_connections' => 10,
+                'connect_timeout' => 10.0,
+                'wait_timeout' => 3.0,
+                'heartbeat' => -1.0,
+                'heartbeat_timeout' => 1.0,
+                'max_idle_time' => 60.0,
+                'max_lifetime' => -1.0,
+            ],
+            'cluster' => [
+                'enabled' => true,
+                'seeds' => ['tcp://127.0.0.1:7000'],
+            ],
+        ], $overrides);
+    }
+
+    /**
+     * Expect the default connection-level phpredis options.
+     */
+    private function expectDefaultConnectionOptions(RedisCluster $redis): void
+    {
+        $redis->expects('setOption')->with(Redis::OPT_MAX_RETRIES, 3)->andReturnTrue();
+        $redis->expects('setOption')
+            ->with(Redis::OPT_BACKOFF_ALGORITHM, Redis::BACKOFF_ALGORITHM_DECORRELATED_JITTER)
+            ->andReturnTrue();
+        $redis->expects('setOption')->with(Redis::OPT_BACKOFF_BASE, 100)->andReturnTrue();
+        $redis->expects('setOption')->with(Redis::OPT_BACKOFF_CAP, 1000)->andReturnTrue();
+    }
+
+    /**
+     * Get a mocked Redis pool.
+     */
     private function getMockedPool(): PoolInterface
     {
         $pool = m::mock(PoolInterface::class);
@@ -439,6 +829,9 @@ class PhpRedisClusterConnectionTest extends TestCase
         return $pool;
     }
 
+    /**
+     * Get a mocked container.
+     */
     private function getContainer(): ContainerContract
     {
         $container = m::mock(ContainerContract::class);

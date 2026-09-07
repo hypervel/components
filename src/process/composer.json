@@ -1,6 +1,6 @@
 {
     "name": "hypervel/process",
-    "description": "The process package for Hypervel.",
+    "description": "The Hypervel Process package.",
     "license": "MIT",
     "keywords": [
         "php",

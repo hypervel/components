@@ -16,13 +16,12 @@ use Hypervel\Foundation\Http\Attributes\FailOnUnknownFields;
 use Hypervel\Foundation\Http\Attributes\RedirectTo;
 use Hypervel\Foundation\Http\Attributes\RedirectToRoute;
 use Hypervel\Foundation\Http\Attributes\StopOnFirstFailure;
-use Hypervel\Foundation\Http\Traits\HasCasts;
+use Hypervel\Foundation\Http\Concerns\HasCasts;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Redirector;
-use Hypervel\Support\Arr;
 use Hypervel\Support\ValidatedInput;
+use Hypervel\Validation\UnknownFields;
 use Hypervel\Validation\ValidatesWhenResolvedTrait;
-use Hypervel\Validation\ValidationRuleParser;
 use ReflectionClass;
 
 class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
@@ -222,9 +221,9 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
         if ($this->isPrecognitive()) {
             $this->unfilteredValidationRules = $validator->getRulesWithoutPlaceholders();
 
-            $validator->setRules(
+            $validator->retainRules(array_keys(
                 $this->filterPrecognitiveRules($this->unfilteredValidationRules)
-            );
+            ));
         }
 
         return $validator;
@@ -265,51 +264,9 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
      */
     protected function validateNoUnknownFields(Validator $validator): void
     {
-        $knownFields = $this->knownFields($validator);
         $input = $this->isJson() ? $this->json()->all() : $this->request->all();
 
-        foreach (array_keys(Arr::dot($input)) as $inputKey) {
-            if (! isset($knownFields[$inputKey])) {
-                $message = $validator->getTranslator()->string('validation.prohibited', [
-                    'attribute' => str_replace('_', ' ', $inputKey),
-                ]);
-
-                $validator->errors()->add($inputKey, $message);
-            }
-        }
-    }
-
-    /**
-     * Get the known input fields from the validator's effective rules.
-     *
-     * @return array<string, true>
-     */
-    protected function knownFields(Validator $validator): array
-    {
-        $fields = [];
-        $rulesWithoutPlaceholders = $validator->getRulesWithoutPlaceholders();
-
-        if ($this->unfilteredValidationRules !== null) {
-            $rulesWithoutPlaceholders = array_replace($this->unfilteredValidationRules, $rulesWithoutPlaceholders);
-        }
-
-        foreach ($rulesWithoutPlaceholders as $attribute => $rules) {
-            $attribute = (string) $attribute;
-            $fields[$attribute] = true;
-
-            /** @var array<int, array|object|string> $rules */
-            $rules = (array) $rules;
-
-            foreach ($rules as $rule) {
-                [$rule, $parameters] = ValidationRuleParser::parse($rule);
-
-                if ($rule === 'Confirmed') {
-                    $fields[(string) ($parameters[0] ?? $attribute . '_confirmation')] = true;
-                }
-            }
-        }
-
-        return $fields;
+        UnknownFields::validate($validator, $input, $this->unfilteredValidationRules);
     }
 
     /**
@@ -377,9 +334,11 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
      */
     public function safe(?array $keys = null): array|ValidatedInput
     {
+        $validated = new ValidatedInput($this->castValidatedInput($this->validator->validated()));
+
         return is_array($keys)
-            ? $this->validator->safe()->only($keys)
-            : $this->validator->safe();
+            ? $validated->only($keys)
+            : $validated;
     }
 
     /**
@@ -387,7 +346,7 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
      */
     public function validated(array|int|string|null $key = null, mixed $default = null): mixed
     {
-        return data_get($this->validator->validated(), $key, $default);
+        return data_get($this->castValidatedInput($this->validator->validated()), $key, $default);
     }
 
     /**

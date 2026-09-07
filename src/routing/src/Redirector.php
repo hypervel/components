@@ -157,6 +157,9 @@ class Redirector
 
     /**
      * Set the active session store.
+     *
+     * Boot-only. Mutates the worker-shared Redirector while concurrent
+     * coroutines may still hold or use the previous session store.
      */
     public function setSession(SessionStore $session): void
     {

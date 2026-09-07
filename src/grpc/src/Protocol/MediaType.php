@@ -9,7 +9,7 @@ namespace Hypervel\Grpc\Protocol;
  */
 final readonly class MediaType
 {
-    public const PROTOBUF = 'application/grpc+proto';
+    public const string PROTOBUF = 'application/grpc+proto';
 
     private function __construct(private ?string $subtype)
     {

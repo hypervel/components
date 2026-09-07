@@ -393,6 +393,51 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertSame('create index concurrently "baz" on "users" ("foo")', $statements[0]);
     }
 
+    public function testAddingPartialIndex(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->index(['account_id', 'archived_at'], 'users_active_index')
+            ->whereNotNull('archived_at');
+
+        $this->assertSame(
+            ['create index "users_active_index" on "users" ("account_id", "archived_at") where "archived_at" is not null'],
+            $blueprint->toSql(),
+        );
+    }
+
+    public function testPartialRawIndexComposesWithAlgorithmAndOnlineCreation(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->rawIndex('(lower(email))', 'users_email_lower_index')
+            ->algorithm('hash')
+            ->online()
+            ->whereNotNull('email');
+
+        $this->assertSame(
+            ['create index concurrently "users_email_lower_index" on "users" using hash ((lower(email))) where "email" is not null'],
+            $blueprint->toSql(),
+        );
+    }
+
+    public function testCompileIndexesIncludesPartialMetadata(): void
+    {
+        $this->assertSame(
+            'select ic.relname as name, string_agg(a.attname, \',\' order by indseq.ord) as columns, '
+            . 'am.amname as "type", i.indisunique as "unique", i.indisprimary as "primary", '
+            . 'i.indpred is not null as "partial" '
+            . 'from pg_index i '
+            . 'join pg_class tc on tc.oid = i.indrelid '
+            . 'join pg_namespace tn on tn.oid = tc.relnamespace '
+            . 'join pg_class ic on ic.oid = i.indexrelid '
+            . 'join pg_am am on am.oid = ic.relam '
+            . 'join lateral unnest(i.indkey) with ordinality as indseq(num, ord) on true '
+            . 'left join pg_attribute a on a.attrelid = i.indrelid and a.attnum = indseq.num '
+            . 'where tc.relname = \'users\' and tn.nspname = \'public\' '
+            . 'group by ic.relname, am.amname, i.indisunique, i.indisprimary, i.indpred is not null',
+            $this->getGrammar()->compileIndexes('public', 'users'),
+        );
+    }
+
     public function testAddingFulltextIndex()
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');

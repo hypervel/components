@@ -10,8 +10,11 @@ use Hypervel\Foundation\Exceptions\Renderer\Mappers\BladeMapper;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
+use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\Engines\CompilerEngine;
+use Mockery as m;
 use ReflectionMethod;
+use Swoole\Coroutine\CanceledException;
 
 use function Hypervel\Testbench\after_resolving;
 use function Hypervel\Testbench\package_path;
@@ -52,7 +55,7 @@ class RenderBladeFilesTest extends TestCase
 
         $path = package_path('src/foundation/resources/exceptions/renderer/components/formatted-source.blade.php');
 
-        $html = (string) $this->app['view']->file($path, ['frame' => $frame])->render();
+        $html = (string) $this->app->make('view')->file($path, ['frame' => $frame])->render();
 
         $this->assertStringContainsString('data-tippy-content="', $html);
         $this->assertStringNotContainsString('<br', $html);
@@ -65,7 +68,7 @@ class RenderBladeFilesTest extends TestCase
 
         $path = package_path('src/foundation/resources/exceptions/renderer/components/query.blade.php');
 
-        $html = (string) $this->app['view']->file($path, ['queries' => $queries])->render();
+        $html = (string) $this->app->make('view')->file($path, ['queries' => $queries])->render();
 
         $this->assertStringContainsString('data-tippy-content="', $html);
         $this->assertMatchesRegularExpression('/&lt;br\s*\/?&gt;/', $html);
@@ -77,7 +80,7 @@ class RenderBladeFilesTest extends TestCase
 
         $path = package_path('src/foundation/resources/exceptions/renderer/components/request-header.blade.php');
 
-        $html = (string) $this->app['view']->file($path, ['headers' => $headers])->render();
+        $html = (string) $this->app->make('view')->file($path, ['headers' => $headers])->render();
 
         $this->assertStringContainsString('data-tippy-content="', $html);
         $this->assertStringNotContainsString('<br', $html);
@@ -90,7 +93,7 @@ class RenderBladeFilesTest extends TestCase
 
         $path = package_path('src/foundation/resources/exceptions/renderer/components/routing.blade.php');
 
-        $html = (string) $this->app['view']->file($path, ['routing' => $routing])->render();
+        $html = (string) $this->app->make('view')->file($path, ['routing' => $routing])->render();
 
         $this->assertStringContainsString('data-tippy-content="', $html);
         $this->assertStringNotContainsString('<br', $html);
@@ -119,5 +122,21 @@ class RenderBladeFilesTest extends TestCase
                 37,
             ),
         );
+    }
+
+    public function testBladeMapperPreservesCancellationDuringSourceMapping(): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $compiler = m::mock(BladeCompiler::class);
+        $compiler->shouldReceive('compileString')->once()->andThrow($cancellation);
+        $method = new ReflectionMethod(BladeMapper::class, 'compileSourcemap');
+
+        try {
+            $method->invoke(new BladeMapper($compiler), 'plain text');
+
+            $this->fail('The cancellation was not preserved.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 }

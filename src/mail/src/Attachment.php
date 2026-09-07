@@ -15,8 +15,6 @@ use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use RuntimeException;
 
-use function with;
-
 class Attachment
 {
     use Macroable;
@@ -193,16 +191,20 @@ class Attachment
      */
     public function isEquivalent(Attachment $attachment, array $options = []): bool
     {
-        return with([
-            'as' => $options['as'] ?? $attachment->as,
-            'mime' => $options['mime'] ?? $attachment->mime,
-        ], fn ($options) => $this->attachWith(
+        // Storage and uploaded-file attachments populate metadata while their resolvers run.
+        return $this->attachWith(
             fn ($path) => [$path, ['as' => $this->as, 'mime' => $this->mime]],
             fn ($data) => [$data(), ['as' => $this->as, 'mime' => $this->mime]],
         ) === $attachment->attachWith(
-            fn ($path) => [$path, $options],
-            fn ($data) => [$data(), $options],
-        ));
+            fn ($path) => [$path, [
+                'as' => $options['as'] ?? $attachment->as,
+                'mime' => $options['mime'] ?? $attachment->mime,
+            ]],
+            fn ($data) => [$data(), [
+                'as' => $options['as'] ?? $attachment->as,
+                'mime' => $options['mime'] ?? $attachment->mime,
+            ]],
+        );
     }
 
     /**

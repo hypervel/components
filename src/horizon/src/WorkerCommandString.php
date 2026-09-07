@@ -9,7 +9,7 @@ class WorkerCommandString
     /**
      * The default base worker command.
      */
-    protected const DEFAULT_COMMAND = 'exec @php artisan horizon:work';
+    protected const string DEFAULT_COMMAND = 'exec @php artisan horizon:work';
 
     /**
      * The base worker command.

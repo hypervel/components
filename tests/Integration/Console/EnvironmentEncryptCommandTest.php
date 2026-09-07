@@ -11,6 +11,7 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use Mockery as m;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class EnvironmentEncryptCommandTest extends TestCase
 {
@@ -55,6 +56,33 @@ class EnvironmentEncryptCommandTest extends TestCase
         $this->artisan('env:encrypt', ['--cipher' => 'aes-128-cbc', '--key' => 'invalid'])
             ->expectsOutputToContain('incorrect key length')
             ->assertExitCode(1);
+    }
+
+    public function testItPreservesCancellationWhileReadingTheEnvironment(): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $filesystem = m::mock(Filesystem::class);
+        $filesystem->shouldReceive('exists')
+            ->with(base_path('.env'))
+            ->once()
+            ->andReturn(true);
+        $filesystem->shouldReceive('exists')
+            ->with(base_path('.env.encrypted'))
+            ->once()
+            ->andReturn(false);
+        $filesystem->shouldReceive('get')
+            ->with(base_path('.env'))
+            ->once()
+            ->andThrow($cancellation);
+        $filesystem->shouldReceive('replace')->never();
+        File::swap($filesystem);
+
+        try {
+            $this->artisan('env:encrypt', ['--key' => 'ANvVbPbE0tWMHpUySh6liY4WaCmAYKXP'])->execute();
+            $this->fail('Expected environment encryption to preserve cancellation.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testItGeneratesTheCorrectFileWhenUsingEnvironment(): void
@@ -562,6 +590,7 @@ ENV;
         $encryptedFile = $environmentFile . '.encrypted';
         $files->put($environmentFile, 'APP_NAME=Hypervel');
         File::swap($files);
+        $umask = umask(0027);
 
         try {
             $this->artisan('env:encrypt', [
@@ -569,8 +598,9 @@ ENV;
             ])->assertSuccessful();
 
             $this->assertFileExists($encryptedFile);
-            $this->assertSame(0777 - umask(), fileperms($encryptedFile) & 0777);
+            $this->assertSame(0640, fileperms($encryptedFile) & 0777);
         } finally {
+            umask($umask);
             $files->deleteDirectory($tempDir);
         }
     }

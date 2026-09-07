@@ -14,34 +14,35 @@ use Hypervel\Support\CarbonImmutable;
 use InvalidArgumentException;
 use Laravel\SerializableClosure\SerializableClosure;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class SwooleStore implements CanFlushLocks, LockProvider, Store
 {
-    public const EVICTION_POLICY_LRU = 'lru';
+    public const string EVICTION_POLICY_LRU = 'lru';
 
-    public const EVICTION_POLICY_LFU = 'lfu';
+    public const string EVICTION_POLICY_LFU = 'lfu';
 
-    public const EVICTION_POLICY_TTL = 'ttl';
+    public const string EVICTION_POLICY_TTL = 'ttl';
 
-    public const EVICTION_POLICY_NOEVICTION = 'noeviction';
+    public const string EVICTION_POLICY_NOEVICTION = 'noeviction';
 
-    protected const USER_PREFIX = 'u:';
+    protected const string USER_PREFIX = 'u:';
 
-    protected const INTERVAL_PREFIX = 'i:';
+    protected const string INTERVAL_PREFIX = 'i:';
 
-    protected const INTERVAL_INDEX_PREFIX = 'x:';
+    protected const string INTERVAL_INDEX_PREFIX = 'x:';
 
-    protected const INTERVAL_INDEX_SHARDS = 64;
+    protected const int INTERVAL_INDEX_SHARDS = 64;
 
     /*
      * This timeout must stay comfortably above normal resolver runtimes. If a
      * worker crashes after claiming an interval, another process can reclaim it
      * after this window instead of freezing refreshes until restart.
      */
-    protected const INTERVAL_REFRESH_CLAIM_TIMEOUT = 300.0;
+    protected const float INTERVAL_REFRESH_CLAIM_TIMEOUT = 300.0;
 
-    protected const LOCK_PREFIX = 'l:';
+    protected const string LOCK_PREFIX = 'l:';
 
     protected SwooleTable $table;
 
@@ -288,10 +289,18 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
 
         try {
             $this->registerIntervalIndex($metadataKey);
-        } catch (Throwable $e) {
-            $this->state->withRowLock($metadataKey, fn (): bool => $this->rawForget($metadataKey));
+        } catch (Throwable $failure) {
+            try {
+                $this->state->withRowLock($metadataKey, fn (): bool => $this->rawForget($metadataKey));
+            } catch (CanceledException $cleanupCancellation) {
+                if (! $failure instanceof CanceledException) {
+                    throw $cleanupCancellation;
+                }
+            } catch (Throwable) {
+                // Preserve the registration failure as primary.
+            }
 
-            throw $e;
+            throw $failure;
         }
 
         $this->registerLocalInterval($key);
@@ -920,16 +929,28 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
             $this->completeIntervalRefresh($metadataKey, $claimedAt);
 
             return $value;
-        } catch (Throwable $e) {
+        } catch (Throwable $failure) {
             if ($claimedAt !== null) {
-                $this->clearIntervalClaim($metadataKey, $claimedAt);
+                try {
+                    $this->clearIntervalClaim($metadataKey, $claimedAt);
+                } catch (CanceledException $cleanupCancellation) {
+                    if (! $failure instanceof CanceledException) {
+                        throw $cleanupCancellation;
+                    }
+                } catch (Throwable) {
+                    // Preserve the refresh failure as primary.
+                }
+            }
+
+            if ($failure instanceof CanceledException) {
+                throw $failure;
             }
 
             if ($rethrow) {
-                throw $e;
+                throw $failure;
             }
 
-            $this->reportIntervalException($e);
+            $this->reportIntervalException($failure);
 
             return null;
         }

@@ -6,12 +6,12 @@ namespace Hypervel\Container\Attributes;
 
 use Attribute;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Container\ContextualAttribute;
-use Hypervel\Database\Connection;
+use Hypervel\Contracts\Container\ExecutionScopedAttribute;
+use Hypervel\Database\ConnectionInterface;
 use UnitEnum;
 
 #[Attribute(Attribute::TARGET_PARAMETER)]
-class Database implements ContextualAttribute
+class Database implements ExecutionScopedAttribute
 {
     /**
      * Create a new class instance.
@@ -21,9 +21,17 @@ class Database implements ContextualAttribute
     }
 
     /**
+     * Determine whether the resolved value belongs to the current execution.
+     */
+    public function isExecutionScoped(): bool
+    {
+        return true;
+    }
+
+    /**
      * Resolve the database connection.
      */
-    public static function resolve(self $attribute, Container $container): Connection
+    public static function resolve(self $attribute, Container $container): ConnectionInterface
     {
         return $container->make('db')->connection($attribute->connection);
     }

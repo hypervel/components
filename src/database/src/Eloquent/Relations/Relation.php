@@ -60,12 +60,12 @@ abstract class Relation implements BuilderContract
     /**
      * The context key for storing whether constraints are enabled.
      */
-    protected const CONSTRAINTS_CONTEXT_KEY = '__database.relation.constraints';
+    protected const string CONSTRAINTS_CONTEXT_KEY = '__database.relation.constraints';
 
     /**
      * An array to map morph names to their class names in the database.
      *
-     * @var array<string, class-string<\Hypervel\Database\Eloquent\Model>>
+     * @var array<int|string, class-string<\Hypervel\Database\Eloquent\Model>>
      */
     public static array $morphMap = [];
 
@@ -196,14 +196,13 @@ abstract class Relation implements BuilderContract
             throw new MultipleRecordsFoundException($count);
         }
 
-        // @phpstan-ignore return.type (Collection::first() generic type lost; count check above ensures non-null)
         return $result->first();
     }
 
     /**
      * Execute the query as a "select" statement.
      *
-     * @return \Hypervel\Support\Collection<int, TRelatedModel>
+     * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
      */
     public function get(array $columns = ['*']): BaseCollection
     {
@@ -241,6 +240,7 @@ abstract class Relation implements BuilderContract
      */
     public function getRelationExistenceCountQuery(Builder $query, Builder $parentQuery): Builder
     {
+        // @phpstan-ignore return.type (fluent query methods return the Eloquent builder at runtime)
         return $this->getRelationExistenceQuery(
             $query,
             $parentQuery,
@@ -259,6 +259,7 @@ abstract class Relation implements BuilderContract
      */
     public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
+        // @phpstan-ignore return.type (fluent query methods return the Eloquent builder at runtime)
         return $query->select($columns)->whereColumn(
             $this->getQualifiedParentKeyName(),
             '=',
@@ -425,7 +426,8 @@ abstract class Relation implements BuilderContract
      * Boot-only. Sets both worker-wide morph state (requireMorphMap + morphMap)
      * shared by every coroutine.
      *
-     * @param array<string, class-string<\Hypervel\Database\Eloquent\Model>> $map
+     * @param array<int|string, class-string<\Hypervel\Database\Eloquent\Model>> $map
+     * @return array<int|string, class-string<\Hypervel\Database\Eloquent\Model>>
      */
     public static function enforceMorphMap(array $map, bool $merge = true): array
     {
@@ -441,8 +443,8 @@ abstract class Relation implements BuilderContract
      * worker lifetime and applies to every polymorphic resolution across all
      * coroutines.
      *
-     * @param null|array<string, class-string<\Hypervel\Database\Eloquent\Model>> $map
-     * @return array<string, class-string<\Hypervel\Database\Eloquent\Model>>
+     * @param null|array<int|string, class-string<\Hypervel\Database\Eloquent\Model>> $map
+     * @return array<int|string, class-string<\Hypervel\Database\Eloquent\Model>>
      */
     public static function morphMap(?array $map = null, bool $merge = true): array
     {
@@ -458,15 +460,14 @@ abstract class Relation implements BuilderContract
     }
 
     /**
-     * Builds a table-keyed array from model class names.
+     * Build a table-keyed array from model class names.
      *
-     * @param null|array<string, class-string<\Hypervel\Database\Eloquent\Model>>|list<class-string<\Hypervel\Database\Eloquent\Model>> $models
-     * @return null|array<string, class-string<\Hypervel\Database\Eloquent\Model>>
+     * @param null|array<int|string, class-string<\Hypervel\Database\Eloquent\Model>> $models
+     * @return null|array<int|string, class-string<\Hypervel\Database\Eloquent\Model>>
      */
     protected static function buildMorphMapFromModels(?array $models = null): ?array
     {
         if (is_null($models) || ! array_is_list($models)) {
-            // @phpstan-ignore return.type (returns the keyed array unchanged)
             return $models;
         }
 
@@ -480,8 +481,12 @@ abstract class Relation implements BuilderContract
      *
      * @return null|class-string<\Hypervel\Database\Eloquent\Model>
      */
-    public static function getMorphedModel(string $alias): ?string
+    public static function getMorphedModel(int|string|null $alias): ?string
     {
+        if (is_null($alias)) {
+            return null;
+        }
+
         return static::$morphMap[$alias] ?? null;
     }
 
@@ -492,7 +497,9 @@ abstract class Relation implements BuilderContract
      */
     public static function getMorphAlias(string $className): int|string
     {
-        return array_search($className, static::$morphMap, strict: true) ?: $className;
+        $alias = array_search($className, static::$morphMap, strict: true);
+
+        return $alias !== false ? $alias : $className;
     }
 
     /**

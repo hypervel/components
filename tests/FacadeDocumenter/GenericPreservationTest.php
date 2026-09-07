@@ -217,4 +217,73 @@ class GenericPreservationTest extends FacadeDocumenterTestCase
         );
         $this->assertStringNotContainsString('\BackedEnum|(', $contents);
     }
+
+    public function testRefinedArraysPreserveTheirSupportedGenericTypes(): void
+    {
+        $this->writeAppFile(
+            'Generic/RefinedArrays/Proxy.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\Generic\RefinedArrays;
+
+                class Proxy
+                {
+                    /** @return non-empty-list<string> */
+                    public function nonEmptyList(): mixed { return null; }
+
+                    /** @return non-empty-array<string> */
+                    public function valueArray(): mixed { return null; }
+
+                    /** @return non-empty-array<string, int> */
+                    public function keyedArray(): mixed { return null; }
+
+                    /** @return non-empty-list<non-empty-string|positive-int> */
+                    public function nestedUnion(): mixed { return null; }
+
+                    /** @return non-empty-array<string, non-empty-list<positive-int>> */
+                    public function nestedGeneric(): mixed { return null; }
+
+                    /** @return non-empty-list<string>&\Countable */
+                    public function intersection(): mixed { return null; }
+
+                    /** @return UnknownContainer<string> */
+                    public function unknownGeneric(): mixed { return null; }
+                }
+                PHP
+        );
+
+        $this->writeAppFile(
+            'Generic/RefinedArrays/Facade.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\Generic\RefinedArrays;
+
+                /** @see \App\Generic\RefinedArrays\Proxy */
+                class Facade
+                {
+                }
+                PHP
+        );
+
+        $process = $this->runDocumenter(['App\Generic\RefinedArrays\Facade']);
+
+        $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput() . $process->getOutput());
+
+        $contents = $this->appFileContents('App\Generic\RefinedArrays\Facade');
+
+        $this->assertStringContainsString('@method static array<int, string> nonEmptyList()', $contents);
+        $this->assertStringContainsString('@method static array<string> valueArray()', $contents);
+        $this->assertStringContainsString('@method static array<string, int> keyedArray()', $contents);
+        $this->assertStringContainsString('@method static array<int, string|int> nestedUnion()', $contents);
+        $this->assertStringContainsString('@method static array<string, array<int, int>> nestedGeneric()', $contents);
+        $this->assertStringContainsString('@method static array<int, string>&\Countable intersection()', $contents);
+        $this->assertStringContainsString('@method static mixed unknownGeneric()', $contents);
+        $this->assertStringNotContainsString('mixed<', $contents);
+    }
 }

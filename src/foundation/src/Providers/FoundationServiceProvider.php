@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Providers;
 
 use Carbon\FactoryImmutable;
+use Hypervel\Concurrency\Console\InvokeSerializedClosureCommand;
 use Hypervel\Config\Repository;
-use Hypervel\Console\Events\CommandFinished;
 use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Container\Container as BaseContainer;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -48,7 +49,6 @@ use Hypervel\Foundation\Console\EventListCommand;
 use Hypervel\Foundation\Console\EventMakeCommand;
 use Hypervel\Foundation\Console\ExceptionMakeCommand;
 use Hypervel\Foundation\Console\InterfaceMakeCommand;
-use Hypervel\Foundation\Console\InvokeSerializedClosureCommand;
 use Hypervel\Foundation\Console\JobMakeCommand;
 use Hypervel\Foundation\Console\JobMiddlewareMakeCommand;
 use Hypervel\Foundation\Console\LangPublishCommand;
@@ -87,6 +87,7 @@ use Hypervel\Foundation\Exceptions\Renderer\Renderer;
 use Hypervel\Foundation\Http\HtmlDumper;
 use Hypervel\Foundation\Listeners\ReloadDotenvAndConfig;
 use Hypervel\Foundation\MaintenanceModeManager;
+use Hypervel\Foundation\Precognition;
 use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Http\Request;
 use Hypervel\Log\Events\MessageLogged;
@@ -145,7 +146,7 @@ class FoundationServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton('composer', fn ($app) => new Composer(
-            $app['files'],
+            $app->make('files'),
             $app->basePath()
         ));
 
@@ -253,14 +254,12 @@ class FoundationServiceProvider extends ServiceProvider
     protected function registerDeferHandler(): void
     {
         $this->app->scoped(DeferredCallbackCollection::class);
+        $events = $this->app->make('events');
 
-        $this->app['events']->listen(function (CommandFinished $event) {
-            $this->app->make(DeferredCallbackCollection::class)
-                ->invokeWhen(fn (DeferredCallback $callback) => $this->app->runningInConsole() && ($event->exitCode === 0 || $callback->always));
-        });
-
-        $this->app['events']->listen(function (JobAttempted $event) {
-            if (in_array($event->connectionName, ['sync', 'deferred'], true)) {
+        $events->listen(function (JobAttempted $event) {
+            if ($event->connectionName === 'sync'
+                || ! BaseContainer::getInstance()->resolvedScoped(DeferredCallbackCollection::class)
+            ) {
                 return;
             }
 
@@ -279,10 +278,10 @@ class FoundationServiceProvider extends ServiceProvider
         Request::macro('validate', function (array $rules, ...$params) {
             return tap(validator($this->all(), $rules, ...$params), function ($validator) {
                 if ($this->isPrecognitive()) {
-                    $validator->after(\Hypervel\Foundation\Precognition::afterValidationHook($this))
-                        ->setRules(
+                    $validator->after(Precognition::afterValidationHook($this))
+                        ->retainRules(array_keys(
                             $this->filterPrecognitiveRules($validator->getRulesWithoutPlaceholders())
-                        );
+                        ));
                 }
             })->validate();
         });
@@ -418,14 +417,26 @@ class FoundationServiceProvider extends ServiceProvider
 
         $compiledViewPath = $this->config->string('view.compiled');
 
+        $formatExists = array_key_exists('VAR_DUMPER_FORMAT', $_SERVER);
         $format = $_SERVER['VAR_DUMPER_FORMAT'] ?? null;
 
-        match (true) {
-            $format === 'html' => HtmlDumper::register($basePath, $compiledViewPath),
-            $format === 'cli' => CliDumper::register($basePath, $compiledViewPath),
-            $format === 'server' => null,
-            $format && parse_url($format, PHP_URL_SCHEME) === 'tcp' => null,
-            default => php_sapi_name() === 'cli' ? CliDumper::register($basePath, $compiledViewPath) : HtmlDumper::register($basePath, $compiledViewPath),
-        };
+        // Symfony refuses to replace its handler while this variable is set.
+        unset($_SERVER['VAR_DUMPER_FORMAT']);
+
+        try {
+            match (true) {
+                $format === 'html' => HtmlDumper::register($basePath, $compiledViewPath),
+                $format === 'cli' => CliDumper::register($basePath, $compiledViewPath),
+                $format === 'server' => null,
+                $format && parse_url($format, PHP_URL_SCHEME) === 'tcp' => null,
+                default => in_array(PHP_SAPI, ['cli', 'phpdbg'], true)
+                    ? CliDumper::register($basePath, $compiledViewPath)
+                    : HtmlDumper::register($basePath, $compiledViewPath),
+            };
+        } finally {
+            if ($formatExists) {
+                $_SERVER['VAR_DUMPER_FORMAT'] = $format;
+            }
+        }
     }
 }

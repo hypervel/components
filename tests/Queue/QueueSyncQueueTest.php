@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Queue;
 
 use Exception;
 use Hypervel\Bus\Dispatcher as BusDispatcher;
+use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Bus\Dispatcher as DispatcherContract;
@@ -17,10 +18,16 @@ use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Events\Dispatcher as EventsDispatcher;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\Events\JobAttempted;
+use Hypervel\Queue\Events\JobExceptionOccurred;
+use Hypervel\Queue\Events\JobFailed;
+use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
+use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Queue\SyncQueue;
@@ -28,6 +35,7 @@ use Hypervel\Tests\TestCase;
 use LogicException;
 use Mockery as m;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class QueueSyncQueueTest extends TestCase
 {
@@ -67,6 +75,75 @@ class QueueSyncQueueTest extends TestCase
         $this->assertEquals(['foo' => 'bar'], $_SERVER['__sync.test'][1]);
     }
 
+    public function testPushRawExecutesPayloadInstantly(): void
+    {
+        unset($_SERVER['__sync.test']);
+
+        $sync = new SyncQueue;
+        $sync->setContainer($this->getContainer());
+        $sync->setConnectionName('sync');
+
+        $result = $sync->pushRaw(json_encode([
+            'uuid' => 'raw-job',
+            'job' => SyncQueueTestHandler::class,
+            'data' => ['foo' => 'raw'],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->assertSame(0, $result);
+        $this->assertInstanceOf(SyncJob::class, $_SERVER['__sync.test'][0]);
+        $this->assertSame(['foo' => 'raw'], $_SERVER['__sync.test'][1]);
+    }
+
+    public function testJobsReportTheirResolvedQueueName(): void
+    {
+        $sync = new SyncQueue;
+        $sync->setConnectionName('sync-connection');
+        $container = $this->getContainer();
+        $events = new EventsDispatcher($container);
+        $observed = [];
+
+        $events->listen(JobProcessing::class, static function (JobProcessing $event) use (&$observed): void {
+            $observed[] = [$event->connectionName, $event->job->getQueue()];
+        });
+
+        $container->instance('events', $events);
+        $container->instance(EventDispatcher::class, $events);
+        $sync->setContainer($container);
+
+        foreach ([
+            [null, 'sync'],
+            ['', 'sync'],
+            ['emails', 'emails'],
+            // A queue named "0" is valid and must not be treated as empty.
+            ['0', '0'],
+        ] as [$queue, $expected]) {
+            $observed = [];
+            $sync->push(SyncQueueTestHandler::class, queue: $queue);
+            $this->assertSame([['sync-connection', $expected]], $observed);
+        }
+    }
+
+    public function testLifecycleEventsAreNotDispatchedWithoutListeners(): void
+    {
+        unset($_SERVER['__sync.test']);
+
+        $sync = new SyncQueue;
+        $sync->setConnectionName('sync');
+        $container = $this->getContainer();
+        $events = m::mock(EventDispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnFalse();
+        $events->shouldReceive('hasListeners')->once()->with(JobProcessed::class)->andReturnFalse();
+        $events->shouldReceive('hasListeners')->once()->with(JobAttempted::class)->andReturnFalse();
+        $events->shouldReceive('dispatch')->never();
+        $container->instance('events', $events);
+        $container->instance(EventDispatcher::class, $events);
+        $sync->setContainer($container);
+
+        $sync->push(SyncQueueTestHandler::class, ['foo' => 'bar']);
+
+        $this->assertInstanceOf(SyncJob::class, $_SERVER['__sync.test'][0]);
+    }
+
     public function testFailedJobGetsHandledWhenAnExceptionIsThrown()
     {
         unset($_SERVER['__sync.failed']);
@@ -75,6 +152,10 @@ class QueueSyncQueueTest extends TestCase
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $events = m::mock(EventDispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->once()->with(JobExceptionOccurred::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->once()->with(JobAttempted::class)->andReturnTrue();
         $events->shouldReceive('dispatch')->times(4);
         $container->instance('events', $events);
         $container->instance(EventDispatcher::class, $events);
@@ -155,6 +236,55 @@ class QueueSyncQueueTest extends TestCase
         }
     }
 
+    public function testCancellationEscapesWithoutFailedOrCompletionEvents(): void
+    {
+        CancelingSyncQueueTestHandler::reset();
+        $gate = $this->armCurrentCoroutineCancellation();
+        CancelingSyncQueueTestHandler::$gate = $gate;
+        $dispatched = [];
+        $sync = new SyncQueue;
+        $sync->setConnectionName('sync');
+        $container = $this->getContainer();
+        $events = new EventsDispatcher($container);
+
+        foreach ([JobProcessing::class, JobProcessed::class, JobExceptionOccurred::class, JobAttempted::class, JobQueueingFailed::class] as $event) {
+            $events->listen($event, static function (object $event) use (&$dispatched): void {
+                $dispatched[] = $event::class;
+            });
+        }
+
+        $container->instance('events', $events);
+        $container->instance(EventDispatcher::class, $events);
+        $sync->setContainer($container);
+
+        try {
+            $sync->push(CancelingSyncQueueTestHandler::class);
+            $this->fail('Expected cancellation to escape the sync queue.');
+        } catch (CanceledException) {
+            $this->assertSame([JobProcessing::class], $dispatched);
+            $this->assertFalse(CancelingSyncQueueTestHandler::$failed);
+        } finally {
+            CancelingSyncQueueTestHandler::reset();
+        }
+    }
+
+    public function testCancellationDuringSerializationIsNotWrapped(): void
+    {
+        $sync = new SyncQueue;
+        $sync->setConnectionName('sync');
+        $sync->setContainer($this->getContainer());
+        CancelingSerializationJob::$gate = $this->armCurrentCoroutineCancellation();
+
+        try {
+            $sync->push(new CancelingSerializationJob);
+            $this->fail('Expected cancellation to escape payload serialization.');
+        } catch (CanceledException) {
+            $this->addToAssertionCount(1);
+        } finally {
+            CancelingSerializationJob::$gate = null;
+        }
+    }
+
     public function testFailedJobHasAccessToJobInstance()
     {
         unset($_SERVER['__sync.failed']);
@@ -184,8 +314,7 @@ class QueueSyncQueueTest extends TestCase
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $events = m::mock(EventDispatcher::class);
-        $events->shouldReceive('dispatch');
+        $events = new EventsDispatcher($container);
         $container->instance('events', $events);
         $container->instance(EventDispatcher::class, $events);
         $dispatcher = m::mock(Dispatcher::class);
@@ -243,8 +372,11 @@ class QueueSyncQueueTest extends TestCase
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
 
+        $job = new SyncQueueAfterCommitUniqueJob;
+        DispatchLockContext::registerUnique($job, $container->make(Cache::class), null, 'unique-key', 'owner');
+
         $sync->setContainer($container);
-        $sync->push(new SyncQueueAfterCommitUniqueJob);
+        $sync->push($job);
     }
 
     public function testItAddsATransactionRollbackCallbackForAfterCommitDebouncedJobs(): void
@@ -257,8 +389,11 @@ class QueueSyncQueueTest extends TestCase
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
 
+        $job = new SyncQueueAfterCommitDebouncedJob;
+        DispatchLockContext::registerDebounce($job, $container->make(Cache::class), 'debounce-key', 'owner');
+
         $sync->setContainer($container);
-        $sync->push(new SyncQueueAfterCommitDebouncedJob);
+        $sync->push($job);
     }
 
     public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitUniqueJobs()
@@ -271,8 +406,41 @@ class QueueSyncQueueTest extends TestCase
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
 
+        $job = new SyncQueueAfterCommitInterfaceUniqueJob;
+        DispatchLockContext::registerUnique($job, $container->make(Cache::class), null, 'unique-key', 'owner');
+
         $sync->setContainer($container);
-        $sync->push(new SyncQueueAfterCommitInterfaceUniqueJob);
+        $sync->push($job);
+    }
+
+    public function testAfterCommitUniqueJobWithoutDispatchOwnershipDoesNotAddRollbackCallback(): void
+    {
+        $sync = new SyncQueue;
+        $sync->setConnectionName('sync');
+        $container = $this->getContainer();
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->shouldReceive('addCallback')->once()->andReturnNull();
+        $transactionManager->shouldReceive('addCallbackForRollback')->never();
+        $container->instance('db.transactions', $transactionManager);
+
+        $sync->setContainer($container);
+        $sync->push(new SyncQueueAfterCommitUniqueJob);
+    }
+
+    /**
+     * Arm exact cancellation of the current coroutine at a controlled channel handoff.
+     */
+    private function armCurrentCoroutineCancellation(): Channel
+    {
+        $gate = new Channel(1);
+        $coroutineId = EngineCoroutine::id();
+
+        EngineCoroutine::create(static function () use ($coroutineId, $gate): void {
+            $gate->pop();
+            EngineCoroutine::cancelById($coroutineId, throwException: true);
+        });
+
+        return $gate;
     }
 
     protected function getContainer(): Container
@@ -322,6 +490,43 @@ class FailingSyncQueueTestHandler
     public function failed()
     {
         $_SERVER['__sync.failed'] = true;
+    }
+}
+
+class CancelingSyncQueueTestHandler
+{
+    public static ?Channel $gate = null;
+
+    public static bool $failed = false;
+
+    public function fire(): never
+    {
+        static::$gate?->push(true);
+
+        throw new RuntimeException('Cancellation was not delivered.');
+    }
+
+    public function failed(): void
+    {
+        static::$failed = true;
+    }
+
+    public static function reset(): void
+    {
+        static::$gate = null;
+        static::$failed = false;
+    }
+}
+
+class CancelingSerializationJob
+{
+    public static ?Channel $gate = null;
+
+    public function __serialize(): array
+    {
+        static::$gate?->push(true);
+
+        throw new RuntimeException('Cancellation was not delivered.');
     }
 }
 

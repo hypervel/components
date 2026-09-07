@@ -10,6 +10,13 @@ class Processor
 {
     /**
      * Process the results of a "select" query.
+     *
+     * @template TKey of array-key
+     * @template TValue
+     *
+     * @param Builder<TKey, TValue> $query
+     * @param array<TKey, TValue> $results
+     * @return array<TKey, TValue>
      */
     public function processSelect(Builder $query, array $results): array
     {
@@ -23,7 +30,7 @@ class Processor
     {
         $query->getConnection()->insert($sql, $values);
 
-        $id = $query->getConnection()->getPdo()->lastInsertId($sequence);
+        $id = $query->getConnection()->getLastInsertId($sequence);
 
         return is_numeric($id) ? (int) $id : $id;
     }
@@ -116,7 +123,7 @@ class Processor
      * Process the results of an indexes query.
      *
      * @param list<array<string, mixed>> $results
-     * @return list<array{name: string, columns: list<string>, type: null|string, unique: bool, primary: bool}>
+     * @return list<array{name: string, columns: list<string>, type: null|string, unique: bool, primary: bool, partial: bool}>
      */
     public function processIndexes(array $results): array
     {

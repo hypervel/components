@@ -12,10 +12,9 @@ use Symfony\Component\Console\Input\InputInterface;
  *
  * The testbench test lifecycle calls bootstrappers manually (via
  * resolveApplicationBootstrappers) so it can insert defineEnvironment()
- * between RegisterProviders and BootProviders. This kernel returns an
- * empty bootstrapper list so that ConsoleKernel::bootstrap() — called
- * at the end of the lifecycle — sets hasBeenBootstrapped without
- * re-running any bootstrappers.
+ * between RegisterProviders and BootProviders. The empty list prevents
+ * those bootstrappers from replaying when this kernel is bootstrapped
+ * outside the normal Testbench sequence.
  */
 abstract class Kernel extends ConsoleKernel
 {

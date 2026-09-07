@@ -1,6 +1,7 @@
-import { expect, test } from "vitest";
+import { afterEach, expect, expectTypeOf, test } from "vitest";
 import {
     defaultParametersDomain,
+    dynamicParametersDomain,
     fixedDomain,
 } from "./.generated/actions/Hypervel/Tests/Wayfinder/Fixtures/Controllers/DomainController";
 import {
@@ -8,6 +9,10 @@ import {
     applyUrlDefaults,
     setUrlDefaults,
 } from "./.generated/wayfinder";
+
+afterEach(() => {
+    setUrlDefaults({});
+});
 
 test("it can generate urls without default parameters set", () => {
     expect(fixedDomain.url({ param: "foo" })).toBe(
@@ -52,6 +57,26 @@ test("it can generate urls with dynamic function-based default URL parameters", 
     expect(callCount).toBe(2);
 });
 
+test("it requires dynamic backend domain defaults at runtime", () => {
+    expect(() =>
+        dynamicParametersDomain.url({
+            param: "foo",
+        }),
+    ).toThrow("Missing required route parameter: dynamic.");
+
+    setUrlDefaults({ dynamic: "tenant name" });
+
+    expect(dynamicParametersDomain.url({ param: "foo" })).toBe(
+        "//tenant%20name.test/dynamic-parameters-domain/foo",
+    );
+
+    setUrlDefaults({ dynamic: "tenant?name#final%2F" });
+
+    expect(dynamicParametersDomain.url({ param: "foo" })).toBe(
+        "//tenant%3Fname%23final%252F.test/dynamic-parameters-domain/foo",
+    );
+});
+
 test("it preserves dynamic URL defaults when adding runtime defaults", () => {
     let callCount = 0;
 
@@ -75,4 +100,24 @@ test("it preserves dynamic URL defaults when adding runtime defaults", () => {
     });
 
     expect(callCount).toBe(2);
+});
+
+test("applyUrlDefaults returns an object for exact nullish inputs without widening unions", () => {
+    type OptionalDefaults =
+        | { locale?: string }
+        | null
+        | undefined;
+
+    expectTypeOf(applyUrlDefaults(undefined)).toEqualTypeOf<
+        Record<string, unknown>
+    >();
+    expectTypeOf(applyUrlDefaults(null)).toEqualTypeOf<
+        Record<string, unknown>
+    >();
+    expectTypeOf(
+        applyUrlDefaults<OptionalDefaults>(undefined),
+    ).toEqualTypeOf<OptionalDefaults>();
+
+    expect(applyUrlDefaults(undefined)).toEqual({});
+    expect(applyUrlDefaults(null)).toEqual({});
 });

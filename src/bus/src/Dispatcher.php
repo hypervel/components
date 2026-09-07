@@ -92,6 +92,7 @@ class Dispatcher implements QueueingDispatcher
         $uses = class_uses_recursive($command);
 
         if (isset($uses[InteractsWithQueue::class], $uses[Queueable::class]) && ! $command->job) {
+            // This synthetic job was never queued, so "sync" only labels its inline execution.
             $command->setJob(new SyncJob($this->container, json_encode([]), 'sync', 'sync'));
         }
 
@@ -267,7 +268,23 @@ class Dispatcher implements QueueingDispatcher
             return;
         }
 
-        Coroutine::defer(fn () => $this->dispatchSync($command, $handler));
+        Coroutine::defer(function () use ($command, $handler): void {
+            if (is_object($command)) {
+                DispatchLockContext::claim($command);
+            }
+
+            try {
+                $this->dispatchSync($command, $handler);
+            } finally {
+                if (is_object($command)) {
+                    DispatchLockContext::release($command);
+                }
+            }
+        });
+
+        if (is_object($command)) {
+            DispatchLockContext::delegate($command);
+        }
     }
 
     /**

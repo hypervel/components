@@ -8,11 +8,11 @@ use Swoole\Server as SwooleServer;
 
 interface ServerInterface
 {
-    public const SERVER_HTTP = 1;
+    public const int SERVER_HTTP = 1;
 
-    public const SERVER_WEBSOCKET = 2;
+    public const int SERVER_WEBSOCKET = 2;
 
-    public const SERVER_BASE = 3;
+    public const int SERVER_BASE = 3;
 
     /**
      * Initialize the server with the given configuration.

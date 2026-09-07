@@ -8,9 +8,15 @@ use Hypervel\Console\Command;
 use Hypervel\Console\Events\BeforeHandle;
 use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\Event;
+use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Http\Request;
+use Hypervel\HttpServer\Events\RequestReceived;
+use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Storage\EntryModel;
@@ -21,6 +27,7 @@ use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Symfony\Component\Console\Input\ArrayInput;
 
 #[WithConfig('telescope.watchers', [
     QueryWatcher::class => [
@@ -31,6 +38,43 @@ use RuntimeException;
 class TelescopeTest extends FeatureTestCase
 {
     protected int $count = 0;
+
+    public function testCatchDispatchesMessageLoggedWhenListenedFor(): void
+    {
+        $loggedEvents = [];
+        $this->app->make(EventDispatcher::class)->listen(
+            MessageLogged::class,
+            static function (MessageLogged $event) use (&$loggedEvents): void {
+                $loggedEvents[] = $event;
+            }
+        );
+        $exception = new RuntimeException('record me');
+
+        Telescope::catch($exception, ['monitored']);
+
+        $this->assertCount(1, $loggedEvents);
+        $this->assertSame('error', $loggedEvents[0]->level);
+        $this->assertSame('record me', $loggedEvents[0]->message);
+        $this->assertSame($exception, $loggedEvents[0]->context['exception']);
+        $this->assertSame(['monitored'], $loggedEvents[0]->context['telescope']);
+    }
+
+    public function testPassiveObserverDoesNotCauseCatchToDispatchMessageLogged(): void
+    {
+        $observedEvents = [];
+        $events = $this->app->make(EventDispatcher::class);
+        $events->forget(MessageLogged::class);
+        $events->observe(
+            MessageLogged::class,
+            static function (MessageLogged $event) use (&$observedEvents): void {
+                $observedEvents[] = $event;
+            }
+        );
+
+        Telescope::catch(new RuntimeException('do not record'));
+
+        $this->assertSame([], $observedEvents);
+    }
 
     public function testRunAfterRecordingCallback()
     {
@@ -117,6 +161,26 @@ class TelescopeTest extends FeatureTestCase
         $this->assertSame('second', Telescope::getEntriesQueue()[1]->content['message']);
     }
 
+    public function testForkedRecordingChildOwnsItsQueueAndDeferredStore(): void
+    {
+        $storedBatches = [];
+        $store = $this->fakeRecordingStore($storedBatches);
+
+        Telescope::recordLog(IncomingEntry::make(['message' => 'parent']));
+
+        $coroutineId = Coroutine::fork(function (): void {
+            Telescope::recordLog(IncomingEntry::make(['message' => 'child']));
+        });
+
+        Coroutine::join([$coroutineId]);
+        Telescope::store($store);
+
+        $this->assertSame(['child'], array_column($storedBatches[0], 'message'));
+        $this->assertSame(['parent'], array_column($storedBatches[1], 'message'));
+        $this->assertNotNull($storedBatches[0][0]['batch_id']);
+        $this->assertSame($storedBatches[0][0]['batch_id'], $storedBatches[1][0]['batch_id']);
+    }
+
     public function testRunAfterStoreCallback()
     {
         $storedEntries = null;
@@ -141,6 +205,49 @@ class TelescopeTest extends FeatureTestCase
         $this->assertCount(2, $storedEntries);
         $this->assertSame(36, strlen($storedBatchId));
         $this->assertInstanceOf(IncomingEntry::class, $storedEntries[0]);
+    }
+
+    public function testAllAfterStoringHooksRunAfterVoidAndFalseReturns(): void
+    {
+        $calls = [];
+
+        Telescope::afterStoring(function () use (&$calls): void {
+            $calls[] = 'void';
+        });
+        Telescope::afterStoring(function () use (&$calls): false {
+            $calls[] = 'false';
+
+            return false;
+        });
+        Telescope::afterStoring(function () use (&$calls): void {
+            $calls[] = 'last';
+        });
+
+        EntryModel::count();
+        Telescope::store($this->app->make(EntriesRepository::class));
+
+        $this->assertSame(['void', 'false', 'last'], $calls);
+    }
+
+    public function testThrowingAfterStoringHookIsReportedAndStopsLaterHooks(): void
+    {
+        $failure = new RuntimeException('after storing failed');
+        $reported = null;
+        $laterHookRan = false;
+
+        $this->app->make(ExceptionHandler::class)->reportable(function (RuntimeException $exception) use (&$reported): void {
+            $reported = $exception;
+        });
+        Telescope::afterStoring(fn () => throw $failure);
+        Telescope::afterStoring(function () use (&$laterHookRan): void {
+            $laterHookRan = true;
+        });
+
+        EntryModel::count();
+        Telescope::store($this->app->make(EntriesRepository::class));
+
+        $this->assertSame($failure, $reported);
+        $this->assertFalse($laterHookRan);
     }
 
     public function testDontStartRecordingWhenDispatchingJobSynchronously()
@@ -172,7 +279,7 @@ class TelescopeTest extends FeatureTestCase
         Telescope::stopRecording();
 
         $this->app->make(EventDispatcher::class)
-            ->dispatch(new BeforeHandle(new RecordingStateCommand('telescope:test-command')));
+            ->dispatch(new BeforeHandle(new RecordingStateCommand('telescope:test-command'), new ArrayInput([])));
 
         $this->assertTrue(Telescope::isRecording());
     }
@@ -183,7 +290,7 @@ class TelescopeTest extends FeatureTestCase
         Telescope::stopRecording();
 
         $this->app->make(EventDispatcher::class)
-            ->dispatch(new BeforeHandle(new RecordingStateCommand($command)));
+            ->dispatch(new BeforeHandle(new RecordingStateCommand($command), new ArrayInput([])));
 
         $this->assertFalse(Telescope::isRecording());
     }
@@ -202,9 +309,29 @@ class TelescopeTest extends FeatureTestCase
         Telescope::stopRecording();
 
         $this->app->make(EventDispatcher::class)
-            ->dispatch(new BeforeHandle(new RecordingStateCommand('custom:ignored')));
+            ->dispatch(new BeforeHandle(new RecordingStateCommand('custom:ignored'), new ArrayInput([])));
 
         $this->assertFalse(Telescope::isRecording());
+    }
+
+    public function testOmittedRequestAndCommandFiltersUseEmptyLists(): void
+    {
+        $config = config()->array('telescope');
+        unset($config['only_paths'], $config['ignore_paths'], $config['ignore_commands']);
+        config()->set('telescope', $config);
+
+        Telescope::stopRecording();
+        $request = RequestContext::set(Request::create('/recordable'));
+        $this->app->make(EventDispatcher::class)
+            ->dispatch(new RequestReceived($request, null));
+
+        $this->assertTrue(Telescope::isRecording());
+
+        Telescope::stopRecording();
+        $this->app->make(EventDispatcher::class)
+            ->dispatch(new BeforeHandle(new RecordingStateCommand('custom:command'), new ArrayInput([])));
+
+        $this->assertTrue(Telescope::isRecording());
     }
 
     public function testSchedulerDaemonDoesNotStartRecording(): void
@@ -212,7 +339,7 @@ class TelescopeTest extends FeatureTestCase
         Telescope::stopRecording();
 
         $this->app->make(EventDispatcher::class)
-            ->dispatch(new BeforeHandle(new RecordingStateCommand('schedule:run')));
+            ->dispatch(new BeforeHandle(new RecordingStateCommand('schedule:run'), new ArrayInput([])));
 
         $this->assertFalse(Telescope::isRecording());
 

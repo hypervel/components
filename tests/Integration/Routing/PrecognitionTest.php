@@ -28,7 +28,7 @@ function fail()
 
 class PrecognitionTest extends RoutingTestCase
 {
-    public function testItDoesntInvokeControllerMethodByDefault()
+    public function testItDoesntInvokeControllerMethodByDefault(): void
     {
         Route::get('test-route', [PrecognitionTestController::class, 'methodThatFails'])
             ->middleware(HandlePrecognitiveRequests::class);
@@ -37,12 +37,11 @@ class PrecognitionTest extends RoutingTestCase
 
         $response->assertNoContent();
         $response->assertHeader('Precognition-Success', 'true');
-        $this->assertTrue($this->app['ClassWasInstantiated']);
+        $this->assertTrue($this->app->make('ClassWasInstantiated'));
     }
 
-    public function testItDoesntInvokeCallableControllerByDefault()
+    public function testItDoesntInvokeCallableControllerByDefault(): void
     {
-        $resolved = false;
         Route::get('test-route', fn (ClassThatBindsOnInstantiation $foo) => fail())
             ->middleware(HandlePrecognitiveRequests::class);
 
@@ -50,7 +49,7 @@ class PrecognitionTest extends RoutingTestCase
 
         $response->assertNoContent();
         $response->assertHeader('Precognition-Success', 'true');
-        $this->assertTrue($this->app['ClassWasInstantiated']);
+        $this->assertTrue($this->app->make('ClassWasInstantiated'));
     }
 
     public function testItCanCheckPrecognitiveStateOnTheRequest()
@@ -617,6 +616,27 @@ class PrecognitionTest extends RoutingTestCase
         ]);
     }
 
+    public function testItRetainsWildcardIdentityWhenValidatingSpecificInputs(): void
+    {
+        Route::post('test-route', [PrecognitionTestController::class, 'methodWhereDistinctUsersAreValidated'])
+            ->middleware(PrecognitionInvokingController::class);
+
+        $response = $this->postJson('test-route', [
+            'users' => [
+                ['email' => 'duplicate@example.com', 'email_confirmation' => 'duplicate@example.com'],
+                ['email' => 'duplicate@example.com', 'email_confirmation' => 'duplicate@example.com'],
+            ],
+        ], [
+            'Precognition' => 'true',
+            'Precognition-Validate-Only' => 'users.1.email,users.1.email_confirmation',
+        ]);
+
+        $response->assertUnprocessable();
+        $response->assertJsonPath('errors', [
+            'users.1.email' => ['The users.1.email field has a duplicate value.'],
+        ]);
+    }
+
     public function testItAppendsAnAdditionalVaryHeaderInsteadOfReplacingAnyExistingVaryHeaders()
     {
         Route::get('test-route', function () {
@@ -667,7 +687,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeaderMissing('Precognition-Success');
     }
 
-    public function testItStopsExecutionAfterSuccessfulValidationWithValidationFilteringAndFormRequest()
+    public function testItStopsExecutionAfterSuccessfulValidationWithValidationFilteringAndFormRequest(): void
     {
         Route::post('test-route', function (PrecognitionTestRequest $request, ClassThatBindsOnInstantiation $foo) {
             fail();
@@ -682,7 +702,7 @@ class PrecognitionTest extends RoutingTestCase
             'Precognition-Validate-Only' => 'optional_integer_1',
         ]);
 
-        $this->assertFalse($this->app['ClassWasInstantiated']);
+        $this->assertFalse($this->app->make('ClassWasInstantiated'));
         $response->assertNoContent();
         $response->assertHeader('Precognition', 'true');
         $response->assertHeader('Precognition-Success', 'true');
@@ -933,7 +953,7 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeader('Precognition', 'true');
     }
 
-    public function testItContinuesExecutionAfterSuccessfulValidationWithoutValidationFilteringAndFormRequest()
+    public function testItContinuesExecutionAfterSuccessfulValidationWithoutValidationFilteringAndFormRequest(): void
     {
         Route::post('test-route', function (PrecognitionTestRequest $request, ClassThatBindsOnInstantiation $foo) {
             precognitive(function ($bail) {
@@ -950,7 +970,7 @@ class PrecognitionTest extends RoutingTestCase
             'Precognition' => 'true',
         ]);
 
-        $this->assertTrue($this->app['ClassWasInstantiated']);
+        $this->assertTrue($this->app->make('ClassWasInstantiated'));
         $response->assertOk();
         $this->assertSame('expected response', $response->content());
         $response->assertHeader('Precognition', 'true');
@@ -1159,11 +1179,11 @@ class PrecognitionTest extends RoutingTestCase
         $response->assertHeaderMissing('Precognition-Success');
     }
 
-    public function testItDoesNotSetLastUrl()
+    public function testItDoesNotSetLastUrl(): void
     {
         // Force the session manager to use the array driver and flush any cached driver
         // so the config change takes effect.
-        $this->app['config']->set('session.driver', 'array');
+        $this->app->make('config')->set('session.driver', 'array');
         $this->app->make('session')->forgetDrivers();
 
         // Capture previousUrl inside route handlers since session() is coroutine-scoped.
@@ -1340,6 +1360,20 @@ class PrecognitionTestController
                 'users' => ['required', 'array'],
                 'users.*.name' => ['required', 'string'],
                 'users.*.email' => ['required', 'email'],
+            ]);
+
+            fail();
+        });
+
+        fail();
+    }
+
+    public function methodWhereDistinctUsersAreValidated(Request $request)
+    {
+        precognitive(function () use ($request) {
+            $this->validate($request, [
+                'users.*.email' => ['required', 'email', 'distinct'],
+                'users.*.email_confirmation' => ['required', 'same:users.*.email'],
             ]);
 
             fail();

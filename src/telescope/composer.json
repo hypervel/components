@@ -1,6 +1,6 @@
 {
     "name": "hypervel/telescope",
-    "description": "The telescope package for Hypervel.",
+    "description": "The Hypervel Telescope package.",
     "license": "MIT",
     "keywords": [
         "php",
@@ -27,6 +27,7 @@
         "ext-mbstring": "*",
         "ext-pdo": "*",
         "guzzlehttp/guzzle": "^7.15.1",
+        "guzzlehttp/promises": "^2.5.2",
         "hypervel/auth": "^0.4",
         "hypervel/broadcasting": "^0.4",
         "hypervel/bus": "^0.4",

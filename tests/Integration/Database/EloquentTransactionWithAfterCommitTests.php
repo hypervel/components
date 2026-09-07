@@ -183,7 +183,7 @@ trait EloquentTransactionWithAfterCommitTests
         $this->assertFalse($observer::$createdCalled, 'created should not fire when creating was cancelled');
     }
 
-    public function testTransactionCallbackExceptions()
+    public function testTransactionCallbackExceptions(): void
     {
         [$firstObject, $secondObject] = [
             new EloquentTransactionWithAfterCommitTestsTestObjectForTransactions,
@@ -192,10 +192,8 @@ trait EloquentTransactionWithAfterCommitTests
 
         $rootTransactionLevel = DB::transactionLevel();
 
-        // After commit callbacks may fail with an exception. When they do, the rest of the callbacks are not
-        // executed. It's important that the transaction would already be committed by that point, so the
-        // transaction level should be modified before executing any callbacks. Also, exceptions in the
-        // callbacks should not affect the connection's transaction level.
+        // The transaction level is restored before callbacks run. A failed callback must not affect
+        // that state or prevent the remaining work for the committed transaction from running.
         $this->expectException(RuntimeException::class);
 
         try {
@@ -218,7 +216,8 @@ trait EloquentTransactionWithAfterCommitTests
         } finally {
             $this->assertSame($rootTransactionLevel, DB::transactionLevel());
             $this->assertTrue($firstObject->ran);
-            $this->assertFalse($secondObject->ran);
+            // Laravel stops here; Hypervel completes independent work for already-committed data.
+            $this->assertTrue($secondObject->ran);
             $this->assertEquals(1, $firstObject->runs);
         }
     }

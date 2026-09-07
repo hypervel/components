@@ -30,10 +30,10 @@ final class PasswordConfirmation
 
         $key = "auth.guards.{$guard}.password_timeout";
 
-        if ($config->has($key)) {
-            return $config->integer($key);
+        if ($config->get($key) === null) {
+            return $config->integer('auth.password_timeout');
         }
 
-        return $config->integer('auth.password_timeout');
+        return $config->integer($key);
     }
 }

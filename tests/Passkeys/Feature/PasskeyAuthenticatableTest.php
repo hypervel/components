@@ -7,12 +7,17 @@ namespace Hypervel\Tests\Passkeys\Feature\PasskeyAuthenticatableTest;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Auth\User as Authenticatable;
+use Hypervel\Passkeys\Actions\VerifyPasskey;
 use Hypervel\Passkeys\Contracts\PasskeyUser;
 use Hypervel\Passkeys\Passkey;
 use Hypervel\Passkeys\PasskeyAuthenticatable;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Passkeys\Fixtures\User;
 use Hypervel\Tests\Passkeys\TestCase;
+use ParagonIE\ConstantTime\Base64UrlSafe;
+use Webauthn\AuthenticatorResponse;
+use Webauthn\PublicKeyCredential;
 
 class PasskeyAuthenticatableTest extends TestCase
 {
@@ -193,6 +198,42 @@ class PasskeyAuthenticatableTest extends TestCase
         $user->forceDelete();
 
         $this->assertSame(0, Passkey::query()->count());
+    }
+
+    #[WithConfig('database.connections.passkey_users_testing', [
+        'driver' => 'sqlite',
+        'database' => ':memory:',
+        'foreign_key_constraints' => false,
+    ])]
+    public function testPasskeyRelationUsesTheConfiguredPasskeyModelConnection(): void
+    {
+        Schema::connection('passkey_users_testing')->create('users', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->rememberToken();
+            $table->timestamps();
+        });
+
+        $user = User::on('passkey_users_testing')->create([
+            'name' => 'Connection User',
+            'email' => 'connection-owner@example.com',
+        ]);
+        $credentialId = random_bytes(16);
+        $encodedCredentialId = Base64UrlSafe::encodeUnpadded($credentialId);
+
+        $passkey = $this->createPasskeyForUser($user, $encodedCredentialId);
+
+        $this->assertSame(config()->string('database.default'), $passkey->getConnection()->getName());
+        $this->assertFalse(Schema::connection('passkey_users_testing')->hasTable('passkeys'));
+
+        $credential = PublicKeyCredential::create(
+            'public-key',
+            $credentialId,
+            $this->createStub(AuthenticatorResponse::class),
+        );
+
+        $this->assertTrue($passkey->is(app(VerifyPasskey::class)->getPasskey($credential)));
     }
 
     /**

@@ -11,7 +11,10 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\DeletesByFilter;
+use Hypervel\Scout\Contracts\EngineOperationObserver;
 use Hypervel\Scout\Contracts\SearchableInterface;
+use Hypervel\Scout\EngineOperation;
+use Hypervel\Scout\EngineOperationRunner;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Engines\MeilisearchEngine;
 use Hypervel\Scout\Exceptions\ScoutException;
@@ -28,6 +31,7 @@ use Meilisearch\Exceptions\ApiException;
 use Meilisearch\Exceptions\TimeOutException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Throwable;
 
 class MeilisearchEngineTest extends TestCase
 {
@@ -616,7 +620,10 @@ class MeilisearchEngineTest extends TestCase
             ->with(123, 500_000, 5_000)
             ->andReturn(['status' => 'succeeded']);
 
-        $engine = new MeilisearchEngine($client);
+        $runner = new EngineOperationRunner;
+        $observer = new MeilisearchEngineOperationObserver;
+        $runner->observe($observer);
+        $engine = (new MeilisearchEngine($client))->setOperationRunner($runner, 'meilisearch');
         $this->assertInstanceOf(DeletesByFilter::class, $engine);
 
         $model = m::mock(MeilisearchTestSearchableModel::class);
@@ -633,6 +640,10 @@ class MeilisearchEngineTest extends TestCase
         });
 
         $engine->deleteByFilter($builder);
+
+        $this->assertCount(1, $observer->operations);
+        $this->assertSame('delete_by_filter', $observer->operations[0]->operation);
+        $this->assertSame('users_write', $observer->operations[0]->index);
     }
 
     public function testDeleteByFilterUsesAnExplicitIndex(): void
@@ -705,6 +716,26 @@ class MeilisearchEngineTest extends TestCase
         }
 
         $this->assertTrue($prepared);
+    }
+
+    public function testDeleteByFilterDoesNotNotifyObserversForAnEmptyFilter(): void
+    {
+        $client = m::mock(Client::class);
+        $client->shouldNotReceive('index');
+        $client->shouldNotReceive('waitForTask');
+        $observer = m::mock(EngineOperationObserver::class);
+        $observer->shouldNotReceive('starting');
+        $observer->shouldNotReceive('finished');
+        $runner = new EngineOperationRunner;
+        $runner->observe($observer);
+        $engine = (new MeilisearchEngine($client))->setOperationRunner($runner, 'meilisearch');
+        $model = m::mock(MeilisearchTestSearchableModel::class);
+        $model->shouldNotReceive('indexableAs');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Meilisearch filter deletion requires a non-empty filter.');
+
+        $engine->deleteByFilter(new Builder($model, ''));
     }
 
     public function testDeleteByFilterRejectsAnUnsuccessfulTask(): void
@@ -1139,6 +1170,30 @@ class MeilisearchEngineTest extends TestCase
     {
         // Must mock a class that uses SoftDeletes for usesSoftDelete() to return true
         return m::mock(MeilisearchTestSoftDeleteModel::class . ', ' . SearchableInterface::class);
+    }
+}
+
+class MeilisearchEngineOperationObserver implements EngineOperationObserver
+{
+    /**
+     * The observed operations.
+     *
+     * @var array<EngineOperation>
+     */
+    public array $operations = [];
+
+    public function starting(EngineOperation $operation): mixed
+    {
+        $this->operations[] = $operation;
+
+        return null;
+    }
+
+    public function finished(
+        EngineOperation $operation,
+        mixed $token,
+        ?Throwable $exception
+    ): void {
     }
 }
 

@@ -15,14 +15,14 @@ use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
 class HttpRequestTrustedStateTest extends TestCase
 {
-    public function testGetClientIpsWithoutTrustedProxiesReturnsRemoteAddr()
+    public function testGetClientIpsWithoutTrustedProxiesReturnsRemoteAddr(): void
     {
         $request = Request::create('/', 'GET', [], [], [], ['REMOTE_ADDR' => '1.2.3.4']);
 
         $this->assertSame(['1.2.3.4'], $request->getClientIps());
     }
 
-    public function testGetClientIpsWithTrustedProxyHonorsXForwardedFor()
+    public function testGetClientIpsWithTrustedProxyHonorsXForwardedFor(): void
     {
         $request = $this->trustedRequest(
             ['REMOTE_ADDR' => '10.0.0.1', 'HTTP_X_FORWARDED_FOR' => '9.9.9.9'],
@@ -34,7 +34,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertSame('9.9.9.9', $request->getClientIp());
     }
 
-    public function testGetClientIpsIgnoresXForwardedForFromUntrustedProxy()
+    public function testGetClientIpsIgnoresXForwardedForFromUntrustedProxy(): void
     {
         $request = $this->trustedRequest(
             ['REMOTE_ADDR' => '20.0.0.1', 'HTTP_X_FORWARDED_FOR' => '9.9.9.9'],
@@ -45,7 +45,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertSame(['20.0.0.1'], $request->getClientIps());
     }
 
-    public function testIsFromTrustedProxyHandlesCidrRanges()
+    public function testIsFromTrustedProxyHandlesCidrRanges(): void
     {
         $request = $this->trustedRequest(
             ['REMOTE_ADDR' => '10.0.0.55'],
@@ -56,14 +56,14 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertTrue($request->isFromTrustedProxy());
     }
 
-    public function testGetHostWithoutTrustReadsHttpHost()
+    public function testGetHostWithoutTrustReadsHttpHost(): void
     {
         $request = Request::create('http://example.com/');
 
         $this->assertSame('example.com', $request->getHost());
     }
 
-    public function testGetHostWithTrustedProxyHonorsXForwardedHost()
+    public function testGetHostWithTrustedProxyHonorsXForwardedHost(): void
     {
         $request = $this->trustedRequest(
             ['REMOTE_ADDR' => '10.0.0.1', 'HTTP_X_FORWARDED_HOST' => 'real.com'],
@@ -74,7 +74,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertSame('real.com', $request->getHost());
     }
 
-    public function testGetHostThrowsOnUntrustedHostWhenPatternsConfigured()
+    public function testGetHostThrowsOnUntrustedHostWhenPatternsConfigured(): void
     {
         $request = Request::create('http://evil.com/');
         RequestContext::set($request);
@@ -85,7 +85,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $request->getHost();
     }
 
-    public function testGetHostThrowsOnlyOncePerRequest()
+    public function testGetHostThrowsOnlyOncePerRequest(): void
     {
         $request = Request::create('http://evil.com/');
         RequestContext::set($request);
@@ -99,7 +99,7 @@ class HttpRequestTrustedStateTest extends TestCase
         }
     }
 
-    public function testGetHostHonorsValidWildcardPattern()
+    public function testGetHostHonorsValidWildcardPattern(): void
     {
         $request = Request::create('http://api.example.com/');
         RequestContext::set($request);
@@ -108,7 +108,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertSame('api.example.com', $request->getHost());
     }
 
-    public function testIsSecureFromTrustedProxyXForwardedProto()
+    public function testIsSecureFromTrustedProxyXForwardedProto(): void
     {
         $request = $this->trustedRequest(
             ['REMOTE_ADDR' => '10.0.0.1', 'HTTP_X_FORWARDED_PROTO' => 'https'],
@@ -119,7 +119,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertTrue($request->isSecure());
     }
 
-    public function testIsSecureIgnoresXForwardedProtoFromUntrustedProxy()
+    public function testIsSecureIgnoresXForwardedProtoFromUntrustedProxy(): void
     {
         $request = $this->trustedRequest(
             ['REMOTE_ADDR' => '20.0.0.1', 'HTTP_X_FORWARDED_PROTO' => 'https'],
@@ -130,7 +130,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertFalse($request->isSecure());
     }
 
-    public function testGetPortFromXForwardedPort()
+    public function testGetPortFromXForwardedPort(): void
     {
         $request = $this->trustedRequest(
             ['REMOTE_ADDR' => '10.0.0.1', 'HTTP_X_FORWARDED_PORT' => '8443'],
@@ -141,7 +141,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertSame(8443, $request->getPort());
     }
 
-    public function testGetPortFromXForwardedHostWithPort()
+    public function testGetPortFromXForwardedHostWithPort(): void
     {
         $request = $this->trustedRequest(
             ['REMOTE_ADDR' => '10.0.0.1', 'HTTP_X_FORWARDED_HOST' => 'real.com:8080'],
@@ -152,7 +152,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertSame(8080, $request->getPort());
     }
 
-    public function testGetBaseUrlIncludesXForwardedPrefix()
+    public function testGetBaseUrlIncludesXForwardedPrefix(): void
     {
         $request = $this->trustedRequest(
             ['REMOTE_ADDR' => '10.0.0.1', 'HTTP_X_FORWARDED_PREFIX' => '/app'],
@@ -164,7 +164,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertSame('/app', $request->getBaseUrl());
     }
 
-    public function testGetBaseUrlIgnoresXForwardedPrefixFromUntrustedProxy()
+    public function testGetBaseUrlIgnoresXForwardedPrefixFromUntrustedProxy(): void
     {
         $request = $this->trustedRequest(
             ['REMOTE_ADDR' => '20.0.0.1', 'HTTP_X_FORWARDED_PREFIX' => '/app'],
@@ -176,7 +176,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertSame('', $request->getBaseUrl());
     }
 
-    public function testConflictingForwardedHeaderThrowsOnce()
+    public function testConflictingForwardedHeaderThrowsOnce(): void
     {
         $request = $this->trustedRequest(
             [
@@ -196,7 +196,7 @@ class HttpRequestTrustedStateTest extends TestCase
         }
     }
 
-    public function testSetTrustedProxiesResolvesRemoteAddrSentinel()
+    public function testSetTrustedProxiesResolvesRemoteAddrSentinel(): void
     {
         $request = Request::create('/', 'GET', [], [], [], ['REMOTE_ADDR' => '5.5.5.5']);
         RequestContext::set($request);
@@ -206,7 +206,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertSame(['5.5.5.5'], Request::getTrustedProxies());
     }
 
-    public function testSetTrustedProxiesExpandsPrivateSubnetsSentinel()
+    public function testSetTrustedProxiesExpandsPrivateSubnetsSentinel(): void
     {
         $request = Request::create('/');
         RequestContext::set($request);
@@ -216,7 +216,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertSame(IpUtils::PRIVATE_SUBNETS, Request::getTrustedProxies());
     }
 
-    public function testSetTrustedHostsCompilesRegexPatterns()
+    public function testSetTrustedHostsCompilesRegexPatterns(): void
     {
         $request = Request::create('/');
         RequestContext::set($request);
@@ -226,7 +226,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertSame(['{^example\.com$}i'], Request::getTrustedHosts());
     }
 
-    public function testCreateFromPreservesTrustedRequestConfiguration()
+    public function testCreateFromPreservesTrustedRequestConfiguration(): void
     {
         $source = $this->trustedRequest(
             [
@@ -248,7 +248,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertSame('/app', $copy->getBaseUrl());
     }
 
-    public function testCreateFromBasePreservesTrustedRequestConfigurationForHypervelRequests()
+    public function testCreateFromBasePreservesTrustedRequestConfigurationForHypervelRequests(): void
     {
         $source = $this->trustedRequest(
             ['REMOTE_ADDR' => '10.0.0.1', 'HTTP_X_FORWARDED_FOR' => '9.9.9.9'],
@@ -261,7 +261,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertSame('9.9.9.9', $copy->ip());
     }
 
-    public function testInitializeResetsTrustedRequestState()
+    public function testInitializeResetsTrustedRequestState(): void
     {
         $request = $this->trustedRequest(
             ['REMOTE_ADDR' => '10.0.0.1', 'HTTP_X_FORWARDED_FOR' => '9.9.9.9'],
@@ -276,7 +276,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertSame(['10.0.0.1'], $request->getClientIps());
     }
 
-    public function testClonePreservesConfigurationButResetsOneShotFlags()
+    public function testClonePreservesConfigurationButResetsOneShotFlags(): void
     {
         $request = Request::create('http://evil.com/');
         RequestContext::set($request);
@@ -294,7 +294,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $clone->getHost();
     }
 
-    public function testDuplicatePreservesConfigurationThroughCloneLifecycle()
+    public function testDuplicatePreservesConfigurationThroughCloneLifecycle(): void
     {
         $request = $this->trustedRequest(
             ['REMOTE_ADDR' => '10.0.0.1', 'HTTP_X_FORWARDED_FOR' => '9.9.9.9, 10.0.0.2'],
@@ -311,7 +311,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertSame(['9.9.9.9'], $duplicate->getClientIps());
     }
 
-    public function testDuplicateRecomputesTrustedValuesForNewRequestState()
+    public function testDuplicateRecomputesTrustedValuesForNewRequestState(): void
     {
         $request = $this->trustedRequest(
             [
@@ -333,7 +333,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertSame(80, $duplicate->getPort());
     }
 
-    public function testSetTrustedProxiesClearsTrustedValuesCache()
+    public function testSetTrustedProxiesClearsTrustedValuesCache(): void
     {
         $request = $this->trustedRequest(
             ['REMOTE_ADDR' => '10.0.0.1', 'HTTP_X_FORWARDED_FOR' => '9.9.9.9, 10.0.0.2'],
@@ -347,7 +347,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertSame(['10.0.0.2', '9.9.9.9'], $request->getClientIps());
     }
 
-    public function testSetTrustedHostsClearsTrustedHostCacheAndFlags()
+    public function testSetTrustedHostsClearsTrustedHostCacheAndFlags(): void
     {
         $request = Request::create('http://evil.com/');
         RequestContext::set($request);
@@ -363,7 +363,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertSame('evil.com', $request->getHost());
     }
 
-    public function testStaticSettersAreNoOpWithoutCurrentRequest()
+    public function testStaticSettersAreNoOpWithoutCurrentRequest(): void
     {
         RequestContext::forget();
         Request::setTrustedProxies(['10.0.0.1'], Request::HEADER_X_FORWARDED_FOR);
@@ -378,7 +378,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertSame('evil.com', $request->getHost());
     }
 
-    public function testStaticGettersReturnDefaultsWithoutCurrentRequest()
+    public function testStaticGettersReturnDefaultsWithoutCurrentRequest(): void
     {
         RequestContext::forget();
 
@@ -387,7 +387,7 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertSame([], Request::getTrustedHosts());
     }
 
-    public function testSingleRequestMatchesSymfonyTrustedProxyBehavior()
+    public function testSingleRequestMatchesSymfonyTrustedProxyBehavior(): void
     {
         $server = [
             'REMOTE_ADDR' => '10.0.0.1',

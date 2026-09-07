@@ -1,0 +1,11 @@
+{
+    "extends": "../../tsconfig.json",
+    "compilerOptions": {
+        "allowJs": false
+    },
+    "include": [
+        "resources/js/**/*.ts",
+        "tests/**/*.ts",
+        "tests/.generated/**/*.ts"
+    ]
+}

@@ -10,6 +10,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
+use Symfony\Component\Console\Input\InputInterface;
 
 class CommandWatcher extends Watcher
 {
@@ -32,12 +33,42 @@ class CommandWatcher extends Watcher
             return;
         }
 
+        $input = $this->redactInput($command, $event->input);
+
         Telescope::recordCommand(IncomingEntry::make([
             'command' => $command->getName(),
-            'exit_code' => (fn () => $this->exitCode)->call($command), /* @phpstan-ignore-line */
-            'arguments' => (fn () => $this->input->getArguments())->call($command), /* @phpstan-ignore-line */
-            'options' => (fn () => $this->input->getOptions())->call($command), /* @phpstan-ignore-line */
+            'exit_code' => $event->exitCode,
+            'arguments' => $input['arguments'],
+            'options' => $input['options'],
         ]));
+    }
+
+    /**
+     * Redact value-bearing command input for storage.
+     *
+     * @return array{arguments: array<string, mixed>, options: array<string, mixed>}
+     */
+    private function redactInput(Command $command, InputInterface $input): array
+    {
+        $arguments = array_map(
+            static fn (mixed $value): mixed => $value === null ? null : Telescope::REDACTED_VALUE,
+            $input->getArguments(),
+        );
+
+        $definition = $command->getDefinition();
+        $options = [];
+
+        foreach ($input->getOptions() as $name => $value) {
+            // An unknown option cannot be classified safely, and observation must not fail the command.
+            $acceptsValue = ! $definition->hasOption($name)
+                || $definition->getOption($name)->acceptValue();
+
+            $options[$name] = $acceptsValue && $value !== null
+                ? Telescope::REDACTED_VALUE
+                : $value;
+        }
+
+        return ['arguments' => $arguments, 'options' => $options];
     }
 
     /**

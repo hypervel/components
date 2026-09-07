@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\View;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\Blade;
 use Hypervel\Support\Facades\Config;
 use Hypervel\Support\Facades\View;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\View\Component;
 use Mockery as m;
 use Override;
@@ -31,6 +34,41 @@ class BladeTest extends TestCase
     public function testRenderingBladeString(): void
     {
         $this->assertSame('Hello Taylor', Blade::render('Hello {{ $name }}', ['name' => 'Taylor']));
+    }
+
+    public function testRenderingBladeStringDoesNotResolveOrDeleteAMatchingNamedView(): void
+    {
+        $files = new Filesystem;
+        $directory = ParallelTesting::tempDir('BladeRawTemplateCollision');
+        $viewPath = $directory . '/literal-collision.blade.php';
+
+        try {
+            $files->deleteDirectory($directory);
+            $files->ensureDirectoryExists($directory);
+            $files->put($viewPath, 'Named application view');
+            View::addLocation($directory);
+
+            $this->assertTrue(View::exists('literal-collision'));
+            $this->assertSame('literal-collision', Blade::render('literal-collision', deleteCachedView: true));
+            $this->assertTrue($files->exists($viewPath));
+            $this->assertSame('Named application view', View::make('literal-collision')->render());
+        } finally {
+            $files->deleteDirectory($directory);
+        }
+    }
+
+    #[DefineEnvironment('withViewCacheEnabled')]
+    public function testRenderingAndDeletingSameBladeStringTwiceWithViewCacheEnabled(): void
+    {
+        $this->assertSame('Hello Taylor', Blade::render('Hello {{ $name }}', ['name' => 'Taylor'], true));
+        $this->assertSame('Hello Taylor', Blade::render('Hello {{ $name }}', ['name' => 'Taylor'], true));
+    }
+
+    #[DefineEnvironment('withViewCacheDisabled')]
+    public function testRenderingAndDeletingSameBladeStringTwiceWithViewCacheDisabled(): void
+    {
+        $this->assertSame('Hello Taylor', Blade::render('Hello {{ $name }}', ['name' => 'Taylor'], true));
+        $this->assertSame('Hello Taylor', Blade::render('Hello {{ $name }}', ['name' => 'Taylor'], true));
     }
 
     public function testRenderingBladeLongMaxpathlenString(): void
@@ -250,7 +288,17 @@ class BladeTest extends TestCase
     #[Override]
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app['config']->set('view.paths', [__DIR__ . '/templates']);
+        $app->make('config')->set('view.paths', [__DIR__ . '/templates']);
+    }
+
+    protected function withViewCacheEnabled(ApplicationContract $app): void
+    {
+        $app->make('config')->set('view.cache', true);
+    }
+
+    protected function withViewCacheDisabled(ApplicationContract $app): void
+    {
+        $app->make('config')->set('view.cache', false);
     }
 }
 

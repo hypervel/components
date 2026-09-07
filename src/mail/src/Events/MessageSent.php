@@ -27,7 +27,7 @@ class MessageSent
      */
     public function __serialize(): array
     {
-        $hasAttachments = (new Collection($this->message->getAttachments()))->isNotEmpty(); // @phpstan-ignore property.nonObject
+        $hasAttachments = (new Collection($this->message->getAttachments()))->isNotEmpty();
 
         return [
             'sent' => $this->sent,

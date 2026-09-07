@@ -17,6 +17,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PDO;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 use function Hypervel\Coroutine\run;
 
@@ -268,6 +269,41 @@ class ConnectionResolverTest extends TestCase
         $resolver->releaseConnections();
     }
 
+    public function testTerminalReleasePrioritizesTheFirstCancellationAndStillExhaustsConnections(): void
+    {
+        $ordinaryFailure = new RuntimeException('First release failed.');
+        $firstCancellation = new CanceledException('Second release was canceled.');
+        $secondCancellation = new CanceledException('Third release was canceled.');
+        $factory = m::mock(PoolFactory::class);
+        $resolver = $this->makeResolver('first', $factory);
+
+        foreach ([
+            ['first', $ordinaryFailure],
+            ['second', $firstCancellation],
+            ['third', $secondCancellation],
+        ] as [$name, $failure]) {
+            $pool = m::mock(DbPool::class);
+            $wrapper = m::mock(PooledConnection::class);
+
+            $factory->expects('getPool')->once()->with($name)->andReturn($pool);
+            $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
+            $pool->expects('get')->once()->andReturn($wrapper);
+            $wrapper->expects('getConnection')->andReturn(m::mock(Connection::class));
+            $wrapper->expects('release')->andThrow($failure);
+
+            $resolver->connection($name);
+        }
+
+        try {
+            $resolver->releaseConnections();
+            $this->fail('Expected release cancellation to propagate.');
+        } catch (CanceledException $throwable) {
+            $this->assertSame($firstCancellation, $throwable);
+        }
+
+        $resolver->releaseConnections();
+    }
+
     public function testTerminalDiscardExhaustsExactConnections(): void
     {
         $factory = m::mock(PoolFactory::class);
@@ -359,6 +395,78 @@ class ConnectionResolverTest extends TestCase
             $this->fail('Expected the connection retrieval failure to propagate.');
         } catch (RuntimeException $throwable) {
             $this->assertSame($setupException, $throwable);
+        }
+    }
+
+    public function testDiscardCancellationReplacesAnOrdinarySetupFailure(): void
+    {
+        $setupException = new RuntimeException('Connection retrieval failed.');
+        $discardCancellation = new CanceledException('Discard was canceled.');
+        $factory = m::mock(PoolFactory::class);
+        $pool = m::mock(DbPool::class);
+        $wrapper = m::mock(PooledConnection::class);
+
+        $factory->expects('getPool')->once()->with('mysql')->andReturn($pool);
+        $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
+        $pool->expects('get')->once()->andReturn($wrapper);
+        $wrapper->expects('getConnection')->andThrow($setupException);
+        $wrapper->expects('discard')->andThrow($discardCancellation);
+
+        $resolver = $this->makeResolver('mysql', $factory);
+
+        try {
+            $resolver->connection();
+            $this->fail('Expected discard cancellation to propagate.');
+        } catch (CanceledException $throwable) {
+            $this->assertSame($discardCancellation, $throwable);
+        }
+    }
+
+    public function testSetupCancellationRemainsPrimaryOverAnOrdinaryDiscardFailure(): void
+    {
+        $setupCancellation = new CanceledException('Connection setup was canceled.');
+        $discardException = new RuntimeException('Discard failed.');
+        $factory = m::mock(PoolFactory::class);
+        $pool = m::mock(DbPool::class);
+        $wrapper = m::mock(PooledConnection::class);
+
+        $factory->expects('getPool')->once()->with('mysql')->andReturn($pool);
+        $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
+        $pool->expects('get')->once()->andReturn($wrapper);
+        $wrapper->expects('getConnection')->andThrow($setupCancellation);
+        $wrapper->expects('discard')->andThrow($discardException);
+
+        $resolver = $this->makeResolver('mysql', $factory);
+
+        try {
+            $resolver->connection();
+            $this->fail('Expected setup cancellation to propagate.');
+        } catch (CanceledException $throwable) {
+            $this->assertSame($setupCancellation, $throwable);
+        }
+    }
+
+    public function testSetupCancellationRemainsPrimaryOverDiscardCancellation(): void
+    {
+        $setupCancellation = new CanceledException('Connection setup was canceled.');
+        $discardCancellation = new CanceledException('Discard was canceled.');
+        $factory = m::mock(PoolFactory::class);
+        $pool = m::mock(DbPool::class);
+        $wrapper = m::mock(PooledConnection::class);
+
+        $factory->expects('getPool')->once()->with('mysql')->andReturn($pool);
+        $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
+        $pool->expects('get')->once()->andReturn($wrapper);
+        $wrapper->expects('getConnection')->andThrow($setupCancellation);
+        $wrapper->expects('discard')->andThrow($discardCancellation);
+
+        $resolver = $this->makeResolver('mysql', $factory);
+
+        try {
+            $resolver->connection();
+            $this->fail('Expected setup cancellation to propagate.');
+        } catch (CanceledException $throwable) {
+            $this->assertSame($setupCancellation, $throwable);
         }
     }
 

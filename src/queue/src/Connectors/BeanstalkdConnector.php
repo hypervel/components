@@ -6,7 +6,7 @@ namespace Hypervel\Queue\Connectors;
 
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\BeanstalkdQueue;
-use Pheanstalk\Contract\SocketFactoryInterface;
+use Hypervel\Support\Arr;
 use Pheanstalk\Pheanstalk;
 use Pheanstalk\Values\Timeout;
 
@@ -22,7 +22,7 @@ class BeanstalkdConnector implements ConnectorInterface
             $config['queue'],
             $config['retry_after'] ?? Pheanstalk::DEFAULT_TTR,
             $config['block_for'] ?? 0,
-            $config['after_commit'] ?? false
+            Arr::get($config, 'after_commit', true)
         );
     }
 
@@ -31,10 +31,12 @@ class BeanstalkdConnector implements ConnectorInterface
      */
     protected function pheanstalk(array $config): Pheanstalk
     {
+        $timeout = $config['timeout'] ?? null;
+
         return Pheanstalk::create(
             $config['host'],
-            $config['port'] ?? SocketFactoryInterface::DEFAULT_PORT,
-            isset($config['timeout']) ? new Timeout($config['timeout']) : null,
+            $config['port'],
+            $timeout === null ? null : new Timeout($timeout),
         );
     }
 }

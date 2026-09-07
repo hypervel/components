@@ -26,6 +26,7 @@ assertType('Hypervel\Support\Collection<int, bool>', Collection::times(3, static
 assertType('Hypervel\Support\LazyCollection<int, int>', LazyCollection::times(3));
 assertType('Hypervel\Support\LazyCollection<int, bool>', LazyCollection::times(3, static fn (int $number): bool => $number > 1));
 assertType('Hypervel\Support\Collection<int, mixed>', $collection->flatten());
+assertType('Hypervel\Support\LazyCollection<int, mixed>', $lazy->flatten());
 assertType(
     'Hypervel\Support\Collection<string, Hypervel\Support\Collection<int, 1|2|3>>',
     $collection->groupBy(static fn (int $value): array => [$value % 2 === 0 ? 'even' : 'odd'])
@@ -61,6 +62,7 @@ assertType('Hypervel\Support\LazyCollection<string, int>', LazyCollection::make(
  */
 function assertEnumerableTypes(Enumerable $enumerable): void
 {
+    assertType('Hypervel\Support\Enumerable<int, mixed>', $enumerable->flatten());
     assertType('Hypervel\Support\Enumerable<int, int>', $enumerable->random(2));
     assertType('Hypervel\Support\Enumerable<string, int>', $enumerable->random(2, true));
     assertType('float|int', $enumerable->sum(static fn (int $value): int => $value));

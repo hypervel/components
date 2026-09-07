@@ -239,12 +239,11 @@ abstract class ServiceProvider
     protected function loadViewsFrom(array|string $path, string $namespace): void
     {
         $this->callAfterResolving(ViewFactoryContract::class, function ($view) use ($path, $namespace) {
-            if (isset($this->app->config['view']['paths'])
-                && is_array($this->app->config['view']['paths'])) {
-                foreach ($this->app->config['view']['paths'] as $viewPath) {
-                    if (is_dir($appPath = $viewPath . '/vendor/' . $namespace)) {
-                        $view->addNamespace($namespace, $appPath);
-                    }
+            $config = $this->app->make('config');
+
+            foreach ($config->array('view.paths') as $viewPath) {
+                if (is_dir($appPath = $viewPath . '/vendor/' . $namespace)) {
+                    $view->addNamespace($namespace, $appPath);
                 }
             }
 
@@ -506,10 +505,10 @@ return [
             ->values()
             ->when(
                 $strict,
-                static fn (Collection $providerCollection) => $providerCollection->reject(fn (string $p) => in_array($p, $providersToRemove, true)),
-                static fn (Collection $providerCollection) => $providerCollection->reject(fn (string $p) => Str::contains($p, $providersToRemove))
+                static fn (Collection $providerCollection): Collection => $providerCollection->diff($providersToRemove),
+                static fn (Collection $providerCollection): Collection => $providerCollection->reject(fn (string $p): bool => Str::contains($p, $providersToRemove))
             )
-            ->map(fn ($p) => '    ' . $p . '::class,')
+            ->map(fn (string $p): string => '    ' . $p . '::class,')
             ->implode(PHP_EOL);
 
         $content = '<?php

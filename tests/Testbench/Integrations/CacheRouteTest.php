@@ -30,7 +30,7 @@ PHP);
     }
 
     #[Test]
-    public function itCanCacheRoute()
+    public function itCanCacheRoute(): void
     {
         $this->get('stubs-controller')
             ->assertOk()
@@ -38,7 +38,7 @@ PHP);
     }
 
     #[Test]
-    public function itCanCacheClosureRoute()
+    public function itCanCacheClosureRoute(): void
     {
         Log::spy()->shouldReceive('info')->with('hello');
 

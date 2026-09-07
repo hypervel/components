@@ -59,7 +59,11 @@ class CallableDispatcher implements CallableDispatcherContract
                 ->dispatch($route, $callable);
         }
 
-        return $callable(...array_values($this->resolveParameters($route, $callable)));
+        $parameters = $this->resolveParameters($route, $callable);
+
+        return $parameters === []
+            ? $callable()
+            : $callable(...array_values($parameters));
     }
 
     /**

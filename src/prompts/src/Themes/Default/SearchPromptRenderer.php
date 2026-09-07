@@ -18,6 +18,7 @@ class SearchPromptRenderer extends Renderer implements Scrolling
     public function __invoke(SearchPrompt $prompt): string
     {
         $maxWidth = $prompt->terminal()->cols() - 6;
+        $searchValue = $prompt->searchValue();
 
         return match ($prompt->state) {
             'submit' => (string) $this
@@ -29,7 +30,7 @@ class SearchPromptRenderer extends Renderer implements Scrolling
             'cancel' => (string) $this
                 ->box(
                     $this->dim($this->truncate($prompt->label, $prompt->terminal()->cols() - 6)),
-                    $this->strikethrough($this->dim($this->truncate($prompt->searchValue() ?: $prompt->placeholder, $maxWidth))),
+                    $this->strikethrough($this->dim($this->truncate($searchValue === '' ? $prompt->placeholder : $searchValue, $maxWidth))),
                     color: 'red',
                 )
                 ->error($prompt->cancelMessage),
@@ -109,7 +110,7 @@ class SearchPromptRenderer extends Renderer implements Scrolling
         }
 
         return implode(PHP_EOL, $this->scrollbar(
-            array_values(array_map(function ($label, $key) use ($prompt) { // @phpstan-ignore arrayValues.list
+            array_values(array_map(function ($label, $key) use ($prompt) {
                 $label = $this->truncate($label, $prompt->terminal()->cols() - 10);
 
                 $index = array_search($key, array_keys($prompt->matches()));

@@ -8,25 +8,10 @@ use BadMethodCallException;
 use Hypervel\Cache\TagMode;
 use Hypervel\Support\Facades\Cache;
 
-/**
- * Integration tests for blocked operations in any mode (ANY MODE ONLY).
- *
- * In any mode, certain operations that would require tag-based lookup
- * are not supported because tags are used only for write operations
- * and invalidation, not for retrieval.
- *
- * Blocked operations:
- * - get() via tags
- * - many() via tags
- * - has() via tags
- * - pull() via tags
- * - forget() via tags
- */
 class BlockedOperationsIntegrationTest extends RedisCacheIntegrationTestCase
 {
-    protected function setUp(): void
+    protected function setUpInCoroutine(): void
     {
-        parent::setUp();
         $this->setTagMode(TagMode::Any);
     }
 

@@ -11,9 +11,6 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
  */
 class IncrementTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testIncrementMethodProperlyCallsRedis(): void
     {
         $connection = $this->mockConnection();
@@ -24,9 +21,6 @@ class IncrementTest extends RedisCacheTestCase
         $this->assertEquals(6, $result);
     }
 
-    /**
-     * @test
-     */
     public function testIncrementOnNonExistentKeyReturnsIncrementedValue(): void
     {
         // Redis INCRBY on non-existent key initializes to 0, then increments
@@ -37,9 +31,6 @@ class IncrementTest extends RedisCacheTestCase
         $this->assertSame(1, $redis->increment('counter'));
     }
 
-    /**
-     * @test
-     */
     public function testIncrementWithLargeValue(): void
     {
         $connection = $this->mockConnection();
@@ -47,5 +38,15 @@ class IncrementTest extends RedisCacheTestCase
 
         $redis = $this->createStore($connection);
         $this->assertSame(1000005, $redis->increment('foo', 1000000));
+    }
+
+    public function testIncrementReturnsFalseWhenRedisRejectsTheOperation(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->expects('incrby')->with('prefix:foo', 1)->andReturnFalse();
+
+        $redis = $this->createStore($connection);
+
+        $this->assertFalse($redis->increment('foo'));
     }
 }

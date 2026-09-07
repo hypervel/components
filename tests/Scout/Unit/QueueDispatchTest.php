@@ -87,9 +87,9 @@ class QueueDispatchTest extends ScoutTestCase
         });
     }
 
-    public function testQueueMakeSearchableDoesNotDispatchJobWhenQueueDisabled(): void
+    public function testQueueMakeSearchableDoesNotDispatchJobWhenQueueSettingIsOmitted(): void
     {
-        $this->app->make('config')->set('scout.queue.enabled', false);
+        $this->app->make('config')->set('scout.queue', []);
 
         Bus::fake([MakeSearchable::class]);
 

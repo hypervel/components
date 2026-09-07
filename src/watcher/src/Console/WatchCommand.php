@@ -24,7 +24,7 @@ class WatchCommand extends Command
     {
         parent::__construct('watch');
         $this->setDescription('Watch for file changes and automatically restart the server.');
-        $this->addOption('path', 'P', InputOption::VALUE_OPTIONAL | InputOption::VALUE_IS_ARRAY, 'Additional paths to watch', []);
+        $this->addOption('path', 'P', InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Additional paths to watch', []);
         $this->addOption('no-restart', 'N', InputOption::VALUE_NONE, 'Detect changes without restarting the server');
     }
 

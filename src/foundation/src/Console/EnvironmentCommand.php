@@ -23,11 +23,11 @@ class EnvironmentCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): void
     {
         $this->components->info(sprintf(
             'The application environment is [%s].',
-            $this->hypervel['env'],
+            $this->hypervel->make('env'),
         ));
     }
 }

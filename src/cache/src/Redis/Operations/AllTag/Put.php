@@ -8,13 +8,11 @@ use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
 
-use function Hypervel\Support\now;
-
 /**
  * Store an item in the cache with all tag tracking.
  *
- * Combines the ZADD operations for tag tracking with the SETEX for
- * cache storage in a single connection checkout for efficiency.
+ * Combines SETEX cache storage with the ZADD tag tracking operations in a
+ * single connection checkout for efficiency.
  *
  * Each tag maintains a sorted set where:
  * - Members are cache keys (namespaced)
@@ -22,6 +20,9 @@ use function Hypervel\Support\now;
  */
 class Put
 {
+    /**
+     * Create a new put operation instance.
+     */
     public function __construct(
         private readonly StoreContext $context,
         private readonly Serialization $serialization,
@@ -33,12 +34,14 @@ class Put
      *
      * @param string $key The cache key (already namespaced by caller)
      * @param mixed $value The value to store
-     * @param int $seconds TTL in seconds
+     * @param int $seconds TTL in seconds; values below one are stored for one second
      * @param array<string> $tagIds Array of tag identifiers (e.g., "_all:tag:users:entries")
      * @return bool True if successful
      */
     public function execute(string $key, mixed $value, int $seconds, array $tagIds): bool
     {
+        $seconds = max(1, $seconds);
+
         if ($this->context->isCluster()) {
             return $this->executeCluster($key, $value, $seconds, $tagIds);
         }
@@ -49,29 +52,29 @@ class Put
     /**
      * Execute using pipeline for standard Redis (non-cluster).
      *
-     * Pipelines ZADD commands for all tags + SETEX in a single round trip.
+     * Pipelines SETEX and ZADD commands for all tags in a single round trip.
      */
     private function executePipeline(string $key, mixed $value, int $seconds, array $tagIds): bool
     {
-        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds): bool {
             $prefix = $this->context->prefix();
-            $score = now()->addSeconds($seconds)->getTimestamp();
+            $score = $this->context->expirationScore($seconds);
             $serialized = $this->serialization->serialize($connection, $value);
 
             $pipeline = $connection->pipeline();
+
+            // Publish the value before its memberships so concurrent pruning
+            // cannot mistake a newly written member for an orphan.
+            $pipeline->setex($prefix . $key, $seconds, $serialized);
 
             // ZADD to each tag's sorted set
             foreach ($tagIds as $tagId) {
                 $pipeline->zadd($prefix . $tagId, $score, $key);
             }
 
-            // SETEX for the cache value
-            $pipeline->setex($prefix . $key, max(1, $seconds), $serialized);
-
             $results = $pipeline->exec();
 
-            // Last result is the SETEX - check it succeeded
-            return $results !== false && end($results) !== false;
+            return $results !== false && ! in_array(false, $results, true);
         });
     }
 
@@ -83,18 +86,27 @@ class Put
      */
     private function executeCluster(string $key, mixed $value, int $seconds, array $tagIds): bool
     {
-        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds): bool {
             $prefix = $this->context->prefix();
-            $score = now()->addSeconds($seconds)->getTimestamp();
+            $score = $this->context->expirationScore($seconds);
             $serialized = $this->serialization->serialize($connection, $value);
+
+            // Publish the value before its memberships so concurrent pruning
+            // can repair cross-slot races without losing fresh metadata.
+            if (! $connection->setex($prefix . $key, $seconds, $serialized)) {
+                return false;
+            }
+
+            $membershipsSucceeded = true;
 
             // ZADD to each tag's sorted set (sequential - cross-slot)
             foreach ($tagIds as $tagId) {
-                $connection->zadd($prefix . $tagId, $score, $key);
+                if ($connection->zadd($prefix . $tagId, $score, $key) === false) {
+                    $membershipsSucceeded = false;
+                }
             }
 
-            // SETEX for the cache value
-            return (bool) $connection->setex($prefix . $key, max(1, $seconds), $serialized);
+            return $membershipsSucceeded;
         });
     }
 }

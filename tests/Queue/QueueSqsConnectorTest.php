@@ -18,13 +18,63 @@ use ReflectionFunction;
 
 class QueueSqsConnectorTest extends TestCase
 {
-    public function testConnectSucceedsWithoutAfterCommitConfig(): void
+    public function testConnectSucceedsWhenOptionalSdkConfigurationIsOmitted(): void
     {
-        $connector = new SqsConnector;
-
-        $queue = $connector->connect($this->config());
+        $queue = (new SqsConnector)->connect([
+            'queue' => 'default',
+            'region' => 'us-east-1',
+        ]);
 
         $this->assertInstanceOf(SqsQueue::class, $queue);
+        $this->assertSame('', (new ClassInvoker($queue))->prefix);
+        $this->assertSame('', (new ClassInvoker($queue))->suffix);
+        $this->assertTrue((new ClassInvoker($queue))->dispatchAfterCommit);
+        $this->assertSame([], (new ClassInvoker($queue))->overflowStorage);
+    }
+
+    public function testDefaultConfigurationPreservesIndividualHttpOverridesAndOptions(): void
+    {
+        $config = (new QueueSqsConnectorStub)->defaultConfiguration([
+            'http' => [
+                'timeout' => 15,
+                'proxy' => 'http://proxy.test',
+            ],
+        ]);
+
+        $this->assertNull($config['credentials']);
+        $this->assertNull($config['key']);
+        $this->assertNull($config['secret']);
+        $this->assertNull($config['token']);
+        $this->assertSame('', $config['prefix']);
+        $this->assertSame('', $config['suffix']);
+        $this->assertTrue($config['after_commit']);
+        $this->assertSame([], $config['overflow']);
+        $this->assertSame('latest', $config['version']);
+        $this->assertSame([
+            'timeout' => 15,
+            'connect_timeout' => 60,
+            'proxy' => 'http://proxy.test',
+        ], $config['http']);
+    }
+
+    #[DataProvider('incompleteStaticCredentials')]
+    public function testConnectRejectsIncompleteStaticCredentials(?string $key, ?string $secret): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The SQS access key and secret must be configured together.');
+
+        (new SqsConnector)->connect($this->config([
+            'key' => $key,
+            'secret' => $secret,
+        ]));
+    }
+
+    public static function incompleteStaticCredentials(): array
+    {
+        return [
+            'key only' => ['key', null],
+            'secret only' => [null, 'secret'],
+        ];
     }
 
     public function testConnectBuildsStaticCredentialsWithToken(): void
@@ -96,11 +146,14 @@ class QueueSqsConnectorTest extends TestCase
         ]);
     }
 
-    public function testOverflowOptionsArePassedToTheQueueButNotTheAwsClient(): void
+    public function testQueueOnlyOptionsAreNotPassedToTheAwsClient(): void
     {
         $overflow = [
             'enabled' => true,
             'store' => 'sqs-overflow',
+            'always' => false,
+            'delete_after_processing' => true,
+            'flush_on_clear' => false,
         ];
 
         $queue = (new SqsConnector)->connect($this->config([
@@ -108,7 +161,10 @@ class QueueSqsConnectorTest extends TestCase
         ]));
 
         $this->assertSame($overflow, (new ClassInvoker($queue))->overflowStorage);
-        $this->assertNull($queue->getSqs()->getConfig('overflow'));
+
+        foreach (['driver', 'queue', 'prefix', 'suffix', 'after_commit', 'key', 'secret', 'token', 'overflow'] as $option) {
+            $this->assertNull($queue->getSqs()->getConfig($option));
+        }
     }
 
     protected function config(array $overrides = []): array
@@ -123,6 +179,11 @@ class QueueSqsConnectorTest extends TestCase
 
 class QueueSqsConnectorStub extends SqsConnector
 {
+    public function defaultConfiguration(array $config): array
+    {
+        return $this->getDefaultConfiguration($config);
+    }
+
     public function resolveCredentials(array $config): mixed
     {
         return $this->resolveCredentialProvider($config);

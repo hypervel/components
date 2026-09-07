@@ -4,15 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\DeferredCallbacksTest;
 
-use Hypervel\Console\Events\CommandFinished;
+use Hypervel\Console\Application as ConsoleApplication;
+use Hypervel\Console\Command;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Job;
+use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
-use Symfony\Component\Console\Input\StringInput;
-use Symfony\Component\Console\Output\NullOutput;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class DeferredCallbacksTest extends TestCase
 {
@@ -23,7 +25,7 @@ class DeferredCallbacksTest extends TestCase
         DeferredCallbacksTestState::reset();
     }
 
-    public function testHttpTerminateRunsDeferredCallbacksForSuccessfulResponses()
+    public function testHttpTerminateRunsDeferredCallbacksForSuccessfulResponses(): void
     {
         Route::get('/deferred-callbacks/success', function () {
             defer(function () {
@@ -39,7 +41,7 @@ class DeferredCallbacksTest extends TestCase
         $this->assertCount(0, $this->app->make(DeferredCallbackCollection::class));
     }
 
-    public function testHttpTerminateSkipsFailedResponsesUnlessAlwaysTrue()
+    public function testHttpTerminateSkipsFailedResponsesUnlessAlwaysTrue(): void
     {
         Route::get('/deferred-callbacks/failure', function () {
             defer(function () {
@@ -59,43 +61,57 @@ class DeferredCallbacksTest extends TestCase
         $this->assertCount(0, $this->app->make(DeferredCallbackCollection::class));
     }
 
-    public function testCommandFinishedRunsDeferredCallbacksForSuccessfulExitCodes()
+    public function testHttpRequestOwnsCallbacksRegisteredByNestedCommand(): void
     {
-        defer(function () {
-            DeferredCallbacksTestState::record('normal');
+        $application = $this->createConsoleApplication();
+        $application->addCommand(new NestedDeferredCommand);
+
+        Route::get('/deferred-callbacks/command', function () use ($application) {
+            $application->call('deferred-callbacks:nested');
+            DeferredCallbacksTestState::record('after-command');
+
+            return response('ok');
         });
 
-        defer(function () {
-            DeferredCallbacksTestState::record('always');
-        }, always: true);
+        $this->get('/deferred-callbacks/command')->assertOk();
 
-        $this->app->make(Dispatcher::class)->dispatch(
-            new CommandFinished('deferred-callbacks:test', new StringInput(''), new NullOutput, 0)
-        );
-
-        $this->assertSame(['normal', 'always'], DeferredCallbacksTestState::$calls);
+        $this->assertSame(['after-command', 'deferred'], DeferredCallbacksTestState::$calls);
         $this->assertCount(0, $this->app->make(DeferredCallbackCollection::class));
     }
 
-    public function testCommandFinishedSkipsFailedExitCodesUnlessAlwaysTrue()
+    public function testJobLifecycleOwnsCallbacksRegisteredByNestedCommand(): void
     {
-        defer(function () {
-            DeferredCallbacksTestState::record('normal');
-        });
+        $application = $this->createConsoleApplication();
+        $application->addCommand(new NestedDeferredCommand);
+        $application->call('deferred-callbacks:nested');
 
-        defer(function () {
-            DeferredCallbacksTestState::record('always');
-        }, always: true);
+        $this->assertSame([], DeferredCallbacksTestState::$calls);
+
+        $job = m::mock(Job::class);
+        $job->shouldReceive('hasFailed')->andReturnFalse();
 
         $this->app->make(Dispatcher::class)->dispatch(
-            new CommandFinished('deferred-callbacks:test', new StringInput(''), new NullOutput, 1)
+            new JobAttempted('database', $job, null)
         );
 
-        $this->assertSame(['always'], DeferredCallbacksTestState::$calls);
+        $this->assertSame(['deferred'], DeferredCallbacksTestState::$calls);
         $this->assertCount(0, $this->app->make(DeferredCallbackCollection::class));
     }
 
-    public function testJobAttemptedRunsDeferredCallbacksForSuccessfulJobs()
+    public function testJobWithoutDeferredCallbacksDoesNotResolveTheCollection(): void
+    {
+        $job = m::mock(Job::class);
+        $job->shouldNotReceive('hasFailed');
+
+        $this->app->make(Dispatcher::class)->dispatch(
+            new JobAttempted('database', $job, null)
+        );
+
+        $this->assertFalse(Container::getInstance()->resolvedScoped(DeferredCallbackCollection::class));
+    }
+
+    #[DataProvider('owningQueueConnections')]
+    public function testJobAttemptedRunsDeferredCallbacksForSuccessfulJobs(string $connection): void
     {
         defer(function () {
             DeferredCallbacksTestState::record('job');
@@ -105,14 +121,23 @@ class DeferredCallbacksTest extends TestCase
         $job->shouldReceive('hasFailed')->andReturnFalse();
 
         $this->app->make(Dispatcher::class)->dispatch(
-            new \Hypervel\Queue\Events\JobAttempted('database', $job, null)
+            new JobAttempted($connection, $job, null)
         );
 
         $this->assertSame(['job'], DeferredCallbacksTestState::$calls);
         $this->assertCount(0, $this->app->make(DeferredCallbackCollection::class));
     }
 
-    public function testJobAttemptedSkipsFailedJobsAndSyncConnectionsUnlessAlwaysTrue()
+    public static function owningQueueConnections(): array
+    {
+        return [
+            'persistent' => ['database'],
+            'deferred' => ['deferred'],
+            'background' => ['background'],
+        ];
+    }
+
+    public function testJobAttemptedSkipsFailedJobsAndSyncConnectionsUnlessAlwaysTrue(): void
     {
         defer(function () {
             DeferredCallbacksTestState::record('normal');
@@ -126,7 +151,7 @@ class DeferredCallbacksTest extends TestCase
         $failedJob->shouldReceive('hasFailed')->andReturnTrue();
 
         $this->app->make(Dispatcher::class)->dispatch(
-            new \Hypervel\Queue\Events\JobAttempted('database', $failedJob, null)
+            new JobAttempted('database', $failedJob, null)
         );
 
         $this->assertSame(['always'], DeferredCallbacksTestState::$calls);
@@ -141,11 +166,34 @@ class DeferredCallbacksTest extends TestCase
         $syncJob->shouldReceive('hasFailed')->never();
 
         $this->app->make(Dispatcher::class)->dispatch(
-            new \Hypervel\Queue\Events\JobAttempted('sync', $syncJob, null)
+            new JobAttempted('sync', $syncJob, null)
         );
 
         $this->assertSame([], DeferredCallbacksTestState::$calls);
         $this->assertCount(1, $this->app->make(DeferredCallbackCollection::class));
+    }
+
+    private function createConsoleApplication(): ConsoleApplication
+    {
+        return new ConsoleApplication(
+            $this->app,
+            $this->app->make('events'),
+            '1.0',
+        );
+    }
+}
+
+class NestedDeferredCommand extends Command
+{
+    protected ?string $name = 'deferred-callbacks:nested';
+
+    public function handle(): int
+    {
+        defer(function (): void {
+            DeferredCallbacksTestState::record('deferred');
+        });
+
+        return self::SUCCESS;
     }
 }
 

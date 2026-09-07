@@ -38,11 +38,11 @@ class EventHandler
         DatabaseEvents\TransactionRolledBack::class => 'transactionRolledBack',
     ];
 
-    private const CONTEXT_RESPONSE_SPANS_KEY = '__sentry.tracing.response_spans';
+    private const string CONTEXT_RESPONSE_SPANS_KEY = '__sentry.tracing.response_spans';
 
-    public const CONTEXT_TRANSACTION_SPANS_KEY = '__sentry.tracing.transaction_spans';
+    public const string CONTEXT_TRANSACTION_SPANS_KEY = '__sentry.tracing.transaction_spans';
 
-    private const CONTEXT_CLEANUP_REGISTERED_KEY = '__sentry.tracing.cleanup_registered';
+    private const string CONTEXT_CLEANUP_REGISTERED_KEY = '__sentry.tracing.cleanup_registered';
 
     private readonly bool $traceSqlQueries;
 
@@ -57,10 +57,10 @@ class EventHandler
      */
     public function __construct(array $config)
     {
-        $this->traceSqlQueries = ($config['sql_queries'] ?? true) === true;
-        $this->traceSqlBindings = ($config['sql_bindings'] ?? false) === true;
-        $this->traceSqlQueryOrigin = ($config['sql_origin'] ?? true) === true;
-        $this->traceSqlQueryOriginThresholdMs = $config['sql_origin_threshold_ms'] ?? 100;
+        $this->traceSqlQueries = $config['sql_queries'] === true;
+        $this->traceSqlBindings = $config['sql_bindings'] === true;
+        $this->traceSqlQueryOrigin = $config['sql_origin'] === true;
+        $this->traceSqlQueryOriginThresholdMs = $config['sql_origin_threshold_ms'];
     }
 
     /**

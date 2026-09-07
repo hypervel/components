@@ -87,7 +87,7 @@ class ServerStartCommand extends SymfonyCommand
                 throw new InvalidArgumentException('The serve port must be an integer between 1 and 65535.');
             }
 
-            $servers = $serverConfig['servers'] ?? [];
+            $servers = $serverConfig['servers'];
             $httpServerIndex = null;
 
             foreach ($servers as $index => $server) {

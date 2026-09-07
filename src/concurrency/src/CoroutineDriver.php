@@ -7,11 +7,9 @@ namespace Hypervel\Concurrency;
 use Carbon\CarbonInterval;
 use Closure;
 use Hypervel\Contracts\Concurrency\Driver;
-use Hypervel\Coroutine\Coroutine;
-use Hypervel\Coroutine\WaitGroup;
+use Hypervel\Coroutine\Parallel;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Defer\DeferredCallback;
-use Throwable;
 
 use function Hypervel\Support\defer;
 
@@ -22,7 +20,8 @@ class CoroutineDriver implements Driver
      *
      * Each task runs in its own coroutine with the parent's context propagated.
      * Results are keyed to match the input array. If any task throws, the
-     * exception is re-thrown after all tasks complete.
+     * exception is re-thrown after all tasks complete. The timeout argument is
+     * accepted for driver compatibility and is not applied to coroutine tasks.
      */
     public function run(Closure|array $tasks, CarbonInterval|int|null $timeout = null): array
     {
@@ -33,28 +32,14 @@ class CoroutineDriver implements Driver
         }
 
         $keys = array_keys($tasks);
-        $results = [];
-        $exceptions = [];
-        $waitGroup = new WaitGroup(count($tasks));
+        $parallel = new Parallel(copyContext: true);
 
         foreach ($tasks as $key => $task) {
-            try {
-                Coroutine::fork(function () use ($task, $key, &$results, &$exceptions, $waitGroup): void {
-                    try {
-                        $results[$key] = $task();
-                    } catch (Throwable $exception) {
-                        $exceptions[$key] = $exception;
-                    } finally {
-                        $waitGroup->done();
-                    }
-                });
-            } catch (Throwable $exception) {
-                $exceptions[$key] = $exception;
-                $waitGroup->done();
-            }
+            $parallel->add($task, $key);
         }
 
-        $waitGroup->wait();
+        $results = $parallel->wait(false);
+        $exceptions = $parallel->getThrowables();
 
         // Rethrow the first exception in input order.
         foreach ($keys as $key) {

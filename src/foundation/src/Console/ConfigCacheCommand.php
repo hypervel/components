@@ -194,7 +194,7 @@ class ConfigCacheCommand extends Command
      */
     protected function buildFreshConfigurationCacheContents(): string
     {
-        $config = $this->hypervel['config']->all();
+        $config = $this->hypervel->make('config')->all();
         $contents = '<?php return ' . var_export($config, true) . ';' . PHP_EOL;
         $cachePath = @tempnam(sys_get_temp_dir(), 'hypervel-config-cache-');
         $exception = null;

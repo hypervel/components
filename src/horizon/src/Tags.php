@@ -18,7 +18,7 @@ use stdClass;
 
 class Tags
 {
-    protected const CONTEXT_KEY = '__horizon.tags';
+    protected const string CONTEXT_KEY = '__horizon.tags';
 
     /**
      * Determine the tags for the given job.
@@ -99,8 +99,6 @@ class Tags
             $models[] = collect(
                 (new ReflectionClass($target))->getProperties()
             )->map(function ($property) use ($target) {
-                $property->setAccessible(true);
-
                 $value = static::getValue($property, $target);
 
                 if ($value instanceof Model) {

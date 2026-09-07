@@ -6,6 +6,7 @@ namespace Hypervel\Cache;
 
 use Hypervel\Contracts\Container\Container;
 use InvalidArgumentException;
+use LogicException;
 use Swoole\Table;
 
 class SwooleTableManager
@@ -16,6 +17,8 @@ class SwooleTableManager
      * @var array<string, SwooleTableState>
      */
     protected array $states = [];
+
+    protected bool $sealed = false;
 
     public function __construct(
         protected Container $app
@@ -55,7 +58,28 @@ class SwooleTableManager
      */
     public function get(string $name): SwooleTableState
     {
-        return $this->states[$name] ??= $this->resolve($name);
+        if (isset($this->states[$name])) {
+            return $this->states[$name];
+        }
+
+        if ($this->sealed) {
+            throw new LogicException(
+                "Swoole cache table [{$name}] was not initialized before the server fork."
+            );
+        }
+
+        return $this->states[$name] = $this->resolve($name);
+    }
+
+    /**
+     * Prevent tables from being created after the server initialization phase.
+     *
+     * Boot-only. Creating a table after the server forks would give each worker
+     * private state instead of one shared cache table.
+     */
+    public function seal(): void
+    {
+        $this->sealed = true;
     }
 
     /**

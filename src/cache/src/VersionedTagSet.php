@@ -16,9 +16,12 @@ class VersionedTagSet extends NamespacedTagSet
     /**
      * Reset all tags in the set.
      */
-    public function reset(): void
+    public function reset(): bool
     {
-        array_walk($this->names, [$this, 'resetTag']);
+        return $this->attemptEach(
+            $this->names,
+            fn (string $name): bool => $this->writeTagId($name, $this->newTagId()),
+        );
     }
 
     /**
@@ -26,7 +29,9 @@ class VersionedTagSet extends NamespacedTagSet
      */
     public function resetTag(string $name): string
     {
-        $this->store->forever($this->tagKey($name), $id = str_replace('.', '', uniqid('', true)));
+        $id = $this->newTagId();
+
+        $this->writeTagId($name, $id);
 
         return $id;
     }
@@ -34,9 +39,16 @@ class VersionedTagSet extends NamespacedTagSet
     /**
      * Flush all the tags in the set.
      */
-    public function flush(): void
+    public function flush(): bool
     {
-        array_walk($this->names, [$this, 'flushTag']);
+        return $this->attemptEach(
+            $this->names,
+            function (string $name): bool {
+                $this->flushTag($name);
+
+                return true;
+            },
+        );
     }
 
     /**
@@ -63,5 +75,21 @@ class VersionedTagSet extends NamespacedTagSet
     public function tagKey(string $name): string
     {
         return 'tag:' . $name . ':key';
+    }
+
+    /**
+     * Generate a new tag identifier.
+     */
+    protected function newTagId(): string
+    {
+        return str_replace('.', '', uniqid('', true));
+    }
+
+    /**
+     * Persist a tag identifier.
+     */
+    protected function writeTagId(string $name, string $id): bool
+    {
+        return $this->store->forever($this->tagKey($name), $id);
     }
 }

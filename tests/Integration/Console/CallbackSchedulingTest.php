@@ -71,9 +71,9 @@ class CallbackSchedulingTest extends TestCase
             ->runInBackground();
     }
 
-    public function testExceptionHandlingInCallback()
+    public function testExceptionHandlingInCallback(): void
     {
-        $this->app['config']->set('logging.default', 'null');
+        $this->app->make('config')->set('logging.default', 'null');
 
         $event = $this->app->make(Schedule::class)
             ->call($this->logger('call'))

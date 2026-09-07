@@ -33,11 +33,13 @@ class OncePropTest extends TestCase
         $this->assertSame('A once prop value', $onceProp());
     }
 
-    public function testStringFunctionNamesAreNotInvoked(): void
+    public function testCallableArraysAndStaticMethodStringsAreInvoked(): void
     {
-        $onceProp = new OnceProp('date');
+        $arrayProp = new OnceProp([OnceCallableFixture::class, 'resolve']);
+        $stringProp = new OnceProp(OnceCallableFixture::class . '::resolve');
 
-        $this->assertSame('date', $onceProp());
+        $this->assertInstanceOf(Request::class, $arrayProp());
+        $this->assertInstanceOf(Request::class, $stringProp());
     }
 
     public function testCanResolveBindingsWhenInvoked(): void
@@ -89,5 +91,13 @@ class OncePropTest extends TestCase
         $onceProp->fresh(false);
 
         $this->assertFalse($onceProp->shouldBeRefreshed());
+    }
+}
+
+class OnceCallableFixture
+{
+    public static function resolve(Request $request): Request
+    {
+        return $request;
     }
 }

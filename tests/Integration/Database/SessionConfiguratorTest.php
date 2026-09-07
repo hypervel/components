@@ -9,6 +9,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Events\StatementPrepared;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Pool\DbPool;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\SessionConfigurator;
@@ -19,7 +20,7 @@ use PDO;
 
 class SessionConfiguratorTest extends DatabaseTestCase
 {
-    private const CONNECTION_NAME = 'session_configurator_test';
+    private const string CONNECTION_NAME = 'session_configurator_test';
 
     private DbPool $sessionPool;
 
@@ -59,7 +60,7 @@ class SessionConfiguratorTest extends DatabaseTestCase
         parent::setUp();
 
         $this->configurator = new CrossDriverSessionConfigurator(self::CONNECTION_NAME, $this->driver);
-        Connection::configureSessionUsing($this->configurator);
+        PdoConnection::configureSessionUsing($this->configurator);
         $this->sessionPool = new DbPool($this->app, self::CONNECTION_NAME);
     }
 
@@ -230,7 +231,7 @@ class CrossDriverSessionConfigurator implements SessionConfigurator
     ) {
     }
 
-    public function state(Connection $connection): ?string
+    public function state(PdoConnection $connection): ?string
     {
         if ($connection->getName() !== $this->connectionName) {
             return null;
@@ -241,7 +242,7 @@ class CrossDriverSessionConfigurator implements SessionConfigurator
         return $this->desiredState;
     }
 
-    public function apply(PDO $pdo, string $state, Connection $connection): void
+    public function apply(PDO $pdo, string $state, PdoConnection $connection): void
     {
         ++$this->applyCalls;
 

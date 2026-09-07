@@ -6,6 +6,7 @@ namespace Hypervel\Redis\Operations;
 
 use Hypervel\Redis\RedisConnection;
 use Redis;
+use RedisException;
 
 /**
  * Flush (delete) Redis keys matching a pattern.
@@ -18,7 +19,7 @@ use Redis;
  * Pattern-based key deletion is needed for cleanup operations (tests, benchmarks,
  * cache invalidation by prefix). However, phpredis OPT_PREFIX makes this tricky:
  *
- * - SCAN doesn't auto-add OPT_PREFIX to patterns
+ * - SCAN adds OPT_PREFIX to patterns only when SCAN_PREFIX is enabled
  * - SCAN returns keys WITH the full prefix as stored
  * - DEL auto-adds OPT_PREFIX to key names
  *
@@ -52,7 +53,7 @@ final class FlushByPattern
      * Number of keys to buffer before executing a batch delete.
      * Balances memory usage vs. number of Redis round-trips.
      */
-    private const BUFFER_SIZE = 1000;
+    private const int BUFFER_SIZE = 1000;
 
     /**
      * Create a new pattern flush instance.
@@ -67,9 +68,11 @@ final class FlushByPattern
     /**
      * Execute the pattern flush operation.
      *
-     * @param string $pattern The pattern to match (e.g., "cache:test:*").
-     *                        Should NOT include OPT_PREFIX - it's handled automatically.
+     * @param string $pattern The logical key pattern (e.g., "cache:test:*"). OPT_PREFIX is added automatically;
+     *                        the pattern is preserved even when it starts with the same bytes as OPT_PREFIX.
      * @return int Number of keys deleted
+     *
+     * @throws RedisException
      */
     public function execute(string $pattern): int
     {
@@ -101,21 +104,23 @@ final class FlushByPattern
     /**
      * Delete a batch of keys.
      *
-     * Uses UNLINK (async delete) when available for better performance,
-     * falls back to DEL for older Redis versions.
-     *
      * @param array<string> $keys Keys to delete (without OPT_PREFIX - phpredis adds it)
      * @return int Number of keys deleted
+     *
+     * @throws RedisException
      */
     private function deleteKeys(array $keys): int
     {
-        if (empty($keys)) {
-            return 0;
-        }
-
-        // UNLINK is non-blocking (async) delete, available since Redis 4.0
+        $this->connection->clearLastError();
         $result = $this->connection->unlink(...$keys);
 
-        return is_int($result) ? $result : 0;
+        if (is_int($result)) {
+            return $result;
+        }
+
+        throw new RedisException(
+            $this->connection->getLastError()
+                ?? 'Redis UNLINK failed while deleting keys by pattern.',
+        );
     }
 }

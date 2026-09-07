@@ -7,11 +7,11 @@ namespace Hypervel\Container\Attributes;
 use Attribute;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Container\ContextualAttribute;
+use Hypervel\Contracts\Container\ExecutionScopedAttribute;
 use UnitEnum;
 
 #[Attribute(Attribute::TARGET_PARAMETER)]
-class Cache implements ContextualAttribute
+class Cache implements ExecutionScopedAttribute
 {
     /**
      * Create a new class instance.
@@ -20,6 +20,14 @@ class Cache implements ContextualAttribute
         public UnitEnum|string|null $store = null,
         public bool $memo = false,
     ) {
+    }
+
+    /**
+     * Determine whether the resolved value belongs to the current execution.
+     */
+    public function isExecutionScoped(): bool
+    {
+        return $this->memo;
     }
 
     /**

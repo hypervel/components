@@ -9,26 +9,21 @@ use Hypervel\Console\Command;
 use Hypervel\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Factories\Factory;
-use Hypervel\Foundation\Events\DiagnosingHealth;
-use Hypervel\Http\Request;
+use Hypervel\Foundation\Http\HealthCheckController;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Env;
-use Hypervel\Support\Facades\Event;
-use Hypervel\Support\Facades\View;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Config;
 use ReflectionClass;
 use Symfony\Component\Finder\Finder;
-use Throwable;
 
 use function Hypervel\Testbench\after_resolving;
-use function Hypervel\Testbench\join_paths;
 use function Hypervel\Testbench\package_path;
-use function Hypervel\Testbench\testbench_path;
 use function Hypervel\Testbench\workbench_path;
+use function Hypervel\Testbench\workbench_relative_path;
 
 /**
  * @api
@@ -130,32 +125,7 @@ class Workbench
                 }
 
                 if ($healthCheckEnabled === true) {
-                    $router->get('/up', static function (Request $request) {
-                        $exception = null;
-
-                        try {
-                            Event::dispatch(new DiagnosingHealth);
-                        } catch (Throwable $throwable) {
-                            if (app()->hasDebugModeEnabled()) {
-                                throw $throwable;
-                            }
-
-                            report($throwable);
-
-                            $exception = $throwable;
-                        }
-
-                        $health = $exception === null ? 'up' : 'down';
-                        $status = $health === 'up' ? 200 : 500;
-
-                        return response(
-                            View::file(
-                                dirname(__DIR__, 3) . '/foundation/src/resources/health-up.blade.php',
-                                ['request' => $request, 'status' => $health],
-                            ),
-                            status: $status,
-                        );
-                    });
+                    $router->get('/up', HealthCheckController::class);
                 }
 
                 if ($discoversConfig['web'] === true) {
@@ -189,7 +159,7 @@ class Workbench
                 $app->booted(static function () use ($app, $workbenchViewPath) {
                     tap($app->make('config'), function ($config) use ($workbenchViewPath) {
                         $config->set('view.paths', array_merge(
-                            $config->array('view.paths', []),
+                            $config->array('view.paths'),
                             [$workbenchViewPath]
                         ));
                     });
@@ -286,13 +256,7 @@ class Workbench
     public static function configuration(): ConfigContract
     {
         return static::$cachedConfiguration ??= Bootstrapper::getConfiguration()
-            ?? Config::cacheFromYaml(
-                is_file(package_path('testbench.yaml'))
-                || is_file(package_path('testbench.yaml.example'))
-                || is_file(package_path('testbench.yaml.dist'))
-                    ? package_path()
-                    : testbench_path()
-            );
+            ?? Config::cacheFromYaml(Bootstrapper::resolveConfigurationPath(package_path()));
     }
 
     /**
@@ -300,7 +264,7 @@ class Workbench
      */
     public static function applicationConsoleKernel(): ?string
     {
-        if (! isset(static::$cachedCoreBindings['kernel']['console'])) {
+        if (! array_key_exists('console', static::$cachedCoreBindings['kernel'])) {
             static::$cachedCoreBindings['kernel']['console'] = is_file(workbench_path('app', 'Console', 'Kernel.php'))
                 ? \sprintf('%sConsole\Kernel', static::detectNamespace('app'))
                 : null;
@@ -314,7 +278,7 @@ class Workbench
      */
     public static function applicationHttpKernel(): ?string
     {
-        if (! isset(static::$cachedCoreBindings['kernel']['http'])) {
+        if (! array_key_exists('http', static::$cachedCoreBindings['kernel'])) {
             static::$cachedCoreBindings['kernel']['http'] = is_file(workbench_path('app', 'Http', 'Kernel.php'))
                 ? \sprintf('%sHttp\Kernel', static::detectNamespace('app'))
                 : null;
@@ -328,7 +292,7 @@ class Workbench
      */
     public static function applicationExceptionHandler(): ?string
     {
-        if (! isset(static::$cachedCoreBindings['handler']['exception'])) {
+        if (! array_key_exists('exception', static::$cachedCoreBindings['handler'])) {
             static::$cachedCoreBindings['handler']['exception'] = is_file(workbench_path('app', 'Exceptions', 'ExceptionHandler.php'))
                 ? \sprintf('%sExceptions\ExceptionHandler', static::detectNamespace('app'))
                 : null;
@@ -351,7 +315,7 @@ class Workbench
             $userModel = match (true) {
                 is_string($authModel) && $authModel !== '' => $authModel,
                 is_file(workbench_path('app', 'Models', 'User.php')) => \sprintf('%sModels\User', static::detectNamespace('app')),
-                is_file(base_path(join_paths('Models', 'User.php'))) => 'App\Models\User',
+                is_file(base_path('app/Models/User.php')) => 'App\Models\User',
                 default => false,
             };
 
@@ -368,7 +332,7 @@ class Workbench
     {
         $type = trim($type, '/');
 
-        if (! isset(static::$cachedNamespaces[$type]) || $force === true) {
+        if (! array_key_exists($type, static::$cachedNamespaces) || $force === true) {
             static::$cachedNamespaces[$type] = null;
 
             /** @var array{'autoload': array{'psr-4'?: array<string, array<int, string>|string>}, 'autoload-dev': array{'psr-4'?: array<string, array<int, string>|string>}} $composer */
@@ -379,11 +343,13 @@ class Workbench
                 $composer['autoload-dev']['psr-4'] ?? [],
             );
 
-            $path = implode('/', ['workbench', $type]);
+            $path = trim(str_replace('\\', '/', workbench_relative_path($type)), '/');
 
             foreach ((array) $collection as $namespace => $paths) {
                 foreach ((array) $paths as $pathChoice) {
-                    if (trim($pathChoice, '/') === $path) {
+                    $pathChoice = trim(str_replace('\\', '/', $pathChoice), '/');
+
+                    if ($pathChoice === $path) {
                         static::$cachedNamespaces[$type] = $namespace;
                     }
                 }

@@ -26,15 +26,19 @@ class WorkerStartCallback
      */
     public function onWorkerStart(SwooleServer $server, int $workerId): void
     {
-        $this->dispatcher->dispatch(new BeforeWorkerStart($server, $workerId));
+        if ($this->dispatcher->hasListeners(BeforeWorkerStart::class)) {
+            $this->dispatcher->dispatch(new BeforeWorkerStart($server, $workerId));
+        }
 
         if ($this->logger instanceof StdoutLogger) {
             $this->logger->reloadConfiguration();
         }
 
         if ($workerId === 0) {
-            $this->dispatcher->dispatch(new MainWorkerStart($server, $workerId));
-        } else {
+            if ($this->dispatcher->hasListeners(MainWorkerStart::class)) {
+                $this->dispatcher->dispatch(new MainWorkerStart($server, $workerId));
+            }
+        } elseif ($this->dispatcher->hasListeners(OtherWorkerStart::class)) {
             $this->dispatcher->dispatch(new OtherWorkerStart($server, $workerId));
         }
 
@@ -44,7 +48,10 @@ class WorkerStartCallback
             $this->logger->info("Worker#{$workerId} started.");
         }
 
-        $this->dispatcher->dispatch(new AfterWorkerStart($server, $workerId));
+        if ($this->dispatcher->hasListeners(AfterWorkerStart::class)) {
+            $this->dispatcher->dispatch(new AfterWorkerStart($server, $workerId));
+        }
+
         CoordinatorManager::until(Constants::WORKER_START)->resume();
     }
 }

@@ -20,6 +20,9 @@ use function Hypervel\Support\now;
  */
 class FlushStale
 {
+    /**
+     * Create a new flush-stale operation instance.
+     */
     public function __construct(
         private readonly StoreContext $context,
     ) {
@@ -57,7 +60,7 @@ class FlushStale
      */
     private function executePipeline(array $tagIds): void
     {
-        $this->context->withConnection(function (RedisConnection $connection) use ($tagIds) {
+        $this->context->withConnection(function (RedisConnection $connection) use ($tagIds): void {
             $prefix = $this->context->prefix();
             $timestamp = (string) now()->getTimestamp();
 
@@ -76,31 +79,21 @@ class FlushStale
     }
 
     /**
-     * Execute using multi() for Redis Cluster.
-     *
-     * RedisCluster doesn't support pipeline(), but multi() works across slots:
-     * - Tracks which nodes receive commands
-     * - Sends MULTI to each node lazily (on first key for that node)
-     * - Executes EXEC on all involved nodes
-     * - Aggregates results into a single array
+     * Execute sequentially for Redis Cluster.
      */
     private function executeCluster(array $tagIds): void
     {
-        $this->context->withConnection(function (RedisConnection $connection) use ($tagIds) {
+        $this->context->withConnection(function (RedisConnection $connection) use ($tagIds): void {
             $prefix = $this->context->prefix();
             $timestamp = (string) now()->getTimestamp();
 
-            $multi = $connection->multi();
-
             foreach ($tagIds as $tagId) {
-                $multi->zRemRangeByScore(
+                $connection->zRemRangeByScore(
                     $prefix . $tagId,
                     '0',
                     $timestamp
                 );
             }
-
-            $multi->exec();
         });
     }
 }

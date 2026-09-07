@@ -110,6 +110,19 @@ class CacheWorkerArrayStoreTest extends TestCase
         $this->assertSame('value', $store->get('key'));
     }
 
+    public function testTouchDoesNotReviveAnExpiredItem(): void
+    {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
+
+        $store = new WorkerArrayStore;
+        $store->put('key', 'value', 10);
+
+        CarbonImmutable::setTestNow($now->addSeconds(10));
+
+        $this->assertFalse($store->touch('key', 60));
+        $this->assertArrayNotHasKey('key', $store->all(false));
+    }
+
     public function testLocksCanBeRestoredRefreshedAndMeasured(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::now());
@@ -127,6 +140,196 @@ class CacheWorkerArrayStoreTest extends TestCase
 
         $this->assertTrue($restoredLock->refresh(30));
         $this->assertSame(30.0, $restoredLock->getRemainingLifetime());
+    }
+
+    public function testExactExpiredLockReadRemovesThePhysicalRecord(): void
+    {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
+
+        $store = new InspectableWorkerArrayStore;
+        $lock = $store->lock('expired', 10);
+        $this->assertTrue($lock->acquire());
+
+        CarbonImmutable::setTestNow($now->addSeconds(10));
+
+        $this->assertNull($store->getLockRecord('expired'));
+        $this->assertSame([], $store->lockRecords());
+        $this->assertTrue($lock->acquire());
+    }
+
+    public function testUnrelatedWriteReclaimsExpiredRecordsAndPreservesLiveRecords(): void
+    {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
+        $currentTimestamp = $now->getPreciseTimestamp(3) / 1000;
+        $store = new InspectableWorkerArrayStore;
+        $store->seedRecords(
+            [
+                'expired' => ['value' => 'expired', 'expiresAt' => $currentTimestamp - 1],
+                'live' => ['value' => 'live', 'expiresAt' => $currentTimestamp + 60],
+                'forever' => ['value' => 'forever', 'expiresAt' => 0.0],
+            ],
+            [
+                'expired-lock' => ['owner' => 'expired', 'expiresAt' => $now->subSecond()],
+                'live-lock' => ['owner' => 'live', 'expiresAt' => $now->addMinute()],
+                'permanent-lock' => ['owner' => 'permanent', 'expiresAt' => null],
+            ],
+        );
+
+        $store->forever('trigger', 'written');
+
+        $this->assertSame(['live', 'forever', 'trigger'], array_keys($store->storedValues()));
+        $this->assertSame(['live-lock', 'permanent-lock'], array_keys($store->lockRecords()));
+    }
+
+    public function testExistingRecordMutationsAdvanceReclamation(): void
+    {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
+        $currentTimestamp = $now->getPreciseTimestamp(3) / 1000;
+        $expiredValue = ['value' => 'expired', 'expiresAt' => $currentTimestamp - 1];
+
+        $incrementStore = new InspectableWorkerArrayStore;
+        $incrementStore->seedRecords([
+            'expired' => $expiredValue,
+            'counter' => ['value' => 1, 'expiresAt' => $currentTimestamp + 60],
+        ], []);
+
+        $this->assertSame(2, $incrementStore->increment('counter'));
+        $this->assertSame(['counter'], array_keys($incrementStore->storedValues()));
+
+        $touchStore = new InspectableWorkerArrayStore;
+        $touchStore->seedRecords([
+            'expired' => $expiredValue,
+            'target' => ['value' => 'target', 'expiresAt' => $currentTimestamp + 60],
+        ], []);
+
+        $this->assertTrue($touchStore->touch('target', 120));
+        $this->assertSame(['target'], array_keys($touchStore->storedValues()));
+
+        $lockStore = new InspectableWorkerArrayStore;
+        $lockStore->seedRecords(
+            ['expired' => $expiredValue],
+            [
+                'target' => ['owner' => 'owner', 'expiresAt' => $now->addMinute()],
+                'expired' => ['owner' => 'expired', 'expiresAt' => $now->subSecond()],
+            ],
+        );
+
+        $this->assertTrue($lockStore->restoreLock('target', 'owner')->refresh(120));
+        $this->assertSame([], $lockStore->storedValues());
+        $this->assertSame(['target'], array_keys($lockStore->lockRecords()));
+    }
+
+    public function testOneWriteReclaimsOnlyTheFixedRecordBudgetFromEachMap(): void
+    {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
+        $expiredValues = [];
+        $expiredLocks = [];
+
+        for ($index = 0; $index < 32; ++$index) {
+            $expiredValues["value-{$index}"] = [
+                'value' => $index,
+                'expiresAt' => ($now->getPreciseTimestamp(3) / 1000) - 1,
+            ];
+            $expiredLocks["lock-{$index}"] = [
+                'owner' => (string) $index,
+                'expiresAt' => $now->subSecond(),
+            ];
+        }
+
+        $store = new InspectableWorkerArrayStore;
+        $store->seedRecords($expiredValues, $expiredLocks);
+
+        $store->put('trigger', 'written', 60);
+
+        $this->assertCount(25, $store->storedValues());
+        $this->assertCount(24, $store->lockRecords());
+    }
+
+    public function testStorageCursorWrapsAfterCurrentDeletionAndAppendAtEnd(): void
+    {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
+        $expiredValues = [];
+
+        for ($index = 0; $index < 32; ++$index) {
+            $expiredValues["expired-{$index}"] = [
+                'value' => $index,
+                'expiresAt' => ($now->getPreciseTimestamp(3) / 1000) - 1,
+            ];
+        }
+
+        $store = new InspectableWorkerArrayStore;
+        $store->seedRecords($expiredValues, []);
+        $store->positionStorageAt(24);
+
+        $copy = $store->all(false);
+        unset($copy['expired-0']);
+        $this->assertCount(32, $store->storedValues());
+
+        $this->assertTrue($store->forget('expired-24'));
+
+        for ($index = 0; $index < 5; ++$index) {
+            $store->put("live-{$index}", $index, 60);
+        }
+
+        $this->assertSame(
+            ['live-0', 'live-1', 'live-2', 'live-3', 'live-4'],
+            array_keys($store->storedValues()),
+        );
+    }
+
+    public function testExpiredLockReadAtTheCursorDoesNotBreakRotation(): void
+    {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
+        $expiredLocks = [];
+
+        for ($index = 0; $index < 16; ++$index) {
+            $expiredLocks["expired-{$index}"] = [
+                'owner' => (string) $index,
+                'expiresAt' => $now->subSecond(),
+            ];
+        }
+
+        $store = new InspectableWorkerArrayStore;
+        $store->seedRecords([], $expiredLocks);
+        $store->positionLocksAt(4);
+
+        $this->assertNull($store->getLockRecord('expired-4'));
+
+        for ($index = 0; $index < 3; ++$index) {
+            $this->assertTrue($store->lock("live-{$index}", 60)->acquire());
+        }
+
+        $this->assertSame(
+            ['live-0', 'live-1', 'live-2'],
+            array_keys($store->lockRecords()),
+        );
+    }
+
+    public function testFlushesResetMaintenanceAfterPointersHaveAdvanced(): void
+    {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
+        $store = new InspectableWorkerArrayStore;
+        $store->seedRecords(
+            [
+                'expired' => [
+                    'value' => 'expired',
+                    'expiresAt' => ($now->getPreciseTimestamp(3) / 1000) - 1,
+                ],
+            ],
+            [
+                'expired' => ['owner' => 'expired', 'expiresAt' => $now->subSecond()],
+            ],
+        );
+        $store->positionStorageAt(0);
+        $store->positionLocksAt(0);
+
+        $this->assertTrue($store->flush());
+        $this->assertTrue($store->flushLocks());
+        $this->assertTrue($store->put('value', 'live', 60));
+        $this->assertTrue($store->lock('lock', 60)->acquire());
+
+        $this->assertSame(['value'], array_keys($store->storedValues()));
+        $this->assertSame(['lock'], array_keys($store->lockRecords()));
     }
 
     public function testFlushClearsValuesButNotLocks(): void
@@ -215,5 +418,42 @@ class CacheWorkerArrayStoreTest extends TestCase
 
         $this->assertTrue($results['owner']);
         $this->assertFalse($results['contender']);
+    }
+}
+
+class InspectableWorkerArrayStore extends WorkerArrayStore
+{
+    public function seedRecords(array $storage, array $locks): void
+    {
+        $this->storage = $storage;
+        $this->locks = $locks;
+    }
+
+    public function storedValues(): array
+    {
+        return $this->storage;
+    }
+
+    public function lockRecords(): array
+    {
+        return $this->locks;
+    }
+
+    public function positionStorageAt(int $offset): void
+    {
+        reset($this->storage);
+
+        for ($index = 0; $index < $offset; ++$index) {
+            next($this->storage);
+        }
+    }
+
+    public function positionLocksAt(int $offset): void
+    {
+        reset($this->locks);
+
+        for ($index = 0; $index < $offset; ++$index) {
+            next($this->locks);
+        }
     }
 }

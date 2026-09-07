@@ -19,6 +19,8 @@ class PipeMessageCallback
      */
     public function onPipeMessage(SwooleServer $server, int $fromWorkerId, mixed $data): void
     {
-        $this->dispatcher->dispatch(new OnPipeMessage($server, $fromWorkerId, $data));
+        if ($this->dispatcher->hasListeners(OnPipeMessage::class)) {
+            $this->dispatcher->dispatch(new OnPipeMessage($server, $fromWorkerId, $data));
+        }
     }
 }

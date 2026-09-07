@@ -319,10 +319,10 @@ class EventHandlerTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['cache_miss'],
-        ]);
+        ]));
 
         $this->pusher->subscribe($this->connection, 'cache-test-channel');
 
@@ -338,10 +338,10 @@ class EventHandlerTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['cache_miss'],
-        ]);
+        ]));
 
         // Subscribe first to create the channel, then broadcast to populate cache
         $this->pusher->subscribe($this->connection, 'cache-test-channel');
@@ -366,10 +366,10 @@ class EventHandlerTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
             'events' => ['cache_miss'],
-        ]);
+        ]));
 
         // Two connections subscribe to the same empty cache channel
         $this->pusher->subscribe($this->connection, 'cache-test-channel');
@@ -392,10 +392,10 @@ class EventHandlerTest extends ReverbTestCase
     {
         Queue::fake();
 
-        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+        config()->set('reverb.apps.apps.0.webhooks', array_replace($this->webhookConfig(), [
             'url' => 'https://example.com/webhook',
-            'events' => ['channel_occupied'], // cache_miss NOT in the list
-        ]);
+            'events' => ['channel_occupied'], // cache_miss is not in the list
+        ]));
 
         $this->pusher->subscribe($this->connection, 'cache-test-channel');
 
@@ -407,11 +407,11 @@ class EventHandlerTest extends ReverbTestCase
     public function testCacheMissWithNoWebhooksDoesNotTouchLock(): void
     {
         // Default config — no webhook URL configured
-        $sharedState = $this->app->make(\Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState::class);
+        $sharedState = $this->app->make(SharedState::class);
 
         $this->pusher->subscribe($this->connection, 'cache-test-channel');
 
-        // The lock should NOT have been acquired since hasWebhooks() is false.
+        // The lock should not have been acquired since hasWebhooks() is false.
         // Verify by acquiring it now — if it was already held, this would fail.
         $this->assertTrue(
             $sharedState->tryCacheMissLock($this->connection->app()->id(), 'cache-test-channel')

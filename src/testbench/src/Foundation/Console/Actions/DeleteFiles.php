@@ -7,8 +7,10 @@ namespace Hypervel\Testbench\Foundation\Console\Actions;
 use Hypervel\Console\View\Components\Factory as ComponentsFactory;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\LazyCollection;
+use RuntimeException;
 
 use function Hypervel\Prompts\confirm;
+use function Hypervel\Testbench\is_symlink;
 use function Hypervel\Testbench\transform_realpath_to_relative;
 
 class DeleteFiles
@@ -31,14 +33,18 @@ class DeleteFiles
      */
     public function handle(iterable $files): void
     {
+        $failures = [];
+
         (new LazyCollection($files))
             ->reject(static fn (string $file) => str_ends_with($file, '.gitkeep') || str_ends_with($file, '.gitignore'))
-            ->each(function (string $file): void {
+            ->each(function (string $file) use (&$failures): void {
                 $location = transform_realpath_to_relative($file, $this->workingPath);
 
-                if (! $this->filesystem->exists($file)) {
+                if (! $this->filesystem->isFile($file) && ! is_symlink($file)) {
                     $this->components?->twoColumnDetail(
-                        sprintf('File [%s] doesn\'t exists', $location),
+                        $this->filesystem->isDirectory($file)
+                            ? sprintf('[%s] is a directory', $location)
+                            : sprintf('File [%s] doesn\'t exist', $location),
                         '<fg=yellow;options=bold>SKIPPED</>',
                     );
 
@@ -49,9 +55,20 @@ class DeleteFiles
                     return;
                 }
 
-                $this->filesystem->delete($file);
+                if (! $this->filesystem->delete($file)) {
+                    $failures[] = $location;
+
+                    return;
+                }
 
                 $this->components?->task(sprintf('File [%s] has been deleted', $location));
             });
+
+        if ($failures !== []) {
+            throw new RuntimeException(sprintf(
+                'Unable to delete files [%s].',
+                implode(', ', $failures),
+            ));
+        }
     }
 }

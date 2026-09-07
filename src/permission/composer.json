@@ -1,7 +1,7 @@
 {
     "name": "hypervel/permission",
     "type": "library",
-    "description": "The permission package for Hypervel.",
+    "description": "Role and permission management for Hypervel Eloquent models.",
     "license": "MIT",
     "keywords": [
         "php",

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Passkeys;
 
+use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
 use JsonException;
 
@@ -71,10 +72,17 @@ class PackageMetadataTest extends TestCase
             'web-auth/cose-lib',
             'web-auth/webauthn-lib',
         ] as $dependency) {
+            $this->assertArrayHasKey($dependency, $rootComposer['require']);
             $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
         }
 
-        $this->assertSame('^0.4', $composer['require']['hypervel/context']);
+        $internalConstraint = '^' . Str::before(
+            $composer['extra']['branch-alias']['dev-main'],
+            '-dev',
+        );
+
+        $this->assertSame($internalConstraint, $composer['require']['hypervel/context']);
+        $this->assertArrayHasKey('hypervel/context', $rootComposer['replace']);
         $this->assertSame('self.version', $rootComposer['replace']['hypervel/context']);
     }
 }

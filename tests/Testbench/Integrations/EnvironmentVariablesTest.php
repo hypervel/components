@@ -19,7 +19,7 @@ class EnvironmentVariablesTest extends TestCase
     #[Override]
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app['config']->set('database.default', 'testing');
+        $app->make('config')->set('database.default', 'testing');
     }
 
     #[Override]

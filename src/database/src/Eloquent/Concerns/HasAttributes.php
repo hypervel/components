@@ -12,15 +12,18 @@ use Carbon\CarbonInterface;
 use Carbon\Exceptions\InvalidFormatException;
 use DateTimeImmutable;
 use DateTimeInterface;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsInboundAttributes;
 use Hypervel\Contracts\Encryption\Encrypter as EncrypterContract;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Eloquent\Attributes\Appends;
 use Hypervel\Database\Eloquent\Attributes\DateFormat;
 use Hypervel\Database\Eloquent\Attributes\Initialize;
 use Hypervel\Database\Eloquent\Attributes\Table;
 use Hypervel\Database\Eloquent\Casts\AsArrayObject;
+use Hypervel\Database\Eloquent\Casts\AsBinary;
 use Hypervel\Database\Eloquent\Casts\AsCollection;
 use Hypervel\Database\Eloquent\Casts\AsEncryptedArrayObject;
 use Hypervel\Database\Eloquent\Casts\AsEncryptedCollection;
@@ -45,6 +48,7 @@ use Hypervel\Support\Facades\Hash;
 use Hypervel\Support\Str;
 use Hypervel\Support\StrCache;
 use InvalidArgumentException;
+use JsonException;
 use LogicException;
 use ReflectionClass;
 use ReflectionMethod;
@@ -55,6 +59,7 @@ use Stringable;
 use UnitEnum;
 use ValueError;
 
+use function Hypervel\Support\enum_from;
 use function Hypervel\Support\enum_value;
 
 trait HasAttributes
@@ -515,7 +520,8 @@ trait HasAttributes
     {
         if ($this->exists
             && ! $this->wasRecentlyCreated
-            && static::preventsAccessingMissingAttributes()) {
+            && static::preventsAccessingMissingAttributes()
+            && ! CoroutineContext::get(self::MISSING_ATTRIBUTE_ACCESS_SUPPRESSED_CONTEXT_KEY, false)) {
             if (isset(static::$missingAttributeViolationCallback)) {
                 return call_user_func(static::$missingAttributeViolationCallback, $this, $key);
             }
@@ -937,6 +943,10 @@ trait HasAttributes
             $convertedCastType = trim(strtolower($castType));
         }
 
+        if ($convertedCastType === 'decimal') {
+            $this->ensureValidDecimalScale($castType, $key);
+        }
+
         return $this->castMetadataCache['castType'][$key] = static::$castTypeCache[$castType] = $convertedCastType;
     }
 
@@ -1003,6 +1013,20 @@ trait HasAttributes
     protected function isDecimalCast(string $cast): bool
     {
         return str_starts_with($cast, 'decimal:');
+    }
+
+    /**
+     * Ensure the decimal cast has a valid scale.
+     */
+    protected function ensureValidDecimalScale(string $cast, string $attribute): void
+    {
+        $scale = explode(':', $cast, 2)[1] ?? null;
+
+        if (filter_var($scale, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]) === false) {
+            throw new InvalidArgumentException(
+                "The decimal cast for attribute [{$attribute}] requires a non-negative integer scale."
+            );
+        }
     }
 
     /**
@@ -1161,11 +1185,11 @@ trait HasAttributes
     {
         [$key, $path] = explode('->', $key, 2);
 
-        $value = $this->asJson($this->getArrayAttributeWithValue(
+        $value = $this->castAttributeAsJson($key, $this->getArrayAttributeWithValue(
             $path,
             $key,
             $value
-        ), $this->getJsonCastFlags($key));
+        ));
 
         $this->attributes[$key] = $this->isEncryptedCastable($key)
             ? $this->castAttributeAsEncryptedString($key, $value)
@@ -1233,7 +1257,7 @@ trait HasAttributes
     protected function getEnumCaseFromValue(string $enumClass, string|int $value): mixed
     {
         return is_subclass_of($enumClass, BackedEnum::class)
-            ? $enumClass::from($value)
+            ? enum_from($enumClass, $value)
             : constant($enumClass . '::' . $value);
     }
 
@@ -1390,6 +1414,11 @@ trait HasAttributes
      */
     public function fromFloat(mixed $value): float
     {
+        // The match arms decode string database values, while PHP 8.5 warns when NAN is coerced to a string.
+        if (is_float($value)) {
+            return $value;
+        }
+
         return match ((string) $value) {
             'Infinity' => INF,
             '-Infinity' => -INF,
@@ -1550,6 +1579,8 @@ trait HasAttributes
 
     /**
      * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
      */
     public function getCasts(): array
     {
@@ -1875,6 +1906,44 @@ trait HasAttributes
     }
 
     /**
+     * Determine whether the given attribute uses the binary cast.
+     */
+    private function isBinaryCast(?string $cast): bool
+    {
+        return $cast === AsBinary::class
+            || ($cast !== null && str_starts_with($cast, AsBinary::class . ':'));
+    }
+
+    /**
+     * Prepare binary-cast attributes for database binding.
+     *
+     * @param array<string, mixed> $attributes
+     * @return array<string, mixed>
+     */
+    public function prepareBinaryAttributesForDatabase(array $attributes): array
+    {
+        $casts = $this->getCasts();
+
+        foreach ($attributes as $key => $value) {
+            if (! $this->isBinaryCast($casts[$key] ?? null)) {
+                continue;
+            }
+
+            if (is_resource($value)) {
+                $binary = stream_get_contents($value, offset: 0);
+                rewind($value);
+                $value = $binary;
+            }
+
+            if (is_string($value)) {
+                $attributes[$key] = new BinaryParameter($value);
+            }
+        }
+
+        return $attributes;
+    }
+
+    /**
      * Set the array of model attributes. No checking is done.
      */
     public function setRawAttributes(array $attributes, bool $sync = false): static
@@ -2188,8 +2257,15 @@ trait HasAttributes
                 === $this->fromDateTime($original);
         }
         if ($this->hasCast($key, ['object', 'collection'])) {
-            return $this->fromJson($attribute)
-                === $this->fromJson($original);
+            $current = $this->fromJson($attribute);
+
+            try {
+                $original = $this->fromJson($original);
+            } catch (JsonException) {
+                return false;
+            }
+
+            return $current === $original;
         }
         if ($this->hasCast($key, ['real', 'float', 'double'])) {
             if ($original === null) {
@@ -2202,14 +2278,37 @@ trait HasAttributes
             return false;
         }
         if ($this->hasCast($key, static::$primitiveCastTypes)) {
-            return $this->castAttribute($key, $attribute)
-                === $this->castAttribute($key, $original);
+            $current = $this->castAttribute($key, $attribute);
+
+            try {
+                $original = $this->castAttribute($key, $original);
+            } catch (JsonException) {
+                return false;
+            }
+
+            return $current === $original;
         }
         if ($this->isClassCastable($key) && Str::startsWith($this->getCasts()[$key], [AsArrayObject::class, AsCollection::class])) {
-            return $this->fromJson($attribute) === $this->fromJson($original);
+            $current = $this->fromJson($attribute);
+
+            try {
+                $original = $this->fromJson($original);
+            } catch (JsonException) {
+                return false;
+            }
+
+            return $current === $original;
         }
         if ($this->isClassCastable($key) && Str::startsWith($this->getCasts()[$key], [AsEnumArrayObject::class, AsEnumCollection::class])) {
-            return $this->fromJson($attribute) === $this->fromJson($original);
+            $current = $this->fromJson($attribute);
+
+            try {
+                $original = $this->fromJson($original);
+            } catch (JsonException) {
+                return false;
+            }
+
+            return $current === $original;
         }
         if ($this->isClassCastable($key) && $original !== null && Str::startsWith($this->getCasts()[$key], [AsEncryptedArrayObject::class, AsEncryptedCollection::class])) {
             if (empty(static::currentEncrypter()->getPreviousKeys())) {

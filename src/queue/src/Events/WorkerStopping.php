@@ -22,6 +22,8 @@ class WorkerStopping
         public ?int $jobsProcessed = null,
         public float|int|null $lastJobProcessedAt = null,
         public float|int|null $memoryUsage = null,
+        public ?string $connectionName = null,
+        public ?string $queue = null,
         public bool $terminatesImmediately = false,
     ) {
     }

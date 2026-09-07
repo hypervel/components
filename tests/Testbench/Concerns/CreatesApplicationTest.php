@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Concerns;
 
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
+use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Testbench\TestCase;
 
 class CreatesApplicationTest extends TestCase
@@ -43,37 +45,43 @@ class CreatesApplicationTest extends TestCase
 
     public function testRegisterPackageProvidersRegistersProviders(): void
     {
-        // The provider should be registered via defineEnvironment
-        // which calls registerPackageProviders
+        // The package provider is registered during application configuration.
         $this->assertTrue(
             $this->app->providerIsLoaded(TestServiceProvider::class),
             'TestServiceProvider should be registered'
         );
     }
 
+    public function testPackageProvidersBootWithTheTestingDatabaseResolver(): void
+    {
+        $this->assertInstanceOf(
+            DatabaseConnectionResolver::class,
+            $this->app->make('test.boot_database_resolver'),
+        );
+    }
+
     public function testRegisterPackageAliasesAddsToConfig(): void
     {
-        $aliases = $this->app->make('config')->get('app.aliases', []);
+        $aliases = $this->app->make('config')->array('app.aliases');
 
         $this->assertArrayHasKey('TestAlias', $aliases);
         $this->assertSame(TestFacade::class, $aliases['TestAlias']);
     }
 
-    public function testAfterLoadingEnvironmentFiresThroughTestbenchPath()
+    public function testAfterLoadingEnvironmentRegistersThroughTestbenchPath(): void
     {
         // The bootstrapped event should have been dispatched by bootstrapWith()
         // in CreatesApplication::resolveApplicationConfiguration().
-        $listeners = $this->app['events']->getListeners(
+        $events = $this->app->make(Dispatcher::class);
+        $listeners = $events->getListeners(
             'bootstrapped: ' . LoadEnvironmentVariables::class
         );
 
         // Register a callback now and verify it gets added to the listener list.
-        $called = false;
-        $this->app->afterLoadingEnvironment(function () use (&$called) {
-            $called = true;
+        $this->app->afterLoadingEnvironment(static function (): void {
         });
 
-        $updatedListeners = $this->app['events']->getListeners(
+        $updatedListeners = $events->getListeners(
             'bootstrapped: ' . LoadEnvironmentVariables::class
         );
 
@@ -123,6 +131,12 @@ class TestServiceProvider extends \Hypervel\Support\ServiceProvider
     public function register(): void
     {
         $this->app->singleton('test.service', fn () => 'test_value');
+    }
+
+    public function boot(): void
+    {
+        $this->app->instance('test.boot_database_resolver', $this->app->make('db.resolver'));
+        $this->app->make('db')->selectOne('select 1');
     }
 }
 

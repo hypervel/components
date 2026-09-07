@@ -40,7 +40,7 @@ $color = match ($level) {
 {{ $salutation }}
 @else
 @lang('Regards,')<br>
-{{ config('app.name') }}
+{{ config()->string('app.name') }}
 @endif
 
 {{-- Subcopy --}}

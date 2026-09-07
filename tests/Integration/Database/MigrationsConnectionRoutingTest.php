@@ -30,6 +30,8 @@ class MigrationsConnectionRoutingTest extends TestCase
 
     protected string $otherPath;
 
+    protected string $missingPath;
+
     protected function defineEnvironment(ApplicationContract $app): void
     {
         // Paths resolve inside testbench's disposable cloned workspace so the
@@ -38,6 +40,7 @@ class MigrationsConnectionRoutingTest extends TestCase
         $this->primaryPath = $app->databasePath('primary.sqlite');
         $this->migrationsPath = $app->databasePath('primary-migrations.sqlite');
         $this->otherPath = $app->databasePath('other.sqlite');
+        $this->missingPath = $app->databasePath('missing-secondary.sqlite');
 
         // SQLite requires the file to exist — Hypervel (like Laravel) refuses
         // to auto-create missing database files. touch() creates an empty
@@ -75,6 +78,13 @@ class MigrationsConnectionRoutingTest extends TestCase
             'prefix' => '',
             'foreign_key_constraints' => false,
         ]);
+
+        $config->set('database.connections.missing-secondary', [
+            'driver' => 'sqlite',
+            'database' => $this->missingPath,
+            'prefix' => '',
+            'foreign_key_constraints' => false,
+        ]);
     }
 
     protected function tearDown(): void
@@ -84,12 +94,14 @@ class MigrationsConnectionRoutingTest extends TestCase
         $db->purge('primary');
         $db->purge('primary-migrations');
         $db->purge('other');
+        $db->purge('missing-secondary');
 
         CoroutineContext::forget(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
 
         File::delete($this->primaryPath);
         File::delete($this->migrationsPath);
         File::delete($this->otherPath);
+        File::delete($this->missingPath);
 
         parent::tearDown();
     }
@@ -255,5 +267,35 @@ class MigrationsConnectionRoutingTest extends TestCase
         } finally {
             $this->app->make('config')->set('database.default', 'primary');
         }
+    }
+
+    public function testFreshWipesEveryDeclaredTargetAndCreatesMissingSecondaryDatabase(): void
+    {
+        /** @var DatabaseManager $db */
+        $db = $this->app->make('db');
+
+        $db->connection('primary-migrations')->getSchemaBuilder()->create('stale_primary', function (Blueprint $table) {
+            $table->id();
+        });
+        $db->connection('other')->getSchemaBuilder()->create('stale_other', function (Blueprint $table) {
+            $table->id();
+        });
+
+        $this->assertFileDoesNotExist($this->missingPath);
+
+        $this->artisan('migrate:fresh', [
+            '--database' => 'primary',
+            '--path' => [__DIR__ . '/Fixtures/Fresh'],
+            '--realpath' => true,
+            '--force' => true,
+        ])->assertExitCode(0);
+
+        $this->assertFalse($db->connection('primary-migrations')->getSchemaBuilder()->hasTable('stale_primary'));
+        $this->assertFalse($db->connection('other')->getSchemaBuilder()->hasTable('stale_other'));
+        $this->assertTrue($db->connection('primary-migrations')->getSchemaBuilder()->hasTable('primary_fresh_probe'));
+        $this->assertTrue($db->connection('other')->getSchemaBuilder()->hasTable('other_fresh_probe'));
+        $this->assertFileExists($this->missingPath);
+        $this->assertTrue($db->connection('missing-secondary')->getSchemaBuilder()->hasTable('missing_fresh_probe'));
+        $this->assertFalse($db->connection('primary')->getSchemaBuilder()->hasTable('primary_fresh_probe'));
     }
 }

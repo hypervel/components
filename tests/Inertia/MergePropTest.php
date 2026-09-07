@@ -32,6 +32,19 @@ class MergePropTest extends TestCase
         $this->assertSame('date', $mergeProp());
     }
 
+    public function testCallableArraysAreNotInvoked(): void
+    {
+        $target = new class {
+            public function resolve(): string
+            {
+                return 'resolved';
+            }
+        };
+        $value = [$target, 'resolve'];
+
+        $this->assertSame($value, (new MergeProp($value))());
+    }
+
     public function testCanResolveBindingsWhenInvoked(): void
     {
         $mergeProp = new MergeProp(function (Request $request) {

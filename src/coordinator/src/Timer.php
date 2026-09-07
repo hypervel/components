@@ -4,15 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Coordinator;
 
+use Closure;
+use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
 use Hypervel\Engine\Coroutine;
 use Psr\Log\LoggerInterface;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
-
-use function Hypervel\Coroutine\go;
 
 class Timer
 {
-    public const STOP = 'stop';
+    public const string STOP = 'stop';
 
     /**
      * Timer IDs mapped to coroutine IDs, or zero until creation publishes the ID.
@@ -34,6 +35,9 @@ class Timer
 
     private static int $round = 0;
 
+    /**
+     * Create a new timer instance.
+     */
     public function __construct(private ?LoggerInterface $logger = null)
     {
     }
@@ -47,35 +51,39 @@ class Timer
         $coordinator = CoordinatorManager::until($identifier);
         $this->coroutines[$id] = 0;
         $startedAt = hrtime(true);
+        $callable = function () use ($timeout, $closure, $coordinator, $id, $startedAt): void {
+            if (! isset($this->coroutines[$id])) {
+                return;
+            }
+
+            try {
+                ++Timer::$count;
+                $isClosing = match (true) {
+                    $timeout > 0 => $this->waitForInterval($id, $coordinator, $timeout, $startedAt), // Run after $timeout seconds.
+                    $timeout === 0.0 => $coordinator->isClosing(), // Run immediately.
+                    default => $this->waitForCoordinator($id, $coordinator), // Run until $identifier resume.
+                };
+
+                if (isset($this->coroutines[$id])) {
+                    $closure($isClosing);
+                }
+            } finally {
+                unset($this->coroutines[$id], $this->waiting[$id]);
+                --Timer::$count;
+            }
+        };
+        $wrapper = function (Closure $run) use ($id): void {
+            if (isset($this->coroutines[$id])) {
+                $this->coroutines[$id] = Coroutine::id();
+            }
+
+            $run();
+        };
 
         try {
-            $coroutineId = go(function () use ($timeout, $closure, $coordinator, $id, $startedAt): void {
-                if (! isset($this->coroutines[$id])) {
-                    return;
-                }
-
-                try {
-                    ++Timer::$count;
-                    $isClosing = match (true) {
-                        $timeout > 0 => $this->waitForInterval($id, $coordinator, $timeout, $startedAt), // Run after $timeout seconds.
-                        $timeout === 0.0 => $coordinator->isClosing(), // Run immediately.
-                        default => $this->waitForCoordinator($id, $coordinator), // Run until $identifier resume.
-                    };
-
-                    if (isset($this->coroutines[$id])) {
-                        $closure($isClosing);
-                    }
-                } finally {
-                    unset($this->coroutines[$id], $this->waiting[$id]);
-                    --Timer::$count;
-                }
-            });
-
-            if (isset($this->coroutines[$id])) {
-                $this->coroutines[$id] = $coroutineId;
-            }
+            FrameworkCoroutine::createOwned($callable, $wrapper);
         } catch (Throwable $exception) {
-            unset($this->coroutines[$id], $this->waiting[$id]);
+            $this->clear($id);
 
             throw $exception;
         }
@@ -91,61 +99,67 @@ class Timer
         $id = ++$this->id;
         $coordinator = CoordinatorManager::until($identifier);
         $this->coroutines[$id] = 0;
+        $callable = function () use ($timeout, $closure, $coordinator, $id): void {
+            if (! isset($this->coroutines[$id])) {
+                return;
+            }
+
+            $round = 0;
+
+            try {
+                ++Timer::$count;
+
+                while (isset($this->coroutines[$id])) {
+                    $isClosing = $this->waitForInterval(
+                        $id,
+                        $coordinator,
+                        max($timeout, 0.000001),
+                        hrtime(true),
+                    );
+
+                    if (! isset($this->coroutines[$id])) {
+                        break;
+                    }
+
+                    $result = null;
+
+                    try {
+                        $result = $closure($isClosing);
+                    } catch (CanceledException) {
+                        break;
+                    } catch (Throwable $exception) {
+                        if ($this->logger !== null) {
+                            $this->logger->error((string) $exception);
+                        } else {
+                            error_log((string) $exception);
+                        }
+                    }
+
+                    if ($result === self::STOP || $isClosing) {
+                        break;
+                    }
+
+                    ++$round;
+                    ++Timer::$round;
+                }
+            } finally {
+                unset($this->coroutines[$id], $this->waiting[$id]);
+                Timer::$round -= $round;
+                --Timer::$count;
+            }
+        };
+        $wrapper = function (Closure $run) use ($id): void {
+            if (isset($this->coroutines[$id])) {
+                $this->coroutines[$id] = Coroutine::id();
+            }
+
+            $run();
+        };
 
         try {
-            $coroutineId = go(function () use ($timeout, $closure, $coordinator, $id): void {
-                if (! isset($this->coroutines[$id])) {
-                    return;
-                }
-
-                $round = 0;
-
-                try {
-                    ++Timer::$count;
-
-                    while (isset($this->coroutines[$id])) {
-                        $isClosing = $this->waitForInterval(
-                            $id,
-                            $coordinator,
-                            max($timeout, 0.000001),
-                            hrtime(true),
-                        );
-
-                        if (! isset($this->coroutines[$id])) {
-                            break;
-                        }
-
-                        $result = null;
-
-                        try {
-                            $result = $closure($isClosing);
-                        } catch (Throwable $exception) {
-                            if ($this->logger !== null) {
-                                $this->logger->error((string) $exception);
-                            } else {
-                                error_log((string) $exception);
-                            }
-                        }
-
-                        if ($result === self::STOP || $isClosing) {
-                            break;
-                        }
-
-                        ++$round;
-                        ++Timer::$round;
-                    }
-                } finally {
-                    unset($this->coroutines[$id], $this->waiting[$id]);
-                    Timer::$round -= $round;
-                    --Timer::$count;
-                }
-            });
-
-            if (isset($this->coroutines[$id])) {
-                $this->coroutines[$id] = $coroutineId;
-            }
+            FrameworkCoroutine::createOwned($callable, $wrapper);
         } catch (Throwable $exception) {
-            unset($this->coroutines[$id], $this->waiting[$id]);
+            $this->clear($id);
 
             throw $exception;
         }

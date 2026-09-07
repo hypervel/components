@@ -300,6 +300,17 @@ class HasAssignedModelsTest extends TestCase
         $this->assertTrue($user1->fresh()->hasRole($this->testUserRole));
     }
 
+    public function testNullDefaultModelUsesTheAuthenticatedGuardModelWhenResolvingIds(): void
+    {
+        config()->set('permission.models.default_model', null);
+
+        $user = User::create(['email' => 'user@test.com']);
+
+        $this->testUserRole->syncModels([$user->getKey()]);
+
+        $this->assertTrue($user->fresh()->hasRole($this->testUserRole));
+    }
+
     public function testUnsavedRoleReverseAssignmentsAreQueryFreeFluentNoOps(): void
     {
         $user = User::create(['email' => 'user@test.com']);

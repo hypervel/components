@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\Queue\WorkCommandTest;
 use Hypervel\Bus\Queueable;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\Repository;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Foundation\Bus\Dispatchable;
@@ -27,11 +28,14 @@ class WorkCommandTest extends QueueTestCase
 {
     use DatabaseMigrations;
 
-    protected function defineEnvironment($app): void
+    /**
+     * Define the test environment.
+     */
+    protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
 
-        $app['config']->set('queue.default', 'database');
+        $app->make('config')->set('queue.default', env('QUEUE_CONNECTION', 'database'));
     }
 
     protected function setUp(): void
@@ -87,9 +91,11 @@ class WorkCommandTest extends QueueTestCase
 
     public function testConnectionArgumentPreservesZero(): void
     {
-        $this->app['config']->set(
+        $config = $this->app->make('config');
+
+        $config->set(
             'queue.connections.0',
-            $this->app['config']->get('queue.connections.database'),
+            $config->get('queue.connections.database'),
         );
 
         Queue::connection('0')->push(new FirstJob);
@@ -150,7 +156,7 @@ class WorkCommandTest extends QueueTestCase
 
     public function testRunTimestampOutputWithDifferentLogTimezone(): void
     {
-        $this->app['config']->set('queue.output_timezone', 'Europe/Helsinki');
+        $this->app->make('config')->set('queue.output_timezone', 'Europe/Helsinki');
 
         $this->travelTo(CarbonImmutable::create(2023, 1, 18, 10, 10, 11));
         Queue::push(new FirstJob);
@@ -164,7 +170,7 @@ class WorkCommandTest extends QueueTestCase
 
     public function testRunTimestampOutputWithSameAppDefaultAndQueueLogDefault(): void
     {
-        $this->app['config']->set('queue.output_timezone', 'UTC');
+        $this->app->make('config')->set('queue.output_timezone', 'UTC');
 
         $this->travelTo(CarbonImmutable::create(2023, 1, 18, 10, 10, 11));
         Queue::push(new FirstJob);
@@ -287,7 +293,7 @@ class WorkCommandTest extends QueueTestCase
         Worker::$memoryExceededExitCode = null;
     }
 
-    public function testDisableLastRestartCheck()
+    public function testDisableLastRestartCheck(): void
     {
         $this->markTestSkippedWhenUsingQueueDrivers(['redis', 'beanstalkd']);
 
@@ -295,6 +301,7 @@ class WorkCommandTest extends QueueTestCase
 
         $cache = m::mock(Repository::class);
         $cache->shouldNotReceive('get')->with(Worker::RESTART_SIGNAL_CACHE_KEY);
+        $cache->shouldReceive('get')->with('illuminate:queues:paused', false)->andReturn(false);
         $cache->shouldReceive('many')
             ->with(['illuminate:queue:paused:database:default'])
             ->andReturn(['illuminate:queue:paused:database:default' => false]);
@@ -361,6 +368,33 @@ class WorkCommandTest extends QueueTestCase
         $this->withoutMockingConsoleOutput()->artisan('queue:work', ['--once' => true]);
         Exceptions::assertNotReported(UniqueConstraintViolationException::class);
         $this->assertSame(2, substr_count(Artisan::output(), JobWillFail::class));
+    }
+
+    public function testStopReasonIsWritten(): void
+    {
+        Queue::push(new FirstJob);
+        Queue::push(new SecondJob);
+
+        $this->artisan('queue:work', [
+            '--daemon' => true,
+            '--stop-when-empty' => true,
+            '--memory' => 1024,
+        ])->expectsOutputToContain('Queue empty')
+            ->assertExitCode(0);
+    }
+
+    public function testStopReasonIsWrittenAsJson(): void
+    {
+        Queue::push(new FirstJob);
+        Queue::push(new SecondJob);
+
+        $this->artisan('queue:work', [
+            '--daemon' => true,
+            '--stop-when-empty' => true,
+            '--memory' => 1,
+            '--json' => true,
+        ])->expectsOutputToContain('"status":"stopped","reason":"memory","exit_code":12')
+            ->assertExitCode(12);
     }
 }
 

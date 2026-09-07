@@ -16,8 +16,8 @@ class ProfileTrackerTest extends TestCase
         $tracker = new ProfileTracker;
 
         foreach (range(1, 12) as $index) {
-            $tracker->start("test-{$index}", 0.0);
-            $tracker->stop("test-{$index}", "Test {$index}", (float) $index);
+            $tracker->start("Test {$index}", 0.0);
+            $tracker->stop("Test {$index}", (float) $index);
         }
 
         $slowTests = $tracker->slowTests();

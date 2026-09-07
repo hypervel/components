@@ -53,6 +53,26 @@ final class RetryBackoff
     }
 
     /**
+     * Capture the current retry sequence position.
+     *
+     * @internal
+     */
+    public function checkpoint(): int
+    {
+        return $this->retries;
+    }
+
+    /**
+     * Restore a retry sequence position that was not published.
+     *
+     * @internal
+     */
+    public function restore(int $checkpoint): void
+    {
+        $this->retries = $checkpoint;
+    }
+
+    /**
      * Resolve a present retry-pushback header and reset the sequence.
      */
     public function pushbackDelay(string|array $value): ?float

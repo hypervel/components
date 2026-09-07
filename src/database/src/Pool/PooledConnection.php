@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Pool;
 
+use Closure;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\ConnectionInterface as PoolConnectionInterface;
+use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
@@ -16,13 +18,10 @@ use Hypervel\Engine\Coroutine;
 use Hypervel\Engine\Exceptions\CoroutineCreateException;
 use Hypervel\Pool\Events\ReleaseConnection;
 use Hypervel\Pool\PoolOption;
-use PDO;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
-
-use function Hypervel\Coroutine\go;
 
 /**
  * Wraps a database Connection for use with Hypervel's connection pool.
@@ -35,7 +34,7 @@ class PooledConnection implements PoolConnectionInterface
     /**
      * Maximum allowed errors before marking connection as stale.
      */
-    protected const MAX_ERROR_COUNT = 100;
+    protected const int MAX_ERROR_COUNT = 100;
 
     protected ?Connection $connection = null;
 
@@ -57,6 +56,9 @@ class PooledConnection implements PoolConnectionInterface
 
     protected ?Dispatcher $dispatcher = null;
 
+    /**
+     * Create a new pooled connection instance.
+     */
     public function __construct(
         protected Container $container,
         protected DbPool $pool,
@@ -115,8 +117,20 @@ class PooledConnection implements PoolConnectionInterface
                 $this->config['name'] ?? null
             );
         } else {
-            // Normal path: factory creates fresh connection with new PDO
+            // Normal path: factory creates a fresh connection with new driver resources.
             $this->connection = $this->factory->make($this->config, $this->config['name'] ?? null);
+        }
+
+        if (! $this->connection->isReusable()) {
+            $this->markInvalid();
+
+            if ($sharedPdo !== null) {
+                throw new RuntimeException(
+                    'The shared in-memory SQLite database session is unknown and its sole connection cannot be replaced without discarding the database.'
+                );
+            }
+
+            throw new RuntimeException('Database connection is not reusable after reconnecting.');
         }
 
         // Configure event dispatcher for query events
@@ -138,9 +152,12 @@ class PooledConnection implements PoolConnectionInterface
         // Fetch dispatcher from container (not $this->dispatcher) so Event::fake() works.
         // Reconnection can be triggered after fake swaps the container binding.
         if ($this->container->bound('events')) {
-            $this->container->make('events')->dispatch(
-                new ConnectionEstablished($this->connection)
-            );
+            /** @var Dispatcher $events */
+            $events = $this->container->make('events');
+
+            if ($events->hasListeners(ConnectionEstablished::class)) {
+                $events->dispatch(new ConnectionEstablished($this->connection));
+            }
         }
 
         $now = hrtime(true) / 1e9;
@@ -197,7 +214,7 @@ class PooledConnection implements PoolConnectionInterface
     }
 
     /**
-     * Ping already-open PDO connections.
+     * Ping the underlying database connection.
      */
     public function ping(float $timeout): bool
     {
@@ -205,29 +222,52 @@ class PooledConnection implements PoolConnectionInterface
             return false;
         }
 
-        // Known session configuration is memoized by physical PDO across clean
-        // releases. Pool maintenance must remain session-state-neutral.
-        $pdos = $this->getOpenPdos();
-
-        if ($pdos === []) {
-            return true;
-        }
-
         $result = new Channel(1);
+        $connection = $this->connection;
+        $started = null;
+        $callable = static function () use ($connection, $result): void {
+            try {
+                $healthy = $connection->ping();
+            } catch (CanceledException) {
+                return;
+            } catch (Throwable) {
+                $healthy = false;
+            }
+
+            $result->push($healthy, 0.0);
+        };
+        $wrapper = static function (Closure $run) use (&$started): void {
+            $started = Coroutine::id();
+            $run();
+        };
 
         try {
-            $started = go(static function () use ($pdos, $result): void {
-                try {
-                    $result->push(self::pingPdos($pdos), 0.0);
-                } catch (CanceledException) {
-                }
-            });
+            FrameworkCoroutine::createOwned($callable, $wrapper);
+        } catch (CanceledException $exception) {
+            $this->cancelHeartbeatCoroutine($started);
+
+            throw $exception;
         } catch (CoroutineCreateException) {
             return false;
         }
 
-        if ($result->pop($timeout) !== true) {
-            Coroutine::cancelById($started, throwException: true);
+        try {
+            $healthy = $result->pop($timeout);
+        } catch (CanceledException $exception) {
+            $this->cancelHeartbeatCoroutine($started);
+
+            throw $exception;
+        }
+
+        if ($healthy === false && $result->isCanceled()) {
+            $exception = new CanceledException('Waiting for a database heartbeat was canceled.');
+            $this->cancelHeartbeatCoroutine($started);
+
+            throw $exception;
+        }
+
+        if ($healthy !== true) {
+            $this->cancelHeartbeatCoroutine($started);
 
             return false;
         }
@@ -238,17 +278,29 @@ class PooledConnection implements PoolConnectionInterface
     }
 
     /**
+     * Cancel a live heartbeat coroutine.
+     */
+    private function cancelHeartbeatCoroutine(?int $coroutineId): void
+    {
+        if (is_int($coroutineId) && Coroutine::exists($coroutineId)) {
+            Coroutine::cancelById($coroutineId, throwException: true);
+        }
+    }
+
+    /**
      * Close the database connection.
      */
     public function close(): bool
     {
         if ($this->connection instanceof Connection) {
-            // This drops only the wrapper's reference. The pool retains a shared
-            // in-memory SQLite PDO, while wrapper-owned transactions still roll back.
-            $this->connection->disconnect();
+            try {
+                $this->connection->disconnect();
+            } finally {
+                // The pool retains a shared in-memory SQLite PDO, while the wrapper
+                // must forget its connection even when transaction cleanup fails.
+                $this->connection = null;
+            }
         }
-
-        $this->connection = null;
 
         return true;
     }
@@ -258,6 +310,9 @@ class PooledConnection implements PoolConnectionInterface
      */
     public function release(): void
     {
+        $cancellationFailure = null;
+        $ordinaryFailure = null;
+
         try {
             if ($this->connection instanceof Connection) {
                 $errorCount = $this->connection->getErrorCount();
@@ -282,21 +337,56 @@ class PooledConnection implements PoolConnectionInterface
 
             // Dispatch release event if configured
             $events = $this->pool->getOption()->getEvents();
-            if (in_array(ReleaseConnection::class, $events, true)) {
-                $this->dispatcher?->dispatch(new ReleaseConnection($this));
+            if (in_array(ReleaseConnection::class, $events, true)
+                && $this->dispatcher?->hasListeners(ReleaseConnection::class)
+            ) {
+                $this->dispatcher->dispatch(new ReleaseConnection($this));
             }
-        } catch (Throwable $exception) {
-            $this->logger->error('Release connection failed: ' . $exception);
-            // Mark as stale so it will be recreated
+        } catch (CanceledException $cancellation) {
+            $cancellationFailure = $cancellation;
             $this->markInvalid();
-        } finally {
-            if ($this->connection?->hasUnknownSessionState()) {
-                $this->logger->warning('Database session state is unknown, marking connection as stale.');
-                $this->markInvalid();
-            }
+        } catch (Throwable $exception) {
+            $this->markInvalid();
 
-            $this->availableForReuse = true;
+            try {
+                $this->logger->error('Release connection failed: ' . $exception);
+            } catch (CanceledException $loggingCancellation) {
+                $cancellationFailure = $loggingCancellation;
+            } catch (Throwable $loggingException) {
+                $ordinaryFailure = $loggingException;
+            }
+        }
+
+        try {
+            if ($cancellationFailure === null
+                && $this->connection !== null
+                && ! $this->connection->isReusable()
+            ) {
+                $this->markInvalid();
+                $this->logger->warning('Database connection is not reusable, marking it as stale.');
+            }
+        } catch (CanceledException $stateCancellation) {
+            $cancellationFailure = $stateCancellation;
+        } catch (Throwable $exception) {
+            $ordinaryFailure ??= $exception;
+        }
+
+        $this->availableForReuse = true;
+
+        try {
             $this->pool->release($this);
+        } catch (CanceledException $releaseCancellation) {
+            $cancellationFailure ??= $releaseCancellation;
+        } catch (Throwable $exception) {
+            $ordinaryFailure ??= $exception;
+        }
+
+        if ($cancellationFailure !== null) {
+            throw $cancellationFailure;
+        }
+
+        if ($ordinaryFailure !== null) {
+            throw $ordinaryFailure;
         }
     }
 
@@ -370,60 +460,6 @@ class PooledConnection implements PoolConnectionInterface
     }
 
     /**
-     * Get already-open PDO instances.
-     *
-     * @return PDO[]
-     */
-    protected function getOpenPdos(): array
-    {
-        if (! $this->connection instanceof Connection) {
-            return [];
-        }
-
-        $writePdo = $this->connection->getRawPdo();
-        $readPdo = $this->connection->getRawReadPdo();
-        $pdos = [];
-
-        if ($writePdo instanceof PDO) {
-            $pdos[] = $writePdo;
-        }
-
-        if ($readPdo instanceof PDO && $readPdo !== $writePdo) {
-            $pdos[] = $readPdo;
-        }
-
-        return $pdos;
-    }
-
-    /**
-     * Ping PDO instances.
-     *
-     * @param PDO[] $pdos
-     */
-    protected static function pingPdos(array $pdos): bool
-    {
-        try {
-            foreach ($pdos as $pdo) {
-                $statement = $pdo->query('SELECT 1');
-
-                if ($statement === false) {
-                    return false;
-                }
-
-                $statement->closeCursor();
-            }
-
-            return true;
-        } catch (Throwable $exception) {
-            if ($exception instanceof CanceledException) {
-                throw $exception;
-            }
-
-            return false;
-        }
-    }
-
-    /**
      * Stamp the current connection generation.
      */
     private function stampGeneration(float $now): void
@@ -436,48 +472,45 @@ class PooledConnection implements PoolConnectionInterface
     }
 
     /**
-     * Refresh the PDO connections.
+     * Refresh the database connection resources.
      */
     protected function refresh(Connection $connection): void
     {
         $sharedPdo = $this->pool->getSharedInMemorySqlitePdo();
 
-        if ($sharedPdo !== null) {
-            // For shared in-memory SQLite, rebind to the same PDO.
-            // Creating a fresh PDO would give us a new empty database.
-            // Disconnect first to roll back connection state and resolve manager records.
-            try {
-                $connection->disconnect();
-            } finally {
-                $connection->setPdo($sharedPdo);
-                $connection->setReadPdo($sharedPdo);
-            }
-        } else {
-            try {
+        try {
+            if ($sharedPdo !== null) {
+                // For shared in-memory SQLite, rebind to the same PDO.
+                // Creating a fresh PDO would give us a new empty database.
+                $fresh = $this->factory->makeSqliteFromSharedPdo(
+                    $sharedPdo,
+                    $this->config,
+                    $this->config['name'] ?? null
+                );
+            } else {
                 $fresh = $this->factory->make($this->config, $this->config['name'] ?? null);
-                $writePdo = $fresh->getPdo();
-                $readPdo = $fresh->getReadPdo();
-
-                // Keep the current generation intact until both replacement handles
-                // are ready so a failed refresh cannot leave a partial connection.
-                $connection->disconnect();
-                $connection->setPdo($writePdo);
-                $connection->setReadPdo($readPdo);
-            } catch (Throwable $exception) {
-                $this->markInvalid();
-
-                throw $exception;
             }
 
+            $connection->refreshFrom($fresh);
+        } catch (Throwable $exception) {
+            $this->markInvalid();
+
+            throw $exception;
+        }
+
+        if ($sharedPdo === null) {
             $this->logger->warning('Database connection refreshed.');
         }
 
         // Fetch dispatcher from container (not $this->dispatcher) so Event::fake() works.
         // Reconnection can be triggered after fake swaps the container binding.
         if ($this->container->bound('events')) {
-            $this->container->make('events')->dispatch(
-                new ConnectionEstablished($connection)
-            );
+            /** @var Dispatcher $events */
+            $events = $this->container->make('events');
+
+            if ($events->hasListeners(ConnectionEstablished::class)) {
+                $events->dispatch(new ConnectionEstablished($connection));
+            }
         }
 
         $this->stampGeneration(hrtime(true) / 1e9);

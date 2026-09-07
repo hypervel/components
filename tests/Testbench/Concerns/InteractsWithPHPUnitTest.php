@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Testbench\Concerns;
 
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
+use ReflectionException;
 
 class InteractsWithPHPUnitTest extends TestCase
 {
@@ -23,10 +24,18 @@ class InteractsWithPHPUnitTest extends TestCase
         InteractsWithPHPUnitTestCaseFixture::runPhpUnitClassTeardown();
 
         $this->assertSame([
-            'uses' => null,
+            'uses' => [],
             'classAttributes' => [],
             'methodAttributes' => [],
         ], InteractsWithPHPUnitTestCaseFixture::phpUnitState());
+    }
+
+    #[Test]
+    public function itPropagatesAttributeReflectionFailures(): void
+    {
+        $this->expectException(ReflectionException::class);
+
+        InteractsWithPHPUnitTestCaseFixture::resolveAttributesFor('missingMethod');
     }
 }
 
@@ -34,7 +43,7 @@ class InteractsWithPHPUnitTestCaseFixture extends TestCase
 {
     public static function seedPhpUnitState(): void
     {
-        static::$cachedTestCaseUses = [self::class => self::class];
+        static::$cachedTestCaseUses = [self::class => [self::class => self::class]];
         static::$cachedTestCaseClassAttributes = [self::class => []];
         static::$cachedTestCaseMethodAttributes = [self::class . ':testPlaceholder' => []];
     }
@@ -51,6 +60,11 @@ class InteractsWithPHPUnitTestCaseFixture extends TestCase
             'classAttributes' => static::$cachedTestCaseClassAttributes,
             'methodAttributes' => static::$cachedTestCaseMethodAttributes,
         ];
+    }
+
+    public static function resolveAttributesFor(string $method): void
+    {
+        static::resolvePhpUnitAttributesForMethod(static::class, $method);
     }
 
     public function testPlaceholder(): void

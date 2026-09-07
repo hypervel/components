@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
@@ -13,12 +12,13 @@ use Hypervel\Http\Request;
 use Hypervel\Http\Response as HypervelResponse;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\Log\Context\Repository as ContextRepository;
-use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\FormatModel;
 use Hypervel\Telescope\IncomingEntry;
+use Hypervel\Telescope\JsonNormalizer;
 use Hypervel\Telescope\Telescope;
 use Hypervel\View\View;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -133,20 +133,6 @@ class RequestWatcher extends Watcher
     }
 
     /**
-     * Hide the given parameters.
-     */
-    protected function hideParameters(array $data, array $hidden): array
-    {
-        foreach ($hidden as $parameter) {
-            if (Arr::has($data, $parameter)) {
-                Arr::set($data, $parameter, '********');
-            }
-        }
-
-        return $data;
-    }
-
-    /**
      * Extract the session variables from the given request.
      */
     private function sessionVariables(Request $request): array
@@ -183,16 +169,23 @@ class RequestWatcher extends Watcher
         $content = $response->getContent();
 
         if (is_string($content)) {
-            if (is_array(json_decode($content, true))
-                && json_last_error() === JSON_ERROR_NONE
-            ) {
+            // One container of the storage limit is reserved for the entry-content root.
+            $maximumContainers = Json::MAXIMUM_NESTING_DEPTH - 1;
+            $decoded = json_decode($content, true, $maximumContainers + 1);
+            $jsonError = json_last_error();
+
+            if (is_array($decoded) && $jsonError === JSON_ERROR_NONE) {
                 return $this->contentWithinLimits($content)
-                    ? $this->hideParameters(json_decode($content, true), Telescope::$hiddenResponseParameters)
-                    : 'Purged By Telescope';
+                    ? $this->hideParameters($decoded, Telescope::$hiddenResponseParameters)
+                    : Telescope::PURGED_VALUE;
+            }
+
+            if ($jsonError === JSON_ERROR_DEPTH) {
+                return Telescope::PURGED_VALUE;
             }
 
             if (Str::startsWith(strtolower($response->headers->get('Content-Type') ?? ''), 'text/plain')) {
-                return $this->contentWithinLimits($content) ? $content : 'Purged By Telescope';
+                return $this->contentWithinLimits($content) ? $content : Telescope::PURGED_VALUE;
             }
         }
 
@@ -229,6 +222,7 @@ class RequestWatcher extends Watcher
      */
     protected function extractDataFromView(View $view): array
     {
+        // Native encoding captures view object state instead of its published representation.
         return Collection::make($view->getData())->map(function ($value) {
             if ($value instanceof Model) {
                 return FormatModel::given($value);
@@ -238,11 +232,11 @@ class RequestWatcher extends Watcher
                     'class' => get_class($value),
                     'properties' => method_exists($value, 'formatForTelescope')
                         ? $value->formatForTelescope()
-                        : json_decode(json_encode($value), true),
+                        : JsonNormalizer::normalize($value),
                 ];
             }
 
-            return json_decode(json_encode($value), true);
+            return JsonNormalizer::normalize($value);
         })->toArray();
     }
 
@@ -279,9 +273,6 @@ class RequestWatcher extends Watcher
     {
         $result = [];
         foreach (CoroutineContext::getContainer() as $key => $value) {
-            if ($key === Container::DEPTH_CONTEXT_KEY) {
-                continue;
-            }
             if (is_object($value)) {
                 $value = 'object(' . get_class($value) . ')';
             } elseif (is_array($value)) {
@@ -289,7 +280,7 @@ class RequestWatcher extends Watcher
             } elseif (is_string($value)) {
                 $value = $this->contentWithinLimits($value)
                     ? $value
-                    : 'Purged By Telescope';
+                    : Telescope::PURGED_VALUE;
             }
             $result[$key] = $value;
         }

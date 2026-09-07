@@ -7,6 +7,7 @@ namespace Hypervel\Testbench\Foundation\Actions;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\PackageManifest;
+use RuntimeException;
 
 /**
  * @internal
@@ -22,8 +23,8 @@ final class RefreshPackageDiscovery
 
         $cachedPath = $app->bootstrapPath('cache/packages.php');
 
-        if ($filesystem->exists($cachedPath)) {
-            $filesystem->delete($cachedPath);
+        if ($filesystem->exists($cachedPath) && ! $filesystem->delete($cachedPath)) {
+            throw new RuntimeException("Unable to delete package manifest [{$cachedPath}].");
         }
 
         $app->make(PackageManifest::class)->build();

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Listeners;
 
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Horizon\Events\SupervisorLooped;
 use Hypervel\Horizon\Events\SupervisorOutOfMemory;
 
@@ -22,7 +23,12 @@ class MonitorSupervisorMemory
         $supervisor = $event->supervisor;
 
         if (($memoryUsage = $supervisor->memoryUsage()) > $supervisor->options->memory) {
-            event((new SupervisorOutOfMemory($supervisor))->setMemoryUsage($memoryUsage));
+            /** @var Dispatcher $events */
+            $events = app('events');
+
+            if ($events->hasListeners(SupervisorOutOfMemory::class)) {
+                $events->dispatch((new SupervisorOutOfMemory($supervisor))->setMemoryUsage($memoryUsage));
+            }
 
             $supervisor->terminate(12);
         }

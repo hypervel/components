@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Prompts;
 
 use Closure;
+use Hypervel\Coroutine\Coroutine;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
@@ -44,10 +45,10 @@ class Progress extends Prompt
     public function __construct(public string $label, public int|iterable $steps, public string $hint = '')
     {
         if ($this->steps instanceof Traversable && ! is_countable($this->steps)) {
-            $this->steps = iterator_to_array($this->steps, false); // @phpstan-ignore assign.propertyType (PHPStan cannot preserve the generic iterable property type after materialization.)
+            $this->steps = iterator_to_array($this->steps, false);
         }
 
-        $this->total = match (true) { // @phpstan-ignore assign.propertyType (PHPStan does not follow the normalized iterable through the match.)
+        $this->total = match (true) {
             is_int($this->steps) => $this->steps,
             is_countable($this->steps) => count($this->steps),
             default => throw new InvalidArgumentException('Unable to count steps.'),
@@ -122,7 +123,7 @@ class Progress extends Prompt
         $this->prevFrame = '';
         $this->capturePreviousNewLines();
 
-        if (function_exists('pcntl_signal')) {
+        if (function_exists('pcntl_signal') && ! Coroutine::inCoroutine()) {
             $this->originalSignalHandler = pcntl_signal_get_handler(SIGINT);
             $this->originalAsync = pcntl_async_signals(true);
             $progress = WeakReference::create($this);

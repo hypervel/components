@@ -8,6 +8,7 @@ use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\RedisManager;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class RedisConnectionLifecycleListener
@@ -58,7 +59,9 @@ class RedisConnectionLifecycleListener
             try {
                 $this->container->make(PoolFactory::class)->flushAll();
             } catch (Throwable $throwable) {
-                $exception ??= $throwable;
+                if ($exception === null || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)) {
+                    $exception = $throwable;
+                }
             }
         }
 

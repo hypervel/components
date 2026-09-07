@@ -24,6 +24,7 @@ use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
+use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Sleep;
 use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -32,6 +33,8 @@ use Throwable;
 #[AsCommand(name: 'schedule:run')]
 class ScheduleRunCommand extends Command
 {
+    use InteractsWithTime;
+
     /**
      * The console command signature.
      */
@@ -457,11 +460,11 @@ class ScheduleRunCommand extends Command
         };
 
         $finishDescription = sprintf(
-            '<fg=gray>%s</> %s [%s] <fg=gray>%sms</>',
+            '<fg=gray>%s</> %s [%s] <fg=gray>%s</>',
             CarbonImmutable::now()->format('Y-m-d H:i:s'),
             $status,
             $command,
-            round(microtime(true) - $start, 2),
+            $this->runTimeForHumans($start),
         );
 
         $this->line($finishDescription);

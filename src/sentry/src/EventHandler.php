@@ -8,8 +8,12 @@ use Hypervel\Auth\Events as AuthEvents;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Coordinator\Constants;
+use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Core\Events\OnWorkerExit;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Events as DatabaseEvents;
 use Hypervel\Http\Request;
@@ -64,10 +68,12 @@ class EventHandler
         private readonly Container $container,
         array $config,
     ) {
-        $this->recordSqlQueries = ($config['breadcrumbs']['sql_queries'] ?? true) === true;
-        $this->recordSqlBindings = ($config['breadcrumbs']['sql_bindings'] ?? false) === true;
-        $this->recordSqlTransactions = ($config['breadcrumbs']['sql_transactions'] ?? true) === true;
-        $this->recordLogs = ($config['breadcrumbs']['logs'] ?? true) === true;
+        $breadcrumbs = $config['breadcrumbs'];
+
+        $this->recordSqlQueries = $breadcrumbs['sql_queries'] === true;
+        $this->recordSqlBindings = $breadcrumbs['sql_bindings'] === true;
+        $this->recordSqlTransactions = $breadcrumbs['sql_transactions'] === true;
+        $this->recordLogs = $breadcrumbs['logs'] === true;
     }
 
     /**
@@ -199,19 +205,27 @@ class EventHandler
      */
     protected function workerExitHandler(OnWorkerExit $event): void
     {
-        try {
-            Integration::flushEvents();
-        } finally {
-            $client = SentrySdk::getCurrentHub()->getClient();
+        Coroutine::create(function (): void {
+            CoordinatorManager::until(Constants::WORKER_EXIT)->yield();
 
-            if ($client instanceof Client) {
-                $transport = $client->getTransport();
+            try {
+                try {
+                    Integration::drainEvents();
+                } finally {
+                    $client = SentrySdk::getCurrentHub()->getClient();
 
-                if ($transport instanceof HttpPoolTransport) {
-                    $transport->shutdown();
+                    if ($client instanceof Client) {
+                        $transport = $client->getTransport();
+
+                        if ($transport instanceof HttpPoolTransport) {
+                            $transport->shutdown();
+                        }
+                    }
                 }
+            } catch (Throwable $throwable) {
+                $this->container->make(ExceptionHandler::class)->report($throwable);
             }
-        }
+        });
     }
 
     /**

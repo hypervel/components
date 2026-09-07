@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope;
 
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Facades\Route;
@@ -31,7 +32,7 @@ class TelescopeServiceProvider extends ServiceProvider
             $this->registerPublishing();
         }
 
-        if (! config('telescope.enabled')) {
+        if (! config()->boolean('telescope.enabled')) {
             return;
         }
 
@@ -40,14 +41,17 @@ class TelescopeServiceProvider extends ServiceProvider
 
         Telescope::start($this->app);
         Telescope::listenForStorageOpportunities($this->app);
-        /* @phpstan-ignore-next-line */
         Coroutine::afterCreated(function () {
             $keys = [
                 Telescope::SHOULD_RECORD_CONTEXT_KEY => false,
-                Telescope::IS_RECORDING_CONTEXT_KEY => false,
                 Telescope::BATCH_ID_CONTEXT_KEY => null,
             ];
             foreach ($keys as $key => $default) {
+                // fork() installs its snapshot before callbacks run, so keep captured values.
+                if (CoroutineContext::has($key)) {
+                    continue;
+                }
+
                 CoroutineContext::set($key, CoroutineContext::get($key, $default, Coroutine::parentId()));
             }
         });
@@ -59,8 +63,8 @@ class TelescopeServiceProvider extends ServiceProvider
     protected function registerRoutes(): void
     {
         Route::domain(config('telescope.domain'))
-            ->middleware(config('telescope.middleware', []))
-            ->prefix(config('telescope.path'))
+            ->middleware(config()->array('telescope.middleware'))
+            ->prefix(config()->string('telescope.path'))
             ->namespace('Hypervel\Telescope\Http\Controllers')
             ->group(__DIR__ . '/../routes/web.php');
     }
@@ -119,7 +123,7 @@ class TelescopeServiceProvider extends ServiceProvider
         $this->registerPrePackageUninstallListener();
         $this->registerStorageDriver();
 
-        if (! config('telescope.enabled')) {
+        if (! config()->boolean('telescope.enabled')) {
             return;
         }
 
@@ -179,7 +183,7 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     protected function registerStorageDriver(): void
     {
-        $driver = config('telescope.driver');
+        $driver = config()->string('telescope.driver');
 
         if (method_exists($this, $method = 'register' . ucfirst($driver) . 'Driver')) {
             $this->{$method}();
@@ -191,6 +195,8 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     protected function registerDatabaseDriver(): void
     {
+        $config = $this->app->make(ConfigRepository::class);
+
         $this->app->singleton(
             EntriesRepository::class,
             DatabaseEntriesRepository::class
@@ -208,11 +214,14 @@ class TelescopeServiceProvider extends ServiceProvider
 
         $this->app->when(DatabaseEntriesRepository::class)
             ->needs('$connection')
-            ->give(fn () => config('telescope.storage.database.connection'));
+            ->give(fn () => $config->string('telescope.storage.database.connection'));
 
         $this->app->when(DatabaseEntriesRepository::class)
             ->needs('$chunkSize')
-            ->give(fn () => config('telescope.storage.database.chunk'));
+            ->give(fn () => $config->integer(
+                'telescope.storage.database.chunk',
+                DatabaseEntriesRepository::DEFAULT_CHUNK_SIZE,
+            ));
     }
 
     /**

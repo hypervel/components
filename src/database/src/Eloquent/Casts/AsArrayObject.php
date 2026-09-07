@@ -6,6 +6,8 @@ namespace Hypervel\Database\Eloquent\Casts;
 
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Database\Eloquent\JsonEncodingException;
+use Hypervel\Database\Eloquent\Model;
 
 class AsArrayObject implements Castable
 {
@@ -17,7 +19,7 @@ class AsArrayObject implements Castable
     public static function castUsing(array $arguments): CastsAttributes
     {
         return new class implements CastsAttributes {
-            public function get(mixed $model, string $key, mixed $value, array $attributes): ?ArrayObject
+            public function get(Model $model, string $key, mixed $value, array $attributes): ?ArrayObject
             {
                 if (! isset($attributes[$key])) {
                     return null;
@@ -28,12 +30,18 @@ class AsArrayObject implements Castable
                 return is_array($data) ? new ArrayObject($data, ArrayObject::ARRAY_AS_PROPS) : null;
             }
 
-            public function set(mixed $model, string $key, mixed $value, array $attributes): array
+            public function set(Model $model, string $key, mixed $value, array $attributes): array
             {
-                return [$key => Json::encode($value)];
+                $encoded = Json::encode($value);
+
+                if ($encoded === false) {
+                    throw JsonEncodingException::forAttribute($model, $key, json_last_error_msg());
+                }
+
+                return [$key => $encoded];
             }
 
-            public function serialize(mixed $model, string $key, mixed $value, array $attributes): array
+            public function serialize(Model $model, string $key, mixed $value, array $attributes): array
             {
                 return $value->getArrayCopy();
             }

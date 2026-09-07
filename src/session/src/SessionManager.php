@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Session;
 
-use Hypervel\Cache\RedisStore;
+use BadMethodCallException;
+use Hypervel\Auth\AuthManager;
+use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Encryption\Encrypter;
+use Hypervel\Contracts\Redis\Factory as RedisFactory;
+use Hypervel\Session\Contracts\CanManageUserSessions;
 use Hypervel\Support\Manager;
 use InvalidArgumentException;
 use SessionHandlerInterface;
@@ -101,44 +105,20 @@ class SessionManager extends Manager
      */
     protected function createRedisDriver(): Store
     {
-        $handler = $this->createCacheHandler('redis');
-        $store = $handler->getCache()->getStore();
+        $connection = $this->config->get('session.connection');
 
-        if (! $store instanceof RedisStore) {
-            throw new InvalidArgumentException(
-                'The [session.driver] value [redis] requires [session.store] to reference a Redis cache store.'
-            );
+        if ($connection === null || $connection === '') {
+            $connection = 'session';
         }
 
-        $store->setConnection(
-            $this->config->get('session.connection') ?? 'session'
-        );
-
-        $prefix = $this->config->get('session.prefix');
-
-        if ($prefix !== null && $prefix !== '') {
-            $store->setPrefix($prefix);
-        }
-
-        return $this->buildSession($handler);
-    }
-
-    // Laravel's apc/memcached/dynamodb drivers and their shared createCacheBased()
-    // wrapper are intentionally omitted; Hypervel has no matching cache stores.
-    // Register cache-backed handlers with Session::extend().
-
-    /**
-     * Create the cache based session handler instance.
-     */
-    protected function createCacheHandler(string $driver): CacheBasedSessionHandler
-    {
-        $store = $this->config->get('session.store');
-        $store = $store === null || $store === '' ? $driver : $store;
-
-        return new CacheBasedSessionHandler(
-            clone $this->container->make('cache')->store($store),
-            $this->config->integer('session.lifetime')
-        );
+        return $this->buildSession(new RedisSessionHandler(
+            $this->container->make(RedisFactory::class),
+            $connection,
+            $this->config->string('session.prefix'),
+            $this->config->integer('session.lifetime'),
+            $this->config->boolean('session.track_user_sessions'),
+            $this->container,
+        ));
     }
 
     /**
@@ -167,6 +147,86 @@ class SessionManager extends Manager
             $this->container->make(Encrypter::class),
             null,
             $this->config->string('session.serialization'),
+        );
+    }
+
+    /**
+     * Determine if the configured driver supports user session management.
+     */
+    public function supportsUserSessionManagement(): bool
+    {
+        /** @var Store $store */
+        $store = $this->driver();
+        $handler = $store->getHandler();
+
+        return $handler instanceof CanManageUserSessions
+            && $handler->supportsUserSessionManagement();
+    }
+
+    /**
+     * Get a user-scoped session repository.
+     */
+    public function forUser(
+        Authenticatable|int|string $user,
+        UnitEnum|string|null $guard = null,
+    ): UserSessions {
+        /** @var Store $store */
+        $store = $this->driver();
+        $handler = $store->getHandler();
+
+        if (! $handler instanceof CanManageUserSessions
+            || ! $handler->supportsUserSessionManagement()) {
+            throw new BadMethodCallException(
+                'This session driver does not support user session management.'
+            );
+        }
+
+        if ($guard instanceof UnitEnum) {
+            $guard = (string) enum_value($guard);
+        }
+
+        /** @var AuthManager $auth */
+        $auth = $this->container->make('auth');
+        $guard ??= $auth->getDefaultDriver();
+        $authProvider = $auth->getUserProviderName($guard);
+
+        if ($authProvider === null) {
+            throw new InvalidArgumentException(
+                "Auth guard [{$guard}] does not declare a user provider. Set auth.guards.{$guard}.provider."
+            );
+        }
+
+        $provider = $this->config->get("auth.providers.{$authProvider}");
+
+        if ($user instanceof Authenticatable
+            && is_array($provider)
+            && ($provider['driver'] ?? null) === 'eloquent'
+            && is_string($provider['model'] ?? null)
+            && ! $user instanceof $provider['model']) {
+            throw new InvalidArgumentException(
+                sprintf(
+                    'User [%s] does not belong to auth provider [%s].',
+                    $user::class,
+                    $authProvider,
+                )
+            );
+        }
+
+        $userId = $user instanceof Authenticatable
+            ? $user->getAuthIdentifier()
+            : $user;
+
+        if (! is_int($userId) && ! is_string($userId)) {
+            throw new InvalidArgumentException(
+                'The user identifier must be an integer or string.'
+            );
+        }
+
+        return new UserSessions(
+            $authProvider,
+            UserSessionIdentity::normalize($userId),
+            $handler,
+            $store,
         );
     }
 

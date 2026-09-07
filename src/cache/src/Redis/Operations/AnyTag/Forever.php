@@ -11,7 +11,7 @@ use Hypervel\Redis\RedisConnection;
 /**
  * Store an item in the cache indefinitely with tags support.
  *
- * Stores the cache key and tag hash fields WITHOUT expiration (TTL = -1).
+ * Stores the cache key and tag hash fields without expiration (TTL = -1).
  * Items must be manually deleted or flushed via tags.
  *
  * Optimization: Uses Lua script to perform set, tag cleanup (remove from old),
@@ -52,7 +52,7 @@ class Forever
      */
     private function executeCluster(string $key, mixed $value, array $tags): bool
     {
-        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tags) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tags): bool {
             $prefix = $this->context->prefix();
 
             // Get old tags to handle replacement correctly (remove from old, add to new)
@@ -84,28 +84,28 @@ class Forever
                 $connection->hdel($this->context->tagHashKey($tag), $key);
             }
 
-            // Calculate expiry for Registry (Year 9999)
+            // Calculate expiry for the registry (Year 9999)
             $expiry = StoreContext::MAX_EXPIRY;
             $registryKey = $this->context->registryKey();
 
-            // 1. Add to each tag's hash without expiration (Cross-slot, sequential)
+            // 1. Add to each tag's hash without expiration (cross-slot, sequential)
             foreach ($tags as $tag) {
                 $tag = (string) $tag;
                 $connection->hSet($this->context->tagHashKey($tag), $key, StoreContext::TAG_FIELD_VALUE);
                 // No HEXPIRE for forever items
             }
 
-            // 2. Update Registry (Same slot, single command optimization)
+            // 2. Update registry (same slot, single command optimization)
             if (! empty($tags)) {
-                $zaddArgs = [];
+                $zaddArguments = [];
 
                 foreach ($tags as $tag) {
-                    $zaddArgs[] = $expiry;
-                    $zaddArgs[] = (string) $tag;
+                    $zaddArguments[] = $expiry;
+                    $zaddArguments[] = (string) $tag;
                 }
 
-                // Update Registry: ZADD with GT (Greater Than) to only extend expiry
-                $connection->zadd($registryKey, ['GT'], ...$zaddArgs);
+                // Update registry: ZADD with GT (greater than) to only extend expiry
+                $connection->zadd($registryKey, ['GT'], ...$zaddArguments);
             }
 
             return true;
@@ -117,7 +117,7 @@ class Forever
      */
     private function executeUsingLua(string $key, mixed $value, array $tags): bool
     {
-        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tags) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tags): bool {
             $prefix = $this->context->prefix();
 
             $keys = [
@@ -125,7 +125,7 @@ class Forever
                 $this->context->reverseIndexKey($key), // KEYS[2]
             ];
 
-            $args = [
+            $arguments = [
                 $this->serialization->serializeForLua($connection, $value), // ARGV[1]
                 $this->context->fullTagPrefix(),             // ARGV[2]
                 $this->context->fullRegistryKey(),           // ARGV[3]
@@ -134,7 +134,7 @@ class Forever
                 ...$tags,                                    // ARGV[6...]
             ];
 
-            $connection->evalWithShaCache($this->storeForeverWithTagsScript(), $keys, $args);
+            $connection->evalWithShaCache($this->storeForeverWithTagsScript(), $keys, $arguments);
 
             return true;
         });

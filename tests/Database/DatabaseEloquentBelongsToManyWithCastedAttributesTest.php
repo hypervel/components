@@ -55,6 +55,40 @@ class DatabaseEloquentBelongsToManyWithCastedAttributesTest extends TestCase
         $this->assertContains($result1, $models[0]->foo);
     }
 
+    public function testModelsWithNullParentKeysAreNotMatchedToEmptyStringPivotKeys(): void
+    {
+        $relation = $this->getRelation();
+
+        $model = new class extends Model {
+            protected array $attributes = ['parent_key' => null];
+        };
+
+        $result = (object) [
+            'pivot' => (object) ['foreign_key' => ''],
+        ];
+
+        $relation->match([$model], Collection::wrap($result), 'foo');
+
+        $this->assertFalse($model->relationLoaded('foo'));
+    }
+
+    public function testModelsWithNullPivotKeysAreNotMatchedToEmptyStringParentKeys(): void
+    {
+        $relation = $this->getRelation();
+
+        $model = new class extends Model {
+            protected array $attributes = ['parent_key' => ''];
+        };
+
+        $result = (object) [
+            'pivot' => (object) ['foreign_key' => null],
+        ];
+
+        $relation->match([$model], Collection::wrap($result), 'foo');
+
+        $this->assertFalse($model->relationLoaded('foo'));
+    }
+
     protected function getRelation()
     {
         $builder = m::mock(Builder::class);
@@ -82,5 +116,5 @@ class DatabaseEloquentBelongsToManyWithCastedAttributesTest extends TestCase
 
 class ModelStub extends Model
 {
-    public $foreign_key = 'foreign.value';
+    public string $foreign_key = 'foreign.value';
 }

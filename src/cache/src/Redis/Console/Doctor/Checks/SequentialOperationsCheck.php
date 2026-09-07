@@ -14,11 +14,17 @@ use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
  */
 final class SequentialOperationsCheck implements CheckInterface
 {
+    /**
+     * Get the human-readable name of this check.
+     */
     public function name(): string
     {
         return 'Sequential Rapid Operations';
     }
 
+    /**
+     * Run the check and return results.
+     */
     public function run(DoctorContext $context): CheckResult
     {
         $result = new CheckResult;
@@ -26,8 +32,8 @@ final class SequentialOperationsCheck implements CheckInterface
         // Rapid writes to same key
         $rapidTag = $context->prefixed('rapid');
         $rapidKey = $context->prefixed('concurrent:key');
-        for ($i = 0; $i < 10; ++$i) {
-            $context->cache->tags([$rapidTag])->put($rapidKey, "value{$i}", 60);
+        for ($writeIndex = 0; $writeIndex < 10; ++$writeIndex) {
+            $context->cache->tags([$rapidTag])->put($rapidKey, "value{$writeIndex}", 60);
         }
 
         if ($context->isAnyMode()) {
@@ -43,7 +49,7 @@ final class SequentialOperationsCheck implements CheckInterface
         // Multiple increments
         $context->cache->put($context->prefixed('concurrent:counter'), 0, 60);
 
-        for ($i = 0; $i < 50; ++$i) {
+        for ($incrementIndex = 0; $incrementIndex < 50; ++$incrementIndex) {
             $context->cache->increment($context->prefixed('concurrent:counter'));
         }
 
@@ -56,8 +62,8 @@ final class SequentialOperationsCheck implements CheckInterface
         $context->cache->forget($context->prefixed('concurrent:add'));
         $results = [];
 
-        for ($i = 0; $i < 5; ++$i) {
-            $results[] = $context->cache->add($context->prefixed('concurrent:add'), "value{$i}", 60);
+        for ($addIndex = 0; $addIndex < 5; ++$addIndex) {
+            $results[] = $context->cache->add($context->prefixed('concurrent:add'), "value{$addIndex}", 60);
         }
 
         $result->assert(

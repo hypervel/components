@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Socialite\Two;
 
+use Closure;
 use GuzzleHttp\RequestOptions;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
@@ -39,12 +40,19 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
     protected bool $usesPKCE = false;
 
     /**
+     * The callback that formats redirect URLs for the provider.
+     *
+     * @var null|(Closure(array): string)
+     */
+    protected ?Closure $redirectFormatter = null;
+
+    /**
      * Create a new provider instance.
      *
      * @param Request $request the HTTP request instance
      * @param string $clientId the client ID
      * @param string $clientSecret the client secret
-     * @param string $redirectUrl the redirect URL
+     * @param Closure|string $redirectUrl the redirect URL
      * @param array $guzzle the custom Guzzle configuration options
      */
     public function __construct(
@@ -52,7 +60,7 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
         protected string $clientId,
         #[SensitiveParameter]
         protected string $clientSecret,
-        protected string $redirectUrl,
+        protected Closure|string $redirectUrl,
         array $guzzle = []
     ) {
         parent::__construct($request, $guzzle);
@@ -386,11 +394,27 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
     }
 
     /**
+     * Set the callback that formats redirect URLs for the provider.
+     *
+     * Boot-only. The callback persists on the worker-cached provider and affects
+     * every subsequent request. Use setConfig() for per-request redirect values.
+     *
+     * @param Closure(array): string $formatter
+     */
+    public function withRedirectFormatter(Closure $formatter): static
+    {
+        $this->redirectFormatter = $formatter;
+
+        return $this;
+    }
+
+    /**
      * Set the redirect URL.
      */
     public function redirectUrl(string $url): static
     {
         $this->setContext('redirectUrl', $url);
+        $this->forgetContext('resolvedRedirectUrl');
 
         return $this;
     }
@@ -400,7 +424,19 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
      */
     protected function getRedirectUrl(): string
     {
-        return $this->getContext('redirectUrl', $this->redirectUrl);
+        return $this->getOrSetContext('resolvedRedirectUrl', function (): string {
+            $redirect = $this->getContext('redirectUrl', $this->redirectUrl);
+
+            if ($this->redirectFormatter === null) {
+                return value($redirect);
+            }
+
+            /** @var array $config */
+            $config = $this->getConfig();
+            $config['redirect'] = $redirect;
+
+            return ($this->redirectFormatter)($config);
+        });
     }
 
     /**
@@ -501,6 +537,8 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
         if (isset($config['redirect'])) {
             $this->setContext('redirectUrl', $config['redirect']);
         }
+
+        $this->forgetContext('resolvedRedirectUrl');
 
         return parent::setConfig($config);
     }

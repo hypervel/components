@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
+use Exception;
 use finfo;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Support\FileinfoMimeTypeGuesser;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
+use RuntimeException;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -30,6 +32,19 @@ class FileinfoMimeTypeGuesserTest extends TestCase
             ->guessMimeType(__DIR__ . '/Fixtures/test.gif');
 
         $this->assertEquals('image/gif', $mimeType);
+    }
+
+    public function testFinfoConstructionFailureRetainsItsCause(): void
+    {
+        try {
+            (new FileinfoMimeTypeGuesser(__DIR__ . '/Fixtures/missing.magic'))
+                ->guessMimeType(__DIR__ . '/Fixtures/test.gif');
+
+            $this->fail('The invalid magic database did not fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertInstanceOf(Exception::class, $exception->getPrevious());
+            $this->assertSame($exception->getMessage(), $exception->getPrevious()->getMessage());
+        }
     }
 
     public function testGuessMimeTypeIsCoroutineScoped(): void

@@ -17,17 +17,19 @@ class ErrorPageTest extends TestCase
 
     #[Test]
     #[WithConfig('app.debug', true)]
-    public function itCanResolveExceptionPage()
+    #[WithConfig('app.name', null)]
+    public function itCanResolveExceptionPage(): void
     {
         $this->get('/failed')
             ->assertInternalServerError()
+            ->assertSee('<title>Hypervel</title>', false)
             ->assertSee('RuntimeException')
             ->assertSee('Bad route!');
     }
 
     #[Test]
     #[WithConfig('app.debug', true)]
-    public function itCanResolveExceptionWithoutExceptionHandling()
+    public function itCanResolveExceptionWithoutExceptionHandling(): void
     {
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Bad route!');
@@ -37,7 +39,7 @@ class ErrorPageTest extends TestCase
     }
 
     #[Test]
-    public function itCanResolveExceptionPageWithoutEnablingDebugMode()
+    public function itCanResolveExceptionPageWithoutEnablingDebugMode(): void
     {
         $this->get('/failed')
             ->assertInternalServerError()
@@ -46,7 +48,7 @@ class ErrorPageTest extends TestCase
     }
 
     #[Test]
-    public function itCanResolveExceptionWithoutExceptionHandlingWithoutEnablingDebugMode()
+    public function itCanResolveExceptionWithoutExceptionHandlingWithoutEnablingDebugMode(): void
     {
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Bad route!');
@@ -57,7 +59,7 @@ class ErrorPageTest extends TestCase
 
     #[Test]
     #[WithConfig('app.debug', true)]
-    public function itCanResolveExceptionPageUsingJsonRequest()
+    public function itCanResolveExceptionPageUsingJsonRequest(): void
     {
         $this->getJson('/api/failed')
             ->assertInternalServerError()
@@ -67,7 +69,7 @@ class ErrorPageTest extends TestCase
 
     #[Test]
     #[WithConfig('app.debug', true)]
-    public function itCanResolveExceptionUsingJsonRequestWithoutExceptionHandling()
+    public function itCanResolveExceptionUsingJsonRequestWithoutExceptionHandling(): void
     {
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Bad route!');

@@ -47,7 +47,7 @@ class DropSqliteDbCommandTest extends TestCase
             $this->assertFalse(file_exists(database_path('database.sqlite')));
 
             $this->artisan('package:drop-sqlite-db')
-                ->expectsOutputToContain('File [@hypervel/database/database.sqlite] doesn\'t exists')
+                ->expectsOutputToContain('File [@hypervel/database/database.sqlite] doesn\'t exist')
                 ->assertOk();
         });
     }

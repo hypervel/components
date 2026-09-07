@@ -39,22 +39,14 @@ final readonly class Deadline
         }
 
         $currentNanoseconds = $now();
+        $maximumDuration = PHP_INT_MAX - $currentNanoseconds;
         $duration = ceil($seconds * 1_000_000_000);
 
-        if (! is_finite($duration)) {
+        if (! is_finite($duration) || $duration >= $maximumDuration) {
             throw new InvalidArgumentException('The gRPC timeout exceeds the monotonic clock range.');
         }
 
-        $durationNanoseconds = (int) $duration;
-
-        if (
-            $durationNanoseconds <= 0
-            || $durationNanoseconds > PHP_INT_MAX - $currentNanoseconds
-        ) {
-            throw new InvalidArgumentException('The gRPC timeout exceeds the monotonic clock range.');
-        }
-
-        return new self($currentNanoseconds + $durationNanoseconds, $now);
+        return new self($currentNanoseconds + (int) $duration, $now);
     }
 
     /**

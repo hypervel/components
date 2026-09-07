@@ -12,6 +12,7 @@ use Hypervel\NestedSet\NestedSet;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use RuntimeException;
 
 abstract class NestedSetDatabaseTestCase extends DatabaseTestCase
 {
@@ -161,6 +162,39 @@ abstract class NestedSetDatabaseTestCase extends DatabaseTestCase
 
         $this->assertSame(1, IntegerNestedSetNode::findOrFail($moved->getKey())->getDepth());
         $this->assertSame(2, IntegerNestedSetNode::findOrFail($descendant->getKey())->getDepth());
+        $this->assertFalse(IntegerNestedSetNode::query()->isBroken());
+    }
+
+    public function testNestedSavepointRollbackDoesNotRetainRolledBackCoordinates(): void
+    {
+        $firstRoot = IntegerNestedSetNode::create(['name' => 'first root']);
+        $child = new IntegerNestedSetNode(['name' => 'child']);
+        $child->appendToNode($firstRoot)->save();
+        $secondRoot = IntegerNestedSetNode::create(['name' => 'second root']);
+        $rollback = new RuntimeException('Roll back the nested move.');
+
+        DB::transaction(function () use ($child, $secondRoot, $rollback): void {
+            $caught = null;
+
+            try {
+                DB::transaction(function () use ($child, $secondRoot, $rollback): never {
+                    $child->appendToNode($secondRoot)->save();
+
+                    throw $rollback;
+                });
+            } catch (RuntimeException $exception) {
+                $caught = $exception;
+            }
+
+            $this->assertSame($rollback, $caught);
+
+            $child->appendToNode($secondRoot)->save();
+        });
+
+        $this->assertSame(
+            $secondRoot->getKey(),
+            IntegerNestedSetNode::findOrFail($child->getKey())->getParentId(),
+        );
         $this->assertFalse(IntegerNestedSetNode::query()->isBroken());
     }
 

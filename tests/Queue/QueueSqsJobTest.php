@@ -22,6 +22,7 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class QueueSqsJobTest extends TestCase
@@ -372,6 +373,39 @@ class QueueSqsJobTest extends TestCase
         }
     }
 
+    public function testDeleteDoesNotStartOverflowCleanupAfterLeaseReleaseCancellation(): void
+    {
+        $releaseCancellation = new CanceledException('release canceled');
+        [, $lease] = $this->lease(
+            releaseCallback: static fn () => throw $releaseCancellation,
+        );
+        $pointer = 'laravel:sqs-payloads:cleanup';
+        $pointerBody = json_encode(['@pointer' => $pointer], JSON_THROW_ON_ERROR);
+        $store = m::spy(CacheRepository::class);
+        $cache = m::mock(CacheFactory::class);
+        $cache->allows('store')->andReturn($store);
+        $container = m::mock(Container::class);
+        $container->allows('make')->andReturn($cache);
+        $this->mockedSqsClient->shouldReceive('deleteMessage')->once();
+        $job = new SqsJob(
+            $container,
+            $this->mockedSqsClient,
+            [...$this->mockedJobData, 'Body' => $pointerBody],
+            'connection-name',
+            $this->queueUrl,
+            ['enabled' => true, 'store' => 'database', 'delete_after_processing' => true],
+        );
+
+        try {
+            $job->withPoolLease($lease)->delete();
+            $this->fail('Expected lease release cancellation to propagate.');
+        } catch (Throwable $exception) {
+            $this->assertSame($releaseCancellation, $exception);
+        }
+
+        $store->shouldNotHaveReceived('forget');
+    }
+
     public function testDeleteSurfacesOverflowCleanupFailureAfterSuccessfulDeletion(): void
     {
         $pointer = 'laravel:sqs-payloads:cleanup';
@@ -455,6 +489,39 @@ class QueueSqsJobTest extends TestCase
         $this->assertSame("Unable to delete the SQS overflow payload [{$pointer}].", $cleanupFailure->getMessage());
     }
 
+    public function testOverflowCleanupCancellationSupersedesAnOrdinaryLeaseReleaseFailure(): void
+    {
+        $releaseFailure = new Exception('release failed');
+        $cleanupCancellation = new CanceledException('overflow cleanup canceled');
+        [, $lease] = $this->lease(
+            releaseCallback: static fn () => throw $releaseFailure,
+        );
+        $pointer = 'laravel:sqs-payloads:cleanup';
+        $pointerBody = json_encode(['@pointer' => $pointer], JSON_THROW_ON_ERROR);
+        $store = m::mock(CacheRepository::class);
+        $store->shouldReceive('forget')->once()->with($pointer)->andThrow($cleanupCancellation);
+        $cache = m::mock(CacheFactory::class);
+        $cache->shouldReceive('store')->once()->with('database')->andReturn($store);
+        $container = m::mock(Container::class);
+        $container->shouldReceive('make')->once()->with('cache')->andReturn($cache);
+        $this->mockedSqsClient->shouldReceive('deleteMessage')->once();
+        $job = new SqsJob(
+            $container,
+            $this->mockedSqsClient,
+            [...$this->mockedJobData, 'Body' => $pointerBody],
+            'connection-name',
+            $this->queueUrl,
+            ['enabled' => true, 'store' => 'database', 'delete_after_processing' => true],
+        );
+
+        try {
+            $job->withPoolLease($lease)->delete();
+            $this->fail('Expected overflow cleanup cancellation to propagate.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cleanupCancellation, $exception);
+        }
+    }
+
     public function testDeleteReleasesPoolLeaseAfterBackendCall(): void
     {
         [$pool, $lease] = $this->lease();
@@ -503,6 +570,27 @@ class QueueSqsJobTest extends TestCase
         }
 
         $this->assertSame(1, $destroyed);
+        $this->assertSame(0, $pool->getCurrentObjectNumber());
+        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+    }
+
+    public function testDiscardCancellationSupersedesAnOrdinaryBackendFailure(): void
+    {
+        $backendFailure = new Exception('delete failed');
+        $discardCancellation = new CanceledException('discard canceled');
+        [$pool, $lease] = $this->lease(static function () use ($discardCancellation): never {
+            throw $discardCancellation;
+        });
+        $job = $this->getJob();
+        $job->getSqs()->shouldReceive('deleteMessage')->once()->andThrow($backendFailure);
+
+        try {
+            $job->withPoolLease($lease)->delete();
+            $this->fail('Expected discard cancellation to propagate.');
+        } catch (Throwable $exception) {
+            $this->assertSame($discardCancellation, $exception);
+        }
+
         $this->assertSame(0, $pool->getCurrentObjectNumber());
         $this->assertSame(0, $pool->getBorrowedObjectNumber());
     }

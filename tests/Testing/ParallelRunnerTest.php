@@ -135,7 +135,7 @@ class ParallelRunnerTest extends TestCase
     }
 
     #[Test]
-    public function itClearsTheTokenResolverAndFlushesTheApplicationWhenAProcessCallbackFails(): void
+    public function itClearsTheTokenResolverAndCleansUpTheApplicationWhenAProcessCallbackFails(): void
     {
         $application = new ParallelRunnerFlushTrackingApplication($this->app->basePath());
         $_SERVER['TEST_TOKEN'] = 'ambient';
@@ -152,7 +152,10 @@ class ParallelRunnerTest extends TestCase
             $this->fail('The process callback exception was not thrown.');
         } catch (RuntimeException $exception) {
             $this->assertSame('process callback failed', $exception->getMessage());
+            $this->assertTrue($application->terminated);
             $this->assertTrue($application->flushed);
+            $this->assertSame(['terminate', 'flush'], $application->lifecycle);
+            $this->assertSame('ambient', $application->terminationToken);
             $this->assertSame('ambient', ParallelTesting::token());
         }
     }
@@ -326,6 +329,7 @@ class ParallelRunnerTest extends TestCase
         $application = new ParallelRunnerFlushTrackingApplication(
             $this->app->basePath(),
             new RuntimeException('flush failed'),
+            new RuntimeException('termination failed'),
         );
 
         $_SERVER['TEST_TOKEN'] = 'ambient';
@@ -343,7 +347,39 @@ class ParallelRunnerTest extends TestCase
             $this->assertSame('callback failed', $exception->getMessage());
         }
 
+        $this->assertTrue($application->terminated);
         $this->assertTrue($application->flushed);
+        $this->assertSame(['terminate', 'flush'], $application->lifecycle);
+        $this->assertSame('ambient', ParallelTesting::token());
+    }
+
+    #[Test]
+    public function itFlushesAfterTerminationFailsAndThrowsTheTerminationFailure(): void
+    {
+        $terminationFailure = new RuntimeException('termination failed');
+        $application = new ParallelRunnerFlushTrackingApplication(
+            $this->app->basePath(),
+            terminateException: $terminationFailure,
+        );
+
+        $_SERVER['TEST_TOKEN'] = 'ambient';
+        ParallelRunner::resolveApplicationUsing(static fn () => $application);
+
+        $runner = new ParallelRunner($this->optionsWithProcesses(1), new BufferedOutput);
+        $method = new ReflectionMethod(ParallelRunner::class, 'forEachProcess');
+
+        try {
+            $method->invoke($runner, static function (): void {
+            });
+            $this->fail('The termination exception was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($terminationFailure, $exception);
+        }
+
+        $this->assertTrue($application->terminated);
+        $this->assertTrue($application->flushed);
+        $this->assertSame(['terminate', 'flush'], $application->lifecycle);
+        $this->assertSame('ambient', $application->terminationToken);
         $this->assertSame('ambient', ParallelTesting::token());
     }
 
@@ -475,7 +511,14 @@ class ParallelRunnerTest extends TestCase
 
 class ParallelRunnerFlushTrackingApplication extends Application
 {
+    public bool $terminated = false;
+
     public bool $flushed = false;
+
+    /** @var list<string> */
+    public array $lifecycle = [];
+
+    public false|int|string|null $terminationToken = null;
 
     /**
      * Create a flush-tracking application.
@@ -483,8 +526,25 @@ class ParallelRunnerFlushTrackingApplication extends Application
     public function __construct(
         ?string $basePath = null,
         private readonly ?Throwable $flushException = null,
+        private readonly ?Throwable $terminateException = null,
     ) {
         parent::__construct($basePath);
+    }
+
+    /**
+     * Terminate the application.
+     */
+    public function terminate(): void
+    {
+        $this->terminated = true;
+        $this->lifecycle[] = 'terminate';
+        $this->terminationToken = ParallelTesting::token();
+
+        if ($this->terminateException !== null) {
+            throw $this->terminateException;
+        }
+
+        parent::terminate();
     }
 
     /**
@@ -493,6 +553,7 @@ class ParallelRunnerFlushTrackingApplication extends Application
     public function flush(): void
     {
         $this->flushed = true;
+        $this->lifecycle[] = 'flush';
 
         if ($this->flushException !== null) {
             throw $this->flushException;

@@ -24,7 +24,7 @@ class ScheduleClearCacheCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(Schedule $schedule)
+    public function handle(Schedule $schedule): void
     {
         $mutexCleared = false;
 

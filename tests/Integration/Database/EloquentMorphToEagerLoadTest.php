@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\Database\EloquentMorphToEagerLoadTest;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
+use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
@@ -24,6 +25,10 @@ class EloquentMorphToEagerLoadTest extends DatabaseTestCase
         });
 
         Schema::create('videos', function (Blueprint $table) {
+            $table->string('id')->primary();
+        });
+
+        Schema::create('zero_string_models', function (Blueprint $table) {
             $table->string('id')->primary();
         });
 
@@ -77,6 +82,23 @@ class EloquentMorphToEagerLoadTest extends DatabaseTestCase
         $this->assertInstanceOf(Video::class, $comments[0]->commentable);
         $this->assertSame('550e8400-e29b-41d4-a716-446655440000', (string) $comments[0]->commentable->id);
     }
+
+    public function testEagerLoadingResolvesIntegerMorphAliasWithZeroStringPrimaryKey(): void
+    {
+        Relation::morphMap([0 => ZeroStringModel::class, 2 => Post::class], false);
+
+        $model = ZeroStringModel::create(['id' => '0']);
+        $comment = new Comment;
+        $comment->commentable()->associate($model);
+
+        $this->assertSame('0', $comment->commentable_type);
+
+        $comment->save();
+
+        $loadedComment = Comment::with('commentable')->findOrFail($comment->getKey());
+
+        $this->assertTrue($model->is($loadedComment->commentable));
+    }
 }
 
 enum ArticleSlug: string
@@ -102,6 +124,17 @@ class Article extends Model
     protected array $casts = ['slug' => ArticleSlug::class];
 
     protected array $fillable = ['slug'];
+}
+
+class ZeroStringModel extends Model
+{
+    public bool $timestamps = false;
+
+    public bool $incrementing = false;
+
+    protected string $keyType = 'string';
+
+    protected array $fillable = ['id'];
 }
 
 class Comment extends Model

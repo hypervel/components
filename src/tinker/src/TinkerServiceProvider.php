@@ -19,9 +19,7 @@ class TinkerServiceProvider extends ServiceProvider
             'tinker'
         );
 
-        $this->app->singleton('command.tinker', fn () => new TinkerCommand);
-
-        $this->commands(['command.tinker']);
+        $this->commands([TinkerCommand::class]);
     }
 
     /**

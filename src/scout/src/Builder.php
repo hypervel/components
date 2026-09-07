@@ -319,7 +319,7 @@ class Builder
      */
     public function raw(): mixed
     {
-        return $this->preparedEngine()->search($this);
+        return $this->preparedEngine()->runSearch($this);
     }
 
     /**
@@ -387,18 +387,28 @@ class Builder
         $perPage = $perPage ?: $this->model->getPerPage();
 
         if ($engine instanceof PaginatesEloquentModels) {
-            return $engine->simplePaginate($this, $perPage, $page)->appends('query', $this->query);
+            return $engine->runOperation(
+                'paginate',
+                $this,
+                fn () => $engine->simplePaginate($this, $perPage, $page),
+            )->appends('query', $this->query);
         }
 
         if ($engine instanceof PaginatesEloquentModelsUsingDatabase) {
-            return $engine->simplePaginateUsingDatabase($this, $perPage, $pageName, $page)->appends('query', $this->query);
+            return $engine->runOperation(
+                'paginate',
+                $this,
+                fn () => $engine->simplePaginateUsingDatabase($this, $perPage, $pageName, $page),
+            )->appends('query', $this->query);
         }
 
-        $rawResults = $engine->paginate($this, $perPage, $page);
+        $rawResults = $this->applyAfterRawSearchCallback(
+            $engine->runPaginate($this, $perPage, $page)
+        );
         /** @var array<TModel> $mappedModels */
         $mappedModels = $engine->map(
             $this,
-            $this->applyAfterRawSearchCallback($rawResults),
+            $rawResults,
             $this->model
         )->all();
         $results = $this->model->newCollection($mappedModels);
@@ -412,7 +422,7 @@ class Builder
                 'pageName' => $pageName,
             ],
         ])->hasMorePagesWhen(
-            ($perPage * $page) < $engine->getTotalCount($rawResults)
+            ($perPage * $page) < $this->getTotalCount($rawResults)
         )->appends('query', $this->query);
     }
 
@@ -430,18 +440,28 @@ class Builder
         $perPage = $perPage ?: $this->model->getPerPage();
 
         if ($engine instanceof PaginatesEloquentModels) {
-            return $engine->paginate($this, $perPage, $page)->appends('query', $this->query);
+            return $engine->runOperation(
+                'paginate',
+                $this,
+                fn () => $engine->paginate($this, $perPage, $page),
+            )->appends('query', $this->query);
         }
 
         if ($engine instanceof PaginatesEloquentModelsUsingDatabase) {
-            return $engine->paginateUsingDatabase($this, $perPage, $pageName, $page)->appends('query', $this->query);
+            return $engine->runOperation(
+                'paginate',
+                $this,
+                fn () => $engine->paginateUsingDatabase($this, $perPage, $pageName, $page),
+            )->appends('query', $this->query);
         }
 
-        $rawResults = $engine->paginate($this, $perPage, $page);
+        $rawResults = $this->applyAfterRawSearchCallback(
+            $engine->runPaginate($this, $perPage, $page)
+        );
         /** @var array<TModel> $mappedModels */
         $mappedModels = $engine->map(
             $this,
-            $this->applyAfterRawSearchCallback($rawResults),
+            $rawResults,
             $this->model
         )->all();
         $results = $this->model->newCollection($mappedModels);
@@ -472,15 +492,23 @@ class Builder
         $perPage = $perPage ?: $this->model->getPerPage();
 
         if ($engine instanceof PaginatesEloquentModels) {
-            return $engine->paginate($this, $perPage, $page)->appends('query', $this->query);
+            return $engine->runOperation(
+                'paginate',
+                $this,
+                fn () => $engine->paginate($this, $perPage, $page),
+            )->appends('query', $this->query);
         }
 
         if ($engine instanceof PaginatesEloquentModelsUsingDatabase) {
-            return $engine->paginateUsingDatabase($this, $perPage, $pageName, $page)->appends('query', $this->query);
+            return $engine->runOperation(
+                'paginate',
+                $this,
+                fn () => $engine->paginateUsingDatabase($this, $perPage, $pageName, $page),
+            )->appends('query', $this->query);
         }
 
         $results = $this->applyAfterRawSearchCallback(
-            $engine->paginate($this, $perPage, $page)
+            $engine->runPaginate($this, $perPage, $page)
         );
 
         return Container::getInstance()->makeWith(LengthAwarePaginator::class, [
@@ -509,15 +537,23 @@ class Builder
         $perPage = $perPage ?: $this->model->getPerPage();
 
         if ($engine instanceof PaginatesEloquentModels) {
-            return $engine->simplePaginate($this, $perPage, $page)->appends('query', $this->query);
+            return $engine->runOperation(
+                'paginate',
+                $this,
+                fn () => $engine->simplePaginate($this, $perPage, $page),
+            )->appends('query', $this->query);
         }
 
         if ($engine instanceof PaginatesEloquentModelsUsingDatabase) {
-            return $engine->simplePaginateUsingDatabase($this, $perPage, $pageName, $page)->appends('query', $this->query);
+            return $engine->runOperation(
+                'paginate',
+                $this,
+                fn () => $engine->simplePaginateUsingDatabase($this, $perPage, $pageName, $page),
+            )->appends('query', $this->query);
         }
 
         $results = $this->applyAfterRawSearchCallback(
-            $engine->paginate($this, $perPage, $page)
+            $engine->runPaginate($this, $perPage, $page)
         );
 
         return Container::getInstance()->makeWith(Paginator::class, [
@@ -529,7 +565,7 @@ class Builder
                 'pageName' => $pageName,
             ],
         ])->hasMorePagesWhen(
-            ($perPage * $page) < $engine->getTotalCount($results)
+            ($perPage * $page) < $this->getTotalCount($results)
         )->appends('query', $this->query);
     }
 

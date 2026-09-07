@@ -21,9 +21,9 @@ use Throwable;
 
 class SwooleStoreConcurrencyTest extends TestCase
 {
-    private const FRAME_HEADER_BYTES = 4;
+    private const int FRAME_HEADER_BYTES = 4;
 
-    private const MAX_FRAME_BYTES = 1_048_576;
+    private const int MAX_FRAME_BYTES = 1_048_576;
 
     protected bool $runTestsInCoroutine = false;
 

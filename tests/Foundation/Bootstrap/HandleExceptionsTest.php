@@ -15,11 +15,14 @@ use Hypervel\Log\LogManager;
 use Hypervel\Support\Env;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
 use Monolog\Handler\NullHandler;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use ReflectionMethod;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Output\StreamOutput;
 
 class HandleExceptionsTest extends TestCase
@@ -34,7 +37,20 @@ class HandleExceptionsTest extends TestCase
 
         $this->app = m::mock(Application::setInstance(new Application));
 
-        $this->app->instance('config', $this->config = new Config);
+        $this->app->instance('config', $this->config = new Config([
+            'logging' => [
+                'deprecations' => [
+                    'channel' => 'null',
+                    'trace' => false,
+                ],
+                'channels' => [
+                    'null' => [
+                        'driver' => 'monolog',
+                        'handler' => NullHandler::class,
+                    ],
+                ],
+            ],
+        ]));
     }
 
     protected function handleExceptions(): HandleExceptions
@@ -73,6 +89,26 @@ class HandleExceptionsTest extends TestCase
             '/home/user/laravel/routes/web.php',
             17
         );
+    }
+
+    public function testDeprecationLoggingPreservesCancellationDuringLoggerResolution(): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $this->app->bind(LogManager::class, fn () => throw $cancellation);
+        $this->app->expects('runningUnitTests')->andReturn(false);
+        $this->app->expects('hasBeenBootstrapped')->andReturn(true);
+
+        try {
+            $this->handleExceptions()->handleDeprecationError(
+                'Deprecated behavior',
+                __FILE__,
+                __LINE__,
+            );
+
+            $this->fail('The cancellation was not preserved.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testPhpDeprecationsWithStackTraces()
@@ -189,6 +225,66 @@ class HandleExceptionsTest extends TestCase
         );
     }
 
+    public function testMissingDeprecationOptionsUseTheNullChannelWithoutATrace(): void
+    {
+        $logger = m::mock(LogManager::class);
+        $this->app->instance(LogManager::class, $logger);
+        $this->app->expects('runningUnitTests')->andReturn(false);
+        $this->app->expects('hasBeenBootstrapped')->andReturn(true);
+        $this->config->set('logging.deprecations', []);
+
+        $logger->expects('channel')->with('deprecations')->andReturnSelf();
+        $logger->expects('warning')->with(sprintf(
+            '%s in %s on line %s',
+            'Deprecated behavior',
+            __FILE__,
+            42,
+        ));
+
+        $this->handleExceptions()->handleDeprecationError(
+            'Deprecated behavior',
+            __FILE__,
+            42,
+        );
+
+        $this->assertSame(
+            [
+                'driver' => 'monolog',
+                'handler' => NullHandler::class,
+            ],
+            $this->config->get('logging.channels.deprecations'),
+        );
+    }
+
+    #[DataProvider('invalidDeprecationConfigurationProvider')]
+    public function testInvalidDeprecationConfigurationFailsLoudly(mixed $configuration, string $key): void
+    {
+        $this->app->instance(LogManager::class, m::mock(LogManager::class));
+        $this->app->expects('runningUnitTests')->andReturn(false);
+        $this->app->expects('hasBeenBootstrapped')->andReturn(true);
+        $this->config->set('logging.deprecations', $configuration);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($key);
+
+        $this->handleExceptions()->handleDeprecationError(
+            'Deprecated behavior',
+            __FILE__,
+            __LINE__,
+        );
+    }
+
+    /**
+     * Provide unsupported deprecation configuration shapes.
+     */
+    public static function invalidDeprecationConfigurationProvider(): array
+    {
+        return [
+            'legacy scalar' => ['null', 'logging.deprecations'],
+            'unknown channel' => [['channel' => 'missing', 'trace' => false], 'logging.channels.missing'],
+        ];
+    }
+
     public function testUserDeprecations()
     {
         $logger = m::mock(LogManager::class);
@@ -280,6 +376,7 @@ class HandleExceptionsTest extends TestCase
 
         $logger->expects('channel')->with('deprecations')->andReturnSelf();
         $logger->expects('warning');
+        $this->config->set('logging.channels.null', null);
 
         $this->handleExceptions()->handleError(
             E_USER_DEPRECATED,
@@ -322,9 +419,8 @@ class HandleExceptionsTest extends TestCase
         );
     }
 
-    public function testNoDeprecationsDriverIfNoDeprecationsHereSend()
+    public function testDoesNotCreateDeprecationsDriverBeforeFirstDeprecation(): void
     {
-        $this->assertNull($this->config->get('logging.deprecations'));
         $this->assertNull($this->config->get('logging.channels.deprecations'));
     }
 

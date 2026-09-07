@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
+use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\SanctumServiceProvider;
@@ -27,15 +28,26 @@ class ActingAsTest extends TestCase
                 'driver' => 'sanctum',
                 'provider' => 'users',
                 'session_guards' => ['web'],
+                'passwords' => null,
+                'password_timeout' => null,
             ],
             'auth.guards.api' => [
                 'driver' => 'sanctum',
                 'provider' => 'users',
                 'session_guards' => ['web'],
+                'passwords' => null,
+                'password_timeout' => null,
             ],
             'auth.providers.users' => [
                 'driver' => 'eloquent',
                 'model' => User::class,
+                'cache' => [
+                    'enabled' => false,
+                    'store' => null,
+                    'ttl' => 300,
+                    'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
+                    'tags' => null,
+                ],
             ],
         ]);
     }

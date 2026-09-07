@@ -68,7 +68,8 @@ class PostgresConnector extends Connector implements ConnectorInterface
         }
 
         if (isset($connect_timeout)) {
-            $dsn .= ";connect_timeout={$connect_timeout}";
+            $connectTimeout = (int) ceil($connect_timeout);
+            $dsn .= ";connect_timeout={$connectTimeout}";
         }
 
         if (isset($charset)) {
@@ -117,6 +118,12 @@ class PostgresConnector extends Connector implements ConnectorInterface
 
         if (isset($config['isolation_level'])) {
             $parts[] = '-c default_transaction_isolation=' . $this->escapeStartupOptionValue((string) $config['isolation_level']);
+        }
+
+        $lockTimeout = $this->getLockTimeout($config);
+
+        if ($lockTimeout !== null) {
+            $parts[] = "-c lock_timeout={$lockTimeout}s";
         }
 
         if (isset($config['synchronous_commit'])) {

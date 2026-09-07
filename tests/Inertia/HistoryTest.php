@@ -15,6 +15,8 @@ class HistoryTest extends TestCase
 {
     public function testTheHistoryIsNotEncryptedOrClearedByDefault(): void
     {
+        Config::set('inertia.history', []);
+
         Route::middleware([StartSession::class, ExampleMiddleware::class])->get('/', function () {
             return Inertia::render('User/Edit');
         });

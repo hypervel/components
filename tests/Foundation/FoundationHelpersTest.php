@@ -8,6 +8,7 @@ use DateTimeZone;
 use Hypervel\Broadcasting\FakePendingBroadcast;
 use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Cache\CacheManager;
+use Hypervel\Container\Container;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Responsable;
@@ -45,6 +46,30 @@ enum UnitEnum
 
 class FoundationHelpersTest extends TestCase
 {
+    public function testAppPathUsesTheConfiguredApplicationDirectory(): void
+    {
+        $this->assertSame($this->app->basePath('app'), app_path());
+        $this->assertSame($this->app->basePath('app/Models'), app_path('Models'));
+
+        $path = $this->app->basePath('custom-app');
+        $this->app->useAppPath($path);
+
+        $this->assertSame($path, app_path());
+        $this->assertSame($path . '/Models', app_path('Models'));
+    }
+
+    public function testAppPathUsesBasePathBeforeApplicationBootstrap(): void
+    {
+        Container::setInstance(new Container);
+
+        try {
+            $this->assertSame(BASE_PATH . '/app', app_path());
+            $this->assertSame(BASE_PATH . '/app/Models', app_path('Models'));
+        } finally {
+            Container::setInstance($this->app);
+        }
+    }
+
     public function testNowReturnsCarbonImmutableByDefault(): void
     {
         $result = now();
@@ -173,10 +198,10 @@ class FoundationHelpersTest extends TestCase
         $this->assertSame(CarbonImmutable::class, $result::class);
     }
 
-    public function testCache()
+    public function testCache(): void
     {
         $cache = m::mock(CacheManager::class);
-        $this->app['cache'] = $cache;
+        $this->app->instance('cache', $cache);
 
         // cache() returns the CacheManager
         $this->assertInstanceOf(CacheManager::class, cache());

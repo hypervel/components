@@ -25,7 +25,7 @@ use InvalidArgumentException;
 class GrpcServiceProvider extends ServiceProvider
 {
     /** @var list<string> */
-    private const TLS_KEYS = [
+    private const array TLS_KEYS = [
         'local_cert',
         'local_pk',
         'passphrase',
@@ -37,7 +37,7 @@ class GrpcServiceProvider extends ServiceProvider
     ];
 
     /** @var list<string> */
-    private const OWNED_SERVER_SETTINGS = [
+    private const array OWNED_SERVER_SETTINGS = [
         'open_http_protocol',
         'open_http2_protocol',
         'open_websocket_protocol',
@@ -294,12 +294,12 @@ class GrpcServiceProvider extends ServiceProvider
                 );
             }
         } else {
-            $this->assertReadableFile($certificate, 'certificate');
-            $this->assertReadableFile($privateKey, 'private key');
+            $this->ensureReadableFile($certificate, 'certificate');
+            $this->ensureReadableFile($privateKey, 'private key');
         }
 
         if ($clientCa !== null) {
-            $this->assertReadableFile($clientCa, 'client CA');
+            $this->ensureReadableFile($clientCa, 'client CA');
         }
 
         return [
@@ -376,7 +376,7 @@ class GrpcServiceProvider extends ServiceProvider
     /**
      * Require a readable TLS file.
      */
-    private function assertReadableFile(string $path, string $description): void
+    private function ensureReadableFile(string $path, string $description): void
     {
         if (! is_file($path) || ! is_readable($path)) {
             throw new InvalidArgumentException(

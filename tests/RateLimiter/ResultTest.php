@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\RateLimiter;
 
 use Hypervel\RateLimiter\BackoffResult;
+use Hypervel\RateLimiter\CooldownResult;
 use Hypervel\RateLimiter\LimitResult;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
@@ -33,6 +34,15 @@ class ResultTest extends TestCase
         $this->assertSame(2, $result->retryAfter());
     }
 
+    public function testCooldownResultExposesRoundedPublicDelay(): void
+    {
+        $result = new CooldownResult(false, 1_000_001);
+
+        $this->assertFalse($result->allowed());
+        $this->assertTrue($result->denied());
+        $this->assertSame(2, $result->retryAfter());
+    }
+
     public function testInvalidResultInvariantsAreRejected(): void
     {
         foreach ([
@@ -43,6 +53,9 @@ class ResultTest extends TestCase
             static fn () => new BackoffResult(true, -1, 0),
             static fn () => new BackoffResult(true, 0, 1),
             static fn () => new BackoffResult(false, 0, 0),
+            static fn () => new CooldownResult(true, -1),
+            static fn () => new CooldownResult(true, 1),
+            static fn () => new CooldownResult(false, 0),
         ] as $callback) {
             try {
                 $callback();

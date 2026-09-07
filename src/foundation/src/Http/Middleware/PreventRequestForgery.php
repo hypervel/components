@@ -175,7 +175,7 @@ class PreventRequestForgery
      */
     protected function addCookieToResponse(Request $request, Response $response): Response
     {
-        $config = config('session');
+        $config = config()->array('session');
 
         if ($response instanceof Responsable) {
             $response = $response->toResponse($request);
@@ -200,8 +200,8 @@ class PreventRequestForgery
             $config['secure'],
             false,
             false,
-            $config['same_site'] ?? null,
-            $config['partitioned'] ?? false
+            $config['same_site'],
+            $config['partitioned']
         );
     }
 

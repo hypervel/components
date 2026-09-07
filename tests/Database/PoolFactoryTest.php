@@ -14,7 +14,9 @@ use Hypervel\Database\Pool\PoolFactory;
 use Hypervel\Pool\Connection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PDO;
+use ReflectionProperty;
+use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class PoolFactoryTest extends TestCase
 {
@@ -40,6 +42,21 @@ class PoolFactoryTest extends TestCase
         $pool2 = $factory->getPool('cache');
 
         $this->assertNotSame($pool1, $pool2);
+    }
+
+    public function testPoolsReturnsOnlyExistingPhysicalPools(): void
+    {
+        $factory = new PoolFactory($this->mockContainerWithPools());
+
+        $this->assertSame([], $factory->pools());
+
+        $default = $factory->getPool('default');
+        $cache = $factory->getPool('cache');
+
+        $this->assertSame([
+            'default' => $default,
+            'cache' => $cache,
+        ], $factory->pools());
     }
 
     public function testHasPool(): void
@@ -123,6 +140,37 @@ class PoolFactoryTest extends TestCase
 
         $this->assertSame($replacement, $resolvedDuringClose);
         $this->assertSame($replacement, $factory->getPool('default'));
+    }
+
+    public function testFlushAllContinuesClosingAndPreservesFirstFailure(): void
+    {
+        $firstFailure = new RuntimeException('first close failed');
+        $secondFailure = new RuntimeException('second close failed');
+        $firstPool = m::mock(DbPool::class);
+        $secondPool = m::mock(DbPool::class);
+        $thirdPool = m::mock(DbPool::class);
+        $firstPool->shouldReceive('close')->once()->andThrow($firstFailure);
+        $secondPool->shouldReceive('close')->once()->andThrow($secondFailure);
+        $thirdPool->shouldReceive('close')->once();
+
+        $container = m::mock(ContainerContract::class);
+        $container->shouldReceive('make')->with(DbPool::class, ['name' => 'first'])->once()->andReturn($firstPool);
+        $container->shouldReceive('make')->with(DbPool::class, ['name' => 'second'])->once()->andReturn($secondPool);
+        $container->shouldReceive('make')->with(DbPool::class, ['name' => 'third'])->once()->andReturn($thirdPool);
+
+        $factory = new PoolFactory($container);
+        $factory->getPool('first');
+        $factory->getPool('second');
+        $factory->getPool('third');
+
+        try {
+            $factory->flushAll();
+            $this->fail('Expected the first pool close failure to propagate.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($firstFailure, $exception);
+        }
+
+        $this->assertSame([], $factory->pools());
     }
 
     public function testFlushPoolOnlyFlushesNamedPool(): void
@@ -271,53 +319,22 @@ class PoolFactoryTest extends TestCase
         $this->assertTrue($factory->hasPool('default::read'));
     }
 
-    public function testPoolConnectTimeoutConfiguresMySqlDriversWithoutOverridingNativeOptions(): void
+    public function testPoolConnectTimeoutIsExposedWithoutLosingFractionalPrecision(): void
     {
-        foreach (['mysql', 'mariadb'] as $driver) {
+        foreach (['mysql', 'mariadb', 'pgsql', 'sqlite'] as $driver) {
             $config = $this->connectionConfig(['driver' => $driver]);
             $config['pool']['connect_timeout'] = 1.25;
             $pool = (new PoolFactory($this->mockContainerWithPools(['default' => $config])))->getPool('default');
 
             $this->assertInstanceOf(PoolFactoryTestPool::class, $pool);
-            $poolConfig = $pool->configForTest();
-            $this->assertArrayHasKey('options', $poolConfig);
-            $this->assertSame(2, $poolConfig['options'][PDO::ATTR_TIMEOUT]);
+            $this->assertSame(1.25, $pool->configForTest()['connect_timeout']);
 
-            $config['options'][PDO::ATTR_TIMEOUT] = 7;
+            $config['connect_timeout'] = 7.5;
             $pool = (new PoolFactory($this->mockContainerWithPools(['default' => $config])))->getPool('default');
 
             $this->assertInstanceOf(PoolFactoryTestPool::class, $pool);
-            $this->assertSame(7, $pool->configForTest()['options'][PDO::ATTR_TIMEOUT]);
+            $this->assertSame(7.5, $pool->configForTest()['connect_timeout']);
         }
-    }
-
-    public function testPoolConnectTimeoutConfiguresPostgresWithoutOverridingNativeConfig(): void
-    {
-        $config = $this->connectionConfig(['driver' => 'pgsql']);
-        $config['pool']['connect_timeout'] = 1.25;
-        $pool = (new PoolFactory($this->mockContainerWithPools(['default' => $config])))->getPool('default');
-
-        $this->assertInstanceOf(PoolFactoryTestPool::class, $pool);
-        $poolConfig = $pool->configForTest();
-        $this->assertArrayHasKey('connect_timeout', $poolConfig);
-        $this->assertSame(2, $poolConfig['connect_timeout']);
-
-        $config['connect_timeout'] = 7;
-        $pool = (new PoolFactory($this->mockContainerWithPools(['default' => $config])))->getPool('default');
-
-        $this->assertInstanceOf(PoolFactoryTestPool::class, $pool);
-        $this->assertSame(7, $pool->configForTest()['connect_timeout']);
-    }
-
-    public function testPoolConnectTimeoutDoesNotAddNetworkOptionsToSqlite(): void
-    {
-        $config = $this->connectionConfig(['driver' => 'sqlite']);
-        $config['pool']['connect_timeout'] = 1.25;
-        $pool = (new PoolFactory($this->mockContainerWithPools(['default' => $config])))->getPool('default');
-
-        $this->assertInstanceOf(PoolFactoryTestPool::class, $pool);
-        $this->assertArrayNotHasKey('connect_timeout', $pool->configForTest());
-        $this->assertArrayNotHasKey(PDO::ATTR_TIMEOUT, $pool->configForTest()['options'] ?? []);
     }
 
     public function testFlushPoolResolvesWriteAliasToBasePool(): void
@@ -364,6 +381,44 @@ class PoolFactoryTest extends TestCase
         $this->assertNotSame($defaultPool, $factory->getPool('default'));
         $this->assertNotSame($readPool, $factory->getPool('default::read'));
         $this->assertSame($cachePool, $factory->getPool('cache'));
+    }
+
+    public function testFlushPoolsForConnectionDetachesSelectionAndPrioritizesCancellation(): void
+    {
+        $ordinaryFailure = new RuntimeException('write pool close failed');
+        $cancellation = new CanceledException;
+        $writePool = m::mock(DbPool::class);
+        $readPool = m::mock(DbPool::class);
+        $cachePool = m::mock(DbPool::class);
+        $factory = new PoolFactory(m::mock(ContainerContract::class));
+        $detachedPools = null;
+
+        $writePool->shouldReceive('close')->once()->andReturnUsing(
+            function () use ($factory, &$detachedPools, $ordinaryFailure): never {
+                $detachedPools = $factory->pools();
+
+                throw $ordinaryFailure;
+            }
+        );
+        $readPool->shouldReceive('close')->once()->andThrow($cancellation);
+        $cachePool->shouldNotReceive('close');
+
+        $pools = new ReflectionProperty($factory, 'pools');
+        $pools->setValue($factory, [
+            'default' => $writePool,
+            'default::read' => $readPool,
+            'cache' => $cachePool,
+        ]);
+
+        try {
+            $factory->flushPoolsForConnection('default::read');
+            $this->fail('Expected pool close cancellation to propagate.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(['cache' => $cachePool], $detachedPools);
+        $this->assertSame(['cache' => $cachePool], $factory->pools());
     }
 
     private function mockContainerWithPools(?array $connections = null): m\MockInterface|ContainerContract

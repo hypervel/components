@@ -2,7 +2,17 @@ import { describe, expect, it, test } from "vitest";
 import {
     manyOptional,
     optional,
+    requiredWithOptional,
+    root,
 } from "./.generated/actions/Hypervel/Tests/Wayfinder/Fixtures/Controllers/OptionalController";
+
+describe("root", () => {
+    test("url", () => {
+        expect(root.url()).toBe("/");
+        expect(root.url({ locale: "en" })).toBe("/en");
+        expect(root.url(undefined, { query: { page: 2 } })).toBe("/?page=2");
+    });
+});
 
 describe("optional", async () => {
     test("url", () => {
@@ -30,6 +40,22 @@ describe("manyOptional", async () => {
     test("url supports falsy optional values", () => {
         expect(manyOptional.url({ one: 0, two: 2 })).toBe("/many-optional/0/2");
         expect(manyOptional.url({ one: 0 })).toBe("/many-optional/0");
+        expect(manyOptional.url({ one: false, two: true })).toBe(
+            "/many-optional/0/1",
+        );
+    });
+
+    test("url supports null omission values", () => {
+        expect(optional.url(null)).toBe("/optional");
+        expect(optional.url({ parameter: null })).toBe("/optional");
+        expect(optional.url([null])).toBe("/optional");
+        expect(manyOptional.url({ one: "1", two: null })).toBe(
+            "/many-optional/1",
+        );
+        expect(manyOptional.url(["1", null])).toBe("/many-optional/1");
+        expect(requiredWithOptional.url(["required", null])).toBe(
+            "/required-with-optional/required",
+        );
     });
 
     it("throws an error when passing optional parameters with missing optional parameters before", () => {
@@ -41,6 +67,17 @@ describe("manyOptional", async () => {
     test("definition", () => {
         expect(manyOptional.definition.url).toBe(
             "/many-optional/{one?}/{two?}/{three?}",
+        );
+    });
+});
+
+describe("requiredWithOptional", () => {
+    test("url", () => {
+        expect(requiredWithOptional.url(["required"])).toBe(
+            "/required-with-optional/required",
+        );
+        expect(requiredWithOptional.url(["required", "one"])).toBe(
+            "/required-with-optional/required/one",
         );
     });
 });

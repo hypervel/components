@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
+use Closure;
+use Hypervel\Container\Container;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
 use Hypervel\Sentry\Transport\Pool;
 use Hypervel\Tests\TestCase;
@@ -70,6 +75,27 @@ class HttpPoolTransportTest extends TestCase
         $this->assertSame(ResultStatus::success(), $result->getStatus());
         $this->assertSame($event, $result->getEvent());
         $this->assertSame(ResultStatus::success(), $transport->close()->getStatus());
+    }
+
+    public function testDeliveryMarkerIsAvailableToChildStartupHooks(): void
+    {
+        $marker = new Channel(1);
+        Coroutine::afterCreated(static function () use ($marker): void {
+            $marker->push(CoroutineContext::get(HttpPoolTransport::DELIVERY_CONTEXT_KEY));
+        });
+        $httpTransport = m::mock(HttpTransport::class);
+        $httpTransport->shouldReceive('send')
+            ->once()
+            ->andReturn(new Result(ResultStatus::success()));
+        $pool = m::mock(Pool::class);
+        $pool->shouldReceive('get')->once()->andReturn($httpTransport);
+        $pool->shouldReceive('release')->once()->with($httpTransport);
+        $transport = new HttpPoolTransport($pool);
+
+        $transport->send(Event::createEvent());
+
+        $this->assertTrue($marker->pop(1.0));
+        $this->assertSame(ResultStatus::success(), $transport->close(1)->getStatus());
     }
 
     public function testMultipleSendsThenCloseReleasesAllTransports(): void
@@ -285,6 +311,55 @@ class HttpPoolTransportTest extends TestCase
         $this->assertSame(ResultStatus::success(), $transport->close()->getStatus());
     }
 
+    public function testStartupCancellationReleasesAnUntouchedTransport(): void
+    {
+        $handler = m::mock(ExceptionHandlerContract::class);
+        Container::getInstance()->instance(ExceptionHandlerContract::class, $handler);
+        $httpTransport = m::mock(HttpTransport::class);
+        $httpTransport->shouldNotReceive('send');
+        $pool = m::mock(Pool::class);
+        $pool->shouldReceive('get')->once()->andReturn($httpTransport);
+        $pool->shouldReceive('release')->once()->with($httpTransport);
+        $pool->shouldNotReceive('discard');
+        $transport = new HttpPoolTransport($pool);
+        $hookFailure = new RuntimeException('The startup hook failed.');
+        $reportStarted = new Channel(1);
+        $releaseReport = new Channel(1);
+        $childCoroutineId = null;
+
+        $handler->shouldReceive('report')
+            ->once()
+            ->with($hookFailure)
+            ->andReturnUsing(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
+                $childCoroutineId = EngineCoroutine::id();
+                $reportStarted->push(true);
+                $releaseReport->pop();
+            });
+
+        Coroutine::afterCreated(static function () use ($hookFailure): void {
+            throw $hookFailure;
+        });
+
+        $result = $transport->send(Event::createEvent());
+
+        try {
+            $this->assertSame(ResultStatus::success(), $result->getStatus());
+            $this->assertSame(ResultStatus::unknown(), $transport->close()->getStatus());
+            $this->assertTrue($reportStarted->pop(1));
+            $this->assertIsInt($childCoroutineId);
+            $this->assertTrue(EngineCoroutine::cancelById($childCoroutineId, throwException: true));
+            $this->assertFalse(Coroutine::exists($childCoroutineId));
+            $this->assertSame(ResultStatus::success(), $transport->close()->getStatus());
+        } finally {
+            $releaseReport->push(true, 0.001);
+
+            if (is_int($childCoroutineId) && Coroutine::exists($childCoroutineId)) {
+                EngineCoroutine::cancelById($childCoroutineId, throwException: true);
+                Coroutine::join([$childCoroutineId], 1);
+            }
+        }
+    }
+
     public function testShutdownClosesThePool(): void
     {
         $pool = m::mock(Pool::class);
@@ -395,7 +470,7 @@ class HttpPoolTransportTest extends TestCase
 
 class FailingCoroutineHttpPoolTransport extends HttpPoolTransport
 {
-    protected function createCoroutine(callable $callback): void
+    protected function createCoroutine(callable $callback, Closure $wrapper): void
     {
         throw new RuntimeException('Unable to create coroutine.');
     }

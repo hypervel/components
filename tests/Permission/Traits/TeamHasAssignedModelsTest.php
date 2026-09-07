@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Permission\Traits;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Permission\Exceptions\TeamNotSelected;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
 use Hypervel\Support\Facades\DB;
@@ -134,6 +135,20 @@ class TeamHasAssignedModelsTest extends HasAssignedModelsTest
 
         setPermissionsTeamId(2);
         $this->assertTrue($user->fresh()->hasRole($this->testUserRole));
+    }
+
+    public function testReverseModelMutationsRequireASelectedTeam(): void
+    {
+        setPermissionsTeamId(null);
+
+        foreach (['assignToModels', 'removeFromModels', 'syncModels'] as $method) {
+            try {
+                $this->testUserRole->{$method}([]);
+                $this->fail('Expected the teamless reverse mutation to be rejected.');
+            } catch (TeamNotSelected $exception) {
+                $this->assertStringContainsString('current team', $exception->getMessage());
+            }
+        }
     }
 
     private function roleAssignmentsFor(User $user): int

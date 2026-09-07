@@ -174,7 +174,7 @@ abstract class HasOneOrMany extends Relation
      * Build model dictionary keyed by the relation's foreign key.
      *
      * @param \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> $results
-     * @return array<array<int, TRelatedModel>>
+     * @return array<array<array-key, TRelatedModel>>
      */
     protected function buildDictionary(EloquentCollection $results): array
     {
@@ -186,6 +186,10 @@ abstract class HasOneOrMany extends Relation
 
         foreach ($results as $key => $item) {
             $pairKey = $this->getDictionaryKey($item->{$foreign});
+
+            if ($pairKey === null) {
+                continue;
+            }
 
             if ($isAssociative) {
                 $dictionary[$pairKey][$key] = $item;
@@ -251,10 +255,8 @@ abstract class HasOneOrMany extends Relation
     public function createOrFirst(array $attributes = [], Closure|array $values = []): Model
     {
         try {
-            // @phpstan-ignore return.type (generic type lost through withSavepointIfNeeded callback)
             return $this->getQuery()->withSavepointIfNeeded(fn () => $this->create(array_merge($attributes, value($values))));
         } catch (UniqueConstraintViolationException $e) {
-            // @phpstan-ignore return.type (generic type lost through where()->first() chain)
             return $this->useWritePdo()->where($attributes)->first() ?? throw $e;
         }
     }
@@ -485,6 +487,7 @@ abstract class HasOneOrMany extends Relation
 
         $query->getModel()->setTable($hash);
 
+        // @phpstan-ignore return.type (fluent query methods return the Eloquent builder at runtime)
         return $query->select($columns)->whereColumn(
             $this->getQualifiedParentKeyName(),
             '=',

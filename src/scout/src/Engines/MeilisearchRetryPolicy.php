@@ -24,7 +24,7 @@ class MeilisearchRetryPolicy
     /**
      * Status codes that indicate transient failures and should be retried.
      */
-    private const RETRYABLE_STATUS_CODES = [429, 500, 502, 503, 504];
+    private const array RETRYABLE_STATUS_CODES = [429, 500, 502, 503, 504];
 
     /**
      * Determine whether a response or exception should trigger a retry.

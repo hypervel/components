@@ -8,7 +8,7 @@ use BadMethodCallException;
 use Closure;
 use DateTimeInterface;
 use DateTimeZone;
-use Hypervel\Bus\UniqueJobPayloadContext;
+use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
@@ -24,7 +24,6 @@ use Hypervel\Support\ProcessUtils;
 use Hypervel\Support\Traits\Macroable;
 use RuntimeException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
-use Throwable;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -38,19 +37,19 @@ class Schedule
         __call as macroCall;
     }
 
-    public const SUNDAY = 0;
+    public const int SUNDAY = 0;
 
-    public const MONDAY = 1;
+    public const int MONDAY = 1;
 
-    public const TUESDAY = 2;
+    public const int TUESDAY = 2;
 
-    public const WEDNESDAY = 3;
+    public const int WEDNESDAY = 3;
 
-    public const THURSDAY = 4;
+    public const int THURSDAY = 4;
 
-    public const FRIDAY = 5;
+    public const int FRIDAY = 5;
 
-    public const SATURDAY = 6;
+    public const int SATURDAY = 6;
 
     /**
      * All of the events on the schedule.
@@ -164,11 +163,17 @@ class Schedule
         if (class_exists($command)) {
             $command = Container::getInstance()->make($command);
 
-            return $this->exec(
+            $event = $this->exec(
                 $command->getName(),
                 $parameters,
                 false,
-            )->description($command->getDescription());
+            );
+
+            if (($description = $command->getDescription()) !== '') {
+                $event->description($description);
+            }
+
+            return $event;
         }
 
         return $this->exec($command, $parameters, false);
@@ -196,7 +201,10 @@ class Schedule
         $this->events[] = $event = new CallbackEvent(
             $this->eventMutex,
             function () use ($job, $queue, $connection) {
-                $job = is_string($job) ? Container::getInstance()->make($job) : $job;
+                // Ordinary make() would reuse an implicit auto-singleton across firings.
+                $job = is_string($job)
+                    ? Container::getInstance()->makeTransient($job)
+                    : $job;
 
                 if ($job instanceof ShouldQueue) {
                     $this->dispatchToQueue($job, $queue ?? $job->queue, $connection ?? $job->connection); /* @phpstan-ignore-line */
@@ -232,14 +240,6 @@ class Schedule
             $job = CallQueuedClosure::create($job);
         }
 
-        // Clone the job to prevent mutation of the original instance. Hypervel's
-        // container caches unbound concretes (auto-singletons) for Swoole performance,
-        // so Container::make() may return the same object across multiple schedule
-        // callbacks. Without cloning, onConnection()/onQueue() would mutate a shared
-        // instance, causing state bleed between scheduled events and corrupting
-        // QueueFake assertions (which store object references, not snapshots).
-        $job = clone $job;
-
         if ($job instanceof ShouldBeUnique) {
             $this->dispatchUniqueJobToQueue($job, $queue, $connection);
             return;
@@ -265,20 +265,14 @@ class Schedule
 
         $lock = new UniqueLock(Container::getInstance()->make(Cache::class));
 
-        if (! $lock->acquire($job)) {
+        if (! $lock->acquireForDispatch($job)) {
             return;
         }
 
-        UniqueJobPayloadContext::register($job);
-
         try {
             $this->getDispatcher()->dispatch($job);
-        } catch (Throwable $exception) {
-            if (UniqueJobPayloadContext::consume($job) !== null) {
-                $lock->release($job);
-            }
-
-            throw $exception;
+        } finally {
+            DispatchLockContext::release($job);
         }
     }
 

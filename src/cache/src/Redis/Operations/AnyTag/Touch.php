@@ -27,9 +27,13 @@ class Touch
 
     /**
      * Execute the touch operation.
+     *
+     * @param int $seconds TTL in seconds; values below one are stored for one second
      */
     public function execute(string $key, int $seconds): bool
     {
+        $seconds = max(1, $seconds);
+
         if ($this->context->isCluster()) {
             return $this->executeCluster($key, $seconds);
         }
@@ -43,8 +47,6 @@ class Touch
     private function executeCluster(string $key, int $seconds): bool
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $seconds) {
-            $seconds = max(1, $seconds);
-
             if (! $connection->expire($this->context->prefix() . $key, $seconds)) {
                 return false;
             }
@@ -88,7 +90,7 @@ class Touch
             ];
 
             $args = [
-                max(1, $seconds),
+                $seconds,
                 $this->context->fullTagPrefix(),
                 $this->context->fullRegistryKey(),
                 time(),

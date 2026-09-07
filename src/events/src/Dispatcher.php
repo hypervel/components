@@ -7,6 +7,8 @@ namespace Hypervel\Events;
 use Closure;
 use Error;
 use Exception;
+use Hypervel\Bus\DebounceLock;
+use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
@@ -25,6 +27,7 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Queue\Attributes\Backoff;
 use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\DebounceFor;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 use Hypervel\Queue\Attributes\FailOnTimeout;
@@ -40,8 +43,10 @@ use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\ReflectsClosures;
+use LogicException;
 use ReflectionClass;
 use ReflectionException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -57,22 +62,22 @@ class Dispatcher implements DispatcherContract
     /**
      * Context key for whether event deferral is active.
      */
-    public const DEFERRING_CONTEXT_KEY = '__events.deferring';
+    public const string DEFERRING_CONTEXT_KEY = '__events.deferring';
 
     /**
      * Context key for the queue of deferred events.
      */
-    public const DEFERRED_EVENTS_CONTEXT_KEY = '__events.deferred_events';
+    public const string DEFERRED_EVENTS_CONTEXT_KEY = '__events.deferred_events';
 
     /**
      * Context key for the list of event classes to defer.
      */
-    public const EVENTS_TO_DEFER_CONTEXT_KEY = '__events.events_to_defer';
+    public const string EVENTS_TO_DEFER_CONTEXT_KEY = '__events.events_to_defer';
 
     /**
      * Context key for events queued via push() and dispatched via flush().
      */
-    public const PUSHED_EVENTS_CONTEXT_KEY = '__events.pushed';
+    public const string PUSHED_EVENTS_CONTEXT_KEY = '__events.pushed';
 
     /**
      * The IoC container instance.
@@ -101,27 +106,18 @@ class Dispatcher implements DispatcherContract
     protected array $interfaceListeners = [];
 
     /**
-     * The cached wildcard listeners.
+     * The prepared event listeners keyed by registered event name.
      *
      * @var array<string, array<int, Closure>>
      */
-    protected array $wildcardsCache = [];
+    protected array $preparedListeners = [];
 
     /**
-     * The cached prepared listeners.
-     */
-    protected array $listenersCache = [];
-
-    /**
-     * The cached hasListeners results.
+     * The prepared wildcard listeners keyed by registered pattern.
      *
-     * Avoids repeated wildcard scanning in hasListeners() when called
-     * from hot paths like Router event guards. Cleared whenever the
-     * listener set changes (listen, forget, wildcard registration).
-     *
-     * @var array<string, bool>
+     * @var array<string, array<int, Closure>>
      */
-    protected array $hasListenersCache = [];
+    protected array $preparedWildcardListeners = [];
 
     /**
      * The registered event observers.
@@ -138,18 +134,25 @@ class Dispatcher implements DispatcherContract
     protected array $observerWildcards = [];
 
     /**
-     * The cached wildcard observers.
+     * The compiled listener and observer wildcard patterns.
      *
-     * @var array<string, array<int, Closure>>
+     * @var array<string, string>
      */
-    protected array $observerWildcardsCache = [];
+    protected array $compiledWildcardPatterns = [];
 
     /**
-     * The cached prepared observers.
+     * The prepared event observers keyed by registered event name.
      *
      * @var array<string, array<int, Closure>>
      */
-    protected array $observersCache = [];
+    protected array $preparedObservers = [];
+
+    /**
+     * The prepared wildcard observers keyed by registered pattern.
+     *
+     * @var array<string, array<int, Closure>>
+     */
+    protected array $preparedWildcardObservers = [];
 
     /**
      * The queue resolver instance.
@@ -215,6 +218,7 @@ class Dispatcher implements DispatcherContract
                 $this->setupWildcardListen($event, $listener);
             } else {
                 $this->listeners[$event][] = $listener;
+                unset($this->preparedListeners[$event]);
 
                 // Track interface keys so hasListeners() and getListeners() know
                 // whether interface resolution is worth entering. This autoloads
@@ -225,9 +229,6 @@ class Dispatcher implements DispatcherContract
                 }
             }
         }
-
-        $this->listenersCache = [];
-        $this->hasListenersCache = [];
     }
 
     /**
@@ -236,10 +237,8 @@ class Dispatcher implements DispatcherContract
     protected function setupWildcardListen(string $event, array|object|string $listener): void
     {
         $this->wildcards[$event][] = $listener;
-
-        $this->wildcardsCache = [];
-        $this->listenersCache = [];
-        $this->hasListenersCache = [];
+        $this->compiledWildcardPatterns[$event] ??= $this->compileWildcardPattern($event);
+        unset($this->preparedWildcardListeners[$event]);
     }
 
     /**
@@ -249,10 +248,10 @@ class Dispatcher implements DispatcherContract
      * the worker lifetime; per-request registration races across coroutines.
      *
      * Observers receive dispatched events but are not counted by hasListeners().
-     * They run after active listener processing ends, including when a listener
-     * throws, do not participate in halt or propagation-stop semantics, and run
+     * They run after active listener processing ends, including ordinary listener
+     * failure, do not participate in halt or propagation-stop semantics, and run
      * synchronously (no queue support). Every observer is attempted before the
-     * first observer failure is rethrown.
+     * first ordinary observer failure is rethrown. Cancellation stops observation.
      *
      * Use this for observability tooling (tracing, metrics, logging) that must
      * not influence whether guarded events fire.
@@ -264,11 +263,9 @@ class Dispatcher implements DispatcherContract
                 $this->setupWildcardObserver($event, $observer);
             } else {
                 $this->observers[$event][] = $observer;
+                unset($this->preparedObservers[$event]);
             }
         }
-
-        $this->observersCache = [];
-        $this->observerWildcardsCache = [];
     }
 
     /**
@@ -277,9 +274,19 @@ class Dispatcher implements DispatcherContract
     protected function setupWildcardObserver(string $event, array|object|string $observer): void
     {
         $this->observerWildcards[$event][] = $observer;
+        $this->compiledWildcardPatterns[$event] ??= $this->compileWildcardPattern($event);
+        unset($this->preparedWildcardObservers[$event]);
+    }
 
-        $this->observerWildcardsCache = [];
-        $this->observersCache = [];
+    /**
+     * Compile a case-sensitive wildcard pattern.
+     */
+    protected function compileWildcardPattern(string $pattern): string
+    {
+        $pattern = preg_quote($pattern, '#');
+        $pattern = str_replace('\*', '.*', $pattern);
+
+        return '#^' . $pattern . '\z#su';
     }
 
     /**
@@ -287,11 +294,7 @@ class Dispatcher implements DispatcherContract
      */
     public function hasListeners(string $eventName): bool
     {
-        if (isset($this->hasListenersCache[$eventName])) {
-            return $this->hasListenersCache[$eventName];
-        }
-
-        return $this->hasListenersCache[$eventName] = isset($this->listeners[$eventName])
+        return isset($this->listeners[$eventName])
             || isset($this->wildcards[$eventName])
             || $this->hasWildcardListeners($eventName)
             || $this->hasInterfaceListeners($eventName);
@@ -303,7 +306,7 @@ class Dispatcher implements DispatcherContract
     public function hasWildcardListeners(string $eventName): bool
     {
         foreach ($this->wildcards as $key => $listeners) {
-            if (Str::is($key, $eventName)) {
+            if ($key === '*' || preg_match($this->compiledWildcardPatterns[$key], $eventName) === 1) {
                 return true;
             }
         }
@@ -320,8 +323,9 @@ class Dispatcher implements DispatcherContract
             return false;
         }
 
-        foreach (class_implements($eventName) as $interface) {
-            if (isset($this->listeners[$interface])) {
+        // The guard only needs a boolean, while resolution keeps class_implements() to preserve Laravel's listener order.
+        foreach ($this->interfaceListeners as $interface => $registered) {
+            if (is_a($eventName, $interface, true)) {
                 return true;
             }
         }
@@ -488,16 +492,20 @@ class Dispatcher implements DispatcherContract
     /**
      * Invoke active listeners followed by passive observers.
      *
-     * An active listener failure remains primary after every observer is
-     * attempted; otherwise the first observer failure is rethrown.
+     * An ordinary active listener failure remains primary after every observer is
+     * attempted. Cancellation from either path stops observation and escapes.
      */
     protected function invokeListenersAndObservers(string $event, array $payload, bool $halt = false): mixed
     {
         try {
             $result = $this->invokeListeners($event, $payload, $halt);
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             try {
                 $this->invokeObservers($event, $payload);
+            } catch (CanceledException $cancellation) {
+                throw $cancellation;
             } catch (Throwable) {
                 // An observer failure must not replace the active listener failure.
             }
@@ -514,8 +522,9 @@ class Dispatcher implements DispatcherContract
      * Invoke passive observers for the event.
      *
      * Observers do not participate in halt or propagation-stop semantics.
-     * Every observer is attempted, their return values are ignored, and the
-     * first observer failure is rethrown after the remaining observers run.
+     * Every observer is attempted after ordinary failure, their return values are
+     * ignored, and the first ordinary failure is rethrown. Cancellation stops the
+     * observer sequence immediately.
      */
     protected function invokeObservers(string $event, array $payload): void
     {
@@ -524,6 +533,8 @@ class Dispatcher implements DispatcherContract
         foreach ($this->getObservers($event) as $observer) {
             try {
                 $observer($event, $payload);
+            } catch (CanceledException $exception) {
+                throw $exception;
             } catch (Throwable $exception) {
                 $firstException ??= $exception;
             }
@@ -581,20 +592,16 @@ class Dispatcher implements DispatcherContract
      */
     public function getListeners(string $eventName): array
     {
-        if (isset($this->listenersCache[$eventName])) {
-            return $this->listenersCache[$eventName];
+        $listeners = $this->prepareListeners($eventName);
+        $wildcardListeners = $this->getWildcardListeners($eventName);
+
+        if ($wildcardListeners !== []) {
+            array_push($listeners, ...$wildcardListeners);
         }
 
-        $listeners = array_merge(
-            $this->prepareListeners($eventName),
-            $this->wildcardsCache[$eventName] ?? $this->getWildcardListeners($eventName)
-        );
-
-        $listeners = $this->shouldResolveInterfaceListeners($eventName)
+        return $this->shouldResolveInterfaceListeners($eventName)
             ? $this->addInterfaceListeners($eventName, $listeners)
             : $listeners;
-
-        return $this->listenersCache[$eventName] = $listeners;
     }
 
     /**
@@ -605,14 +612,30 @@ class Dispatcher implements DispatcherContract
         $wildcards = [];
 
         foreach ($this->wildcards as $key => $listeners) {
-            if (Str::is($key, $eventName)) {
-                foreach ($listeners as $listener) {
-                    $wildcards[] = $this->makeListener($listener, true);
-                }
+            if ($key === '*' || preg_match($this->compiledWildcardPatterns[$key], $eventName) === 1) {
+                array_push($wildcards, ...$this->prepareWildcardListeners($key));
             }
         }
 
-        return $this->wildcardsCache[$eventName] = $wildcards;
+        return $wildcards;
+    }
+
+    /**
+     * Prepare the listeners for a registered wildcard pattern.
+     *
+     * @return Closure[]
+     */
+    protected function prepareWildcardListeners(string $eventName): array
+    {
+        if (! isset($this->preparedWildcardListeners[$eventName])) {
+            $this->preparedWildcardListeners[$eventName] = [];
+
+            foreach ($this->wildcards[$eventName] as $listener) {
+                $this->preparedWildcardListeners[$eventName][] = $this->makeListener($listener, true);
+            }
+        }
+
+        return $this->preparedWildcardListeners[$eventName];
     }
 
     /**
@@ -621,10 +644,8 @@ class Dispatcher implements DispatcherContract
     protected function addInterfaceListeners(string $eventName, array $listeners = []): array
     {
         foreach (class_implements($eventName) as $interface) {
-            if (isset($this->listeners[$interface])) {
-                foreach ($this->prepareListeners($interface) as $names) {
-                    $listeners = array_merge($listeners, (array) $names);
-                }
+            if (isset($this->interfaceListeners[$interface])) {
+                array_push($listeners, ...$this->prepareListeners($interface));
             }
         }
 
@@ -638,13 +659,19 @@ class Dispatcher implements DispatcherContract
      */
     protected function prepareListeners(string $eventName): array
     {
-        $listeners = [];
-
-        foreach ($this->listeners[$eventName] ?? [] as $listener) {
-            $listeners[] = $this->makeListener($listener);
+        if (! isset($this->listeners[$eventName])) {
+            return [];
         }
 
-        return $listeners;
+        if (! isset($this->preparedListeners[$eventName])) {
+            $this->preparedListeners[$eventName] = [];
+
+            foreach ($this->listeners[$eventName] as $listener) {
+                $this->preparedListeners[$eventName][] = $this->makeListener($listener);
+            }
+        }
+
+        return $this->preparedListeners[$eventName];
     }
 
     /**
@@ -652,16 +679,14 @@ class Dispatcher implements DispatcherContract
      */
     public function getObservers(string $eventName): array
     {
-        if (isset($this->observersCache[$eventName])) {
-            return $this->observersCache[$eventName];
+        $observers = $this->prepareObservers($eventName);
+        $wildcardObservers = $this->getWildcardObservers($eventName);
+
+        if ($wildcardObservers !== []) {
+            array_push($observers, ...$wildcardObservers);
         }
 
-        $observers = array_merge(
-            $this->prepareObservers($eventName),
-            $this->observerWildcardsCache[$eventName] ?? $this->getWildcardObservers($eventName)
-        );
-
-        return $this->observersCache[$eventName] = $observers;
+        return $observers;
     }
 
     /**
@@ -671,13 +696,19 @@ class Dispatcher implements DispatcherContract
      */
     protected function prepareObservers(string $eventName): array
     {
-        $observers = [];
-
-        foreach ($this->observers[$eventName] ?? [] as $observer) {
-            $observers[] = $this->makeObserver($observer);
+        if (! isset($this->observers[$eventName])) {
+            return [];
         }
 
-        return $observers;
+        if (! isset($this->preparedObservers[$eventName])) {
+            $this->preparedObservers[$eventName] = [];
+
+            foreach ($this->observers[$eventName] as $observer) {
+                $this->preparedObservers[$eventName][] = $this->makeObserver($observer);
+            }
+        }
+
+        return $this->preparedObservers[$eventName];
     }
 
     /**
@@ -688,14 +719,30 @@ class Dispatcher implements DispatcherContract
         $wildcards = [];
 
         foreach ($this->observerWildcards as $key => $observers) {
-            if (Str::is($key, $eventName)) {
-                foreach ($observers as $observer) {
-                    $wildcards[] = $this->makeObserver($observer);
-                }
+            if ($key === '*' || preg_match($this->compiledWildcardPatterns[$key], $eventName) === 1) {
+                array_push($wildcards, ...$this->prepareWildcardObservers($key));
             }
         }
 
-        return $this->observerWildcardsCache[$eventName] = $wildcards;
+        return $wildcards;
+    }
+
+    /**
+     * Prepare the observers for a registered wildcard pattern.
+     *
+     * @return Closure[]
+     */
+    protected function prepareWildcardObservers(string $eventName): array
+    {
+        if (! isset($this->preparedWildcardObservers[$eventName])) {
+            $this->preparedWildcardObservers[$eventName] = [];
+
+            foreach ($this->observerWildcards[$eventName] as $observer) {
+                $this->preparedWildcardObservers[$eventName][] = $this->makeObserver($observer);
+            }
+        }
+
+        return $this->preparedWildcardObservers[$eventName];
     }
 
     /**
@@ -886,42 +933,67 @@ class Dispatcher implements DispatcherContract
     {
         [$listener, $job] = $this->createListenerAndJob($class, $method, $arguments);
 
+        /** @var ?int $debounceFor */
+        $debounceFor = $this->getAttributeValue($listener, DebounceFor::class, 'debounceFor');
+
+        if ($debounceFor !== null && $job->shouldBeUnique) {
+            throw new LogicException('A debounced listener cannot also implement ShouldBeUnique.');
+        }
+
         if ($job->shouldBeUnique
-            && ! (new UniqueLock($this->container->make(Cache::class)))->acquire($job)) {
+            && ! (new UniqueLock($this->container->make(Cache::class)))->acquireForDispatch($job)) {
             return;
         }
 
-        $connectionName = method_exists($listener, 'viaConnection')
-            ? (isset($arguments[0]) ? $listener->viaConnection($arguments[0]) : $listener->viaConnection())
-            : $this->getAttributeValue($listener, Connection::class, 'connection');
+        $ownsDispatchLocks = $job->shouldBeUnique || $debounceFor !== null;
 
-        if ($connectionName instanceof UnitEnum) {
-            $connectionName = (string) enum_value($connectionName);
+        try {
+            $connectionName = method_exists($listener, 'viaConnection')
+                ? (isset($arguments[0]) ? $listener->viaConnection($arguments[0]) : $listener->viaConnection())
+                : $this->getAttributeValue($listener, Connection::class, 'connection');
+
+            if ($connectionName instanceof UnitEnum) {
+                $connectionName = (string) enum_value($connectionName);
+            }
+
+            $connection = $this->resolveQueue()->connection(
+                $connectionName ?? $this->resolveConnectionFromQueueRoute($listener) ?? null
+            );
+
+            $queue = method_exists($listener, 'viaQueue')
+                ? (isset($arguments[0]) ? $listener->viaQueue($arguments[0]) : $listener->viaQueue())
+                : $this->getAttributeValue($listener, QueueAttribute::class, 'queue');
+
+            $delay = method_exists($listener, 'withDelay')
+                ? (isset($arguments[0]) ? $listener->withDelay($arguments[0]) : $listener->withDelay())
+                : $this->getAttributeValue($listener, Delay::class, 'delay');
+
+            if (is_null($queue)) {
+                $queue = $this->resolveQueueFromQueueRoute($listener) ?? null;
+            }
+
+            if ($queue instanceof UnitEnum) {
+                $queue = (string) enum_value($queue);
+            }
+
+            if ($debounceFor !== null) {
+                $debounce = (new DebounceLock($this->container->make(Cache::class)))->acquireForDispatch(
+                    $job,
+                    $debounceFor,
+                    $this->getAttributeInstance($listener, DebounceFor::class)?->maxWait,
+                );
+
+                $delay ??= $debounce['maxWaitExceeded'] ? 0 : $debounceFor;
+            }
+
+            is_null($delay)
+                ? $connection->pushOn($queue, $job)
+                : $connection->laterOn($queue, $delay, $job);
+        } finally {
+            if ($ownsDispatchLocks) {
+                DispatchLockContext::release($job);
+            }
         }
-
-        $connection = $this->resolveQueue()->connection(
-            $connectionName ?? $this->resolveConnectionFromQueueRoute($listener) ?? null
-        );
-
-        $queue = method_exists($listener, 'viaQueue')
-            ? (isset($arguments[0]) ? $listener->viaQueue($arguments[0]) : $listener->viaQueue())
-            : $this->getAttributeValue($listener, QueueAttribute::class, 'queue');
-
-        $delay = method_exists($listener, 'withDelay')
-            ? (isset($arguments[0]) ? $listener->withDelay($arguments[0]) : $listener->withDelay())
-            : $this->getAttributeValue($listener, Delay::class, 'delay');
-
-        if (is_null($queue)) {
-            $queue = $this->resolveQueueFromQueueRoute($listener) ?? null;
-        }
-
-        if ($queue instanceof UnitEnum) {
-            $queue = (string) enum_value($queue);
-        }
-
-        is_null($delay)
-            ? $connection->pushOn($queue, $job)
-            : $connection->laterOn($queue, $delay, $job);
     }
 
     /**
@@ -990,6 +1062,12 @@ class Dispatcher implements DispatcherContract
                     ? $listener->uniqueFor(...$data)
                     : ($this->getAttributeValue($listener, UniqueFor::class, 'uniqueFor') ?? 0);
             }
+
+            if ($this->getAttributeValue($listener, DebounceFor::class, 'debounceFor') !== null) {
+                $job->debounceId = method_exists($listener, 'debounceId')
+                    ? $listener->debounceId(...$data)
+                    : ($listener->debounceId ?? null);
+            }
         });
     }
 
@@ -1003,26 +1081,22 @@ class Dispatcher implements DispatcherContract
     public function forget(string $event): void
     {
         if (str_contains($event, '*')) {
-            unset($this->wildcards[$event], $this->observerWildcards[$event]);
+            unset(
+                $this->wildcards[$event],
+                $this->observerWildcards[$event],
+                $this->compiledWildcardPatterns[$event],
+                $this->preparedWildcardListeners[$event],
+                $this->preparedWildcardObservers[$event],
+            );
         } else {
-            unset($this->listeners[$event], $this->observers[$event], $this->interfaceListeners[$event]);
+            unset(
+                $this->listeners[$event],
+                $this->observers[$event],
+                $this->interfaceListeners[$event],
+                $this->preparedListeners[$event],
+                $this->preparedObservers[$event],
+            );
         }
-
-        foreach ($this->wildcardsCache as $key => $listeners) {
-            if (Str::is($event, $key)) {
-                unset($this->wildcardsCache[$key]);
-            }
-        }
-
-        foreach ($this->observerWildcardsCache as $key => $observers) {
-            if (Str::is($event, $key)) {
-                unset($this->observerWildcardsCache[$key]);
-            }
-        }
-
-        $this->listenersCache = [];
-        $this->hasListenersCache = [];
-        $this->observersCache = [];
     }
 
     /**

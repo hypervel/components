@@ -42,9 +42,21 @@ return [
     |
     */
 
-    'dont_alias' => [
-        'App\Nova',
-    ],
+    'dont_alias' => [],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Custom Casters
+    |--------------------------------------------------------------------------
+    |
+    | This class-to-caster map customizes how values are rendered in Tinker.
+    | Each caster may be any callable format accepted by PsySH.
+    |
+    */
+
+    // 'casters' => [
+    //     App\Value::class => App\Tinker\ValueCaster::class . '::cast',
+    // ],
 
     /*
     |--------------------------------------------------------------------------

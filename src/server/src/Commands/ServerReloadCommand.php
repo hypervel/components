@@ -15,7 +15,7 @@ class ServerReloadCommand extends Command
 {
     protected ?string $signature = 'server:reload';
 
-    protected string $description = 'Reload all workers gracefully.';
+    protected string $description = 'Reload the server event and task workers gracefully.';
 
     public function __construct(
         protected Repository $config,

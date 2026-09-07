@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Testbench;
 
 use Hypervel\Contracts\Bus\QueueingDispatcher;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Queue\Queue;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Concerns\Testing;
@@ -32,14 +33,14 @@ class TestbenchTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
-    protected function registerCustomQueuePayload(\Hypervel\Contracts\Foundation\Application $app): void
+    protected function registerCustomQueuePayload(ApplicationContract $app): void
     {
-        $app->bind('one.time.password', fn (): int => random_int(1, 10));
+        $app->instance('one.time.password', random_int(1, 10));
 
         Queue::createPayloadUsing(function () use ($app): array {
             $password = $app->make('one.time.password');
 
-            $app->offsetUnset('one.time.password');
+            $app->forgetInstance('one.time.password');
 
             return ['password' => $password];
         });

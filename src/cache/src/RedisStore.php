@@ -166,7 +166,7 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
     /**
      * Increment the value of an item in the cache.
      */
-    public function increment(string $key, int $value = 1): int
+    public function increment(string $key, int $value = 1): int|false
     {
         return $this->getIncrementOperation()->execute($key, $value);
     }
@@ -174,7 +174,7 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
     /**
      * Decrement the value of an item in the cache.
      */
-    public function decrement(string $key, int $value = 1): int
+    public function decrement(string $key, int $value = 1): int|false
     {
         return $this->getDecrementOperation()->execute($key, $value);
     }
@@ -324,6 +324,10 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
 
     /**
      * Set the tag mode.
+     *
+     * Any mode requires Redis 8.0 or later, Valkey 9.0 or later, and
+     * PhpRedis 6.3.0 or later. These additional requirements do not apply
+     * to all mode.
      *
      * Boot-only. Mutates state on a per-worker singleton; runtime mutation
      * races across coroutines.

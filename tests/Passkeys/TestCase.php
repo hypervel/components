@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Passkeys;
 
+use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -37,8 +38,24 @@ abstract class TestCase extends TestbenchTestCase
             'app.key' => 'base64:' . base64_encode(str_repeat('a', 32)),
             'app.url' => 'https://localhost',
             'auth.defaults.guard' => 'web',
-            'auth.guards.web' => ['driver' => 'session', 'provider' => 'users'],
-            'auth.providers.users' => ['driver' => 'eloquent', 'model' => User::class],
+            'auth.guards.web' => [
+                'driver' => 'session',
+                'provider' => 'users',
+                'passwords' => 'users',
+                'password_timeout' => null,
+                'remember' => null,
+            ],
+            'auth.providers.users' => [
+                'driver' => 'eloquent',
+                'model' => User::class,
+                'cache' => [
+                    'enabled' => false,
+                    'store' => null,
+                    'ttl' => 300,
+                    'prefix' => EloquentUserProvider::DEFAULT_CACHE_PREFIX,
+                    'tags' => null,
+                ],
+            ],
             'passkeys.relying_party_id' => 'localhost',
             'passkeys.allowed_origins' => ['https://localhost'],
             'passkeys.user_handle_secret' => 'test-passkey-secret',

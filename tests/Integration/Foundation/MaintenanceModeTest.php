@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Foundation;
 
-use DateTimeInterface;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
 use Hypervel\Foundation\Console\DownCommand;
@@ -166,6 +166,15 @@ class MaintenanceModeTest extends TestCase
         $this->assertFileDoesNotExist(storage_path('framework/maintenance.php'));
     }
 
+    public function testDownCommandReportsARelativeBypassPathWithoutACanonicalApplicationUrl(): void
+    {
+        config(['app.url' => null]);
+
+        $this->artisan(DownCommand::class, ['--secret' => 'bypass-secret'])
+            ->expectsOutputToContain('You may bypass maintenance mode via [/bypass-secret].')
+            ->assertExitCode(0);
+    }
+
     public function testMaintenanceModeCanRedirectWithBypassCookie()
     {
         file_put_contents(storage_path('framework/down'), json_encode([
@@ -280,6 +289,30 @@ class MaintenanceModeTest extends TestCase
         Event::assertDispatched(MaintenanceModeDisabled::class);
     }
 
+    public function testPassiveObserversDoNotCauseMaintenanceEventsToDispatch(): void
+    {
+        $observedEvents = [];
+        $events = $this->app->make(Dispatcher::class);
+        $events->observe(
+            MaintenanceModeEnabled::class,
+            static function (MaintenanceModeEnabled $event) use (&$observedEvents): void {
+                $observedEvents[] = $event;
+            }
+        );
+        $events->observe(
+            MaintenanceModeDisabled::class,
+            static function (MaintenanceModeDisabled $event) use (&$observedEvents): void {
+                $observedEvents[] = $event;
+            }
+        );
+
+        $this->artisan(DownCommand::class)->assertSuccessful();
+        $this->assertFileExists(storage_path('framework/down'));
+        $this->artisan(UpCommand::class)->assertSuccessful();
+        $this->assertFileDoesNotExist(storage_path('framework/down'));
+        $this->assertSame([], $observedEvents);
+    }
+
     public function testDownAttemptsReloadAfterEventFailureAndPreservesTheEventFailure(): void
     {
         $eventException = new RuntimeException('event failed');
@@ -384,7 +417,7 @@ class MaintenanceModeTest extends TestCase
 
         $data = json_decode(file_get_contents(storage_path('framework/down')), true);
 
-        $expectedDate = CarbonImmutable::parse($datetime)->format(DateTimeInterface::RFC7231);
+        $expectedDate = CarbonImmutable::parse($datetime)->toRfc7231String();
         $this->assertSame($expectedDate, $data['retry']);
 
         CarbonImmutable::setTestNow();
@@ -399,10 +432,19 @@ class MaintenanceModeTest extends TestCase
         ];
     }
 
+    public function testMaintenanceModeRetryDatetimeIsConvertedToGmt(): void
+    {
+        $this->artisan(DownCommand::class, ['--retry' => '2023-01-08 12:00:00 Australia/Sydney']);
+
+        $data = json_decode(file_get_contents(storage_path('framework/down')), true);
+
+        $this->assertSame('Sun, 08 Jan 2023 01:00:00 GMT', $data['retry']);
+    }
+
     public function testMaintenanceModeRetryWithHttpDateHeader(): void
     {
         $retryDate = CarbonImmutable::now()->addWeek();
-        $expectedHeader = $retryDate->format(DateTimeInterface::RFC7231);
+        $expectedHeader = $retryDate->toRfc7231String();
 
         file_put_contents(storage_path('framework/down'), json_encode([
             'retry' => $expectedHeader,
@@ -433,7 +475,7 @@ class MaintenanceModeTest extends TestCase
 
         $data = json_decode(file_get_contents(storage_path('framework/down')), true);
 
-        $expectedDate = CarbonImmutable::createFromTimestamp($futureTimestamp)->format(DateTimeInterface::RFC7231);
+        $expectedDate = CarbonImmutable::createFromTimestamp($futureTimestamp)->toRfc7231String();
         $this->assertSame($expectedDate, $data['retry']);
     }
 

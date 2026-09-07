@@ -11,6 +11,8 @@ use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Http\File;
 use Hypervel\Http\Request;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Image\Image;
+use Hypervel\Image\ImageException;
 use Hypervel\Support\Traits\Conditionable;
 use League\Flysystem\PathNormalizer;
 use League\Flysystem\WhitespacePathNormalizer;
@@ -299,6 +301,24 @@ class ScopedFilesystemProxy implements Filesystem
         $prefix = $this->prefix();
 
         return $this->call(__FUNCTION__, [$this->applyPrefix($prefix, $path), $name, $headers]);
+    }
+
+    /**
+     * Create an image instance from a scoped file in storage.
+     */
+    public function image(string $path): Image
+    {
+        $prefix = $this->prefix();
+
+        // Capture the disk with the prefix so a context-backed resolver cannot switch
+        // tenants between image creation and lazy materialization.
+        $disk = $this->resolveDisk();
+        $scopedPath = $this->applyPrefix($prefix, $path);
+
+        return new Image(
+            fn (): string => $disk->get($scopedPath)
+                ?? throw new ImageException("Unable to read image from path [{$path}]."),
+        );
     }
 
     /**

@@ -697,7 +697,10 @@ class HasRolesTest extends TestCase
 
     public function testItCanScopeAgainstAZeroNamedGuard(): void
     {
-        config()->set('auth.guards.0', ['driver' => 'session', 'provider' => 'users']);
+        config()->set('auth.guards.0', [
+            'driver' => 'session',
+            'provider' => 'users',
+        ]);
 
         $user = User::create(['email' => 'zero-guard@test.com']);
         $role = app(Role::class)->create(['name' => 'zeroGuardRole', 'guard_name' => '0']);
@@ -710,7 +713,10 @@ class HasRolesTest extends TestCase
 
     public function testRoleChecksHonorAZeroNamedGuard(): void
     {
-        config()->set('auth.guards.0', ['driver' => 'session', 'provider' => 'users']);
+        config()->set('auth.guards.0', [
+            'driver' => 'session',
+            'provider' => 'users',
+        ]);
 
         $user = User::create(['email' => 'zero-role-checks@test.com']);
         $zeroRole = app(Role::class)->create(['name' => 'zeroGuardRole', 'guard_name' => '0']);

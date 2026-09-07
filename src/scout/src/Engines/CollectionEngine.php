@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Engines;
 
-use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -31,11 +30,27 @@ class CollectionEngine extends Engine
     }
 
     /**
+     * Update the given models without observing an external index operation.
+     */
+    public function runUpdate(EloquentCollection $models): void
+    {
+        $this->update($models);
+    }
+
+    /**
      * Remove the given models from the search index.
      */
     public function delete(EloquentCollection $models): void
     {
         // No-op - data lives in the database
+    }
+
+    /**
+     * Delete the given models without observing an external index operation.
+     */
+    public function runDelete(EloquentCollection $models): void
+    {
+        $this->delete($models);
     }
 
     /**
@@ -179,7 +194,7 @@ class CollectionEngine extends Engine
         }
 
         if (in_array(SoftDeletes::class, class_uses_recursive(get_class($builder->model)), true)
-            && $this->getScoutConfig('soft_delete', false)
+            && config()->boolean('scout.soft_delete')
         ) {
             /* @phpstan-ignore method.notFound (SoftDeletingScope adds this method) */
             return $query->withTrashed();
@@ -277,6 +292,14 @@ class CollectionEngine extends Engine
     }
 
     /**
+     * Flush the given model without observing an external index operation.
+     */
+    public function runFlush(Model $model): void
+    {
+        $this->flush($model);
+    }
+
+    /**
      * Create a search index.
      */
     public function createIndex(string $name, array $options = []): mixed
@@ -290,15 +313,5 @@ class CollectionEngine extends Engine
     public function deleteIndex(string $name): mixed
     {
         return null;
-    }
-
-    /**
-     * Get a Scout configuration value.
-     */
-    protected function getScoutConfig(string $key, mixed $default = null): mixed
-    {
-        return Container::getInstance()
-            ->make('config')
-            ->get("scout.{$key}", $default);
     }
 }

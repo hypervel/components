@@ -13,6 +13,7 @@ use Hypervel\Support\Env;
 use Monolog\Handler\NullHandler;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Runner\ErrorHandler;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\ErrorHandler\Error\FatalError;
 use Throwable;
@@ -80,16 +81,21 @@ class HandleExceptions
 
         try {
             $logger = static::$app->make(LogManager::class);
-        } catch (Exception) {
+        } catch (Exception $exception) {
+            // Cancellation is injected asynchronously, so a dedicated catch analyzes as unreachable here.
+            if ($exception instanceof CanceledException) {
+                throw $exception;
+            }
+
             return;
         }
 
         $this->ensureDeprecationLoggerIsConfigured();
 
-        $options = static::$app['config']->get('logging.deprecations') ?? [];
+        $trace = static::$app->make('config')->boolean('logging.deprecations.trace', false);
 
-        with($logger->channel('deprecations'), function ($log) use ($message, $file, $line, $level, $options) {
-            if ($options['trace'] ?? false) {
+        with($logger->channel('deprecations'), function ($log) use ($message, $file, $line, $level, $trace) {
+            if ($trace) {
                 $log->warning((string) new ErrorException($message, 0, $level, $file, $line));
             } else {
                 $log->warning(sprintf(
@@ -118,21 +124,20 @@ class HandleExceptions
      */
     protected function ensureDeprecationLoggerIsConfigured(): void
     {
-        $config = static::$app['config'];
+        $config = static::$app->make('config');
 
         if ($config->get('logging.channels.deprecations')) {
             return;
         }
 
+        $options = $config->array('logging.deprecations');
+
         $this->ensureNullLogDriverIsConfigured();
 
-        if (is_array($options = $config->get('logging.deprecations'))) {
-            $driver = $options['channel'] ?? 'null';
-        } else {
-            $driver = $options ?? 'null';
-        }
+        // A declared null channel deliberately selects the null logger.
+        $driver = $options['channel'] ?? 'null';
 
-        $config->set('logging.channels.deprecations', $config->get("logging.channels.{$driver}"));
+        $config->set('logging.channels.deprecations', $config->array("logging.channels.{$driver}"));
     }
 
     /**
@@ -140,7 +145,7 @@ class HandleExceptions
      */
     protected function ensureNullLogDriverIsConfigured(): void
     {
-        $config = static::$app['config'];
+        $config = static::$app->make('config');
 
         if ($config->get('logging.channels.null')) {
             return;
@@ -283,7 +288,7 @@ class HandleExceptions
         if (class_exists(ErrorHandler::class)) {
             $instance = ErrorHandler::instance();
 
-            if ((fn () => $this->enabled ?? false)->call($instance)) { // @phpstan-ignore nullCoalesce.property, if.alwaysFalse (Closure::call() rebinds $this to ErrorHandler; phpstan can't model this)
+            if ((fn () => $this->enabled ?? false)->call($instance)) { // @phpstan-ignore nullCoalesce.property (Closure::call() rebinds $this to ErrorHandler; PHPStan cannot model this)
                 $instance->disable();
                 $instance->enable($testCase);
             }

@@ -6,6 +6,7 @@ namespace Hypervel\Tests\RateLimiter;
 
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\RateLimiter\Backoff;
+use Hypervel\RateLimiter\Cooldown;
 use Hypervel\RateLimiter\LeakyBucket;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\RedisStore;
@@ -83,6 +84,28 @@ class RedisStoreTest extends TestCase
         $this->assertSame(5, $result->failures());
         $this->assertSame(8, $result->retryAfter());
         $this->assertSame(['failure', '3', '2000000', '8000000', '20000000'], $captured['arguments']);
+    }
+
+    public function testCooldownUsesRedisTimeAndAnAtomicMaximumExpiry(): void
+    {
+        $captured = [];
+        $store = $this->store([0, 0, 0, 5_000_000, 0], $captured);
+
+        $result = $store->block('physical-key', 5_000_000);
+
+        $this->assertTrue($result->denied());
+        $this->assertSame(5, $result->retryAfter());
+        $this->assertSame(['block', '5000000'], $captured['arguments']);
+        $this->assertStringContainsString("redis.call('TIME')", $captured['script']);
+        $this->assertStringContainsString('expiresAt = math.max(expiresAt, now + duration)', $captured['script']);
+        $this->assertStringContainsString("redis.call('PEXPIRE', KEYS[1], ttl)", $captured['script']);
+
+        $captured = [];
+        $inspection = $this->store([1, 0, 0, 0, 0], $captured)
+            ->inspect('physical-key', Cooldown::for('provider'));
+
+        $this->assertTrue($inspection->allowed());
+        $this->assertSame(['inspect', '0'], $captured['arguments']);
     }
 
     public function testMalformedTuplesFailExplicitly(): void

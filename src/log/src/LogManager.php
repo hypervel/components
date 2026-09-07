@@ -52,7 +52,7 @@ class LogManager implements LoggerInterface
     /**
      * Context key for shared log context across channels.
      */
-    protected const SHARED_CONTEXT_KEY = '__log.shared_context';
+    protected const string SHARED_CONTEXT_KEY = '__log.shared_context';
 
     /**
      * The array of resolved channels.
@@ -103,7 +103,7 @@ class LogManager implements LoggerInterface
 
         return (new Logger(
             $monolog,
-            $this->app['events']
+            $this->app->make('events')
         ))->withContext($this->sharedContext());
     }
 
@@ -153,13 +153,13 @@ class LogManager implements LoggerInterface
 
             $logger = $this->tap(
                 $config,
-                new Logger($this->resolve($name, $config), $this->app['events'])
+                new Logger($this->resolve($name, $config), $this->app->make('events'))
             )->withContext($this->sharedContext());
 
             $underlyingLogger = $logger->getLogger();
 
             if (method_exists($underlyingLogger, 'pushProcessor')) {
-                $underlyingLogger->pushProcessor($this->makeContextProcessor()); // @phpstan-ignore method.notFound
+                $underlyingLogger->pushProcessor($this->makeContextProcessor());
             }
 
             if ($cache) {
@@ -212,7 +212,7 @@ class LogManager implements LoggerInterface
 
         return new Logger(
             new Monolog('hypervel', $this->prepareHandlers([$handler])),
-            $this->app['events']
+            $this->app->make('events')
         );
     }
 

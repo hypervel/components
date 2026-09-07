@@ -9,6 +9,7 @@ use Hypervel\Bus\Queueable;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Repository as Cache;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Hypervel\Contracts\Queue\ShouldQueue;
@@ -28,12 +29,16 @@ use Hypervel\Tests\Integration\Queue\QueueTestCase;
 #[WithMigration('queue')]
 class UniqueJobTest extends QueueTestCase
 {
-    protected function defineEnvironment($app): void
+    /**
+     * Define the test environment.
+     */
+    protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
 
-        $app['config']->set('cache.default', 'database');
-        $app['config']->set('queue.default', 'database');
+        $config = $app->make('config');
+        $config->set('cache.default', 'database');
+        $config->set('queue.default', env('QUEUE_CONNECTION', 'database'));
     }
 
     public function testUniqueJobsAreNotDispatched()

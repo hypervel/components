@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Foundation\Console;
 
+use Composer\Config as ComposerConfig;
+use Composer\Util\ProcessExecutor;
 use Hypervel\Console\OutputStyle;
 use Hypervel\Console\View\Components\Factory;
 use Hypervel\Contracts\Config\Repository;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Foundation\Application;
 use Hypervel\Server\ServerFactory;
@@ -24,15 +27,21 @@ use function Hypervel\Testbench\package_path;
 
 class ServeCommandTest extends TestCase
 {
-    private const WORKING_PATH_ENV = 'TESTBENCH_WORKING_PATH';
+    private const string WORKING_PATH_ENV = 'TESTBENCH_WORKING_PATH';
 
     /** @var array{process: false|string, environment_exists: bool, environment: mixed, server_exists: bool, server: mixed} */
     private array $workingPathState;
 
+    private int $processTimeout;
+
+    /**
+     * Capture the working environment and Composer timeout.
+     */
     protected function setUp(): void
     {
         parent::setUp();
 
+        $this->processTimeout = ProcessExecutor::getTimeout();
         $this->workingPathState = [
             'process' => getenv(self::WORKING_PATH_ENV),
             'environment_exists' => array_key_exists(self::WORKING_PATH_ENV, $_ENV),
@@ -42,6 +51,9 @@ class ServeCommandTest extends TestCase
         ];
     }
 
+    /**
+     * Restore the working environment and Composer timeout.
+     */
     protected function tearDown(): void
     {
         try {
@@ -62,6 +74,8 @@ class ServeCommandTest extends TestCase
                 unset($_SERVER[self::WORKING_PATH_ENV]);
             }
         } finally {
+            ProcessExecutor::setTimeout($this->processTimeout);
+
             parent::tearDown();
         }
     }
@@ -99,9 +113,13 @@ class ServeCommandTest extends TestCase
 
         Application::getInstance()->setRunningInConsole(false);
 
+        class_exists(ComposerConfig::class);
+        ProcessExecutor::setTimeout(300);
+
         $result = $command->run(new ArrayInput([]), new NullOutput);
 
         $this->assertSame(0, $result);
+        $this->assertSame(0, ProcessExecutor::getTimeout());
         $this->assertCount(1, $startedEvents);
         $this->assertCount(1, $endedEvents);
         $this->assertSame(0, $endedEvents[0]->exitCode);
@@ -110,6 +128,43 @@ class ServeCommandTest extends TestCase
         $this->assertSame(package_path(), getenv('TESTBENCH_WORKING_PATH'));
         $this->assertSame(package_path(), $_ENV['TESTBENCH_WORKING_PATH']);
         $this->assertSame(package_path(), $_SERVER['TESTBENCH_WORKING_PATH']);
+    }
+
+    #[Test]
+    public function passiveObserversDoNotCauseServeLifecycleEventsToDispatch(): void
+    {
+        $serverFactory = m::mock(ServerFactory::class);
+        $serverFactory->shouldReceive('setEventDispatcher')->once()->andReturnSelf();
+        $serverFactory->shouldReceive('setLogger')->once()->andReturnSelf();
+        $serverFactory->shouldReceive('configure')->once()->with(['http' => ['port' => 8000]]);
+        $serverFactory->shouldReceive('start')->once();
+
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')->once()->with('server')->andReturn(['http' => ['port' => 8000]]);
+
+        $this->app->instance(ServerFactory::class, $serverFactory);
+        $this->app->instance(StdoutLoggerInterface::class, m::mock(StdoutLoggerInterface::class));
+        $this->app->instance('config', $config);
+
+        $observedEvents = [];
+        $events = $this->app->make(Dispatcher::class);
+        $events->observe(
+            ServeCommandStarted::class,
+            static function (ServeCommandStarted $event) use (&$observedEvents): void {
+                $observedEvents[] = $event;
+            }
+        );
+        $events->observe(
+            ServeCommandEnded::class,
+            static function (ServeCommandEnded $event) use (&$observedEvents): void {
+                $observedEvents[] = $event;
+            }
+        );
+
+        Application::getInstance()->setRunningInConsole(false);
+
+        $this->assertSame(0, (new ServeCommand($this->app))->run(new ArrayInput([]), new NullOutput));
+        $this->assertSame([], $observedEvents);
     }
 
     #[Test]

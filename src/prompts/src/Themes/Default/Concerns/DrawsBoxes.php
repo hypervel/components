@@ -24,7 +24,7 @@ trait DrawsBoxes
         string $color = 'gray',
         string $info = '',
     ): self {
-        $this->minWidth = min($this->minWidth, Prompt::terminal()->cols() - 6);
+        $this->minWidth = max(1, min($this->minWidth, Prompt::terminal()->cols() - 6));
 
         $bodyLines = explode(PHP_EOL, $body);
         $footerLines = array_filter(explode(PHP_EOL, $footer));

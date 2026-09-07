@@ -15,7 +15,7 @@ use Hypervel\Filesystem\Filesystem;
 use Override;
 use PDO;
 
-class PostgresConnection extends Connection
+class PostgresConnection extends PdoConnection
 {
     /**
      * Get a human-readable name for the given connection driver.
@@ -23,6 +23,14 @@ class PostgresConnection extends Connection
     public function getDriverTitle(): string
     {
         return 'PostgreSQL';
+    }
+
+    /**
+     * Get the default database driver name.
+     */
+    protected function getDefaultDriverName(): string
+    {
+        return 'pgsql';
     }
 
     /**
@@ -82,8 +90,8 @@ class PostgresConnection extends Connection
     protected function isUsingEmulatedPrepares(): bool
     {
         $config = $this->latestReadWriteTypeUsed() === 'read'
-            && $this->readPdoConfig !== []
-                ? $this->readPdoConfig
+            && $this->readConnectionConfig !== []
+                ? $this->readConnectionConfig
                 : $this->config;
 
         return (bool) ($config['options'][PDO::ATTR_EMULATE_PREPARES] ?? false);
@@ -115,6 +123,26 @@ class PostgresConnection extends Connection
         }
 
         return ['columns' => $columns, 'index' => $index];
+    }
+
+    /**
+     * Resolve the lock clause supported when popping queued jobs.
+     */
+    protected function resolveLockForPopping(): bool|string
+    {
+        $version = (string) ($this->getConfig('version') ?? $this->getServerVersion());
+
+        return version_compare($version, '9.5', '>=')
+            ? 'FOR UPDATE SKIP LOCKED'
+            : true;
+    }
+
+    /**
+     * Resolve the maximum number of bindings supported by one statement.
+     */
+    protected function resolveMaxBindings(): int
+    {
+        return 65_535;
     }
 
     /**

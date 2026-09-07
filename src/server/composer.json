@@ -30,8 +30,9 @@
     },
     "require": {
         "php": "^8.4",
+        "ext-filter": "*",
         "ext-posix": "*",
-        "ext-swoole": "^6.2",
+        "ext-swoole": "^6.2.2",
         "psr/log": "^3.0",
         "symfony/console": "^8.1",
         "hypervel/console": "^0.4",

@@ -1,7 +1,7 @@
 {
     "name": "hypervel/events",
     "type": "library",
-    "description": "The events package for Hypervel.",
+    "description": "The Hypervel Events package.",
     "license": "MIT",
     "keywords": [
         "php",

@@ -103,7 +103,7 @@ class RedirectIfTwoFactorAuthenticatable implements RedirectsIfTwoFactorAuthenti
             throw new RuntimeException('Fortify password authentication requires a guard with a user provider.');
         }
 
-        $provider = $guard->getProvider(); /* @phpstan-ignore method.notFound (getProvider() is on GuardHelpers, not the guard contract) */
+        $provider = $guard->getProvider();
 
         if (! $provider instanceof UserProvider) {
             throw new RuntimeException('Fortify password authentication requires a guard with a user provider.');

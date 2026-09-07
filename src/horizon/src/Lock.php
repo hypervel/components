@@ -27,7 +27,7 @@ class Lock
      */
     public function with(string $key, Closure $callback, int $seconds = 60): void
     {
-        $this->assertPositiveLifetime($key, $seconds);
+        $this->ensurePositiveLifetime($key, $seconds);
 
         (new RedisLock($this->connection(), $key, $seconds))->get($callback);
     }
@@ -45,7 +45,7 @@ class Lock
      */
     public function get(string $key, int $seconds = 60): bool
     {
-        $this->assertPositiveLifetime($key, $seconds);
+        $this->ensurePositiveLifetime($key, $seconds);
 
         return $this->connection()->set($key, '1', 'EX', $seconds, 'NX') === true;
     }
@@ -61,7 +61,7 @@ class Lock
     /**
      * Ensure the lock lifetime is positive.
      */
-    private function assertPositiveLifetime(string $key, int $seconds): void
+    private function ensurePositiveLifetime(string $key, int $seconds): void
     {
         if ($seconds <= 0) {
             throw new InvalidArgumentException(

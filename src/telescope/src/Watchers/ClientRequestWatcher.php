@@ -8,8 +8,9 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\TransferStats;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Di\Aop\ProceedingJoinPoint;
+use Hypervel\Http\Client\PendingRequest;
 use Hypervel\Http\Client\Request;
-use Hypervel\Support\Arr;
+use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
@@ -23,6 +24,8 @@ use function Hypervel\Support\enum_value;
 
 class ClientRequestWatcher extends Watcher
 {
+    protected const int DEFAULT_REQUEST_SIZE_LIMIT = 64;
+
     /**
      * Register the watcher.
      *
@@ -151,14 +154,17 @@ class ClientRequestWatcher extends Watcher
     /**
      * Build the request payload, using structured Hypervel data when available.
      *
-     * When the request originated from Hypervel's HTTP client, the structured
-     * payload data is available in the `hypervel_data` Guzzle option. For direct
-     * Guzzle or third-party traffic, fall back to raw PSR-7 body parsing.
+     * When the request originated from Hypervel's HTTP client, the caller's
+     * structured payload is available in the `hypervel_data` Guzzle option.
+     * Body replacements made later by before-sending callbacks do not rewrite
+     * those original options, so this describes caller intent and may differ
+     * from bytes replaced later in the handler stack. Raw and third-party
+     * traffic is parsed from the PSR-7 body instead.
      */
     protected function buildPayload(RequestInterface $request, array $options): array|string
     {
-        if (isset($options['hypervel_data'])) {
-            return $this->structuredPayload($request, $options['hypervel_data']);
+        if (isset($options[PendingRequest::DATA_OPTION])) {
+            return $this->structuredPayload($request, $options[PendingRequest::DATA_OPTION]);
         }
 
         return $this->getRequestPayload($request);
@@ -220,21 +226,35 @@ class ClientRequestWatcher extends Watcher
      */
     protected function payload(array $payload): array|string
     {
-        $encoded = json_encode($payload);
-        $sizeLimit = ($this->options['request_size_limit'] ?? 64) * 1024;
+        return $this->formatStructuredPayload(
+            $payload,
+            Telescope::$hiddenRequestParameters,
+            ($this->options['request_size_limit'] ?? self::DEFAULT_REQUEST_SIZE_LIMIT) * 1024,
+        );
+    }
 
-        if ($encoded !== false && strlen($encoded) >= $sizeLimit) {
-            if (! ($this->options['truncate_oversized'] ?? false)) {
-                return 'Purged By Telescope';
-            }
+    /**
+     * Format a structured payload for entry storage.
+     */
+    protected function formatStructuredPayload(array $payload, array $hidden, int $sizeLimit): array|string
+    {
+        $masked = $this->hideParameters($payload, $hidden);
 
-            $masked = $this->hideParameters($payload, Telescope::$hiddenRequestParameters);
-            $maskedEncoded = json_encode($masked);
+        // One container of the storage limit is reserved for the entry-content root.
+        $maximumContainers = Json::MAXIMUM_NESTING_DEPTH - 1;
+        $encoded = json_encode($masked, JSON_INVALID_UTF8_SUBSTITUTE, $maximumContainers);
 
-            return substr($maskedEncoded, 0, $sizeLimit) . ' (truncated...)';
+        if ($encoded === false) {
+            return Telescope::PURGED_VALUE;
         }
 
-        return $this->hideParameters($payload, Telescope::$hiddenRequestParameters);
+        if (strlen($encoded) >= $sizeLimit) {
+            return ($this->options['truncate_oversized'] ?? false)
+                ? substr($encoded, 0, $sizeLimit) . ' (truncated...)'
+                : Telescope::PURGED_VALUE;
+        }
+
+        return $masked;
     }
 
     /**
@@ -250,38 +270,56 @@ class ClientRequestWatcher extends Watcher
                 $stream->rewind();
             }
 
-            $sizeLimit = ($this->options['request_size_limit'] ?? 64) * 1024;
+            $sizeLimit = ($this->options['request_size_limit'] ?? self::DEFAULT_REQUEST_SIZE_LIMIT) * 1024;
 
             if (! $truncate && $stream->getSize() >= $sizeLimit) {
-                return 'Purged By Telescope';
+                return Telescope::PURGED_VALUE;
             }
 
             $content = $stream->getContents();
+            $contentType = strtolower($request->getHeaderLine('content-type'));
+            $maximumContainers = Json::MAXIMUM_NESTING_DEPTH - 1;
+            $decoded = json_decode($content, true, $maximumContainers + 1);
+            $jsonError = json_last_error();
 
-            if (is_array($decoded = json_decode($content, true))
-                && json_last_error() === JSON_ERROR_NONE
+            if (is_array($decoded) && $jsonError === JSON_ERROR_NONE) {
+                return $this->formatStructuredPayload(
+                    $decoded,
+                    Telescope::$hiddenRequestParameters,
+                    $sizeLimit,
+                );
+            }
+
+            if (str_contains($contentType, 'application/x-www-form-urlencoded')) {
+                parse_str($content, $form);
+
+                return $this->formatStructuredPayload(
+                    $form,
+                    Telescope::$hiddenRequestParameters,
+                    $sizeLimit,
+                );
+            }
+
+            $firstContentByte = $content[strspn($content, " \t\n\r")] ?? null;
+
+            if ($jsonError !== JSON_ERROR_NONE
+                && (str_contains($contentType, '/json')
+                    || str_contains($contentType, '+json')
+                    || $firstContentByte === '{'
+                    || $firstContentByte === '[')
             ) {
-                $masked = $this->hideParameters($decoded, Telescope::$hiddenRequestParameters);
-                $encoded = json_encode($masked);
-
-                if ($encoded !== false && strlen($encoded) >= $sizeLimit) {
-                    return $truncate
-                        ? substr($encoded, 0, $sizeLimit) . ' (truncated...)'
-                        : 'Purged By Telescope';
-                }
-
-                return $masked;
+                return Telescope::PURGED_VALUE;
             }
 
             if (strlen($content) >= $sizeLimit) {
                 return $truncate
                     ? substr($content, 0, $sizeLimit) . ' (truncated...)'
-                    : 'Purged By Telescope';
+                    : Telescope::PURGED_VALUE;
             }
 
             return $content;
         } catch (Throwable $e) {
-            return 'Purged By Telescope: ' . $e->getMessage();
+            return Telescope::PURGED_VALUE . ': ' . $e->getMessage();
         } finally {
             if ($stream->isSeekable()) {
                 $stream->rewind();
@@ -323,27 +361,27 @@ class ClientRequestWatcher extends Watcher
 
             $sizeLimit = ($this->options['response_size_limit'] ?? 64) * 1024;
             $content = $stream->getContents();
+            $maximumContainers = Json::MAXIMUM_NESTING_DEPTH - 1;
+            $decoded = json_decode($content, true, $maximumContainers + 1);
+            $jsonError = json_last_error();
 
-            if (is_array($decoded = json_decode($content, true))
-                && json_last_error() === JSON_ERROR_NONE
-            ) {
-                $masked = $this->hideParameters($decoded, Telescope::$hiddenResponseParameters);
-                $encoded = json_encode($masked);
+            if (is_array($decoded) && $jsonError === JSON_ERROR_NONE) {
+                return $this->formatStructuredPayload(
+                    $decoded,
+                    Telescope::$hiddenResponseParameters,
+                    $sizeLimit,
+                );
+            }
 
-                if ($encoded !== false && strlen($encoded) >= $sizeLimit) {
-                    return $truncate
-                        ? substr($encoded, 0, $sizeLimit) . ' (truncated...)'
-                        : 'Purged By Telescope';
-                }
-
-                return $masked;
+            if ($jsonError === JSON_ERROR_DEPTH) {
+                return Telescope::PURGED_VALUE;
             }
 
             if (Str::startsWith(strtolower($response->getHeaderLine('content-type') ?: ''), 'text/plain')) {
                 if (strlen($content) >= $sizeLimit) {
                     return $truncate
                         ? substr($content, 0, $sizeLimit) . ' (truncated...)'
-                        : 'Purged By Telescope';
+                        : Telescope::PURGED_VALUE;
                 }
 
                 return $content;
@@ -353,7 +391,7 @@ class ClientRequestWatcher extends Watcher
                 return 'Empty Response';
             }
         } catch (Throwable $e) {
-            return 'Purged By Telescope: ' . $e->getMessage();
+            return Telescope::PURGED_VALUE . ': ' . $e->getMessage();
         } finally {
             if ($stream->isSeekable()) {
                 $stream->rewind();
@@ -384,19 +422,5 @@ class ClientRequestWatcher extends Watcher
             $headers,
             Telescope::$hiddenRequestHeaders
         );
-    }
-
-    /**
-     * Hide the given parameters.
-     */
-    protected function hideParameters(array $data, array $hidden): array
-    {
-        foreach ($hidden as $parameter) {
-            if (Arr::has($data, $parameter)) {
-                Arr::set($data, $parameter, '********');
-            }
-        }
-
-        return $data;
     }
 }

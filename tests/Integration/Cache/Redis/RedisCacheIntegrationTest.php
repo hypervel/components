@@ -19,6 +19,9 @@ class RedisCacheIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertGreaterThan(3500, $this->store()->connection()->ttl($this->store()->getPrefix() . 'k'));
     }
 
+    // REMOVED: the cache-backed testRedisCacheRateLimiter fixture. Its admission assertions
+    // run in RateLimiter/Redis/RedisStoreTest::testSerializerAndCompressionOptionsDoNotAffectLimiterState().
+
     /**
      * Breaking change.
      */

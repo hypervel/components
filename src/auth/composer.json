@@ -1,6 +1,6 @@
 {
     "name": "hypervel/auth",
-    "description": "The auth package for Hypervel.",
+    "description": "The Hypervel Auth package.",
     "license": "MIT",
     "keywords": [
         "php",

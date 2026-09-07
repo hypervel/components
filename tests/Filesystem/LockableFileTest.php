@@ -17,7 +17,7 @@ use Swoole\Coroutine\CanceledException;
 
 class LockableFileTest extends TestCase
 {
-    private const STREAM_SCHEME = 'hypervel-lockable-file-test';
+    private const string STREAM_SCHEME = 'hypervel-lockable-file-test';
 
     private string $tempDir;
 

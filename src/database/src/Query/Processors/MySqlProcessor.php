@@ -21,7 +21,6 @@ class MySqlProcessor extends Processor
         // @phpstan-ignore arguments.count (MySqlConnection::insert() accepts $sequence param)
         $query->getConnection()->insert($sql, $values, $sequence);
 
-        // @phpstan-ignore method.notFound (MySqlProcessor is only used with MySqlConnection)
         $id = $query->getConnection()->getLastInsertId();
 
         return is_numeric($id) ? (int) $id : $id;
@@ -66,6 +65,7 @@ class MySqlProcessor extends Processor
                 'type' => strtolower($result->type),
                 'unique' => (bool) $result->unique,
                 'primary' => $name === 'primary',
+                'partial' => false,
             ];
         }, $results);
     }

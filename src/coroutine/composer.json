@@ -1,7 +1,7 @@
 {
     "name": "hypervel/coroutine",
     "type": "library",
-    "description": "The coroutine package for Hypervel.",
+    "description": "Coroutine primitives for Hypervel applications.",
     "license": "MIT",
     "keywords": [
         "php",

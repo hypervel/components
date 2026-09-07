@@ -12,12 +12,12 @@ class ArrayStore extends AbstractArrayStore
     /**
      * The context key prefix for stored values.
      */
-    protected const STORAGE_CONTEXT_KEY_PREFIX = '__cache.array.storage.';
+    protected const string STORAGE_CONTEXT_KEY_PREFIX = '__cache.array.storage.';
 
     /**
      * The context key prefix for lock records.
      */
-    protected const LOCKS_CONTEXT_KEY_PREFIX = '__cache.array.locks.';
+    protected const string LOCKS_CONTEXT_KEY_PREFIX = '__cache.array.locks.';
 
     /**
      * The sequence used to build unique per-instance context keys.
@@ -107,16 +107,6 @@ class ArrayStore extends AbstractArrayStore
     protected function getCacheItems(): array
     {
         return CoroutineContext::get($this->storageContextKey, []);
-    }
-
-    /**
-     * Get the lock record for the given name.
-     *
-     * @return null|array{owner: ?string, expiresAt: ?CarbonImmutable}
-     */
-    public function getLockRecord(string $name): ?array
-    {
-        return $this->getLockRecords()[$name] ?? null;
     }
 
     /**

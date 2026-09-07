@@ -17,7 +17,7 @@ trait HasTimestamps
     /**
      * Context key for storing models that should ignore timestamps.
      */
-    protected const IGNORE_TIMESTAMPS_CONTEXT_KEY = '__database.model.ignore_timestamps';
+    protected const string IGNORE_TIMESTAMPS_CONTEXT_KEY = '__database.model.ignore_timestamps';
 
     /**
      * Indicates if the model should be timestamped.

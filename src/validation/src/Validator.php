@@ -14,7 +14,6 @@ use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
-use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
@@ -23,9 +22,12 @@ use Hypervel\Support\Str;
 use Hypervel\Support\StrCache;
 use Hypervel\Support\ValidatedInput;
 use InvalidArgumentException;
+use LogicException;
 use RuntimeException;
 use stdClass;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Throwable;
+use ValueError;
 
 class Validator implements ValidatorContract
 {
@@ -52,6 +54,16 @@ class Validator implements ValidatorContract
      * Attributes that should be excluded from the validated data.
      */
     protected array $excludeAttributes = [];
+
+    /**
+     * Active exclusions for exact-base compiled execution.
+     *
+     * Subclasses keep Laravel's protected list because their passes() methods
+     * may reset that list directly.
+     *
+     * @var array<string, true>
+     */
+    private array $activeExclusions = [];
 
     /**
      * The message bag instance.
@@ -86,8 +98,8 @@ class Validator implements ValidatorContract
     /**
      * Reverse lookup from concrete expanded attribute to its wildcard pattern.
      *
-     * Built lazily by getImplicitAttributeMap(). Invalidated when
-     * addRules() or sometimes() modify $implicitAttributes.
+     * Built lazily by getImplicitAttributeMap(). Invalidated whenever
+     * the implicit attribute graph changes.
      *
      * @var null|array<string, string>
      */
@@ -111,22 +123,24 @@ class Validator implements ValidatorContract
     protected array $compiledPlans = [];
 
     /**
+     * Database-presence checks that can consume precomputed lookups during the current pass.
+     */
+    private int $databasePresenceCheckCount = 0;
+
+    /**
+     * Parsed presence-rule tables for the current passes() invocation.
+     *
+     * @var array<string, array{0: ?string, 1: string, 2: ?string}>
+     */
+    private array $parsedTables = [];
+
+    /**
      * The original presence verifier, saved during batched DB checks.
      *
      * Restored after passes() completes so subsequent validate() calls
      * on the same instance aren't polluted by the precomputed verifier.
      */
     protected ?PresenceVerifierInterface $originalPresenceVerifier = null;
-
-    /**
-     * Attributes pre-excluded by the exclude_unless/exclude_if pre-pass.
-     *
-     * Stored separately from the compiled plans so cached plans remain
-     * immutable and shareable across requests without cloning.
-     *
-     * @var array<string, true>
-     */
-    protected array $preExcludedAttributes = [];
 
     /**
      * All of the registered "after" callbacks.
@@ -302,11 +316,6 @@ class Validator implements ValidatorContract
     protected array $defaultNumericRules = ['Numeric', 'Integer', 'Decimal'];
 
     /**
-     * The current random hash for the validator.
-     */
-    protected static ?string $placeholderHash = null;
-
-    /**
      * Indicates if DNS lookups performed by validation rules should be faked to always succeed.
      */
     protected static bool $fakeDnsLookups = false;
@@ -335,10 +344,6 @@ class Validator implements ValidatorContract
         array $messages = [],
         array $attributes = [],
     ) {
-        if (! isset(static::$placeholderHash)) {
-            static::$placeholderHash = Str::random();
-        }
-
         $this->initialRules = $rules;
         $this->customMessages = $messages;
         $this->data = $this->parseData($data);
@@ -352,24 +357,7 @@ class Validator implements ValidatorContract
      */
     public function parseData(array $data): array
     {
-        $newData = [];
-
-        foreach ($data as $key => $value) {
-            $key = (string) $key;
-            if (is_array($value)) {
-                $value = $this->parseData($value);
-            }
-
-            $key = str_replace(
-                ['.', '*'],
-                ['__dot__' . static::$placeholderHash, '__asterisk__' . static::$placeholderHash],
-                $key
-            );
-
-            $newData[$key] = $value;
-        }
-
-        return $newData;
+        return ValidationData::encodeKeys($data);
     }
 
     /**
@@ -377,15 +365,7 @@ class Validator implements ValidatorContract
      */
     protected function replacePlaceholders(array $data): array
     {
-        $originalData = [];
-
-        foreach ($data as $key => $value) {
-            $originalData[$this->replacePlaceholderInString((string) $key)] = is_array($value)
-                ? $this->replacePlaceholders($value)
-                : $value;
-        }
-
-        return $originalData;
+        return ValidationData::decodeKeys($data);
     }
 
     /**
@@ -393,21 +373,18 @@ class Validator implements ValidatorContract
      */
     protected function replacePlaceholderInString(string $value): string
     {
-        return str_replace(
-            ['__dot__' . static::$placeholderHash, '__asterisk__' . static::$placeholderHash],
-            ['.', '*'],
-            $value
-        );
+        return ValidationData::replacePlaceholderInString($value);
     }
 
     /**
-     * Replace each field parameter dot placeholder with dot.
+     * Replace each field parameter key placeholder.
      */
     protected function replaceDotPlaceholderInParameters(array $parameters): array
     {
-        return array_map(function ($field) {
-            return str_replace('__dot__' . static::$placeholderHash, '.', $field);
-        }, $parameters);
+        return array_map(
+            static fn (mixed $field): string => ValidationData::replacePlaceholderInString((string) $field),
+            $parameters,
+        );
     }
 
     /**
@@ -417,7 +394,6 @@ class Validator implements ValidatorContract
     {
         if (is_array($callback) && ! is_callable($callback)) {
             foreach ($callback as $rule) {
-                /* @phpstan-ignore-next-line */
                 $this->after(method_exists($rule, 'after') ? $rule->after(...) : $rule);
             }
 
@@ -436,44 +412,42 @@ class Validator implements ValidatorContract
     {
         $this->messages = new MessageBag;
         [$this->distinctValues, $this->failedRules, $this->excludeAttributes] = [[], [], []];
+        $this->activeExclusions = [];
         $this->originalPresenceVerifier = null;
-        $this->preExcludedAttributes = [];
+        $this->parsedTables = [];
 
         $this->compiledPlans = $this->compileRules();
+        $preExcludedAttributes = [];
 
-        // Exclude pre-evaluation reads $this->data before execution. Only safe
-        // when no code path can mutate data during execution (no custom
-        // extensions, no ValidatorAwareRule objects, no validator subclasses).
-        $canOptimize = static::class === self::class
-            && $this->extensions === []
-            && ! $this->compiledPlansContainValidatorAwareRules();
+        if (static::class === self::class) {
+            [$preExcludedAttributes, $unresolvedExclusionAttributes] = $this->preEvaluateExclusions();
 
-        if ($canOptimize) {
-            $this->preEvaluateExclusions();
-
-            if ($this->preExcludedAttributes !== []) {
-                $this->compiledPlans = array_filter(
-                    $this->compiledPlans,
-                    fn (string $attribute): bool => ! $this->isPreExcludedOrDescendant($attribute),
-                    ARRAY_FILTER_USE_KEY,
+            $activeVerifier = $this->presenceVerifier;
+            // A failed speculative PostgreSQL query aborts the caller's transaction
+            // even when caught, so global early-stop must use ordered presence queries.
+            if ($activeVerifier !== null
+                && $activeVerifier::class === DatabasePresenceVerifier::class
+                && ! $this->stopOnFirstFailure
+                && $this->databasePresenceCheckCount >= 2
+            ) {
+                $this->maybeBatchDatabaseChecks(
+                    $activeVerifier,
+                    $preExcludedAttributes,
+                    $unresolvedExclusionAttributes,
                 );
             }
         }
 
-        $activeVerifier = $this->presenceVerifier;
-        if ($canOptimize
-            && $activeVerifier !== null
-            && $activeVerifier::class === DatabasePresenceVerifier::class
-        ) {
-            $this->maybeBatchDatabaseChecks($activeVerifier);
-        }
-
         try {
-            $this->executeCompiledPlans($this->compiledPlans);
+            if (static::class === self::class) {
+                $this->executeCompiledPlans($this->compiledPlans, $preExcludedAttributes);
+            } else {
+                $this->executeDelegatedPlans($this->compiledPlans);
+            }
 
             foreach ($this->rules as $attribute => $rules) {
                 $attribute = (string) $attribute;
-                if ($this->isPreExcludedOrDescendant($attribute) || $this->shouldBeExcluded($attribute)) {
+                if ($this->shouldBeExcluded($attribute)) {
                     $this->removeAttribute($attribute);
                 }
             }
@@ -504,6 +478,7 @@ class Validator implements ValidatorContract
     {
         $plans = [];
         $isBaseValidator = static::class === self::class;
+        $this->databasePresenceCheckCount = 0;
 
         foreach ($this->rules as $attribute => $rules) {
             $attribute = (string) $attribute;
@@ -512,41 +487,62 @@ class Validator implements ValidatorContract
                 $rules = [$rules];
             }
 
-            if ($isBaseValidator) {
-                $cached = RulePlanCache::get($rules);
-                if ($cached !== null) {
-                    $plans[$attribute] = $cached;
-                    continue;
+            $plan = $isBaseValidator ? RulePlanCache::get($rules) : null;
+
+            if ($plan === null) {
+                $plan = $isBaseValidator
+                    ? RuleCompiler::compile($rules, $this->defaultNumericRules)
+                    : RuleCompiler::compileAllDelegated($rules);
+
+                if ($isBaseValidator) {
+                    RulePlanCache::put($rules, $plan);
                 }
             }
 
-            $plan = $isBaseValidator
-                ? RuleCompiler::compile($rules)
-                : RuleCompiler::compileAllDelegated($rules);
-
-            if ($isBaseValidator) {
-                RulePlanCache::put($rules, $plan);
-            }
-
             $plans[$attribute] = $plan;
+            $this->databasePresenceCheckCount += $plan->databasePresenceCheckCount;
         }
 
         return $plans;
     }
 
     /**
-     * Determine if any compiled plan contains a ValidatorAwareRule.
-     *
-     * ValidatorAwareRule implementations receive the live validator via
-     * setValidator($this) and can mutate $this->data via setValue()/setData().
-     * This makes pre-evaluation of exclude conditions unsafe because the
-     * pre-pass reads data before execution.
+     * Determine if any compiled check can mutate this validator's data.
      */
-    protected function compiledPlansContainValidatorAwareRules(): bool
+    protected function compiledPlansUseDataMutatingRules(): bool
     {
         foreach ($this->compiledPlans as $plan) {
             foreach ($plan->checks as $check) {
-                if ($check instanceof DelegatedCheck && $check->ruleObject instanceof ValidatorAwareRule) {
+                if (! $check instanceof DelegatedCheck) {
+                    continue;
+                }
+
+                $originalRule = $check->originalRule;
+
+                if ($originalRule instanceof ClosureValidationRule) {
+                    return true;
+                }
+
+                if ($originalRule instanceof InvokableValidationRule) {
+                    if ($originalRule->invokable() instanceof ValidatorAwareRule) {
+                        return true;
+                    }
+
+                    continue;
+                }
+
+                if ($originalRule instanceof ValidatorAwareRule) {
+                    return true;
+                }
+
+                if ($this->extensions === []
+                    || $check->ruleName === ''
+                    || method_exists($this, 'validate' . $check->ruleName)
+                ) {
+                    continue;
+                }
+
+                if (isset($this->extensions[StrCache::snake($check->ruleName)])) {
                     return true;
                 }
             }
@@ -556,175 +552,220 @@ class Validator implements ValidatorContract
     }
 
     /**
-     * Pre-evaluate exclude_unless / exclude_if conditions before the main loop.
+     * Pre-evaluate safe first-position exclusion checks.
      *
-     * Only called for the base Validator with no extensions or validator-aware
-     * rules. Handles both string form ('exclude_unless:field,value') and
-     * array-tuple form. Safety-skips rules requiring parseDependentRuleParameters
-     * type conversions so they flow through the normal delegated path.
+     * @return array{0: array<string, true>, 1: array<string, true>}
+     * @phpstan-impure
      */
-    protected function preEvaluateExclusions(): void
+    protected function preEvaluateExclusions(): array
     {
-        /** @var array<string, false|float|int|string> $cache */
-        $cache = [];
+        $preExcludedAttributes = [];
+        $unresolvedAttributes = [];
+        $possibleExclusionPrefixes = [];
+        $dataMayDiffer = false;
+        $canPreEvaluate = null;
+        /** @var array<string, bool> $exclusionOutcomes */
+        $exclusionOutcomes = [];
 
-        foreach ($this->rules as $attribute => $attributeRules) {
+        foreach ($this->compiledPlans as $attribute => $plan) {
             $attribute = (string) $attribute;
 
-            if (! is_array($attributeRules)) {
+            if ($possibleExclusionPrefixes !== []
+                && $this->hasAttributeAncestorInSet($attribute, $possibleExclusionPrefixes)
+            ) {
+                // Laravel removes an excluded descendant at its rule-map position.
+                // Each possible prefix is also pre-excluded or unresolved, so presence
+                // planning already declines this plan and every deeper descendant.
+                $dataMayDiffer = true;
                 continue;
             }
 
-            foreach ($attributeRules as $rule) {
-                $parsed = $this->parseExcludeRule($rule);
-                if ($parsed === null) {
-                    continue;
-                }
+            $firstExclusionIndex = null;
+            $hasLaterExclusion = false;
 
-                [$action, $conditionField, $allowedValues] = $parsed;
+            foreach ($plan->checks as $index => $check) {
+                if ($check instanceof DelegatedCheck && in_array($check->ruleName, $this->excludeRules, true)) {
+                    $firstExclusionIndex ??= $index;
 
-                if (str_contains($conditionField, '*')) {
-                    $conditionField = $this->resolveWildcardConditionField($attribute, $conditionField);
-                    if (str_contains($conditionField, '*')) {
-                        continue;
+                    if ($index !== 0) {
+                        $hasLaterExclusion = true;
                     }
                 }
+            }
 
-                if (array_intersect(['true', 'false', 'null'], $allowedValues) !== []) {
-                    continue;
+            if ($firstExclusionIndex === null) {
+                continue;
+            }
+
+            if ($dataMayDiffer || $firstExclusionIndex !== 0) {
+                $unresolvedAttributes[$attribute] = true;
+                $possibleExclusionPrefixes[$attribute] = true;
+                continue;
+            }
+
+            /** @var DelegatedCheck $firstCheck */
+            $firstCheck = $plan->checks[0];
+
+            if (! $firstCheck->parametersAreScalar) {
+                $unresolvedAttributes[$attribute] = true;
+                $possibleExclusionPrefixes[$attribute] = true;
+                continue;
+            }
+
+            $canPreEvaluate ??= ! $this->compiledPlansUseDataMutatingRules();
+
+            if (! $canPreEvaluate) {
+                $unresolvedAttributes[$attribute] = true;
+                $possibleExclusionPrefixes[$attribute] = true;
+                continue;
+            }
+
+            try {
+                $parameters = $firstCheck->parameters;
+                $explicitKeys = [];
+                $dependsOnOtherFields = $this->dependsOnOtherFields($firstCheck->ruleName);
+
+                if ($dependsOnOtherFields) {
+                    $explicitKeys = $this->getExplicitKeys($attribute);
                 }
 
-                $conditionRules = $this->rules[$conditionField] ?? [];
-                if (is_array($conditionRules) && in_array('boolean', $conditionRules, true)) {
-                    continue;
-                }
+                // Built-in exclusions ignore the target attribute and value. Raw parameters
+                // retain the dependent wildcard pattern; captures complete its identity.
+                $outcomeKey = serialize([$firstCheck->ruleName, $parameters, $explicitKeys]);
 
-                if (! array_key_exists($conditionField, $cache)) {
-                    $raw = data_get($this->data, $conditionField);
-                    if (is_bool($raw) || $raw === null) {
-                        $cache[$conditionField] = false;
-                    } elseif (is_string($raw) || is_int($raw) || is_float($raw)) {
-                        $cache[$conditionField] = $raw;
-                    } else {
-                        $cache[$conditionField] = false;
+                if (isset($exclusionOutcomes[$outcomeKey])) {
+                    $passes = $exclusionOutcomes[$outcomeKey];
+                } else {
+                    if ($dependsOnOtherFields) {
+                        $parameters = $this->replaceDotInParameters($parameters);
+
+                        if ($explicitKeys !== []) {
+                            $parameters = $this->replaceAsterisksInParameters($parameters, $explicitKeys);
+                        }
                     }
+
+                    $passes = match ($firstCheck->ruleName) {
+                        'Exclude' => $this->validateExclude(),
+                        'ExcludeIf' => $this->validateExcludeIf($attribute, $this->getValue($attribute), $parameters),
+                        'ExcludeUnless' => $this->validateExcludeUnless($attribute, $this->getValue($attribute), $parameters),
+                        'ExcludeWith' => $this->validateExcludeWith($attribute, $this->getValue($attribute), $parameters),
+                        'ExcludeWithout' => $this->validateExcludeWithout($attribute, $this->getValue($attribute), $parameters),
+                        default => throw new LogicException("Unsupported exclusion rule [{$firstCheck->ruleName}]."),
+                    };
+                    $exclusionOutcomes[$outcomeKey] = $passes;
                 }
+            } catch (InvalidArgumentException|ValueError) {
+                $unresolvedAttributes[$attribute] = true;
+                $possibleExclusionPrefixes[$attribute] = true;
+                continue;
+            }
 
-                $actual = $cache[$conditionField];
-                if ($actual === false) {
-                    continue;
-                }
+            if (! $passes) {
+                $preExcludedAttributes[$attribute] = true;
+                $possibleExclusionPrefixes[$attribute] = true;
+                continue;
+            }
 
-                $shouldExclude = ($action === 'exclude_unless' && ! in_array($actual, $allowedValues, false))
-                    || ($action === 'exclude_if' && in_array($actual, $allowedValues, false));
+            if ($hasLaterExclusion) {
+                $unresolvedAttributes[$attribute] = true;
+                $possibleExclusionPrefixes[$attribute] = true;
+            }
+        }
 
-                if ($shouldExclude) {
-                    $this->preExcludedAttributes[$attribute] = true;
+        return [$preExcludedAttributes, $unresolvedAttributes];
+    }
+
+    /**
+     * Batch safe database-presence candidates by query shape.
+     *
+     * @param array<string, true> $preExcludedAttributes
+     * @param array<string, true> $unresolvedExclusionAttributes
+     */
+    protected function maybeBatchDatabaseChecks(
+        DatabasePresenceVerifier $presenceVerifier,
+        array $preExcludedAttributes,
+        array $unresolvedExclusionAttributes,
+    ): void {
+        $groups = [];
+
+        foreach ($this->compiledPlans as $attribute => $plan) {
+            $attribute = (string) $attribute;
+
+            $firstPresenceIndex = null;
+
+            foreach ($plan->checks as $index => $check) {
+                if ($check instanceof DelegatedCheck
+                    && ($check->ruleName === 'Exists' || $check->ruleName === 'Unique')
+                ) {
+                    $firstPresenceIndex = $index;
                     break;
                 }
             }
-        }
-    }
 
-    /**
-     * Parse a single rule into [action, field, allowedValues] if it's an
-     * exclude_unless / exclude_if rule.
-     *
-     * @return null|array{0: string, 1: string, 2: list<string>}
-     */
-    private function parseExcludeRule(mixed $rule): ?array
-    {
-        if (is_string($rule)) {
-            foreach (['exclude_unless:', 'exclude_if:'] as $prefix) {
-                if (str_starts_with($rule, $prefix)) {
-                    $action = rtrim($prefix, ':');
-                    $args = explode(',', substr($rule, strlen($prefix)));
-                    if (count($args) < 2) {
-                        return null;
-                    }
-                    return [$action, $args[0], array_slice($args, 1)];
-                }
-            }
-            return null;
-        }
-
-        if (is_array($rule) && count($rule) >= 3 && is_string($rule[0]) && is_string($rule[1])) {
-            $action = $rule[0];
-            if ($action !== 'exclude_unless' && $action !== 'exclude_if') {
-                return null;
-            }
-            return [$action, $rule[1], array_map(strval(...), array_slice($rule, 2))];
-        }
-
-        return null;
-    }
-
-    /**
-     * Resolve * segments in a condition field reference by aligning with
-     * concrete indices in the attribute path.
-     *
-     * Example: attribute "interactions.5.style.top", condition "interactions.*.type"
-     * → "interactions.5.type"
-     */
-    private function resolveWildcardConditionField(string $attribute, string $conditionField): string
-    {
-        preg_match_all('/\.(\d+)(?:\.|$)/', $attribute, $matches);
-        $indices = $matches[1];
-        $i = 0;
-
-        return (string) preg_replace_callback('/\*/', static function () use ($indices, &$i) {
-            return $indices[$i++] ?? '*';
-        }, $conditionField);
-    }
-
-    /**
-     * Build a PrecomputedPresenceVerifier for wildcard-expanded exists/unique
-     * rules by batching their lookups into single whereIn queries.
-     *
-     * Scans rules using the validator's own parsing methods (parseTable,
-     * getQueryColumn, getExtraConditions, getUniqueIds) so all rule forms
-     * (string, array, object) and table specifications (plain, model class,
-     * connection-prefixed) are handled correctly with zero duplication.
-     */
-    protected function maybeBatchDatabaseChecks(DatabasePresenceVerifier $presenceVerifier): void
-    {
-        if ($this->implicitAttributes === []) {
-            return;
-        }
-
-        $wildcardAttributes = array_merge(...array_values($this->implicitAttributes));
-        if ($wildcardAttributes === []) {
-            return;
-        }
-
-        $wildcardAttributeSet = array_flip($wildcardAttributes);
-
-        // Collect batchable groups from wildcard-expanded exists/unique rules.
-        // Groups are keyed by full query shape (not just table:column) so that
-        // rules with different wheres, ignore values, or types on the same
-        // table:column produce separate groups instead of merging silently.
-        $groups = [];
-
-        foreach ($this->rules as $attribute => $attributeRules) {
-            if (! isset($wildcardAttributeSet[$attribute]) || ! is_array($attributeRules)) {
+            if ($firstPresenceIndex === null) {
                 continue;
             }
 
-            foreach ($attributeRules as $rule) {
-                $meta = $this->extractPresenceRuleMeta($rule, (string) $attribute);
+            $exists = Arr::has($this->data, $attribute);
+
+            if (isset($preExcludedAttributes[$attribute])
+                || ($preExcludedAttributes !== []
+                    && $this->hasAttributeAncestorInSet($attribute, $preExcludedAttributes))
+                || ($plan->sometimes && ! $exists)
+                || ($unresolvedExclusionAttributes !== []
+                    && $this->hasAttributeAncestorInSet($attribute, $unresolvedExclusionAttributes))
+            ) {
+                continue;
+            }
+
+            $value = $this->getValue($attribute);
+
+            if ($this->shouldSkipNonImplicitCheck($plan, $value, $exists)
+                || $this->shouldFailInvalidUpload($attribute, $value)
+            ) {
+                continue;
+            }
+
+            for ($index = $firstPresenceIndex, $checkCount = count($plan->checks); $index < $checkCount; ++$index) {
+                $check = $plan->checks[$index];
+
+                if (! $check instanceof DelegatedCheck
+                    || ($check->ruleName !== 'Exists' && $check->ruleName !== 'Unique')
+                ) {
+                    continue;
+                }
+
+                if (! $this->canBatchPresenceCandidate(
+                    $plan,
+                    $index,
+                    $attribute,
+                    $value,
+                    ! isset($unresolvedExclusionAttributes[$attribute]),
+                )) {
+                    continue;
+                }
+
+                $meta = $this->extractPresenceRuleMeta($check, $attribute);
 
                 if ($meta === null) {
                     continue;
                 }
 
-                $groupKey = $this->buildPresenceGroupKey($meta);
-                $groups[$groupKey] ??= ['meta' => $meta, 'values' => []];
+                $lookupKey = PrecomputedPresenceVerifier::lookupKey(
+                    $meta['connection'],
+                    $meta['table'],
+                    $meta['column'],
+                    $meta['ignore'],
+                    $meta['idColumn'],
+                    $meta['wheres'],
+                );
 
-                $value = $this->getValue((string) $attribute);
-
-                if ($value !== null && $value !== '') {
-                    $groups[$groupKey]['values'][] = $value;
+                if ($lookupKey === null) {
+                    continue;
                 }
+
+                $groups[$lookupKey] ??= ['meta' => $meta, 'values' => []];
+                $groups[$lookupKey]['values'][] = $value;
             }
         }
 
@@ -732,19 +773,7 @@ class Validator implements ValidatorContract
             return;
         }
 
-        // Build the set of table:column pairs represented in batchable groups,
-        // for collision checking against non-batchable rules.
-        $batchedTableColumns = [];
-        foreach ($groups as $group) {
-            $batchedTableColumns[$group['meta']['table'] . ':' . $group['meta']['column']] = true;
-        }
-
-        // Scan ALL rules for non-batchable exists/unique on the same table:column.
-        // These would hit the global verifier at runtime, so precomputing for
-        // that table:column would give them wrong results.
-        $unsafeTableColumns = $this->collectUnsafeTableColumns($wildcardAttributeSet, $batchedTableColumns);
-
-        $verifier = BatchDatabaseChecker::buildVerifier($groups, $presenceVerifier, $unsafeTableColumns);
+        $verifier = BatchDatabaseChecker::buildVerifier($groups, $presenceVerifier);
 
         if ($verifier === null) {
             return;
@@ -755,43 +784,45 @@ class Validator implements ValidatorContract
     }
 
     /**
-     * Extract metadata from a presence rule for batching.
+     * Extract batch metadata from a compiled database-presence check.
      *
-     * For object-form rules implementing DatabasePresenceRule, reads metadata
-     * directly via presenceMetadata() — no reflection, no stringification.
-     * For string-form and array-form rules, uses the validator's own
-     * parseTable/getQueryColumn for full parity with the normal validation path.
-     *
-     * Returns null if the rule is not exists/unique, not batchable (has
-     * closure callbacks, field-reference ignore), or can't be parsed.
-     *
-     * @return null|array{connection: null|string, table: string, column: string, wheres: array<string, mixed>, ignore: mixed, idColumn: string, type: string}
+     * @return null|array{
+     *     connection: ?string,
+     *     table: string,
+     *     column: string,
+     *     wheres: array<string, mixed>,
+     *     ignore: null|int|string,
+     *     idColumn: ?string
+     * }
      */
-    private function extractPresenceRuleMeta(mixed $rule, string $attribute): ?array
-    {
-        // Object-form: use the DatabasePresenceRule interface for exact metadata
-        if ($rule instanceof Contracts\DatabasePresenceRule) {
-            return $this->extractObjectPresenceRuleMeta($rule);
-        }
-
-        // String-form or array-form: parse and extract using validator methods
-        [$ruleName, $parameters] = ValidationRuleParser::parse($rule);
-
-        if (! is_string($ruleName)) {
+    private function extractPresenceRuleMeta(
+        DelegatedCheck $check,
+        string $attribute,
+    ): ?array {
+        if (! $check->parametersAreScalar) {
             return null;
         }
 
-        $type = match ($ruleName) {
+        if (($check->originalRule instanceof Rules\Exists || $check->originalRule instanceof Rules\Unique)
+            && $check->originalRule->queryCallbacks() !== []
+        ) {
+            return null;
+        }
+
+        $type = match ($check->ruleName) {
             'Exists' => 'exists',
             'Unique' => 'unique',
             default => null,
         };
 
+        $parameters = $check->parameters;
+
         if ($type === null || ! isset($parameters[0])) {
             return null;
         }
 
-        [$connection, $table, $modelIdColumn] = $this->parseTable($parameters[0]);
+        $tableParameter = (string) $parameters[0];
+        [$connection, $table, $modelIdColumn] = $this->parseTable($tableParameter);
         $column = $this->getQueryColumn($parameters, $attribute);
 
         if ($column === '' || $column === false) {
@@ -799,7 +830,7 @@ class Validator implements ValidatorContract
         }
 
         $ignore = null;
-        $idColumn = $modelIdColumn ?? 'id';
+        $idColumn = null;
         $wheres = [];
 
         if ($type === 'exists') {
@@ -818,7 +849,7 @@ class Validator implements ValidatorContract
                 [$idColumn, $ignore] = $this->getUniqueIds($modelIdColumn, $parameters);
 
                 if ($ignore !== null) {
-                    $ignore = stripslashes((string) $ignore);
+                    $ignore = (string) $ignore;
                 }
             }
             if (isset($parameters[4])) {
@@ -833,165 +864,45 @@ class Validator implements ValidatorContract
             'wheres' => $wheres,
             'ignore' => $ignore,
             'idColumn' => $idColumn,
-            'type' => $type,
         ];
     }
 
     /**
-     * Extract batch metadata from a DatabasePresenceRule object.
-     *
-     * Uses presenceMetadata() for exact property access (no reflection,
-     * no __toString() truthy trap). Resolves the table via parseTable()
-     * for model class and connection handling.
-     *
-     * @return null|array{connection: null|string, table: string, column: string, wheres: array<string, mixed>, ignore: mixed, idColumn: string, type: string}
+     * Determine if all checks before a presence rule are safe and pass.
      */
-    private function extractObjectPresenceRuleMeta(Contracts\DatabasePresenceRule $rule): ?array
-    {
-        $meta = $rule->presenceMetadata();
+    private function canBatchPresenceCandidate(
+        AttributePlan $plan,
+        int $presenceIndex,
+        string $attribute,
+        mixed $value,
+        bool $exclusionsResolved,
+    ): bool {
+        for ($checkIndex = 0; $checkIndex < $presenceIndex; ++$checkIndex) {
+            $check = $plan->checks[$checkIndex];
 
-        // Not batchable if has closure query callbacks
-        if ($meta['using'] !== []) {
-            return null;
-        }
+            if ($check instanceof InlineCheck) {
+                if (! $this->canPreflightInline($check, $value)
+                    || ! $this->executeInline($check, $value, $attribute)
+                ) {
+                    return false;
+                }
 
-        // Column 'NULL' means infer at validation time — can't batch without knowing
-        if ($meta['column'] === 'NULL') {
-            return null;
-        }
-
-        [$connection, $table] = $this->parseTable($meta['table']);
-
-        $type = $rule instanceof Rules\Unique ? 'unique' : 'exists';
-
-        $ignore = $meta['ignore'] ?? null;
-        $idColumn = $meta['idColumn'] ?? 'id';
-        $wheres = $meta['wheres'];
-
-        // Normalize wheres from object format to the key => value format
-        // used by getExtraConditions / DatabasePresenceVerifier::addConditions
-        $normalizedWheres = [];
-        foreach ($wheres as $where) {
-            if (is_array($where) && isset($where['column'], $where['value'])) { // @phpstan-ignore function.alreadyNarrowedType (runtime guard — native type is array, not typed array shape)
-                $normalizedWheres[$where['column']] = $where['value'];
-            }
-        }
-
-        return [
-            'connection' => $connection,
-            'table' => $table,
-            'column' => $meta['column'],
-            'wheres' => $normalizedWheres,
-            'ignore' => $ignore,
-            'idColumn' => $idColumn,
-            'type' => $type,
-        ];
-    }
-
-    /**
-     * Collect table:column pairs that are unsafe for precomputed lookups.
-     *
-     * Scans non-wildcard rules (all hit the global verifier) and unbatchable
-     * wildcard rules (object-form with closures, field-reference ignore, etc.)
-     * for exists/unique references on the same table:column pairs as the
-     * batchable groups.
-     *
-     * @param array<int|string, int> $wildcardAttributeSet
-     * @param array<string, true> $batchedTableColumns table:column pairs that have batchable groups
-     * @return array<string, true>
-     */
-    private function collectUnsafeTableColumns(array $wildcardAttributeSet, array $batchedTableColumns): array
-    {
-        $unsafe = [];
-
-        foreach ($this->rules as $attribute => $attributeRules) {
-            if (! is_array($attributeRules)) {
                 continue;
             }
 
-            $isWildcard = isset($wildcardAttributeSet[$attribute]);
+            if ($exclusionsResolved && in_array($check->ruleName, $this->excludeRules, true)) {
+                continue;
+            }
 
-            foreach ($attributeRules as $rule) {
-                [$ruleName] = ValidationRuleParser::parse($rule);
-
-                if (! is_string($ruleName) || ! in_array($ruleName, ['Exists', 'Unique'], true)) {
-                    continue;
-                }
-
-                // For non-wildcard rules, ALL exists/unique hit the global verifier
-                if (! $isWildcard) {
-                    $tc = $this->extractTableColumnForUnsafeCheck($rule, (string) $attribute);
-                    if ($tc !== null && isset($batchedTableColumns[$tc])) {
-                        $unsafe[$tc] = true;
-                    }
-                    continue;
-                }
-
-                // For wildcard rules, only NON-batchable ones are unsafe
-                $meta = $this->extractPresenceRuleMeta($rule, (string) $attribute);
-                if ($meta === null) {
-                    // Non-batchable — extract just table:column
-                    $tc = $this->extractTableColumnForUnsafeCheck($rule, (string) $attribute);
-                    if ($tc !== null && isset($batchedTableColumns[$tc])) {
-                        $unsafe[$tc] = true;
-                    }
-                }
+            if ($check->ruleName !== 'Required'
+                || is_object($value)
+                || ! $this->validateRequired($attribute, $value)
+            ) {
+                return false;
             }
         }
 
-        return $unsafe;
-    }
-
-    /**
-     * Extract just the table:column pair from a presence rule for collision checking.
-     *
-     * Simpler than extractPresenceRuleMeta — only needs table and column,
-     * doesn't need wheres/ignore/idColumn. Works for all rule forms.
-     */
-    private function extractTableColumnForUnsafeCheck(mixed $rule, string $attribute): ?string
-    {
-        if ($rule instanceof Contracts\DatabasePresenceRule) {
-            $meta = $rule->presenceMetadata();
-            [, $table] = $this->parseTable($meta['table']);
-            $column = $meta['column'] !== 'NULL' ? $meta['column'] : $this->guessColumnForQuery($attribute);
-
-            return $table . ':' . $column;
-        }
-
-        [, $parameters] = ValidationRuleParser::parse($rule);
-
-        if (! isset($parameters[0])) {
-            return null;
-        }
-
-        [, $table] = $this->parseTable($parameters[0]);
-        $column = $this->getQueryColumn($parameters, $attribute);
-
-        if ($column === '' || $column === false) {
-            return null;
-        }
-
-        return $table . ':' . $column;
-    }
-
-    /**
-     * Build a deterministic group key from presence rule metadata.
-     *
-     * Encodes the full query shape (connection, table, column, type, wheres,
-     * ignore, idColumn) so that rules with different query shapes on the same
-     * table:column produce separate batch groups instead of merging silently.
-     *
-     * @param array{connection: null|string, table: string, column: string, wheres: array<string, mixed>, ignore: mixed, idColumn: string, type: string} $meta
-     */
-    private function buildPresenceGroupKey(array $meta): string
-    {
-        return $meta['type']
-            . ':' . ($meta['connection'] ?? '')
-            . ':' . $meta['table']
-            . ':' . $meta['column']
-            . ':' . $meta['idColumn']
-            . ':' . (is_scalar($meta['ignore']) ? (string) $meta['ignore'] : '')
-            . ':' . json_encode($meta['wheres'], JSON_THROW_ON_ERROR);
+        return true;
     }
 
     /**
@@ -1037,6 +948,12 @@ class Validator implements ValidatorContract
      */
     protected function shouldBeExcluded(string $attribute): bool
     {
+        if (static::class === self::class) {
+            return isset($this->activeExclusions[$attribute])
+                || ($this->activeExclusions !== []
+                    && $this->hasAttributeAncestorInSet($attribute, $this->activeExclusions));
+        }
+
         foreach ($this->excludeAttributes as $excludeAttribute) {
             if ($attribute === $excludeAttribute
                 || Str::startsWith($attribute, $excludeAttribute . '.')
@@ -1049,21 +966,16 @@ class Validator implements ValidatorContract
     }
 
     /**
-     * Determine if the attribute or any of its ancestors was pre-excluded.
+     * Determine if any strict ancestor of an attribute belongs to a set.
      *
-     * Walks up the dot-separated segments checking each prefix against
-     * $preExcludedAttributes. O(depth) where depth is typically 2-4.
+     * @param array<string, true> $attributes
      */
-    private function isPreExcludedOrDescendant(string $attribute): bool
+    private function hasAttributeAncestorInSet(string $attribute, array $attributes): bool
     {
-        if (isset($this->preExcludedAttributes[$attribute])) {
-            return true;
-        }
-
         $position = 0;
 
         while (($position = strpos($attribute, '.', $position)) !== false) {
-            if (isset($this->preExcludedAttributes[substr($attribute, 0, $position)])) {
+            if (isset($attributes[substr($attribute, 0, $position)])) {
                 return true;
             }
             ++$position;
@@ -1266,7 +1178,7 @@ class Validator implements ValidatorContract
 
             foreach ($this->implicitAttributes as $pattern => $concreteAttributes) {
                 foreach ($concreteAttributes as $concrete) {
-                    $this->implicitAttributeMap[$concrete] = $pattern;
+                    $this->implicitAttributeMap[$concrete] ??= $pattern;
                 }
             }
         }
@@ -1275,7 +1187,7 @@ class Validator implements ValidatorContract
     }
 
     /**
-     * Replace each field parameter which has an escaped dot with the dot placeholder.
+     * Replace each escaped field parameter separator with its placeholder.
      */
     protected function replaceDotInParameters(array $parameters): array
     {
@@ -1383,7 +1295,9 @@ class Validator implements ValidatorContract
      */
     protected function hasNotFailedPreviousRuleIfPresenceRule(object|string $rule, string $attribute): bool
     {
-        return in_array($rule, ['Unique', 'Exists']) ? ! $this->messages->has($attribute) : true;
+        return in_array($rule, ['Unique', 'Exists'], true)
+            ? ! $this->messages->has($this->replacePlaceholderInString($attribute))
+            : true;
     }
 
     /**
@@ -1391,6 +1305,8 @@ class Validator implements ValidatorContract
      */
     protected function validateUsingCustomRule(string $attribute, mixed $value, Rule $rule): void
     {
+        $attributeWithPlaceholders = $attribute;
+
         $originalAttribute = $this->replacePlaceholderInString($attribute);
 
         $attribute = match (true) {
@@ -1423,7 +1339,7 @@ class Validator implements ValidatorContract
 
             $this->failedRules[$originalAttribute][$ruleClass] = [];
 
-            $messages = $this->getFromLocalArray($originalAttribute, $ruleClass) ?? $rule->message();
+            $messages = $this->getFromLocalArray($attributeWithPlaceholders, $ruleClass) ?? $rule->message();
 
             $messages = $messages ? (array) $messages : [$ruleClass];
 
@@ -1432,7 +1348,7 @@ class Validator implements ValidatorContract
 
                 $this->messages->add($key, $this->makeReplacements(
                     $message,
-                    $key,
+                    $key === $originalAttribute ? $attributeWithPlaceholders : $key,
                     $ruleClass,
                     []
                 ));
@@ -1479,23 +1395,27 @@ class Validator implements ValidatorContract
 
         $attribute = $this->replacePlaceholderInString($attribute);
 
-        if (in_array($rule, $this->excludeRules)) {
-            $this->excludeAttribute($attribute);
+        if (in_array($rule, $this->excludeRules, true)) {
+            $this->excludeAttribute($attributeWithPlaceholders);
             return;
         }
 
         if ($this->dependsOnOtherFields($rule)) {
-            $parameters = $this->replaceDotPlaceholderInParameters($parameters);
+            // Inline checks may supply scalar parameters; retain their encoded field paths.
+            $parameters = array_map(strval(...), $parameters);
         }
 
+        // Message lookups must distinguish literal dots and asterisks from path syntax.
         $this->messages->add($attribute, $this->makeReplacements(
             $this->getMessage($attributeWithPlaceholders, $rule),
-            $attribute,
+            $attributeWithPlaceholders,
             $rule,
             $parameters
         ));
 
-        $this->failedRules[$attribute][$rule] = $parameters;
+        $this->failedRules[$attribute][$rule] = $this->dependsOnOtherFields($rule)
+            ? $this->replaceDotPlaceholderInParameters($parameters)
+            : $parameters;
     }
 
     /**
@@ -1503,6 +1423,12 @@ class Validator implements ValidatorContract
      */
     protected function excludeAttribute(string $attribute): void
     {
+        if (static::class === self::class) {
+            $this->activeExclusions[$attribute] = true;
+
+            return;
+        }
+
         $this->excludeAttributes[] = $attribute;
 
         $this->excludeAttributes = array_unique($this->excludeAttributes);
@@ -1702,8 +1628,31 @@ class Validator implements ValidatorContract
         $this->initialRules = $rules;
 
         $this->rules = [];
+        $this->implicitAttributes = [];
+        $this->implicitAttributeMap = null;
 
         $this->addRules($rules);
+
+        return $this;
+    }
+
+    /**
+     * Retain the selected rules from the graph prepared for the current data.
+     *
+     * Retention applies only to the current prepared graph. Calling setData()
+     * rebuilds the complete original rule graph.
+     *
+     * @param list<string> $attributes
+     */
+    public function retainRules(array $attributes): static
+    {
+        $retained = [];
+
+        foreach ($attributes as $attribute) {
+            $retained[static::encodeAttributeWithPlaceholder($attribute)] = true;
+        }
+
+        $this->rules = array_intersect_key($this->rules, $retained);
 
         return $this;
     }
@@ -2067,7 +2016,6 @@ class Validator implements ValidatorContract
     {
         [$class, $method] = Str::parseCallback($callback, 'validate');
 
-        /* @phpstan-ignore-next-line */
         return $this->container->make($class)
             ->{$method}(...array_values($parameters));
     }
@@ -2077,7 +2025,7 @@ class Validator implements ValidatorContract
      */
     protected static function encodeAttributeWithPlaceholder(string $attribute): string
     {
-        return str_replace('\.', '__dot__' . static::$placeholderHash, $attribute);
+        return ValidationData::encodeAttribute($attribute);
     }
 
     /**
@@ -2085,7 +2033,7 @@ class Validator implements ValidatorContract
      */
     protected static function decodeAttributeWithPlaceholder(string $attribute): string
     {
-        return str_replace('__dot__' . static::$placeholderHash, '\.', $attribute);
+        return ValidationData::decodeAttribute($attribute);
     }
 
     /**
@@ -2104,7 +2052,6 @@ class Validator implements ValidatorContract
      */
     public static function flushState(): void
     {
-        static::$placeholderHash = null;
         static::$fakeDnsLookups = false;
     }
 

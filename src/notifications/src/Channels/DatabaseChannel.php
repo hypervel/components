@@ -28,11 +28,11 @@ class DatabaseChannel
         return [
             'id' => $notification->id,
             'type' => method_exists($notification, 'databaseType')
-                ? $notification->databaseType($notifiable) // @phpstan-ignore-line
+                ? $notification->databaseType($notifiable)
                 : get_class($notification),
             'data' => $this->getData($notifiable, $notification),
             'read_at' => method_exists($notification, 'initialDatabaseReadAtValue')
-                ? $notification->initialDatabaseReadAtValue($notifiable) // @phpstan-ignore-line
+                ? $notification->initialDatabaseReadAtValue($notifiable)
                 : null,
         ];
     }
@@ -45,12 +45,11 @@ class DatabaseChannel
     protected function getData(mixed $notifiable, Notification $notification): array
     {
         if (method_exists($notification, 'toDatabase')) {
-            return is_array($data = $notification->toDatabase($notifiable)) // @phpstan-ignore-line
+            return is_array($data = $notification->toDatabase($notifiable))
                 ? $data : $data->data;
         }
 
         if (method_exists($notification, 'toArray')) {
-            /* @phpstan-ignore-next-line */
             return $notification->toArray($notifiable);
         }
 

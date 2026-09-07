@@ -7,6 +7,7 @@ namespace Hypervel\ObjectPool;
 use Closure;
 use Hypervel\ObjectPool\Contracts\ObjectPool as ObjectPoolContract;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -81,7 +82,7 @@ abstract class ObjectPool implements ObjectPoolContract
      */
     public function release(object $object): void
     {
-        $id = $this->assertBorrowed($object);
+        $id = $this->ensureBorrowed($object);
         unset($this->borrowed[$id]);
 
         if ($this->closed) {
@@ -102,7 +103,7 @@ abstract class ObjectPool implements ObjectPoolContract
      */
     public function discard(object $object): void
     {
-        $id = $this->assertBorrowed($object);
+        $id = $this->ensureBorrowed($object);
         unset($this->borrowed[$id]);
 
         $this->destroyObject($object);
@@ -167,9 +168,18 @@ abstract class ObjectPool implements ObjectPoolContract
 
         $this->closed = true;
         $this->channel->close();
+        $cancellation = null;
 
         while (($object = $this->channel->pop()) !== false) {
-            $this->destroyObject($object);
+            try {
+                $this->destroyObject($object);
+            } catch (CanceledException $exception) {
+                $cancellation ??= $exception;
+            }
+        }
+
+        if ($cancellation !== null) {
+            throw $cancellation;
         }
     }
 
@@ -217,6 +227,14 @@ abstract class ObjectPool implements ObjectPoolContract
     }
 
     /**
+     * Return the number of coroutines waiting for an object.
+     */
+    public function getWaiters(): int
+    {
+        return $this->channel->waiters();
+    }
+
+    /**
      * Get the normalized pool options.
      */
     public function getOptions(): PoolOptions
@@ -227,7 +245,7 @@ abstract class ObjectPool implements ObjectPoolContract
     /**
      * Return statistics about the pool's current state.
      *
-     * @return array{total: int, idle: int, borrowed: int, closed: bool}
+     * @return array{total: int, idle: int, borrowed: int, waiters: int, closed: bool}
      */
     public function getStats(): array
     {
@@ -235,6 +253,7 @@ abstract class ObjectPool implements ObjectPoolContract
             'total' => count($this->managed),
             'idle' => $this->getObjectNumberInPool(),
             'borrowed' => count($this->borrowed),
+            'waiters' => $this->getWaiters(),
             'closed' => $this->closed,
         ];
     }
@@ -250,9 +269,9 @@ abstract class ObjectPool implements ObjectPoolContract
     abstract protected function createObject(): object;
 
     /**
-     * Assert an object is currently checked out from this pool.
+     * Ensure an object is currently checked out from this pool.
      */
-    protected function assertBorrowed(object $object): int
+    protected function ensureBorrowed(object $object): int
     {
         $id = spl_object_id($object);
 
@@ -290,6 +309,8 @@ abstract class ObjectPool implements ObjectPoolContract
             if ($this->destroyCallback !== null) {
                 ($this->destroyCallback)($object);
             }
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             PoolErrorReporter::report($exception);
         } finally {

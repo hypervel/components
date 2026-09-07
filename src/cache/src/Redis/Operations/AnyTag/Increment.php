@@ -29,12 +29,14 @@ class Increment
     /**
      * Execute the increment operation.
      *
+     * Redis errors from standalone Lua execution are thrown.
+     *
      * @param string $key The cache key (without prefix)
      * @param int $value The amount to increment by
      * @param array<int, int|string> $tags Array of tag names (will be cast to strings)
-     * @return false|int The new value after incrementing, or false on failure
+     * @return false|int The new value, or false when the Cluster counter transaction fails
      */
-    public function execute(string $key, int $value, array $tags): int|bool
+    public function execute(string $key, int $value, array $tags): int|false
     {
         // 1. Cluster Mode: Must use sequential commands
         if ($this->context->isCluster()) {
@@ -48,7 +50,7 @@ class Increment
     /**
      * Execute for cluster using sequential commands.
      */
-    private function executeCluster(string $key, int $value, array $tags): int|bool
+    private function executeCluster(string $key, int $value, array $tags): int|false
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tags) {
             $prefix = $this->context->prefix();
@@ -57,7 +59,14 @@ class Increment
             $multi = $connection->multi();
             $multi->incrBy($prefix . $key, $value);
             $multi->ttl($prefix . $key);
-            [$newValue, $ttl] = $multi->exec();
+            $results = $multi->exec();
+
+            // Do not publish metadata for a counter write Redis did not confirm.
+            if (! is_array($results) || ! is_int($results[0] ?? null)) {
+                return false;
+            }
+
+            [$newValue, $ttl] = $results;
 
             $tagsKey = $this->context->reverseIndexKey($key);
             $oldTags = $connection->smembers($tagsKey);
@@ -118,7 +127,7 @@ class Increment
     /**
      * Execute using Lua script for performance.
      */
-    private function executeUsingLua(string $key, int $value, array $tags): int|bool
+    private function executeUsingLua(string $key, int $value, array $tags): int|false
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tags) {
             $prefix = $this->context->prefix();

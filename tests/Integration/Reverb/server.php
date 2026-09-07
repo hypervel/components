@@ -88,24 +88,31 @@ foreach ($defaults as $key => $value) {
 // Boot a fully bootstrapped Hypervel app with Reverb enabled.
 $app = TestbenchApplication::create(
     resolvingCallback: function ($app) use ($workerNum) {
+        $config = $app->make('config');
+
         // Clear the default HTTP server entry — the test server only needs the
         // Reverb WebSocket server. Must happen before the provider registers so
         // registerWebSocketServer() appends to an empty array.
-        $app->make('config')->set('server.servers', []);
+        $config->set('server.servers', []);
 
         // Register Reverb provider (register + boot fires immediately since app is booted).
         // registerWebSocketServer() appends the Reverb server entry using the port
         // from REVERB_SERVER_PORT (set above via env vars → config).
         $app->register(ReverbServiceProvider::class);
 
+        $baseApplication = $config->array('reverb.apps.apps.0');
+        $disabledRateLimiting = array_replace($baseApplication['rate_limiting'], ['enabled' => false]);
+        $disabledWebhooks = array_replace($baseApplication['webhooks'], ['url' => null]);
+
         // Webhook inspection only works with worker_num=1 (no fork).
         // Queue::fake() creates an in-memory fake that doesn't survive forking.
         if ($workerNum === 1) {
-            $app->make('config')->set('reverb.apps.apps.0.webhooks', [
+            $config->set('reverb.apps.apps.0.webhooks', array_replace($baseApplication['webhooks'], [
                 'url' => 'https://example.com/webhook',
                 'events' => ['channel_occupied', 'channel_vacated', 'member_added', 'member_removed', 'client_event'],
                 'disconnect_smoothing_ms' => 0,
-            ]);
+                'batching' => array_replace($baseApplication['webhooks']['batching'], ['enabled' => false]),
+            ]));
 
             Queue::fake([WebhookDeliveryJob::class]);
         }
@@ -113,7 +120,7 @@ $app = TestbenchApplication::create(
         // Add additional test apps (env vars only support one app).
         // Boot-time configuration mutations are tracked automatically and survive
         // the worker-start configuration rebuild.
-        $app->make('config')->set('reverb.apps.apps.1', [
+        $config->set('reverb.apps.apps.1', array_replace($baseApplication, [
             'key' => 'reverb-key-2',
             'secret' => 'reverb-secret-2',
             'app_id' => '654321',
@@ -122,9 +129,12 @@ $app = TestbenchApplication::create(
             'activity_timeout' => 30,
             'max_message_size' => 1_000_000,
             'max_connections' => 1,
-        ]);
+            'accept_client_events_from' => 'members',
+            'rate_limiting' => $disabledRateLimiting,
+            'webhooks' => $disabledWebhooks,
+        ]));
 
-        $app->make('config')->set('reverb.apps.apps.2', [
+        $config->set('reverb.apps.apps.2', array_replace($baseApplication, [
             'key' => 'reverb-key-3',
             'secret' => 'reverb-secret-3',
             'app_id' => '987654',
@@ -132,7 +142,11 @@ $app = TestbenchApplication::create(
             'ping_interval' => 10,
             'activity_timeout' => 30,
             'max_message_size' => 1,
-        ]);
+            'max_connections' => null,
+            'accept_client_events_from' => 'members',
+            'rate_limiting' => $disabledRateLimiting,
+            'webhooks' => $disabledWebhooks,
+        ]));
 
         // Wrap the ApplicationProvider with a dynamic resolver for parallel test
         // isolation. Each paratest worker derives unique app credentials from
@@ -240,7 +254,6 @@ $app = TestbenchApplication::create(
         });
 
         // Override Swoole settings for test determinism.
-        $config = $app->make('config');
         if ($workerNum > 1) {
             $config->set('server.mode', SWOOLE_PROCESS);
         } else {

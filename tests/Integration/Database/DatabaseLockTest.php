@@ -22,8 +22,10 @@ class DatabaseLockTest extends DatabaseTestCase
 {
     public function testLockCanHaveASeparateConnection(): void
     {
-        $this->app['config']->set('cache.stores.database.lock_connection', 'test');
-        $this->app['config']->set('database.connections.test', $this->app['config']->get('database.connections.testing'));
+        $config = $this->app->make('config');
+
+        $config->set('cache.stores.database.lock_connection', 'test');
+        $config->set('database.connections.test', $config->array('database.connections.testing'));
 
         $this->assertSame('test', Cache::driver('database')->lock('foo')->getConnectionName());
     }

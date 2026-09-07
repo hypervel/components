@@ -48,22 +48,22 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Temporarily store the raw blocks found in the template.
      */
-    protected const RAW_BLOCKS_CONTEXT_KEY = '__view.raw_blocks';
+    protected const string RAW_BLOCKS_CONTEXT_KEY = '__view.raw_blocks';
 
     /**
      * Footer lines to be added to the template.
      */
-    protected const FOOTER_CONTEXT_KEY = '__view.footer';
+    protected const string FOOTER_CONTEXT_KEY = '__view.footer';
 
     /**
      * The file currently being compiled.
      */
-    protected const PATH_CONTEXT_KEY = '__view.path';
+    protected const string PATH_CONTEXT_KEY = '__view.path';
 
     /**
      * The temporary echo format override for the current coroutine.
      */
-    protected const ECHO_FORMAT_CONTEXT_KEY = '__view.echo_format';
+    protected const string ECHO_FORMAT_CONTEXT_KEY = '__view.echo_format';
 
     /**
      * All of the registered extensions.
@@ -187,10 +187,17 @@ class BladeCompiler extends Compiler implements CompilerInterface
             return;
         }
 
-        $lastModified = $this->files->lastModified($this->getPath());
+        $sourceModified = $this->files->lastModified($this->getPath());
+        $compiledModified = $this->files->lastModified($compiledPath);
 
-        if ($lastModified >= $this->files->lastModified($compiledPath)) {
-            touch($compiledPath, $lastModified + 1);
+        if ($compiledModified === false) {
+            $this->files->replace($compiledPath, $contents);
+
+            return;
+        }
+
+        if ($sourceModified !== false && $sourceModified >= $compiledModified) {
+            touch($compiledPath, $sourceModified + 1);
         }
     }
 
@@ -319,16 +326,31 @@ class BladeCompiler extends Compiler implements CompilerInterface
     public static function render(string $string, array $data = [], bool $deleteCachedView = false): string
     {
         $component = new class($string) extends Component {
-            protected $template;
-
-            public function __construct($template)
+            /**
+             * Create a new inline Blade component instance.
+             */
+            public function __construct(protected string $template)
             {
-                $this->template = $template;
             }
 
-            public function render(): View|Htmlable|Closure|string
+            /**
+             * Get the inline Blade source.
+             */
+            public function render(): string
             {
                 return $this->template;
+            }
+
+            /**
+             * Resolve the inline Blade source to its temporary view.
+             *
+             * Blade::render() receives raw source, so a literal template that
+             * matches a view name must not resolve to that application view.
+             */
+            public function resolveView(): string
+            {
+                return self::$bladeViewCache[self::bladeViewCacheKey($this->template)]
+                    ??= $this->createBladeViewFromString($this->factory(), $this->template);
             }
         };
 
@@ -336,9 +358,12 @@ class BladeCompiler extends Compiler implements CompilerInterface
             ->make(ViewFactory::class)
             ->make($component->resolveView(), $data);
 
-        return tap($view->render(), function () use ($view, $deleteCachedView) {
+        return tap($view->render(), function () use ($component, $string, $view, $deleteCachedView) {
             if ($deleteCachedView) {
                 @unlink($view->getPath());
+
+                // Other view caches remain valid because this source is republished at the same content-addressed path.
+                $component::forgetBladeView($string);
             }
         });
     }

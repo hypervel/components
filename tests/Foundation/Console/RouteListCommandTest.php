@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Console;
 
 use Hypervel\Console\Application;
+use Hypervel\Console\Events\ArtisanStarting;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Http\Kernel as KernelContract;
 use Hypervel\Foundation\Console\RouteListCommand;
 use Hypervel\Foundation\Http\Kernel;
 use Hypervel\Routing\Router;
@@ -20,9 +22,13 @@ class RouteListCommandTest extends TestCase
     {
         parent::setUp();
 
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(ArtisanStarting::class)->andReturnFalse();
+        $events->shouldNotReceive('dispatch');
+
         $this->consoleApp = new Application(
             $hypervel = new \Hypervel\Foundation\Application(__DIR__),
-            m::mock(Dispatcher::class, ['dispatch' => null, 'fire' => null]),
+            $events,
             'testing',
         );
 
@@ -44,7 +50,7 @@ class RouteListCommandTest extends TestCase
 
         $kernel->prependToMiddlewarePriority('Middleware 5');
 
-        $hypervel->instance(Kernel::class, $kernel);
+        $hypervel->instance(KernelContract::class, $kernel);
 
         $router->get('/example', function () {
             return 'Hello World';
@@ -259,16 +265,20 @@ class RouteListCommandTest extends TestCase
             protected array $middlewareGroups = [];
         };
 
-        $hypervel->instance(Kernel::class, $kernel);
+        $hypervel->instance(KernelContract::class, $kernel);
 
         $router->get('/controller-route', [RouteListCommandTestController::class, 'index']);
 
         $command = new RouteListCommand($router);
         $command->setHypervel($hypervel);
 
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(ArtisanStarting::class)->andReturnFalse();
+        $events->shouldNotReceive('dispatch');
+
         $app = new Application(
             $hypervel,
-            m::mock(Dispatcher::class, ['dispatch' => null, 'fire' => null]),
+            $events,
             'testing',
         );
         $app->addCommands([$command]);

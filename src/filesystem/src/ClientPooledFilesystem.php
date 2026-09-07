@@ -11,7 +11,6 @@ use Hypervel\ObjectPool\Contracts\Factory;
 use Hypervel\ObjectPool\Contracts\InvalidatesPool;
 use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolDefinition;
-use Hypervel\ObjectPool\PoolErrorReporter;
 use RuntimeException;
 use Throwable;
 
@@ -94,13 +93,7 @@ class ClientPooledFilesystem implements Cloud, InvalidatesPool
         try {
             $result = $operation($stack, $lease->get());
         } catch (Throwable $operationException) {
-            try {
-                $lease->release();
-            } catch (Throwable $finalizationException) {
-                PoolErrorReporter::report($finalizationException);
-            }
-
-            throw $operationException;
+            $lease->releaseAfterFailure($operationException);
         }
 
         $lease->release();
@@ -121,13 +114,7 @@ class ClientPooledFilesystem implements Cloud, InvalidatesPool
         try {
             return [$lease, $this->buildStack($lease->get())];
         } catch (Throwable $exception) {
-            try {
-                $lease->discard();
-            } catch (Throwable $discardException) {
-                PoolErrorReporter::report($discardException);
-            }
-
-            throw $exception;
+            $lease->discardAfterFailure($exception);
         }
     }
 
@@ -172,13 +159,7 @@ class ClientPooledFilesystem implements Cloud, InvalidatesPool
         try {
             $stream = $operation($stack);
         } catch (Throwable $operationException) {
-            try {
-                $lease->release();
-            } catch (Throwable $finalizationException) {
-                PoolErrorReporter::report($finalizationException);
-            }
-
-            throw $operationException;
+            $lease->releaseAfterFailure($operationException);
         }
 
         if (! is_resource($stream)) {

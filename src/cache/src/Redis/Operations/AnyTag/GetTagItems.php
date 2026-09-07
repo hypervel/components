@@ -17,7 +17,7 @@ use Hypervel\Redis\RedisConnection;
  */
 class GetTagItems
 {
-    private const CHUNK_SIZE = 1000;
+    private const int CHUNK_SIZE = 1000;
 
     /**
      * Create a new tag items query instance.
@@ -33,7 +33,7 @@ class GetTagItems
      * Execute the query.
      *
      * @param array<int, int|string> $tags Array of tag names
-     * @return Generator Yields key => value pairs
+     * @return Generator<string, mixed, void, void> Yields key => value pairs
      */
     public function execute(array $tags): Generator
     {
@@ -66,8 +66,8 @@ class GetTagItems
     /**
      * Fetch values for a list of keys.
      *
-     * @param array<int, string> $keys Array of cache keys (without prefix)
-     * @return Generator Yields key => value pairs
+     * @param list<string> $keys Array of cache keys (without prefix)
+     * @return Generator<string, mixed, void, void> Yields key => value pairs
      */
     private function fetchValues(array $keys): Generator
     {
@@ -76,10 +76,10 @@ class GetTagItems
         }
 
         $prefix = $this->context->prefix();
-        $prefixedKeys = array_map(fn ($key): string => $prefix . $key, $keys);
+        $prefixedKeys = array_map(fn (string $key): string => $prefix . $key, $keys);
 
         $results = $this->context->withConnection(
-            function (RedisConnection $connection) use ($prefixedKeys, $keys) {
+            function (RedisConnection $connection) use ($prefixedKeys, $keys): array {
                 $values = $connection->mget($prefixedKeys);
                 $items = [];
 

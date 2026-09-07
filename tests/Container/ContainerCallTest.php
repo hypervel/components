@@ -11,6 +11,7 @@ use Hypervel\Container\Attributes\Give;
 use Hypervel\Container\BoundMethod;
 use Hypervel\Container\Container;
 use Hypervel\Container\ParameterRecipe;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Tests\TestCase;
 use ReflectionProperty;
@@ -517,6 +518,20 @@ class ContainerCallTest extends TestCase
         $this->assertSame('hello', $result);
     }
 
+    public function testParameterizedAnonymousClosureCallDoesNotCreateResolutionState(): void
+    {
+        $container = new ContainerCallStateInspectionStub;
+
+        $this->assertFalse($container->hasResolutionState());
+
+        $result = $container->call(static fn (string $value): string => $value, ['value' => 'hello']);
+
+        // Anonymous closures have no contextual build-stack role, so state access
+        // here would add coroutine-context overhead without affecting resolution.
+        $this->assertSame('hello', $result);
+        $this->assertFalse($container->hasResolutionState());
+    }
+
     public function testCallClosureWithOptionalTypedParameterStillInjectsBoundDependency()
     {
         $container = new Container;
@@ -626,6 +641,14 @@ class ContainerCallThrowingStub
     public function throwingMethod(): never
     {
         throw new RuntimeException('Intentional failure');
+    }
+}
+
+class ContainerCallStateInspectionStub extends Container
+{
+    public function hasResolutionState(): bool
+    {
+        return CoroutineContext::has(self::RESOLUTION_STATE_CONTEXT_KEY);
     }
 }
 

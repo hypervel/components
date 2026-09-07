@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Concerns;
 
-use Hypervel\Foundation\Testing\RefreshDatabaseState;
-
 use function Hypervel\Testbench\after_resolving;
 use function Hypervel\Testbench\default_migration_path;
 
@@ -16,19 +14,15 @@ trait WithHypervelMigrations
     /**
      * @internal
      */
-    protected function setUpWithHypervelMigrations(): void
+    protected function prepareHypervelMigrations(): void
     {
         $loadHypervelMigrations = static::cachedConfigurationForWorkbench()?->getWorkbenchAttributes()['install'] ?? false;
 
-        if (! ($loadHypervelMigrations && is_dir(default_migration_path()))) {
+        if (! $loadHypervelMigrations) {
             return;
         }
 
-        if (
-            static::usesRefreshDatabaseTestingConcern()
-            && RefreshDatabaseState::$migrated === false
-            && RefreshDatabaseState::$lazilyRefreshed === false
-        ) {
+        if ($this->shouldRegisterMigrationPaths()) {
             after_resolving($this->app, 'migrator', static function ($migrator, $app): void {
                 $migrator->path(default_migration_path());
             });

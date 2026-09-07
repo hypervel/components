@@ -24,9 +24,13 @@ class CacheTest extends TestCase
 
         $this->testUser->hasPermissionTo('edit-articles');
 
-        $payload = $registrar->getCacheRepository()->get($registrar->getCacheKey());
+        $entry = $registrar->getCacheRepository()->get($registrar->getCacheKey());
 
-        $this->assertIsArray($payload);
+        $this->assertIsArray($entry);
+        $this->assertSame('present', $entry['__hypervel_model_cache']);
+        $this->assertIsArray($entry['value']);
+
+        $payload = $entry['value'];
 
         $permission = collect($payload['permissions'])->first(
             fn (array $permission): bool => $permission['attributes']['name'] === 'edit-articles',
@@ -74,11 +78,29 @@ class CacheTest extends TestCase
 
         $firstToken = $registrar->modelAssignmentCacheToken();
 
-        $registrar->forgetCachedPermissions();
+        $this->assertTrue($registrar->forgetCachedPermissions());
+        $this->assertFalse($registrar->forgetCachedPermissions());
 
         $this->assertMatchesRegularExpression('/^[0-7][0-9A-HJKMNP-TV-Z]{25}$/', $firstToken);
         $this->assertNotSame($firstToken, $registrar->modelAssignmentCacheToken());
         $this->assertTrue($this->testUser->hasRole('testRole'));
+    }
+
+    public function testCatalogOnlyMutationsDoNotRotateTheAssignmentToken(): void
+    {
+        $registrar = $this->app->make(PermissionRegistrar::class);
+        $token = $registrar->modelAssignmentCacheToken();
+        $role = $this->app->make(RoleContract::class)::create(['name' => 'catalog-role']);
+        $permission = $this->app->make(PermissionContract::class)::create(['name' => 'catalog-permission']);
+
+        $role->name = 'renamed-catalog-role';
+        $role->save();
+        $permission->name = 'renamed-catalog-permission';
+        $permission->save();
+        $role->givePermissionTo($permission);
+        $role->revokePermissionTo($permission);
+
+        $this->assertSame($token, $registrar->modelAssignmentCacheToken());
     }
 
     public function testRoleAssignmentMutationsInvalidateWarmModelRoleCache(): void
@@ -128,6 +150,30 @@ class CacheTest extends TestCase
 
         $this->testUser->revokePermissionTo('edit-articles');
         $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
+    }
+
+    public function testDirectPermissionHydrationIsMemoizedPerCoroutineAndClearedByMutation(): void
+    {
+        $this->testUser->givePermissionTo('edit-articles');
+        $user = User::findOrFail($this->testUser->getKey());
+
+        $first = $user->getDirectPermissions()->sole();
+        $second = $user->getDirectPermissions()->sole();
+
+        $this->assertSame($first, $second);
+
+        $user->revokePermissionTo('edit-articles');
+        $user->givePermissionTo('edit-articles');
+
+        $afterMutation = $user->getDirectPermissions()->sole();
+        $this->assertNotSame($first, $afterMutation);
+
+        [$coroutineOne, $coroutineTwo] = parallel([
+            fn (): Model => User::findOrFail($user->getKey())->getDirectPermissions()->sole(),
+            fn (): Model => User::findOrFail($user->getKey())->getDirectPermissions()->sole(),
+        ]);
+
+        $this->assertNotSame($coroutineOne, $coroutineTwo);
     }
 
     public function testExplicitInvalidationClearsKeylessAssignmentCacheEntries(): void

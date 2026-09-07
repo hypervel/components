@@ -7,11 +7,15 @@ namespace Hypervel\Tests\Http;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Http\JsonResponse;
+use Hypervel\Support\Json;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use JsonSerializable;
 use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
+use Stringable;
+use Symfony\Component\HttpFoundation\JsonResponse as SymfonyJsonResponse;
+use TypeError;
 
 class HttpJsonResponseTest extends TestCase
 {
@@ -110,6 +114,76 @@ class HttpJsonResponseTest extends TestCase
 
         $this->assertSame('bar', $response->getData()->foo);
     }
+
+    #[DataProvider('rawJsonDataProvider')]
+    public function testRawJsonRetainsSymfonyConstructorCompatibility(mixed $data): void
+    {
+        $expected = new SymfonyJsonResponse($data, 201, ['X-Test' => 'value'], true);
+        $response = new JsonResponse($data, 201, ['X-Test' => 'value'], json: true);
+
+        $this->assertSame($expected->getContent(), $response->getContent());
+        $this->assertSame($expected->getStatusCode(), $response->getStatusCode());
+        $this->assertSame('value', $response->headers->get('X-Test'));
+    }
+
+    public static function rawJsonDataProvider(): array
+    {
+        return [
+            'string' => ['{"foo":"bar"}'],
+            'integer' => [123],
+            'float' => [12.5],
+            'Stringable' => [new JsonResponseTestStringableObject],
+        ];
+    }
+
+    #[DataProvider('invalidRawJsonDataProvider')]
+    public function testRawJsonRejectsValuesSymfonyDoesNotAccept(mixed $data): void
+    {
+        $this->expectException(TypeError::class);
+        $this->expectExceptionMessage('If $json is set to true');
+
+        new JsonResponse($data, json: true);
+    }
+
+    public static function invalidRawJsonDataProvider(): array
+    {
+        return [
+            'null' => [null],
+            'array' => [[]],
+            'ordinary object' => [new stdClass],
+        ];
+    }
+
+    public function testDataRoundTripsAtTheMaximumSupportedNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 1; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $response = new JsonResponse(['nested' => $value]);
+
+        $this->assertSame(['nested' => $value], $response->getData(assoc: true));
+
+        $response->setEncodingOptions(JSON_UNESCAPED_SLASHES);
+
+        $this->assertSame(['nested' => $value], $response->getData(assoc: true));
+        $this->assertNotSame('null', $response->getContent());
+    }
+
+    public function testDataRejectsOneLevelOverTheMaximumNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $this->expectException(InvalidArgumentException::class);
+
+        new JsonResponse(['nested' => $value]);
+    }
 }
 
 class JsonResponseTestJsonableObject implements Jsonable
@@ -133,5 +207,13 @@ class JsonResponseTestArrayableObject implements Arrayable
     public function toArray(): array
     {
         return ['foo' => 'bar'];
+    }
+}
+
+class JsonResponseTestStringableObject implements Stringable
+{
+    public function __toString(): string
+    {
+        return '{"foo":"bar"}';
     }
 }

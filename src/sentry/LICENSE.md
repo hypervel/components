@@ -2,10 +2,6 @@ The MIT License (MIT)
 
 Copyright (c) 2016 Functional Software, Inc. dba Sentry
 
-Copyright (c) D.J.Hwang
-
-Copyright (c) Hyperf
-
 Copyright (c) Hypervel
 
 Permission is hereby granted, free of charge, to any person obtaining a copy

@@ -460,7 +460,7 @@ class PostgresGrammar extends Grammar
         // strip the leading boolean we will do so when using as the only where.
         $joinWheres = $this->compileUpdateJoinWheres($query);
 
-        if (trim($baseWheres) == '') {
+        if (trim($baseWheres) === '') {
             return 'where ' . $this->removeLeadingBoolean($joinWheres);
         }
 
@@ -496,7 +496,7 @@ class PostgresGrammar extends Grammar
         $values = (new Collection($values))
             ->map(function ($value, $column) {
                 return is_array($value) || ($this->isJsonSelector($column) && ! $this->isExpression($value))
-                    ? json_encode($value)
+                    ? json_encode($value, JSON_THROW_ON_ERROR)
                     : $value;
             })
             ->all();
@@ -519,7 +519,7 @@ class PostgresGrammar extends Grammar
 
         $alias = last(preg_split('/\s+as\s+/i', $query->from));
 
-        $selectSql = $this->compileSelect($query->select($alias . '.ctid'));
+        $selectSql = $this->compileSelectQuery($query->select($alias . '.ctid'));
 
         return "update {$table} set {$columns} where {$this->wrap('ctid')} in ({$selectSql})";
     }
@@ -532,7 +532,7 @@ class PostgresGrammar extends Grammar
     {
         $values = (new Collection($values))->map(function ($value, $column) {
             return is_array($value) || ($this->isJsonSelector($column) && ! $this->isExpression($value))
-                ? json_encode($value)
+                ? json_encode($value, JSON_THROW_ON_ERROR)
                 : $value;
         })->all();
 
@@ -566,7 +566,7 @@ class PostgresGrammar extends Grammar
 
         $alias = last(preg_split('/\s+as\s+/i', $query->from));
 
-        $selectSql = $this->compileSelect($query->select($alias . '.ctid'));
+        $selectSql = $this->compileSelectQuery($query->select($alias . '.ctid'));
 
         return "delete from {$table} where {$this->wrap('ctid')} in ({$selectSql})";
     }
@@ -640,7 +640,6 @@ class PostgresGrammar extends Grammar
             ->map(fn ($attribute) => $this->parseJsonPathArrayKeys($attribute))
             ->collapse()
             ->map(function ($attribute) use ($quote) {
-                // @phpstan-ignore notIdentical.alwaysFalse (PHPDoc type inference too narrow; runtime values can be numeric strings)
                 return filter_var($attribute, FILTER_VALIDATE_INT) !== false
                     ? $attribute
                     : $quote . $attribute . $quote;

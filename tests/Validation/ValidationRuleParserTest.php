@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
+use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Support\Fluent;
 use Hypervel\Tests\TestCase;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\ValidationRuleParser;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class ValidationRuleParserTest extends TestCase
 {
@@ -409,7 +411,7 @@ class ValidationRuleParserTest extends TestCase
         $this->assertEquals([
             'date' => [
                 'date',
-                'after:today',
+                'after:"today"',
             ],
         ], $results->rules);
     }
@@ -533,6 +535,135 @@ class ValidationRuleParserTest extends TestCase
         ], $results->rules);
     }
 
+    public function testExplodeCanonicalizesStringableFluentRules(): void
+    {
+        $results = (new ValidationRuleParser(['value' => 'allowed']))->explode([
+            'value' => [
+                Rule::in(['allowed', 'other']),
+                Rule::notIn(['blocked']),
+                Rule::dimensions()->maxWidth(100),
+                Rule::exists('users', 'email'),
+                Rule::unique('users', 'email')->ignore(0),
+            ],
+        ]);
+
+        $this->assertSame([
+            'in:"allowed","other"',
+            'not_in:"blocked"',
+            'dimensions:max_width=100',
+            'exists:users,email',
+            'unique:users,email,"0",id',
+        ], $results->rules['value']);
+    }
+
+    #[TestWith(['a,b'])]
+    #[TestWith(['a"b'])]
+    #[TestWith(['directory\\'])]
+    #[TestWith(['a\"b'])]
+    public function testLiteralRuleParametersRoundTripThroughCsv(string $value): void
+    {
+        foreach ([Rule::in([$value]), Rule::notIn([$value]), Rule::contains([$value]), Rule::doesntContain([$value])] as $rule) {
+            $this->assertSame([$value], ValidationRuleParser::parse((string) $rule)[1]);
+        }
+    }
+
+    public function testStringifiedEnumValuesRoundTripThroughCsv(): void
+    {
+        $this->assertSame(
+            ['In', [CsvRuleValue::Literal->value]],
+            ValidationRuleParser::parse((string) Rule::enum(CsvRuleValue::class)),
+        );
+    }
+
+    #[TestWith(['direct'])]
+    #[TestWith(['array'])]
+    #[TestWith(['wildcard'])]
+    public function testCompositeRulesPreserveLiteralPipesDuringExpansion(string $form): void
+    {
+        $rules = [
+            [Rule::date()->format('Y-m-d\|H:i:s'), ['date_format:"Y-m-d\|H:i:s"']],
+            [Rule::numeric()->same('other|value'), ['numeric', 'same:"other|value"']],
+            [Rule::string()->startsWith('INFO|'), ['string', 'starts_with:"INFO|"']],
+        ];
+
+        foreach ($rules as [$rule, $expected]) {
+            $parser = new ValidationRuleParser(['items' => [['value' => 'value']]]);
+            $attribute = $form === 'wildcard' ? 'items.*.value' : 'items.0.value';
+            $result = $parser->explode([$attribute => $form === 'direct' ? $rule : [$rule]]);
+
+            $this->assertSame($expected, $result->rules['items.0.value']);
+        }
+    }
+
+    public function testCsvParsingDoesNotAlterRegexParameters(): void
+    {
+        $pattern = '/^[a,b"\\\|]+$/';
+
+        $this->assertSame(['Regex', [$pattern]], ValidationRuleParser::parse('regex:' . $pattern));
+        $this->assertSame(['NotRegex', [$pattern]], ValidationRuleParser::parse('not_regex:' . $pattern));
+    }
+
+    public function testExplodePreservesCallbackBearingPresenceRules(): void
+    {
+        $exists = Rule::exists('users', 'email')->where(static fn ($query) => $query);
+        $unique = Rule::unique('users', 'email')->where(static fn ($query) => $query);
+
+        $results = (new ValidationRuleParser(['email' => 'user@example.com']))->explode([
+            'email' => [$exists, $unique],
+        ]);
+
+        $this->assertSame([$exists, $unique], $results->rules['email']);
+    }
+
+    public function testIdentifiesRulesReducedToStringsByTheParser(): void
+    {
+        $callbackExists = Rule::exists('users', 'email')->where(
+            static fn ($query) => $query,
+        );
+        $contractRule = new class implements RuleContract {
+            public function passes(string $attribute, mixed $value): bool
+            {
+                return true;
+            }
+
+            public function message(): string
+            {
+                return 'Invalid value.';
+            }
+        };
+
+        $this->assertTrue(ValidationRuleParser::ruleReducesToString(
+            Rule::exists('users', 'email'),
+        ));
+        $this->assertTrue(ValidationRuleParser::ruleReducesToString(Rule::date()));
+        $this->assertFalse(ValidationRuleParser::ruleReducesToString($callbackExists));
+        $this->assertFalse(ValidationRuleParser::ruleReducesToString(
+            Rule::forEach(static fn (): array => []),
+        ));
+        $this->assertFalse(ValidationRuleParser::ruleReducesToString(
+            static function (): void {
+            },
+        ));
+        $this->assertFalse(ValidationRuleParser::ruleReducesToString($contractRule));
+    }
+
+    public function testExplodeEvaluatesConditionalFluentRuleOnce(): void
+    {
+        $calls = 0;
+        $rule = Rule::requiredIf(function () use (&$calls): bool {
+            ++$calls;
+
+            return true;
+        });
+
+        $results = (new ValidationRuleParser(['value' => 'present']))->explode([
+            'value' => [$rule],
+        ]);
+
+        $this->assertSame(['required'], $results->rules['value']);
+        $this->assertSame(1, $calls);
+    }
+
     public function testExplodeExpandsWildcardStringRules(): void
     {
         $parser = new ValidationRuleParser([
@@ -558,6 +689,54 @@ class ValidationRuleParserTest extends TestCase
             'items.*.name' => ['items.0.name', 'items.1.name'],
             'items.*.price' => ['items.0.price', 'items.1.price'],
         ], $results->implicitAttributes);
+    }
+
+    #[DataProvider('overlappingWildcardAndExactRuleProvider')]
+    public function testExplodePreservesOverlappingWildcardAndExactRulePrecedence(
+        array $rules,
+        array $expectedRules,
+    ): void {
+        $results = (new ValidationRuleParser([
+            'items' => [
+                ['code' => 'A'],
+                ['code' => 'B'],
+            ],
+        ]))->explode($rules);
+
+        $this->assertSame($expectedRules, $results->rules);
+        $this->assertSame([
+            'items.*.code' => ['items.0.code', 'items.1.code'],
+        ], $results->implicitAttributes);
+    }
+
+    public static function overlappingWildcardAndExactRuleProvider(): array
+    {
+        return [
+            'wildcard then exact string' => [
+                ['items.*.code' => 'string', 'items.0.code' => 'min:1'],
+                ['items.0.code' => ['min:1'], 'items.1.code' => ['string']],
+            ],
+            'wildcard then exact array' => [
+                ['items.*.code' => 'string', 'items.0.code' => ['min:1']],
+                ['items.0.code' => ['min:1'], 'items.1.code' => ['string']],
+            ],
+            'exact string then wildcard' => [
+                ['items.0.code' => 'min:1', 'items.*.code' => 'string'],
+                ['items.0.code' => ['min:1', 'string'], 'items.1.code' => ['string']],
+            ],
+            'exact array then wildcard' => [
+                ['items.0.code' => ['min:1'], 'items.*.code' => 'string'],
+                ['items.0.code' => ['min:1', 'string'], 'items.1.code' => ['string']],
+            ],
+            'empty marker then exact string' => [
+                ['items.*.code' => [], 'items.0.code' => 'min:1'],
+                ['items.0.code' => ['min:1'], 'items.1.code' => []],
+            ],
+            'exact string then empty marker' => [
+                ['items.0.code' => 'min:1', 'items.*.code' => []],
+                ['items.0.code' => ['min:1'], 'items.1.code' => []],
+            ],
+        ];
     }
 
     public function testExplodeExpandsDeeplyNestedWildcardStringRules(): void
@@ -640,4 +819,9 @@ class ValidationRuleParserTest extends TestCase
             'non-string' => [123, false],
         ];
     }
+}
+
+enum CsvRuleValue: string
+{
+    case Literal = 'a,"b"\\';
 }

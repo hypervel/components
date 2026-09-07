@@ -22,7 +22,7 @@ class StashRouteTest extends TestCase
     }
 
     #[Test]
-    public function itCanCacheRoute()
+    public function itCanCacheRoute(): void
     {
         $this->get('stubs-controller')
             ->assertOk()

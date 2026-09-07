@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Session;
 
-use Hypervel\Container\Container;
-use Hypervel\Foundation\Application;
 use Hypervel\Support\Env;
-use Hypervel\Tests\TestCase;
+use Hypervel\Testbench\TestCase;
 
 class SessionConfigTest extends TestCase
 {
@@ -17,25 +15,31 @@ class SessionConfigTest extends TestCase
             'SESSION_ENCRYPT' => '1',
             'SESSION_EXPIRE_ON_CLOSE' => '0',
             'SESSION_BLOCK' => '1',
+            'SESSION_TRACK_USER_SESSIONS' => '1',
             'SESSION_BLOCK_LOCK_SECONDS' => '45',
             'SESSION_BLOCK_WAIT_SECONDS' => '12',
+            'SESSION_SECURE_COOKIE' => '0',
+            'SESSION_HTTP_ONLY' => '0',
+            'SESSION_PARTITIONED_COOKIE' => '1',
         ]);
 
         try {
             Env::flushRepository();
-            new Application(dirname(__DIR__, 2));
 
             $config = require dirname(__DIR__, 2) . '/src/foundation/config/session.php';
 
             $this->assertTrue($config['encrypt']);
             $this->assertFalse($config['expire_on_close']);
             $this->assertTrue($config['block']);
+            $this->assertTrue($config['track_user_sessions']);
             $this->assertSame(45, $config['block_lock_seconds']);
             $this->assertSame(12, $config['block_wait_seconds']);
+            $this->assertFalse($config['secure']);
+            $this->assertFalse($config['http_only']);
+            $this->assertTrue($config['partitioned']);
         } finally {
             $this->restoreEnvironmentVariables($originalValues);
             Env::flushRepository();
-            Container::setInstance(null);
         }
     }
 
@@ -44,28 +48,32 @@ class SessionConfigTest extends TestCase
         $originalValues = $this->setEnvironmentVariables([
             'APP_ID' => 'session_config_test',
             'SESSION_PREFIX' => null,
+            'SESSION_STORE' => 'obsolete',
+            'SESSION_TRACK_USER_SESSIONS' => null,
             'SESSION_BLOCK' => null,
             'SESSION_BLOCK_STORE' => null,
             'SESSION_BLOCK_LOCK_SECONDS' => null,
             'SESSION_BLOCK_WAIT_SECONDS' => null,
+            'SESSION_SECURE_COOKIE' => null,
         ]);
 
         try {
             Env::flushRepository();
-            new Application(dirname(__DIR__, 2));
 
             $config = require dirname(__DIR__, 2) . '/src/foundation/config/session.php';
 
             $this->assertSame('session_config_test_session:', $config['prefix']);
+            $this->assertFalse($config['track_user_sessions']);
+            $this->assertArrayNotHasKey('store', $config);
             $this->assertFalse($config['block']);
             $this->assertNull($config['block_store']);
             $this->assertSame(10, $config['block_lock_seconds']);
             $this->assertSame(10, $config['block_wait_seconds']);
+            $this->assertNull($config['secure']);
             $this->assertSame('json', $config['serialization']);
         } finally {
             $this->restoreEnvironmentVariables($originalValues);
             Env::flushRepository();
-            Container::setInstance(null);
         }
     }
 

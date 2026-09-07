@@ -9,23 +9,35 @@ use RuntimeException;
 class Logger
 {
     /**
+     * How long a write may wait for the renderer to accept output.
+     *
+     * This must remain well above the public render interval.
+     */
+    public const float DEFAULT_WRITE_TIMEOUT_SECONDS = 10.0;
+
+    /**
      * The first transport failure encountered while writing.
      */
     protected ?RuntimeException $transportFailure = null;
 
     /**
+     * The identifier retained for Laravel-compatible construction and subclass state.
+     */
+    protected string $identifier;
+
+    /**
      * Create a new Logger instance.
      *
      * @param null|resource $socket
+     * @param float $writeTimeout seconds a write may wait for the renderer to accept output
      */
-    public function __construct(protected string $identifier, protected $socket = null)
-    {
+    public function __construct(
+        string $identifier,
+        protected $socket = null,
+        protected float $writeTimeout = self::DEFAULT_WRITE_TIMEOUT_SECONDS,
+    ) {
+        $this->identifier = $identifier;
     }
-
-    /**
-     * The buffer for streaming text.
-     */
-    protected string $streamBuffer = '';
 
     /**
      * Log a line to the process log.
@@ -36,16 +48,11 @@ class Logger
     }
 
     /**
-     * Append a chunk of text, accumulating on the current line(s).
+     * Append a chunk of text to the current partial output.
      */
     public function partial(string $chunk): void
     {
-        if ($this->socket === null) {
-            return;
-        }
-
-        $this->streamBuffer .= $chunk;
-        $this->write($this->streamBuffer, 'partial');
+        $this->write($chunk, 'partial');
     }
 
     /**
@@ -53,7 +60,6 @@ class Logger
      */
     public function commitPartial(): void
     {
-        $this->streamBuffer = '';
         $this->write('', 'commitpartial');
     }
 
@@ -102,20 +108,21 @@ class Logger
      */
     protected function write(string $message, ?string $type = null): void
     {
+        $frame = TaskFrame::encode($type, $message);
+
         if ($this->socket === null) {
             return;
         }
 
-        $payload = ($type !== null ? $this->prefix($type, $message) : $message) . PHP_EOL;
-
         try {
-            // Each protocol frame must be complete because stream writes may be partial.
-            Utils::writeAll($this->socket, $payload);
+            Utils::writeAll($this->socket, $frame, $this->writeTimeout);
         } catch (RuntimeException $exception) {
             $this->transportFailure ??= $exception;
             $this->socket = null;
         }
     }
+
+    // REMOVED: Binary framing cannot represent text prefixes. Override write() instead.
 
     /**
      * Get the first transport failure encountered while writing.
@@ -123,13 +130,5 @@ class Logger
     public function transportFailure(): ?RuntimeException
     {
         return $this->transportFailure;
-    }
-
-    /**
-     * Prefix a message with the identifier and type.
-     */
-    protected function prefix(string $type, string $message): string
-    {
-        return $this->identifier . '_' . $type . ':' . rtrim($message, PHP_EOL);
     }
 }

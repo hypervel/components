@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Database\Query\Expression;
+use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
@@ -405,6 +406,50 @@ class SchemaBuilderTest extends DatabaseTestCase
         $this->assertFalse(Schema::hasIndex('foo', ['bar'], 'unique'));
     }
 
+    public function testGetPartialIndexMetadata(): void
+    {
+        Schema::create('partial_index_records', function (Blueprint $table) {
+            $table->id();
+            $table->string('email')->unique();
+            $table->unsignedBigInteger('account_id');
+            $table->dateTime('archived_at')->nullable();
+            $table->index(
+                ['account_id', 'archived_at'],
+                'partial_index_records_active_index',
+            )->whereNotNull('archived_at');
+        });
+
+        $indexes = Schema::getIndexes('partial_index_records');
+        $driver = DB::connection()->getDriverName();
+
+        $this->assertCount(3, $indexes);
+
+        foreach ($indexes as $index) {
+            $this->assertSame(
+                ['name', 'columns', 'type', 'unique', 'primary', 'partial'],
+                array_keys($index),
+            );
+        }
+
+        $this->assertSame([
+            'name' => 'partial_index_records_active_index',
+            'columns' => ['account_id', 'archived_at'],
+            'type' => $driver === 'sqlite' ? null : 'btree',
+            'unique' => false,
+            'primary' => false,
+            'partial' => in_array($driver, ['pgsql', 'sqlite'], true),
+        ], collect($indexes)->firstWhere('name', 'partial_index_records_active_index'));
+
+        $this->assertSame([
+            'name' => 'partial_index_records_email_unique',
+            'columns' => ['email'],
+            'type' => $driver === 'sqlite' ? null : 'btree',
+            'unique' => true,
+            'primary' => false,
+            'partial' => false,
+        ], collect($indexes)->firstWhere('name', 'partial_index_records_email_unique'));
+    }
+
     public function testGetUniqueIndexes()
     {
         Schema::create('foo', function (Blueprint $table) {
@@ -535,6 +580,123 @@ class SchemaBuilderTest extends DatabaseTestCase
                 && $foreign['foreign_table'] === 'parent'
                 && $foreign['foreign_columns'] === ['b', 'a']
         ));
+    }
+
+    public function testCreateOrdersSelfReferencingKeyTargetsBeforeForeignKeys(): void
+    {
+        Schema::enableForeignKeyConstraints();
+
+        Schema::create('create_key_ordering', function (Blueprint $table): void {
+            $table->integer('id')->primary();
+            $table->integer('parent_id')->nullable();
+            $table->foreign('parent_id')->references('id')->on('create_key_ordering');
+            $table->string('code');
+            $table->string('parent_code')->nullable();
+            $table->foreign('parent_code')->references('code')->on('create_key_ordering');
+            $table->unique('code');
+        });
+
+        $this->assertTrue(Schema::hasIndex('create_key_ordering', ['id'], 'primary'));
+        $this->assertTrue(Schema::hasIndex('create_key_ordering', ['code'], 'unique'));
+        $this->assertTrue(collect(Schema::getForeignKeys('create_key_ordering'))->contains(
+            fn (array $foreignKey): bool => $foreignKey['columns'] === ['parent_id']
+                && $foreignKey['foreign_columns'] === ['id'],
+        ));
+        $this->assertTrue(collect(Schema::getForeignKeys('create_key_ordering'))->contains(
+            fn (array $foreignKey): bool => $foreignKey['columns'] === ['parent_code']
+                && $foreignKey['foreign_columns'] === ['code'],
+        ));
+
+        DB::table('create_key_ordering')->insert(['id' => 1, 'code' => 'root']);
+        DB::table('create_key_ordering')->insert([
+            'id' => 2,
+            'parent_id' => 1,
+            'code' => 'child',
+            'parent_code' => 'root',
+        ]);
+
+        $this->assertInvalidReferenceIsRejected('create_key_ordering', [
+            'id' => 3,
+            'parent_id' => 999,
+            'code' => 'invalid',
+        ]);
+    }
+
+    public function testAlterPlacesGeneratedSelfReferencingKeyTargetsBeforeForeignKeys(): void
+    {
+        Schema::enableForeignKeyConstraints();
+
+        Schema::create('alter_key_ordering', function (Blueprint $table): void {
+            $table->string('seed')->nullable();
+        });
+
+        Schema::table('alter_key_ordering', function (Blueprint $table): void {
+            $table->integer('id')->primary();
+            $table->integer('parent_id')->nullable();
+            $table->foreign('parent_id')->references('id')->on('alter_key_ordering');
+            $table->string('code')->unique();
+            $table->string('parent_code')->nullable();
+            $table->foreign('parent_code')->references('code')->on('alter_key_ordering');
+        });
+
+        $this->assertTrue(Schema::hasIndex('alter_key_ordering', ['id'], 'primary'));
+        $this->assertTrue(Schema::hasIndex('alter_key_ordering', ['code'], 'unique'));
+        $this->assertTrue(collect(Schema::getForeignKeys('alter_key_ordering'))->contains(
+            fn (array $foreignKey): bool => $foreignKey['columns'] === ['parent_id']
+                && $foreignKey['foreign_columns'] === ['id'],
+        ));
+        $this->assertTrue(collect(Schema::getForeignKeys('alter_key_ordering'))->contains(
+            fn (array $foreignKey): bool => $foreignKey['columns'] === ['parent_code']
+                && $foreignKey['foreign_columns'] === ['code'],
+        ));
+
+        DB::table('alter_key_ordering')->insert(['id' => 1, 'code' => 'root']);
+        DB::table('alter_key_ordering')->insert([
+            'id' => 2,
+            'parent_id' => 1,
+            'code' => 'child',
+            'parent_code' => 'root',
+        ]);
+
+        $this->assertInvalidReferenceIsRejected('alter_key_ordering', [
+            'id' => 3,
+            'code' => 'invalid',
+            'parent_code' => 'missing',
+        ]);
+    }
+
+    #[RequiresDatabase('mariadb')]
+    public function testMariaDbOrdersOrdinaryIndexTargetsBeforeSelfReferencingForeignKeys(): void
+    {
+        Schema::enableForeignKeyConstraints();
+
+        Schema::create('create_index_ordering', function (Blueprint $table): void {
+            $table->integer('target');
+            $table->integer('parent_target')->nullable();
+            $table->foreign('parent_target')->references('target')->on('create_index_ordering');
+            $table->index('target');
+        });
+
+        Schema::create('alter_index_ordering', function (Blueprint $table): void {
+            $table->string('seed')->nullable();
+        });
+        Schema::table('alter_index_ordering', function (Blueprint $table): void {
+            $table->integer('target')->index();
+            $table->integer('parent_target')->nullable();
+            $table->foreign('parent_target')->references('target')->on('alter_index_ordering');
+        });
+
+        foreach (['create_index_ordering', 'alter_index_ordering'] as $table) {
+            $this->assertTrue(Schema::hasIndex($table, ['target']));
+            $this->assertTrue(collect(Schema::getForeignKeys($table))->contains(
+                fn (array $foreignKey): bool => $foreignKey['columns'] === ['parent_target']
+                    && $foreignKey['foreign_columns'] === ['target'],
+            ));
+
+            DB::table($table)->insert(['target' => 1]);
+            DB::table($table)->insert(['target' => 2, 'parent_target' => 1]);
+            $this->assertInvalidReferenceIsRejected($table, ['target' => 3, 'parent_target' => 999]);
+        }
     }
 
     public function testAlteringTableWithForeignKeyConstraintsEnabled()
@@ -853,7 +1015,7 @@ class SchemaBuilderTest extends DatabaseTestCase
             return collect(Schema::getForeignKeys($table))
                 ->contains(function (array $foreignKey) use ($column, $foreignTable) {
                     return collect($foreignKey['columns'])->contains($column)
-                        && $foreignKey['foreign_table'] == $foreignTable;
+                        && $foreignKey['foreign_table'] === $foreignTable;
                 });
         });
 
@@ -870,5 +1032,21 @@ class SchemaBuilderTest extends DatabaseTestCase
 
         $this->assertTrue(Schema::hasForeignKeyForColumn('question_id', 'answers', 'questions'));
         $this->assertFalse(Schema::hasForeignKeyForColumn('body', 'answers', 'questions'));
+    }
+
+    /**
+     * Assert that an invalid foreign-key reference is rejected.
+     *
+     * @param array<string, mixed> $values
+     */
+    private function assertInvalidReferenceIsRejected(string $table, array $values): void
+    {
+        try {
+            DB::table($table)->insert($values);
+            $this->fail("Expected the invalid reference on [{$table}] to be rejected.");
+        } catch (QueryException) {
+        }
+
+        $this->assertFalse(DB::table($table)->where($values)->exists());
     }
 }

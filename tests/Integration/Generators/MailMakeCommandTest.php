@@ -14,7 +14,7 @@ use Symfony\Component\Console\Tester\CommandTester;
 
 class MailMakeCommandTest extends TestCase
 {
-    protected $files = [
+    protected array $files = [
         'app/Mail/*.php',
         'resources/views/foo-mail.blade.php',
         'resources/views/mail/*.blade.php',
@@ -60,7 +60,7 @@ class MailMakeCommandTest extends TestCase
     public function testErrorsWillBeDisplayedWhenMarkdownsAlreadyExist(): void
     {
         $existingMarkdownPath = 'resources/views/existing-markdown.blade.php';
-        $this->app['files']
+        $this->app->make('files')
             ->put(
                 $this->app->basePath($existingMarkdownPath),
                 '<x-mail::message>My existing markdown</x-mail::message>'
@@ -102,7 +102,7 @@ class MailMakeCommandTest extends TestCase
     public function testErrorsWillBeDisplayedWhenViewsAlreadyExist(): void
     {
         $existingViewPath = 'resources/views/existing-template.blade.php';
-        $this->app['files']
+        $this->app->make('files')
             ->put(
                 $this->app->basePath($existingViewPath),
                 '<div>My existing template</div>'

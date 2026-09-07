@@ -1,0 +1,39 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Hypervel\Saloon\Data\OAuthConfig;
+use Hypervel\Saloon\Http\Connector;
+use Hypervel\Saloon\Traits\OAuth2\AuthorizationCodeGrant;
+use Hypervel\Saloon\Traits\Plugins\AcceptsJson;
+
+class {{ class }} extends Connector
+{
+    use AuthorizationCodeGrant;
+    use AcceptsJson;
+
+    /**
+     * Resolve the integration base URL.
+     */
+    public function resolveBaseUrl(): string
+    {
+        return '';
+    }
+
+    /**
+     * Define the default OAuth 2 configuration.
+     */
+    protected function defaultOAuthConfig(): OAuthConfig
+    {
+        return new OAuthConfig(
+            clientId: '',
+            clientSecret: '',
+            redirectUri: '',
+            authorizeEndpoint: 'authorize',
+            tokenEndpoint: 'token',
+            userEndpoint: 'user',
+        );
+    }
+}

@@ -31,6 +31,7 @@ use Hypervel\Support\Traits\Macroable;
 use JsonException;
 use ReflectionClass;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\ConsoleOutput;
@@ -46,10 +47,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * The Hypervel framework version.
-     *
-     * @var string
      */
-    public const VERSION = '0.4';
+    public const string VERSION = '0.4';
 
     /**
      * The base path for the Hypervel installation.
@@ -310,11 +309,11 @@ class Application extends Container implements ApplicationContract, CachesConfig
         $this->hasBeenBootstrapped = true;
 
         foreach ($bootstrappers as $bootstrapper) {
-            $this['events']->dispatch('bootstrapping: ' . $bootstrapper, [$this]);
+            $this->make('events')->dispatch('bootstrapping: ' . $bootstrapper, [$this]);
 
             $this->make($bootstrapper)->bootstrap($this);
 
-            $this['events']->dispatch('bootstrapped: ' . $bootstrapper, [$this]);
+            $this->make('events')->dispatch('bootstrapped: ' . $bootstrapper, [$this]);
         }
     }
 
@@ -323,7 +322,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function beforeBootstrapping(string $bootstrapper, Closure $callback): void
     {
-        $this['events']->listen('bootstrapping: ' . $bootstrapper, $callback);
+        $this->make('events')->listen('bootstrapping: ' . $bootstrapper, $callback);
     }
 
     /**
@@ -331,7 +330,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function afterBootstrapping(string $bootstrapper, Closure $callback): void
     {
-        $this['events']->listen('bootstrapped: ' . $bootstrapper, $callback);
+        $this->make('events')->listen('bootstrapped: ' . $bootstrapper, $callback);
     }
 
     /**
@@ -660,7 +659,11 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function configurationIsCached(): bool
     {
-        return is_file($this->getCachedConfigPath());
+        if ($this->bound('config_loaded_from_cache')) {
+            return (bool) $this->make('config_loaded_from_cache');
+        }
+
+        return $this->instance('config_loaded_from_cache', is_file($this->getCachedConfigPath()));
     }
 
     /**
@@ -684,7 +687,11 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function routesAreCached(): bool
     {
-        return is_file($this->getCachedRoutesPath());
+        if ($this->bound('routes.cached')) {
+            return (bool) $this->make('routes.cached');
+        }
+
+        return $this->instance('routes.cached', is_file($this->getCachedRoutesPath()));
     }
 
     /**
@@ -700,7 +707,11 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function eventsAreCached(): bool
     {
-        return is_file($this->getCachedEventsPath());
+        if ($this->bound('events.cached')) {
+            return (bool) $this->make('events.cached');
+        }
+
+        return $this->instance('events.cached', is_file($this->getCachedEventsPath()));
     }
 
     /**
@@ -756,10 +767,10 @@ class Application extends Container implements ApplicationContract, CachesConfig
         if (count($environments) > 0) {
             $patterns = is_array($environments[0]) ? $environments[0] : $environments;
 
-            return Str::is($patterns, $this['env']);
+            return Str::is($patterns, $this->make('env'));
         }
 
-        return $this['env'];
+        return $this->make('env');
     }
 
     /**
@@ -767,7 +778,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function isLocal(): bool
     {
-        return $this['env'] === 'local';
+        return $this->make('env') === 'local';
     }
 
     /**
@@ -775,7 +786,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function isProduction(): bool
     {
-        return $this['env'] === 'production';
+        return $this->make('env') === 'production';
     }
 
     /**
@@ -787,7 +798,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
             ? $_SERVER['argv']
             : null;
 
-        return $this['env'] = (new EnvironmentDetector)->detect($callback, $args);
+        return $this->instance('env', (new EnvironmentDetector)->detect($callback, $args));
     }
 
     /**
@@ -839,7 +850,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function runningUnitTests(): bool
     {
-        return $this->bound('env') && $this['env'] === 'testing';
+        return $this->bound('env') && $this->make('env') === 'testing';
     }
 
     /**
@@ -1187,6 +1198,11 @@ class Application extends Container implements ApplicationContract, CachesConfig
             try {
                 $this->call($callback);
             } catch (Throwable $throwable) {
+                // Cancellation is injected asynchronously, so a dedicated catch analyzes as unreachable here.
+                if ($throwable instanceof CanceledException) {
+                    throw $throwable;
+                }
+
                 $exception ??= $throwable;
             }
         }
@@ -1345,6 +1361,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Auth\Passwords\PasswordBroker::class,
                 \Hypervel\Contracts\Auth\PasswordBroker::class,
             ],
+            'blade.compiler' => [\Hypervel\View\Compilers\BladeCompiler::class],
             'cache' => [
                 \Hypervel\Cache\CacheManager::class,
                 \Hypervel\Contracts\Cache\Factory::class,
@@ -1354,6 +1371,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Contracts\Cache\Repository::class,
                 \Psr\SimpleCache\CacheInterface::class,
             ],
+            'composer' => [\Hypervel\Support\Composer::class],
             'config' => [
                 \Hypervel\Config\Repository::class,
                 \Hypervel\Contracts\Config\Repository::class,
@@ -1363,7 +1381,6 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Contracts\Cookie\Factory::class,
                 \Hypervel\Contracts\Cookie\QueueingFactory::class,
             ],
-            'composer' => [\Hypervel\Support\Composer::class],
             'db' => [
                 \Hypervel\Database\DatabaseManager::class,
                 \Hypervel\Database\ConnectionResolverInterface::class,
@@ -1392,6 +1409,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
             'filesystem.disk' => [\Hypervel\Contracts\Filesystem\Filesystem::class],
             'hash' => [\Hypervel\Hashing\HashManager::class],
             'hash.driver' => [\Hypervel\Contracts\Hashing\Hasher::class],
+            'image' => [\Hypervel\Image\ImageManager::class],
             'jwt' => [
                 \Hypervel\Jwt\JwtManager::class,
                 \Hypervel\Jwt\Contracts\ManagerContract::class,
@@ -1424,6 +1442,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
             'queue.failer' => [\Hypervel\Queue\Failed\FailedJobProviderInterface::class],
             'queue.listener' => [\Hypervel\Queue\Listener::class],
             'queue.worker' => [\Hypervel\Queue\Worker::class],
+            'redirect' => [
+                \Hypervel\Routing\Redirector::class,
+            ],
             'redis' => [
                 \Hypervel\Redis\RedisManager::class,
                 \Hypervel\Contracts\Redis\Factory::class,
@@ -1443,38 +1464,34 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Contracts\Routing\Registrar::class,
                 \Hypervel\Contracts\Routing\BindingRegistrar::class,
             ],
-            'redirect' => [
-                \Hypervel\Routing\Redirector::class,
+            'session' => [\Hypervel\Session\SessionManager::class],
+            'session.store' => [
+                \Hypervel\Session\Store::class,
+                \Hypervel\Contracts\Session\Session::class,
+            ],
+            'translation.loader' => [
+                \Hypervel\Translation\FileLoader::class,
+                \Hypervel\Contracts\Translation\Loader::class,
+            ],
+            'translator' => [
+                \Hypervel\Translation\Translator::class,
+                \Hypervel\Contracts\Translation\Translator::class,
             ],
             'url' => [
                 \Hypervel\Routing\UrlGenerator::class,
                 \Hypervel\Contracts\Routing\UrlGenerator::class,
             ],
+            'validation.presence' => [\Hypervel\Validation\DatabasePresenceVerifierInterface::class],
             'validator' => [
                 \Hypervel\Validation\Factory::class,
                 \Hypervel\Contracts\Validation\Factory::class,
             ],
-            'validation.presence' => [\Hypervel\Validation\DatabasePresenceVerifierInterface::class],
             'view' => [
                 \Hypervel\View\Factory::class,
                 \Hypervel\Contracts\View\Factory::class,
             ],
             'view.engine.resolver' => [\Hypervel\View\Engines\EngineResolver::class],
             'view.finder' => [\Hypervel\View\ViewFinderInterface::class],
-            'blade.compiler' => [\Hypervel\View\Compilers\BladeCompiler::class],
-            'session' => [\Hypervel\Session\SessionManager::class],
-            'session.store' => [
-                \Hypervel\Session\Store::class,
-                \Hypervel\Contracts\Session\Session::class,
-            ],
-            'translator' => [
-                \Hypervel\Translation\Translator::class,
-                \Hypervel\Contracts\Translation\Translator::class,
-            ],
-            'translation.loader' => [
-                \Hypervel\Translation\FileLoader::class,
-                \Hypervel\Contracts\Translation\Loader::class,
-            ],
         ] as $key => $aliases) {
             foreach ($aliases as $alias) {
                 $this->alias($key, $alias);

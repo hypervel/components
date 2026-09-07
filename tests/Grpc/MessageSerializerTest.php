@@ -4,15 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Grpc;
 
+use Google\Protobuf\Internal\CodedInputStream;
 use Google\Protobuf\Internal\Message;
 use Google\Protobuf\StringValue;
 use Hypervel\Grpc\Exceptions\ProtocolException;
 use Hypervel\Grpc\Protocol\MessageSerializer;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery as m;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
 use TypeError;
 
 class MessageSerializerTest extends TestCase
@@ -30,16 +31,23 @@ class MessageSerializerTest extends TestCase
 
     public function testWrapsSerializationFailures(): void
     {
-        $failure = new RuntimeException('encoder failed');
-        $message = m::mock(Message::class);
-        $message->shouldReceive('serializeToString')->once()->andThrow($failure);
-
         try {
-            MessageSerializer::serialize($message);
+            MessageSerializer::serialize(new FailingSerializationMessage);
             $this->fail('Expected the message serialization to fail.');
         } catch (ProtocolException $exception) {
             $this->assertSame('Unable to serialize the gRPC message.', $exception->getMessage());
-            $this->assertSame($failure, $exception->getPrevious());
+            $this->assertInstanceOf(RuntimeException::class, $exception->getPrevious());
+            $this->assertSame('encoder failed', $exception->getPrevious()->getMessage());
+        }
+    }
+
+    public function testPreservesCancellationFromSerialization(): void
+    {
+        try {
+            MessageSerializer::serialize(new CancellingSerializationMessage);
+            $this->fail('Expected cancellation to propagate.');
+        } catch (CanceledException $exception) {
+            $this->assertSame('serialization cancelled', $exception->getMessage());
         }
     }
 
@@ -124,11 +132,54 @@ class MessageSerializerTest extends TestCase
         }
     }
 
+    public function testPreservesCancellationFromCallableDeserialization(): void
+    {
+        $cancellation = new CanceledException;
+
+        try {
+            MessageSerializer::deserialize(
+                static function () use ($cancellation): Message {
+                    throw $cancellation;
+                },
+                'payload',
+            );
+            $this->fail('Expected cancellation to propagate.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
     public function testRejectsNullMessagesThroughTheNativeType(): void
     {
         $this->expectException(TypeError::class);
 
         MessageSerializer::serialize(null);
+    }
+}
+
+class FailingSerializationMessage extends Message
+{
+    public function __construct()
+    {
+    }
+
+    public function serializeToString(
+        $recursion_limit = CodedInputStream::DEFAULT_RECURSION_LIMIT,
+    ): string {
+        throw new RuntimeException('encoder failed');
+    }
+}
+
+class CancellingSerializationMessage extends Message
+{
+    public function __construct()
+    {
+    }
+
+    public function serializeToString(
+        $recursion_limit = CodedInputStream::DEFAULT_RECURSION_LIMIT,
+    ): string {
+        throw new CanceledException('serialization cancelled');
     }
 }
 

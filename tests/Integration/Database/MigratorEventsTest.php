@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database;
 
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Events\MigrationEnded;
 use Hypervel\Database\Events\MigrationsEnded;
 use Hypervel\Database\Events\MigrationSkipped;
@@ -36,6 +37,30 @@ class MigratorEventsTest extends TestCase
         Event::assertDispatched(MigrationStarted::class, 2);
         Event::assertDispatched(MigrationEnded::class, 2);
         Event::assertDispatched(MigrationSkipped::class, 1);
+    }
+
+    public function testPassiveObserversDoNotCauseMigrationEventsToDispatch(): void
+    {
+        $observedEvents = [];
+        $events = $this->app->make(Dispatcher::class);
+
+        foreach ([
+            MigrationEnded::class,
+            MigrationsEnded::class,
+            MigrationSkipped::class,
+            MigrationsStarted::class,
+            MigrationStarted::class,
+            NoPendingMigrations::class,
+        ] as $event) {
+            $events->observe($event, static function (object $event) use (&$observedEvents): void {
+                $observedEvents[] = $event;
+            });
+        }
+
+        $this->artisan('migrate', $this->migrateOptions());
+        $this->artisan('migrate:rollback', $this->migrateOptions());
+
+        $this->assertSame([], $observedEvents);
     }
 
     public function testMigrationEventsContainTheOptionsAndPretendFalse()

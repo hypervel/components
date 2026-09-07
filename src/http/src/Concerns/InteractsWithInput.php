@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Http\Concerns;
 
 use Hypervel\Http\UploadedFile;
+use Hypervel\Image\Image;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\Traits\Dumpable;
@@ -206,6 +207,20 @@ trait InteractsWithInput
     public function file(?string $key = null, mixed $default = null): UploadedFile|array|null
     {
         return data_get($this->allFiles(), $key, $default);
+    }
+
+    /**
+     * Retrieve a file from the request as an image instance.
+     */
+    public function image(string $key): ?Image
+    {
+        $file = $this->file($key);
+
+        if (! $file instanceof UploadedFile) {
+            return null;
+        }
+
+        return new Image(fn (): string => $file->getContent(), $file);
     }
 
     /**

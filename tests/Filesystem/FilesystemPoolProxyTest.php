@@ -13,6 +13,7 @@ use Hypervel\Filesystem\FilesystemPoolProxy;
 use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
+use Hypervel\Image\ImageException;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolOptions;
@@ -23,6 +24,8 @@ use League\Flysystem\Local\LocalFilesystemAdapter;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class FilesystemPoolProxyTest extends TestCase
 {
@@ -82,6 +85,60 @@ class FilesystemPoolProxyTest extends TestCase
         $proxy = $this->proxy(fn (): FilesystemAdapter => $this->filesystem());
 
         $this->assertSame('value', $proxy->json('value.json'));
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+    }
+
+    public function testImageDefersAndBalancesTheWholeDriverLease(): void
+    {
+        $this->driver->write('photo.jpg', 'image bytes');
+        $creations = 0;
+        $releaseCalls = 0;
+        $proxy = $this->proxy(
+            function () use (&$creations): FilesystemAdapter {
+                ++$creations;
+
+                return $this->filesystem();
+            },
+            function (object $filesystem) use (&$releaseCalls): void {
+                ++$releaseCalls;
+            },
+        );
+
+        $image = $proxy->image('photo.jpg');
+
+        $this->assertSame(0, $creations);
+        $this->assertFalse($this->pools->has('filesystem:driver'));
+        $this->assertSame('image bytes', $image->toBytes());
+        $this->assertSame(1, $creations);
+        $this->assertSame(1, $releaseCalls);
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+
+        $this->assertSame('image bytes', $image->toBytes());
+        $this->assertSame(1, $releaseCalls);
+    }
+
+    public function testMissingImageReleasesTheWholeDriverLease(): void
+    {
+        $releaseCalls = 0;
+        $proxy = $this->proxy(
+            fn (): FilesystemAdapter => $this->filesystem(),
+            function (object $filesystem) use (&$releaseCalls): void {
+                ++$releaseCalls;
+            },
+        );
+        $image = $proxy->image('missing.jpg');
+
+        try {
+            $image->toBytes();
+            $this->fail('Expected the missing image read to fail.');
+        } catch (ImageException $exception) {
+            $this->assertSame(
+                'Unable to read image from path [missing.jpg].',
+                $exception->getMessage(),
+            );
+        }
+
+        $this->assertSame(1, $releaseCalls);
         $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
     }
 
@@ -154,6 +211,30 @@ class FilesystemPoolProxyTest extends TestCase
         $this->assertSame(1, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
         $this->assertSame(0, $releaseCalls);
         $this->assertSame('streamed', stream_get_contents($stream));
+
+        fclose($stream);
+
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+        $this->assertSame(1, $releaseCalls);
+    }
+
+    public function testBoundedReadStreamKeepsTheWholeDriverBorrowedUntilClose(): void
+    {
+        $this->driver->write('file.txt', '0123456789');
+        $releaseCalls = 0;
+        $proxy = $this->proxy(
+            fn (): FilesystemAdapter => $this->filesystem(),
+            function (object $filesystem) use (&$releaseCalls): void {
+                ++$releaseCalls;
+            },
+        );
+
+        $stream = $proxy->readStreamRange('file.txt', 3, 5);
+
+        $this->assertIsResource($stream);
+        $this->assertSame(1, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+        $this->assertSame(0, $releaseCalls);
+        $this->assertSame('345', stream_get_contents($stream));
 
         fclose($stream);
 
@@ -290,6 +371,29 @@ class FilesystemPoolProxyTest extends TestCase
         $this->assertFalse($proxy->invalidatePool());
         $this->assertFalse($proxy->exists('missing.txt'));
         $this->assertSame(2, $creations);
+    }
+
+    public function testReleaseCancellationSupersedesABorrowedAccessorFailure(): void
+    {
+        $operationFailure = new RuntimeException('operation failed');
+        $releaseCancellation = new CanceledException('release canceled');
+        $proxy = $this->proxy(
+            fn (): FilesystemAdapter => $this->filesystem(),
+            static function () use ($releaseCancellation): never {
+                throw $releaseCancellation;
+            },
+        );
+
+        try {
+            $proxy->withDriver(static function () use ($operationFailure): never {
+                throw $operationFailure;
+            });
+            $this->fail('Expected release cancellation to propagate.');
+        } catch (Throwable $exception) {
+            $this->assertSame($releaseCancellation, $exception);
+        }
+
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getCurrentObjectNumber());
     }
 
     private function definition(): PoolDefinition

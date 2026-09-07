@@ -5,44 +5,61 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing;
 
 use Hypervel\Config\Repository;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection;
+use Hypervel\Database\DatabaseManager;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Database\Schema\PostgresBuilder;
+use Hypervel\Foundation\Testing\DatabaseMigrations;
+use Hypervel\Foundation\Testing\DatabaseTransactions;
 use Hypervel\Foundation\Testing\DatabaseTruncation;
+use Hypervel\Foundation\Testing\LazilyRefreshDatabase;
+use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Foundation\Testing\RefreshDatabaseState;
 use Hypervel\Tests\TestCase;
+use LogicException;
 use Mockery as m;
+use PDO;
 
 class DatabaseTruncationTest extends TestCase
 {
     use DatabaseTruncation;
 
-    private ?array $app;
+    private ?Container $app;
 
     private ?array $tablesToTruncate = null;
 
     private ?array $exceptTables = null;
 
+    private array $connectionsToTruncate = [null];
+
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->app['config'] = new Repository([
+        $this->app = new Container;
+        $this->app->instance('config', new Repository([
             'database' => [
                 'migrations' => [
                     'table' => 'migrations',
+                    'update_date_on_publish' => true,
                 ],
             ],
-        ]);
+        ]));
     }
 
     protected function tearDown(): void
     {
         $this->app = null;
         static::$allTables = [];
+        RefreshDatabaseState::$migrated = false;
+        RefreshDatabaseState::$inMemoryConnections = [];
         $this->tablesToTruncate = null;
         $this->exceptTables = null;
+        $this->connectionsToTruncate = [null];
 
         parent::tearDown();
     }
@@ -176,6 +193,252 @@ class DatabaseTruncationTest extends TestCase
         $this->truncateTablesForConnection($connection, 'test');
 
         $this->assertEquals(['public.foo', 'public.bar', 'my_schema.foo', 'my_schema.baz'], $truncatedTables);
+    }
+
+    public function testRestoreSkipsDatabaseResolutionWhenNoInMemoryConnectionIsCached(): void
+    {
+        $this->restoreInMemoryDatabases();
+
+        $this->assertFalse($this->app->resolved('db'));
+    }
+
+    public function testCachesAndRestoresConfiguredInMemoryConnections(): void
+    {
+        $defaultPdo = m::mock(PDO::class);
+        $namedPdo = m::mock(PDO::class);
+        $sourceDefault = m::mock(PdoConnection::class);
+        $sourceNamed = m::mock(PdoConnection::class);
+        $sourceDefault->shouldReceive('getPdo')->once()->andReturn($defaultPdo);
+        $sourceNamed->shouldReceive('getPdo')->once()->andReturn($namedPdo);
+
+        $sourceDatabase = m::mock(DatabaseManager::class);
+        $sourceDatabase->shouldReceive('connection')->once()->with(null)->andReturn($sourceDefault);
+        $sourceDatabase->shouldReceive('connection')->once()->with('named')->andReturn($sourceNamed);
+        $sourceDatabase->shouldNotReceive('connection')->with('file');
+
+        $this->app->instance('config', new Repository([
+            'database' => [
+                'default' => 'default',
+                'connections' => [
+                    'default' => ['driver' => 'sqlite', 'database' => ':memory:'],
+                    'named' => ['driver' => 'sqlite', 'database' => 'file::memory:?cache=shared'],
+                    'file' => ['driver' => 'sqlite', 'database' => '/tmp/database.sqlite'],
+                ],
+            ],
+        ]));
+        $this->app->instance('db', $sourceDatabase);
+        $this->connectionsToTruncate = [null, 'named', 'file'];
+
+        $this->cacheInMemoryDatabases();
+
+        $dispatcher = m::mock(Dispatcher::class);
+        $restoredDefault = m::mock(PdoConnection::class);
+        $restoredNamed = m::mock(PdoConnection::class);
+        $restoredDefault->shouldReceive('setPdo')->once()->with($defaultPdo)->andReturnSelf();
+        $restoredDefault->shouldReceive('setEventDispatcher')->once()->with($dispatcher)->andReturnSelf();
+        $restoredNamed->shouldReceive('setPdo')->once()->with($namedPdo)->andReturnSelf();
+        $restoredNamed->shouldReceive('setEventDispatcher')->once()->with($dispatcher)->andReturnSelf();
+
+        $restoredDatabase = m::mock(DatabaseManager::class);
+        $restoredDatabase->shouldReceive('connection')->once()->with(null)->andReturn($restoredDefault);
+        $restoredDatabase->shouldReceive('connection')->once()->with('named')->andReturn($restoredNamed);
+        $restoredDatabase->shouldNotReceive('connection')->with('file');
+
+        $this->app->instance('db', $restoredDatabase);
+        $this->app->instance(Dispatcher::class, $dispatcher);
+
+        $this->restoreInMemoryDatabases();
+
+        $this->connectionsToTruncate = ['named', 'file'];
+
+        $this->assertTrue($this->usingInMemoryDatabasesForTruncation());
+
+        $this->connectionsToTruncate = ['missing'];
+
+        $this->assertFalse($this->usingInMemoryDatabasesForTruncation());
+        $this->assertSame([
+            'default' => $defaultPdo,
+            'named' => $namedPdo,
+        ], RefreshDatabaseState::$inMemoryConnections);
+    }
+
+    public function testCachingInMemoryConnectionRequiresPdoConnection(): void
+    {
+        $this->app->instance('config', new Repository([
+            'database' => [
+                'default' => 'default',
+                'connections' => [
+                    'default' => ['driver' => 'sqlite', 'database' => ':memory:'],
+                ],
+            ],
+        ]));
+
+        $database = m::mock(DatabaseManager::class);
+        $database->shouldReceive('connection')->once()->with(null)->andReturn(m::mock(Connection::class));
+        $this->app->instance('db', $database);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('In-memory SQLite database testing requires a PDO-backed connection.');
+
+        $this->cacheInMemoryDatabases();
+    }
+
+    public function testRestoringInMemoryConnectionRequiresPdoConnection(): void
+    {
+        $this->app->instance('config', new Repository([
+            'database' => [
+                'default' => 'default',
+                'connections' => [
+                    'default' => ['driver' => 'sqlite', 'database' => ':memory:'],
+                ],
+            ],
+        ]));
+        RefreshDatabaseState::$inMemoryConnections = ['default' => m::mock(PDO::class)];
+
+        $database = m::mock(DatabaseManager::class);
+        $database->shouldReceive('connection')->once()->with(null)->andReturn(m::mock(Connection::class));
+        $this->app->instance('db', $database);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('In-memory SQLite database testing requires a PDO-backed connection.');
+
+        $this->restoreInMemoryDatabases();
+    }
+
+    public function testDatabaseMigrationsCannotBeCombinedWithDatabaseTruncation(): void
+    {
+        $testCase = new class {
+            use DatabaseMigrations;
+            use DatabaseTruncation;
+
+            public function truncate(): void
+            {
+                $this->truncateDatabaseTables();
+            }
+        };
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('DatabaseTruncation cannot be combined with DatabaseMigrations.');
+
+        $testCase->truncate();
+    }
+
+    public function testLazilyRefreshDatabaseCannotBeCombinedWithDatabaseTruncation(): void
+    {
+        $testCase = new class {
+            use DatabaseTruncation;
+            use LazilyRefreshDatabase;
+
+            public function truncate(): void
+            {
+                $this->truncateDatabaseTables();
+            }
+        };
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('DatabaseTruncation cannot be combined with LazilyRefreshDatabase.');
+
+        $testCase->truncate();
+    }
+
+    public function testAutomaticSeedingCannotCombineRefreshDatabaseWithDatabaseTruncation(): void
+    {
+        $testCase = new class {
+            use DatabaseTruncation;
+            use RefreshDatabase;
+
+            protected bool $seed = true;
+
+            public function truncate(): void
+            {
+                $this->truncateDatabaseTables();
+            }
+        };
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            'Automatic database seeding is not supported when DatabaseTruncation is combined with RefreshDatabase or DatabaseTransactions.'
+        );
+
+        $testCase->truncate();
+    }
+
+    public function testAutomaticSeederCannotCombineDatabaseTransactionsWithDatabaseTruncation(): void
+    {
+        $testCase = new class {
+            use DatabaseTransactions;
+            use DatabaseTruncation;
+
+            protected string $seeder = 'DatabaseSeeder';
+
+            public function truncate(): void
+            {
+                $this->truncateDatabaseTables();
+            }
+        };
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage(
+            'Automatic database seeding is not supported when DatabaseTruncation is combined with RefreshDatabase or DatabaseTransactions.'
+        );
+
+        $testCase->truncate();
+    }
+
+    public function testAdoptsAMissingInMemoryPdoBeforeTheTruncationHook(): void
+    {
+        $pdo = m::mock(PDO::class);
+        $connection = m::mock(PdoConnection::class);
+        $connection->shouldReceive('getPdo')->once()->andReturn($pdo);
+
+        $database = m::mock(DatabaseManager::class);
+        $database->shouldReceive('connection')->once()->with(null)->andReturn($connection);
+
+        $app = new Container;
+        $app->instance('config', new Repository([
+            'database' => [
+                'default' => 'default',
+                'connections' => [
+                    'default' => ['driver' => 'sqlite', 'database' => ':memory:'],
+                ],
+            ],
+        ]));
+        $app->instance('db', $database);
+
+        RefreshDatabaseState::$migrated = true;
+        RefreshDatabaseState::$inMemoryConnections = [];
+
+        $testCase = new class($app) {
+            use DatabaseTruncation;
+            use RefreshDatabase;
+
+            public bool $cacheAvailableBeforeHook = false;
+
+            public function __construct(public Container $app)
+            {
+            }
+
+            public function truncate(): void
+            {
+                $this->truncateDatabaseTables();
+            }
+
+            protected function beforeTruncatingDatabase(): void
+            {
+                $this->cacheAvailableBeforeHook = isset(
+                    RefreshDatabaseState::$inMemoryConnections['default']
+                );
+            }
+
+            protected function truncateTablesForAllConnections(): void
+            {
+            }
+        };
+
+        $testCase->truncate();
+
+        $this->assertTrue($testCase->cacheAvailableBeforeHook);
+        $this->assertSame(['default' => $pdo], RefreshDatabaseState::$inMemoryConnections);
     }
 
     private function arrangeConnection(

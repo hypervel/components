@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Traits;
 
-use BackedEnum;
 use Carbon\CarbonInterface;
 use Carbon\CarbonInterval;
 use Carbon\Unit;
@@ -14,11 +13,11 @@ use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Number;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
-use ReflectionEnum;
 use stdClass;
 use Stringable as BaseStringable;
 use UnitEnum;
 
+use function Hypervel\Support\enum_try_from;
 use function Hypervel\Support\enum_value;
 
 trait InteractsWithData
@@ -168,12 +167,8 @@ trait InteractsWithData
      */
     public function whenEnum(string $key, string $enumClass, callable $callback, ?callable $default = null): mixed
     {
-        if ($this->filled($key) && $this->isBackedEnum($enumClass)) {
-            $value = $this->normalizeEnumValue($enumClass, data_get($this->all(), $key));
-
-            if ($value !== null && ($enum = $enumClass::tryFrom($value)) !== null) {
-                return $callback($enum) ?: $this;
-            }
+        if ($this->filled($key) && ($enum = enum_try_from($enumClass, data_get($this->all(), $key))) !== null) {
+            return $callback($enum) ?: $this;
         }
 
         if ($default) {
@@ -216,7 +211,9 @@ trait InteractsWithData
     {
         $value = $this->data($key);
 
-        return ! is_bool($value) && ! is_array($value) && trim((string) $value) === '';
+        return $value === null
+            || (is_string($value) && trim($value) === '')
+            || ($value instanceof BaseStringable && trim((string) $value) === '');
     }
 
     /**
@@ -327,17 +324,11 @@ trait InteractsWithData
      */
     public function enum(string $key, string $enumClass, mixed $default = null): mixed
     {
-        if ($this->isNotFilled($key) || ! $this->isBackedEnum($enumClass)) {
+        if ($this->isNotFilled($key)) {
             return value($default);
         }
 
-        $value = $this->normalizeEnumValue($enumClass, $this->data($key));
-
-        if ($value === null) {
-            return value($default);
-        }
-
-        return $enumClass::tryFrom($value) ?: value($default);
+        return enum_try_from($enumClass, $this->data($key)) ?? value($default);
     }
 
     /**
@@ -350,82 +341,14 @@ trait InteractsWithData
      */
     public function enums(string $key, string $enumClass): array
     {
-        if ($this->isNotFilled($key) || ! $this->isBackedEnum($enumClass)) {
+        if ($this->isNotFilled($key)) {
             return [];
         }
 
         return $this->collect($key)
-            ->map(fn ($value) => $this->normalizeEnumValue($enumClass, $value))
-            ->filter(fn ($value) => $value !== null)
-            ->map(fn ($value) => $enumClass::tryFrom($value))
+            ->map(fn ($value) => enum_try_from($enumClass, $value))
             ->filter()
             ->all();
-    }
-
-    /**
-     * Determine if the given enum class is backed.
-     *
-     * @param class-string $enumClass
-     */
-    protected function isBackedEnum(string $enumClass): bool
-    {
-        return enum_exists($enumClass) && is_subclass_of($enumClass, BackedEnum::class);
-    }
-
-    /**
-     * Normalize enum input to a strict backed value.
-     */
-    protected function normalizeEnumValue(string $enumClass, mixed $value): int|string|null
-    {
-        $backingType = $this->enumBackingType($enumClass);
-
-        if ($backingType === 'int') {
-            if (is_int($value)) {
-                return $value;
-            }
-
-            if (is_float($value) || is_bool($value)) {
-                return (int) $value;
-            }
-
-            if (is_string($value)) {
-                $trimmed = trim($value);
-
-                if ($trimmed === '' || ! is_numeric($trimmed)) {
-                    return null;
-                }
-
-                return (int) $trimmed;
-            }
-
-            return null;
-        }
-
-        if ($backingType === 'string') {
-            if (is_string($value)) {
-                return $value;
-            }
-
-            if (is_int($value) || is_float($value) || is_bool($value) || $value instanceof BaseStringable) {
-                return (string) $value;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Resolve and cache the enum backing type for repeated lookups.
-     *
-     * @param class-string<BackedEnum> $enumClass
-     * @return null|'int'|'string'
-     */
-    protected function enumBackingType(string $enumClass): ?string
-    {
-        /** @var array<class-string<BackedEnum>, null|'int'|'string'> $cache */
-        static $cache = [];
-
-        return $cache[$enumClass] ??= (new ReflectionEnum($enumClass))->getBackingType()?->getName();
     }
 
     /**

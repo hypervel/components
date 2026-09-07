@@ -39,8 +39,7 @@ class AuthServiceProviderTest extends TestCase
                     'disabled' => $this->cachedProvider(AuthProviderUser::class, enabled: false),
                     'database' => [
                         'driver' => 'database',
-                        'model' => InvalidAuthProviderModel::class,
-                        'cache' => ['enabled' => true],
+                        'table' => 'users',
                     ],
                     'malformed',
                 ],
@@ -82,7 +81,11 @@ class AuthServiceProviderTest extends TestCase
         $config = new ConfigRepository([
             'auth' => [
                 'providers' => [
-                    0 => $this->cachedProvider(AuthProviderUser::class),
+                    0 => [
+                        'driver' => 'eloquent',
+                        'model' => AuthProviderUser::class,
+                        'cache' => ['enabled' => true],
+                    ],
                     '' => $this->cachedProvider(AuthProviderAdmin::class, store: 'redis'),
                 ],
             ],
@@ -130,9 +133,17 @@ class AuthServiceProviderTest extends TestCase
             'auth' => [
                 'providers' => [
                     'users' => $this->cachedProvider(AuthProviderUser::class, enabled: false),
+                    'uncached' => [
+                        'driver' => 'eloquent',
+                        'model' => AuthProviderUser::class,
+                    ],
+                    'null-cache' => [
+                        'driver' => 'eloquent',
+                        'model' => AuthProviderUser::class,
+                        'cache' => null,
+                    ],
                     'custom' => [
                         'driver' => 'custom',
-                        'cache' => ['enabled' => true],
                     ],
                 ],
             ],

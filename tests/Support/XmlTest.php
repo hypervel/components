@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Support;
 use Hypervel\Support\Xml;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use JsonException;
 
 class XmlTest extends TestCase
 {
@@ -53,5 +54,32 @@ class XmlTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
         Xml::toArray('{"hype');
+    }
+
+    public function testToArrayReadsAParsedDocumentWith512JsonContainers(): void
+    {
+        $expected = [];
+
+        for ($level = 0; $level < 255; ++$level) {
+            $expected = ['n' => [['a' => []], $expected]];
+        }
+
+        $this->assertSame($expected, Xml::toArray($this->siblingProjectedXml()));
+    }
+
+    public function testToArrayRejectsAParsedDocumentWith513JsonContainers(): void
+    {
+        $this->expectException(JsonException::class);
+
+        Xml::toArray($this->siblingProjectedXml('<deep k="v"/>'));
+    }
+
+    private function siblingProjectedXml(string $innermost = ''): string
+    {
+        for ($level = 255; $level >= 1; --$level) {
+            $innermost = "<n><a/></n><n>{$innermost}</n>";
+        }
+
+        return '<?xml version="1.0" encoding="utf-8"?><root>' . $innermost . '</root>';
     }
 }

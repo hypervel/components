@@ -6,11 +6,10 @@ namespace Hypervel\Sentry\Aspects;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\TransferStats;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Di\Aop\AbstractAspect;
 use Hypervel\Di\Aop\ProceedingJoinPoint;
 use Hypervel\Sentry\Integration;
-use Hypervel\Sentry\SdkCapabilities;
+use Hypervel\Sentry\SentryConfig;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\UriInterface;
 use Sentry\Breadcrumb;
@@ -49,14 +48,14 @@ class GuzzleHttpClientAspect extends AbstractAspect
     /**
      * Create a new aspect instance.
      */
-    public function __construct(
-        private readonly Repository $config,
-        SdkCapabilities $capabilities,
-    ) {
-        $this->tracingEnabled = $capabilities->canRecordSpans()
-            && $this->config->boolean('sentry.tracing.http_client_requests', true);
-        $this->breadcrumbsEnabled = $capabilities->canRecordBreadcrumbs()
-            && $this->config->boolean('sentry.breadcrumbs.http_client_requests', true);
+    public function __construct(SentryConfig $config)
+    {
+        $userConfig = $config->all();
+
+        $this->tracingEnabled = $config->canRecordSpans()
+            && $userConfig['tracing']['http_client_requests'] === true;
+        $this->breadcrumbsEnabled = $config->canRecordBreadcrumbs()
+            && $userConfig['breadcrumbs']['http_client_requests'] === true;
     }
 
     /**

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
+use InvalidArgumentException;
+
 class SQLiteDatabase
 {
     /**
@@ -40,5 +42,23 @@ class SQLiteDatabase
         parse_str($query ?? '', $parameters);
 
         return ($parameters['mode'] ?? null) === 'memory';
+    }
+
+    /**
+     * Determine if a connection configuration resolves to an in-memory SQLite database.
+     *
+     * Discrete configurations pass through normalization unchanged. Malformed URLs
+     * intentionally fail with the database configuration parser's exception.
+     *
+     * @throws InvalidArgumentException
+     */
+    public static function isInMemoryConfiguration(array $configuration): bool
+    {
+        $configuration = (new ConfigurationUrlParser)->parseConfiguration($configuration);
+        $database = $configuration['database'] ?? null;
+
+        return ($configuration['driver'] ?? null) === 'sqlite'
+            && is_string($database)
+            && static::isInMemory($database);
     }
 }

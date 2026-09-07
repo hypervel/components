@@ -10,9 +10,12 @@ use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Foundation\Testing\DatabaseTransactions;
+use Hypervel\Foundation\Testing\DatabaseTruncation;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Foundation\Testing\TestCase as BaseTestCase;
-use Hypervel\Testbench\Pest\WithPest;
+use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
+use Hypervel\Testbench\Attributes\WithMigration;
+use ReflectionMethod;
 use RuntimeException;
 use Swoole\Timer;
 use Throwable;
@@ -25,12 +28,12 @@ use Throwable;
  *
  * @method void refreshDatabase()
  * @method void runDatabaseMigrations()
+ * @method void truncateDatabaseTables()
  * @method void beginDatabaseTransaction()
  * @method void disableMiddlewareForAllTests()
  * @method void disableEventsForAllTests()
  *
  * @internal
- * @coversNothing
  */
 class TestCase extends BaseTestCase implements Contracts\TestCase
 {
@@ -46,8 +49,6 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
      */
     protected bool $loadEnvironmentVariables = true;
 
-    protected static bool $hasBootstrappedTestbench = false;
-
     /**
      * Setup the test environment.
      */
@@ -58,24 +59,13 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
             return;
         }
 
-        if (! static::$hasBootstrappedTestbench) {
-            Bootstrapper::bootstrap();
-            static::$hasBootstrappedTestbench = true;
-        }
+        Bootstrapper::bootstrap();
 
         $this->afterApplicationCreated(function () {
             Timer::clearAll();
             CoordinatorManager::until(Constants::WORKER_EXIT)->resume();
             CoordinatorManager::clear(Constants::WORKER_EXIT);
-
-            // Setup routes after application is created (providers are booted)
-            $this->setUpApplicationRoutes($this->app);
         });
-
-        /* @phpstan-ignore class.notFound */
-        if (static::usesTestingConcern(WithPest::class)) {
-            $this->setUpTheEnvironmentUsingPest(); /* @phpstan-ignore method.notFound */
-        }
 
         $setupHasRun = false;
         $setup = function () use (&$setupHasRun): void {
@@ -89,7 +79,7 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
 
             $this->preservePackageManifestCache();
 
-            $this->baseUrl = config()->string('app.url');
+            $this->baseUrl = config()->get('app.url') ?? $this->baseUrl;
 
             // Execute BeforeEach attributes INSIDE coroutine context
             // (matches where setUpTraits runs in Foundation TestCase)
@@ -143,6 +133,9 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
      */
     protected function setUpDatabaseTraits(array $uses): void
     {
+        // Reset before database attributes register paths against retained schema state.
+        $this->prepareDatabaseTruncationForMethod($uses);
+
         $this->setUpDatabaseRequirements(function () use ($uses): void {
             if (isset($uses[RefreshDatabase::class])) {
                 $this->refreshDatabase();
@@ -150,6 +143,10 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
 
             if (isset($uses[DatabaseMigrations::class])) {
                 $this->runDatabaseMigrations();
+            }
+
+            if (isset($uses[DatabaseTruncation::class])) {
+                $this->truncateDatabaseTables();
             }
         });
 
@@ -159,11 +156,37 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
     }
 
     /**
+     * Isolate method-specific migration sets from the retained truncation schema.
+     */
+    protected function prepareDatabaseTruncationForMethod(array $uses): void
+    {
+        if (! isset($uses[DatabaseTruncation::class])) {
+            return;
+        }
+
+        $method = $this->resolvePhpUnitTestMethodName();
+
+        if ($method === null
+            || (new ReflectionMethod(static::class, $method))->getAttributes(WithMigration::class) === []) {
+            return;
+        }
+
+        ResetRefreshDatabaseState::run();
+
+        $this->beforeApplicationDestroyed(static function (): void {
+            ResetRefreshDatabaseState::run();
+        });
+    }
+
+    /**
      * Refresh the application instance.
      */
     protected function refreshApplication(): void
     {
         $this->app = $this->createApplication();
+
+        // Setup routes after application is created (providers are booted).
+        $this->setUpApplicationRoutes($this->app);
     }
 
     /**
@@ -177,15 +200,6 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
         }
 
         $exception = null;
-
-        /* @phpstan-ignore class.notFound */
-        if (static::usesTestingConcern(WithPest::class)) {
-            try {
-                $this->tearDownTheEnvironmentUsingPest(); /* @phpstan-ignore method.notFound */
-            } catch (Throwable $throwable) {
-                $exception = $throwable;
-            }
-        }
 
         $teardownHasRun = false;
         $teardown = function () use (&$teardownHasRun): void {
@@ -219,7 +233,7 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
                 $parent();
             })($teardown);
         } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+            $exception = $throwable;
         }
 
         if (! $teardownHasRun) {
@@ -245,11 +259,6 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
     {
         static::setUpBeforeClassUsingPHPUnit();
 
-        /* @phpstan-ignore class.notFound */
-        if (static::usesTestingConcern(WithPest::class)) {
-            static::setUpBeforeClassUsingPest(); /* @phpstan-ignore staticMethod.notFound */
-        }
-
         static::setUpBeforeClassUsingTestCase();
     }
 
@@ -264,15 +273,6 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
             static::tearDownAfterClassUsingTestCase();
         } catch (Throwable $throwable) {
             $exception = $throwable;
-        }
-
-        /* @phpstan-ignore class.notFound */
-        if (static::usesTestingConcern(WithPest::class)) {
-            try {
-                static::tearDownAfterClassUsingPest(); /* @phpstan-ignore staticMethod.notFound */
-            } catch (Throwable $throwable) {
-                $exception ??= $throwable;
-            }
         }
 
         try {

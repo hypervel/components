@@ -60,7 +60,7 @@ class Env extends \Hypervel\Support\Env
             return $value === true ? '(true)' : '(false)';
         }
 
-        if (empty($value)) {
+        if ($value === '') {
             return '(empty)';
         }
 

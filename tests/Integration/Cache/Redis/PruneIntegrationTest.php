@@ -6,6 +6,8 @@ namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hypervel\Cache\TagMode;
 use Hypervel\Support\Facades\Cache;
+use Hypervel\Testbench\Attributes\WithConfig;
+use Redis;
 
 /**
  * Integration tests for prune (cleanup) operations.
@@ -80,6 +82,8 @@ class PruneIntegrationTest extends RedisCacheIntegrationTestCase
     // ANY MODE - PRUNE COMMAND
     // =========================================================================
 
+    #[WithConfig('database.redis.options.prefix', 'scan-prefix:')]
+    #[WithConfig('database.redis.options.scan', Redis::SCAN_PREFIX)]
     public function testAnyModePruneRemovesOrphanedFields(): void
     {
         $this->setTagMode(TagMode::Any);
@@ -116,6 +120,7 @@ class PruneIntegrationTest extends RedisCacheIntegrationTestCase
 
         // Verify hash exists
         $this->assertRedisKeyExists($this->anyModeTagKey('user:1'));
+        $this->assertTrue($this->anyModeRegistryHasTag('user:1'));
 
         // Delete the cache key outside the metadata-aware forget path to
         // simulate an orphaned field left by another invalidation path.
@@ -125,10 +130,13 @@ class PruneIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertTrue($this->anyModeTagHasEntry('user:1', 'post:1'));
 
         // Run prune
-        $this->store()->anyTagOps()->prune()->execute();
+        $result = $this->store()->anyTagOps()->prune()->execute();
 
-        // Hash should be deleted (was empty after orphan removal)
+        // The final HDEL removes the hash; prune also removes its registry member.
         $this->assertRedisKeyNotExists($this->anyModeTagKey('user:1'));
+        $this->assertFalse($this->anyModeRegistryHasTag('user:1'));
+        $this->assertSame(1, $result['empty_hashes_deleted']);
+        $this->assertSame(1, $result['orphaned_tags_removed']);
     }
 
     public function testAnyModePrunePreservesValidFields(): void
@@ -238,11 +246,14 @@ class PruneIntegrationTest extends RedisCacheIntegrationTestCase
 
         // Orphaned field in user:1
         $this->assertTrue($this->anyModeTagHasEntry('user:1', 'post:1'));
+        $this->assertTrue($this->anyModeRegistryHasTag('user:1'));
 
         // Prune should remove it
-        $this->store()->anyTagOps()->prune()->execute();
+        $result = $this->store()->anyTagOps()->prune()->execute();
 
         $this->assertFalse($this->anyModeTagHasEntry('user:1', 'post:1'));
+        $this->assertFalse($this->anyModeRegistryHasTag('user:1'));
+        $this->assertSame(1, $result['orphaned_tags_removed']);
     }
 
     // =========================================================================
@@ -280,30 +291,31 @@ class PruneIntegrationTest extends RedisCacheIntegrationTestCase
     // ALL MODE - PRUNE COMMAND
     // =========================================================================
 
+    #[WithConfig('database.redis.options.prefix', 'scan-prefix:')]
+    #[WithConfig('database.redis.options.scan', Redis::SCAN_PREFIX)]
     public function testAllModePruneRemovesOrphanedEntries(): void
     {
         $this->setTagMode(TagMode::All);
+        $first = '{orphan-a}:post';
+        $second = '{orphan-b}:post';
 
-        // Create orphaned entries
-        Cache::tags(['posts', 'user:1'])->put('post:1', 'data', 60);
-        Cache::tags(['posts', 'user:2'])->put('post:2', 'data', 60);
-        Cache::tags(['posts'])->flush(); // Leaves orphans in user:1 and user:2
+        Cache::tags(['posts', 'orphans'])->put($first, 'data', 60);
+        Cache::tags(['posts', 'orphans'])->put($second, 'data', 60);
+        Cache::tags(['posts'])->flush();
 
-        // Verify orphans exist
-        $this->assertNotEmpty($this->getAllModeTagEntries('user:1'));
-        $this->assertNotEmpty($this->getAllModeTagEntries('user:2'));
+        $entries = $this->getAllModeTagEntries('orphans');
+        $this->assertCount(2, $entries);
+        $members = array_keys($entries);
+        $this->assertRedisKeysUseDifferentClusterSlots(
+            $this->getCachePrefix() . $members[0],
+            $this->getCachePrefix() . $members[1],
+        );
 
-        // Run prune operation (scans all tags)
         $this->store()->allTagOps()->prune()->execute();
 
-        // Orphans should be removed (ZSETs deleted or emptied)
         $this->assertEmpty(
-            $this->getAllModeTagEntries('user:1'),
-            'Orphaned entries should be removed from user:1'
-        );
-        $this->assertEmpty(
-            $this->getAllModeTagEntries('user:2'),
-            'Orphaned entries should be removed from user:2'
+            $this->getAllModeTagEntries('orphans'),
+            'Every orphaned entry should be removed from the tag.',
         );
     }
 
@@ -362,7 +374,7 @@ class PruneIntegrationTest extends RedisCacheIntegrationTestCase
     // REGISTRY CLEANUP (ANY MODE)
     // =========================================================================
 
-    public function testAnyModePruneRemovesStaleTagsFromRegistry(): void
+    public function testAnyModeFlushRemovesTagsFromRegistry(): void
     {
         $this->setTagMode(TagMode::Any);
 

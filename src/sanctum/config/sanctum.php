@@ -28,6 +28,7 @@ return [
     | This value controls the number of minutes until an issued token will be
     | considered expired. This will override any values set in the token's
     | "expires_at" attribute, but first-party sessions are not affected.
+    | Set to null to rely only on each token's expires_at value.
     |
     */
 
@@ -43,7 +44,7 @@ return [
     |
     */
 
-    'last_used_at' => env('SANCTUM_LAST_USED_AT', true),
+    'last_used_at' => (bool) env('SANCTUM_LAST_USED_AT', true),
 
     /*
     |--------------------------------------------------------------------------
@@ -67,7 +68,9 @@ return [
     |
     | When authenticating your first-party SPA with Sanctum you may need to
     | customize some of the middleware Sanctum uses while processing the
-    | request. You may change the middleware below as required.
+    | request. Omitted cookie-encryption and CSRF entries use Sanctum's
+    | defaults, while session authentication is omitted by default. Set any
+    | entry to null to remove that middleware from the request pipeline.
     |
     */
 
@@ -85,20 +88,36 @@ return [
     | When enabled, Sanctum will cache token and tokenable lookups to improve
     | performance. The last_used_at timestamp will be updated at the specified
     | interval instead of on every request to reduce database writes. The TTL
-    | is the maximum time a cached tokenable identity may remain stale.
+    | is the maximum time a cached tokenable identity may remain stale. A
+    | null store uses the default cache store. The cache record may be omitted
+    | to disable caching. Its other members default to the values shown below.
+    | The update interval accepts zero to write after every authentication.
     |
     */
 
     'cache' => [
-        'enabled' => env('SANCTUM_CACHE_ENABLED', false),
-        'store' => env('SANCTUM_CACHE_STORE'), // Uses default store if not set
-        'ttl' => (int) env('SANCTUM_CACHE_TTL', 300), // 5 minutes
+        'enabled' => (bool) env('SANCTUM_CACHE_ENABLED', false),
+        'store' => env('SANCTUM_CACHE_STORE'),
+        'ttl' => (int) env('SANCTUM_CACHE_TTL', 300),
         'prefix' => env('SANCTUM_CACHE_PREFIX', 'sanctum'),
-        // Zero is valid, so preserve malformed values for startup validation.
         'last_used_at_update_interval' => filter_var(
-            env('SANCTUM_LAST_USED_UPDATE_INTERVAL', 300),
+            env('SANCTUM_LAST_USED_AT_UPDATE_INTERVAL', 300),
             FILTER_VALIDATE_INT,
             FILTER_NULL_ON_FAILURE,
         ),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Routes
+    |--------------------------------------------------------------------------
+    |
+    | Disable route registration when the application provides its own CSRF
+    | cookie endpoint. The prefix applies to Sanctum's built-in route.
+    |
+    */
+
+    'routes' => true,
+
+    'prefix' => 'sanctum',
 ];

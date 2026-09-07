@@ -49,11 +49,11 @@ class BroadcastChannel
     protected function getData(mixed $notifiable, Notification $notification): mixed
     {
         if (method_exists($notification, 'toBroadcast')) {
-            return $notification->toBroadcast($notifiable); /* @phpstan-ignore-line */
+            return $notification->toBroadcast($notifiable);
         }
 
         if (method_exists($notification, 'toArray')) {
-            return $notification->toArray($notifiable); /* @phpstan-ignore-line */
+            return $notification->toArray($notifiable);
         }
 
         throw new RuntimeException('Notification is missing toBroadcast / toArray method.');

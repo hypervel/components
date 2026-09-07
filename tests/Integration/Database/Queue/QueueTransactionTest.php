@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\Queue;
 
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Attributes\WithConfig;
@@ -33,7 +34,7 @@ class QueueTransactionTest extends DatabaseTestCase
     }
 
     #[DataProvider('timeoutJobs')]
-    public function testItCanHandleTimeoutJob($job)
+    public function testItCanHandleTimeoutJob(ShouldQueue $job): void
     {
         dispatch($job);
 
@@ -44,6 +45,9 @@ class QueueTransactionTest extends DatabaseTestCase
             remote('queue:work --stop-when-empty', [
                 'DB_CONNECTION' => config('database.default'),
                 'DB_DATABASE' => config('database.connections.' . config('database.default') . '.database'),
+                'DB_URL' => false,
+                'DATABASE_URL' => false,
+                'DB_POOLED_URL' => false,
                 'QUEUE_CONNECTION' => config('queue.default'),
             ])->run();
         } catch (Throwable $e) {

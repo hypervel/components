@@ -36,9 +36,9 @@ class EnsureEmailIsVerifiedTest extends TestCase
         $this->assertSame($expectedResponse, $result);
     }
 
-    public function testUserThatDoesNotImplementMustVerifyEmailPassesThrough()
+    public function testUserThatDoesNotImplementMustVerifyEmailPassesThrough(): void
     {
-        // User implements Authenticatable but NOT MustVerifyEmail
+        // User implements Authenticatable but does not implement MustVerifyEmail.
         $user = m::mock(Authenticatable::class);
 
         $request = m::mock(Request::class);
@@ -78,10 +78,10 @@ class EnsureEmailIsVerifiedTest extends TestCase
         $middleware->handle($request, fn () => new Response('should not reach'));
     }
 
-    public function testUnverifiedUserRedirectsWhenNotJson()
+    public function testUnverifiedUserRedirectsWhenNotJson(): void
     {
         // Register a named route so URL::route() can resolve it
-        $this->app['router']->get('/email/verify', fn () => 'verify')->name('verify.email');
+        $this->app->make('router')->get('/email/verify', fn () => 'verify')->name('verify.email');
 
         $user = m::mock(Authenticatable::class . ',' . MustVerifyEmail::class);
         $user->shouldReceive('hasVerifiedEmail')->andReturnFalse();
@@ -96,9 +96,9 @@ class EnsureEmailIsVerifiedTest extends TestCase
         $this->assertSame(302, $result->getStatusCode());
     }
 
-    public function testGuestRequestRedirectsWhenNotJson()
+    public function testGuestRequestRedirectsWhenNotJson(): void
     {
-        $this->app['router']->get('/email/verify', fn () => 'verify')->name('verify.email');
+        $this->app->make('router')->get('/email/verify', fn () => 'verify')->name('verify.email');
 
         $request = m::mock(Request::class);
         $request->shouldReceive('user')->andReturn(null);

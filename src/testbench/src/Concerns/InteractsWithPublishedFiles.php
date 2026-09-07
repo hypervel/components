@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Concerns;
 
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
+use RuntimeException;
 use Symfony\Component\Finder\SplFileInfo;
+use Throwable;
 
 use function Hypervel\Testbench\join_paths;
 
@@ -37,8 +40,7 @@ trait InteractsWithPublishedFiles
     {
         $this->cacheExistingMigrationsFiles();
 
-        $this->cleanUpPublishedFiles();
-        $this->cleanUpPublishedMigrationFiles();
+        $this->cleanUpPublishedFileSets();
     }
 
     /**
@@ -49,11 +51,9 @@ trait InteractsWithPublishedFiles
     protected function tearDownInteractsWithPublishedFiles(): void
     {
         if ($this->interactsWithPublishedFilesTeardownRegistered === false) {
-            $this->cleanUpPublishedFiles();
-            $this->cleanUpPublishedMigrationFiles();
+            $this->interactsWithPublishedFilesTeardownRegistered = true;
+            $this->cleanUpPublishedFileSets();
         }
-
-        $this->interactsWithPublishedFilesTeardownRegistered = true;
     }
 
     /**
@@ -64,7 +64,7 @@ trait InteractsWithPublishedFiles
     protected function cacheExistingMigrationsFiles(): void
     {
         $this->cachedExistingMigrationsFiles ??= (new Collection(
-            $this->app['files']->files($this->app->databasePath('migrations'))
+            $this->app->make('files')->files($this->app->databasePath('migrations'))
         ))->map($this->publishedFilePath(...))
             ->filter(static fn (string $file) => str_ends_with($file, '.php'))
             ->all();
@@ -79,7 +79,7 @@ trait InteractsWithPublishedFiles
     {
         $this->assertFilenameExists($file);
 
-        $haystack = $this->app['files']->get(
+        $haystack = $this->app->make('files')->get(
             $this->app->basePath($file)
         );
 
@@ -97,7 +97,7 @@ trait InteractsWithPublishedFiles
     {
         $this->assertFilenameExists($file);
 
-        $haystack = $this->app['files']->get(
+        $haystack = $this->app->make('files')->get(
             $this->app->basePath($file)
         );
 
@@ -127,7 +127,7 @@ trait InteractsWithPublishedFiles
 
         $this->assertTrue(! is_null($migrationFile), "Assert migration file {$file} does exist");
 
-        $haystack = $this->app['files']->get($migrationFile);
+        $haystack = $this->app->make('files')->get($migrationFile);
 
         foreach ($contains as $needle) {
             $this->assertStringContainsString($needle, $haystack, $message);
@@ -145,7 +145,7 @@ trait InteractsWithPublishedFiles
 
         $this->assertTrue(! is_null($migrationFile), "Assert migration file {$file} does exist");
 
-        $haystack = $this->app['files']->get($migrationFile);
+        $haystack = $this->app->make('files')->get($migrationFile);
 
         foreach ($contains as $needle) {
             $this->assertStringNotContainsString($needle, $haystack, $message);
@@ -169,7 +169,7 @@ trait InteractsWithPublishedFiles
     {
         $appFile = $this->app->basePath($file);
 
-        $this->assertTrue($this->app['files']->exists($appFile), "Assert file {$file} does exist");
+        $this->assertTrue($this->app->make('files')->exists($appFile), "Assert file {$file} does exist");
     }
 
     /**
@@ -179,7 +179,7 @@ trait InteractsWithPublishedFiles
     {
         $appFile = $this->app->basePath($file);
 
-        $this->assertTrue(! $this->app['files']->exists($appFile), "Assert file {$file} doesn't exist");
+        $this->assertTrue(! $this->app->make('files')->exists($appFile), "Assert file {$file} doesn't exist");
     }
 
     /**
@@ -225,15 +225,26 @@ trait InteractsWithPublishedFiles
      */
     protected function cleanUpPublishedFiles(): void
     {
-        $this->app['files']->delete(
-            (new Collection($this->files ?? []))
-                ->transform(fn ($file) => $this->app->basePath($file))
-                ->map(fn ($file) => str_contains($file, '*') ? [...$this->app['files']->glob($file)] : $file)
-                ->flatten()
-                ->filter(fn ($file) => $this->app['files']->exists($file))
-                ->reject(static fn ($file) => str_ends_with($file, '.gitkeep') || str_ends_with($file, '.gitignore'))
-                ->all()
-        );
+        $filesystem = $this->app->make(Filesystem::class);
+        $files = (new Collection($this->files ?? []))
+            ->transform(fn ($file) => $this->app->basePath($file))
+            ->map(fn ($file) => str_contains($file, '*') ? [...$filesystem->glob($file)] : $file)
+            ->flatten()
+            ->filter(fn ($file) => $filesystem->exists($file))
+            ->reject(static fn ($file) => str_ends_with($file, '.gitkeep') || str_ends_with($file, '.gitignore'))
+            ->all();
+
+        if ($files !== [] && ! $filesystem->delete($files)) {
+            $survivors = array_values(array_filter(
+                $files,
+                static fn (string $file): bool => $filesystem->exists($file),
+            ));
+
+            throw new RuntimeException(sprintf(
+                'Unable to remove published files [%s].',
+                implode(', ', $survivors),
+            ));
+        }
     }
 
     /**
@@ -245,7 +256,7 @@ trait InteractsWithPublishedFiles
             ? $this->app->basePath($directory)
             : $this->app->databasePath('migrations');
 
-        return $this->app['files']->glob(join_paths($migrationPath, "*{$filename}"))[0] ?? null;
+        return $this->app->make('files')->glob(join_paths($migrationPath, "*{$filename}"))[0] ?? null;
     }
 
     /**
@@ -255,13 +266,48 @@ trait InteractsWithPublishedFiles
      */
     protected function cleanUpPublishedMigrationFiles(): void
     {
-        $this->app['files']->delete(
-            (new Collection($this->app['files']->files($this->app->databasePath('migrations'))))
-                ->map($this->publishedFilePath(...))
-                ->reject(fn (string $file) => in_array($file, $this->cachedExistingMigrationsFiles, true))
-                ->filter(static fn (string $file) => str_ends_with($file, '.php'))
-                ->all()
-        );
+        $filesystem = $this->app->make(Filesystem::class);
+        $files = (new Collection($filesystem->files($this->app->databasePath('migrations'))))
+            ->map($this->publishedFilePath(...))
+            ->reject(fn (string $file) => in_array($file, $this->cachedExistingMigrationsFiles, true))
+            ->filter(static fn (string $file) => str_ends_with($file, '.php'))
+            ->all();
+
+        if ($files !== [] && ! $filesystem->delete($files)) {
+            $survivors = array_values(array_filter(
+                $files,
+                static fn (string $file): bool => $filesystem->exists($file),
+            ));
+
+            throw new RuntimeException(sprintf(
+                'Unable to remove published migration files [%s].',
+                implode(', ', $survivors),
+            ));
+        }
+    }
+
+    /**
+     * Remove ordinary and migration publications independently.
+     */
+    protected function cleanUpPublishedFileSets(): void
+    {
+        $failure = null;
+
+        try {
+            $this->cleanUpPublishedFiles();
+        } catch (Throwable $throwable) {
+            $failure = $throwable;
+        }
+
+        try {
+            $this->cleanUpPublishedMigrationFiles();
+        } catch (Throwable $throwable) {
+            $failure ??= $throwable;
+        }
+
+        if ($failure !== null) {
+            throw $failure;
+        }
     }
 
     /**

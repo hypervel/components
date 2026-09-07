@@ -52,8 +52,10 @@ class ReverbWatcherTest extends FeatureTestCase
     {
         parent::defineEnvironment($app);
 
-        $app['config']->set('reverb.apps.apps', [
-            [
+        $config = $app->make('config');
+
+        $config->set('reverb.apps.apps', [
+            array_replace($config->array('reverb.apps.apps.0'), [
                 'key' => 'reverb-key',
                 'secret' => 'reverb-secret',
                 'app_id' => '123456',
@@ -68,27 +70,27 @@ class ReverbWatcherTest extends FeatureTestCase
                 'activity_timeout' => 30,
                 'max_message_size' => 10_000,
                 'accept_client_events_from' => 'members',
-            ],
+            ]),
         ]);
 
-        $redisConnection = [
+        $redisConnection = array_replace($config->array('database.redis.default'), [
+            'url' => null,
             'host' => '127.0.0.1',
             'port' => 6379,
             'database' => 0,
-            'pool' => [
+            'pool' => array_replace($config->array('database.redis.default.pool'), [
                 'min_connections' => 1,
                 'max_connections' => 1,
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
                 'heartbeat' => -1,
                 'max_idle_time' => 60.0,
-            ],
-        ];
+            ]),
+        ]);
 
-        $app['config']->set('database.redis.options', []);
-        $app['config']->set('database.redis.default', $redisConnection);
-        $app['config']->set('database.redis.queue', $redisConnection);
-        $app['config']->set('database.redis.reverb', $redisConnection);
+        $config->set('database.redis.default', $redisConnection);
+        $config->set('database.redis.queue', $redisConnection);
+        $config->set('database.redis.reverb', $redisConnection);
 
         $server = m::mock(Server::class);
         $server->shouldReceive('sendMessage')->zeroOrMoreTimes();

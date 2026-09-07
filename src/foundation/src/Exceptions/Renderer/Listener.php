@@ -13,12 +13,12 @@ class Listener
     /**
      * The Context key for storing executed queries.
      */
-    protected const QUERIES_CONTEXT_KEY = '__foundation.exception_renderer.queries';
+    protected const string QUERIES_CONTEXT_KEY = '__foundation.exception_renderer.queries';
 
     /**
      * The maximum number of queries to store.
      */
-    protected const MAX_QUERIES = 100;
+    protected const int MAX_QUERIES = 100;
 
     /**
      * Register the appropriate listeners on the given event dispatcher.

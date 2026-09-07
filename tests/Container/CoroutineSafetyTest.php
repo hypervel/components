@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Container;
 
 use Hypervel\Container\Container;
+use Hypervel\Container\ContainerResolutionState;
 use Hypervel\Container\SharedResolution;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Container\CircularDependencyException;
+use Hypervel\Contracts\Container\Transient;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine as SwooleCoroutine;
@@ -20,6 +24,64 @@ use function Hypervel\Coroutine\parallel;
 
 class CoroutineSafetyTest extends TestCase
 {
+    public function testResolutionStateIsReplicatedWhenContextIsForked(): void
+    {
+        $container = new CoroutineResolutionStateInspectionContainer;
+        $parent = $container->resolutionState();
+        $parent->depth = 2;
+        $parent->buildStack = ['parent-build'];
+        $parent->resolvingStack = ['parent-resolution'];
+        $parent->parameterOverrides = [['value' => 'parent']];
+        $result = new Channel(1);
+
+        $childId = Coroutine::fork(static function () use ($container, $result): void {
+            $child = $container->resolutionState();
+            $before = [
+                'depth' => $child->depth,
+                'build' => $child->buildStack,
+                'resolving' => $child->resolvingStack,
+                'overrides' => $child->parameterOverrides,
+            ];
+
+            ++$child->depth;
+            $child->buildStack[] = 'child-build';
+            $child->resolvingStack[] = 'child-resolution';
+            $child->parameterOverrides[] = ['value' => 'child'];
+
+            $result->push([
+                'id' => spl_object_id($child),
+                'before' => $before,
+                'after' => [
+                    'depth' => $child->depth,
+                    'build' => $child->buildStack,
+                    'resolving' => $child->resolvingStack,
+                    'overrides' => $child->parameterOverrides,
+                ],
+            ]);
+        });
+
+        $child = $result->pop(1.0);
+        Coroutine::join([$childId], 1.0);
+
+        $this->assertNotSame(spl_object_id($parent), $child['id']);
+        $this->assertSame([
+            'depth' => 2,
+            'build' => ['parent-build'],
+            'resolving' => ['parent-resolution'],
+            'overrides' => [['value' => 'parent']],
+        ], $child['before']);
+        $this->assertSame([
+            'depth' => 3,
+            'build' => ['parent-build', 'child-build'],
+            'resolving' => ['parent-resolution', 'child-resolution'],
+            'overrides' => [['value' => 'parent'], ['value' => 'child']],
+        ], $child['after']);
+        $this->assertSame(2, $parent->depth);
+        $this->assertSame(['parent-build'], $parent->buildStack);
+        $this->assertSame(['parent-resolution'], $parent->resolvingStack);
+        $this->assertSame([['value' => 'parent']], $parent->parameterOverrides);
+    }
+
     public function testScopedInstancesAreIsolatedPerCoroutine(): void
     {
         $container = new Container;
@@ -261,7 +323,8 @@ class CoroutineSafetyTest extends TestCase
         }
     }
 
-    public function testConcurrentSingletonWaitsForResolvingCallbacks(): void
+    #[DataProvider('explicitSingletonWaiterProvider')]
+    public function testConcurrentResolutionWaitsForExplicitSingletonCallbacks(bool $useTransientResolution): void
     {
         $container = new CoroutineInspectingContainer;
         $callbackEntered = new Channel(1);
@@ -285,10 +348,12 @@ class CoroutineSafetyTest extends TestCase
 
         $results = parallel([
             'owner' => fn () => $container->make('service'),
-            'waiter' => function () use ($callbackEntered, $container) {
+            'waiter' => function () use ($callbackEntered, $container, $useTransientResolution) {
                 $callbackEntered->pop();
 
-                return $container->make('service');
+                return $useTransientResolution
+                    ? $container->makeTransient('service')
+                    : $container->make('service');
             },
             'release' => function () use ($waiterEntered, $releaseCallback): bool {
                 $waiterObserved = $waiterEntered->pop(1);
@@ -302,6 +367,14 @@ class CoroutineSafetyTest extends TestCase
         $this->assertSame(1, $constructions);
         $this->assertSame($results['owner'], $results['waiter']);
         $this->assertSame('ready', $results['owner']->status);
+    }
+
+    public static function explicitSingletonWaiterProvider(): array
+    {
+        return [
+            'ordinary resolution' => [false],
+            'transient resolution' => [true],
+        ];
     }
 
     public function testConcurrentAutoSingletonConstructionConverges(): void
@@ -344,6 +417,143 @@ class CoroutineSafetyTest extends TestCase
         $this->assertTrue($results['release']);
         $this->assertSame(1, $constructions);
         $this->assertSame($results['owner'], $results['waiter']);
+    }
+
+    public function testConcurrentTransientResolutionDoesNotJoinImplicitSharedResolution(): void
+    {
+        $container = new Container;
+        $normalDependencyEntered = new Channel(1);
+        $transientDependencyEntered = new Channel(1);
+        $releaseDependency = new Channel(2);
+        $constructions = 0;
+        CoroutineCoordinatedService::$constructions = 0;
+
+        $container->bind(
+            CoroutineCoordinatedDependency::class,
+            function () use (
+                &$constructions,
+                $normalDependencyEntered,
+                $transientDependencyEntered,
+                $releaseDependency,
+            ): CoroutineCoordinatedDependency {
+                ++$constructions;
+
+                ($constructions === 1 ? $normalDependencyEntered : $transientDependencyEntered)->push(true);
+                $releaseDependency->pop();
+
+                return new CoroutineCoordinatedDependency;
+            },
+        );
+
+        try {
+            $results = parallel([
+                'normal' => fn () => $container->make(CoroutineCoordinatedService::class),
+                'transient' => function () use ($container, $normalDependencyEntered) {
+                    $normalDependencyEntered->pop();
+
+                    return $container->makeTransient(CoroutineCoordinatedService::class);
+                },
+                'release' => function () use ($transientDependencyEntered, $releaseDependency): bool {
+                    $transientConstructionEntered = $transientDependencyEntered->pop(1);
+                    $releaseDependency->push(true);
+                    $releaseDependency->push(true);
+
+                    return $transientConstructionEntered === true;
+                },
+            ]);
+            $serviceConstructions = CoroutineCoordinatedService::$constructions;
+        } finally {
+            CoroutineCoordinatedService::$constructions = 0;
+        }
+
+        $this->assertTrue($results['release']);
+        $this->assertSame(2, $serviceConstructions);
+        $this->assertNotSame($results['normal'], $results['transient']);
+        $this->assertSame($results['normal'], $container->make(CoroutineCoordinatedService::class));
+    }
+
+    public function testTransientBindingDoesNotAdoptAnInFlightDirectResolution(): void
+    {
+        $container = new Container;
+        $dependencyEntered = new Channel(2);
+        $releaseDependency = new Channel(3);
+
+        $container->bind(
+            CoroutineImplicitLifetimeContract::class,
+            CoroutineImplicitLifetimeConcrete::class,
+        );
+        $container->bind(
+            CoroutineImplicitLifetimeDependency::class,
+            function () use ($dependencyEntered, $releaseDependency): CoroutineImplicitLifetimeDependency {
+                $dependencyEntered->push(true);
+                $releaseDependency->pop(1);
+
+                return new CoroutineImplicitLifetimeDependency;
+            },
+        );
+
+        $results = parallel([
+            'direct' => fn () => $container->make(CoroutineImplicitLifetimeConcrete::class),
+            'bound' => function () use ($container, $dependencyEntered) {
+                $dependencyEntered->pop(1);
+
+                return $container->make(CoroutineImplicitLifetimeContract::class);
+            },
+            'release' => function () use ($dependencyEntered, $releaseDependency): bool {
+                $bothConstructionsEntered = $dependencyEntered->pop(1);
+                $releaseDependency->push(true);
+                $releaseDependency->push(true);
+
+                return $bothConstructionsEntered === true;
+            },
+        ]);
+
+        $this->assertTrue($results['release']);
+        $this->assertNotSame($results['direct'], $results['bound']);
+
+        $releaseDependency->push(true);
+
+        $this->assertNotSame(
+            $results['bound'],
+            $container->make(CoroutineImplicitLifetimeContract::class),
+        );
+    }
+
+    public function testConcurrentTransientConstructionDoesNotCoordinateOrShare(): void
+    {
+        $container = new Container;
+        $dependencyEntered = new Channel(2);
+        $releaseDependency = new Channel(2);
+
+        $container->bind(CoroutineCoordinatedDependency::class, function () use ($dependencyEntered, $releaseDependency) {
+            $dependencyEntered->push(true);
+            $releaseDependency->pop();
+
+            return new CoroutineCoordinatedDependency;
+        });
+        CoroutineTransientService::$constructions = 0;
+
+        try {
+            $results = parallel([
+                'first' => fn () => $container->make(CoroutineTransientService::class),
+                'second' => fn () => $container->make(CoroutineTransientService::class),
+                'release' => function () use ($dependencyEntered, $releaseDependency): bool {
+                    $firstEntered = $dependencyEntered->pop(1);
+                    $secondEntered = $dependencyEntered->pop(1);
+                    $releaseDependency->push(true);
+                    $releaseDependency->push(true);
+
+                    return $firstEntered === true && $secondEntered === true;
+                },
+            ]);
+            $constructions = CoroutineTransientService::$constructions;
+        } finally {
+            CoroutineTransientService::$constructions = 0;
+        }
+
+        $this->assertTrue($results['release']);
+        $this->assertSame(2, $constructions);
+        $this->assertNotSame($results['first'], $results['second']);
     }
 
     public function testConcurrentFailureFansOutAndAllowsRetry(): void
@@ -563,6 +773,14 @@ class CoroutineSafetyTest extends TestCase
     }
 }
 
+class CoroutineResolutionStateInspectionContainer extends Container
+{
+    public function resolutionState(): ContainerResolutionState
+    {
+        return $this->getOrCreateResolutionState();
+    }
+}
+
 // --- Stub classes for coroutine safety tests ---
 
 class CoroutineCounter
@@ -677,6 +895,31 @@ class CoroutineCoordinatedDependency
 }
 
 class CoroutineCoordinatedService
+{
+    public static int $constructions = 0;
+
+    public function __construct(public readonly CoroutineCoordinatedDependency $dependency)
+    {
+        ++self::$constructions;
+    }
+}
+
+interface CoroutineImplicitLifetimeContract
+{
+}
+
+class CoroutineImplicitLifetimeDependency
+{
+}
+
+class CoroutineImplicitLifetimeConcrete implements CoroutineImplicitLifetimeContract
+{
+    public function __construct(public readonly CoroutineImplicitLifetimeDependency $dependency)
+    {
+    }
+}
+
+class CoroutineTransientService implements Transient
 {
     public static int $constructions = 0;
 

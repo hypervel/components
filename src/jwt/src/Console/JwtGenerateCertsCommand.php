@@ -128,9 +128,8 @@ class JwtGenerateCertsCommand extends Command
 
         $this->components->info('JWT certificates generated successfully.');
         $this->components->warn(
-            'Reload or restart every long-running application process before issuing tokens with the new certificate pair. '
-            . 'You may reload server workers using the [php artisan server:reload] command. '
-            . 'Other long-running processes, such as queue workers and custom server processes, must be restarted separately.'
+            'Restart the server and every other long-running application process, including queue workers and custom server processes, '
+            . 'before issuing tokens with the new certificate pair. The [php artisan server:reload] command only replaces server workers and is not sufficient.'
         );
 
         return self::SUCCESS;

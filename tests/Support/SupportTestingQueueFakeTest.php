@@ -5,9 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use BadMethodCallException;
+use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Bus\Queueable;
+use Hypervel\Bus\UniqueLock;
+use Hypervel\Cache\Repository;
+use Hypervel\Cache\WorkerArrayStore;
+use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Foundation\Application;
+use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\CallQueuedClosure;
 use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Queue\QueueManager;
@@ -229,6 +236,31 @@ class SupportTestingQueueFakeTest extends TestCase
         $this->fake->assertPushed(JobStub::class, 2);
     }
 
+    public function testBulkRespectsDelayAttribute(): void
+    {
+        $this->fake->bulk([
+            new JobWithDelayAttributeStub,
+            new JobStub,
+        ], ['foo' => 'bar'], 'redis');
+
+        $this->assertSame(1, $this->fake->delayedSize('redis'));
+        $this->fake->assertPushedOn('redis', JobWithDelayAttributeStub::class);
+        $this->fake->assertPushed(JobWithDelayAttributeStub::class, function (JobWithDelayAttributeStub $job, ?string $queue, mixed $data): bool {
+            return $queue === 'redis' && $data === ['foo' => 'bar'];
+        });
+        $this->fake->assertPushedOn('redis', JobStub::class);
+    }
+
+    public function testBulkRespectsRuntimeDelay(): void
+    {
+        $job = (new JobWithRuntimeDelayStub)->delay(30);
+
+        $this->fake->bulk([$job], '', 'redis');
+
+        $this->assertSame(1, $this->fake->delayedSize('redis'));
+        $this->fake->assertPushedOn('redis', JobWithRuntimeDelayStub::class);
+    }
+
     public function testPushOnAndLaterOnAcceptUnitEnums(): void
     {
         $this->fake->pushOn(QueueNameEnumStub::Foo, $this->job);
@@ -431,6 +463,29 @@ class SupportTestingQueueFakeTest extends TestCase
         );
     }
 
+    public function testFakedUniqueJobAcceptsDispatchOwnershipUntilFakeCleanup(): void
+    {
+        $application = new Application;
+        $cache = new Repository(new WorkerArrayStore);
+        $application->instance(CacheContract::class, $cache);
+        $fake = new QueueFake($application);
+        $job = new QueueFakeUniqueJobStub;
+        $lock = new UniqueLock($cache);
+
+        $this->assertTrue($lock->acquireForDispatch($job));
+        $metadata = DispatchLockContext::peekPayloadMetadata($job);
+        $this->assertNotNull($metadata);
+
+        $fake->push($job);
+
+        $this->assertNull(DispatchLockContext::peekPayloadMetadata($job));
+        $this->assertFalse($lock->acquire(new QueueFakeUniqueJobStub));
+
+        $fake->releaseUniqueJobLocks();
+
+        $this->assertTrue($lock->acquire(new QueueFakeUniqueJobStub));
+    }
+
     public function testItCanInvokeCallbacksBeforeAndAfterPushingFakedJobs(): void
     {
         $steps = [];
@@ -612,6 +667,23 @@ class SupportTestingQueueFakeTest extends TestCase
         $this->assertTrue($pending->contains(fn ($job) => $job->name === JobToFakeStub::class));
     }
 
+    public function testTotalSize(): void
+    {
+        $this->fake->push($this->job, '', 'foo');
+        $this->fake->later(10, new JobToFakeStub, '', 'bar');
+        $this->fake->reserve(new JobToFakeStub, 'baz');
+
+        $this->assertSame(3, $this->fake->totalSize());
+    }
+
+    public function testTotalPendingSize(): void
+    {
+        $this->fake->push($this->job, '', 'foo');
+        $this->fake->push(new JobToFakeStub, '', 'bar');
+
+        $this->assertSame(2, $this->fake->totalPendingSize());
+    }
+
     public function testDelayedJobs(): void
     {
         $this->fake->later(10, $this->job, '', 'foo');
@@ -637,6 +709,14 @@ class SupportTestingQueueFakeTest extends TestCase
         $this->assertInstanceOf(InspectedJob::class, $delayed->first());
         $this->assertTrue($delayed->contains(fn ($job) => $job->name === JobStub::class));
         $this->assertTrue($delayed->contains(fn ($job) => $job->name === JobToFakeStub::class));
+    }
+
+    public function testTotalDelayedSize(): void
+    {
+        $this->fake->later(10, $this->job, '', 'foo');
+        $this->fake->later(10, new JobToFakeStub, '', 'bar');
+
+        $this->assertSame(2, $this->fake->totalDelayedSize());
     }
 
     public function testDelayedSize(): void
@@ -666,6 +746,10 @@ class SupportTestingQueueFakeTest extends TestCase
         $this->assertSame(1, $this->fake->delayedSize('foo'));
         $this->assertSame(1, $this->fake->reservedSize('foo'));
         $this->assertSame(3, $this->fake->size('foo'));
+        $this->assertSame(1, $this->fake->totalPendingSize());
+        $this->assertSame(1, $this->fake->totalDelayedSize());
+        $this->assertSame(1, $this->fake->totalReservedSize());
+        $this->assertSame(3, $this->fake->totalSize());
         $this->fake->assertCount(2);
     }
 
@@ -725,6 +809,14 @@ class SupportTestingQueueFakeTest extends TestCase
         $this->assertInstanceOf(InspectedJob::class, $reserved->first());
         $this->assertTrue($reserved->contains(fn ($job) => $job->name === JobStub::class));
         $this->assertTrue($reserved->contains(fn ($job) => $job->name === JobToFakeStub::class));
+    }
+
+    public function testTotalReservedSize(): void
+    {
+        $this->fake->reserve($this->job, 'foo');
+        $this->fake->reserve(new JobToFakeStub, 'bar');
+
+        $this->assertSame(2, $this->fake->totalReservedSize());
     }
 
     public function testReservedSize(): void
@@ -935,6 +1027,31 @@ class JobToFakeStub
     }
 }
 
+#[Delay(15)]
+class JobWithDelayAttributeStub
+{
+    use Queueable;
+
+    /**
+     * Handle the job.
+     */
+    public function handle(): void
+    {
+    }
+}
+
+class JobWithRuntimeDelayStub
+{
+    use Queueable;
+
+    /**
+     * Handle the job.
+     */
+    public function handle(): void
+    {
+    }
+}
+
 class JobWithConnectionStub
 {
     use Queueable;
@@ -997,4 +1114,9 @@ class JobWithSerialization
     {
         $this->value = $data['value'] . '-unserialized';
     }
+}
+
+class QueueFakeUniqueJobStub implements ShouldBeUnique
+{
+    use Queueable;
 }

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Engines;
 
-use Hypervel\Container\Container;
 use Hypervel\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
 use Hypervel\Contracts\Pagination\Paginator as PaginatorContract;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
@@ -91,10 +90,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
                 }
             })
             ->when(count($this->getFullTextColumns($builder)) === 0, function (EloquentBuilder $query) use ($builder): void {
-                $query->orderBy(
-                    $builder->model->getTable() . '.' . $builder->model->getScoutKeyName(),
-                    'desc'
-                );
+                $query->orderBy($builder->model->getQualifiedKeyName(), 'desc');
             })
             ->when($this->shouldOrderByRelevance($builder), function (EloquentBuilder $query) use ($builder): void {
                 $this->orderByRelevance($builder, $query);
@@ -118,10 +114,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
                 }
             })
             ->when(count($this->getFullTextColumns($builder)) === 0, function (EloquentBuilder $query) use ($builder): void {
-                $query->orderBy(
-                    $builder->model->getTable() . '.' . $builder->model->getScoutKeyName(),
-                    'desc'
-                );
+                $query->orderBy($builder->model->getQualifiedKeyName(), 'desc');
             })
             ->when($this->shouldOrderByRelevance($builder), function (EloquentBuilder $query) use ($builder): void {
                 $this->orderByRelevance($builder, $query);
@@ -147,10 +140,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
                 }
             })
             ->when(count($this->getFullTextColumns($builder)) === 0, function (EloquentBuilder $query) use ($builder): void {
-                $query->orderBy(
-                    $builder->model->getTable() . '.' . $builder->model->getScoutKeyName(),
-                    'desc'
-                );
+                $query->orderBy($builder->model->getQualifiedKeyName(), 'desc');
             })
             ->when($this->shouldOrderByRelevance($builder), function (EloquentBuilder $query) use ($builder): void {
                 $this->orderByRelevance($builder, $query);
@@ -202,13 +192,20 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
         $connectionType = $builder->modelConnectionType();
 
         return $query->where(function (EloquentBuilder $query) use ($connectionType, $builder, $columns, $prefixColumns, $fullTextColumns): void {
+            $primaryKey = $builder->model->getKeyName();
+            $integerPrimaryKey = in_array($builder->model->getKeyType(), ['int', 'integer'], true);
+            $primaryKeyValue = $builder->query;
             $canSearchPrimaryKey = ctype_digit((string) $builder->query)
-                && in_array($builder->model->getKeyType(), ['int', 'integer'], true)
-                && ($connectionType !== 'pgsql' || (int) $builder->query <= PHP_INT_MAX)
-                && in_array($builder->model->getScoutKeyName(), $columns, true);
+                && $integerPrimaryKey
+                && in_array($primaryKey, $columns, true);
+
+            if ($canSearchPrimaryKey && $connectionType === 'pgsql') {
+                $primaryKeyValue = ltrim((string) $builder->query, '0') ?: '0';
+                $canSearchPrimaryKey = filter_var($primaryKeyValue, FILTER_VALIDATE_INT) !== false;
+            }
 
             if ($canSearchPrimaryKey) {
-                $query->orWhere($builder->model->getQualifiedKeyName(), $builder->query);
+                $query->orWhere($builder->model->getQualifiedKeyName(), $primaryKeyValue);
             }
 
             $likeOperator = $connectionType === 'pgsql' ? 'ilike' : 'like';
@@ -218,7 +215,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
                     continue;
                 }
 
-                if ($canSearchPrimaryKey && $column === $builder->model->getScoutKeyName()) {
+                if ($integerPrimaryKey && $column === $primaryKey) {
                     continue;
                 }
 
@@ -345,7 +342,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
             true
         );
 
-        if ($usesSoftDeletes && $this->getConfig('soft_delete', false)) {
+        if ($usesSoftDeletes && config()->boolean('scout.soft_delete')) {
             /* @phpstan-ignore method.notFound (SoftDeletes adds this method via global scope) */
             return $query->withTrashed();
         }
@@ -399,6 +396,13 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
             /** @var SearchUsingFullText|SearchUsingPrefix $attributeInstance */
             $attributeInstance = $attribute->newInstance();
             $columns = array_merge($columns, $attributeInstance->columns);
+        }
+
+        if (in_array($builder->model->getKeyType(), ['int', 'integer'], true)) {
+            $columns = array_values(array_filter(
+                $columns,
+                fn (string $column): bool => $column !== $builder->model->getKeyName()
+            ));
         }
 
         return $this->attributeColumns[$modelClass][$attributeClass] = $columns;
@@ -485,6 +489,16 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
     }
 
     /**
+     * Update the given models without observing an external index operation.
+     *
+     * @param EloquentCollection<int, Model> $models
+     */
+    public function runUpdate(EloquentCollection $models): void
+    {
+        $this->update($models);
+    }
+
+    /**
      * Remove the given models from the search index.
      *
      * The database engine doesn't need to remove from an external index.
@@ -497,11 +511,29 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
     }
 
     /**
+     * Delete the given models without observing an external index operation.
+     *
+     * @param EloquentCollection<int, Model> $models
+     */
+    public function runDelete(EloquentCollection $models): void
+    {
+        $this->delete($models);
+    }
+
+    /**
      * Flush all of the model's records from the engine.
      */
     public function flush(Model $model): void
     {
         // No-op: The database is the index.
+    }
+
+    /**
+     * Flush the given model without observing an external index operation.
+     */
+    public function runFlush(Model $model): void
+    {
+        $this->flush($model);
     }
 
     /**
@@ -520,15 +552,5 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
     {
         // No-op: The database table is the index.
         return null;
-    }
-
-    /**
-     * Get a Scout configuration value.
-     */
-    protected function getConfig(string $key, mixed $default = null): mixed
-    {
-        return Container::getInstance()
-            ->make('config')
-            ->get("scout.{$key}", $default);
     }
 }

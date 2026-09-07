@@ -25,7 +25,6 @@ class PackageMetadataTest extends TestCase
 
         foreach ([
             'ext-swoole',
-            'hypervel/api-client',
             'hypervel/bus',
             'hypervel/collections',
             'hypervel/console',
@@ -58,6 +57,7 @@ class PackageMetadataTest extends TestCase
             $this->assertNotSame('', trim($composer['require'][$dependency]));
         }
 
+        $this->assertArrayNotHasKey('hypervel/api-client', $composer['require']);
         $this->assertArrayNotHasKey('hypervel/broadcasting', $composer['require']);
     }
 }

@@ -9,6 +9,11 @@ use Hypervel\Support\CarbonImmutable;
 class WorkerArrayStore extends AbstractArrayStore
 {
     /**
+     * The maximum records reclaimed from each map per write.
+     */
+    private const int RECLAMATION_LIMIT = 8;
+
+    /**
      * The array of stored values.
      *
      * @var array<string, array{value: mixed, expiresAt: float}>
@@ -75,22 +80,13 @@ class WorkerArrayStore extends AbstractArrayStore
     }
 
     /**
-     * Get the lock record for the given name.
-     *
-     * @return null|array{owner: ?string, expiresAt: ?CarbonImmutable}
-     */
-    public function getLockRecord(string $name): ?array
-    {
-        return $this->locks[$name] ?? null;
-    }
-
-    /**
      * Store the lock record for the given name.
      *
      * @param array{owner: ?string, expiresAt: ?CarbonImmutable} $record
      */
     public function putLockRecord(string $name, array $record): void
     {
+        $this->reclaimExpiredRecords();
         $this->locks[$name] = $record;
     }
 
@@ -108,5 +104,84 @@ class WorkerArrayStore extends AbstractArrayStore
     public function clearLockRecords(): void
     {
         $this->locks = [];
+    }
+
+    /**
+     * Get all lock records.
+     *
+     * @return array<string, array{owner: ?string, expiresAt: ?CarbonImmutable}>
+     */
+    protected function getLockRecords(): array
+    {
+        return $this->locks;
+    }
+
+    /**
+     * Reclaim a fixed number of expired value and lock records.
+     */
+    protected function reclaimExpiredRecords(?float $currentTimestamp = null): void
+    {
+        if ($this->storage === [] && $this->locks === []) {
+            return;
+        }
+
+        $currentTime = $this->locks === [] ? null : CarbonImmutable::now();
+
+        if ($this->storage !== []) {
+            $currentTimestamp ??= $currentTime !== null
+                ? $currentTime->getPreciseTimestamp(3) / 1000
+                : $this->currentPreciseTimestamp();
+
+            $this->reclaimExpiredValues($currentTimestamp);
+        }
+
+        if ($currentTime !== null) {
+            $this->reclaimExpiredLocks($currentTime);
+        }
+    }
+
+    /**
+     * Reclaim expired values within the per-write limit.
+     */
+    private function reclaimExpiredValues(float $currentTimestamp): void
+    {
+        $limit = min(self::RECLAMATION_LIMIT, count($this->storage));
+
+        for ($index = 0; $index < $limit && $this->storage !== []; ++$index) {
+            if (key($this->storage) === null) {
+                reset($this->storage);
+            }
+
+            $key = key($this->storage);
+            $item = $this->storage[$key];
+            next($this->storage);
+
+            if ($item['expiresAt'] !== 0.0 && $this->isCacheItemExpired($item, $currentTimestamp)) {
+                unset($this->storage[$key]);
+            }
+        }
+    }
+
+    /**
+     * Reclaim expired locks within the per-write limit.
+     */
+    private function reclaimExpiredLocks(CarbonImmutable $currentTime): void
+    {
+        $limit = min(self::RECLAMATION_LIMIT, count($this->locks));
+
+        for ($index = 0; $index < $limit && $this->locks !== []; ++$index) {
+            if (key($this->locks) === null) {
+                reset($this->locks);
+            }
+
+            $key = key($this->locks);
+            $record = $this->locks[$key];
+            next($this->locks);
+
+            if ($record['expiresAt'] !== null
+                && $this->isLockRecordExpired($record['expiresAt'], $currentTime)) {
+                unset($this->locks[$key]);
+            }
+        }
     }
 }

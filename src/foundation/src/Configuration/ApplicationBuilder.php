@@ -11,18 +11,14 @@ use Hypervel\Contracts\Console\Kernel as ConsoleKernel;
 use Hypervel\Contracts\Http\Kernel as HttpKernel;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\RegisterProviders;
-use Hypervel\Foundation\Events\DiagnosingHealth;
+use Hypervel\Foundation\Http\HealthCheckController;
 use Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
 use Hypervel\Foundation\Support\Providers\EventServiceProvider as AppEventServiceProvider;
 use Hypervel\Foundation\Support\Providers\RouteServiceProvider as AppRouteServiceProvider;
 use Hypervel\Http\Middleware\PrefersJsonResponses;
-use Hypervel\Http\Request;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Broadcast;
-use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Route;
-use Hypervel\Support\Facades\View;
-use Throwable;
 
 class ApplicationBuilder
 {
@@ -158,8 +154,6 @@ class ApplicationBuilder
 
     /**
      * Create the routing callback for the application.
-     *
-     * @throws Throwable
      */
     protected function buildRoutingCallback(
         array|string|null $web,
@@ -182,35 +176,7 @@ class ApplicationBuilder
             }
 
             if (is_string($health)) {
-                Route::get($health, function (Request $request) {
-                    $exception = null;
-
-                    try {
-                        Event::dispatch(new DiagnosingHealth);
-                    } catch (Throwable $throwable) {
-                        if (app()->hasDebugModeEnabled()) {
-                            throw $throwable;
-                        }
-
-                        report($throwable);
-
-                        $exception = $throwable;
-                    }
-
-                    $health = $exception === null ? 'up' : 'down';
-                    $status = $health === 'up' ? 200 : 500;
-
-                    if ($request->expectsJson()) {
-                        return response()->json([
-                            'status' => $health,
-                        ], $status);
-                    }
-
-                    return response(View::file(__DIR__ . '/../resources/health-up.blade.php', [
-                        'request' => $request,
-                        'status' => $health,
-                    ]), status: $status);
-                });
+                Route::get($health, HealthCheckController::class);
             }
 
             if (is_string($web) || is_array($web)) {

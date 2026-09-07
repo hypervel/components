@@ -13,6 +13,7 @@ use Hypervel\Testbench\Foundation\Actions\DeleteVendorSymlink;
 use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\Workbench\Actions\RemoveAssetSymlinkFolders;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Throwable;
 
 use function Hypervel\Filesystem\join_paths;
 
@@ -29,18 +30,30 @@ class PurgeSkeletonCommand extends Command
      */
     public function handle(Filesystem $filesystem, ConfigContract $config): int
     {
-        $this->call('config:clear');
-        $this->call('event:clear');
-        $this->call('route:clear');
-        $this->call('view:clear');
+        $failed = false;
 
-        (new RemoveAssetSymlinkFolders($filesystem, $config))->handle();
+        foreach (['config:clear', 'event:clear', 'route:clear', 'view:clear'] as $command) {
+            if ($this->call($command) !== self::SUCCESS) {
+                $failed = true;
+            }
+        }
+
+        $run = function (callable $action) use (&$failed): void {
+            try {
+                $action();
+            } catch (Throwable $throwable) {
+                $failed = true;
+                $this->components?->error($throwable->getMessage());
+            }
+        };
+
+        $run(static fn () => (new RemoveAssetSymlinkFolders($filesystem, $config))->handle());
 
         ['files' => $files, 'directories' => $directories] = $config->getPurgeAttributes();
 
         $environmentFile = Env::get('TESTBENCH_ENVIRONMENT_FILENAME', '.env');
 
-        (new Actions\DeleteFiles(
+        $run(fn () => (new Actions\DeleteFiles(
             filesystem: $filesystem,
         ))->handle(
             (new Collection([
@@ -49,9 +62,9 @@ class PurgeSkeletonCommand extends Command
                 join_paths('bootstrap', 'cache', 'testbench.yaml'),
                 join_paths('bootstrap', 'cache', 'testbench.yaml.backup'),
             ]))->map(fn (string $file) => $this->hypervel->basePath($file))
-        );
+        ));
 
-        (new Actions\DeleteFiles(
+        $run(fn () => (new Actions\DeleteFiles(
             filesystem: $filesystem,
         ))->handle(
             (new LazyCollection(function () use ($filesystem) {
@@ -61,9 +74,9 @@ class PurgeSkeletonCommand extends Command
                 yield $filesystem->glob($this->hypervel->storagePath(join_paths('app', '*')));
                 yield $filesystem->glob($this->hypervel->storagePath(join_paths('framework', 'sessions', '*')));
             }))->flatten()
-        );
+        ));
 
-        (new Actions\DeleteFiles(
+        $run(fn () => (new Actions\DeleteFiles(
             filesystem: $filesystem,
             components: $this->components,
         ))->handle(
@@ -72,9 +85,9 @@ class PurgeSkeletonCommand extends Command
                 ->map(static fn (string $file) => str_contains($file, '*') ? [...$filesystem->glob($file)] : $file)
                 ->flatten()
                 ->reject(static fn (string $file) => str_contains($file, '*'))
-        );
+        ));
 
-        (new Actions\DeleteDirectories(
+        $run(fn () => (new Actions\DeleteDirectories(
             filesystem: $filesystem,
             components: $this->components,
         ))->handle(
@@ -83,12 +96,12 @@ class PurgeSkeletonCommand extends Command
                 ->map(static fn (string $directory) => str_contains($directory, '*') ? [...$filesystem->glob($directory)] : $directory)
                 ->flatten()
                 ->reject(static fn (string $directory) => str_contains($directory, '*'))
-        );
+        ));
 
         TerminatingConsole::before(function (): void {
             (new DeleteVendorSymlink)->handle($this->hypervel);
         });
 
-        return self::SUCCESS;
+        return $failed ? self::FAILURE : self::SUCCESS;
     }
 }

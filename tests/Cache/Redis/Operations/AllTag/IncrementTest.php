@@ -11,30 +11,27 @@ use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
  */
 class IncrementTest extends RedisCacheTestCase
 {
-    /**
-     * @test
-     */
     public function testIncrementWithTagsInPipelineMode(): void
     {
         $connection = $this->mockConnection();
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        // ZADD NX for tag with score -1 (only add if not exists)
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
-            ->andReturn($connection);
-
-        // INCRBY
         $connection->shouldReceive('incrby')
             ->once()
             ->with('prefix:counter', 1)
-            ->andReturn($connection);
+            ->andReturn($connection)
+            ->ordered();
+
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
+            ->andReturn($connection)
+            ->ordered();
 
         $connection->shouldReceive('exec')
             ->once()
-            ->andReturn([1, 5]);
+            ->andReturn([5, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->increment()->execute(
@@ -46,9 +43,6 @@ class IncrementTest extends RedisCacheTestCase
         $this->assertSame(5, $result);
     }
 
-    /**
-     * @test
-     */
     public function testIncrementWithCustomValue(): void
     {
         $connection = $this->mockConnection();
@@ -67,7 +61,7 @@ class IncrementTest extends RedisCacheTestCase
 
         $connection->shouldReceive('exec')
             ->once()
-            ->andReturn([0, 15]);  // 0 means key already existed (NX condition)
+            ->andReturn([15, 0]); // 0 means tag membership already existed
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->increment()->execute(
@@ -79,9 +73,6 @@ class IncrementTest extends RedisCacheTestCase
         $this->assertSame(15, $result);
     }
 
-    /**
-     * @test
-     */
     public function testIncrementWithMultipleTags(): void
     {
         $connection = $this->mockConnection();
@@ -117,9 +108,6 @@ class IncrementTest extends RedisCacheTestCase
         $this->assertSame(1, $result);
     }
 
-    /**
-     * @test
-     */
     public function testIncrementWithEmptyTags(): void
     {
         $connection = $this->mockConnection();
@@ -146,27 +134,21 @@ class IncrementTest extends RedisCacheTestCase
         $this->assertSame(1, $result);
     }
 
-    /**
-     * @test
-     */
     public function testIncrementInClusterModeUsesSequentialCommands(): void
     {
         [$store, , $connection] = $this->createClusterStore();
 
-        // Should NOT use pipeline in cluster mode
         $connection->shouldNotReceive('pipeline');
 
-        // Sequential ZADD NX
-        $connection->shouldReceive('zadd')
+        $connection->expects('incrby')
+            ->with('prefix:counter', 1)
+            ->andReturn(10)
+            ->ordered();
+        $connection->expects('zadd')
             ->once()
             ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
-            ->andReturn(1);
-
-        // Sequential INCRBY
-        $connection->shouldReceive('incrby')
-            ->once()
-            ->with('prefix:counter', 1)
-            ->andReturn(10);
+            ->andReturn(1)
+            ->ordered();
 
         $result = $store->allTagOps()->increment()->execute(
             'counter',
@@ -177,9 +159,20 @@ class IncrementTest extends RedisCacheTestCase
         $this->assertSame(10, $result);
     }
 
-    /**
-     * @test
-     */
+    public function testIncrementInClusterModeDoesNotPublishTagsWhenTheCounterFails(): void
+    {
+        [$store, , $connection] = $this->createClusterStore();
+
+        $connection->expects('incrby')->with('prefix:counter', 1)->andReturnFalse();
+        $connection->shouldNotReceive('zadd');
+
+        $this->assertFalse($store->allTagOps()->increment()->execute(
+            'counter',
+            1,
+            ['_all:tag:users:entries']
+        ));
+    }
+
     public function testIncrementReturnsFalseOnPipelineFailure(): void
     {
         $connection = $this->mockConnection();

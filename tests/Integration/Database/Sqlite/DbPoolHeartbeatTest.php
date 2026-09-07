@@ -13,13 +13,12 @@ use Hypervel\Database\Connectors\SQLiteConnector;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Pool\DbPool;
 use Hypervel\Database\Pool\PooledConnection;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
-use PDO;
-use PDOStatement;
 use Psr\Log\AbstractLogger;
 use ReflectionProperty;
 use RuntimeException;
@@ -326,14 +325,24 @@ class DbPoolHeartbeatTest extends TestCase
     public function testHeartbeatPingTimeoutDiscardsWithoutRequeueingLateCompletion(): void
     {
         run(function () {
-            SlowHeartbeatPdo::$coroutineId = null;
+            SlowHeartbeatConnection::$coroutineId = null;
+
+            $this->app->make('db.factory')->extend(
+                'heartbeat_test',
+                static fn (array $config): SlowHeartbeatConnection => new SlowHeartbeatConnection(
+                    static fn () => throw new RuntimeException('The slow heartbeat test must not resolve its PDO.'),
+                    $config['database'],
+                    $config['prefix'],
+                    $config,
+                )
+            );
 
             $pool = $this->createPool([
                 'min_connections' => 1,
                 'max_connections' => 1,
                 'heartbeat' => -1,
                 'heartbeat_timeout' => 0.001,
-            ], SlowHeartbeatDbPool::class);
+            ]);
 
             $pooledConnection = $pool->get();
             $pooledConnection->release();
@@ -345,12 +354,12 @@ class DbPoolHeartbeatTest extends TestCase
             $this->assertLessThan(0.2, $elapsed);
             $this->assertSame(0, $pool->getCurrentConnections());
             $this->assertSame(0, $pool->getConnectionsInChannel());
-            $this->assertIsInt(SlowHeartbeatPdo::$coroutineId);
+            $this->assertIsInt(SlowHeartbeatConnection::$coroutineId);
             $deadline = microtime(true) + 0.1;
-            while (Coroutine::exists(SlowHeartbeatPdo::$coroutineId) && microtime(true) < $deadline) {
+            while (Coroutine::exists(SlowHeartbeatConnection::$coroutineId) && microtime(true) < $deadline) {
                 usleep(1000);
             }
-            $this->assertFalse(Coroutine::exists(SlowHeartbeatPdo::$coroutineId));
+            $this->assertFalse(Coroutine::exists(SlowHeartbeatConnection::$coroutineId));
 
             usleep(100000);
 
@@ -540,31 +549,11 @@ class ThrowingHeartbeatLogger extends AbstractLogger implements StdoutLoggerInte
     }
 }
 
-class SlowHeartbeatDbPool extends InspectableHeartbeatDbPool
-{
-    protected function createConnection(): ConnectionInterface
-    {
-        return new SlowHeartbeatPooledConnection($this->container, $this, $this->config);
-    }
-}
-
-class SlowHeartbeatPooledConnection extends PooledConnection
-{
-    protected function getOpenPdos(): array
-    {
-        return [new SlowHeartbeatPdo];
-    }
-}
-
-class SlowHeartbeatPdo extends PDO
+class SlowHeartbeatConnection extends SQLiteConnection
 {
     public static ?int $coroutineId = null;
 
-    public function __construct()
-    {
-    }
-
-    public function query(string $query, ?int $fetchMode = null, mixed ...$fetchModeArgs): PDOStatement|false
+    public function ping(): bool
     {
         self::$coroutineId = Coroutine::id();
 

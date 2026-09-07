@@ -14,6 +14,9 @@ use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Events\JobReleasedAfterException;
+use Hypervel\Queue\Events\WorkerQueuePaused;
+use Hypervel\Queue\Events\WorkerQueueResumed;
+use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\Worker;
@@ -31,9 +34,9 @@ class WorkCommand extends Command
 {
     use InteractsWithTime;
 
-    protected const CURRENT_COMMAND_CONTEXT_KEY = '__queue.worker.current_command';
+    protected const string CURRENT_COMMAND_CONTEXT_KEY = '__queue.worker.current_command';
 
-    protected const LATEST_STARTED_AT_CONTEXT_KEY = '__queue.worker.latest_started_at';
+    protected const string LATEST_STARTED_AT_CONTEXT_KEY = '__queue.worker.latest_started_at';
 
     /**
      * The console command name.
@@ -145,7 +148,7 @@ class WorkCommand extends Command
     protected function gatherWorkerOptions(): WorkerOptions
     {
         $concurrency = $this->option('concurrency') === null
-            ? max(1, $this->config->integer('queue.concurrency_number'))
+            ? max(1, $this->config->integer('queue.concurrency'))
             : max(1, (int) $this->option('concurrency'));
 
         return new WorkerOptions(
@@ -175,24 +178,43 @@ class WorkCommand extends Command
             return;
         }
 
-        $this->hypervel['events']->listen(JobProcessing::class, static function (JobProcessing $event): void {
+        $events = $this->hypervel->make('events');
+
+        $events->listen(JobProcessing::class, static function (JobProcessing $event): void {
             static::currentCommand()?->writeOutput($event->job, 'starting');
         });
 
-        $this->hypervel['events']->listen(JobProcessed::class, static function (JobProcessed $event): void {
+        $events->listen(JobProcessed::class, static function (JobProcessed $event): void {
             static::currentCommand()?->writeOutput($event->job, 'success');
         });
 
-        $this->hypervel['events']->listen(JobReleasedAfterException::class, static function (JobReleasedAfterException $event): void {
+        $events->listen(JobReleasedAfterException::class, static function (JobReleasedAfterException $event): void {
             static::currentCommand()?->writeOutput($event->job, 'released_after_exception');
         });
 
-        $this->hypervel['events']->listen(JobFailed::class, static function (JobFailed $event): void {
+        $events->listen(JobFailed::class, static function (JobFailed $event): void {
             $command = static::currentCommand();
 
             $command?->logFailedJob($event);
 
             $command?->writeOutput($event->job, 'failed', $event->exception);
+        });
+
+        $events->listen(WorkerQueuePaused::class, static function (WorkerQueuePaused $event): void {
+            static::currentCommand()?->writeQueueStatus($event->queue, 'paused');
+        });
+
+        $events->listen(WorkerQueueResumed::class, static function (WorkerQueueResumed $event): void {
+            static::currentCommand()?->writeQueueStatus($event->queue, 'resumed');
+        });
+
+        $events->listen(WorkerStopping::class, static function (WorkerStopping $event): void {
+            // Graceful stopping runs outside the configured job coroutine context.
+            $command = $event->workerOptions?->coroutineContext[self::CURRENT_COMMAND_CONTEXT_KEY] ?? null;
+
+            if ($command instanceof self) {
+                $command->writeStopReason($event);
+            }
         });
 
         static::$hasRegisteredListeners = true;
@@ -210,6 +232,66 @@ class WorkCommand extends Command
         $this->outputUsingJson()
             ? $this->writeOutputAsJson($job, $status, $exception)
             : $this->writeOutputForCli($job, $status);
+    }
+
+    /**
+     * Write the status output for a paused or resumed queue.
+     */
+    protected function writeQueueStatus(string $queue, string $status): void
+    {
+        if ($this->output->isQuiet() || $this->output->isSilent()) {
+            return;
+        }
+
+        if ($this->outputUsingJson()) {
+            $this->output->writeln(json_encode([
+                'level' => 'warning',
+                'queue' => $queue,
+                'status' => $status,
+                'timestamp' => $this->now()->format('Y-m-d\TH:i:s.uP'),
+            ]));
+
+            return;
+        }
+
+        $this->output->writeln(sprintf(
+            '  <fg=gray>%s</> Queue <fg=blue>%s</> %s',
+            $this->now()->format('Y-m-d H:i:s'),
+            $queue,
+            $status === 'paused'
+                ? '<fg=yellow;options=bold>PAUSED</>'
+                : '<fg=green;options=bold>RESUMED</>',
+        ));
+    }
+
+    /**
+     * Write the status output for a queue worker that is stopping.
+     */
+    protected function writeStopReason(WorkerStopping $event): void
+    {
+        if ($this->output->isQuiet() || $this->output->isSilent() || is_null($event->reason)) {
+            return;
+        }
+
+        if ($this->outputUsingJson()) {
+            $this->output->writeln(json_encode([
+                'level' => $event->status === 0 ? 'info' : 'warning',
+                'status' => 'stopped',
+                'reason' => $event->reason->value,
+                'exit_code' => $event->status,
+                'jobs_processed' => $event->jobsProcessed,
+                'memory' => is_null($event->memoryUsage) ? null : round($event->memoryUsage, 1),
+                'timestamp' => $this->now()->format('Y-m-d\TH:i:s.uP'),
+            ]));
+
+            return;
+        }
+
+        $this->output->writeln(sprintf(
+            '  <fg=gray>%s</> Worker <fg=yellow;options=bold>STOPPED</> <fg=gray>%s</>',
+            $this->now()->format('Y-m-d H:i:s'),
+            $event->reason->description(),
+        ));
     }
 
     /**
@@ -383,7 +465,7 @@ class WorkCommand extends Command
     }
 
     /**
-     * Get the queue work command for the currently running job coroutine.
+     * Get the queue work command for the current coroutine.
      */
     protected static function currentCommand(): ?self
     {

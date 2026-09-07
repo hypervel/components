@@ -13,9 +13,13 @@ use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Grpc\Exceptions\ProtocolException;
 use Hypervel\Grpc\Exceptions\RpcException;
+use Hypervel\Grpc\GrpcOperationResult;
+use Hypervel\Grpc\GrpcOperationRunner;
 use Hypervel\Grpc\Protocol\MediaType;
 use Hypervel\Grpc\Protocol\MetadataCodec;
 use Hypervel\Grpc\Protocol\ServiceMethod;
+use Hypervel\Grpc\Protocol\StatusCodec;
+use Hypervel\Grpc\ServerGrpcOperation;
 use Hypervel\Grpc\StatusCode;
 use Hypervel\HttpServer\RequestBridge;
 use Hypervel\HttpServer\ResponseBridge;
@@ -47,6 +51,14 @@ class Server implements OnRequestInterface, BootstrapsForServer
 
     private string $scheme;
 
+    private string $serverName;
+
+    private string $serverAddress;
+
+    private int $serverPort;
+
+    private GrpcOperationRunner $operations;
+
     public function __construct(private readonly Container $container)
     {
     }
@@ -65,8 +77,12 @@ class Server implements OnRequestInterface, BootstrapsForServer
         $this->responses = $this->container->make(ResponseFactory::class);
         $this->exceptions = $this->container->make(ExceptionMapper::class);
         $this->contexts = $this->container->make(CallContextStore::class);
+        $this->operations = $this->container->make(GrpcOperationRunner::class);
 
         $this->maxMetadataSize = $config->integer('grpc.server.max_metadata_size');
+        $this->serverName = $serverName;
+        $this->serverAddress = $config->string('grpc.server.host');
+        $this->serverPort = $config->integer('grpc.server.port');
         /** @var array<string, mixed> $tlsConfiguration */
         $tlsConfiguration = $config->array('grpc.server.tls');
         $this->scheme = TlsOptions::fromArray($tlsConfiguration)->enabled() ? 'https' : 'http';
@@ -79,12 +95,28 @@ class Server implements OnRequestInterface, BootstrapsForServer
     {
         $response = null;
         $emissionStarted = false;
+        $operationHandle = null;
+        $terminalException = null;
+        $emissionFailure = null;
+        $cancelled = false;
 
         try {
             CoordinatorManager::until(Constants::WORKER_START)->yield();
 
             $rawMethod = $this->rawMethod($swooleRequest);
             $rawPath = $this->rawPath($swooleRequest);
+
+            if ($this->operations->hasObservers()) {
+                $operationHandle = $this->operations->start(new ServerGrpcOperation(
+                    $rawMethod,
+                    $rawPath,
+                    $swooleRequest->header,
+                    $this->serverName,
+                    $this->serverAddress,
+                    $this->serverPort,
+                ));
+            }
+
             $response = $this->preflight($swooleRequest, $rawMethod, $rawPath);
 
             if ($response === null) {
@@ -105,13 +137,18 @@ class Server implements OnRequestInterface, BootstrapsForServer
             $emissionStarted = true;
             ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/2', request: $request ?? null);
         } catch (CanceledException $exception) {
+            $cancelled = true;
+
             throw $exception;
         } catch (Throwable $throwable) {
+            $terminalException = $throwable;
+
             if ($response instanceof GrpcStreamedResponse) {
                 $response->complete();
             }
 
             if ($emissionStarted) {
+                $emissionFailure = $throwable;
                 $this->exceptions->report($throwable);
                 $this->completeWritableResponse($swooleResponse);
 
@@ -123,8 +160,11 @@ class Server implements OnRequestInterface, BootstrapsForServer
                 $emissionStarted = true;
                 ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/2', request: $request ?? null);
             } catch (CanceledException $exception) {
+                $cancelled = true;
+
                 throw $exception;
-            } catch (Throwable $emissionFailure) {
+            } catch (Throwable $throwable) {
+                $emissionFailure = $throwable;
                 $this->exceptions->report($emissionFailure);
                 $this->completeWritableResponse($swooleResponse);
             }
@@ -134,7 +174,52 @@ class Server implements OnRequestInterface, BootstrapsForServer
             }
 
             $this->contexts->forget();
+
+            if (! $cancelled && $operationHandle !== null) {
+                $operationHandle->finish($this->operationResult(
+                    $response,
+                    $terminalException,
+                    $emissionFailure,
+                ));
+            }
         }
+    }
+
+    /**
+     * Build the final logical server result after response emission.
+     */
+    private function operationResult(
+        ?Response $response,
+        ?Throwable $terminalException,
+        ?Throwable $emissionFailure,
+    ): GrpcOperationResult {
+        if ($emissionFailure !== null) {
+            return new GrpcOperationResult(null, $emissionFailure, 1);
+        }
+
+        if ($response instanceof GrpcHttpResponse || $response instanceof GrpcStreamedResponse) {
+            $finalFields = $response->trailers();
+
+            foreach (['grpc-status', 'grpc-message', 'grpc-status-details-bin'] as $name) {
+                if (array_key_exists($name, $finalFields)) {
+                    continue;
+                }
+
+                $value = $response->headers->get($name);
+
+                if ($value !== null) {
+                    $finalFields[$name] = $value;
+                }
+            }
+
+            $status = StatusCodec::parse($finalFields, $response->getStatusCode(), true);
+        } elseif ($response instanceof Response) {
+            $status = StatusCodec::fromHttpStatus($response->getStatusCode());
+        } else {
+            $status = null;
+        }
+
+        return new GrpcOperationResult($status, $terminalException, 1);
     }
 
     /**

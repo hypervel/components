@@ -45,6 +45,38 @@ class NullQueue extends Queue implements QueueContract
     }
 
     /**
+     * Get the number of jobs across every queue.
+     */
+    public function totalSize(): int
+    {
+        return 0;
+    }
+
+    /**
+     * Get the number of pending jobs across every queue.
+     */
+    public function totalPendingSize(): int
+    {
+        return 0;
+    }
+
+    /**
+     * Get the number of delayed jobs across every queue.
+     */
+    public function totalDelayedSize(): int
+    {
+        return 0;
+    }
+
+    /**
+     * Get the number of reserved jobs across every queue.
+     */
+    public function totalReservedSize(): int
+    {
+        return 0;
+    }
+
+    /**
      * Get the pending jobs for the given queue.
      */
     public function pendingJobs(?string $queue = null): Collection

@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Carbon\Carbon as BaseCarbon;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Support\Traits\DateHelpers;
 
-class Carbon extends BaseCarbon
+class Carbon extends BaseCarbon implements Transient
 {
     use DateHelpers;
 

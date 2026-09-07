@@ -17,24 +17,24 @@ class ServingStatus
     /**
      * Generated from protobuf enum <code>UNKNOWN = 0;</code>.
      */
-    public const UNKNOWN = 0;
+    public const int UNKNOWN = 0;
 
     /**
      * Generated from protobuf enum <code>SERVING = 1;</code>.
      */
-    public const SERVING = 1;
+    public const int SERVING = 1;
 
     /**
      * Generated from protobuf enum <code>NOT_SERVING = 2;</code>.
      */
-    public const NOT_SERVING = 2;
+    public const int NOT_SERVING = 2;
 
     /**
      * Used only by the Watch method.
      *
      * Generated from protobuf enum <code>SERVICE_UNKNOWN = 3;</code>
      */
-    public const SERVICE_UNKNOWN = 3;
+    public const int SERVICE_UNKNOWN = 3;
 
     private static $valueToName = [
         self::UNKNOWN => 'UNKNOWN',

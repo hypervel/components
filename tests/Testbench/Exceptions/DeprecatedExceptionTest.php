@@ -37,4 +37,38 @@ class DeprecatedExceptionTest extends TestCase
             $application->setValue(null, $previousApplication);
         }
     }
+
+    #[Test]
+    public function itUsesTestbenchDefaultsWhenDeprecationOptionsAreOmitted(): void
+    {
+        config([
+            'logging.channels.deprecations' => null,
+            'logging.deprecations' => [],
+        ]);
+
+        (new ReflectionMethod(HandleExceptions::class, 'ensureDeprecationLoggerIsConfigured'))
+            ->invoke(new HandleExceptions);
+
+        $this->assertSame(config()->array('logging.channels.null'), config()->array('logging.channels.deprecations'));
+        $this->assertSame('deprecations', config()->string('logging.deprecations.channel'));
+        $this->assertTrue(config()->boolean('logging.deprecations.trace'));
+    }
+
+    #[Test]
+    public function itMapsANullDeprecationChannelToTheNullLogger(): void
+    {
+        config([
+            'logging.channels.deprecations' => null,
+            'logging.deprecations' => [
+                'channel' => null,
+                'trace' => false,
+            ],
+        ]);
+
+        (new ReflectionMethod(HandleExceptions::class, 'ensureDeprecationLoggerIsConfigured'))
+            ->invoke(new HandleExceptions);
+
+        $this->assertSame(config()->array('logging.channels.null'), config()->array('logging.channels.deprecations'));
+        $this->assertSame('deprecations', config()->string('logging.deprecations.channel'));
+    }
 }

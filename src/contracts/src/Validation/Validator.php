@@ -77,6 +77,16 @@ interface Validator extends MessageProvider
     public function setRules(array $rules): static;
 
     /**
+     * Retain the selected rules from the graph prepared for the current data.
+     *
+     * Retention applies only to the current prepared graph. Calling setData()
+     * rebuilds the complete original rule graph.
+     *
+     * @param list<string> $attributes
+     */
+    public function retainRules(array $attributes): static;
+
+    /**
      * Get a validated input container for the validated input.
      */
     public function safe(?array $keys = null): array|ValidatedInput;

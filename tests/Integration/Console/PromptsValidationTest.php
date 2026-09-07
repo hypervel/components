@@ -16,10 +16,12 @@ class PromptsValidationTest extends TestCase
     {
         parent::setUp();
 
-        $this->app[Kernel::class]->registerCommand(new ClosureValidationCommand);
-        $this->app[Kernel::class]->registerCommand(new LaravelRulesCommand);
-        $this->app[Kernel::class]->registerCommand(new MethodMessagesCommand);
-        $this->app[Kernel::class]->registerCommand(new InlineMessagesCommand);
+        $kernel = $this->app->make(Kernel::class);
+
+        $kernel->registerCommand(new ClosureValidationCommand);
+        $kernel->registerCommand(new LaravelRulesCommand);
+        $kernel->registerCommand(new MethodMessagesCommand);
+        $kernel->registerCommand(new InlineMessagesCommand);
     }
 
     public function testValidationForPrompts(): void

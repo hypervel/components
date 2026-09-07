@@ -52,6 +52,7 @@ use ReflectionFunction;
 use ReflectionIntersectionType;
 use ReflectionType;
 use ReflectionUnionType;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -74,17 +75,17 @@ class Handler implements ExceptionHandlerContract
     /**
      * Context key for the per-request reported exception deduplication map.
      */
-    public const REPORTED_EXCEPTION_MAP_CONTEXT_KEY = '__foundation.errors.reported_exception_map';
+    public const string REPORTED_EXCEPTION_MAP_CONTEXT_KEY = '__foundation.errors.reported_exception_map';
 
     /**
      * Context key for after-response callbacks.
      */
-    public const AFTER_RESPONSE_CONTEXT_KEY = '__foundation.errors.after_response';
+    public const string AFTER_RESPONSE_CONTEXT_KEY = '__foundation.errors.after_response';
 
     /**
      * Context key for the exception currently being reported.
      */
-    public const CURRENTLY_REPORTING_CONTEXT_KEY = '__foundation.errors.currently_reporting';
+    public const string CURRENTLY_REPORTING_CONTEXT_KEY = '__foundation.errors.currently_reporting';
 
     /**
      * A list of the exception types that are not reported.
@@ -436,6 +437,11 @@ class Handler implements ExceptionHandlerContract
      */
     public function report(Throwable $e): void
     {
+        // Cancellation must not reach user-defined exception mappers.
+        if ($e instanceof CanceledException) {
+            return;
+        }
+
         $e = $this->mapException($e);
 
         if ($this->shouldntReport($e)) {
@@ -470,6 +476,8 @@ class Handler implements ExceptionHandlerContract
 
         try {
             $logger = $this->newLogger();
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Exception) {
             throw $e;
         }
@@ -553,6 +561,10 @@ class Handler implements ExceptionHandlerContract
      */
     protected function shouldntReport(Throwable $e): bool
     {
+        if ($e instanceof CanceledException) {
+            return true;
+        }
+
         if ($this->withoutDuplicates && $this->hasReportedException($e)) {
             return true;
         }
@@ -629,18 +641,21 @@ class Handler implements ExceptionHandlerContract
 
     /**
      * Remove the given exception class from the list of exceptions that should be ignored.
+     *
+     * Boot-only. The exception lists persist on the shared handler and affect
+     * exception reporting for every subsequent request and job in the worker.
      */
     public function stopIgnoring(array|string $exceptions): static
     {
         $exceptions = Arr::wrap($exceptions);
 
         $this->dontReport = (new Collection($this->dontReport))
-            ->reject(fn ($ignored) => in_array($ignored, $exceptions))
+            ->diff($exceptions)
             ->values()
             ->all();
 
         $this->internalDontReport = (new Collection($this->internalDontReport))
-            ->reject(fn ($ignored) => in_array($ignored, $exceptions))
+            ->diff($exceptions)
             ->values()
             ->all();
 
@@ -696,6 +711,8 @@ class Handler implements ExceptionHandlerContract
             return array_filter([
                 'userId' => Auth::id(),
             ]);
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable) {
             return [];
         }
@@ -718,6 +735,10 @@ class Handler implements ExceptionHandlerContract
      */
     public function render(Request $request, Throwable $e): SymfonyResponse
     {
+        if ($e instanceof CanceledException) {
+            throw $e;
+        }
+
         $e = $this->mapException($e);
 
         if (method_exists($e, 'render') && $response = $e->render($request)) {
@@ -951,7 +972,7 @@ class Handler implements ExceptionHandlerContract
      */
     protected function prepareResponse(Request $request, Throwable $e): Response|RedirectResponse
     {
-        if (! $this->isHttpException($e) && config('app.debug')) {
+        if (! $this->isHttpException($e) && config()->boolean('app.debug')) {
             return $this->toHypervelResponse($this->convertExceptionToResponse($e), $e)->prepare($request);
         }
 
@@ -983,7 +1004,7 @@ class Handler implements ExceptionHandlerContract
     protected function renderExceptionContent(Throwable $e): string
     {
         try {
-            if (config('app.debug')) {
+            if (config()->boolean('app.debug')) {
                 if ($this->container->bound(ExceptionRenderer::class)) {
                     return $this->renderExceptionWithCustomRenderer($e);
                 }
@@ -992,9 +1013,11 @@ class Handler implements ExceptionHandlerContract
                 }
             }
 
-            return $this->renderExceptionWithSymfony($e, config('app.debug'));
+            return $this->renderExceptionWithSymfony($e, config()->boolean('app.debug'));
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $e) {
-            return $this->renderExceptionWithSymfony($e, config('app.debug'));
+            return $this->renderExceptionWithSymfony($e, config()->boolean('app.debug'));
         }
     }
 
@@ -1036,8 +1059,10 @@ class Handler implements ExceptionHandlerContract
                     $e->getStatusCode(),
                     $e->getHeaders()
                 );
+            } catch (CanceledException $exception) {
+                throw $exception;
             } catch (Throwable $t) {
-                config('app.debug') && throw $t;
+                config()->boolean('app.debug') && throw $t;
 
                 $this->report($t);
             }
@@ -1114,7 +1139,7 @@ class Handler implements ExceptionHandlerContract
      */
     protected function convertExceptionToArray(Throwable $e): array
     {
-        return config('app.debug') ? [
+        return config()->boolean('app.debug') ? [
             'message' => $e->getMessage(),
             'exception' => get_class($e),
             'file' => $e->getFile(),
@@ -1130,6 +1155,10 @@ class Handler implements ExceptionHandlerContract
      */
     public function renderForConsole(OutputInterface $output, Throwable $e): void
     {
+        if ($e instanceof CanceledException) {
+            throw $e;
+        }
+
         if ($e instanceof CommandNotFoundException) {
             $message = Str::of($e->getMessage())->explode('.')->first();
 

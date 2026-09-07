@@ -5,15 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\ApiClient;
 
 use ArrayAccess;
-use BadMethodCallException;
+use Hypervel\ApiClient\Exceptions\InvalidResourceDataException;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Support\Traits\ForwardsCalls;
 use JsonException;
 use JsonSerializable;
+use LogicException;
 use Stringable;
 
 /**
+ * @implements Arrayable<array-key, mixed>
  * @mixin ApiResponse
  */
 class ApiResource implements Stringable, ArrayAccess, JsonSerializable, Arrayable, Jsonable
@@ -29,6 +31,9 @@ class ApiResource implements Stringable, ArrayAccess, JsonSerializable, Arrayabl
     ) {
     }
 
+    /**
+     * Get the resource body as a string.
+     */
     public function __toString(): string
     {
         return $this->response->body();
@@ -36,22 +41,37 @@ class ApiResource implements Stringable, ArrayAccess, JsonSerializable, Arrayabl
 
     /**
      * Determine if an attribute exists on the resource.
+     *
+     * @throws JsonException
      */
     public function __isset(string $key): bool
     {
-        return isset($this->response->json()[$key]);
+        $decoded = $this->response->json();
+
+        return is_array($decoded) && isset($decoded[$key]);
     }
 
     /**
-     * Unset an attribute on the resource.
+     * Reject property assignment on the resource.
+     */
+    public function __set(string $key, mixed $value): void
+    {
+        throw new LogicException('Resource data cannot be assigned through properties.');
+    }
+
+    /**
+     * Reject unsetting a property on the resource.
      */
     public function __unset(string $key): void
     {
-        $this->response->offsetUnset($key);
+        throw new LogicException('Resource data cannot be unset through properties.');
     }
 
     /**
      * Dynamically get properties from the underlying resource.
+     *
+     * @throws InvalidResourceDataException
+     * @throws JsonException
      */
     public function __get(string $key): mixed
     {
@@ -63,20 +83,20 @@ class ApiResource implements Stringable, ArrayAccess, JsonSerializable, Arrayabl
      */
     public function __call(string $method, array $parameters): mixed
     {
-        if (! method_exists($this->response, $method)) {
-            throw new BadMethodCallException(
-                sprintf('Method %s does not exist on %s', $method, get_class($this->response))
-            );
-        }
-
         return $this->forwardCallTo($this->response, $method, $parameters);
     }
 
+    /**
+     * Get the API response.
+     */
     public function getResponse(): ApiResponse
     {
         return $this->response;
     }
 
+    /**
+     * Get the API request.
+     */
     public function getRequest(): ApiRequest
     {
         return $this->request;
@@ -85,13 +105,17 @@ class ApiResource implements Stringable, ArrayAccess, JsonSerializable, Arrayabl
     /**
      * Create a new resource instance.
      */
-    public static function make(mixed ...$parameters): static
+    public static function make(ApiResponse $response, ApiRequest $request): static
     {
-        return new static(...$parameters);
+        return new static($response, $request);
     }
 
     /**
      * Resolve the resource to an array.
+     *
+     * @return array<array-key, mixed>
+     * @throws InvalidResourceDataException
+     * @throws JsonException
      */
     public function resolve(): array
     {
@@ -100,15 +124,20 @@ class ApiResource implements Stringable, ArrayAccess, JsonSerializable, Arrayabl
 
     /**
      * Transform the resource into an array.
+     *
+     * @return array<array-key, mixed>
+     * @throws InvalidResourceDataException
+     * @throws JsonException
      */
     public function toArray(): array
     {
-        return $this->response->json();
+        return $this->response->toArray();
     }
 
     /**
      * Convert the resource to its JSON representation.
      *
+     * @throws InvalidResourceDataException
      * @throws JsonException
      */
     public function toJson(int $options = 0): string
@@ -117,15 +146,32 @@ class ApiResource implements Stringable, ArrayAccess, JsonSerializable, Arrayabl
     }
 
     /**
-     * Prepare the resource for JSON serialization.
+     * Convert the resource to its pretty-printed JSON representation.
+     *
+     * @throws InvalidResourceDataException
+     * @throws JsonException
      */
-    public function jsonSerialize(): mixed
+    public function toPrettyJson(int $options = 0): string
+    {
+        return $this->toJson(JSON_PRETTY_PRINT | $options);
+    }
+
+    /**
+     * Prepare the resource for JSON serialization.
+     *
+     * @return array<array-key, mixed>
+     * @throws InvalidResourceDataException
+     * @throws JsonException
+     */
+    public function jsonSerialize(): array
     {
         return $this->resolve();
     }
 
     /**
-     * Implementation of ArrayAccess::offsetExists.
+     * Determine if the given offset exists.
+     *
+     * @throws JsonException
      */
     public function offsetExists(mixed $offset): bool
     {
@@ -133,7 +179,10 @@ class ApiResource implements Stringable, ArrayAccess, JsonSerializable, Arrayabl
     }
 
     /**
-     * Implementation of ArrayAccess::offsetGet.
+     * Get the value for a given offset.
+     *
+     * @throws InvalidResourceDataException
+     * @throws JsonException
      */
     public function offsetGet(mixed $offset): mixed
     {
@@ -141,18 +190,18 @@ class ApiResource implements Stringable, ArrayAccess, JsonSerializable, Arrayabl
     }
 
     /**
-     * Implementation of ArrayAccess::offsetSet.
+     * Set the value at the given offset.
      */
     public function offsetSet(mixed $offset, mixed $value): void
     {
-        $this->response->offsetSet($offset, $value);
+        throw new LogicException('Resource data cannot be assigned through array offsets.');
     }
 
     /**
-     * Implementation of ArrayAccess::offsetUnset.
+     * Unset the value at the given offset.
      */
     public function offsetUnset(mixed $offset): void
     {
-        $this->response->offsetUnset($offset);
+        throw new LogicException('Resource data cannot be unset through array offsets.');
     }
 }

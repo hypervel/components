@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\FoundationApplicationTest;
 
 use Hypervel\Config\Repository;
+use Hypervel\Contracts\Auth\PasswordBroker;
+use Hypervel\Contracts\Auth\PasswordBrokerFactory;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Events\Dispatcher as EventDispatcher;
@@ -24,6 +26,7 @@ use JsonException;
 use Mockery as m;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -31,11 +34,17 @@ class FoundationApplicationTest extends TestCase
 {
     protected ?string $namespaceApplicationPath = null;
 
+    protected ?string $cacheApplicationPath = null;
+
     protected function tearDown(): void
     {
         try {
             if ($this->namespaceApplicationPath !== null) {
                 (new Filesystem)->deleteDirectory($this->namespaceApplicationPath);
+            }
+
+            if ($this->cacheApplicationPath !== null) {
+                (new Filesystem)->deleteDirectory($this->cacheApplicationPath);
             }
         } finally {
             parent::tearDown();
@@ -332,7 +341,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertTrue($debugOn->hasDebugModeEnabled());
     }
 
-    public function testBeforeBootstrappingAddsClosure()
+    public function testBeforeBootstrappingAddsClosure(): void
     {
         $app = new Application;
         $eventDispatcher = new EventDispatcher($app);
@@ -340,10 +349,10 @@ class FoundationApplicationTest extends TestCase
 
         $closure = function () {};
         $app->beforeBootstrapping(RegisterFacades::class, $closure);
-        $this->assertArrayHasKey(0, $app['events']->getListeners('bootstrapping: Hypervel\Foundation\Bootstrap\RegisterFacades'));
+        $this->assertArrayHasKey(0, $app->make('events')->getListeners('bootstrapping: Hypervel\Foundation\Bootstrap\RegisterFacades'));
     }
 
-    public function testAfterBootstrappingAddsClosure()
+    public function testAfterBootstrappingAddsClosure(): void
     {
         $app = new Application;
         $eventDispatcher = new EventDispatcher($app);
@@ -351,7 +360,7 @@ class FoundationApplicationTest extends TestCase
 
         $closure = function () {};
         $app->afterBootstrapping(RegisterFacades::class, $closure);
-        $this->assertArrayHasKey(0, $app['events']->getListeners('bootstrapped: Hypervel\Foundation\Bootstrap\RegisterFacades'));
+        $this->assertArrayHasKey(0, $app->make('events')->getListeners('bootstrapped: Hypervel\Foundation\Bootstrap\RegisterFacades'));
     }
 
     public function testTerminationTests()
@@ -403,6 +412,36 @@ class FoundationApplicationTest extends TestCase
         }
 
         $this->assertSame(['first', 'second'], $called);
+    }
+
+    public function testTerminationCancellationSupersedesAnEarlierFailureAndStopsLaterCallbacks(): void
+    {
+        $app = new Application;
+        $called = [];
+        $cancellation = new CanceledException('canceled');
+
+        $app->terminating(function () use (&$called): void {
+            $called[] = 'first';
+
+            throw new RuntimeException('first failure');
+        });
+        $app->terminating(function () use (&$called, $cancellation): void {
+            $called[] = 'cancelling';
+
+            throw $cancellation;
+        });
+        $app->terminating(function () use (&$called): void {
+            $called[] = 'later';
+        });
+
+        try {
+            $app->terminate();
+            $this->fail('Expected application termination to preserve cancellation.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(['first', 'cancelling'], $called);
     }
 
     public function testTerminationCallbacksCanAcceptAtNotation()
@@ -492,8 +531,7 @@ class FoundationApplicationTest extends TestCase
     {
         $app = $this->makeNamespaceApplication(null);
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to detect application namespace.');
+        $this->expectExceptionObject(new RuntimeException('Unable to detect application namespace.'));
 
         $app->getNamespace();
     }
@@ -504,8 +542,7 @@ class FoundationApplicationTest extends TestCase
         unlink($this->namespaceApplicationPath . '/composer.json');
         mkdir($this->namespaceApplicationPath . '/composer.json');
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to detect application namespace.');
+        $this->expectExceptionObject(new RuntimeException('Unable to detect application namespace.'));
 
         $app->getNamespace();
     }
@@ -528,8 +565,7 @@ class FoundationApplicationTest extends TestCase
     {
         $app = $this->makeNamespaceApplication('null');
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to detect application namespace.');
+        $this->expectExceptionObject(new RuntimeException('Unable to detect application namespace.'));
 
         $app->getNamespace();
     }
@@ -540,8 +576,7 @@ class FoundationApplicationTest extends TestCase
             'autoload' => ['psr-4' => 'app/'],
         ], JSON_THROW_ON_ERROR));
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to detect application namespace.');
+        $this->expectExceptionObject(new RuntimeException('Unable to detect application namespace.'));
 
         $app->getNamespace();
     }
@@ -552,8 +587,7 @@ class FoundationApplicationTest extends TestCase
             'autoload' => ['psr-4' => ['App\\' => [123]]],
         ], JSON_THROW_ON_ERROR));
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to detect application namespace.');
+        $this->expectExceptionObject(new RuntimeException('Unable to detect application namespace.'));
 
         $app->getNamespace();
     }
@@ -564,8 +598,7 @@ class FoundationApplicationTest extends TestCase
             'autoload' => ['psr-4' => ['App\\' => 'missing/']],
         ], JSON_THROW_ON_ERROR), createAppPath: false);
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to detect application namespace.');
+        $this->expectExceptionObject(new RuntimeException('Unable to detect application namespace.'));
 
         $app->getNamespace();
     }
@@ -786,19 +819,17 @@ class FoundationApplicationTest extends TestCase
         $this->assertSame($times, m::getContainer()->mockery_getExpectationCount());
     }
 
-    public function testAbortThrowsNotFoundHttpException()
+    public function testAbortThrowsNotFoundHttpException(): void
     {
-        $this->expectException(NotFoundHttpException::class);
-        $this->expectExceptionMessage('Page was not found');
+        $this->expectExceptionObject(new NotFoundHttpException('Page was not found'));
 
         $app = new Application;
         $app->abort(404, 'Page was not found');
     }
 
-    public function testAbortThrowsHttpException()
+    public function testAbortThrowsHttpException(): void
     {
-        $this->expectException(HttpException::class);
-        $this->expectExceptionMessage('Request is bad');
+        $this->expectExceptionObject(new HttpException(400, 'Request is bad'));
 
         $app = new Application;
         $app->abort(400, 'Request is bad');
@@ -815,7 +846,7 @@ class FoundationApplicationTest extends TestCase
         }
     }
 
-    public function testMethodAfterLoadingEnvironmentAddsClosure()
+    public function testMethodAfterLoadingEnvironmentAddsClosure(): void
     {
         $app = new Application;
         $eventDispatcher = new EventDispatcher($app);
@@ -824,98 +855,168 @@ class FoundationApplicationTest extends TestCase
         $closure = function () {};
         $app->afterLoadingEnvironment($closure);
 
-        $listeners = $app['events']->getListeners('bootstrapped: ' . LoadEnvironmentVariables::class);
+        $listeners = $app->make('events')->getListeners('bootstrapped: ' . LoadEnvironmentVariables::class);
         $this->assertArrayHasKey(0, $listeners);
     }
 
-    public function testConfigurationIsCachedReturnsFalseWhenNoCacheFile()
+    public function testConfigurationIsCachedReturnsFalseWhenNoCacheFile(): void
     {
-        $app = new Application(sys_get_temp_dir() . '/hypervel-test-app-' . uniqid());
+        $app = $this->makeCacheApplication();
 
         $this->assertFalse($app->configurationIsCached());
     }
 
-    public function testConfigurationIsCachedReturnsTrueWhenCacheFileExists()
+    public function testConfigurationIsCachedReturnsTrueWhenCacheFileExists(): void
     {
-        $basePath = sys_get_temp_dir() . '/hypervel-test-app-' . uniqid();
-        $cachePath = $basePath . '/bootstrap/cache/config.php';
+        $app = $this->makeCacheApplication();
+        file_put_contents($app->getCachedConfigPath(), '<?php return [];');
 
-        mkdir(dirname($cachePath), 0755, true);
-        file_put_contents($cachePath, '<?php return [];');
-
-        try {
-            $app = new Application($basePath);
-            $this->assertTrue($app->configurationIsCached());
-        } finally {
-            unlink($cachePath);
-            rmdir(dirname($cachePath));
-            rmdir(dirname($cachePath, 2));
-            rmdir($basePath);
-        }
+        $this->assertTrue($app->configurationIsCached());
     }
 
-    public function testRoutesAreCachedReturnsFalseWhenNoCacheFile()
+    public function testConfigurationIsCachedUsesBoundState(): void
     {
-        $app = new Application(sys_get_temp_dir() . '/hypervel-test-app-' . uniqid());
+        $app = $this->makeCacheApplication();
+        $app->instance('config_loaded_from_cache', true);
+
+        $this->assertTrue($app->configurationIsCached());
+
+        file_put_contents($app->getCachedConfigPath(), '<?php return [];');
+        $app->instance('config_loaded_from_cache', false);
+
+        $this->assertFalse($app->configurationIsCached());
+    }
+
+    public function testConfigurationIsCachedMemoizesFilesystemResult(): void
+    {
+        $app = $this->makeCacheApplication();
+        $cachePath = $app->getCachedConfigPath();
+
+        $this->assertFalse($app->configurationIsCached());
+
+        file_put_contents($cachePath, '<?php return [];');
+
+        $this->assertFalse($app->configurationIsCached());
+
+        $freshApp = new Application($this->cacheApplicationPath);
+
+        $this->assertTrue($freshApp->configurationIsCached());
+
+        unlink($cachePath);
+
+        $this->assertTrue($freshApp->configurationIsCached());
+    }
+
+    public function testRoutesAreCachedReturnsFalseWhenNoCacheFile(): void
+    {
+        $app = $this->makeCacheApplication();
 
         $this->assertFalse($app->routesAreCached());
     }
 
-    public function testRoutesAreCachedReturnsTrueWhenCacheFileExists()
+    public function testRoutesAreCachedReturnsTrueWhenCacheFileExists(): void
     {
-        $basePath = sys_get_temp_dir() . '/hypervel-test-app-' . uniqid();
-        $cachePath = $basePath . '/bootstrap/cache/routes-v7.php';
+        $app = $this->makeCacheApplication();
+        file_put_contents($this->cacheApplicationPath . '/bootstrap/cache/routes-v7.php', '<?php return [];');
 
-        mkdir(dirname($cachePath), 0755, true);
-        file_put_contents($cachePath, '<?php return [];');
-
-        try {
-            $app = new Application($basePath);
-            $this->assertTrue($app->routesAreCached());
-        } finally {
-            unlink($cachePath);
-            rmdir(dirname($cachePath));
-            rmdir(dirname($cachePath, 2));
-            rmdir($basePath);
-        }
+        $this->assertTrue($app->routesAreCached());
     }
 
-    public function testEventsAreCachedReturnsFalseWhenNoCacheFile()
+    public function testRoutesAreCachedUsesBoundState(): void
     {
-        $app = new Application(sys_get_temp_dir() . '/hypervel-test-app-' . uniqid());
+        $app = $this->makeCacheApplication();
+        $app->instance('routes.cached', true);
+
+        $this->assertTrue($app->routesAreCached());
+
+        file_put_contents($app->getCachedRoutesPath(), '<?php return [];');
+        $app->instance('routes.cached', false);
+
+        $this->assertFalse($app->routesAreCached());
+    }
+
+    public function testRoutesAreCachedMemoizesFilesystemResult(): void
+    {
+        $app = $this->makeCacheApplication();
+        $cachePath = $app->getCachedRoutesPath();
+
+        $this->assertFalse($app->routesAreCached());
+
+        file_put_contents($cachePath, '<?php return [];');
+
+        $this->assertFalse($app->routesAreCached());
+
+        $freshApp = new Application($this->cacheApplicationPath);
+
+        $this->assertTrue($freshApp->routesAreCached());
+
+        unlink($cachePath);
+
+        $this->assertTrue($freshApp->routesAreCached());
+    }
+
+    public function testEventsAreCachedReturnsFalseWhenNoCacheFile(): void
+    {
+        $app = $this->makeCacheApplication();
 
         $this->assertFalse($app->eventsAreCached());
     }
 
-    public function testEventsAreCachedReturnsTrueWhenCacheFileExists()
+    public function testEventsAreCachedReturnsTrueWhenCacheFileExists(): void
     {
-        $basePath = sys_get_temp_dir() . '/hypervel-test-app-' . uniqid();
-        $cachePath = $basePath . '/bootstrap/cache/events.php';
+        $app = $this->makeCacheApplication();
+        file_put_contents($app->getCachedEventsPath(), '<?php return [];');
 
-        mkdir(dirname($cachePath), 0755, true);
-        file_put_contents($cachePath, '<?php return [];');
-
-        try {
-            $app = new Application($basePath);
-            $this->assertTrue($app->eventsAreCached());
-        } finally {
-            unlink($cachePath);
-            rmdir(dirname($cachePath));
-            rmdir(dirname($cachePath, 2));
-            rmdir($basePath);
-        }
+        $this->assertTrue($app->eventsAreCached());
     }
 
-    public function testCoreContainerAliasesAreRegisteredByDefault()
+    public function testEventsAreCachedUsesContainerInstance(): void
+    {
+        $app = $this->makeCacheApplication();
+        $app->instance('events.cached', true);
+
+        $this->assertTrue($app->eventsAreCached());
+        $this->assertFileDoesNotExist($app->getCachedEventsPath());
+
+        file_put_contents($app->getCachedEventsPath(), '<?php return [];');
+        $app->instance('events.cached', false);
+
+        $this->assertFalse($app->eventsAreCached());
+    }
+
+    public function testEventsAreCachedChecksFilesystemIfNotSet(): void
+    {
+        $app = $this->makeCacheApplication();
+        $cachePath = $app->getCachedEventsPath();
+
+        $this->assertFalse($app->eventsAreCached());
+        $this->assertStringContainsString('events.php', $cachePath);
+        $this->assertTrue($app->bound('events.cached'));
+        $this->assertFalse($app->make('events.cached'));
+
+        file_put_contents($cachePath, '<?php return [];');
+
+        $this->assertFalse($app->eventsAreCached());
+
+        $freshApp = new Application($this->cacheApplicationPath);
+
+        $this->assertTrue($freshApp->eventsAreCached());
+
+        unlink($cachePath);
+
+        $this->assertTrue($freshApp->eventsAreCached());
+    }
+
+    public function testCoreContainerAliasesAreRegisteredByDefault(): void
     {
         $app = new Application;
 
-        $this->assertTrue($app->isAlias(\Hypervel\Contracts\Translation\Translator::class));
-        $this->assertSame('translator', $app->getAlias(\Hypervel\Contracts\Translation\Translator::class));
-        $this->assertTrue($app->isAlias(\Hypervel\Contracts\Auth\PasswordBrokerFactory::class));
-        $this->assertSame('auth.password', $app->getAlias(\Hypervel\Contracts\Auth\PasswordBrokerFactory::class));
-        $this->assertTrue($app->isAlias(\Hypervel\Contracts\Auth\PasswordBroker::class));
-        $this->assertSame('auth.password.broker', $app->getAlias(\Hypervel\Contracts\Auth\PasswordBroker::class));
+        $this->assertTrue($app->isAlias(TranslatorContract::class));
+        $this->assertSame('translator', $app->getAlias(TranslatorContract::class));
+        $this->assertTrue($app->isAlias(PasswordBrokerFactory::class));
+        $this->assertSame('auth.password', $app->getAlias(PasswordBrokerFactory::class));
+        $this->assertTrue($app->isAlias(PasswordBroker::class));
+        $this->assertSame('auth.password.broker', $app->getAlias(PasswordBroker::class));
     }
 
     public function testAddAbsoluteCachePathPrefixReturnsSelf()
@@ -923,6 +1024,20 @@ class FoundationApplicationTest extends TestCase
         $app = new Application;
 
         $this->assertSame($app, $app->addAbsoluteCachePathPrefix('s3:'));
+    }
+
+    /**
+     * Create an application with an isolated cache directory.
+     */
+    private function makeCacheApplication(): Application
+    {
+        $this->cacheApplicationPath = ParallelTesting::tempDir('FoundationApplicationCacheTest');
+
+        $files = new Filesystem;
+        $files->deleteDirectory($this->cacheApplicationPath);
+        $files->makeDirectory($this->cacheApplicationPath . '/bootstrap/cache', 0755, true);
+
+        return new Application($this->cacheApplicationPath);
     }
 
     private function makeNamespaceApplication(?string $composerContents, bool $createAppPath = true): Application

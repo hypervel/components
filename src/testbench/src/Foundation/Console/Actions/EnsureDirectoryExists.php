@@ -7,6 +7,7 @@ namespace Hypervel\Testbench\Foundation\Console\Actions;
 use Hypervel\Console\View\Components\Factory as ComponentsFactory;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\LazyCollection;
+use RuntimeException;
 
 use function Hypervel\Filesystem\join_paths;
 use function Hypervel\Prompts\confirm;
@@ -50,7 +51,11 @@ class EnsureDirectoryExists
                 }
 
                 $this->filesystem->ensureDirectoryExists($directory, 0755, true);
-                $this->filesystem->copy(join_paths(__DIR__, 'Fixtures', '.gitkeep'), join_paths($directory, '.gitkeep'));
+                $placeholder = join_paths($directory, '.gitkeep');
+
+                if (! $this->filesystem->copy(join_paths(__DIR__, 'Fixtures', '.gitkeep'), $placeholder)) {
+                    throw new RuntimeException("Unable to create placeholder file [{$placeholder}].");
+                }
 
                 $this->components?->task(sprintf('Prepare [%s] directory', $location));
             });

@@ -63,20 +63,36 @@ class CacheIntegrationTest extends SentryTestCase
     public function testCacheBreadcrumbIsNotRecordedWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.cache' => false,
+            'sentry' => $this->sentryConfigWith(['breadcrumbs.cache' => false]),
         ]);
 
-        $this->assertFalse($this->app['config']->get('sentry.breadcrumbs.cache'));
+        $this->assertFalse($this->app->make('config')->boolean('sentry.breadcrumbs.cache'));
 
         Cache::get('foo');
 
         $this->assertEmpty($this->getCurrentSentryBreadcrumbs());
     }
 
+    public function testCacheTelemetryHonorsEventsDisabledStoreConfiguration(): void
+    {
+        $this->resetApplicationWithConfig([
+            'cache.stores.array.events' => false,
+        ]);
+
+        $transaction = $this->startTransaction();
+
+        Cache::put('foo', 'bar');
+
+        $this->assertFalse(config()->boolean('cache.stores.array.events'));
+        $this->assertNull(Cache::store('array')->getEventDispatcher());
+        $this->assertCount(1, $transaction->getSpanRecorder()->getSpans());
+        $this->assertEmpty($this->getCurrentSentryBreadcrumbs());
+    }
+
     public function testCacheBreadcrumbReplacesSessionKeyWithPlaceholder(): void
     {
         $this->startSession();
-        $sessionId = $this->app['session']->getId();
+        $sessionId = $this->app->make('session')->getId();
 
         Cache::put($sessionId, 'session-data');
 
@@ -250,12 +266,24 @@ class CacheIntegrationTest extends SentryTestCase
         $this->assertSame(SpanStatus::internalError(), $span->getStatus());
     }
 
+    public function testCacheForgetFalseResultFinishesItsSpanWithoutErrorStatus(): void
+    {
+        $store = m::mock(Store::class);
+        $store->shouldReceive('forget')->once()->with('foo')->andReturnFalse();
+
+        $span = $this->executeAndReturnMostRecentSpan(
+            fn () => $this->repository($store)->forget('foo'),
+        );
+
+        $this->assertNull($span->getStatus());
+    }
+
     public function testCacheSpanReplacesSessionKeyWithPlaceholder(): void
     {
         $this->markSkippedIfTracingEventsNotAvailable();
 
         $this->startSession();
-        $sessionId = $this->app['session']->getId();
+        $sessionId = $this->app->make('session')->getId();
 
         $span = $this->executeAndReturnMostRecentSpan(function () use ($sessionId) {
             Cache::get($sessionId);
@@ -271,7 +299,7 @@ class CacheIntegrationTest extends SentryTestCase
         $this->markSkippedIfTracingEventsNotAvailable();
 
         $this->startSession();
-        $sessionId = $this->app['session']->getId();
+        $sessionId = $this->app->make('session')->getId();
 
         $span = $this->executeAndReturnMostRecentSpan(function () use ($sessionId) {
             Cache::get([$sessionId, 'regular-key', $sessionId . '_another']);
@@ -293,7 +321,7 @@ class CacheIntegrationTest extends SentryTestCase
         });
 
         // Check that session was not started
-        $this->assertFalse($this->app['session']->isStarted());
+        $this->assertFalse($this->app->make('session')->isStarted());
 
         // And the key should not be replaced
         $this->assertEquals('some-key', $span->getDescription());

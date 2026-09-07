@@ -32,8 +32,12 @@ class PackageMetadataTest extends TestCase
             JSON_THROW_ON_ERROR
         );
 
-        $this->assertSame('^8.1', $composer['require']['symfony/http-foundation']);
-        $this->assertSame('^8.1', $composer['require']['symfony/mime']);
+        foreach (['symfony/http-foundation', 'symfony/mime'] as $dependency) {
+            $this->assertArrayHasKey($dependency, $rootComposer['require']);
+            $this->assertArrayHasKey($dependency, $composer['require']);
+            $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
+        }
+
         $this->assertArrayNotHasKey('hypervel/notifications', $composer['require']);
         $this->assertArrayNotHasKey('hypervel/testing', $composer['require']);
 

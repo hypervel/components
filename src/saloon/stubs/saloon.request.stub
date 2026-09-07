@@ -1,0 +1,24 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Hypervel\Saloon\Enums\Method;
+use Hypervel\Saloon\Http\Request;
+
+class {{ class }} extends Request
+{
+    /**
+     * The HTTP method used by the request.
+     */
+    protected Method $method = Method::{{ method }};
+
+    /**
+     * Resolve the request endpoint.
+     */
+    public function resolveEndpoint(): string
+    {
+        return '/example';
+    }
+}

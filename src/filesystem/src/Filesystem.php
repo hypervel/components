@@ -7,6 +7,7 @@ namespace Hypervel\Filesystem;
 use ErrorException;
 use FilesystemIterator;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
+use Hypervel\Support\Json;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
@@ -69,7 +70,7 @@ class Filesystem
      */
     public function json(string $path, int $flags = 0, bool $lock = false): mixed
     {
-        return json_decode($this->get($path, $lock), true, 512, $flags);
+        return json_decode($this->get($path, $lock), true, Json::MAXIMUM_NESTING_DEPTH + 1, $flags);
     }
 
     /**
@@ -237,7 +238,7 @@ class Filesystem
             }
 
             // Keep the temporary file private until its complete contents are written.
-            if (! @chmod($tempPath, $mode ?? 0777 - umask())) {
+            if (! @chmod($tempPath, $mode ?? 0666 & ~umask())) {
                 throw new RuntimeException("Unable to set permissions on the replacement file for [{$path}].");
             }
 
@@ -663,6 +664,11 @@ class Filesystem
      */
     public function deleteDirectory(string $directory, bool $preserve = false): bool
     {
+        // Removing a linked directory must never recurse into its unowned target.
+        if (! $preserve && is_link($directory)) {
+            return $this->delete($directory);
+        }
+
         if (! $this->isDirectory($directory)) {
             return false;
         }

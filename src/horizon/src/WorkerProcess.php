@@ -22,7 +22,7 @@ class WorkerProcess
     /**
      * Signals handled by a queue worker after its application boots.
      */
-    protected const STARTUP_SIGNALS = [
+    protected const array STARTUP_SIGNALS = [
         SIGQUIT,
         SIGTERM,
         SIGINT,

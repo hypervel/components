@@ -4,18 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench;
 
+use Composer\InstalledVersions;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\Foundation\EnvironmentFile;
+use Hypervel\Testing\ParallelTesting;
 use JsonException;
 use RuntimeException;
 use Throwable;
 
 class Bootstrapper
 {
-    protected const RUNTIME_PROCESS_MARKER = '.testbench-process';
+    protected const string RUNTIME_PROCESS_MARKER = '.testbench-process';
 
     protected static ?ConfigContract $configuration = null;
 
@@ -41,6 +43,14 @@ class Bootstrapper
 
         static::loadConfigFromYaml(static::resolveConfigurationPath($workingPath));
 
+        if (! defined('SWOOLE_HOOK_FLAGS')) {
+            define('SWOOLE_HOOK_FLAGS', SWOOLE_HOOK_ALL);
+        }
+
+        if (defined('BASE_PATH')) {
+            return;
+        }
+
         $sourcePath = testbench_path('hypervel');
         if (static::$configuration?->offsetExists('hypervel') === true && is_string(static::$configuration['hypervel'])) {
             $sourcePath = static::$configuration['hypervel'];
@@ -48,8 +58,7 @@ class Bootstrapper
 
         $basePath = static::resolveRuntimeBasePath($sourcePath, $workingPath);
 
-        ! defined('BASE_PATH') && define('BASE_PATH', $basePath);
-        ! defined('SWOOLE_HOOK_FLAGS') && define('SWOOLE_HOOK_FLAGS', SWOOLE_HOOK_ALL);
+        define('BASE_PATH', $basePath);
     }
 
     /**
@@ -90,11 +99,15 @@ class Bootstrapper
     /**
      * Resolve the directory that owns the active testbench.yaml file.
      */
-    protected static function resolveConfigurationPath(string $workingPath): string
+    public static function resolveConfigurationPath(string $workingPath): string
     {
-        return static::hasConfigurationFile($workingPath)
-            ? $workingPath
-            : testbench_path();
+        if (static::hasConfigurationFile($workingPath)) {
+            return $workingPath;
+        }
+
+        return InstalledVersions::getRootPackage()['name'] === 'hypervel/components'
+            ? testbench_path()
+            : $workingPath;
     }
 
     /**
@@ -121,7 +134,7 @@ class Bootstrapper
      */
     protected static function createRuntimeCopy(string $sourcePath, string $workingPath): string
     {
-        $token = $_SERVER['TEST_TOKEN'] ?? $_ENV['TEST_TOKEN'] ?? 'default';
+        $token = ParallelTesting::processToken() ?? 'default';
         $pid = getmypid();
         // Normalize the temp dir so that BASE_PATH matches paths derived via
         // realpath(). On macOS, sys_get_temp_dir() returns /var/folders/...
@@ -134,11 +147,19 @@ class Bootstrapper
 
         static::purgeStaleRuntimeCopies($tempDir, $pid);
 
-        if ($runtimePath !== static::$runtimePath && $filesystem->exists($runtimePath)) {
+        $reusesActivePath = $runtimePath === static::$runtimePath
+            && $filesystem->isDirectory($runtimePath);
+
+        if (! $reusesActivePath && $filesystem->exists($runtimePath)) {
             throw new RuntimeException("Unable to create the Testbench runtime copy because [{$runtimePath}] already exists.");
         }
 
         try {
+            if (! $reusesActivePath
+                && ! $filesystem->makeDirectory($runtimePath, 0700, recursive: true, force: true)) {
+                throw new RuntimeException("Unable to create runtime path [{$runtimePath}].");
+            }
+
             if (! $filesystem->copyDirectory($sourcePath, $runtimePath)) {
                 throw new RuntimeException("Unable to create the Testbench runtime copy at [{$runtimePath}].");
             }
@@ -160,10 +181,12 @@ class Bootstrapper
                 );
             }
         } catch (Throwable $exception) {
-            try {
-                static::deleteRuntimeDirectory($runtimePath);
-            } catch (Throwable) {
-                // Preserve the runtime-creation failure when rollback also fails.
+            if (! $reusesActivePath) {
+                try {
+                    static::deleteRuntimeDirectory($runtimePath);
+                } catch (Throwable) {
+                    // Preserve the runtime-creation failure when rollback also fails.
+                }
             }
 
             throw $exception;
@@ -208,7 +231,7 @@ class Bootstrapper
 
             // A dir is stale when its owning PID is dead, reused by this process
             // without being the active copy, or an identity-matched orphaned
-            // serve process whose parent exited.
+            // serve master whose parent exited.
             foreach (glob($tempDirectory . '/hypervel-components-testbench-*') ?: [] as $staleDirectory) {
                 if (! $filesystem->isDirectory($staleDirectory)) {
                     continue;
@@ -246,8 +269,9 @@ class Bootstrapper
             filename: static::testbenchEnvironmentFile(),
         );
 
-        if ($environmentFile !== null) {
-            $filesystem->copy($environmentFile, join_paths($runtimePath, '.env'));
+        if ($environmentFile !== null
+            && ! $filesystem->copy($environmentFile, join_paths($runtimePath, '.env'))) {
+            throw new RuntimeException('Unable to copy the Testbench environment file.');
         }
     }
 
@@ -312,8 +336,7 @@ class Bootstrapper
      * Determine if the given PID is an orphaned serve process.
      *
      * A process is considered an orphaned serve process only when its parent
-     * is init and its PID, command, and process incarnation all match the
-     * runtime directory.
+     * is init and its PID file and process incarnation match the runtime.
      */
     protected static function isOrphanedServeProcess(int $pid, string $runtimeDir): bool
     {
@@ -352,23 +375,13 @@ class Bootstrapper
      */
     protected static function matchesServeProcessIdentity(int $pid, string $runtimeDir): bool
     {
+        // The pid file proves a Swoole server booted from this runtime rather than a test worker.
         $pidFile = join_paths($runtimeDir, 'storage/framework/hypervel.pid');
         $pidContents = @file_get_contents($pidFile);
 
         if ($pidContents === false
             || ! ctype_digit($pidContents = trim($pidContents))
             || (int) $pidContents !== $pid
-        ) {
-            return false;
-        }
-
-        $command = static::processCommand($pid);
-
-        if ($command === null
-            || preg_match(
-                '/(?:^|\s)\S*(?:testbench|hypervel)(?:\.php)?\s+serve(?:\s|$)/i',
-                $command,
-            ) !== 1
         ) {
             return false;
         }
@@ -401,35 +414,10 @@ class Bootstrapper
     }
 
     /**
-     * Read the command line for a process.
-     */
-    protected static function processCommand(int $pid): ?string
-    {
-        if (is_dir('/proc')) {
-            $path = "/proc/{$pid}/cmdline";
-
-            if (! is_readable($path)
-                || ($contents = @file_get_contents($path)) === false
-                || $contents === ''
-            ) {
-                return null;
-            }
-
-            return trim(str_replace("\0", ' ', $contents));
-        }
-
-        $output = [];
-        exec("ps -ww -p {$pid} -o command= 2>/dev/null", $output);
-        $command = trim(implode("\n", $output));
-
-        return $command !== '' ? $command : null;
-    }
-
-    /**
      * Read the OS identity of the process incarnation.
      *
      * Linux exposes the start clock tick exactly. macOS `lstart` has one-second
-     * resolution, which is sufficient alongside the PID and validated command.
+     * resolution, the most precise portable process-start identity available there.
      */
     protected static function processStartIdentity(int $pid): ?string
     {

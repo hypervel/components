@@ -11,7 +11,10 @@ use Hypervel\Notifications\Notifiable;
 
 /**
  * @property int $id
+ * @property bool $active
  * @property string $name
+ * @property null|int|string $reference
+ * @property int $price
  * @property string $email
  * @property string $password
  * @property null|string $remember_token
@@ -53,5 +56,6 @@ class User extends Authenticatable
     protected array $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'price' => 'decimal:2',
     ];
 }

@@ -6,5 +6,5 @@ namespace Hypervel\Redis\Subscriber;
 
 class Constants
 {
-    public const CRLF = "\r\n";
+    public const string CRLF = "\r\n";
 }

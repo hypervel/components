@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Pipeline;
 
+use Closure;
 use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseManager;
+use Hypervel\Pipeline\PipeDescriptor;
 use Hypervel\Pipeline\Pipeline;
 use Hypervel\Tests\Pipeline\Fixtures\FooPipeline;
 use Hypervel\Tests\TestCase;
@@ -236,6 +238,57 @@ class PipelineTest extends TestCase
         unset($_SERVER['__test.pipe.parameters']);
     }
 
+    public function testPipelineUsageWithAnImmutablePipeDescriptor(): void
+    {
+        $descriptor = PipeDescriptor::fromString(PipelineTestParameterPipe::class . ':one,two');
+
+        $result = (new Pipeline(new Container))
+            ->send('foo')
+            ->through($descriptor)
+            ->then(fn ($piped) => $piped);
+
+        $this->assertSame('foo', $result);
+        $this->assertSame(['one', 'two'], $_SERVER['__test.pipe.parameters']);
+
+        unset($_SERVER['__test.pipe.parameters']);
+    }
+
+    public function testPipeDescriptorUsesThePipelineMethodWhenNoneIsSpecified(): void
+    {
+        $result = (new Pipeline(new Container))->send('data')
+            ->through(PipeDescriptor::fromString(PipelineTestPartialMethodPipe::class))
+            ->via('missingMethod')
+            ->then(fn (mixed $piped): mixed => $piped);
+
+        $this->assertSame('data:invoked', $result);
+    }
+
+    public function testPipeDescriptorPreservesLazyContainerResolutionAndCallableFallback(): void
+    {
+        $container = new Container;
+        $container->bind(PipelineTestUnreachablePipe::class);
+        $container->bind(PipelineTestPipeOne::class, fn () => new PipelineTestPipeTwo);
+
+        $result = (new Pipeline($container))->send('data')
+            ->through([
+                new PipeDescriptor(PipelineTestShortCircuitPipe::class),
+                new PipeDescriptor(PipelineTestUnreachablePipe::class),
+            ])
+            ->then(fn (mixed $piped): mixed => $piped);
+
+        $this->assertSame('short-circuited', $result);
+        $this->assertArrayNotHasKey('__test.pipe.unreachable', $_SERVER);
+
+        $result = (new Pipeline($container))->send('foo')
+            ->through(new PipeDescriptor(PipelineTestPipeOne::class))
+            ->then(fn (mixed $piped): mixed => $piped);
+
+        $this->assertSame('foo', $result);
+        $this->assertSame('foo', $_SERVER['__test.pipe.one']);
+
+        unset($_SERVER['__test.pipe.one']);
+    }
+
     public function testPipelineViaChangesTheMethodBeingCalledOnThePipes(): void
     {
         $pipelineInstance = new Pipeline(new Container);
@@ -246,6 +299,115 @@ class PipelineTest extends TestCase
                 return $piped;
             });
         $this->assertSame('data', $result);
+    }
+
+    public function testCompiledClosureCanProcessIndependentValuesAndBindings(): void
+    {
+        $container = new Container;
+        $container->bind(PipelineTestPipeOne::class, fn () => new PipelineTestAppendPipe(':first'));
+
+        $pipeline = (new Pipeline($container))
+            ->through(PipeDescriptor::fromString(PipelineTestPipeOne::class))
+            ->toClosure(fn (mixed $value): mixed => $value);
+
+        $this->assertSame('foo:first', $pipeline('foo'));
+
+        $container->bind(PipelineTestPipeOne::class, fn () => new PipelineTestAppendPipe(':second'));
+
+        $this->assertSame('foo:second', $pipeline('foo'));
+    }
+
+    public function testCompiledClosureAppliesFinallyToEveryInvocation(): void
+    {
+        $finalized = [];
+        $pipeline = (new Pipeline(new Container))
+            ->finally(function (mixed $value) use (&$finalized): void {
+                $finalized[] = $value;
+            })
+            ->toClosure(fn (string $value): string => $value . ':processed');
+
+        $this->assertSame('first:processed', $pipeline('first'));
+        $this->assertSame('second:processed', $pipeline('second'));
+        $this->assertSame(['first', 'second'], $finalized);
+    }
+
+    public function testCompiledClosureAppliesFinallyWhenAnInvocationThrows(): void
+    {
+        $exception = new Exception('Failed: request');
+        $finalized = [];
+        $pipeline = (new Pipeline(new Container))
+            ->finally(function (mixed $value) use (&$finalized): void {
+                $finalized[] = $value;
+            })
+            ->toClosure(static fn (string $value): never => throw $exception);
+
+        try {
+            $pipeline('request');
+            $this->fail('Expected the compiled pipeline to throw.');
+        } catch (Exception $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertSame(['request'], $finalized);
+    }
+
+    public function testCompiledClosureAppliesTransactionToEveryInvocation(): void
+    {
+        $container = new Container;
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('transaction')->twice()->andReturnUsing(fn (callable $callback) => $callback());
+        $manager = m::mock(DatabaseManager::class);
+        $manager->shouldReceive('connection')->twice()->with(null)->andReturn($connection);
+        $container->instance('db', $manager);
+
+        $pipeline = (new Pipeline($container))
+            ->withinTransaction()
+            ->toClosure(fn (string $value): string => $value . ':processed');
+
+        $this->assertSame('first:processed', $pipeline('first'));
+        $this->assertSame('second:processed', $pipeline('second'));
+    }
+
+    public function testPipelineViaDispatchesPerMethodForTheSamePipeClass(): void
+    {
+        $container = new Container;
+
+        // The pipe defines handle() but not missingMethod(), so piping it
+        // through the latter has to fall back to __invoke rather than reuse
+        // whatever the previous pipeline resolved for the same class.
+        $handled = (new Pipeline($container))->send('data')
+            ->through(PipelineTestPartialMethodPipe::class)
+            ->then(fn (mixed $piped): mixed => $piped);
+
+        $invoked = (new Pipeline($container))->send('data')
+            ->through(PipelineTestPartialMethodPipe::class)
+            ->via('missingMethod')
+            ->then(fn (mixed $piped): mixed => $piped);
+
+        $handledAgain = (new Pipeline($container))->send('data')
+            ->through(PipelineTestPartialMethodPipe::class)
+            ->then(fn (mixed $piped): mixed => $piped);
+
+        $this->assertSame('data:handled', $handled);
+        $this->assertSame('data:invoked', $invoked, 'A missing pipe method did not fall back to __invoke.');
+        $this->assertSame('data:handled', $handledAgain);
+    }
+
+    public function testPipelineResolvesPipesOnlyWhenReached(): void
+    {
+        $container = new Container;
+        $container->bind(PipelineTestUnreachablePipe::class);
+
+        $result = (new Pipeline($container))->send('data')
+            ->through([PipelineTestShortCircuitPipe::class, PipelineTestUnreachablePipe::class])
+            ->then(fn (mixed $piped): mixed => $piped);
+
+        $this->assertSame('short-circuited', $result);
+        $this->assertArrayNotHasKey(
+            '__test.pipe.unreachable',
+            $_SERVER,
+            'A pipe was constructed even though an earlier pipe never called next().'
+        );
     }
 
     public function testPipelineThrowsExceptionOnResolveWithoutContainer(): void
@@ -555,12 +717,58 @@ class PipelineTestPipeTwo
     }
 }
 
+class PipelineTestAppendPipe
+{
+    public function __construct(private readonly string $suffix)
+    {
+    }
+
+    public function handle(mixed $piped, Closure $next): mixed
+    {
+        return $next($piped . $this->suffix);
+    }
+}
+
 class PipelineTestParameterPipe
 {
     public function handle($piped, $next, $parameter1 = null, $parameter2 = null)
     {
         $_SERVER['__test.pipe.parameters'] = [$parameter1, $parameter2];
 
+        return $next($piped);
+    }
+}
+
+class PipelineTestShortCircuitPipe
+{
+    public function handle(mixed $piped, Closure $next): string
+    {
+        return 'short-circuited';
+    }
+}
+
+class PipelineTestPartialMethodPipe
+{
+    public function handle(mixed $piped, Closure $next): mixed
+    {
+        return $next($piped . ':handled');
+    }
+
+    public function __invoke(mixed $piped, Closure $next): mixed
+    {
+        return $next($piped . ':invoked');
+    }
+}
+
+class PipelineTestUnreachablePipe
+{
+    public function __construct()
+    {
+        $_SERVER['__test.pipe.unreachable'] = true;
+    }
+
+    public function handle(mixed $piped, Closure $next): mixed
+    {
         return $next($piped);
     }
 }

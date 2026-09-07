@@ -5,22 +5,22 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 /**
- * @method static \Hypervel\Pipeline\Pipeline send(mixed $passable)
- * @method static \Hypervel\Pipeline\Pipeline through(mixed $pipes)
- * @method static \Hypervel\Pipeline\Pipeline pipe(mixed $pipes)
- * @method static \Hypervel\Pipeline\Pipeline via(string $method)
- * @method static mixed then(\Closure $destination)
- * @method static mixed thenReturn()
  * @method static \Hypervel\Pipeline\Pipeline finally(\Closure $callback)
- * @method static \Hypervel\Pipeline\Pipeline withinTransaction(\UnitEnum|string|false|null $withinTransaction = null)
- * @method static \Hypervel\Pipeline\Pipeline setContainer(\Hypervel\Contracts\Container\Container $container)
+ * @method static void flushMacros()
  * @method static void flushState()
- * @method static mixed when(mixed $value = null, null|callable $callback = null, null|callable $default = null)
- * @method static mixed unless(mixed $value = null, null|callable $callback = null, null|callable $default = null)
+ * @method static bool hasMacro(string $name)
  * @method static void macro(string $name, callable|object $macro)
  * @method static void mixin(object $mixin, bool $replace = true)
- * @method static bool hasMacro(string $name)
- * @method static void flushMacros()
+ * @method static \Hypervel\Pipeline\Pipeline pipe(mixed $pipes)
+ * @method static \Hypervel\Pipeline\Pipeline send(mixed $passable)
+ * @method static \Hypervel\Pipeline\Pipeline setContainer(\Hypervel\Contracts\Container\Container $container)
+ * @method static mixed then(\Closure $destination)
+ * @method static mixed thenReturn()
+ * @method static \Hypervel\Pipeline\Pipeline through(mixed $pipes)
+ * @method static mixed unless(mixed $value = null, null|callable $callback = null, null|callable $default = null)
+ * @method static \Hypervel\Pipeline\Pipeline via(string $method)
+ * @method static mixed when(mixed $value = null, null|callable $callback = null, null|callable $default = null)
+ * @method static \Hypervel\Pipeline\Pipeline withinTransaction(\UnitEnum|string|false|null $withinTransaction = null)
  *
  * @see \Hypervel\Pipeline\Pipeline
  */

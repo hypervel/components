@@ -8,7 +8,7 @@ use Stringable;
 
 interface Http
 {
-    public const DEFAULT_PROTOCOL_VERSION = '1.1';
+    public const string DEFAULT_PROTOCOL_VERSION = '1.1';
 
     /**
      * Pack an HTTP request.

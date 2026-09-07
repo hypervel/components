@@ -22,7 +22,7 @@ class GetTaggedKeys
      * Default threshold for switching from HKEYS to HSCAN.
      * Above this number of fields, use HSCAN for memory efficiency.
      */
-    private const DEFAULT_SCAN_THRESHOLD = 1000;
+    private const int DEFAULT_SCAN_THRESHOLD = 1000;
 
     /**
      * Create a new get tagged keys query instance.
@@ -90,8 +90,10 @@ class GetTaggedKeys
         do {
             // Acquire connection just for this HSCAN batch
             $fields = $this->context->withConnection(
-                function (RedisConnection $connection) use ($tagKey, &$iterator, $count) {
-                    return $connection->hscan($tagKey, $iterator, null, $count);
+                function (RedisConnection $connection) use ($tagKey, &$iterator, $count): mixed {
+                    return $connection->withoutScanPrefix(function () use ($connection, $tagKey, &$iterator, $count): mixed {
+                        return $connection->hscan($tagKey, $iterator, null, $count);
+                    });
                 }
             );
 

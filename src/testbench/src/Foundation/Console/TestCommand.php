@@ -108,6 +108,7 @@ class TestCommand extends TestCommandBase
     #[Override]
     protected function basePath(string ...$paths): string
     {
-        return package_path(...$paths);
+        // Re-index so the spread is positional for package_path()'s no-named-arguments contract.
+        return package_path(...array_values($paths));
     }
 }

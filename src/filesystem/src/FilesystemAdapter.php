@@ -7,6 +7,9 @@ namespace Hypervel\Filesystem;
 use BadMethodCallException;
 use Closure;
 use DateTimeInterface;
+use GuzzleHttp\Psr7\LimitStream;
+use GuzzleHttp\Psr7\StreamWrapper;
+use GuzzleHttp\Psr7\Utils;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Filesystem\Cloud as CloudFilesystemContract;
@@ -14,7 +17,10 @@ use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
 use Hypervel\Http\File;
 use Hypervel\Http\Request;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Image\Image;
+use Hypervel\Image\ImageException;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
@@ -44,6 +50,7 @@ use Psr\Http\Message\StreamInterface;
 use Psr\Http\Message\UriInterface;
 use ReflectionFunction;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
@@ -275,7 +282,7 @@ class FilesystemAdapter implements CloudFilesystemContract
     {
         $content = $this->get($path);
 
-        return is_null($content) ? null : json_decode($content, true, 512, $flags);
+        return is_null($content) ? null : json_decode($content, true, Json::MAXIMUM_NESTING_DEPTH + 1, $flags);
     }
 
     /**
@@ -312,6 +319,17 @@ class FilesystemAdapter implements CloudFilesystemContract
     public function download(string $path, ?string $name = null, array $headers = []): StreamedResponse
     {
         return $this->response($path, $name, $headers, 'attachment');
+    }
+
+    /**
+     * Create an image instance from a file in storage.
+     */
+    public function image(string $path): Image
+    {
+        return new Image(
+            fn (): string => $this->get($path)
+                ?? throw new ImageException("Unable to read image from path [{$path}]."),
+        );
     }
 
     /**
@@ -636,51 +654,78 @@ class FilesystemAdapter implements CloudFilesystemContract
             return $this->readStream($path);
         }
 
+        $suffixLength = $start === null ? $end : null;
+
         if ($start === null) {
             $start = max(0, $this->size($path) - $end);
         }
 
+        $length = $end === null
+            ? null
+            : ($suffixLength ?? $end - $start + 1);
+
         $stream = $this->readStream($path);
 
-        if (! is_resource($stream) || $start === 0) {
+        if (! is_resource($stream)) {
             return $stream;
         }
 
-        $metadata = stream_get_meta_data($stream);
+        try {
+            if ($start > 0) {
+                $metadata = stream_get_meta_data($stream);
 
-        if ($metadata['seekable']) {
-            if (fseek($stream, $start) === 0) {
+                if ($metadata['seekable'] && fseek($stream, $start) !== 0 && ! rewind($stream)) {
+                    throw new RuntimeException('Unable to position the stream at the requested range.');
+                }
+
+                if (! $metadata['seekable'] || ftell($stream) !== $start) {
+                    $remaining = $start;
+
+                    while ($remaining > 0) {
+                        $content = fread($stream, min(8192, $remaining));
+
+                        if ($content === false || ($content === '' && feof($stream))) {
+                            throw new RuntimeException('Unable to position the stream at the requested range.');
+                        }
+
+                        if ($content === '') {
+                            throw new RuntimeException(
+                                'The stream returned no data while positioning at the requested range.',
+                            );
+                        }
+
+                        $remaining -= strlen($content);
+                    }
+                }
+            }
+
+            if ($length === null) {
                 return $stream;
             }
 
-            if (! rewind($stream)) {
-                fclose($stream);
+            $psrStream = Utils::streamFor($stream);
+            $limitedStream = new LimitStream($psrStream, $length, $psrStream->tell());
 
-                throw UnableToReadFile::fromLocation($path, 'Unable to position the stream at the requested range.');
+            return StreamWrapper::getResource($limitedStream);
+        } catch (CanceledException $exception) {
+            if (is_resource($stream)) {
+                fclose($stream);
             }
+
+            throw $exception;
+        } catch (Throwable $exception) {
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+
+            $failure = UnableToReadFile::fromLocation($path, $exception->getMessage(), $exception);
+
+            throw_if($this->throwsExceptions(), $failure);
+
+            $this->report($failure);
+
+            return null;
         }
-
-        $remaining = $start;
-
-        while ($remaining > 0) {
-            $content = fread($stream, min(8192, $remaining));
-
-            if ($content === false || ($content === '' && feof($stream))) {
-                fclose($stream);
-
-                throw UnableToReadFile::fromLocation($path, 'Unable to position the stream at the requested range.');
-            }
-
-            if ($content === '') {
-                fclose($stream);
-
-                throw UnableToReadFile::fromLocation($path, 'The stream returned no data while positioning at the requested range.');
-            }
-
-            $remaining -= strlen($content);
-        }
-
-        return $stream;
     }
 
     /**
@@ -733,7 +778,7 @@ class FilesystemAdapter implements CloudFilesystemContract
     public function url(string $path): string
     {
         if (isset($this->config['prefix'])) {
-            $path = $this->concatPathToUrl($this->config['prefix'], $path);
+            $path = rtrim($this->config['prefix'], '/') . '/' . ltrim($path, '/');
         }
 
         $adapter = $this->adapter;
@@ -760,7 +805,7 @@ class FilesystemAdapter implements CloudFilesystemContract
     {
         return isset($this->config['url'])
             ? $this->concatPathToUrl($this->config['url'], $path)
-            : $path;
+            : $this->encodeUrlPath($path);
     }
 
     /**
@@ -775,7 +820,7 @@ class FilesystemAdapter implements CloudFilesystemContract
             return $this->concatPathToUrl($this->config['url'], $path);
         }
 
-        $path = '/storage/' . $path;
+        $path = '/storage/' . ltrim($this->encodeUrlPath($path), '/');
 
         // If the path contains "storage/public", it probably means the developer is using
         // the default disk to generate the path instead of the "public" disk like they
@@ -848,11 +893,19 @@ class FilesystemAdapter implements CloudFilesystemContract
     }
 
     /**
-     * Concatenate a path to a URL.
+     * Encode a path for use in a URL.
+     */
+    protected function encodeUrlPath(string $path): string
+    {
+        return str_replace('%2F', '/', rawurlencode($path));
+    }
+
+    /**
+     * Encode and concatenate a path to a URL.
      */
     protected function concatPathToUrl(string $url, string $path): string
     {
-        return rtrim($url, '/') . '/' . ltrim($path, '/');
+        return rtrim($url, '/') . '/' . ltrim($this->encodeUrlPath($path), '/');
     }
 
     /**

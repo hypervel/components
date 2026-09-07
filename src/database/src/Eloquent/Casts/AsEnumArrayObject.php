@@ -7,8 +7,11 @@ namespace Hypervel\Database\Eloquent\Casts;
 use BackedEnum;
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Database\Eloquent\JsonEncodingException;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
 
+use function Hypervel\Support\enum_from;
 use function Hypervel\Support\enum_value;
 
 class AsEnumArrayObject implements Castable
@@ -31,7 +34,7 @@ class AsEnumArrayObject implements Castable
                 $this->arguments = $arguments;
             }
 
-            public function get(mixed $model, string $key, mixed $value, array $attributes): ?ArrayObject
+            public function get(Model $model, string $key, mixed $value, array $attributes): ?ArrayObject
             {
                 if (! isset($attributes[$key])) {
                     return null;
@@ -47,12 +50,12 @@ class AsEnumArrayObject implements Castable
 
                 return new ArrayObject((new Collection($data))->map(function ($value) use ($enumClass) {
                     return is_subclass_of($enumClass, BackedEnum::class)
-                        ? $enumClass::from($value)
+                        ? enum_from($enumClass, $value)
                         : constant($enumClass . '::' . $value);
                 })->toArray());
             }
 
-            public function set(mixed $model, string $key, mixed $value, array $attributes): array
+            public function set(Model $model, string $key, mixed $value, array $attributes): array
             {
                 if ($value === null) {
                     return [$key => null];
@@ -64,10 +67,16 @@ class AsEnumArrayObject implements Castable
                     $storable[] = $this->getStorableEnumValue($enum);
                 }
 
-                return [$key => Json::encode($storable)];
+                $encoded = Json::encode($storable);
+
+                if ($encoded === false) {
+                    throw JsonEncodingException::forAttribute($model, $key, json_last_error_msg());
+                }
+
+                return [$key => $encoded];
             }
 
-            public function serialize(mixed $model, string $key, mixed $value, array $attributes): array
+            public function serialize(Model $model, string $key, mixed $value, array $attributes): array
             {
                 return (new Collection($value->getArrayCopy()))
                     ->map(fn ($enum) => $this->getStorableEnumValue($enum))

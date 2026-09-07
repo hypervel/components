@@ -42,11 +42,23 @@ abstract class AbstractDriver implements DriverInterface
     }
 
     /**
+     * Determine whether the driver has been stopped.
+     *
+     * The state may change while hooked I/O yields to another coroutine.
+     *
+     * @phpstan-impure
+     */
+    protected function isStopping(): bool
+    {
+        return $this->stopping;
+    }
+
+    /**
      * Run a polling scan until the driver is stopped.
      */
     protected function watchAtInterval(float $seconds, callable $scan): void
     {
-        if ($this->stopping) {
+        if ($this->isStopping()) {
             return;
         }
 
@@ -54,13 +66,17 @@ abstract class AbstractDriver implements DriverInterface
 
         try {
             while (true) {
+                $scan();
+
+                if ($this->isStopping()) {
+                    return;
+                }
+
                 $signal = $stopSignal->pop($seconds);
 
                 if ($signal !== false || ! $stopSignal->isTimeout()) {
                     return;
                 }
-
-                $scan();
             }
         } finally {
             if (! $stopSignal->isClosing()) {
@@ -89,6 +105,27 @@ abstract class AbstractDriver implements DriverInterface
             },
             $watchPaths,
         );
+    }
+
+    /**
+     * Group watch paths by their resolved target.
+     *
+     * @param list<WatchPath> $watchPaths
+     * @return array<string, array{recursive: bool, watchPaths: list<WatchPath>}>
+     */
+    protected function groupWatchPathsByTarget(array $watchPaths): array
+    {
+        $targets = $this->resolveTargets($watchPaths);
+        $groups = [];
+
+        foreach ($watchPaths as $index => $watchPath) {
+            $target = $targets[$index];
+            $groups[$target] ??= ['recursive' => false, 'watchPaths' => []];
+            $groups[$target]['recursive'] = $groups[$target]['recursive'] || $watchPath->recursive;
+            $groups[$target]['watchPaths'][] = $watchPath;
+        }
+
+        return $groups;
     }
 
     /**

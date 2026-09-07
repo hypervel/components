@@ -56,8 +56,14 @@ trait TwoFactorAuthenticatable
      */
     public function recoveryCodes(): array
     {
+        $encryptedCodes = $this->two_factor_recovery_codes;
+
+        if ($encryptedCodes === null || $encryptedCodes === '') {
+            return [];
+        }
+
         $codes = json_decode(
-            Fortify::currentEncrypter()->decrypt($this->two_factor_recovery_codes),
+            Fortify::currentEncrypter()->decrypt($encryptedCodes),
             true,
             flags: JSON_THROW_ON_ERROR,
         );

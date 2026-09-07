@@ -58,6 +58,25 @@ class EloquentHasOneOrManyDeprecationTest extends TestCase
         $this->assertNull($models[1]->foo);
     }
 
+    public function testHasManyMatchWithNullForeignKey(): void
+    {
+        $relation = $this->getHasManyRelation();
+
+        $result = new HasOneOrManyDeprecationModelStub;
+        $result->foreign_key = null;
+
+        $model = new HasOneOrManyDeprecationModelStub;
+        $model->id = '';
+
+        $relation->getRelated()->shouldReceive('newCollection')->andReturnUsing(function ($array) {
+            return new Collection($array);
+        });
+
+        $models = $relation->match([$model], new Collection([$result]), 'foo');
+
+        $this->assertNull($models[0]->foo);
+    }
+
     protected function getHasManyRelation(): HasMany
     {
         $queryBuilder = m::mock(QueryBuilder::class);
@@ -93,5 +112,7 @@ class EloquentHasOneOrManyDeprecationTest extends TestCase
 
 class HasOneOrManyDeprecationModelStub extends Model
 {
-    public $foreign_key;
+    protected string $keyType = 'string';
+
+    public mixed $foreign_key = null;
 }

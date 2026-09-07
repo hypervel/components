@@ -323,7 +323,7 @@ abstract class Factory
     /**
      * Set the connection name on the results and store them.
      *
-     * @param \Hypervel\Support\Collection<int, \Hypervel\Database\Eloquent\Model> $results
+     * @param \Hypervel\Support\Collection<int, TModel> $results
      */
     protected function store(Collection $results): void
     {
@@ -346,6 +346,8 @@ abstract class Factory
 
     /**
      * Create the children for the given model.
+     *
+     * @param TModel $model
      */
     protected function createChildren(Model $model): void
     {
@@ -444,6 +446,10 @@ abstract class Factory
             ? $made
             : $this->newModel()->newCollection([$made]);
 
+        if ($madeCollection->isEmpty()) {
+            return;
+        }
+
         $model = $madeCollection->first();
 
         if (isset($this->connection)) {
@@ -452,12 +458,25 @@ abstract class Factory
 
         $query = $model->newQueryWithoutScopes();
 
-        $query->fillAndInsert(
-            $madeCollection->withoutAppends()
-                ->setHidden([])
-                ->map(static fn (Model $model) => $model->attributesToArray())
-                ->all()
-        );
+        $timestamps = [];
+
+        if ($model->usesTimestamps()) {
+            $timestamp = $model->freshTimestampString();
+
+            foreach (array_filter([$model->getCreatedAtColumn(), $model->getUpdatedAtColumn()]) as $column) {
+                $timestamps[$column] = $timestamp;
+            }
+        }
+
+        // These models have already applied their casts and mutators. Serializing or
+        // filling them again can drop attributes or transform stored values twice.
+        $values = $madeCollection->map(static function (Model $model) use ($timestamps): array {
+            $model->setUniqueIds();
+
+            return array_merge($timestamps, $model->prepareBinaryAttributesForDatabase($model->getAttributes()));
+        })->all();
+
+        $query->insert($values);
     }
 
     /**

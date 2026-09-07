@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Log;
 
-use Hypervel\Bus\UniqueJobPayloadContext;
+use Hypervel\Bus\DispatchLockContext;
+use Hypervel\Bus\UniqueLock;
 use Hypervel\Cache\Repository as CacheRepository;
 use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Foundation\Queue\Queueable;
@@ -76,7 +78,7 @@ class ContextQueueTest extends TestCase
             ->addHidden('persistent', 'value');
 
         $job = new ContextQueueUniqueJob('unique-id');
-        UniqueJobPayloadContext::register($job);
+        $this->acquireUniqueJob($job);
 
         $queue = $this->createSyncQueue();
         $payload = $queue->testCreatePayload($job, null);
@@ -86,10 +88,11 @@ class ContextQueueTest extends TestCase
             'laravel_unique_job:' . ContextQueueUniqueJob::class . ':unique-id',
             unserialize($payload['illuminate:log:context']['hidden']['laravel_unique_job_key'])
         );
+        $this->assertNotSame('', unserialize($payload['illuminate:log:context']['hidden']['laravel_unique_job_lock_owner']));
         $this->assertSame('value', unserialize($payload['illuminate:log:context']['hidden']['persistent']));
         $this->assertSame('abc-123', $context->get('trace_id'));
         $this->assertSame(['persistent' => 'value'], $context->allHidden());
-        $this->assertNull(UniqueJobPayloadContext::consume($job));
+        $this->assertNotNull(DispatchLockContext::peekPayloadMetadata($job));
     }
 
     public function testLaterPayloadHookCanComposeWithContextAndLiveJobMetadata(): void
@@ -100,7 +103,7 @@ class ContextQueueTest extends TestCase
             ->addHidden('persistent', 'hidden-value');
 
         $job = new ContextQueueUniqueJob('composed-payload');
-        UniqueJobPayloadContext::register($job);
+        $this->acquireUniqueJob($job);
 
         $observedCommandName = null;
         $observedCommand = null;
@@ -131,15 +134,17 @@ class ContextQueueTest extends TestCase
             'laravel_unique_job:' . ContextQueueUniqueJob::class . ':composed-payload',
             unserialize($context['hidden']['laravel_unique_job_key']),
         );
+        $this->assertNotSame('', unserialize($context['hidden']['laravel_unique_job_lock_owner']));
         $this->assertSame(ContextQueueUniqueJob::class, $payload['data']['commandName']);
         $this->assertInstanceOf(ContextQueueUniqueJob::class, unserialize($payload['data']['command']));
+        $this->assertNotNull(DispatchLockContext::peekPayloadMetadata($job));
     }
 
     public function testUniqueJobMetadataScopeIsRestoredWhenAPayloadHookThrows(): void
     {
         $context = Repository::getInstance()->addHidden('persistent', 'value');
         $job = new ContextQueueUniqueJob('failing-payload');
-        UniqueJobPayloadContext::register($job);
+        $this->acquireUniqueJob($job);
 
         $throw = true;
         Queue::createPayloadUsing(function (string $connection, ?string $queue, array $payload) use (&$throw): array {
@@ -160,7 +165,11 @@ class ContextQueueTest extends TestCase
         }
 
         $this->assertSame(['persistent' => 'value'], $context->allHidden());
-        $this->assertNull(UniqueJobPayloadContext::consume($job));
+        $this->assertNotNull(DispatchLockContext::peekPayloadMetadata($job));
+
+        DispatchLockContext::release($job);
+
+        $this->assertNull(DispatchLockContext::peekPayloadMetadata($job));
 
         $throw = false;
         $payload = $queue->testCreatePayload(new ContextQueueTestJob, null);
@@ -193,7 +202,7 @@ class ContextQueueTest extends TestCase
         $job->shouldReceive('payload')->andReturn($payload);
 
         $event = new JobProcessing('sync', $job);
-        $this->app['events']->dispatch($event);
+        $this->app->make('events')->dispatch($event);
 
         // Context should now be hydrated
         $this->assertSame('abc-123', Repository::getInstance()->get('trace_id'));
@@ -206,7 +215,7 @@ class ContextQueueTest extends TestCase
         $job->shouldReceive('payload')->andReturn(['job' => 'SomeJob']);
 
         $event = new JobProcessing('sync', $job);
-        $this->app['events']->dispatch($event);
+        $this->app->make('events')->dispatch($event);
 
         // No context Repository should have been allocated
         $this->assertFalse(Repository::hasInstance());
@@ -221,7 +230,7 @@ class ContextQueueTest extends TestCase
         $job = m::mock(\Hypervel\Contracts\Queue\Job::class);
         $job->shouldReceive('payload')->andReturn(['job' => 'SomeJob']);
 
-        $this->app['events']->dispatch(new JobProcessing('sync', $job));
+        $this->app->make('events')->dispatch(new JobProcessing('sync', $job));
 
         $this->assertSame($repository, Repository::getInstance());
         $this->assertSame([], $repository->all());
@@ -247,6 +256,24 @@ class ContextQueueTest extends TestCase
         $this->assertArrayHasKey('dehydrated_at', $payload['illuminate:log:context']['data']);
     }
 
+    public function testDehydratingHookContributesContextInAFreshCoroutine(): void
+    {
+        Repository::getInstance()->dehydrating(static function (Repository $context): void {
+            $context->addHidden('locale', 'en');
+        });
+
+        $queue = $this->createSyncQueue();
+        $result = new Channel(1);
+
+        Coroutine::create(static function () use ($queue, $result): void {
+            $result->push($queue->testCreatePayload('SomeJob', null));
+        });
+
+        $payload = $result->pop(1);
+
+        $this->assertSame(serialize('en'), $payload['illuminate:log:context']['hidden']['locale']);
+    }
+
     public function testHydratedHookFiresWhenJobProcesses(): void
     {
         $called = false;
@@ -266,7 +293,7 @@ class ContextQueueTest extends TestCase
         $job = m::mock(\Hypervel\Contracts\Queue\Job::class);
         $job->shouldReceive('payload')->andReturn($payload);
 
-        $this->app['events']->dispatch(new JobProcessing('sync', $job));
+        $this->app->make('events')->dispatch(new JobProcessing('sync', $job));
 
         $this->assertTrue($called);
     }
@@ -311,7 +338,7 @@ class ContextQueueTest extends TestCase
         // Hydrate from the payload
         $job = m::mock(\Hypervel\Contracts\Queue\Job::class);
         $job->shouldReceive('payload')->andReturn($payload);
-        $this->app['events']->dispatch(new JobProcessing('sync', $job));
+        $this->app->make('events')->dispatch(new JobProcessing('sync', $job));
 
         // Verify all types survived the round trip
         $this->assertSame('hello', Repository::getInstance()->get('string'));
@@ -367,6 +394,16 @@ class ContextQueueTest extends TestCase
         $queue->setConnectionName('sync');
 
         return $queue;
+    }
+
+    /**
+     * Acquire the unique lock owned by a test dispatch.
+     */
+    private function acquireUniqueJob(ContextQueueUniqueJob $job): void
+    {
+        $this->assertTrue(
+            (new UniqueLock(new CacheRepository(new WorkerArrayStore)))->acquireForDispatch($job)
+        );
     }
 }
 

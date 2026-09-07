@@ -11,7 +11,7 @@ class ConfigurationUrlParser
     /**
      * The default driver aliases map.
      */
-    protected const DEFAULT_DRIVER_ALIASES = [
+    protected const array DEFAULT_DRIVER_ALIASES = [
         'mssql' => 'sqlsrv',
         'mysql2' => 'mysql', // RDS
         'postgres' => 'pgsql',

@@ -34,6 +34,8 @@ class JwtGuard implements Guard
     use GuardHelpers;
     use Macroable;
 
+    public const int DEFAULT_TTL = 120;
+
     protected const string GUARD_CONTEXT_KEY_PREFIX = '__auth.guards.';
 
     private const string NO_EXPIRY = '__jwt.ttl.no_expiry';
@@ -60,7 +62,7 @@ class JwtGuard implements Guard
         protected ClaimFactory $claimFactory,
         protected Parser $parser,
         protected Container $app,
-        protected ?int $ttl = 120,
+        protected ?int $ttl = self::DEFAULT_TTL,
     ) {
         $this->provider = $provider;
     }
@@ -106,8 +108,10 @@ class JwtGuard implements Guard
         $token = $this->makeTokenForUser($user);
 
         $this->setToken($token);
-        $this->setUser($user);
+        CoroutineContext::forget($this->getExplicitUserContextKey());
+        $this->cacheUser($user);
         $this->fireLoginEvent($user);
+        $this->fireAuthenticatedEvent($user);
 
         return $token;
     }
@@ -118,6 +122,13 @@ class JwtGuard implements Guard
     public function user(): ?AuthenticatableContract
     {
         self::$nullUserSentinel ??= new stdClass;
+
+        /** @var null|AuthenticatableContract $explicitUser */
+        $explicitUser = CoroutineContext::get($this->getExplicitUserContextKey());
+
+        if ($explicitUser !== null) {
+            return $explicitUser;
+        }
 
         $token = $this->getToken();
         $contextKey = $this->getUserContextKey($token);
@@ -157,7 +168,8 @@ class JwtGuard implements Guard
             return null;
         }
 
-        $this->setUser($user);
+        $this->cacheUser($user);
+        $this->fireAuthenticatedEvent($user);
 
         return $user;
     }
@@ -350,7 +362,7 @@ class JwtGuard implements Guard
             return null;
         }
 
-        $cachedUser = $this->cachedUser();
+        $cachedUser = CoroutineContext::get($this->getUserContextKey($token));
         $customClaims = $this->pullCustomClaims();
         $ttl = $this->getTTL();
 
@@ -358,13 +370,13 @@ class JwtGuard implements Guard
             $newToken = $this->jwtManager->refresh($token, $forceForever, $resetClaims, $customClaims, $ttl);
         } finally {
             $this->forgetContextState('ttl');
-            $this->forgetUser();
+            CoroutineContext::forget($this->getUserContextKey($token));
             CoroutineContext::forget($this->getPayloadContextKey($token));
         }
 
         $this->setToken($newToken);
 
-        if ($cachedUser !== null) {
+        if ($cachedUser instanceof AuthenticatableContract) {
             $this->cacheUser($cachedUser);
         }
 
@@ -379,7 +391,7 @@ class JwtGuard implements Guard
         $user = $this->cachedUser();
         $token = $this->getToken();
 
-        if ($token && $this->jwtManager->hasBlacklistEnabled()) {
+        if ($token) {
             $this->jwtManager->invalidate($token, $forceForever);
         }
 
@@ -398,7 +410,11 @@ class JwtGuard implements Guard
      */
     public function invalidate(bool $forceForever = false): static
     {
-        $this->jwtManager->invalidate($this->requireToken(), $forceForever);
+        $token = $this->requireToken();
+
+        $this->jwtManager->invalidate($token, $forceForever);
+        CoroutineContext::forget($this->getUserContextKey($token));
+        CoroutineContext::forget($this->getPayloadContextKey($token));
 
         return $this;
     }
@@ -408,11 +424,7 @@ class JwtGuard implements Guard
      */
     public function hasUser(): bool
     {
-        self::$nullUserSentinel ??= new stdClass;
-
-        $cached = CoroutineContext::get($this->getUserContextKey());
-
-        return $cached !== null && $cached !== self::$nullUserSentinel;
+        return $this->cachedUser() !== null;
     }
 
     /**
@@ -420,7 +432,7 @@ class JwtGuard implements Guard
      */
     public function setUser(AuthenticatableContract $user): static
     {
-        $this->cacheUser($user);
+        CoroutineContext::set($this->getExplicitUserContextKey(), $user);
         $this->fireAuthenticatedEvent($user);
 
         return $this;
@@ -431,10 +443,23 @@ class JwtGuard implements Guard
      */
     public function forgetUser(): static
     {
+        CoroutineContext::forget($this->getExplicitUserContextKey());
         CoroutineContext::forget($this->getUserContextKey());
         CoroutineContext::forget($this->getContextStateKey('user.default'));
 
         return $this;
+    }
+
+    /**
+     * Get durable authentication Context keys.
+     *
+     * Per-request token resolution caches must not cross a request boundary.
+     *
+     * @return array<int, string>
+     */
+    public function getAuthContextKeys(): array
+    {
+        return [$this->getExplicitUserContextKey()];
     }
 
     /**
@@ -512,6 +537,13 @@ class JwtGuard implements Guard
     {
         self::$nullUserSentinel ??= new stdClass;
 
+        /** @var null|AuthenticatableContract $explicitUser */
+        $explicitUser = CoroutineContext::get($this->getExplicitUserContextKey());
+
+        if ($explicitUser !== null) {
+            return $explicitUser;
+        }
+
         $cached = CoroutineContext::get($this->getUserContextKey());
 
         return ($cached === null || $cached === self::$nullUserSentinel) ? null : $cached;
@@ -523,6 +555,14 @@ class JwtGuard implements Guard
     protected function cacheUser(AuthenticatableContract $user): void
     {
         CoroutineContext::set($this->getUserContextKey(), $user);
+    }
+
+    /**
+     * Get the Context key for an explicitly assigned user.
+     */
+    protected function getExplicitUserContextKey(): string
+    {
+        return $this->getContextStateKey('user.explicit');
     }
 
     /**

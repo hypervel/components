@@ -19,6 +19,8 @@ class CloseCallback
      */
     public function onClose(Server $server, int $fd, int $reactorId): void
     {
-        $this->dispatcher->dispatch(new OnClose($server, $fd, $reactorId));
+        if ($this->dispatcher->hasListeners(OnClose::class)) {
+            $this->dispatcher->dispatch(new OnClose($server, $fd, $reactorId));
+        }
     }
 }

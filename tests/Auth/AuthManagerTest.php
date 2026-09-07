@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Auth;
 
 use Closure;
+use ErrorException;
 use Hypervel\Auth\AuthenticationException;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Auth\DatabaseUserProvider;
@@ -12,8 +13,10 @@ use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Auth\Middleware\Authenticate;
 use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
 use Hypervel\Auth\RequestGuard;
+use Hypervel\Auth\SessionGuard;
 use Hypervel\Auth\TokenGuard;
 use Hypervel\Cache\CacheManager;
+use Hypervel\Cache\ModelCacheCoordinator;
 use Hypervel\Cache\ModelCacheStoreValidator;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Config\Repository;
@@ -28,7 +31,9 @@ use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Hashing\Hasher as HashContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Foundation\Auth\User as FoundationUser;
 use Hypervel\Http\Request;
 use Hypervel\Support\Facades\Auth as AuthFacade;
@@ -37,6 +42,9 @@ use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
+use ReflectionProperty;
+
+use function Hypervel\Coroutine\parallel;
 
 class AuthManagerTest extends TestCase
 {
@@ -191,12 +199,65 @@ class AuthManagerTest extends TestCase
         $this->assertSame('admins', $manager->getDefaultUserProvider());
     }
 
+    public function testGetUserProviderNameUsesSelectedOrExplicitGuardWithoutChangingSelection(): void
+    {
+        $manager = new AuthManager($container = $this->getContainer());
+        $config = $container->make('config');
+        $config->set('auth.defaults.guard', 'web');
+        $config->set('auth.guards.web.provider', 'users');
+        $config->set('auth.guards.admin.provider', 'admins');
+
+        $manager->shouldUse('admin');
+
+        $this->assertSame('admins', $manager->getUserProviderName());
+        $this->assertSame('users', $manager->getUserProviderName('web'));
+        $this->assertSame('admins', $manager->getUserProviderName(AuthManagerGuardEnum::Admin));
+        $this->assertSame('admin', $manager->getDefaultDriver());
+    }
+
+    public function testGetUserProviderNameIsIsolatedBetweenConcurrentCoroutines(): void
+    {
+        $manager = new AuthManager($container = $this->getContainer());
+        $config = $container->make('config');
+        $config->set('auth.defaults.guard', 'web');
+        $config->set('auth.guards.web.provider', 'users');
+        $config->set('auth.guards.admin.provider', 'admins');
+
+        [$users, $admins] = parallel([
+            function () use ($manager): ?string {
+                $manager->shouldUse('web');
+                usleep(5000);
+
+                return $manager->getUserProviderName();
+            },
+            function () use ($manager): ?string {
+                $manager->shouldUse('admin');
+                usleep(5000);
+
+                return $manager->getUserProviderName();
+            },
+        ]);
+
+        $this->assertSame('users', $users);
+        $this->assertSame('admins', $admins);
+    }
+
     public function testGetDefaultUserProviderReturnsNullWhenCurrentGuardHasNoProvider(): void
     {
         $manager = new AuthManager($container = $this->getContainer());
         $container->make('config')->set('auth.defaults.guard', 'api');
         $container->make('config')->set('auth.guards.api', ['driver' => 'token']);
 
+        $this->assertNull($manager->getDefaultUserProvider());
+    }
+
+    public function testUserProviderNamesNormalizeAnEmptyProviderToNull(): void
+    {
+        $manager = new AuthManager($container = $this->getContainer());
+        $container->make('config')->set('auth.defaults.guard', 'api');
+        $container->make('config')->set('auth.guards.api.provider', '');
+
+        $this->assertNull($manager->getUserProviderName());
         $this->assertNull($manager->getDefaultUserProvider());
     }
 
@@ -207,7 +268,69 @@ class AuthManagerTest extends TestCase
         $this->assertNull($manager->createUserProvider('foo'));
     }
 
-    public function testCreateDatabaseUserProvider()
+    #[DataProvider('guardCreatorProvider')]
+    public function testBuiltInGuardCreatorsRequireProvider(string $method): void
+    {
+        $this->expectException(ErrorException::class);
+        $this->expectExceptionMessage('Undefined array key "provider"');
+
+        (new AuthManager($this->app))->{$method}('api', []);
+    }
+
+    /**
+     * Provide built-in guard creator methods.
+     */
+    public static function guardCreatorProvider(): array
+    {
+        return [
+            'session' => ['createSessionDriver'],
+            'token' => ['createTokenDriver'],
+        ];
+    }
+
+    #[DataProvider('defaultRememberConfigurationProvider')]
+    public function testSessionCreatorKeepsBuiltInRememberDurationWhenNotConfigured(array $config): void
+    {
+        $guard = (new AuthManager($this->app))->createSessionDriver('web', $config);
+        $rememberDuration = new ReflectionProperty(SessionGuard::class, 'rememberDuration');
+
+        $this->assertSame(576000, $rememberDuration->getValue($guard));
+    }
+
+    /**
+     * Provide configurations that keep the built-in remember duration.
+     */
+    public static function defaultRememberConfigurationProvider(): array
+    {
+        return [
+            'omitted' => [['provider' => 'users']],
+            'explicit null' => [['provider' => 'users', 'remember' => null]],
+        ];
+    }
+
+    public function testSessionCreatorUsesConfiguredRememberDuration(): void
+    {
+        $guard = (new AuthManager($this->app))->createSessionDriver('web', [
+            'provider' => 'users',
+            'remember' => 120,
+        ]);
+        $rememberDuration = new ReflectionProperty(SessionGuard::class, 'rememberDuration');
+
+        $this->assertSame(120, $rememberDuration->getValue($guard));
+    }
+
+    public function testTokenCreatorKeepsConstructorOwnedDefaultsForPartialRecord(): void
+    {
+        $guard = (new AuthManager($this->app))->createTokenDriver('api', [
+            'provider' => 'users',
+        ]);
+
+        $this->assertSame('api_token', (new ReflectionProperty(TokenGuard::class, 'inputKey'))->getValue($guard));
+        $this->assertSame('api_token', (new ReflectionProperty(TokenGuard::class, 'storageKey'))->getValue($guard));
+        $this->assertFalse((new ReflectionProperty(TokenGuard::class, 'hash'))->getValue($guard));
+    }
+
+    public function testCreateDatabaseUserProvider(): void
     {
         $manager = new AuthManager($container = $this->getContainer());
 
@@ -218,19 +341,68 @@ class AuthManagerTest extends TestCase
                 'table' => 'users',
             ]);
 
-        $db = m::mock();
-        $db->shouldReceive('connection')
+        $query = m::mock(Builder::class);
+        $query->shouldReceive('find')->once()->with(1)->andReturn(null);
+        $connection = m::mock(ConnectionInterface::class);
+        $connection->shouldReceive('table')->once()->with('users')->andReturn($query);
+        $resolutions = 0;
+        $database = m::mock(ConnectionResolverInterface::class);
+        $database->shouldReceive('connection')
             ->with('foo')
             ->once()
-            ->andReturn(m::mock(ConnectionInterface::class));
+            ->andReturnUsing(function () use (&$resolutions, $connection) {
+                ++$resolutions;
 
-        $container->instance('db', $db);
+                return $connection;
+            });
+
+        $container->instance('db', $database);
         $container->instance('hash', m::mock(HashContract::class));
 
-        $this->assertInstanceOf(
-            DatabaseUserProvider::class,
-            $manager->createUserProvider('foo')
-        );
+        $provider = $manager->createUserProvider('foo');
+
+        $this->assertInstanceOf(DatabaseUserProvider::class, $provider);
+        $this->assertSame(0, $resolutions);
+        $this->assertNull($provider->retrieveById(1));
+        $this->assertSame(1, $resolutions);
+    }
+
+    public function testDatabaseUserProviderUsesDefaultConnectionWhenOmitted(): void
+    {
+        $this->app->make('config')->set('auth.providers.database', [
+            'driver' => 'database',
+            'table' => 'users',
+        ]);
+        $query = m::mock(Builder::class);
+        $query->shouldReceive('find')->once()->with(1)->andReturn(null);
+        $connection = m::mock(ConnectionInterface::class);
+        $connection->shouldReceive('table')->once()->with('users')->andReturn($query);
+        $database = m::mock(ConnectionResolverInterface::class);
+        $database->shouldReceive('connection')
+            ->once()
+            ->with(null)
+            ->andReturn($connection);
+        $this->app->instance('db', $database);
+
+        $provider = (new AuthManager($this->app))->createUserProvider('database');
+
+        $this->assertInstanceOf(DatabaseUserProvider::class, $provider);
+        $this->assertNull($provider->retrieveById(1));
+    }
+
+    public function testDatabaseUserProviderRequiresDeclaredTable(): void
+    {
+        $this->app->make('config')->set('auth.providers.incomplete', [
+            'driver' => 'database',
+        ]);
+        $database = m::mock(ConnectionResolverInterface::class);
+        $database->shouldNotReceive('connection');
+        $this->app->instance('db', $database);
+
+        $this->expectException(ErrorException::class);
+        $this->expectExceptionMessage('Undefined array key "table"');
+
+        (new AuthManager($this->app))->createUserProvider('incomplete');
     }
 
     public function testCreateCustomUserProvider()
@@ -246,6 +418,87 @@ class AuthManagerTest extends TestCase
         $manager->provider('bar', fn () => $provider);
 
         $this->assertSame($provider, $manager->createUserProvider('foo'));
+    }
+
+    public function testMissingUserProviderDriverRetainsPurposeBuiltError(): void
+    {
+        $this->app->make('config')->set('auth.providers.undefined', []);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Authentication user provider [] is not defined.');
+
+        (new AuthManager($this->app))->createUserProvider('undefined');
+    }
+
+    public function testShippedEloquentUserProviderResolvesWithCacheDisabled(): void
+    {
+        $provider = (new AuthManager($this->app))->createUserProvider('users');
+
+        $this->assertInstanceOf(EloquentUserProvider::class, $provider);
+        $this->assertFalse($provider->isCacheEnabled());
+    }
+
+    #[DataProvider('optionalEloquentProviderCacheProvider')]
+    public function testEloquentUserProviderCacheMayBeOmittedOrNull(array $providerConfig): void
+    {
+        $this->app->make('config')->set('auth.providers.uncached', $providerConfig);
+
+        $provider = (new AuthManager($this->app))->createUserProvider('uncached');
+
+        $this->assertInstanceOf(EloquentUserProvider::class, $provider);
+        $this->assertFalse($provider->isCacheEnabled());
+    }
+
+    /**
+     * Provide Eloquent user provider records without cache configuration.
+     */
+    public static function optionalEloquentProviderCacheProvider(): iterable
+    {
+        yield 'omitted' => [[
+            'driver' => 'eloquent',
+            'model' => AuthManagerCacheUserStub::class,
+        ]];
+
+        yield 'null' => [[
+            'driver' => 'eloquent',
+            'model' => AuthManagerCacheUserStub::class,
+            'cache' => null,
+        ]];
+    }
+
+    public function testPartialEloquentUserProviderCacheUsesProviderDefaults(): void
+    {
+        $this->app->make('config')->set('auth.providers.cached', [
+            'driver' => 'eloquent',
+            'model' => AuthManagerCacheUserStub::class,
+            'cache' => [
+                'enabled' => true,
+            ],
+        ]);
+        $repository = m::mock(CacheRepository::class);
+        $cache = m::mock(CacheManager::class);
+        $cache->shouldReceive('store')->once()->with(null)->andReturn($repository);
+        $this->app->instance('cache', $cache);
+        $validator = m::mock(ModelCacheStoreValidator::class);
+        $validator->shouldReceive('validate')
+            ->once()
+            ->with($repository, 'Auth user cache for model [' . AuthManagerCacheUserStub::class . ']');
+        $this->app->instance(ModelCacheStoreValidator::class, $validator);
+
+        $provider = (new AuthManager($this->app))->createUserProvider('cached');
+
+        $this->assertInstanceOf(EloquentUserProvider::class, $provider);
+        $this->assertTrue($provider->isCacheEnabled());
+        $this->assertNull((new ReflectionProperty($provider, 'cacheStoreName'))->getValue($provider));
+        $this->assertSame(
+            EloquentUserProvider::DEFAULT_CACHE_TTL,
+            (new ReflectionProperty($provider, 'cacheTtl'))->getValue($provider),
+        );
+        $this->assertSame(
+            EloquentUserProvider::DEFAULT_CACHE_PREFIX,
+            (new ReflectionProperty($provider, 'cachePrefix'))->getValue($provider),
+        );
+        $this->assertNull((new ReflectionProperty($provider, 'cacheTags'))->getValue($provider));
     }
 
     #[DataProvider('invalidCacheTtlProvider')]
@@ -662,13 +915,13 @@ class AuthManagerTest extends TestCase
 
         $cacheManager = m::mock(CacheManager::class);
         $adminRepo = m::mock(CacheRepository::class);
-        $adminRepo->shouldReceive('getStore')->andReturn(m::mock(RedisStore::class));
-        $adminRepo->shouldReceive('forget')
+        $coordinator = m::mock(ModelCacheCoordinator::class);
+        $coordinator->shouldReceive('invalidate')
             ->once()
-            ->with('admin_users:' . AuthManagerCacheAdminStub::class . ':42')
-            ->andReturn(true);
+            ->with($adminRepo, 'admin_users:' . AuthManagerCacheAdminStub::class . ':42');
         $cacheManager->shouldReceive('store')->with('admin-store')->andReturn($adminRepo);
         $container->instance('cache', $cacheManager);
+        $container->instance(ModelCacheCoordinator::class, $coordinator);
 
         $manager->clearUserCache(42, 'admin');
     }
@@ -712,13 +965,13 @@ class AuthManagerTest extends TestCase
 
         $cacheManager = m::mock(CacheManager::class);
         $repo = m::mock(CacheRepository::class);
-        $repo->shouldReceive('getStore')->andReturn(m::mock(RedisStore::class));
-        $repo->shouldReceive('forget')
+        $coordinator = m::mock(ModelCacheCoordinator::class);
+        $coordinator->shouldReceive('invalidate')
             ->once()
-            ->with('auth_users:' . AuthManagerCacheUserStub::class . ':tenant:42')
-            ->andReturn(true);
+            ->with($repo, EloquentUserProvider::DEFAULT_CACHE_PREFIX . ':' . AuthManagerCacheUserStub::class . ':tenant:42');
         $cacheManager->shouldReceive('store')->with('web-store')->andReturn($repo);
         $container->instance('cache', $cacheManager);
+        $container->instance(ModelCacheCoordinator::class, $coordinator);
 
         EloquentUserProvider::resolveUserCacheKeyUsing(
             fn (mixed $identifier, string $model, ?Model $user): string => 'tenant:' . $identifier,

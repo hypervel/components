@@ -6,12 +6,16 @@ namespace Hypervel\Testbench\Concerns;
 
 use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Foundation\Console\Kernel as FoundationConsoleKernel;
+use Hypervel\Foundation\Testing\DatabaseMigrations;
+use Hypervel\Foundation\Testing\DatabaseTruncation;
 use Hypervel\Foundation\Testing\RefreshDatabaseState;
 use Hypervel\Support\Arr;
 use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\Database\MigrateProcessor;
 use InvalidArgumentException;
+use Throwable;
 
 use function Hypervel\Testbench\default_migration_path;
 use function Hypervel\Testbench\load_migration_paths;
@@ -28,7 +32,7 @@ trait InteractsWithMigrations
 
     protected function setUpInteractsWithMigrations(): void
     {
-        if ($this->usesSqliteInMemoryDatabaseConnection()) {
+        if ($this->usesInMemoryDatabaseForMigrationState()) {
             $this->afterApplicationCreated(static function (): void {
                 static::usesTestingFeature(new ResetRefreshDatabaseState);
             });
@@ -38,16 +42,37 @@ trait InteractsWithMigrations
     protected function tearDownInteractsWithMigrations(): void
     {
         $hasInMemoryConnections = ! empty(RefreshDatabaseState::$inMemoryConnections);
+        $preservesInMemoryDatabase = static::usesTestingConcern(DatabaseTruncation::class)
+            && ! static::usesTestingConcern(DatabaseMigrations::class);
+        $processors = $this->cachedTestMigratorProcessors;
+        $this->cachedTestMigratorProcessors = [];
+        $failure = null;
 
-        if (
-            (count($this->cachedTestMigratorProcessors) > 0 && static::usesRefreshDatabaseTestingConcern())
-            || ($hasInMemoryConnections && $this->usesSqliteInMemoryDatabaseConnection())
-        ) {
-            ResetRefreshDatabaseState::run();
+        try {
+            if (
+                (count($processors) > 0 && static::usesRefreshDatabaseTestingConcern())
+                || (
+                    ! $preservesInMemoryDatabase
+                    && $hasInMemoryConnections
+                    && $this->usesInMemoryDatabaseForMigrationState()
+                )
+            ) {
+                ResetRefreshDatabaseState::run();
+            }
+        } catch (Throwable $throwable) {
+            $failure = $throwable;
         }
 
-        foreach ($this->cachedTestMigratorProcessors as $migrator) {
-            $migrator->rollback();
+        foreach ($processors as $migrator) {
+            try {
+                $migrator->rollback();
+            } catch (Throwable $throwable) {
+                $failure ??= $throwable;
+            }
+        }
+
+        if ($failure !== null) {
+            throw $failure;
         }
     }
 
@@ -63,9 +88,7 @@ trait InteractsWithMigrations
 
         if (
             (is_string($paths) || Arr::isList($paths))
-            && static::usesRefreshDatabaseTestingConcern()
-            && RefreshDatabaseState::$migrated === false
-            && RefreshDatabaseState::$lazilyRefreshed === false
+            && $this->shouldRegisterMigrationPaths()
         ) {
             /** @var list<string>|string $paths */
             load_migration_paths($app, $paths);
@@ -74,12 +97,36 @@ trait InteractsWithMigrations
         }
 
         /** @var array<string, mixed>|string $paths */
-        $migrator = new MigrateProcessor($this, $this->resolvePackageMigrationsOptions($paths));
-        $migrator->up();
+        $this->runMigrationProcessor($app, $this->resolvePackageMigrationsOptions($paths));
+    }
 
-        array_unshift($this->cachedTestMigratorProcessors, $migrator);
+    /**
+     * Determine whether migration paths should be registered for an upcoming migration.
+     */
+    protected function shouldRegisterMigrationPaths(): bool
+    {
+        $migrateRefresh = property_exists($this, 'migrateRefresh')
+            && (bool) $this->migrateRefresh;
 
-        $this->resetApplicationArtisanCommands($app);
+        // List and string paths target the default connection; named options use a processor.
+        return static::usesTestingConcern(DatabaseMigrations::class)
+            || (
+                static::usesTestingConcern(DatabaseTruncation::class)
+                && (
+                    RefreshDatabaseState::$migrated === false
+                    || $this->usesSqliteInMemoryDatabaseConnection()
+                )
+            )
+            || (
+                static::usesRefreshDatabaseTestingConcern()
+                && (
+                    $migrateRefresh
+                    || (
+                        RefreshDatabaseState::$migrated === false
+                        && RefreshDatabaseState::$lazilyRefreshed === false
+                    )
+                )
+            );
     }
 
     /**
@@ -117,12 +164,7 @@ trait InteractsWithMigrations
         $options['--path'] = default_migration_path();
         $options['--realpath'] = true;
 
-        $migrator = new MigrateProcessor($this, $this->resolveHypervelMigrationsOptions($options));
-        $migrator->up();
-
-        array_unshift($this->cachedTestMigratorProcessors, $migrator);
-
-        $this->resetApplicationArtisanCommands($app);
+        $this->runMigrationProcessor($app, $options);
     }
 
     /**
@@ -137,12 +179,7 @@ trait InteractsWithMigrations
         /** @var ApplicationContract $app */
         $app = $this->app;
 
-        $migrator = new MigrateProcessor($this, $this->resolveHypervelMigrationsOptions($database));
-        $migrator->up();
-
-        array_unshift($this->cachedTestMigratorProcessors, $migrator);
-
-        $this->resetApplicationArtisanCommands($app);
+        $this->runMigrationProcessor($app, $this->resolveHypervelMigrationsOptions($database));
     }
 
     /**
@@ -154,6 +191,56 @@ trait InteractsWithMigrations
     protected function resolveHypervelMigrationsOptions(array|string $database = []): array
     {
         return is_array($database) ? $database : ['--database' => $database];
+    }
+
+    /**
+     * Run and retain a migration processor for teardown.
+     *
+     * @param array<string, mixed> $options
+     */
+    protected function runMigrationProcessor(ApplicationContract $app, array $options): void
+    {
+        $migrator = new MigrateProcessor(
+            $this,
+            $app->make(Migrator::class),
+            $options,
+        );
+
+        try {
+            $migrator->up();
+        } catch (Throwable $throwable) {
+            try {
+                $migrator->rollback();
+            } catch (Throwable) {
+                // Preserve the migration failure when compensating rollback also fails.
+            }
+
+            throw $throwable;
+        }
+
+        array_unshift($this->cachedTestMigratorProcessors, $migrator);
+
+        $this->resetApplicationArtisanCommands($app);
+    }
+
+    /**
+     * Determine whether the active database concerns retain in-memory state.
+     */
+    protected function usesInMemoryDatabaseForMigrationState(): bool
+    {
+        if (
+            static::usesRefreshDatabaseTestingConcern()
+            && $this->usingInMemoryDatabases() /* @phpstan-ignore method.notFound */
+        ) {
+            return true;
+        }
+
+        if (static::usesTestingConcern(DatabaseTruncation::class)) {
+            // Every cached truncation PDO needs the same class-boundary state owner.
+            return $this->usingInMemoryDatabasesForTruncation(); /* @phpstan-ignore method.notFound */
+        }
+
+        return $this->usesSqliteInMemoryDatabaseConnection();
     }
 
     protected function resetApplicationArtisanCommands(ApplicationContract $app): void

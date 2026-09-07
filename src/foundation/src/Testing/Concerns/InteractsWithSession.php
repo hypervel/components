@@ -22,9 +22,10 @@ trait InteractsWithSession
     public function session(array $data): static
     {
         $this->startSession();
+        $session = $this->app->make('session');
 
         foreach ($data as $key => $value) {
-            $this->app['session']->put($key, $value);
+            $session->put($key, $value);
         }
 
         return $this;
@@ -35,8 +36,10 @@ trait InteractsWithSession
      */
     protected function startSession(): static
     {
-        if (! $this->app['session']->isStarted()) {
-            $this->app['session']->start();
+        $session = $this->app->make('session');
+
+        if (! $session->isStarted()) {
+            $session->start();
         }
 
         return $this;
@@ -49,7 +52,7 @@ trait InteractsWithSession
     {
         $this->startSession();
 
-        $this->app['session']->flush();
+        $this->app->make('session')->flush();
 
         return $this;
     }

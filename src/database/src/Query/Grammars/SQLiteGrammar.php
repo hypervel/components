@@ -42,29 +42,6 @@ class SQLiteGrammar extends Grammar
     }
 
     /**
-     * Compile a basic where clause.
-     */
-    protected function whereBasic(Builder $query, array $where): string
-    {
-        if ($where['operator'] === '<=>') {
-            $column = $this->wrap($where['column']);
-            $value = $this->parameter($where['value']);
-
-            return "{$column} IS {$value}";
-        }
-
-        return parent::whereBasic($query, $where);
-    }
-
-    /**
-     * Compile a "where null safe equals" clause.
-     */
-    protected function whereNullSafeEquals(Builder $query, array $where): string
-    {
-        return $this->wrap($where['column']) . ' is ' . $this->parameter($where['value']);
-    }
-
-    /**
      * Compile a "where like" clause.
      */
     protected function whereLike(Builder $query, array $where): string
@@ -87,6 +64,23 @@ class SQLiteGrammar extends Grammar
             ['[*]', '[?]', '*', '?'],
             $value
         );
+    }
+
+    /**
+     * Compile a "where null safe equals" clause.
+     */
+    protected function whereNullSafeEquals(Builder $query, array $where): string
+    {
+        $value = $this->parameter($where['value']);
+
+        // SQLite's IS TRUE and IS FALSE test truthiness instead of equality.
+        $value = match ($value) {
+            'true' => '1',
+            'false' => '0',
+            default => $value,
+        };
+
+        return $this->wrap($where['column']) . ' is ' . $value;
     }
 
     /**
@@ -195,22 +189,6 @@ class SQLiteGrammar extends Grammar
         [$field, $path] = $this->wrapJsonFieldAndPath($column);
 
         return 'json_type(' . $field . $path . ') is not null';
-    }
-
-    /**
-     * Compile a group limit clause.
-     */
-    protected function compileGroupLimit(Builder $query): string
-    {
-        $version = $query->getConnection()->getServerVersion();
-
-        if (version_compare($version, '3.25.0', '>=')) {
-            return parent::compileGroupLimit($query);
-        }
-
-        $query->groupLimit = null;
-
-        return $this->compileSelect($query);
     }
 
     /**
@@ -327,7 +305,7 @@ class SQLiteGrammar extends Grammar
 
         $alias = last(preg_split('/\s+as\s+/i', $query->from));
 
-        $selectSql = $this->compileSelect($query->select($alias . '.rowid'));
+        $selectSql = $this->compileSelectQuery($query->select($alias . '.rowid'));
 
         return "update {$table} set {$columns} where {$this->wrap('rowid')} in ({$selectSql})";
     }
@@ -343,7 +321,7 @@ class SQLiteGrammar extends Grammar
         $values = (new Collection($values))
             ->reject(fn ($value, $key) => $this->isJsonSelector($key))
             ->merge($groups)
-            ->map(fn ($value) => is_array($value) ? json_encode($value) : $value)
+            ->map(fn ($value) => is_array($value) ? json_encode($value, JSON_THROW_ON_ERROR) : $value)
             ->all();
 
         $cleanBindings = Arr::except($bindings, 'select');
@@ -376,7 +354,7 @@ class SQLiteGrammar extends Grammar
 
         $alias = last(preg_split('/\s+as\s+/i', $query->from));
 
-        $selectSql = $this->compileSelect($query->select($alias . '.rowid'));
+        $selectSql = $this->compileSelectQuery($query->select($alias . '.rowid'));
 
         return "delete from {$table} where {$this->wrap('rowid')} in ({$selectSql})";
     }

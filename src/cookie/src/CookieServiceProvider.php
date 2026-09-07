@@ -20,7 +20,7 @@ class CookieServiceProvider extends ServiceProvider
                 $config['path'],
                 $config['domain'],
                 $config['secure'],
-                $config['same_site'] ?? null
+                $config['same_site']
             );
         });
     }

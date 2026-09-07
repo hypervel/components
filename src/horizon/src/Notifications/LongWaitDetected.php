@@ -50,7 +50,7 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
     {
         return (new MailMessage)
             ->error()
-            ->subject(config('horizon.name') . ': Long Queue Wait Detected')
+            ->subject(config()->string('horizon.name') . ': Long Queue Wait Detected')
             ->greeting('Oh no! Something needs your attention.')
             ->line(sprintf(
                 'The "%s" queue on the "%s" connection has a wait time of %s seconds.',
@@ -71,7 +71,7 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
 
         $content = sprintf(
             '[%s] The "%s" queue on the "%s" connection has a wait time of %s seconds.',
-            config('horizon.name'),
+            config()->string('horizon.name'),
             $this->longWaitQueue,
             $this->longWaitConnection,
             $this->seconds
@@ -84,12 +84,12 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
                 ->username($fromName)
                 ->text($text)
                 ->headerBlock($title)
-                ->sectionBlock(function (SectionBlock $block) use ($content): void { // @phpstan-ignore-line
+                ->sectionBlock(function (SectionBlock $block) use ($content): void {
                     $block->text($content);
                 });
         }
 
-        return (new SlackMessage) // @phpstan-ignore-line
+        return (new SlackMessage)
             ->from($fromName)
             ->to(Horizon::$slackChannel)
             ->error()

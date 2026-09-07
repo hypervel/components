@@ -10,9 +10,9 @@ return new class extends Migration {
     /**
      * Get the migration connection name.
      */
-    public function getConnection(): ?string
+    public function getConnection(): string
     {
-        return config('telescope.storage.database.connection');
+        return config()->string('telescope.storage.database.connection');
     }
 
     /**
@@ -34,7 +34,8 @@ return new class extends Migration {
 
             $table->unique('uuid');
             $table->index('batch_id');
-            $table->index('family_hash');
+            // Only grouped entries need to be found by their family hash.
+            $table->index('family_hash')->whereNotNull('family_hash');
             $table->index('created_at');
             $table->index(['type', 'should_display_on_index']);
         });

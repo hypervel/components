@@ -11,8 +11,9 @@ return [
     | These options configure if and how Inertia uses Server Side Rendering
     | to pre-render the initial visits made to your application's pages.
     |
-    | You can specify a custom SSR bundle path, or omit it to let Inertia
-    | try and automatically detect it for you.
+    | You can specify a custom SSR bundle path, or set it to null to let
+    | Inertia try and automatically detect it for you.
+    | Omitted SSR members use the defaults shown below.
     |
     | Do note that enabling these options will NOT automatically make SSR work,
     | as a separate rendering service needs to be available. To learn more,
@@ -33,7 +34,7 @@ return [
 
         'ensure_bundle_exists' => (bool) env('INERTIA_SSR_ENSURE_BUNDLE_EXISTS', true),
 
-        // 'bundle' => base_path('bootstrap/ssr/ssr.mjs'),
+        'bundle' => null,
 
         /*
         |--------------------------------------------------------------------------
@@ -89,7 +90,8 @@ return [
     | catching missing or misnamed components.
     |
     | The `paths` and `extensions` options define where to look for page
-    | components and which file extensions to consider.
+    | components and which file extensions to consider. They are required;
+    | `ensure_pages_exist` may be omitted and defaults to false.
     |
     */
 
@@ -120,7 +122,7 @@ return [
     | the `pages.extensions` specified above.
     |
     | You can disable this behavior by setting `ensure_pages_exist`
-    | to false.
+    | to false. Omission keeps it enabled.
     |
     */
 
@@ -149,7 +151,8 @@ return [
     | Enable `encrypt` to encrypt page data before it is stored in the
     | browser's history state, preventing sensitive information from
     | being accessible after logout. Can also be enabled per-request
-    | or via the `inertia.encrypt` middleware.
+    | or via the `inertia.encrypt` middleware. Omission leaves encryption
+    | disabled.
     |
     */
 

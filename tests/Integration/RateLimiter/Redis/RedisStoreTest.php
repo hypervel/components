@@ -8,6 +8,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\RateLimiter\AdmissionPolicy;
 use Hypervel\RateLimiter\Backoff;
+use Hypervel\RateLimiter\Cooldown;
 use Hypervel\RateLimiter\KeyResolver;
 use Hypervel\RateLimiter\LeakyBucket;
 use Hypervel\RateLimiter\Limit;
@@ -191,7 +192,7 @@ class RedisStoreTest extends TestCase
         $physicalKey = $this->physicalKey($policy);
         $redis = $this->redisClient();
 
-        $redis->set($physicalKey, '010', ['px' => 60_000]);
+        $redis->pSetEx($physicalKey, 60_000, '010');
 
         try {
             $this->limiter()->consume($policy);
@@ -335,7 +336,7 @@ class RedisStoreTest extends TestCase
         $this->limiter()->consume($policy);
 
         $physicalKey = $this->physicalKey($policy);
-        $redis = $this->rawRedisClientWithoutPrefix();
+        $redis = $this->redisClientWithoutPrefix();
 
         $this->assertSame(1, $redis->exists('rate-limiter-test:' . $physicalKey));
         $this->assertSame(0, $redis->exists('rate-limiter-test:rate-limiter-test:' . $physicalKey));
@@ -369,6 +370,31 @@ class RedisStoreTest extends TestCase
         }
     }
 
+    public function testConcurrentCooldownBlocksRetainTheLongestExpiry(): void
+    {
+        $limiter = $this->limiter();
+        $cooldown = Cooldown::for('concurrent-cooldown');
+
+        parallel([
+            static fn () => $limiter->block($cooldown, 1),
+            static fn () => $limiter->block($cooldown, 60),
+            static fn () => $limiter->block($cooldown, 2),
+            static fn () => $limiter->block($cooldown, 3),
+        ]);
+
+        $physicalKey = $this->physicalKey($cooldown);
+        $ttl = $this->redisClient()->pttl($physicalKey);
+        $inspectionRetryAfter = $limiter->inspect($cooldown)->retryAfter();
+        $shorterRetryAfter = $limiter->block($cooldown, 1)->retryAfter();
+
+        $this->assertGreaterThan(30_000, $ttl);
+        $this->assertLessThanOrEqual(60_000, $ttl);
+        $this->assertGreaterThan(30, $inspectionRetryAfter);
+        $this->assertLessThanOrEqual(60, $inspectionRetryAfter);
+        $this->assertGreaterThan(30, $shorterRetryAfter);
+        $this->assertLessThanOrEqual(60, $shorterRetryAfter);
+    }
+
     public function testSerializerAndCompressionOptionsDoNotAffectLimiterState(): void
     {
         if (! defined('Redis::COMPRESSION_LZF')) {
@@ -398,31 +424,32 @@ class RedisStoreTest extends TestCase
             resetAfter: 5,
         )->by('encoded-backoff');
 
+        // Vary cost rather than the limit so both admission checks inspect the same stored counter.
+        $this->assertFalse($limiter->inspect($fixed->cost(2))->denied());
         $this->assertSame(1, $limiter->consume($fixed)->remaining());
+        $this->assertTrue($limiter->inspect($fixed->cost(2))->denied());
+        $this->assertFalse($limiter->inspect($fixed)->denied());
+
         $this->assertSame(1, $limiter->consume($sliding)->remaining());
         $this->assertTrue($limiter->consume($leaky)->allowed());
         $this->assertTrue($limiter->consume($leaky)->denied());
         $this->assertSame(1, $limiter->recordFailure($backoff)->failures());
 
-        $redis = $this->rawRedisClientWithoutPrefix($connection);
+        $redis = $this->redisClientWithoutPrefix();
 
-        try {
-            $this->assertSame('1', $redis->get('rate-limiter-encoded:' . $this->physicalKey($fixed)));
-            $this->assertSame([
-                'current' => '1',
-                'previous' => '0',
-            ], $redis->hGetAll('rate-limiter-encoded:' . $this->physicalKey($sliding)));
-            $this->assertMatchesRegularExpression(
-                '/^[1-9][0-9]*$/D',
-                (string) $redis->get('rate-limiter-encoded:' . $this->physicalKey($leaky)),
-            );
-            $this->assertSame(
-                '1',
-                $redis->hGet('rate-limiter-encoded:' . $this->physicalKey($backoff), 'failures'),
-            );
-        } finally {
-            $redis->close();
-        }
+        $this->assertSame('1', $redis->get('rate-limiter-encoded:' . $this->physicalKey($fixed)));
+        $this->assertSame([
+            'current' => '1',
+            'previous' => '0',
+        ], $redis->hGetAll('rate-limiter-encoded:' . $this->physicalKey($sliding)));
+        $this->assertMatchesRegularExpression(
+            '/^[1-9][0-9]*$/D',
+            (string) $redis->get('rate-limiter-encoded:' . $this->physicalKey($leaky)),
+        );
+        $this->assertSame(
+            '1',
+            $redis->hGet('rate-limiter-encoded:' . $this->physicalKey($backoff), 'failures'),
+        );
     }
 
     private function limiter(): Limiter
@@ -435,7 +462,7 @@ class RedisStoreTest extends TestCase
         return $this->limiter();
     }
 
-    private function physicalKey(AdmissionPolicy|Backoff $policy): string
+    private function physicalKey(AdmissionPolicy|Backoff|Cooldown $policy): string
     {
         return (new KeyResolver('integration', static fn (): ?string => null))->resolve($policy);
     }

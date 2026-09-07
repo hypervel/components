@@ -12,11 +12,12 @@ use League\Flysystem\FilesystemOperator;
 use League\Flysystem\GoogleCloudStorage\GoogleCloudStorageAdapter as FlysystemGoogleCloudAdapter;
 use League\Flysystem\UnableToReadFile;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class GoogleCloudStorageAdapter extends FilesystemAdapter
 {
-    public const DEFAULT_API_ENDPOINT = 'https://storage.googleapis.com';
+    public const string DEFAULT_API_ENDPOINT = 'https://storage.googleapis.com';
 
     public function __construct(
         FilesystemOperator $driver,
@@ -117,6 +118,8 @@ class GoogleCloudStorageAdapter extends FilesystemAdapter
 
         try {
             $stream = $this->getBucket()->object($prefixedPath)->downloadAsStream($options)->detach();
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             $exception = UnableToReadFile::fromLocation($path, $exception->getMessage(), $exception);
 

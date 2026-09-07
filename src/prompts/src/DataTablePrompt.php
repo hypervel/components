@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Prompts;
 
 use Closure;
+use Hypervel\Prompts\Support\Utils;
 use Hypervel\Support\Collection;
 
 class DataTablePrompt extends Prompt
@@ -25,6 +26,13 @@ class DataTablePrompt extends Prompt
      * @var array<int|string, array<int, string>>
      */
     public array $rows;
+
+    /**
+     * Search-invariant natural column metrics.
+     *
+     * @var null|array{columns: int, widths: list<int>}
+     */
+    protected ?array $naturalColumnMetrics = null;
 
     /**
      * The cached filtered rows.
@@ -152,6 +160,76 @@ class DataTablePrompt extends Prompt
         $this->filteredCache = null;
         $this->highlighted = 0;
         $this->firstVisible = 0;
+    }
+
+    /**
+     * Get the search-invariant natural column metrics.
+     *
+     * @internal
+     * @return array{columns: int, widths: list<int>}
+     */
+    public function naturalColumnMetrics(): array
+    {
+        if ($this->naturalColumnMetrics !== null) {
+            return $this->naturalColumnMetrics;
+        }
+
+        $rowColumns = $this->rows === [] ? 0 : max(array_map(count(...), $this->rows));
+        $columns = max(count($this->headers), $rowColumns);
+
+        if ($columns === 0) {
+            return $this->naturalColumnMetrics = ['columns' => 0, 'widths' => []];
+        }
+
+        $headers = array_values($this->headers);
+        $headerWidths = array_fill(0, $columns, 0);
+
+        foreach ($headers as $index => $header) {
+            $text = is_array($header) ? implode(' ', $header) : $header;
+            $headerWidths[$index] = mb_strwidth(Utils::stripEscapeSequences($text));
+        }
+
+        $columnWidths = array_fill(0, $columns, []);
+
+        foreach ($this->rows as $row) {
+            foreach (array_values($row) as $index => $cell) {
+                $cellWidth = 0;
+
+                foreach (preg_split('/\r\n|\n/', $cell) as $line) {
+                    $cellWidth = max($cellWidth, mb_strwidth(Utils::stripEscapeSequences($line)));
+                }
+
+                if ($cellWidth > 0) {
+                    $columnWidths[$index][] = $cellWidth;
+                }
+            }
+        }
+
+        $naturalWidths = array_fill(0, $columns, 0);
+
+        foreach ($columnWidths as $index => $widths) {
+            if ($widths === []) {
+                $naturalWidths[$index] = $headerWidths[$index];
+
+                continue;
+            }
+
+            sort($widths, SORT_NUMERIC);
+            $percentileIndex = max(0, (int) ceil(count($widths) * 0.90) - 1);
+            $percentile = $widths[$percentileIndex];
+            $maximum = $widths[array_key_last($widths)];
+
+            // Use P90 only when the maximum is a clear outlier.
+            $naturalWidths[$index] = max(
+                $headerWidths[$index],
+                $maximum <= $percentile * 2 ? $maximum : $percentile,
+            );
+        }
+
+        return $this->naturalColumnMetrics = [
+            'columns' => $columns,
+            'widths' => $naturalWidths,
+        ];
     }
 
     /**

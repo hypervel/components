@@ -8,6 +8,7 @@ use Hypervel\Config\Repository;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Sentry\SentryServiceProvider;
+use Hypervel\Support\Arr;
 use ReflectionMethod;
 use ReflectionProperty;
 use Sentry\Breadcrumb;
@@ -36,7 +37,7 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         self::$lastSentryEvents = [];
         $this->setupGlobalEventProcessor();
 
-        tap($app['config'], function (Repository $config) {
+        tap($app->make('config'), function (Repository $config) {
             $config->set('sentry.before_send', static function (Event $event, ?EventHint $hint) {
                 self::$lastSentryEvents[] = [$event, $hint];
 
@@ -57,13 +58,15 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
 
     protected function envWithoutDsnSet(ApplicationContract $app): void
     {
-        $app['config']->set('sentry.dsn', null);
-        $app['config']->set('sentry_test.override_dsn', true);
+        $config = $app->make('config');
+
+        $config->set('sentry.dsn', null);
+        $config->set('sentry_test.override_dsn', true);
     }
 
     protected function envSamplingAllTransactions(ApplicationContract $app): void
     {
-        $app['config']->set('sentry.traces_sample_rate', 1.0);
+        $app->make('config')->set('sentry.traces_sample_rate', 1.0);
     }
 
     protected function getPackageProviders(ApplicationContract $app): array
@@ -98,7 +101,25 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
     {
         $this->setupConfig = $config;
 
-        $this->refreshApplication();
+        $this->reloadApplication();
+    }
+
+    /**
+     * Return the complete shipped Sentry config with test-specific overrides.
+     *
+     * @param array<string, mixed> $overrides
+     *
+     * @return array<string, mixed>
+     */
+    protected function sentryConfigWith(array $overrides): array
+    {
+        $config = config()->array('sentry');
+
+        foreach ($overrides as $key => $value) {
+            Arr::set($config, $key, $value);
+        }
+
+        return $config;
     }
 
     protected function dispatchHypervelEvent(object $event, array $payload = []): void
@@ -172,25 +193,32 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         return self::$lastSentryEvents;
     }
 
+    /**
+     * Return captured Sentry events of the given type.
+     *
+     * @return list<array{0: Event, 1: null|EventHint}>
+     */
+    protected function getCapturedSentryEventsOfType(EventType $eventType): array
+    {
+        return array_values(array_filter(
+            self::$lastSentryEvents,
+            static fn (array $event): bool => $event[0]->getType() === $eventType,
+        ));
+    }
+
     protected function assertSentryEventCount(int $count): void
     {
-        $this->assertCount($count, array_filter(self::$lastSentryEvents, static function (array $event) {
-            return $event[0]->getType() === EventType::event();
-        }));
+        $this->assertCount($count, $this->getCapturedSentryEventsOfType(EventType::event()));
     }
 
     protected function assertSentryCheckInCount(int $count): void
     {
-        $this->assertCount($count, array_filter(self::$lastSentryEvents, static function (array $event) {
-            return $event[0]->getType() === EventType::checkIn();
-        }));
+        $this->assertCount($count, $this->getCapturedSentryEventsOfType(EventType::checkIn()));
     }
 
     protected function assertSentryTransactionCount(int $count): void
     {
-        $this->assertCount($count, array_filter(self::$lastSentryEvents, static function (array $event) {
-            return $event[0]->getType() === EventType::transaction();
-        }));
+        $this->assertCount($count, $this->getCapturedSentryEventsOfType(EventType::transaction()));
     }
 
     protected function startTransaction(): Transaction

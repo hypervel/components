@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Broadcasting;
 
 use Hypervel\Broadcasting\Broadcasters\Broadcaster;
 use Hypervel\Broadcasting\Broadcasters\RedisBroadcaster;
+use Hypervel\Broadcasting\BroadcastException;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Contracts\Routing\BindingRegistrar;
@@ -14,6 +15,7 @@ use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
 use JsonException;
 use Mockery as m;
+use RedisClusterException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 class RedisBroadcasterTest extends TestCase
@@ -259,6 +261,24 @@ class RedisBroadcasterTest extends TestCase
 
         $broadcaster = new RedisBroadcaster($this->container, $this->redis);
         $broadcaster->broadcast(['test-channel-1', 'test-channel-2'], 'test-event', ['data' => 'value']);
+    }
+
+    public function testClusterBroadcastWrapsRedisClusterException(): void
+    {
+        $connection = m::mock(RedisProxy::class);
+        $connection->shouldReceive('isCluster')->once()->andReturnTrue();
+        $connection->shouldReceive('publish')
+            ->once()
+            ->with('test-channel', m::type('string'))
+            ->andThrow(new RedisClusterException('Cluster unavailable'));
+
+        $this->redis->shouldReceive('connection')->once()->andReturn($connection);
+
+        $this->expectException(BroadcastException::class);
+        $this->expectExceptionMessage('Redis error: Cluster unavailable.');
+
+        (new RedisBroadcaster($this->container, $this->redis))
+            ->broadcast(['test-channel'], 'test-event', ['data' => 'value']);
     }
 
     public function testBroadcastUsesEvalOnNonCluster(): void

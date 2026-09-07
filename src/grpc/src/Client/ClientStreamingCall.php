@@ -6,6 +6,7 @@ namespace Hypervel\Grpc\Client;
 
 use Google\Protobuf\Internal\Message;
 use Hypervel\Grpc\Compression;
+use Hypervel\Grpc\GrpcOperationHandle;
 use Hypervel\Grpc\Protocol\Deadline;
 use Hypervel\Grpc\Protocol\FrameEncoder;
 
@@ -27,8 +28,16 @@ final class ClientStreamingCall extends Call
         Connection $connection,
         FrameEncoder $requestEncoder,
         Compression $requestCompression = Compression::Identity,
+        ?GrpcOperationHandle $operationHandle = null,
     ) {
-        parent::__construct($state, $method, $peer, $deserialize, $deadline);
+        parent::__construct(
+            $state,
+            $method,
+            $peer,
+            $deserialize,
+            $deadline,
+            operationHandle: $operationHandle,
+        );
         $this->configureWriter($connection, $requestEncoder, $requestCompression);
     }
 

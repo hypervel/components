@@ -23,14 +23,13 @@ class Flush
     /**
      * Execute the flush operation.
      *
-     * Warning: This removes ALL keys from the Redis database, not just cache keys.
+     * Warning: This removes all keys from the Redis database, not just cache keys.
      */
     public function execute(): bool
     {
-        return $this->context->withConnection(function (RedisConnection $connection) {
-            $connection->flushdb();
-
-            return true;
-        });
+        return $this->context->withConnection(
+            fn (RedisConnection $connection): bool => (bool) $connection->flushdb(),
+            transform: true,
+        );
     }
 }

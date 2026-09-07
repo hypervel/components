@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\ApiClient;
 
 use BadMethodCallException;
+use GuzzleHttp\Psr7\Response as Psr7Response;
 use Hypervel\ApiClient\ApiRequest;
 use Hypervel\ApiClient\ApiResource;
 use Hypervel\ApiClient\ApiResponse;
 use Hypervel\Tests\TestCase;
 use JsonException;
+use LogicException;
 use Mockery as m;
 use Mockery\MockInterface;
 
@@ -59,7 +61,7 @@ class ApiResourceTest extends TestCase
     public function testResolve(): void
     {
         $this->response
-            ->shouldReceive('json')
+            ->shouldReceive('toArray')
             ->andReturn($jsonData = ['key' => 'value']);
 
         $this->assertEquals($jsonData, $this->resource->resolve());
@@ -68,7 +70,7 @@ class ApiResourceTest extends TestCase
     public function testToArray(): void
     {
         $this->response
-            ->shouldReceive('json')
+            ->shouldReceive('toArray')
             ->andReturn($jsonData = ['key' => 'value']);
 
         $this->assertEquals($jsonData, $this->resource->toArray());
@@ -77,7 +79,7 @@ class ApiResourceTest extends TestCase
     public function testJsonSerialize(): void
     {
         $this->response
-            ->shouldReceive('json')
+            ->shouldReceive('toArray')
             ->andReturn($jsonData = ['key' => 'value']);
 
         $this->assertEquals($jsonData, $this->resource->jsonSerialize());
@@ -85,7 +87,7 @@ class ApiResourceTest extends TestCase
 
     public function testToJsonThrowsForInvalidUtf8(): void
     {
-        $this->response->shouldReceive('json')->once()->andReturn(['value' => "\xB1\x31"]);
+        $this->response->shouldReceive('toArray')->once()->andReturn(['value' => "\xB1\x31"]);
 
         $this->expectException(JsonException::class);
 
@@ -94,11 +96,21 @@ class ApiResourceTest extends TestCase
 
     public function testToJsonHonorsInvalidUtf8Substitution(): void
     {
-        $this->response->shouldReceive('json')->once()->andReturn(['value' => "\xB1\x31"]);
+        $this->response->shouldReceive('toArray')->once()->andReturn(['value' => "\xB1\x31"]);
 
         $this->assertSame(
             '{"value":"\ufffd1"}',
             $this->resource->toJson(JSON_INVALID_UTF8_SUBSTITUTE),
+        );
+    }
+
+    public function testToPrettyJsonPreservesCallerOptions(): void
+    {
+        $this->response->shouldReceive('toArray')->once()->andReturn(['value' => '/path']);
+
+        $this->assertSame(
+            "{\n    \"value\": \"/path\"\n}",
+            $this->resource->toPrettyJson(JSON_UNESCAPED_SLASHES),
         );
     }
 
@@ -120,22 +132,20 @@ class ApiResourceTest extends TestCase
         $this->assertEquals($value, $this->resource->offsetGet('key'));
     }
 
-    public function testArrayAccessOffsetSet(): void
+    public function testArrayAccessOffsetSetIsRejected(): void
     {
-        $this->response->shouldReceive('offsetSet')
-            ->once()
-            ->with($key = 'key', $value = 'value');
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Resource data cannot be assigned through array offsets.');
 
-        $this->resource->offsetSet($key, $value);
+        $this->resource->offsetSet('key', 'value');
     }
 
-    public function testArrayAccessOffsetUnset(): void
+    public function testArrayAccessOffsetUnsetIsRejected(): void
     {
-        $this->response->shouldReceive('offsetUnset')
-            ->once()
-            ->with($key = 'key');
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Resource data cannot be unset through array offsets.');
 
-        $this->resource->offsetUnset($key);
+        $this->resource->offsetUnset('key');
     }
 
     public function testMagicIssetMethod(): void
@@ -148,11 +158,18 @@ class ApiResourceTest extends TestCase
         $this->assertFalse(isset($this->resource->nonExistingKey));
     }
 
-    public function testMagicUnsetMethod(): void
+    public function testMagicPropertyAssignmentIsRejected(): void
     {
-        $this->response->shouldReceive('offsetUnset')
-            ->once()
-            ->with('key');
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Resource data cannot be assigned through properties.');
+
+        $this->resource->key = 'value';
+    }
+
+    public function testMagicPropertyUnsetIsRejected(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Resource data cannot be unset through properties.');
 
         unset($this->resource->key);
     }
@@ -167,12 +184,35 @@ class ApiResourceTest extends TestCase
         $this->assertEquals($value, $this->resource->key);
     }
 
+    public function testMissingArrayAndPropertyValuesReturnNull(): void
+    {
+        $resource = new ApiResource(
+            new ApiResponse(new Psr7Response(200, body: '{"name":"Taylor"}')),
+            $this->request,
+        );
+
+        $this->assertNull($resource['email']);
+        $this->assertNull($resource->email);
+    }
+
     public function testCallMethodOnResponse(): void
     {
         $this->response->shouldReceive('status')
             ->andReturn($expectedResult = 200);
 
         $this->assertEquals($expectedResult, $this->resource->status());
+    }
+
+    public function testCallForwardsResponseMacrosAndPsrMethods(): void
+    {
+        ApiResponse::macro('greeting', fn (): string => 'hello');
+        $resource = new ApiResource(
+            new ApiResponse(new Psr7Response(201)),
+            $this->request,
+        );
+
+        $this->assertSame('hello', $resource->greeting());
+        $this->assertSame(201, $resource->getStatusCode());
     }
 
     public function testCallNonExistentMethodThrowsException(): void

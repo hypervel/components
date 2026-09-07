@@ -4,14 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Connectors\Connector;
+use Hypervel\Database\Connectors\MariaDbConnector;
 use Hypervel\Database\Connectors\MySqlConnector;
 use Hypervel\Database\Connectors\PostgresConnector;
 use Hypervel\Database\Connectors\SQLiteConnector;
+use Hypervel\Database\SQLiteDatabaseDoesNotExistException;
+use Hypervel\Foundation\Application;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Symfony\Component\Process\Process;
 
 class DatabaseConnectorTest extends TestCase
 {
@@ -45,6 +51,31 @@ class DatabaseConnectorTest extends TestCase
         ];
     }
 
+    public function testMySqlAndMariaDbConnectTimeoutUsesCeilingUnlessThePdoOptionIsExplicit(): void
+    {
+        foreach ([new MySqlConnector, new MariaDbConnector] as $connector) {
+            $this->assertSame(2, $connector->getOptions([
+                'connect_timeout' => 1.25,
+            ])[PDO::ATTR_TIMEOUT]);
+
+            $this->assertSame(7, $connector->getOptions([
+                'connect_timeout' => 1.25,
+                'options' => [PDO::ATTR_TIMEOUT => 7],
+            ])[PDO::ATTR_TIMEOUT]);
+        }
+    }
+
+    public function testMySqlEscapesBackticksInTheSelectedDatabaseName(): void
+    {
+        $config = ['host' => 'foo', 'database' => 'app`tenant'];
+        $connector = $this->getMockBuilder(MySqlConnector::class)->onlyMethods(['createConnection'])->getMock();
+        $connection = m::mock(PDO::class);
+        $connector->expects($this->once())->method('createConnection')->willReturn($connection);
+        $connection->shouldReceive('exec')->once()->with('use `app``tenant`;')->andReturn(true);
+
+        $this->assertSame($connection, $connector->connect($config));
+    }
+
     public function testMySqlConnectCallsCreateConnectionWithIsolationLevel()
     {
         $dsn = 'mysql:host=foo;dbname=bar';
@@ -60,6 +91,38 @@ class DatabaseConnectorTest extends TestCase
         $result = $connector->connect($config);
 
         $this->assertSame($result, $connection);
+    }
+
+    public function testMySqlLockTimeoutIsCombinedWithConnectionSettings(): void
+    {
+        $config = [
+            'host' => 'foo',
+            'database' => 'bar',
+            'charset' => 'utf8',
+            'lock_timeout' => 2,
+            'strict' => false,
+        ];
+
+        $connector = $this->getMockBuilder(MySqlConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
+        $connection = m::mock(PDO::class);
+        $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);
+        $connector->expects($this->once())->method('createConnection')->willReturn($connection);
+        $connection->shouldReceive('exec')->once()->with('use `bar`;')->andReturn(true);
+        $connection->shouldReceive('exec')->once()->with("SET NAMES 'utf8', SESSION innodb_lock_wait_timeout=2, SESSION lock_wait_timeout=2, SESSION sql_mode='NO_ENGINE_SUBSTITUTION';")->andReturn(true);
+
+        $this->assertSame($connection, $connector->connect($config));
+    }
+
+    public function testMySqlRejectsInvalidLockTimeout(): void
+    {
+        $config = ['host' => 'foo', 'database' => '', 'lock_timeout' => 0];
+        $connector = $this->getMockBuilder(MySqlConnector::class)->onlyMethods(['createConnection'])->getMock();
+        $connector->expects($this->never())->method('createConnection');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Database connection [lock_timeout] must be a positive integer.');
+
+        $connector->connect($config);
     }
 
     public function testPostgresConnectCallsCreateConnectionWithProperArguments()
@@ -78,7 +141,7 @@ class DatabaseConnectorTest extends TestCase
     public function testPostgresConnectTimeoutIsBakedIntoDsn(): void
     {
         $dsn = "pgsql:host=foo;dbname='bar';connect_timeout=2";
-        $config = ['host' => 'foo', 'database' => 'bar', 'connect_timeout' => 2];
+        $config = ['host' => 'foo', 'database' => 'bar', 'connect_timeout' => 1.25];
         $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
         $connection = m::mock(PDO::class);
         $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);
@@ -87,6 +150,30 @@ class DatabaseConnectorTest extends TestCase
         $result = $connector->connect($config);
 
         $this->assertSame($result, $connection);
+    }
+
+    public function testPostgresLockTimeoutIsBakedIntoDsn(): void
+    {
+        $dsn = "pgsql:host=foo;dbname='bar';options='-c lock_timeout=2s'";
+        $config = ['host' => 'foo', 'database' => 'bar', 'lock_timeout' => 2];
+        $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
+        $connection = m::mock(PDO::class);
+        $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);
+        $connector->expects($this->once())->method('createConnection')->with($this->equalTo($dsn), $this->equalTo($config), $this->equalTo(['options']))->willReturn($connection);
+
+        $this->assertSame($connection, $connector->connect($config));
+    }
+
+    public function testPostgresRejectsInvalidLockTimeout(): void
+    {
+        $config = ['host' => 'foo', 'database' => 'bar', 'lock_timeout' => '2'];
+        $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection'])->getMock();
+        $connector->expects($this->never())->method('createConnection');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Database connection [lock_timeout] must be a positive integer.');
+
+        $connector->connect($config);
     }
 
     /**
@@ -289,13 +376,14 @@ class DatabaseConnectorTest extends TestCase
 
     public function testPostgresCombinesMultipleStartupParamsInDsn()
     {
-        $dsn = 'pgsql:host=foo;dbname=\'bar\';options=\'-c search_path="public" -c TimeZone=UTC -c default_transaction_isolation=SERIALIZABLE -c synchronous_commit=on\'';
+        $dsn = 'pgsql:host=foo;dbname=\'bar\';options=\'-c search_path="public" -c TimeZone=UTC -c default_transaction_isolation=SERIALIZABLE -c lock_timeout=2s -c synchronous_commit=on\'';
         $config = [
             'host' => 'foo',
             'database' => 'bar',
             'search_path' => 'public',
             'timezone' => 'UTC',
             'isolation_level' => 'SERIALIZABLE',
+            'lock_timeout' => 2,
             'synchronous_commit' => 'on',
         ];
         $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
@@ -331,6 +419,104 @@ class DatabaseConnectorTest extends TestCase
         $result = $connector->connect($config);
 
         $this->assertSame($result, $connection);
+    }
+
+    public function testSQLiteRejectsLockTimeout(): void
+    {
+        $config = ['database' => ':memory:', 'lock_timeout' => 2];
+        $connector = $this->getMockBuilder(SQLiteConnector::class)->onlyMethods(['createConnection'])->getMock();
+        $connector->expects($this->never())->method('createConnection');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('SQLite connections use [busy_timeout] instead of [lock_timeout].');
+
+        $connector->connect($config);
+    }
+
+    /**
+     * Reject missing SQLite paths when no application root exists.
+     */
+    #[DataProvider('missingSQLitePathProvider')]
+    public function testSQLiteRejectsMissingPathsWithoutAnApplicationRoot(bool $absolute): void
+    {
+        $database = 'missing-' . bin2hex(random_bytes(16)) . '.sqlite';
+
+        if ($absolute) {
+            $database = sys_get_temp_dir() . '/' . $database;
+        }
+
+        $process = new Process([
+            PHP_BINARY,
+            '-r',
+            <<<'PHP'
+                require $argv[1];
+
+                $container = new \Hypervel\Container\Container;
+                \Hypervel\Container\Container::setInstance($container);
+
+                $connector = new class extends \Hypervel\Database\Connectors\SQLiteConnector {
+                    public function createConnection(string $dsn, array $config, array $options): \PDO
+                    {
+                        throw new \LogicException('The missing path unexpectedly reached connection creation.');
+                    }
+                };
+
+                try {
+                    $connector->connect(['database' => $argv[2]]);
+                    $exception = null;
+                } catch (\Throwable $throwable) {
+                    $exception = $throwable;
+                }
+
+                echo json_encode([
+                    'base_path_defined' => defined('BASE_PATH'),
+                    'application_bound' => $container->has(\Hypervel\Contracts\Foundation\Application::class),
+                    'exception' => $exception === null ? null : $exception::class,
+                    'path' => $exception instanceof \Hypervel\Database\SQLiteDatabaseDoesNotExistException
+                        ? $exception->path
+                        : null,
+                ], JSON_THROW_ON_ERROR);
+                PHP,
+            dirname(__DIR__, 2) . '/vendor/autoload.php',
+            $database,
+        ]);
+        $process->mustRun();
+
+        $this->assertSame([
+            'base_path_defined' => false,
+            'application_bound' => false,
+            'exception' => SQLiteDatabaseDoesNotExistException::class,
+            'path' => $database,
+        ], json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * Provide missing absolute and relative SQLite paths.
+     */
+    public static function missingSQLitePathProvider(): array
+    {
+        return [
+            'absolute' => [true],
+            'relative' => [false],
+        ];
+    }
+
+    /**
+     * Resolve relative SQLite paths against the application root.
+     */
+    public function testSQLiteRelativePathResolvesAgainstApplicationRoot(): void
+    {
+        new Application(__DIR__);
+
+        $config = ['database' => basename(__FILE__)];
+        $dsn = 'sqlite:' . __FILE__;
+        $connector = $this->getMockBuilder(SQLiteConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
+        $connection = m::mock(PDO::class);
+        $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);
+        $connector->expects($this->once())->method('createConnection')->with($this->equalTo($dsn), $this->equalTo($config), $this->equalTo(['options']))->willReturn($connection);
+
+        $this->assertTrue(Application::getInstance()->has(ApplicationContract::class));
+        $this->assertSame($connection, $connector->connect($config));
     }
 
     public function testSQLiteNamedMemoryDatabasesMayBeConnectedTo()

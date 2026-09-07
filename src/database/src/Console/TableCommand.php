@@ -147,6 +147,7 @@ class TableCommand extends DatabaseInspectionCommand
             count($index['columns']) > 1 ? 'compound' : null,
             $index['unique'] && ! $index['primary'] ? 'unique' : null,
             $index['primary'] ? 'primary' : null,
+            $index['partial'] ? 'partial' : null,
         ]))->filter();
     }
 
@@ -179,7 +180,7 @@ class TableCommand extends DatabaseInspectionCommand
      */
     protected function displayJson(array $data): void
     {
-        $this->output->writeln(json_encode($data));
+        $this->output->writeln(json_encode($data, JSON_THROW_ON_ERROR));
     }
 
     /**

@@ -8,12 +8,17 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Contracts\Queue\Monitor as MonitorContract;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Queue\Connectors\ConnectorInterface;
+use Hypervel\Queue\Events\QueuePaused;
+use Hypervel\Queue\Events\QueueResumed;
+use Hypervel\Queue\Events\QueuesPaused;
+use Hypervel\Queue\Events\QueuesResumed;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use InvalidArgumentException;
@@ -45,6 +50,21 @@ class QueueManager implements FactoryContract, MonitorContract
     protected array $poolables = ['beanstalkd', 'sqs'];
 
     /**
+     * The pool proxy classes for drivers with supplemental queue capabilities.
+     *
+     * Proxy selection occurs by driver name before lazy resolution. A subclass must
+     * update this map for a custom clearable driver or a non-clearable replacement
+     * of a mapped built-in driver.
+     *
+     * @var array<string, class-string<QueuePoolProxy>>
+     */
+    protected array $poolProxyClasses = [
+        'database' => ClearableQueuePoolProxy::class,
+        'redis' => ClearableQueuePoolProxy::class,
+        'sqs' => ClearableQueuePoolProxy::class,
+    ];
+
+    /**
      * Create a new queue manager instance.
      */
     public function __construct(
@@ -60,7 +80,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function before(mixed $callback): void
     {
-        $this->app['events']
+        $this->app->make('events')
             ->listen(Events\JobProcessing::class, $callback);
     }
 
@@ -72,7 +92,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function after(mixed $callback): void
     {
-        $this->app['events']
+        $this->app->make('events')
             ->listen(Events\JobProcessed::class, $callback);
     }
 
@@ -84,7 +104,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function exceptionOccurred(mixed $callback): void
     {
-        $this->app['events']
+        $this->app->make('events')
             ->listen(Events\JobExceptionOccurred::class, $callback);
     }
 
@@ -96,7 +116,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function looping(mixed $callback): void
     {
-        $this->app['events']
+        $this->app->make('events')
             ->listen(Events\Looping::class, $callback);
     }
 
@@ -108,7 +128,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function failing(mixed $callback): void
     {
-        $this->app['events']
+        $this->app->make('events')
             ->listen(Events\JobFailed::class, $callback);
     }
 
@@ -120,7 +140,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function starting(mixed $callback): void
     {
-        $this->app['events']
+        $this->app->make('events')
             ->listen(Events\WorkerStarting::class, $callback);
     }
 
@@ -132,7 +152,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function stopping(mixed $callback): void
     {
-        $this->app['events']
+        $this->app->make('events')
             ->listen(Events\WorkerStopping::class, $callback);
     }
 
@@ -155,13 +175,16 @@ class QueueManager implements FactoryContract, MonitorContract
     public function pause(string $connection, string $queue): void
     {
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
-        $this->app['cache']
+        $this->app->make('cache')
             ->store()
             ->forever("illuminate:queue:paused:{$connection}:{$queue}", true);
 
-        $this->app['events']->dispatch(
-            new Events\QueuePaused($connection, $queue)
-        );
+        /** @var Dispatcher $events */
+        $events = $this->app->make('events');
+
+        if ($events->hasListeners(QueuePaused::class)) {
+            $events->dispatch(new QueuePaused($connection, $queue));
+        }
     }
 
     /**
@@ -170,13 +193,34 @@ class QueueManager implements FactoryContract, MonitorContract
     public function pauseFor(string $connection, string $queue, DateInterval|DateTimeInterface|int $ttl): void
     {
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
-        $this->app['cache']
+        $this->app->make('cache')
             ->store()
             ->put("illuminate:queue:paused:{$connection}:{$queue}", true, $ttl);
 
-        $this->app['events']->dispatch(
-            new Events\QueuePaused($connection, $queue, $ttl)
-        );
+        /** @var Dispatcher $events */
+        $events = $this->app->make('events');
+
+        if ($events->hasListeners(QueuePaused::class)) {
+            $events->dispatch(new QueuePaused($connection, $queue, $ttl));
+        }
+    }
+
+    /**
+     * Pause job processing for all queues on all connections.
+     */
+    public function pauseAll(): void
+    {
+        // Use Laravel's key for cross-framework queue interoperability.
+        $this->app->make('cache')
+            ->store()
+            ->forever('illuminate:queues:paused', true);
+
+        /** @var Dispatcher $events */
+        $events = $this->app->make('events');
+
+        if ($events->hasListeners(QueuesPaused::class)) {
+            $events->dispatch(new QueuesPaused);
+        }
     }
 
     /**
@@ -185,13 +229,36 @@ class QueueManager implements FactoryContract, MonitorContract
     public function resume(string $connection, string $queue): void
     {
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
-        $this->app['cache']
+        $this->app->make('cache')
             ->store()
             ->forget("illuminate:queue:paused:{$connection}:{$queue}");
 
-        $this->app['events']->dispatch(
-            new Events\QueueResumed($connection, $queue)
-        );
+        /** @var Dispatcher $events */
+        $events = $this->app->make('events');
+
+        if ($events->hasListeners(QueueResumed::class)) {
+            $events->dispatch(new QueueResumed($connection, $queue));
+        }
+    }
+
+    /**
+     * Resume job processing for all queues on all connections.
+     *
+     * Queues paused individually are not affected.
+     */
+    public function resumeAll(): void
+    {
+        // Use Laravel's key for cross-framework queue interoperability.
+        $this->app->make('cache')
+            ->store()
+            ->forget('illuminate:queues:paused');
+
+        /** @var Dispatcher $events */
+        $events = $this->app->make('events');
+
+        if ($events->hasListeners(QueuesResumed::class)) {
+            $events->dispatch(new QueuesResumed);
+        }
     }
 
     /**
@@ -200,9 +267,10 @@ class QueueManager implements FactoryContract, MonitorContract
     public function isPaused(string $connection, string $queue): bool
     {
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
-        return (bool) $this->app['cache']
-            ->store()
-            ->get("illuminate:queue:paused:{$connection}:{$queue}", false);
+        $cache = $this->app->make('cache')->store();
+
+        return (bool) ($cache->get('illuminate:queues:paused', false)
+            ?: $cache->get("illuminate:queue:paused:{$connection}:{$queue}", false));
     }
 
     /**
@@ -210,12 +278,19 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function getPausedQueues(string $connection, array $queues): array
     {
+        $cache = $this->app->make('cache')->store();
+
+        // Keep the global key separate: cluster proxies may reject cross-slot batches.
+        if ($cache->get('illuminate:queues:paused', false)) {
+            return array_values($queues);
+        }
+
         $keys = array_map(
             static fn (string $queue): string => "illuminate:queue:paused:{$connection}:{$queue}",
             $queues,
         );
 
-        $states = $this->app->make('cache')->store()->many($keys);
+        $states = $cache->many($keys);
 
         return array_values(array_filter(
             $queues,
@@ -299,7 +374,7 @@ class QueueManager implements FactoryContract, MonitorContract
                 $config['driver'],
                 $resolver,
                 $this->poolDefinition($config['driver'], $config['pool'] ?? [], $constructionConfig),
-                QueuePoolProxy::class,
+                $this->poolProxyClasses[$config['driver']] ?? QueuePoolProxy::class,
             );
 
             return $proxy->setConnectionName($name);

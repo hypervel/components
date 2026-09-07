@@ -16,27 +16,27 @@ trait ManagesComponents
     /**
      * Context key for the components being rendered.
      */
-    protected const COMPONENT_STACK_CONTEXT_KEY = '__view.component_stack';
+    protected const string COMPONENT_STACK_CONTEXT_KEY = '__view.component_stack';
 
     /**
      * Context key for the original data passed to the component.
      */
-    protected const COMPONENT_DATA_CONTEXT_KEY = '__view.component_data';
+    protected const string COMPONENT_DATA_CONTEXT_KEY = '__view.component_data';
 
     /**
      * Context key for the component data for the component that is currently being rendered.
      */
-    protected const CURRENT_COMPONENT_DATA_CONTEXT_KEY = '__view.current_component_data';
+    protected const string CURRENT_COMPONENT_DATA_CONTEXT_KEY = '__view.current_component_data';
 
     /**
      * Context key for the slot contents for the component.
      */
-    protected const SLOTS_CONTEXT_KEY = '__view.slots';
+    protected const string SLOTS_CONTEXT_KEY = '__view.slots';
 
     /**
      * Context key for the names of the slots being rendered.
      */
-    protected const SLOT_STACK_CONTEXT_KEY = '__view.slot_stack';
+    protected const string SLOT_STACK_CONTEXT_KEY = '__view.slot_stack';
 
     /**
      * Start a component rendering process.

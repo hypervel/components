@@ -79,15 +79,7 @@ abstract class AbstractArrayStore extends TaggableStore implements CanFlushLocks
             return null;
         }
 
-        $expiresAt = $item['expiresAt'];
-
-        if ($expiresAt !== 0.0 && (now()->getPreciseTimestamp(3) / 1000) >= $expiresAt) {
-            $this->forget($key);
-
-            return null;
-        }
-
-        return $this->serializesValues ? $this->unserialize($item['value']) : $item['value'];
+        return $this->valueFromItem($key, $item);
     }
 
     /**
@@ -95,9 +87,12 @@ abstract class AbstractArrayStore extends TaggableStore implements CanFlushLocks
      */
     public function put(string $key, mixed $value, int $seconds): bool
     {
+        $expiresAt = $this->calculateExpiration($seconds);
+
+        $this->reclaimExpiredRecords();
         $this->putCacheItem($key, [
             'value' => $this->serializesValues ? serialize($value) : $value,
-            'expiresAt' => $this->calculateExpiration($seconds),
+            'expiresAt' => $expiresAt,
         ]);
 
         return true;
@@ -109,12 +104,20 @@ abstract class AbstractArrayStore extends TaggableStore implements CanFlushLocks
     public function increment(string $key, int $value = 1): int
     {
         // When backed by WorkerArrayStore, this read/modify/write path is shared across coroutines; keep it non-yielding.
-        if (! is_null($existing = $this->get($key))) {
+        $item = $this->getCacheItem($key);
+        $existing = null;
+        $currentTimestamp = null;
+
+        if ($item !== null) {
+            $currentTimestamp = $item['expiresAt'] === 0.0 ? null : $this->currentPreciseTimestamp();
+            $existing = $this->valueFromItem($key, $item, $currentTimestamp);
+        }
+
+        if ($existing !== null) {
             $incremented = ((int) $existing) + $value;
 
-            /** @var array{value: mixed, expiresAt: float} $item */
-            $item = $this->getCacheItem($key);
             $item['value'] = $this->serializesValues ? serialize($incremented) : $incremented;
+            $this->reclaimExpiredRecords($currentTimestamp);
             $this->putCacheItem($key, $item);
 
             return $incremented;
@@ -152,7 +155,20 @@ abstract class AbstractArrayStore extends TaggableStore implements CanFlushLocks
             return false;
         }
 
+        $currentTimestamp = null;
+
+        if ($item['expiresAt'] !== 0.0) {
+            $currentTimestamp = $this->currentPreciseTimestamp();
+
+            if ($this->isCacheItemExpired($item, $currentTimestamp)) {
+                $this->forget($key);
+
+                return false;
+            }
+        }
+
         $item['expiresAt'] = $this->calculateExpiration($seconds);
+        $this->reclaimExpiredRecords($currentTimestamp);
         $this->putCacheItem($key, $item);
 
         return true;
@@ -237,7 +253,20 @@ abstract class AbstractArrayStore extends TaggableStore implements CanFlushLocks
      *
      * @return null|array{owner: ?string, expiresAt: ?CarbonImmutable}
      */
-    abstract public function getLockRecord(string $name): ?array;
+    public function getLockRecord(string $name): ?array
+    {
+        $record = $this->getLockRecords()[$name] ?? null;
+
+        // Permanent locks need no clock read.
+        if ($record !== null && $record['expiresAt'] !== null
+            && $this->isLockRecordExpired($record['expiresAt'], CarbonImmutable::now())) {
+            $this->forgetLockRecord($name);
+
+            return null;
+        }
+
+        return $record;
+    }
 
     /**
      * Store the lock record for the given name.
@@ -255,6 +284,13 @@ abstract class AbstractArrayStore extends TaggableStore implements CanFlushLocks
      * Remove all lock records.
      */
     abstract public function clearLockRecords(): void;
+
+    /**
+     * Get all lock records.
+     *
+     * @return array<string, array{owner: ?string, expiresAt: ?CarbonImmutable}>
+     */
+    abstract protected function getLockRecords(): array;
 
     /**
      * Get the cached item for the given key.
@@ -288,6 +324,52 @@ abstract class AbstractArrayStore extends TaggableStore implements CanFlushLocks
     abstract protected function getCacheItems(): array;
 
     /**
+     * Perform maintenance before writing one record.
+     */
+    protected function reclaimExpiredRecords(?float $currentTimestamp = null): void
+    {
+    }
+
+    /**
+     * Retrieve and decode a cached item after applying its expiration.
+     *
+     * @param array{value: mixed, expiresAt: float} $item
+     */
+    protected function valueFromItem(string $key, array $item, ?float $currentTimestamp = null): mixed
+    {
+        if ($item['expiresAt'] !== 0.0
+            && $this->isCacheItemExpired($item, $currentTimestamp ?? $this->currentPreciseTimestamp())) {
+            $this->forget($key);
+
+            return null;
+        }
+
+        return $this->serializesValues ? $this->unserialize($item['value']) : $item['value'];
+    }
+
+    /**
+     * Determine if a cached item has expired.
+     *
+     * Callers must exclude permanent items whose expiration is 0.0.
+     *
+     * @param array{value: mixed, expiresAt: float} $item
+     */
+    protected function isCacheItemExpired(array $item, float $currentTimestamp): bool
+    {
+        return $currentTimestamp >= $item['expiresAt'];
+    }
+
+    /**
+     * Determine if a lock record has expired.
+     *
+     * The inclusive boundary treats a lock as expired at its expiry instant.
+     */
+    protected function isLockRecordExpired(CarbonImmutable $expiresAt, CarbonImmutable $currentTime): bool
+    {
+        return $expiresAt <= $currentTime;
+    }
+
+    /**
      * Get the expiration time of the key.
      */
     protected function calculateExpiration(int $seconds): float
@@ -300,7 +382,15 @@ abstract class AbstractArrayStore extends TaggableStore implements CanFlushLocks
      */
     protected function toTimestamp(int $seconds): float
     {
-        return $seconds > 0 ? (now()->getPreciseTimestamp(3) / 1000) + $seconds : 0;
+        return $seconds > 0 ? $this->currentPreciseTimestamp() + $seconds : 0;
+    }
+
+    /**
+     * Get the current UNIX timestamp with millisecond precision.
+     */
+    protected function currentPreciseTimestamp(): float
+    {
+        return now()->getPreciseTimestamp(3) / 1000;
     }
 
     /**

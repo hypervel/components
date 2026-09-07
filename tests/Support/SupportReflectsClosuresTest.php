@@ -117,11 +117,30 @@ class SupportReflectsClosuresTest extends TestCase
         ];
     }
 
-    public function testClosureReturnTypesRejectRelativeClassNames(): void
+    public function testClosureReturnTypesResolveRelativeClassNames(): void
     {
-        $this->assertSame([], ReflectsClosuresClass::reflectReturns(RelativeReturnTypeClosures::returnsParent(...)));
-        $this->assertSame([], ReflectsClosuresClass::reflectReturns(RelativeReturnTypeClosures::returnsSelf(...)));
-        $this->assertSame([], ReflectsClosuresClass::reflectReturns(RelativeReturnTypeClosures::returnsStatic(...)));
+        $this->assertSame(
+            [RelativeReturnTypeParent::class],
+            ReflectsClosuresClass::reflectReturns(RelativeReturnTypeClosures::returnsParent(...)),
+        );
+        $this->assertSame(
+            [RelativeReturnTypeClosures::class],
+            ReflectsClosuresClass::reflectReturns(RelativeReturnTypeClosures::returnsSelf(...)),
+        );
+        $this->assertSame(
+            [RelativeReturnTypeClosures::class],
+            ReflectsClosuresClass::reflectReturns(RelativeReturnTypeClosures::returnsStatic(...)),
+        );
+        $this->assertSame(
+            [RelativeReturnTypeGrandChild::class],
+            ReflectsClosuresClass::reflectReturns(RelativeReturnTypeGrandChild::returnsStatic(...)),
+        );
+        $this->assertSame(
+            [self::class],
+            ReflectsClosuresClass::reflectReturns(function (): self {
+                return $this;
+            }),
+        );
     }
 
     private function assertParameterTypes(array $expected, Closure $closure): void
@@ -185,4 +204,8 @@ class RelativeReturnTypeClosures extends RelativeReturnTypeParent
     {
         return new static;
     }
+}
+
+class RelativeReturnTypeGrandChild extends RelativeReturnTypeClosures
+{
 }

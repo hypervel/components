@@ -21,7 +21,7 @@ class DatabasePostgresSchemaBuilderTest extends TestCase
         $builder = new PostgresBuilder($connection);
         $grammar->shouldReceive('compileTableExists')->twice()->andReturn('sql');
         $connection->shouldReceive('getTablePrefix')->twice()->andReturn('prefix_');
-        $connection->shouldReceive('scalar')->twice()->with('sql')->andReturn(1);
+        $connection->shouldReceive('scalar')->twice()->with('sql', [], false)->andReturn(1);
 
         $this->assertTrue($builder->hasTable('table'));
         $this->assertTrue($builder->hasTable('public.table'));

@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Database\Query\Grammars;
 
 use Hypervel\Contracts\Database\Query\Expression;
+use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Concerns\CompilesJsonPaths;
 use Hypervel\Database\Grammar as BaseGrammar;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Database\Query\Expression as QueryExpression;
 use Hypervel\Database\Query\JoinClause;
 use Hypervel\Database\Query\JoinLateralClause;
 use Hypervel\Support\Arr;
@@ -57,6 +59,21 @@ class Grammar extends BaseGrammar
      */
     public function compileSelect(Builder $query): string
     {
+        return $this->compileSelectTimeout(
+            $query,
+            $this->compileSelectQuery($query),
+        );
+    }
+
+    /**
+     * Compile a select query without statement-level decoration.
+     *
+     * Embedded fragments are assembled by their builder's grammar because connection-owned details
+     * such as table prefixes resolve through that grammar. They bypass compileSelect because only a
+     * complete executed statement carries statement-level decoration.
+     */
+    protected function compileSelectQuery(Builder $query): string
+    {
         if (($query->unions || $query->havings) && $query->aggregate) {
             return $this->compileUnionAggregate($query);
         }
@@ -96,6 +113,14 @@ class Grammar extends BaseGrammar
 
         $query->columns = $original;
 
+        return $sql;
+    }
+
+    /**
+     * Compile the query timeout for a complete select statement.
+     */
+    protected function compileSelectTimeout(Builder $query, string $sql): string
+    {
         return $sql;
     }
 
@@ -485,7 +510,14 @@ class Grammar extends BaseGrammar
      */
     protected function whereSub(Builder $query, array $where): string
     {
-        $select = $this->compileSelect($where['query']);
+        $subquery = $where['query'];
+        $select = $subquery->getGrammar()->compileSelectQuery($subquery);
+
+        if ($where['operator'] === '<=>') {
+            $where['value'] = new QueryExpression("({$select})");
+
+            return $this->whereNullSafeEquals($query, $where);
+        }
 
         return $this->wrap($where['column']) . ' ' . $where['operator'] . " ({$select})";
     }
@@ -495,7 +527,9 @@ class Grammar extends BaseGrammar
      */
     protected function whereExists(Builder $query, array $where): string
     {
-        return 'exists (' . $this->compileSelect($where['query']) . ')';
+        $subquery = $where['query'];
+
+        return 'exists (' . $subquery->getGrammar()->compileSelectQuery($subquery) . ')';
     }
 
     /**
@@ -503,7 +537,9 @@ class Grammar extends BaseGrammar
      */
     protected function whereNotExists(Builder $query, array $where): string
     {
-        return 'not exists (' . $this->compileSelect($where['query']) . ')';
+        $subquery = $where['query'];
+
+        return 'not exists (' . $subquery->getGrammar()->compileSelectQuery($subquery) . ')';
     }
 
     /**
@@ -528,6 +564,13 @@ class Grammar extends BaseGrammar
         $value = $this->wrapJsonBooleanValue(
             $this->parameter($where['value'])
         );
+
+        if ($where['operator'] === '<=>') {
+            $where['column'] = new QueryExpression($column);
+            $where['value'] = new QueryExpression($value);
+
+            return $this->whereNullSafeEquals($query, $where);
+        }
 
         return $column . ' ' . $where['operator'] . ' ' . $value;
     }
@@ -583,7 +626,7 @@ class Grammar extends BaseGrammar
      */
     public function prepareBindingForJsonContains(mixed $binding): mixed
     {
-        return json_encode($binding, JSON_UNESCAPED_UNICODE);
+        return json_encode($binding, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     }
 
     /**
@@ -923,8 +966,11 @@ class Grammar extends BaseGrammar
     protected function compileUnion(array $union): string
     {
         $conjunction = $union['all'] ? ' union all ' : ' union ';
+        $query = $union['query'];
 
-        return $conjunction . $this->wrapUnion($union['query']->toSql());
+        return $conjunction . $this->wrapUnion(
+            $query->getGrammar()->compileSelectQuery($query)
+        );
     }
 
     /**
@@ -944,7 +990,7 @@ class Grammar extends BaseGrammar
 
         $query->aggregate = null;
 
-        return $sql . ' from (' . $this->compileSelect($query) . ') as ' . $this->wrapTable('temp_table');
+        return $sql . ' from (' . $this->compileSelectQuery($query) . ') as ' . $this->wrapTable('temp_table');
     }
 
     /**
@@ -952,9 +998,12 @@ class Grammar extends BaseGrammar
      */
     public function compileExists(Builder $query): string
     {
-        $select = $this->compileSelect($query);
+        $select = $this->compileSelectQuery($query);
 
-        return "select exists({$select}) as {$this->wrap('exists')}";
+        return $this->compileSelectTimeout(
+            $query,
+            "select exists({$select}) as {$this->wrap('exists')}",
+        );
     }
 
     /**
@@ -1243,6 +1292,10 @@ class Grammar extends BaseGrammar
     public function substituteBindingsIntoRawSql(string $sql, array $bindings): string
     {
         $bindings = array_map(function ($value): string {
+            if ($value instanceof BinaryParameter) {
+                return $this->escape($value->value, true);
+            }
+
             if (is_resource($value) || gettype($value) === 'resource (closed)') {
                 $value = (string) $value;
             }

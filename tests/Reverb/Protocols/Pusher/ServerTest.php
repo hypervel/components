@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Reverb\Protocols\Pusher;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Reverb\Connection;
+use Hypervel\Reverb\Contracts\ApplicationProvider;
 use Hypervel\Reverb\Contracts\WebSocketConnection;
 use Hypervel\Reverb\Events\ConnectionClosed;
 use Hypervel\Reverb\Events\ConnectionEstablished;
@@ -23,7 +24,6 @@ use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
-use Throwable;
 
 class ServerTest extends ReverbTestCase
 {
@@ -386,7 +386,7 @@ class ServerTest extends ReverbTestCase
     #[DataProvider('invalidOriginProvider')]
     public function testRejectsAConnectionFromAnInvalidOrigin(string $origin, array $allowedOrigins): void
     {
-        $this->app['config']->set('reverb.apps.apps.0.allowed_origins', $allowedOrigins);
+        config()->set('reverb.apps.apps.0.allowed_origins', $allowedOrigins);
         $this->server->open($connection = new FakeConnection(origin: $origin));
 
         $this->assertFalse($connection->isEstablished());
@@ -410,11 +410,11 @@ class ServerTest extends ReverbTestCase
 
     public function testRejectsAConnectionWithoutAnOrigin(): void
     {
-        $this->app['config']->set('reverb.apps.apps.0.allowed_origins', ['localhost']);
+        config()->set('reverb.apps.apps.0.allowed_origins', ['localhost']);
 
         $webSocket = m::mock(WebSocketConnection::class);
         $webSocket->shouldReceive('send')->once();
-        $application = $this->app->make(\Hypervel\Reverb\Contracts\ApplicationProvider::class)
+        $application = $this->app->make(ApplicationProvider::class)
             ->findByKey('reverb-key');
         $connection = new Connection($webSocket, $application, null);
 
@@ -426,7 +426,7 @@ class ServerTest extends ReverbTestCase
     #[DataProvider('validOriginProvider')]
     public function testAcceptsAConnectionFromAValidOrigin(string $origin, array $allowedOrigins): void
     {
-        $this->app['config']->set('reverb.apps.apps.0.allowed_origins', $allowedOrigins);
+        config()->set('reverb.apps.apps.0.allowed_origins', $allowedOrigins);
         $this->server->open($connection = new FakeConnection(origin: $origin));
 
         $this->assertTrue($connection->isEstablished());
@@ -449,7 +449,7 @@ class ServerTest extends ReverbTestCase
 
     public function testRejectsAConnectionWhenTheAppIsOverTheConnectionLimit(): void
     {
-        $this->app['config']->set('reverb.apps.apps.0.max_connections', 1);
+        config()->set('reverb.apps.apps.0.max_connections', 1);
         $this->server->open($connection = new FakeConnection);
         $this->server->message(
             $connection,
@@ -631,7 +631,7 @@ class ServerTest extends ReverbTestCase
 
     public function testRejectsAMessageWhenTheRateLimitIsExceeded(): void
     {
-        $this->app['config']->set('reverb.apps.apps.0.rate_limiting', [
+        config()->set('reverb.apps.apps.0.rate_limiting', [
             'enabled' => true,
             'max_attempts' => 3,
             'decay_seconds' => 1,
@@ -671,7 +671,7 @@ class ServerTest extends ReverbTestCase
 
     public function testEnforcesRateLimitConfiguredWithNumericStrings(): void
     {
-        $this->app['config']->set('reverb.apps.apps.0.rate_limiting', [
+        config()->set('reverb.apps.apps.0.rate_limiting', [
             'enabled' => true,
             'max_attempts' => '1',
             'decay_seconds' => '60',
@@ -708,7 +708,7 @@ class ServerTest extends ReverbTestCase
     #[DefineEnvironment('withInvalidRateLimiterConfiguration')]
     public function testMessageRateLimiterIsIndependentOfRateLimiterConfiguration(): void
     {
-        $this->app['config']->set('reverb.apps.apps.0.rate_limiting', [
+        config()->set('reverb.apps.apps.0.rate_limiting', [
             'enabled' => true,
             'max_attempts' => 1,
             'decay_seconds' => 60,
@@ -762,7 +762,7 @@ class ServerTest extends ReverbTestCase
 
     public function testCloseClearsInitializedMessageRateLimiterState(): void
     {
-        $this->app['config']->set('reverb.apps.apps.0.rate_limiting', [
+        config()->set('reverb.apps.apps.0.rate_limiting', [
             'enabled' => true,
             'max_attempts' => 1,
             'decay_seconds' => 60,
@@ -804,7 +804,7 @@ class ServerTest extends ReverbTestCase
 
     public function testTerminatesTheConnectionWhenRateLimitIsExceededAndConfiguredToTerminate(): void
     {
-        $this->app['config']->set('reverb.apps.apps.0.rate_limiting', [
+        config()->set('reverb.apps.apps.0.rate_limiting', [
             'enabled' => true,
             'max_attempts' => 1,
             'decay_seconds' => 1,
@@ -842,7 +842,7 @@ class ServerTest extends ReverbTestCase
 
     public function testTerminatesTheConnectionWhenSendingTheRateLimitErrorFails(): void
     {
-        $this->app['config']->set('reverb.apps.apps.0.rate_limiting', [
+        config()->set('reverb.apps.apps.0.rate_limiting', [
             'enabled' => true,
             'max_attempts' => 1,
             'decay_seconds' => 1,
@@ -874,39 +874,33 @@ class ServerTest extends ReverbTestCase
         $this->assertTrue($connection->wasTerminated);
     }
 
-    public function testEnabledRateLimitingRequiresDecaySeconds(): void
+    public function testEnabledPartialRateLimitingUsesItsDefaults(): void
     {
-        $this->app['config']->set('reverb.apps.apps.0.rate_limiting', [
+        config()->set('reverb.apps.apps.0.rate_limiting', [
             'enabled' => true,
             'max_attempts' => 1,
-            'terminate_on_limit' => false,
         ]);
 
-        $exceptionHandler = m::mock(ExceptionHandler::class);
-        $exceptionHandler->shouldReceive('report')
-            ->once()
-            ->with(m::on(static fn (Throwable $exception): bool => str_contains(
-                $exception->getMessage(),
-                'Undefined array key "decay_seconds"',
-            )));
-        $this->app->instance(ExceptionHandler::class, $exceptionHandler);
+        $connection = new FakeConnection;
 
-        $this->server->open($connection = new FakeConnection);
-        $this->server->message(
-            $connection,
-            json_encode([
-                'event' => 'pusher:subscribe',
-                'data' => ['channel' => 'test-channel'],
-            ])
-        );
+        foreach (['test-channel', 'test-channel-overflow'] as $channel) {
+            $this->server->message(
+                $connection,
+                json_encode([
+                    'event' => 'pusher:subscribe',
+                    'data' => ['channel' => $channel],
+                ])
+            );
+        }
 
         $connection->assertReceived([
             'event' => 'pusher:error',
             'data' => json_encode([
-                'code' => 4200,
-                'message' => 'Invalid message format',
+                'code' => 4301,
+                'message' => 'Rate limit exceeded',
             ]),
         ]);
+        $this->assertFalse($connection->wasTerminated);
     }
 
     public function testAllowsUnlimitedMessagesWhenNoRateLimitIsConfigured(): void
@@ -964,7 +958,7 @@ class ServerTest extends ReverbTestCase
         $server->close($connection);
 
         // close() is the "client already disconnected" cleanup path.
-        // It should NOT try to terminate/disconnect the connection again —
+        // It should not try to terminate/disconnect the connection again —
         // the fd is already gone.
         $this->assertFalse($connection->wasTerminated);
     }
@@ -1004,7 +998,7 @@ class ServerTest extends ReverbTestCase
     {
         Event::fake();
 
-        $this->app['config']->set('reverb.apps.apps.0.allowed_origins', ['laravel.com']);
+        config()->set('reverb.apps.apps.0.allowed_origins', ['laravel.com']);
         $this->server->open(new FakeConnection(origin: 'http://localhost'));
 
         Event::assertNotDispatched(ConnectionEstablished::class);

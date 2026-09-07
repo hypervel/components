@@ -67,7 +67,7 @@ class WipeCommand extends Command
      */
     protected function dropAllTables(?string $database): void
     {
-        $this->hypervel['db']->connection($database)
+        $this->hypervel->make('db')->connection($database)
             ->getSchemaBuilder()
             ->dropAllTables();
     }
@@ -77,7 +77,7 @@ class WipeCommand extends Command
      */
     protected function dropAllViews(?string $database): void
     {
-        $this->hypervel['db']->connection($database)
+        $this->hypervel->make('db')->connection($database)
             ->getSchemaBuilder()
             ->dropAllViews();
     }
@@ -87,23 +87,17 @@ class WipeCommand extends Command
      */
     protected function dropAllTypes(?string $database): void
     {
-        $this->hypervel['db']->connection($database)
+        $this->hypervel->make('db')->connection($database)
             ->getSchemaBuilder()
             ->dropAllTypes();
     }
 
     /**
      * Flush the given database connection.
-     *
-     * Uses purge() instead of disconnect() because Hypervel's pooled connection
-     * architecture caches connection wrappers. disconnect() only nulls the PDO
-     * on the cached wrapper, leaving it in place — the next query reuses the
-     * disconnected wrapper and triggers a reconnect. purge() fully resets the
-     * connection including pool and resolver caches.
      */
     protected function flushDatabaseConnection(?string $database): void
     {
-        $this->hypervel['db']->purge($database);
+        $this->hypervel->make('db')->connection($database)->disconnect();
     }
 
     /**

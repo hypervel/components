@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Foundation\Console;
 
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\Foundation\Console\ConfigPublishCommand;
+use Hypervel\Foundation\Bootstrap\LoadConfiguration;
+use Hypervel\Foundation\Support\Providers\RouteServiceProvider;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\Attributes\UsesFrameworkConfiguration;
 use Hypervel\Testbench\Concerns\InteractsWithPublishedFiles;
 use Hypervel\Testbench\TestCase;
-use ReflectionClass;
 use Symfony\Component\Finder\Finder;
 
 #[UsesFrameworkConfiguration]
@@ -56,7 +56,11 @@ class ConfigPublishCommandWithoutMergedConfigurationTest extends TestCase
             $this->assertSame(file_get_contents($source), file_get_contents(config_path("{$name}.php")));
         }
 
-        $this->assertSame(config('app.providers'), ServiceProvider::defaultProviders()->toArray());
+        // Testbench appends the application route provider so cached-route tests have a consumer.
+        $this->assertSame(
+            [...ServiceProvider::defaultProviders()->toArray(), RouteServiceProvider::class],
+            config('app.providers'),
+        );
     }
 
     /**
@@ -66,10 +70,9 @@ class ConfigPublishCommandWithoutMergedConfigurationTest extends TestCase
      */
     private function getExpectedConfigFiles(): array
     {
-        $baseConfigPath = dirname((new ReflectionClass(ConfigPublishCommand::class))->getFileName(), 3) . '/config';
         $files = [];
 
-        foreach (Finder::create()->files()->name('*.php')->in($baseConfigPath) as $file) {
+        foreach (Finder::create()->files()->name('*.php')->in(LoadConfiguration::frameworkConfigPath()) as $file) {
             $files[basename($file->getPathname(), '.php')] = $file->getPathname();
         }
 

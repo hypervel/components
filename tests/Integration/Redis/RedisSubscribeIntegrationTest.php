@@ -10,7 +10,6 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Redis\Subscriber\Message;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
-use Redis as PhpRedis;
 use RuntimeException;
 
 use function Hypervel\Coroutine\go;
@@ -23,7 +22,7 @@ use function Hypervel\Coroutine\go;
  * (not phpredis) against a real Redis server.
  *
  * All tests use a no-prefix connection to avoid prefix mismatch between
- * the socket subscriber and the raw phpredis publish client.
+ * the socket subscriber and the pooled publisher connection.
  */
 class RedisSubscribeIntegrationTest extends TestCase
 {
@@ -72,7 +71,7 @@ class RedisSubscribeIntegrationTest extends TestCase
 
         usleep(100_000);
 
-        $this->publishViaRawClient($channelName, 'hello_world');
+        $this->publishViaRedis($channelName, 'hello_world');
 
         $result = $resultChannel->pop(5.0);
         $this->assertNotFalse($result, 'Subscribe timed out waiting for message');
@@ -102,7 +101,7 @@ class RedisSubscribeIntegrationTest extends TestCase
 
         usleep(100_000);
 
-        $this->publishViaRawClient($publishChannel, 'pattern_data');
+        $this->publishViaRedis($publishChannel, 'pattern_data');
 
         $result = $resultChannel->pop(5.0);
         $this->assertNotFalse($result, 'Psubscribe timed out waiting for message');
@@ -131,7 +130,7 @@ class RedisSubscribeIntegrationTest extends TestCase
 
         usleep(100_000);
 
-        $this->publishViaRawClient($channelName, 'string_arg');
+        $this->publishViaRedis($channelName, 'string_arg');
 
         $result = $resultChannel->pop(5.0);
         $this->assertNotFalse($result, 'String channel subscribe timed out');
@@ -149,7 +148,7 @@ class RedisSubscribeIntegrationTest extends TestCase
 
             go(function () use ($channelName) {
                 usleep(50_000);
-                $this->publishViaRawClient($channelName, 'channel_api');
+                $this->publishViaRedis($channelName, 'channel_api');
             });
 
             $message = $subscriber->channel()->pop(5.0);
@@ -175,7 +174,7 @@ class RedisSubscribeIntegrationTest extends TestCase
             go(function () use ($channelName, $prefix) {
                 usleep(50_000);
                 // Publish to the full prefixed channel name
-                $this->publishViaRawClient($prefix . $channelName, 'prefixed_data');
+                $this->publishViaRedis($prefix . $channelName, 'prefixed_data');
             });
 
             $message = $subscriber->channel()->pop(5.0);
@@ -189,26 +188,11 @@ class RedisSubscribeIntegrationTest extends TestCase
     }
 
     /**
-     * Publish a message using a raw phpredis client (separate connection).
+     * Publish a message through the configured Redis topology.
      */
-    private function publishViaRawClient(string $channel, string $message): void
+    private function publishViaRedis(string $channel, string $message): void
     {
-        $client = new PhpRedis;
-        $client->connect(
-            env('REDIS_HOST', '127.0.0.1'),
-            (int) env('REDIS_PORT', 6379)
-        );
-
-        try {
-            $auth = env('REDIS_PASSWORD');
-            if ($auth) {
-                $client->auth($auth);
-            }
-
-            $client->publish($channel, $message);
-        } finally {
-            $client->close();
-        }
+        Redis::connection()->publish($channel, $message);
     }
 }
 

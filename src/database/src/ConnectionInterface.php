@@ -11,7 +11,6 @@ use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Query\Grammars\Grammar as QueryGrammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\Schema\Builder as SchemaBuilder;
-use PDO;
 use Throwable;
 use UnitEnum;
 
@@ -26,6 +25,11 @@ interface ConnectionInterface
      * Get a new raw query expression.
      */
     public function raw(mixed $value): Expression;
+
+    /**
+     * Escape a value for safe SQL embedding.
+     */
+    public function escape(mixed $value, bool $binary = false): string;
 
     /**
      * Run a select statement and return a single result.
@@ -45,7 +49,9 @@ interface ConnectionInterface
     public function select(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): array;
 
     /**
-     * Run a select statement against the database and returns a generator.
+     * Run a select statement against the database and return a generator.
+     *
+     * @return Generator<int, mixed>
      */
     public function cursor(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): Generator;
 
@@ -53,6 +59,11 @@ interface ConnectionInterface
      * Run an insert statement against the database.
      */
     public function insert(string $query, array $bindings = []): bool;
+
+    /**
+     * Get the last insert ID.
+     */
+    public function getLastInsertId(?string $sequence = null): int|string;
 
     /**
      * Run an update statement against the database.
@@ -75,7 +86,7 @@ interface ConnectionInterface
     public function affectingStatement(string $query, array $bindings = []): int;
 
     /**
-     * Run a raw, unprepared query against the PDO connection.
+     * Run a raw, unprepared query against the connection.
      */
     public function unprepared(string $query): bool;
 
@@ -113,8 +124,15 @@ interface ConnectionInterface
 
     /**
      * Get the number of active transactions.
+     *
+     * @phpstan-impure
      */
     public function transactionLevel(): int;
+
+    /**
+     * Determine whether the connection has an active physical transaction.
+     */
+    public function inTransaction(): bool;
 
     /**
      * Execute the given callback in "dry run" mode.
@@ -148,6 +166,11 @@ interface ConnectionInterface
 
     /**
      * Run a callback without the table prefix on the connection.
+     *
+     * @template TReturn
+     *
+     * @param Closure($this): TReturn $callback
+     * @return TReturn
      */
     public function withoutTablePrefix(Closure $callback): mixed;
 
@@ -165,11 +188,6 @@ interface ConnectionInterface
      * Get the query post processor used by the connection.
      */
     public function getPostProcessor(): Processor;
-
-    /**
-     * Get the current PDO connection.
-     */
-    public function getPdo(): PDO;
 
     /**
      * Get the table prefix for the connection.
@@ -197,7 +215,7 @@ interface ConnectionInterface
     public function recordsHaveBeenModified(bool $value = true): void;
 
     /**
-     * Disconnect from the underlying PDO connection.
+     * Disconnect from the underlying driver resources.
      */
     public function disconnect(): void;
 }

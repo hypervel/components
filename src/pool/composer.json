@@ -1,7 +1,7 @@
 {
     "name": "hypervel/pool",
     "type": "library",
-    "description": "The Hypervel Pool package for connection pooling.",
+    "description": "Connection pooling for Hypervel packages.",
     "license": "MIT",
     "keywords": [
         "php",

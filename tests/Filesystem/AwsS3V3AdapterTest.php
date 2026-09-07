@@ -9,6 +9,8 @@ use Aws\MockHandler;
 use Aws\Result;
 use Aws\S3\S3Client;
 use GuzzleHttp\Psr7\Utils;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Filesystem\AwsS3V3Adapter;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
@@ -19,11 +21,28 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 use function Hypervel\Coroutine\parallel;
 
 class AwsS3V3AdapterTest extends TestCase
 {
+    public function testConfiguredAndNativeUrlsEncodeRawPathsIdentically(): void
+    {
+        $path = 'nested/report%2F v?x#y+z.txt';
+        $expected = 'https://bucket.s3.amazonaws.com/tenant/nested/report%252F%20v%3Fx%23y%2Bz.txt';
+        $config = [
+            'bucket' => 'bucket',
+            'root' => 'tenant',
+        ];
+
+        $this->assertSame($expected, $this->adapter(new MockHandler([]), $config)->url($path));
+        $this->assertSame($expected, $this->adapter(new MockHandler([]), [
+            ...$config,
+            'url' => 'https://bucket.s3.amazonaws.com',
+        ])->url($path));
+    }
+
     #[DataProvider('ranges')]
     public function testReadStreamRangeUsesANativePrefixedGetObjectRange(
         ?int $start,
@@ -247,6 +266,27 @@ class AwsS3V3AdapterTest extends TestCase
         $this->expectExceptionMessage('S3 failed');
 
         $adapter->readStreamRange('file.txt', 1, 2);
+    }
+
+    public function testReadStreamRangePreservesCancellationWithoutReporting(): void
+    {
+        $cancellation = new CanceledException('read canceled');
+        $exceptionHandler = m::mock(ExceptionHandler::class);
+        $exceptionHandler->shouldNotReceive('report');
+        Container::getInstance()->bind(ExceptionHandler::class, static fn () => $exceptionHandler);
+        $handler = new MockHandler([$cancellation]);
+        $adapter = $this->adapter($handler, [
+            'bucket' => 'bucket',
+            'report' => true,
+            'throw' => false,
+        ]);
+
+        try {
+            $adapter->readStreamRange('file.txt', 1, 2);
+            $this->fail('Expected the cancellation to escape.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testReadStreamRangeRejectsAResultWithoutAResource(): void

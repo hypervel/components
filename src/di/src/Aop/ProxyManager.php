@@ -13,7 +13,7 @@ use Throwable;
 
 class ProxyManager
 {
-    private const FINGERPRINT_HEADER = '// Hypervel AOP fingerprint: ';
+    private const string FINGERPRINT_HEADER = '// Hypervel AOP fingerprint: ';
 
     /**
      * The classes that have been rewritten as proxies.

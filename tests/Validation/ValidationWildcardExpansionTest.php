@@ -113,6 +113,57 @@ class ValidationWildcardExpansionTest extends TestCase
         $this->assertFalse($v->errors()->has('settings.layout.color'));
     }
 
+    public function testPartialSegmentWildcardMatchesChildKeys(): void
+    {
+        $validator = $this->makeValidator(
+            [
+                'items' => [
+                    'alpha' => ['value' => 'invalid'],
+                    'beta' => ['value' => 'ignored'],
+                ],
+            ],
+            ['items.a*.value' => 'integer'],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertTrue($validator->errors()->has('items.alpha.value'));
+        $this->assertFalse($validator->errors()->has('items.beta.value'));
+    }
+
+    public function testPartialSegmentWildcardDoesNotMatchOtherChildKeys(): void
+    {
+        $validator = $this->makeValidator(
+            ['items' => ['beta' => ['value' => 'ignored']]],
+            ['items.a*.value' => 'integer'],
+        );
+
+        $this->assertSame([], $validator->getRulesWithoutPlaceholders());
+        $this->assertTrue($validator->passes());
+    }
+
+    public function testPartialSegmentWildcardSkipsAbsentParent(): void
+    {
+        $validator = $this->makeValidator(
+            ['other' => 'value'],
+            ['items.a*.value' => 'integer'],
+        );
+
+        $this->assertSame([], $validator->getRulesWithoutPlaceholders());
+        $this->assertTrue($validator->passes());
+    }
+
+    public function testBareWildcardEmitsRequiredRuleForMissingNestedLeaf(): void
+    {
+        $validator = $this->makeValidator(
+            ['items' => [[]]],
+            ['items.*.value' => 'required'],
+        );
+
+        $this->assertArrayHasKey('items.0.value', $validator->getRulesWithoutPlaceholders());
+        $this->assertFalse($validator->passes());
+        $this->assertTrue($validator->errors()->has('items.0.value'));
+    }
+
     public function testWildcardWithMultipleRuleTypes()
     {
         $items = [];

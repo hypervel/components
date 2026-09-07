@@ -8,7 +8,14 @@ use Carbon\CarbonInterface;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Pool\ConnectionInterface;
+use Hypervel\Data\CursorPaginatedDataCollection;
+use Hypervel\Data\DataCollection;
+use Hypervel\Data\Lazy;
+use Hypervel\Data\PaginatedDataCollection;
+use Hypervel\Database\Connection;
 use Hypervel\Database\Eloquent\Factories\Factory as EloquentFactory;
+use Hypervel\Database\PdoConnection;
+use Hypervel\Database\SessionConfigurator;
 use Hypervel\Encryption\Commands\KeyGenerateCommand;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Http\Client\Factory as HttpFactory;
@@ -21,8 +28,13 @@ use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Http\Resources\JsonApi\JsonApiResource;
 use Hypervel\Http\Response as HttpResponse;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Image\Image;
 use Hypervel\NestedSet\NestedSet;
 use Hypervel\Process\InvokedProcess;
+use Hypervel\Saloon\Http\Connector as SaloonConnector;
+use Hypervel\Saloon\Http\PendingRequest as SaloonPendingRequest;
+use Hypervel\Saloon\Http\PendingRequest\BootPlugins;
+use Hypervel\Saloon\Http\Request as SaloonRequest;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Testing\Fakes\NotificationFake;
@@ -30,15 +42,20 @@ use Hypervel\Telescope\Watchers\DumpWatcher;
 use Hypervel\Testing\PHPUnit\AfterEachTestCleanup;
 use Hypervel\Testing\PHPUnit\AfterEachTestSubscriber;
 use Hypervel\Tests\TestCase;
+use Hypervel\Validation\ValidationData;
 use Laravel\SerializableClosure\SerializableClosure;
 use Laravel\SerializableClosure\Serializers\Native;
 use Laravel\SerializableClosure\Serializers\Signed;
 use Mockery as m;
 use Mockery\Exception\InvalidCountException;
 use Override;
+use PDO;
 use ReflectionClass;
 use ReflectionProperty;
 use RuntimeException;
+use Sentry\SentrySdk;
+use Sentry\State\RuntimeContext;
+use Sentry\State\RuntimeContextStorageInterface;
 use Symfony\Component\VarDumper\VarDumper;
 
 class AfterEachTestSubscriberTest extends TestCase
@@ -67,6 +84,7 @@ class AfterEachTestSubscriberTest extends TestCase
             JsonApiResource::class,
             HttpResponse::class,
             UploadedFile::class,
+            Image::class,
             InvokedProcess::class,
             NotificationFake::class,
         ];
@@ -171,6 +189,29 @@ class AfterEachTestSubscriberTest extends TestCase
         }
     }
 
+    public function testFrameworkCleanupFlushesValidationDataPlaceholderState(): void
+    {
+        ValidationData::encodeAttribute('profile\.name');
+        $placeholderHash = new ReflectionProperty(ValidationData::class, 'placeholderHash');
+
+        $this->assertIsString($placeholderHash->getValue());
+
+        $subscriber = new class extends AfterEachTestSubscriber {
+            public function flushFrameworkStateForTest(): void
+            {
+                $this->flushFrameworkState();
+            }
+        };
+
+        try {
+            $subscriber->flushFrameworkStateForTest();
+
+            $this->assertNull($placeholderHash->getValue());
+        } finally {
+            ValidationData::flushState();
+        }
+    }
+
     public function testFrameworkCleanupFlushesSerializableClosureGlobals(): void
     {
         SerializableClosure::setSecretKey('secret');
@@ -243,6 +284,181 @@ class AfterEachTestSubscriberTest extends TestCase
         } finally {
             NestedSet::flushState();
         }
+    }
+
+    public function testFrameworkCleanupFlushesNeutralAndPdoConnectionState(): void
+    {
+        $macro = 'databaseCleanupProbe';
+        Connection::macro($macro, static fn (): string => 'macro');
+        Connection::resolverFor('cleanup', static fn (): null => null);
+        PdoConnection::configureSessionUsing(new class implements SessionConfigurator {
+            public function state(PdoConnection $connection): ?string
+            {
+                return 'state';
+            }
+
+            public function apply(PDO $pdo, string $state, PdoConnection $connection): void
+            {
+            }
+        });
+
+        $connection = new PdoConnection(
+            new PDO('sqlite::memory:'),
+            ':memory:',
+            '',
+            ['driver' => 'sqlite', 'name' => 'cleanup']
+        );
+        $connection->getPdo();
+
+        $sessionConfigurators = new ReflectionProperty(PdoConnection::class, 'sessionConfigurators');
+        $physicalSessionStates = new ReflectionProperty(PdoConnection::class, 'physicalSessionStates');
+
+        $this->assertTrue(Connection::hasMacro($macro));
+        $this->assertNotNull(Connection::getResolver('cleanup'));
+        $this->assertCount(1, $sessionConfigurators->getValue());
+        $this->assertCount(1, $physicalSessionStates->getValue());
+
+        $subscriber = new class extends AfterEachTestSubscriber {
+            public function flushFrameworkStateForTest(): void
+            {
+                $this->flushFrameworkState();
+            }
+        };
+
+        try {
+            $subscriber->flushFrameworkStateForTest();
+
+            $this->assertFalse(Connection::hasMacro($macro));
+            $this->assertNull(Connection::getResolver('cleanup'));
+            $this->assertSame([], $sessionConfigurators->getValue());
+            $this->assertNull($physicalSessionStates->getValue());
+        } finally {
+            PdoConnection::flushState();
+        }
+    }
+
+    public function testDataCleanupFlushesEveryMacroableRegistry(): void
+    {
+        $classes = [
+            CursorPaginatedDataCollection::class,
+            DataCollection::class,
+            Lazy::class,
+            PaginatedDataCollection::class,
+        ];
+        $macro = 'dataCleanupProbe';
+
+        foreach ($classes as $class) {
+            $class::macro($macro, static fn (): string => 'macro');
+            $this->assertTrue($class::hasMacro($macro));
+        }
+
+        $subscriber = new class extends AfterEachTestSubscriber {
+            public function flushDataStateForTest(): void
+            {
+                $this->flushDataState();
+            }
+        };
+
+        try {
+            $subscriber->flushDataStateForTest();
+
+            foreach ($classes as $class) {
+                $this->assertFalse($class::hasMacro($macro));
+            }
+        } finally {
+            foreach ($classes as $class) {
+                $class::flushMacros();
+            }
+        }
+    }
+
+    public function testFrameworkCleanupFlushesSaloonStaticState(): void
+    {
+        $macro = 'saloonCleanupProbe';
+        SaloonConnector::macro($macro, static fn (): string => 'connector');
+        SaloonPendingRequest::macro($macro, static fn (): string => 'pending');
+        SaloonRequest::macro($macro, static fn (): string => 'request');
+        $methods = new ReflectionProperty(BootPlugins::class, 'methods');
+        $methods->setValue(null, [self::class => ['bootTesting']]);
+
+        $subscriber = new class extends AfterEachTestSubscriber {
+            public function flushSaloonStateForTest(): void
+            {
+                $this->flushSaloonState();
+            }
+        };
+
+        try {
+            $subscriber->flushSaloonStateForTest();
+
+            $this->assertFalse(SaloonConnector::hasMacro($macro));
+            $this->assertFalse(SaloonPendingRequest::hasMacro($macro));
+            $this->assertFalse(SaloonRequest::hasMacro($macro));
+            $this->assertSame([], $methods->getValue());
+        } finally {
+            SaloonConnector::flushState();
+            SaloonPendingRequest::flushState();
+            BootPlugins::flushState();
+            SaloonRequest::flushState();
+        }
+    }
+
+    public function testFrameworkCleanupFlushesSentrySdkState(): void
+    {
+        $storage = new class implements RuntimeContextStorageInterface {
+            public ?RuntimeContext $runtimeContext = null;
+
+            /**
+             * Return the stored runtime context.
+             */
+            public function get(): ?RuntimeContext
+            {
+                return $this->runtimeContext;
+            }
+
+            /**
+             * Store a runtime context.
+             */
+            public function set(RuntimeContext $runtimeContext): void
+            {
+                $this->runtimeContext = $runtimeContext;
+            }
+
+            /**
+             * Remove the stored runtime context.
+             */
+            public function remove(): ?RuntimeContext
+            {
+                $runtimeContext = $this->runtimeContext;
+                $this->runtimeContext = null;
+
+                return $runtimeContext;
+            }
+        };
+        SentrySdk::init();
+        SentrySdk::setRuntimeContextStorage($storage);
+        SentrySdk::startContext();
+        $previousHub = SentrySdk::getCurrentHub();
+
+        $subscriber = new class extends AfterEachTestSubscriber {
+            public function flushSentryStateForTest(): void
+            {
+                $this->flushSentryState();
+            }
+        };
+
+        $this->assertNotNull($storage->get());
+
+        $subscriber->flushSentryStateForTest();
+
+        $this->assertNull($storage->get());
+        $this->assertNotSame($previousHub, SentrySdk::getCurrentHub());
+
+        SentrySdk::startContext();
+
+        $this->assertNull($storage->get());
+
+        SentrySdk::endContext();
     }
 
     public function testTelescopeCleanupReleasesTheDumpHandler(): void

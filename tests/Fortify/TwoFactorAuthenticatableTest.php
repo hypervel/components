@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Fortify;
 
+use Hypervel\Contracts\Encryption\DecryptException;
 use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
@@ -14,6 +15,7 @@ use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Fortify\Fixtures\UserWithTwoFactor;
+use UnexpectedValueException;
 
 class TwoFactorAuthenticatableTest extends TestCase
 {
@@ -76,6 +78,59 @@ class TwoFactorAuthenticatableTest extends TestCase
         $this->assertNotContains('abc123', $freshCodes);
         $this->assertContains('def456', $freshCodes);
         Event::assertDispatchedTimes(RecoveryCodeReplaced::class, 1);
+    }
+
+    public function testRecoveryCodesReturnEmptyArrayWhenStateIsAbsent(): void
+    {
+        $user = UserWithTwoFactor::forceCreate([
+            'email' => 'taylor@example.test',
+            'two_factor_recovery_codes' => null,
+        ]);
+
+        $this->assertSame([], $user->fresh()->recoveryCodes());
+
+        $user->forceFill(['two_factor_recovery_codes' => ''])->save();
+
+        $this->assertSame([], $user->fresh()->recoveryCodes());
+    }
+
+    public function testRecoveryCodesReturnEncryptedEmptyArray(): void
+    {
+        $user = UserWithTwoFactor::forceCreate([
+            'email' => 'taylor@example.test',
+            'two_factor_recovery_codes' => Fortify::currentEncrypter()->encrypt(
+                json_encode([], JSON_THROW_ON_ERROR),
+            ),
+        ]);
+
+        $this->assertSame([], $user->fresh()->recoveryCodes());
+    }
+
+    public function testRecoveryCodesRejectMalformedCiphertext(): void
+    {
+        $user = UserWithTwoFactor::forceCreate([
+            'email' => 'taylor@example.test',
+            'two_factor_recovery_codes' => 'invalid-ciphertext',
+        ]);
+
+        $this->expectException(DecryptException::class);
+
+        $user->recoveryCodes();
+    }
+
+    public function testRecoveryCodesRejectDecodedNonArrayJson(): void
+    {
+        $user = UserWithTwoFactor::forceCreate([
+            'email' => 'taylor@example.test',
+            'two_factor_recovery_codes' => Fortify::currentEncrypter()->encrypt(
+                json_encode('not-an-array', JSON_THROW_ON_ERROR),
+            ),
+        ]);
+
+        $this->expectException(UnexpectedValueException::class);
+        $this->expectExceptionMessage('Two-factor recovery codes must decode to an array.');
+
+        $user->recoveryCodes();
     }
 
     public function testPersistedUserMissingTwoFactorSecretCannotReportAuthenticationState(): void

@@ -8,7 +8,7 @@ use RuntimeException;
 
 trait ListensForSignals
 {
-    protected const HANDLED_SIGNALS = [
+    protected const array HANDLED_SIGNALS = [
         SIGTERM,
         SIGUSR1,
         SIGUSR2,

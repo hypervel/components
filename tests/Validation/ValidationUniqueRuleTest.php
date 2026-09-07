@@ -30,7 +30,7 @@ class ValidationUniqueRuleTest extends TestCase
         ];
     }
 
-    public function testItCorrectlyFormatsAStringVersionOfTheRule()
+    public function testItCorrectlyFormatsAStringVersionOfTheRule(): void
     {
         $rule = new Unique('table');
         $rule->where('foo', 'bar');
@@ -78,9 +78,9 @@ class ValidationUniqueRuleTest extends TestCase
         $rule = new Unique('table', 'column');
         $rule->ignore('Taylor, Otwell"\'..-"', 'id_column');
         $rule->where('foo', 'bar');
-        $this->assertSame('unique:table,column,"Taylor, Otwell\"\\\'..-\"",id_column,foo,"bar"', (string) $rule);
-        $this->assertSame('Taylor, Otwell"\'..-"', stripslashes(str_getcsv('table,column,"Taylor, Otwell\"\\\'..-\"",id_column,foo,"bar"', escape: '\\')[2]));
-        $this->assertSame('id_column', stripslashes(str_getcsv('table,column,"Taylor, Otwell\"\\\'..-\"",id_column,foo,"bar"', escape: '\\')[3]));
+        $this->assertSame('unique:table,column,"Taylor, Otwell""\'..-""",id_column,foo,"bar"', (string) $rule);
+        $this->assertSame('Taylor, Otwell"\'..-"', str_getcsv('table,column,"Taylor, Otwell""\'..-""",id_column,foo,"bar"', escape: '')[2]);
+        $this->assertSame('id_column', str_getcsv('table,column,"Taylor, Otwell""\'..-""",id_column,foo,"bar"', escape: '')[3]);
 
         $rule = new Unique('table', 'column');
         $rule->ignore(null, 'id_column');
@@ -143,6 +143,34 @@ class ValidationUniqueRuleTest extends TestCase
         $rule->ignore($model, 'id_column');
         $rule->where('foo', 'bar');
         $this->assertSame('unique:table,column,NULL,id_column,foo,"bar"', (string) $rule);
+    }
+
+    public function testItPreservesZeroIgnoredIds(): void
+    {
+        $this->assertSame(
+            'unique:table,column,"0",id',
+            (string) (new Unique('table', 'column'))->ignore(0),
+        );
+        $this->assertSame(
+            'unique:table,column,"0",id',
+            (string) (new Unique('table', 'column'))->ignore('0'),
+        );
+        $this->assertSame(
+            'unique:table,column,"0",id',
+            (string) (new Unique('table', 'column'))->ignore(0.0),
+        );
+    }
+
+    public function testItNormalizesBooleanWhereValues(): void
+    {
+        $this->assertSame(
+            'unique:table,column,NULL,id,active,"0"',
+            (string) (new Unique('table', 'column'))->where('active', false),
+        );
+        $this->assertSame(
+            'unique:table,column,NULL,id,active,"!0"',
+            (string) (new Unique('table', 'column'))->whereNot('active', false),
+        );
     }
 
     public function testItHandlesWhereWithSpecialValues()

@@ -24,6 +24,7 @@ class RedisPoolTest extends TestCase
             'host' => 'redis',
             'port' => 16379,
             'database' => 0,
+            'timeout' => null,
             'pool' => [
                 'min_connections' => 1,
                 'max_connections' => 30,
@@ -70,11 +71,14 @@ class RedisPoolTest extends TestCase
         $redisConfig = new RedisConfig(new Repository([
             'database' => [
                 'redis' => [
+                    'options' => [],
                     'default' => [
                         'host' => 'redis',
                         'port' => 16379,
                         'database' => 0,
-                        'event' => ['enable' => false],
+                        'timeout' => null,
+                        'events' => false,
+                        'options' => [],
                         'pool' => [
                             'min_connections' => 1,
                             'max_connections' => 30,
@@ -94,8 +98,8 @@ class RedisPoolTest extends TestCase
 
         $redisConfig->enableEvents();
 
-        $this->assertFalse($pool->getConfig()['event']['enable']);
-        $this->assertTrue($redisConfig->connectionConfig('default')['event']['enable']);
+        $this->assertFalse($pool->getConfig()['events']);
+        $this->assertTrue($redisConfig->connectionConfig('default')['events']);
     }
 
     public function testLowFrequencyFlushClosesIdleConnections(): void
@@ -106,6 +110,7 @@ class RedisPoolTest extends TestCase
             'host' => 'redis',
             'port' => 16379,
             'database' => 0,
+            'timeout' => null,
             'pool' => [
                 'min_connections' => 1,
                 'max_connections' => 30,
@@ -147,6 +152,8 @@ class RedisPoolTest extends TestCase
     }
 
     /**
+     * Mock a container with the given Redis configuration.
+     *
      * @param array<string, mixed> $connectionConfig
      */
     private function mockContainerWithRedisConfig(array $connectionConfig): m\MockInterface|Container

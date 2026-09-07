@@ -17,8 +17,13 @@ use Hypervel\Grpc\Client\ClientStreamingCall;
 use Hypervel\Grpc\Client\RetryPolicy;
 use Hypervel\Grpc\Client\ServerStreamingCall;
 use Hypervel\Grpc\Client\UnaryCall;
+use Hypervel\Grpc\ClientGrpcOperation;
 use Hypervel\Grpc\Compression;
+use Hypervel\Grpc\Contracts\GrpcOperationObserver;
 use Hypervel\Grpc\Exceptions\RpcException;
+use Hypervel\Grpc\GrpcOperation;
+use Hypervel\Grpc\GrpcOperationResult;
+use Hypervel\Grpc\GrpcOperationRunner;
 use Hypervel\Grpc\Metadata;
 use Hypervel\Grpc\Protocol\FrameDecoder;
 use Hypervel\Grpc\Protocol\FrameEncoder;
@@ -33,6 +38,7 @@ use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use ReflectionMethod;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 use function Hypervel\Coroutine\parallel;
@@ -225,6 +231,113 @@ class BaseClientTest extends TestCase
         $this->assertSame(1, $client->prepareMetadataCalls);
     }
 
+    public function testLogicalObserversCoverEveryCallShapeAndInjectFinalMetadata(): void
+    {
+        $engineClient = new ClientCallClient;
+        $this->bindFactory(new ClientCallClientFactory($engineClient));
+        $started = [];
+        $finished = [];
+        Container::getInstance()->make(GrpcOperationRunner::class)->observe(
+            new BaseClientGrpcOperationObserverStub(
+                function (GrpcOperation $operation) use (&$started): int {
+                    $this->assertInstanceOf(ClientGrpcOperation::class, $operation);
+                    $started[] = $operation;
+                    $operation->withMetadata($operation->metadata()->with('traceparent', 'injected'));
+
+                    return count($started);
+                },
+                static function (
+                    GrpcOperation $operation,
+                    mixed $token,
+                    GrpcOperationResult $result,
+                ) use (&$finished): void {
+                    $finished[] = [$operation, $token, $result];
+                },
+            ),
+        );
+        $client = $this->newClient();
+        $argument = new StringValue;
+        $deserialize = [StringValue::class, 'decode'];
+        $calls = [
+            $client->unary('/testing.Service/Unary', $argument, $deserialize),
+            $client->clientStream('/testing.Service/ClientStream', $deserialize),
+            $client->serverStream('/testing.Service/ServerStream', $argument, $deserialize),
+            $client->bidi('/testing.Service/BidiStream', $deserialize),
+        ];
+
+        foreach ($calls as $call) {
+            $call->cancel();
+            $call->cancel();
+        }
+
+        $this->assertCount(4, $started);
+        $this->assertCount(4, $finished);
+        $this->assertSame(
+            ['Unary', 'ClientStream', 'ServerStream', 'BidiStream'],
+            array_map(
+                static fn (ClientGrpcOperation $operation): string => $operation->serviceMethod()->method,
+                $started,
+            ),
+        );
+
+        foreach ($engineClient->sentRequests as $request) {
+            $this->assertSame('injected', $request->getHeaders()['traceparent']);
+        }
+
+        foreach ($finished as [$operation, $token, $result]) {
+            $this->assertContains($operation, $started);
+            $this->assertIsInt($token);
+            $this->assertSame(StatusCode::Cancelled, $result->status?->code());
+            $this->assertNull($result->exception);
+            $this->assertSame(1, $result->attemptCount);
+        }
+    }
+
+    public function testPreTransportFailureFinishesTheLogicalOperationWithoutAnAttempt(): void
+    {
+        $engineClient = new ClientCallClient;
+        $this->bindFactory(new ClientCallClientFactory($engineClient));
+        $finishedResult = null;
+        Container::getInstance()->make(GrpcOperationRunner::class)->observe(
+            new BaseClientGrpcOperationObserverStub(
+                function (GrpcOperation $operation): null {
+                    $this->assertInstanceOf(ClientGrpcOperation::class, $operation);
+                    $operation->withMetadata($operation->metadata()->with(
+                        'x-large',
+                        str_repeat('x', 1024),
+                    ));
+
+                    return null;
+                },
+                static function (
+                    GrpcOperation $operation,
+                    mixed $token,
+                    GrpcOperationResult $result,
+                ) use (&$finishedResult): void {
+                    $finishedResult = $result;
+                },
+            ),
+        );
+        $client = $this->newClient(options: ['max_metadata_size' => 256]);
+
+        try {
+            $client->unary(
+                '/testing.Service/Unary',
+                new StringValue,
+                [StringValue::class, 'decode'],
+            );
+            $this->fail('Expected oversized observed metadata to fail before transport start.');
+        } catch (RpcException $exception) {
+            $this->assertSame(StatusCode::ResourceExhausted, $exception->status()->code());
+        }
+
+        $this->assertInstanceOf(GrpcOperationResult::class, $finishedResult);
+        $this->assertSame(StatusCode::ResourceExhausted, $finishedResult->status?->code());
+        $this->assertInstanceOf(RpcException::class, $finishedResult->exception);
+        $this->assertSame(0, $finishedResult->attemptCount);
+        $this->assertSame([], $engineClient->sentRequests);
+    }
+
     public function testUnaryRetryReusesPreparedMetadataSnapshot(): void
     {
         $engineClient = new ClientCallClient;
@@ -325,7 +438,7 @@ class BaseClientTest extends TestCase
                 'certificate' => __FILE__,
                 'private_key' => __FILE__,
                 'passphrase' => 'secret',
-                'server_name' => 'peer.example.test',
+                'server_name' => 'peer.example.test.',
             ],
             'swoole' => [
                 'write_timeout' => 9.0,
@@ -353,10 +466,27 @@ class BaseClientTest extends TestCase
                 'ssl_cert_file' => __FILE__,
                 'ssl_key_file' => __FILE__,
                 'ssl_passphrase' => 'secret',
-                'ssl_host_name' => 'peer.example.test',
+                'ssl_host_name' => 'peer.example.test.',
                 'socket_buffer_size' => 4096,
             ],
         ]], $factory->calls);
+    }
+
+    public function testAbsoluteDnsTargetPreservesAuthorityAndNormalizesOnlyDefaultSni(): void
+    {
+        $engineClient = new ClientCallClient;
+        $factory = new ClientCallClientFactory($engineClient);
+        $client = $this->client($factory, target: 'https://Example.Test.');
+
+        $client->unary(
+            '/testing.Service/Unary',
+            new StringValue,
+            [StringValue::class, 'decode'],
+        );
+
+        $this->assertSame('example.test.', $factory->calls[0]['host']);
+        $this->assertSame('example.test', $factory->calls[0]['settings']['ssl_host_name']);
+        $this->assertSame('example.test.:443', $engineClient->sentRequests[0]->getHeaders()['host']);
     }
 
     #[DataProvider('invalidClientOptions')]
@@ -418,6 +548,41 @@ class BaseClientTest extends TestCase
         yield 'invalid native timeout fallback' => [[
             'swoole' => ['timeout' => -1],
         ], 'timeout setting must be a positive finite'];
+    }
+
+    #[DataProvider('reservedSwooleTlsSettingProvider')]
+    public function testRejectsRawSwooleTlsSettingsForPlaintextAndTlsTargets(string $setting): void
+    {
+        foreach (['example.test:50051', 'https://example.test:50051'] as $target) {
+            $this->bindFactory(new ClientCallClientFactory(new ClientCallClient));
+
+            try {
+                new TestingBaseClient($target, [
+                    'swoole' => [$setting => 'override'],
+                ]);
+                $this->fail("Expected raw Swoole TLS setting [{$setting}] to be rejected.");
+            } catch (InvalidArgumentException $exception) {
+                $this->assertSame(
+                    "The gRPC Swoole {$setting} setting is owned by the first-class tls option.",
+                    $exception->getMessage(),
+                );
+            }
+        }
+    }
+
+    /**
+     * Return Swoole settings reserved by first-class TLS options.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function reservedSwooleTlsSettingProvider(): iterable
+    {
+        yield 'verify peer' => ['ssl_verify_peer'];
+        yield 'CA file' => ['ssl_cafile'];
+        yield 'certificate' => ['ssl_cert_file'];
+        yield 'private key' => ['ssl_key_file'];
+        yield 'passphrase' => ['ssl_passphrase'];
+        yield 'server name' => ['ssl_host_name'];
     }
 
     public function testNativeTimeoutSuppliesTheBaselineWriteTimeout(): void
@@ -647,20 +812,22 @@ class BaseClientTest extends TestCase
         $this->bindFactory(new ClientCallClientFactory(...$engineClients));
         $first = $this->newClient(options: ['connections' => 2]);
         $second = $this->newClient(options: ['connections' => 2]);
+        $calls = [];
 
         for ($index = 0; $index < 3; ++$index) {
-            $first->unary(
+            $calls[] = $first->unary(
                 '/testing.Service/Unary',
                 new StringValue,
                 [StringValue::class, 'decode'],
             );
-            $second->unary(
+            $calls[] = $second->unary(
                 '/testing.Service/Unary',
                 new StringValue,
                 [StringValue::class, 'decode'],
             );
         }
 
+        $this->assertCount(6, $calls);
         $this->assertSame(
             [2, 2, 1, 1],
             array_map(static fn (ClientCallClient $client): int => count($client->sentRequests), $engineClients),
@@ -787,6 +954,42 @@ class BaseClientTest extends TestCase
         );
     }
 
+    public function testCloseDrainsEveryConnectionAndPreservesTheFirstCancellation(): void
+    {
+        $firstCancellation = new CanceledException;
+        $secondCancellation = new CanceledException;
+        $engineClients = [
+            $this->clientThatFailsToClose(new LogicException('ordinary close failure')),
+            $this->clientThatFailsToClose($firstCancellation),
+            $this->clientThatFailsToClose($secondCancellation),
+            new ClientCallClient,
+        ];
+        $client = $this->client(
+            new ClientCallClientFactory(...$engineClients),
+            ['connections' => count($engineClients)],
+        );
+
+        foreach ($engineClients as $_) {
+            $client->unary(
+                '/testing.Service/Unary',
+                new StringValue,
+                [StringValue::class, 'decode'],
+            );
+        }
+
+        try {
+            $client->close();
+            $this->fail('Expected cancellation to propagate after every connection was closed.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($firstCancellation, $exception);
+        }
+
+        $this->assertSame(
+            [1, 1, 1, 1],
+            array_map(static fn (ClientCallClient $engineClient): int => $engineClient->closeCount, $engineClients),
+        );
+    }
+
     public function testGeneratedRequestMethodsRetainTheirProtectedNamesAndArgumentOrder(): void
     {
         foreach ([
@@ -892,6 +1095,26 @@ class BaseClientTest extends TestCase
     private function serialized(string $value): string
     {
         return (new StringValue)->setValue($value)->serializeToString();
+    }
+
+    /**
+     * Create an engine client that fails after completing native close cleanup.
+     */
+    private function clientThatFailsToClose(Throwable $failure): ClientCallClient
+    {
+        return new class($failure) extends ClientCallClient {
+            public function __construct(private readonly Throwable $failure)
+            {
+                parent::__construct();
+            }
+
+            public function close(): void
+            {
+                parent::close();
+
+                throw $this->failure;
+            }
+        };
     }
 }
 
@@ -1021,5 +1244,27 @@ class DelayedClientCallClientFactory extends ClientCallClientFactory
         }
 
         return parent::make($host, $port, $ssl, $settings);
+    }
+}
+
+class BaseClientGrpcOperationObserverStub implements GrpcOperationObserver
+{
+    public function __construct(
+        private readonly Closure $startingCallback,
+        private readonly Closure $finishedCallback,
+    ) {
+    }
+
+    public function starting(GrpcOperation $operation): mixed
+    {
+        return ($this->startingCallback)($operation);
+    }
+
+    public function finished(
+        GrpcOperation $operation,
+        mixed $token,
+        GrpcOperationResult $result,
+    ): void {
+        ($this->finishedCallback)($operation, $token, $result);
     }
 }

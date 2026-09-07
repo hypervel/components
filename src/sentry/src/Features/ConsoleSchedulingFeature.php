@@ -162,10 +162,7 @@ class ConsoleSchedulingFeature extends Feature
             ? SpanStatus::ok()
             : SpanStatus::internalError();
 
-        // Gate maybePopScope's flush so duplicate terminal events do not flush twice.
-        if ($this->maybeFinishSpan($status) !== null) {
-            $this->maybePopScope();
-        }
+        $this->maybeFinishSpan($status);
     }
 
     /**
@@ -173,9 +170,7 @@ class ConsoleSchedulingFeature extends Feature
      */
     public function handleScheduledTaskFailed(): void
     {
-        if ($this->maybeFinishSpan(SpanStatus::internalError()) !== null) {
-            $this->maybePopScope();
-        }
+        $this->maybeFinishSpan(SpanStatus::internalError());
     }
 
     private function startCheckIn(

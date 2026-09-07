@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\MariaDb;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use PDO;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
@@ -12,11 +13,11 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 #[RequiresPhpExtension('pdo_mysql')]
 class DatabaseEmulatePreparesMariaDbConnectionTest extends DatabaseMariaDbConnectionTest
 {
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
 
-        $app['config']->set('database.connections.mariadb.options', [
+        $app->make('config')->set('database.connections.mariadb.options', [
             PDO::ATTR_EMULATE_PREPARES => true,
         ]);
     }

@@ -7,11 +7,26 @@ namespace Hypervel\Tests\Integration\Horizon\Feature;
 use Exception;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\JobPayload;
+use Hypervel\Horizon\Repositories\RedisJobRepository;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
-use Throwable;
 
 class RedisJobRepositoryTest extends IntegrationTestCase
 {
+    public function testOmittedRetentionSettingsUseRepositoryDefaults(): void
+    {
+        config()->set('horizon.trim', []);
+
+        $repository = $this->app->make(JobRepository::class);
+
+        $this->assertInstanceOf(RedisJobRepository::class, $repository);
+        $this->assertSame(RedisJobRepository::DEFAULT_RECENT_JOB_RETENTION, $repository->recentJobExpires);
+        $this->assertSame(60, $repository->pendingJobExpires);
+        $this->assertSame(60, $repository->completedJobExpires);
+        $this->assertSame(RedisJobRepository::DEFAULT_FAILED_JOB_RETENTION, $repository->failedJobExpires);
+        $this->assertSame($repository->failedJobExpires, $repository->recentFailedJobExpires);
+        $this->assertSame(RedisJobRepository::DEFAULT_MONITORED_JOB_RETENTION, $repository->monitoredJobExpires);
+    }
+
     public function testItCanFindAFailedJobByItsId()
     {
         $repository = $this->app->make(JobRepository::class);
@@ -34,7 +49,7 @@ class RedisJobRepositoryTest extends IntegrationTestCase
 
     public function testItSavesMicrosecondsAsAFloatAndDisregardsTheLocale()
     {
-        $originalLocale = setlocale(LC_NUMERIC, 0);
+        $originalLocale = setlocale(LC_NUMERIC, '0');
 
         setlocale(LC_NUMERIC, 'fr_FR');
 
@@ -49,10 +64,8 @@ class RedisJobRepositoryTest extends IntegrationTestCase
 
             $this->assertEquals('1', $result->id);
             $this->assertStringNotContainsString(',', $result->reserved_at);
-        } catch (Throwable $e) {
+        } finally {
             setlocale(LC_NUMERIC, $originalLocale);
-
-            throw $e;
         }
     }
 

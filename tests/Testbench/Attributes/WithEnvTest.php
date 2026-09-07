@@ -17,16 +17,49 @@ class WithEnvTest extends TestCase
     public function itCanResolveDefinedEnvVariables(): void
     {
         $attribute = new WithEnv('TESTING_USING_ATTRIBUTE', '(true)');
+        $callback = null;
+
+        try {
+            $this->assertNull(Env::get('TESTING_USING_ATTRIBUTE'));
+
+            $callback = $attribute(m::mock(ApplicationContract::class));
+
+            $this->assertTrue(Env::get('TESTING_USING_ATTRIBUTE'));
+        } finally {
+            if ($callback !== null) {
+                value($callback);
+            }
+        }
 
         $this->assertNull(Env::get('TESTING_USING_ATTRIBUTE'));
+    }
 
-        $callback = $attribute(m::mock(ApplicationContract::class));
+    #[Test]
+    public function itCanResolveSpecialCharactersAndZero(): void
+    {
+        $value = "O'Reilly\\path\" \$HOME\nline\rreturn\fform\ttab\vvertical # hash";
+        $app = m::mock(ApplicationContract::class);
+        $specialCallback = null;
+        $zeroCallback = null;
 
-        $this->assertTrue(Env::get('TESTING_USING_ATTRIBUTE'));
+        try {
+            $specialCallback = (new WithEnv('TESTING_SPECIAL_ATTRIBUTE', $value))($app);
+            $zeroCallback = (new WithEnv('TESTING_ZERO_ATTRIBUTE', '0'))($app);
 
-        value($callback);
+            $this->assertSame($value, Env::get('TESTING_SPECIAL_ATTRIBUTE'));
+            $this->assertSame('0', Env::get('TESTING_ZERO_ATTRIBUTE'));
+        } finally {
+            if ($zeroCallback !== null) {
+                value($zeroCallback);
+            }
 
-        $this->assertNull(Env::get('TESTING_USING_ATTRIBUTE'));
+            if ($specialCallback !== null) {
+                value($specialCallback);
+            }
+        }
+
+        $this->assertNull(Env::get('TESTING_SPECIAL_ATTRIBUTE'));
+        $this->assertNull(Env::get('TESTING_ZERO_ATTRIBUTE'));
     }
 
     #[Test]
@@ -38,20 +71,29 @@ class WithEnvTest extends TestCase
     #[Test]
     public function itCannotChangeDefinedEnvVariables(): void
     {
-        $_ENV['HYPERVEL_KEY'] = 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF';
+        $callback = null;
 
-        $attribute = new WithEnv('HYPERVEL_KEY', 'hypervel');
+        try {
+            $_ENV['HYPERVEL_KEY'] = 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF';
 
-        $this->assertSame('AckfSECXIvnK5r28GVIWUAxmbBSjTsmF', Env::get('HYPERVEL_KEY'));
+            $attribute = new WithEnv('HYPERVEL_KEY', 'hypervel');
 
-        $callback = $attribute(m::mock(ApplicationContract::class));
+            $this->assertSame('AckfSECXIvnK5r28GVIWUAxmbBSjTsmF', Env::get('HYPERVEL_KEY'));
 
-        $this->assertSame('AckfSECXIvnK5r28GVIWUAxmbBSjTsmF', Env::get('HYPERVEL_KEY'));
+            $callback = $attribute(m::mock(ApplicationContract::class));
 
-        value($callback);
+            $this->assertSame('AckfSECXIvnK5r28GVIWUAxmbBSjTsmF', Env::get('HYPERVEL_KEY'));
 
-        $this->assertSame('AckfSECXIvnK5r28GVIWUAxmbBSjTsmF', Env::get('HYPERVEL_KEY'));
+            value($callback);
+            $callback = null;
 
-        unset($_ENV['HYPERVEL_KEY']);
+            $this->assertSame('AckfSECXIvnK5r28GVIWUAxmbBSjTsmF', Env::get('HYPERVEL_KEY'));
+        } finally {
+            if ($callback !== null) {
+                value($callback);
+            }
+
+            unset($_ENV['HYPERVEL_KEY']);
+        }
     }
 }

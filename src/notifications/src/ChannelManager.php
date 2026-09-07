@@ -7,6 +7,7 @@ namespace Hypervel\Notifications;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Notifications\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Notifications\Factory as FactoryContract;
 use Hypervel\Notifications\Channels\BroadcastChannel;
@@ -27,12 +28,12 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
     /**
      * Context key for the per-request default channel override.
      */
-    protected const DEFAULT_CHANNEL_CONTEXT_KEY = '__notifications.default_channel';
+    protected const string DEFAULT_CHANNEL_CONTEXT_KEY = '__notifications.default_channel';
 
     /**
      * Context key for the per-request default locale override.
      */
-    protected const DEFAULT_LOCALE_CONTEXT_KEY = '__notifications.default_locale';
+    protected const string DEFAULT_LOCALE_CONTEXT_KEY = '__notifications.default_locale';
 
     /**
      * The default channel used to deliver messages.
@@ -149,7 +150,13 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     public function deliverVia(string $channel): void
     {
-        CoroutineContext::set(self::DEFAULT_CHANNEL_CONTEXT_KEY, $channel);
+        if ($this->applicationIsBooted()) {
+            CoroutineContext::set(self::DEFAULT_CHANNEL_CONTEXT_KEY, $channel);
+
+            return;
+        }
+
+        $this->defaultChannel = $channel;
     }
 
     /**
@@ -157,7 +164,11 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     public function locale(string $locale): static
     {
-        CoroutineContext::set(self::DEFAULT_LOCALE_CONTEXT_KEY, $locale);
+        if ($this->applicationIsBooted()) {
+            CoroutineContext::set(self::DEFAULT_LOCALE_CONTEXT_KEY, $locale);
+        } else {
+            $this->locale = $locale;
+        }
 
         return $this;
     }
@@ -168,6 +179,14 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
     public function getLocale(): ?string
     {
         return CoroutineContext::get(self::DEFAULT_LOCALE_CONTEXT_KEY, $this->locale);
+    }
+
+    /**
+     * Determine if the application has finished booting.
+     */
+    private function applicationIsBooted(): bool
+    {
+        return $this->container instanceof Application && $this->container->isBooted();
     }
 
     /**

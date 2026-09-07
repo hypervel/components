@@ -19,22 +19,21 @@ use Egulias\EmailValidator\Validation\RFCValidation;
 use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Exceptions\MathException;
 use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Json;
 use Hypervel\Support\Str;
-use Hypervel\Validation\Enums\SizeMode;
 use Hypervel\Validation\FakeDnsGetRecordWrapper;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\Unique;
 use Hypervel\Validation\ValidationData;
 use Hypervel\Validation\ValidationRuleParser;
 use InvalidArgumentException;
-use SplFileInfo;
 use Stringable;
 use Symfony\Component\HttpFoundation\File\File;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use ValueError;
 
 use function with;
@@ -416,7 +415,37 @@ trait ValidatesAttributes
             return true;
         }
 
-        return empty(array_diff_key($value, array_fill_keys($parameters, '')));
+        return empty(array_diff_key($value, $this->acceptedArrayKeys($parameters)));
+    }
+
+    /**
+     * Get the accepted literal and encoded array keys.
+     *
+     * @param array<int, int|string> $parameters
+     * @return array<int|string, string>
+     */
+    protected function acceptedArrayKeys(array $parameters): array
+    {
+        // Validator data has encoded keys, while direct validation calls may supply literal keys.
+        $keys = array_fill_keys($parameters, '');
+
+        return $keys + ValidationData::encodeKeys($keys);
+    }
+
+    /**
+     * Validate that an array does not contain any keys other than the given keys.
+     *
+     * @param array<int, int|string> $parameters
+     */
+    public function validateArrayKeys(string $attribute, mixed $value, array $parameters): bool
+    {
+        $this->requireParameterCount(1, $parameters, 'array_keys');
+
+        if (! is_array($value)) {
+            return false;
+        }
+
+        return empty(array_diff_key($value, $this->acceptedArrayKeys($parameters)));
     }
 
     /**
@@ -438,8 +467,8 @@ trait ValidatesAttributes
             return false;
         }
 
-        foreach ($parameters as $param) {
-            if (! Arr::exists($value, $param)) {
+        foreach ($parameters as $parameter) {
+            if (! Arr::exists($value, $parameter) && ! Arr::exists($value, ValidationData::encodeKey((string) $parameter))) {
                 return false;
             }
         }
@@ -456,10 +485,14 @@ trait ValidatesAttributes
     {
         $this->requireParameterCount(2, $parameters, 'between');
 
-        return with(
-            BigNumber::of((string) $this->getSize($attribute, $value)),
-            fn ($size) => $size->isGreaterThanOrEqualTo($this->trim($parameters[0])) && $size->isLessThanOrEqualTo($this->trim($parameters[1]))
-        );
+        try {
+            $size = BigNumber::of((string) $this->getSize($attribute, $value));
+
+            return $size->isGreaterThanOrEqualTo($this->trim($parameters[0]))
+                && $size->isLessThanOrEqualTo($this->trim($parameters[1]));
+        } catch (MathException|BrickMathException) {
+            return false;
+        }
     }
 
     /**
@@ -616,9 +649,10 @@ trait ValidatesAttributes
         }
 
         try {
-            $date = DateTime::createFromFormat('!' . $format, (string) $value, new DateTimeZone('UTC'));
+            $stringValue = (string) $value;
+            $date = DateTime::createFromFormat('!' . $format, $stringValue, new DateTimeZone('UTC'));
 
-            return $date !== false && $date->format($format) == $value;
+            return $date !== false && $date->format($format) === $stringValue;
         } catch (ValueError) {
             return false;
         }
@@ -899,13 +933,17 @@ trait ValidatesAttributes
         $validations = (new Collection($parameters))
             ->unique()
             ->map(fn ($validation) => match (true) {
+                $validation === 'rfc' => new RFCValidation,
                 $validation === 'strict' => new NoRFCWarningsValidation,
                 $validation === 'dns' => new DNSCheckValidation(static::$fakeDnsLookups ? new FakeDnsGetRecordWrapper : null),
                 $validation === 'spoof' => new SpoofCheckValidation,
                 $validation === 'filter' => new FilterEmailValidation,
                 $validation === 'filter_unicode' => FilterEmailValidation::unicode(),
                 is_string($validation) && class_exists($validation) => $this->container->make($validation),
-                default => new RFCValidation,
+                default => throw new InvalidArgumentException(sprintf(
+                    'Validation rule email parameter [%s] is not supported.',
+                    is_string($validation) ? $validation : get_debug_type($validation),
+                )),
             })
             ->values()
             ->all() ?: [new RFCValidation];
@@ -1028,7 +1066,7 @@ trait ValidatesAttributes
             [$idColumn, $id] = $this->getUniqueIds($idColumn, $parameters);
 
             if (! is_null($id)) {
-                $id = stripslashes((string) $id);
+                $id = (string) $id;
             }
         }
 
@@ -1101,9 +1139,16 @@ trait ValidatesAttributes
 
     /**
      * Parse the connection / table for the unique / exists rules.
+     *
+     * @return array{0: ?string, 1: string, 2: ?string}
      */
     public function parseTable(string $table): array
     {
+        if (isset($this->parsedTables[$table])) {
+            return $this->parsedTables[$table];
+        }
+
+        $tableParameter = $table;
         [$connection, $table] = str_contains($table, '.') ? explode('.', $table, 2) : [null, $table];
 
         if (str_contains($table, '\\') && class_exists($table) && is_a($table, Model::class, true)) {
@@ -1119,7 +1164,7 @@ trait ValidatesAttributes
             $idColumn = $model->getKeyName();
         }
 
-        return [$connection, $table, $idColumn ?? null];
+        return $this->parsedTables[$tableParameter] = [$connection, $table, $idColumn ?? null];
     }
 
     /**
@@ -1214,7 +1259,11 @@ trait ValidatesAttributes
         $this->shouldBeNumeric($attribute, 'Gt');
 
         if (is_null($comparedToValue) && (is_numeric($value) && is_numeric($parameters[0]))) {
-            return BigNumber::of((string) $this->getSize($attribute, $value))->isGreaterThan($this->trim($parameters[0]));
+            try {
+                return BigNumber::of((string) $this->getSize($attribute, $value))->isGreaterThan($this->trim($parameters[0]));
+            } catch (MathException|BrickMathException) {
+                return false;
+            }
         }
 
         if (is_numeric($parameters[0])) {
@@ -1222,14 +1271,22 @@ trait ValidatesAttributes
         }
 
         if ($this->hasRule($attribute, $this->numericRules) && is_numeric($value) && is_numeric($comparedToValue)) {
-            return BigNumber::of((string) $this->trim($value))->isGreaterThan((string) $this->trim($comparedToValue));
+            try {
+                return BigNumber::of((string) $this->trim($value))->isGreaterThan((string) $this->trim($comparedToValue));
+            } catch (MathException|BrickMathException) {
+                return false;
+            }
         }
 
         if (! $this->isSameType($value, $comparedToValue)) {
             return false;
         }
 
-        return $this->getSize($attribute, $value) > $this->getSize($attribute, $comparedToValue);
+        try {
+            return $this->getSize($attribute, $value) > $this->getSize($attribute, $comparedToValue);
+        } catch (MathException) {
+            return false;
+        }
     }
 
     /**
@@ -1246,7 +1303,11 @@ trait ValidatesAttributes
         $this->shouldBeNumeric($attribute, 'Lt');
 
         if (is_null($comparedToValue) && (is_numeric($value) && is_numeric($parameters[0]))) {
-            return BigNumber::of((string) $this->getSize($attribute, $value))->isLessThan($this->trim($parameters[0]));
+            try {
+                return BigNumber::of((string) $this->getSize($attribute, $value))->isLessThan($this->trim($parameters[0]));
+            } catch (MathException|BrickMathException) {
+                return false;
+            }
         }
 
         if (is_numeric($parameters[0])) {
@@ -1254,14 +1315,22 @@ trait ValidatesAttributes
         }
 
         if ($this->hasRule($attribute, $this->numericRules) && is_numeric($value) && is_numeric($comparedToValue)) {
-            return BigNumber::of((string) $this->trim($value))->isLessThan((string) $this->trim($comparedToValue));
+            try {
+                return BigNumber::of((string) $this->trim($value))->isLessThan((string) $this->trim($comparedToValue));
+            } catch (MathException|BrickMathException) {
+                return false;
+            }
         }
 
         if (! $this->isSameType($value, $comparedToValue)) {
             return false;
         }
 
-        return $this->getSize($attribute, $value) < $this->getSize($attribute, $comparedToValue);
+        try {
+            return $this->getSize($attribute, $value) < $this->getSize($attribute, $comparedToValue);
+        } catch (MathException) {
+            return false;
+        }
     }
 
     /**
@@ -1278,7 +1347,11 @@ trait ValidatesAttributes
         $this->shouldBeNumeric($attribute, 'Gte');
 
         if (is_null($comparedToValue) && (is_numeric($value) && is_numeric($parameters[0]))) {
-            return BigNumber::of((string) $this->getSize($attribute, $value))->isGreaterThanOrEqualTo($this->trim($parameters[0]));
+            try {
+                return BigNumber::of((string) $this->getSize($attribute, $value))->isGreaterThanOrEqualTo($this->trim($parameters[0]));
+            } catch (MathException|BrickMathException) {
+                return false;
+            }
         }
 
         if (is_numeric($parameters[0])) {
@@ -1286,14 +1359,22 @@ trait ValidatesAttributes
         }
 
         if ($this->hasRule($attribute, $this->numericRules) && is_numeric($value) && is_numeric($comparedToValue)) {
-            return BigNumber::of((string) $this->trim($value))->isGreaterThanOrEqualTo((string) $this->trim($comparedToValue));
+            try {
+                return BigNumber::of((string) $this->trim($value))->isGreaterThanOrEqualTo((string) $this->trim($comparedToValue));
+            } catch (MathException|BrickMathException) {
+                return false;
+            }
         }
 
         if (! $this->isSameType($value, $comparedToValue)) {
             return false;
         }
 
-        return $this->getSize($attribute, $value) >= $this->getSize($attribute, $comparedToValue);
+        try {
+            return $this->getSize($attribute, $value) >= $this->getSize($attribute, $comparedToValue);
+        } catch (MathException) {
+            return false;
+        }
     }
 
     /**
@@ -1310,7 +1391,11 @@ trait ValidatesAttributes
         $this->shouldBeNumeric($attribute, 'Lte');
 
         if (is_null($comparedToValue) && (is_numeric($value) && is_numeric($parameters[0]))) {
-            return BigNumber::of((string) $this->getSize($attribute, $value))->isLessThanOrEqualTo($this->trim($parameters[0]));
+            try {
+                return BigNumber::of((string) $this->getSize($attribute, $value))->isLessThanOrEqualTo($this->trim($parameters[0]));
+            } catch (MathException|BrickMathException) {
+                return false;
+            }
         }
 
         if (is_numeric($parameters[0])) {
@@ -1318,14 +1403,22 @@ trait ValidatesAttributes
         }
 
         if ($this->hasRule($attribute, $this->numericRules) && is_numeric($value) && is_numeric($comparedToValue)) {
-            return BigNumber::of((string) $this->trim($value))->isLessThanOrEqualTo((string) $this->trim($comparedToValue));
+            try {
+                return BigNumber::of((string) $this->trim($value))->isLessThanOrEqualTo((string) $this->trim($comparedToValue));
+            } catch (MathException|BrickMathException) {
+                return false;
+            }
         }
 
         if (! $this->isSameType($value, $comparedToValue)) {
             return false;
         }
 
-        return $this->getSize($attribute, $value) <= $this->getSize($attribute, $comparedToValue);
+        try {
+            return $this->getSize($attribute, $value) <= $this->getSize($attribute, $comparedToValue);
+        } catch (MathException) {
+            return false;
+        }
     }
 
     /**
@@ -1360,9 +1453,9 @@ trait ValidatesAttributes
      */
     public function validateImage(string $attribute, mixed $value, array $parameters = []): bool
     {
-        $mimes = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+        $mimes = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'avif', 'heic', 'heif'];
 
-        if (in_array('allow_svg', $parameters)) {
+        if (in_array('allow_svg', $parameters, true)) {
             $mimes[] = 'svg';
         }
 
@@ -1432,8 +1525,8 @@ trait ValidatesAttributes
             return false;
         }
 
-        foreach ($parameters as $param) {
-            if (Arr::exists($value, $param)) {
+        foreach ($parameters as $parameter) {
+            if (Arr::exists($value, $parameter) || Arr::exists($value, ValidationData::encodeKey((string) $parameter))) {
                 return true;
             }
         }
@@ -1516,22 +1609,11 @@ trait ValidatesAttributes
      */
     public function validateJson(string $attribute, mixed $value): bool
     {
-        if (is_array($value) || is_null($value)) {
+        if (! is_scalar($value) && ! $value instanceof Stringable) {
             return false;
         }
 
-        if (! is_scalar($value) && ! method_exists($value, '__toString')) {
-            return false;
-        }
-
-        $value = (string) $value;
-        if (function_exists('json_validate')) {
-            return json_validate($value);
-        }
-
-        json_decode($value);
-
-        return json_last_error() === JSON_ERROR_NONE;
+        return Json::validate((string) $value);
     }
 
     /**
@@ -1547,7 +1629,11 @@ trait ValidatesAttributes
             return false;
         }
 
-        return BigNumber::of((string) $this->getSize($attribute, $value))->isLessThanOrEqualTo($this->trim($parameters[0]));
+        try {
+            return BigNumber::of((string) $this->getSize($attribute, $value))->isLessThanOrEqualTo($this->trim($parameters[0]));
+        } catch (MathException|BrickMathException) {
+            return false;
+        }
     }
 
     /**
@@ -1646,7 +1732,11 @@ trait ValidatesAttributes
     {
         $this->requireParameterCount(1, $parameters, 'min');
 
-        return BigNumber::of((string) $this->getSize($attribute, $value))->isGreaterThanOrEqualTo($this->trim($parameters[0]));
+        try {
+            return BigNumber::of((string) $this->getSize($attribute, $value))->isGreaterThanOrEqualTo($this->trim($parameters[0]));
+        } catch (MathException|BrickMathException) {
+            return false;
+        }
     }
 
     /**
@@ -1952,7 +2042,7 @@ trait ValidatesAttributes
         if (is_countable($value) && count($value) < 1) {
             return false;
         }
-        if ($value instanceof SplFileInfo) {
+        if ($value instanceof File) {
             return (string) $value->getPath() !== '';
         }
 
@@ -2327,7 +2417,11 @@ trait ValidatesAttributes
     {
         $this->requireParameterCount(1, $parameters, 'size');
 
-        return BigNumber::of((string) $this->getSize($attribute, $value))->isEqualTo($this->trim($parameters[0]));
+        try {
+            return BigNumber::of((string) $this->getSize($attribute, $value))->isEqualTo($this->trim($parameters[0]));
+        } catch (MathException|BrickMathException) {
+            return false;
+        }
     }
 
     /**
@@ -2480,49 +2574,27 @@ trait ValidatesAttributes
      */
     protected function getSize(string $attribute, mixed $value): float|int|string
     {
-        $hasNumeric = $this->hasRule($attribute, $this->numericRules);
-
-        // This method will determine if the attribute is a number, string, or file and
-        // return the proper size accordingly. If it is a number, then number itself
-        // is the size. If it is a file, we take kilobytes, and for a string the
-        // entire length of the string will be considered the attribute size.
-        if (is_numeric($value) && $hasNumeric) {
-            return $this->ensureExponentWithinAllowedRange($attribute, $this->trim($value));
-        }
-        if (is_array($value)) {
-            return count($value);
-        }
-        if ($value instanceof SplFileInfo) {
-            return $value->getSize() / 1024;
-        }
-
-        return mb_strlen((string) $value);
+        return $this->sizeOf(
+            $attribute,
+            $value,
+            $this->hasRule($attribute, $this->numericRules),
+        );
     }
 
     /**
-     * Compute a value's "size" given a pre-resolved mode.
-     *
-     * Mirrors getSize() but takes an explicit SizeMode instead of scanning
-     * sibling rules at runtime. Uses value-first dispatch: when mode is
-     * Numeric AND the value is numeric, returns the trimmed numeric value;
-     * otherwise falls through to array count / file size / string length.
-     *
-     * This ordering is load-bearing: a mode-first version would throw
-     * NumberFormatException when a `min:X|numeric` rule runs before the
-     * numeric type check with a non-numeric value (e.g., 'abc'). getSize()
-     * falls back to string length in that situation; this helper must match.
+     * Compute the validation size from numeric semantics and runtime value shape.
      */
-    protected function sizeOf(mixed $value, SizeMode $mode): float|int|string
+    protected function sizeOf(string $attribute, mixed $value, bool $numeric): float|int|string
     {
-        if ($mode === SizeMode::Numeric && is_numeric($value)) {
-            return $this->trim($value);
+        if ($numeric && is_numeric($value)) {
+            return $this->ensureExponentWithinAllowedRange($attribute, $this->trim($value));
         }
 
         if (is_array($value)) {
             return count($value);
         }
 
-        if ($value instanceof SplFileInfo) {
+        if ($value instanceof File) {
             return $value->getSize() / 1024;
         }
 
@@ -2538,7 +2610,7 @@ trait ValidatesAttributes
             return false;
         }
 
-        return $value instanceof SplFileInfo;
+        return $value instanceof File;
     }
 
     /**
@@ -2619,9 +2691,22 @@ trait ValidatesAttributes
      */
     protected function ensureExponentWithinAllowedRange(string $attribute, mixed $value): mixed
     {
+        if (! is_numeric($value)) {
+            return $value;
+        }
+
+        if (is_float($value) && ! is_finite($value)) {
+            // Downstream size comparisons stringify the result, but PHP warns when NAN is cast.
+            return match (true) {
+                is_nan($value) => 'NAN',
+                $value > 0 => 'INF',
+                default => '-INF',
+            };
+        }
+
         $stringValue = (string) $value;
 
-        if (! is_numeric($value) || ! Str::contains($stringValue, 'e', ignoreCase: true)) {
+        if (! Str::contains($stringValue, 'e', ignoreCase: true)) {
             return $value;
         }
 

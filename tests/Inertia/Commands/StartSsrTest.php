@@ -85,6 +85,10 @@ class StartSsrTest extends TestCase
     public function testRuntimeDefaultsToNode(): void
     {
         $this->fakeProcess();
+        config()->set('inertia.ssr', [
+            'enabled' => true,
+            'bundle' => __FILE__,
+        ]);
 
         $this->artisan('inertia:start-ssr')->assertExitCode(0);
 

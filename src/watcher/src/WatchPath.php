@@ -10,6 +10,9 @@ readonly class WatchPath
 {
     private ?string $regex;
 
+    /** Whether this path requires recursive filesystem traversal. */
+    public bool $recursive;
+
     /**
      * @param string $path Relative base path (e.g., 'app', 'config', '.env')
      * @param WatchPathType $type Whether this entry represents a directory or a file
@@ -23,6 +26,16 @@ readonly class WatchPath
         $this->regex = $type === WatchPathType::Directory && $pattern !== null
             ? Glob::toRegex($pattern, strictLeadingDot: false)
             : null;
+
+        if ($type === WatchPathType::File) {
+            $this->recursive = false;
+        } elseif ($pattern === null) {
+            $this->recursive = true;
+        } else {
+            $suffix = $path === '.' ? $pattern : substr($pattern, strlen($path) + 1);
+            // Symfony's `app/**` glob matches deep descendants despite having no slash in its suffix.
+            $this->recursive = str_contains($suffix, '/') || str_contains($suffix, '**');
+        }
     }
 
     /**

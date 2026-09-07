@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Database;
 use Carbon\CarbonInterval;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
@@ -27,7 +28,7 @@ class QueryDurationThresholdTest extends TestCase
 
     public function testItCanHandleReachingADurationThresholdInTheDb()
     {
-        $connection = new Connection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
+        $connection = new PdoConnection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
         $connection->setEventDispatcher($this->app->make(Dispatcher::class));
         $called = 0;
         $connection->whenQueryingForLongerThan(CarbonInterval::milliseconds(1.1), function () use (&$called) {
@@ -44,7 +45,7 @@ class QueryDurationThresholdTest extends TestCase
 
     public function testItIsOnlyCalledOnce()
     {
-        $connection = new Connection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
+        $connection = new PdoConnection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
         $connection->setEventDispatcher($this->app->make(Dispatcher::class));
         $called = 0;
         $connection->whenQueryingForLongerThan(CarbonInterval::milliseconds(1), function () use (&$called) {
@@ -60,7 +61,7 @@ class QueryDurationThresholdTest extends TestCase
 
     public function testItIsOnlyCalledOnceWhenHandlerRunsAnotherQuery()
     {
-        $connection = new Connection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
+        $connection = new PdoConnection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
         $connection->setEventDispatcher($this->app->make(Dispatcher::class));
         $called = 0;
 
@@ -80,7 +81,7 @@ class QueryDurationThresholdTest extends TestCase
     {
         CarbonImmutable::setTestNow($this->now = CarbonImmutable::create(2017, 6, 27, 13, 14, 15, 'UTC'));
 
-        $connection = new Connection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
+        $connection = new PdoConnection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
         $connection->setEventDispatcher($this->app->make(Dispatcher::class));
         $called = 0;
         $connection->whenQueryingForLongerThan($this->now->addMilliseconds(1), function () use (&$called) {
@@ -96,7 +97,7 @@ class QueryDurationThresholdTest extends TestCase
 
     public function testItCanSpecifyMultipleHandlersWithTheSameIntervals()
     {
-        $connection = new Connection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
+        $connection = new PdoConnection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
         $connection->setEventDispatcher($this->app->make(Dispatcher::class));
         $called = [];
         $connection->whenQueryingForLongerThan(CarbonInterval::milliseconds(1), function () use (&$called) {
@@ -117,7 +118,7 @@ class QueryDurationThresholdTest extends TestCase
 
     public function testItCanSpecifyMultipleHandlersWithDifferentIntervals()
     {
-        $connection = new Connection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
+        $connection = new PdoConnection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
         $connection->setEventDispatcher($this->app->make(Dispatcher::class));
         $called = [];
         $connection->whenQueryingForLongerThan(CarbonInterval::milliseconds(1), function () use (&$called) {
@@ -142,7 +143,7 @@ class QueryDurationThresholdTest extends TestCase
 
     public function testItHasAccessToConnectionInHandler()
     {
-        $connection = new Connection(new PDO('sqlite::memory:'), '', '', ['name' => 'expected-name']);
+        $connection = new PdoConnection(new PDO('sqlite::memory:'), '', '', ['name' => 'expected-name']);
         $connection->setEventDispatcher($this->app->make(Dispatcher::class));
         $name = null;
         $connection->whenQueryingForLongerThan(CarbonInterval::milliseconds(1), function ($connection) use (&$name) {
@@ -157,7 +158,7 @@ class QueryDurationThresholdTest extends TestCase
 
     public function testItHasSpecifyThresholdWithFloat()
     {
-        $connection = new Connection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
+        $connection = new PdoConnection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
         $connection->setEventDispatcher($this->app->make(Dispatcher::class));
         $called = false;
         $connection->whenQueryingForLongerThan(1.1, function () use (&$called) {
@@ -173,7 +174,7 @@ class QueryDurationThresholdTest extends TestCase
 
     public function testItHasSpecifyThresholdWithInt()
     {
-        $connection = new Connection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
+        $connection = new PdoConnection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
         $connection->setEventDispatcher($this->app->make(Dispatcher::class));
         $called = false;
         $connection->whenQueryingForLongerThan(2, function () use (&$called) {
@@ -189,7 +190,7 @@ class QueryDurationThresholdTest extends TestCase
 
     public function testItCanResetTotalQueryDuration()
     {
-        $connection = new Connection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
+        $connection = new PdoConnection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
         $connection->setEventDispatcher($this->app->make(Dispatcher::class));
 
         $connection->logQuery('xxxx', [], 1.1);
@@ -203,7 +204,7 @@ class QueryDurationThresholdTest extends TestCase
 
     public function testItCanRestoreAlreadyRunHandlers()
     {
-        $connection = new Connection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
+        $connection = new PdoConnection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
         $connection->setEventDispatcher($this->app->make(Dispatcher::class));
         $called = 0;
         $connection->whenQueryingForLongerThan(CarbonInterval::milliseconds(1), function () use (&$called) {
@@ -230,7 +231,7 @@ class QueryDurationThresholdTest extends TestCase
 
     public function testItCanAccessAllQueriesWhenQueryLoggingIsActive()
     {
-        $connection = new Connection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
+        $connection = new PdoConnection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
         $connection->setEventDispatcher($this->app->make(Dispatcher::class));
         $connection->enableQueryLog();
         $queries = [];
@@ -251,7 +252,7 @@ class QueryDurationThresholdTest extends TestCase
     }
 }
 
-class QueryDurationConnection extends Connection
+class QueryDurationConnection extends PdoConnection
 {
     public function elapsedTimeSince(float $start): float
     {

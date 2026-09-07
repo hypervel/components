@@ -76,6 +76,21 @@ class ModelWatcherTest extends FeatureTestCase
         $this->assertCount(1, $this->loadTelescopeEntries());
     }
 
+    public function testModelWatcherIncrementsHydrationEntryAfterItsContentWasStored(): void
+    {
+        $watcher = $this->app->make(ModelWatcher::class);
+        $model = new UserEloquent;
+
+        $watcher->recordHydrations($model);
+        $this->terminateTelescope();
+
+        $this->assertIsString($watcher->getHydration(UserEloquent::class)->content);
+
+        $watcher->recordHydrations($model);
+
+        $this->assertSame(2, $watcher->getHydration(UserEloquent::class)->content['count']);
+    }
+
     protected function createUser()
     {
         UserEloquent::create([

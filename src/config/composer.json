@@ -1,7 +1,7 @@
 {
     "name": "hypervel/config",
     "type": "library",
-    "description": "The config package for Hypervel.",
+    "description": "The Hypervel Config package.",
     "license": "MIT",
     "keywords": [
         "php",

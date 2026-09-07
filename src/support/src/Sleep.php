@@ -138,7 +138,8 @@ class Sleep
      */
     public function minutes(): static
     {
-        $this->duration->add('minutes', $this->pullPending());
+        // Build numeric intervals so tiny durations are never parsed from scientific notation.
+        $this->duration->add(minutes($this->pullPending()));
 
         return $this;
     }
@@ -156,7 +157,7 @@ class Sleep
      */
     public function seconds(): static
     {
-        $this->duration->add('seconds', $this->pullPending());
+        $this->duration->add(seconds($this->pullPending()));
 
         return $this;
     }
@@ -174,7 +175,7 @@ class Sleep
      */
     public function milliseconds(): static
     {
-        $this->duration->add('milliseconds', $this->pullPending());
+        $this->duration->add(microseconds(round($this->pullPending() * Carbon::MICROSECONDS_PER_MILLISECOND)));
 
         return $this;
     }
@@ -192,13 +193,13 @@ class Sleep
      */
     public function microseconds(): static
     {
-        $this->duration->add('microseconds', $this->pullPending());
+        $this->duration->add(microseconds($this->pullPending()));
 
         return $this;
     }
 
     /**
-     * Sleep for on microsecond.
+     * Sleep for one microsecond.
      */
     public function microsecond(): static
     {

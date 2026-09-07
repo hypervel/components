@@ -6,6 +6,7 @@ namespace Hypervel\Cache\Redis\Console\Doctor\Checks;
 
 use Hypervel\Cache\Redis\Console\Doctor\CheckResult;
 use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
+use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Output\OutputInterface;
 
@@ -19,16 +20,25 @@ final class ExpirationCheck implements CheckInterface
 {
     private ?OutputInterface $output = null;
 
+    /**
+     * Set the console output instance.
+     */
     public function setOutput(OutputInterface $output): void
     {
         $this->output = $output;
     }
 
+    /**
+     * Get the human-readable name of this check.
+     */
     public function name(): string
     {
         return 'Expiration Tests';
     }
 
+    /**
+     * Run the check and return results.
+     */
     public function run(DoctorContext $context): CheckResult
     {
         $result = new CheckResult;
@@ -40,7 +50,7 @@ final class ExpirationCheck implements CheckInterface
         $context->cache->tags([$tag])->put($key, 'val', 1);
 
         $this->output?->writeln('  <fg=gray>Waiting 2 seconds for expiration...</>');
-        sleep(2);
+        Sleep::sleep(2);
 
         if ($context->isAnyMode()) {
             // Any mode: direct get works
@@ -61,6 +71,9 @@ final class ExpirationCheck implements CheckInterface
         return $result;
     }
 
+    /**
+     * Test expiration cleanup in any-tag mode.
+     */
     private function testAnyModeExpiration(
         DoctorContext $context,
         CheckResult $result,
@@ -77,6 +90,9 @@ final class ExpirationCheck implements CheckInterface
         );
     }
 
+    /**
+     * Test expiration cleanup in all-tags mode.
+     */
     private function testAllModeExpiration(
         DoctorContext $context,
         CheckResult $result,

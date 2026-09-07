@@ -468,6 +468,91 @@ class ImportResolutionTest extends FacadeDocumenterTestCase
         );
     }
 
+    public function testCachesImportsByClassWithinTheSameFile(): void
+    {
+        $this->writeAppFile(
+            'Imports/Cached/First/Proxy.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\Imports\Cached\First;
+
+                use DateTimeImmutable as Payload;
+
+                class Proxy
+                {
+                    /** @return Payload */
+                    public function payload(): mixed
+                    {
+                        return null;
+                    }
+                }
+
+                namespace App\Imports\Cached\Second;
+
+                use DateTimeZone as Payload;
+
+                class Proxy
+                {
+                    /** @return Payload */
+                    public function payload(): mixed
+                    {
+                        return null;
+                    }
+                }
+                PHP
+        );
+
+        $this->writeAppFile(
+            'Imports/Cached/First/Facade.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\Imports\Cached\First;
+
+                /** @see \App\Imports\Cached\First\Proxy */
+                class Facade
+                {
+                }
+                PHP
+        );
+
+        $this->writeAppFile(
+            'Imports/Cached/Second/Facade.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\Imports\Cached\Second;
+
+                /** @see \App\Imports\Cached\Second\Proxy */
+                class Facade
+                {
+                }
+                PHP
+        );
+
+        $process = $this->runDocumenter([
+            'App\Imports\Cached\First\Facade',
+            'App\Imports\Cached\Second\Facade',
+        ]);
+
+        $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput() . $process->getOutput());
+        $this->assertStringContainsString(
+            '@method static \DateTimeImmutable payload()',
+            $this->appFileContents('App\Imports\Cached\First\Facade'),
+        );
+        $this->assertStringContainsString(
+            '@method static \DateTimeZone payload()',
+            $this->appFileContents('App\Imports\Cached\Second\Facade'),
+        );
+    }
+
     /**
      * Ignore closure captures while scanning namespace imports.
      */

@@ -21,6 +21,9 @@ use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Http\FdGetter;
 use Hypervel\Http\Request as HttpRequest;
+use Hypervel\HttpServer\Events\RequestHandled;
+use Hypervel\HttpServer\Events\RequestReceived;
+use Hypervel\HttpServer\Events\ResponseSent;
 use Hypervel\HttpServer\RequestBridge;
 use Hypervel\HttpServer\ResponseBridge;
 use Hypervel\Routing\Router;
@@ -28,7 +31,10 @@ use Hypervel\Support\SafeCaller;
 use Hypervel\WebSocketServer\Collector\FdCollector;
 use Hypervel\WebSocketServer\Context as WebSocketContext;
 use Hypervel\WebSocketServer\Events\ConnectionClosed;
+use Hypervel\WebSocketServer\Events\ConnectionClosing;
 use Hypervel\WebSocketServer\Events\ConnectionOpened;
+use Hypervel\WebSocketServer\Events\ConnectionOpening;
+use Hypervel\WebSocketServer\Events\MessageHandled;
 use Hypervel\WebSocketServer\Events\MessageReceived;
 use Hypervel\WebSocketServer\Exceptions\Handler\WebSocketExceptionHandler;
 use Hypervel\WebSocketServer\Exceptions\WebSocketHandshakeException;
@@ -98,6 +104,8 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
         $fd = null;
         $httpRequest = null;
         $handshake = null;
+        $observedException = null;
+        $terminalException = null;
 
         try {
             try {
@@ -109,6 +117,18 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
                 // RequestContext is needed for request() helper and container resolution.
                 $httpRequest = RequestBridge::createFromSwoole($request);
                 RequestContext::set($httpRequest);
+
+                if ($this->event?->hasListeners(ConnectionOpening::class)) {
+                    $this->event->dispatch(new ConnectionOpening($fd, $httpRequest, $this->serverName));
+                }
+
+                if ($this->event?->hasListeners(RequestReceived::class)) {
+                    $this->event->dispatch(new RequestReceived(
+                        request: $httpRequest,
+                        response: null,
+                        server: $this->serverName,
+                    ));
+                }
 
                 $this->logger->debug(sprintf('WebSocket: fd[%d] start a handshake request.', $fd));
 
@@ -138,6 +158,7 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
             } catch (CanceledException $exception) {
                 throw $exception;
             } catch (Throwable $throwable) {
+                $observedException = $throwable;
                 $httpResponse = $this->container->make(SafeCaller::class)->call(
                     fn () => $this->handleException($throwable),
                     static fn () => new Response(
@@ -147,7 +168,51 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
                 );
             }
 
-            ResponseBridge::send($httpResponse, $response, request: $httpRequest);
+            if ($httpRequest !== null) {
+                try {
+                    if ($this->event?->hasListeners(RequestHandled::class)) {
+                        $this->event->dispatch(new RequestHandled(
+                            request: $httpRequest,
+                            response: $httpResponse,
+                            exception: $observedException,
+                            server: $this->serverName,
+                        ));
+                    }
+                } catch (CanceledException $exception) {
+                    throw $exception;
+                } catch (Throwable $throwable) {
+                    $terminalException = $throwable;
+                }
+            }
+
+            try {
+                ResponseBridge::send($httpResponse, $response, request: $httpRequest);
+            } catch (CanceledException $exception) {
+                throw $exception;
+            } catch (Throwable $throwable) {
+                $terminalException ??= $throwable;
+            }
+
+            if ($httpRequest !== null) {
+                try {
+                    if ($this->event?->hasListeners(ResponseSent::class)) {
+                        $this->event->dispatch(new ResponseSent(
+                            request: $httpRequest,
+                            response: $httpResponse,
+                            exception: $observedException ?? $terminalException,
+                            server: $this->serverName,
+                        ));
+                    }
+                } catch (CanceledException $exception) {
+                    throw $exception;
+                } catch (Throwable $throwable) {
+                    $terminalException ??= $throwable;
+                }
+            }
+
+            if ($terminalException !== null) {
+                throw $terminalException;
+            }
 
             if ($handshake === null) {
                 return;
@@ -211,6 +276,8 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
             return;
         }
 
+        $exception = null;
+
         try {
             if ($this->event?->hasListeners(MessageReceived::class)) {
                 $this->event->dispatch(new MessageReceived($fd, $frame, $this->serverName));
@@ -218,11 +285,23 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
         } catch (CanceledException) {
             return;
         } catch (Throwable $throwable) {
+            $exception = $throwable;
             $this->reportCallbackFailure($throwable);
         }
 
         try {
             $instance->onMessage($server, $frame);
+        } catch (CanceledException) {
+            return;
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+            $this->reportCallbackFailure($throwable);
+        }
+
+        try {
+            if ($this->event?->hasListeners(MessageHandled::class)) {
+                $this->event->dispatch(new MessageHandled($fd, $frame, $this->serverName, $exception));
+            }
         } catch (CanceledException) {
             return;
         } catch (Throwable $throwable) {
@@ -241,6 +320,16 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
             $class = FdCollector::get($fd);
             if ($class === null) {
                 return;
+            }
+
+            try {
+                if ($this->event?->hasListeners(ConnectionClosing::class)) {
+                    $this->event->dispatch(new ConnectionClosing($fd, $reactorId, $this->serverName));
+                }
+            } catch (CanceledException) {
+                return;
+            } catch (Throwable $throwable) {
+                $this->reportCallbackFailure($throwable);
             }
 
             try {

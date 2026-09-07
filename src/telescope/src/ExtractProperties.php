@@ -17,6 +17,7 @@ class ExtractProperties
      */
     public static function from(mixed $target): array
     {
+        // Native encoding captures reflected state instead of an object's published representation.
         return Collection::make((new ReflectionClass($target))->getProperties())
             ->mapWithKeys(function ($property) use ($target) {
                 if (! $property->isInitialized($target)) {
@@ -32,11 +33,11 @@ class ExtractProperties
                             'class' => get_class($value),
                             'properties' => method_exists($value, 'formatForTelescope')
                                 ? $value->formatForTelescope()
-                                : json_decode(json_encode($value), true),
+                                : JsonNormalizer::normalize($value),
                         ],
                     ];
                 }
-                return [$property->getName() => json_decode(json_encode($value), true)];
+                return [$property->getName() => JsonNormalizer::normalize($value)];
             })->toArray();
     }
 }

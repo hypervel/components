@@ -29,7 +29,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Database\Connection
+ * @mixin \Hypervel\Database\PdoConnection
  */
 class DatabaseManager implements ConnectionResolverInterface
 {
@@ -41,7 +41,7 @@ class DatabaseManager implements ConnectionResolverInterface
     /**
      * Context key for query duration handlers that have run in the current coroutine.
      */
-    public const QUERY_DURATION_HANDLERS_CONTEXT_KEY = '__database.query_duration_handlers';
+    public const string QUERY_DURATION_HANDLERS_CONTEXT_KEY = '__database.query_duration_handlers';
 
     /**
      * The active connection instances.
@@ -79,17 +79,7 @@ class DatabaseManager implements ConnectionResolverInterface
         protected ContainerContract $app,
         protected ConnectionFactory $factory
     ) {
-        $this->reconnector = function (Connection $connection) {
-            $name = $connection->getName();
-
-            if ($name !== null && $connection->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY) === ConnectionName::READ) {
-                $name .= '::' . ConnectionName::READ;
-            }
-
-            $connection->setPdo(
-                $this->reconnect($name)->getRawPdo()
-            );
-        };
+        $this->reconnector = fn (Connection $connection) => $this->refreshConnection($connection);
     }
 
     /**
@@ -176,6 +166,10 @@ class DatabaseManager implements ConnectionResolverInterface
         $connectionName = is_string($name) ? ConnectionName::parse($name) : $name;
         $config = $this->configuration($connectionName);
 
+        if ($connectionName->role !== null) {
+            $config[Connection::READ_WRITE_TYPE_CONFIG_KEY] = $connectionName->role;
+        }
+
         return $this->factory->make($config, $connectionName->base);
     }
 
@@ -236,9 +230,12 @@ class DatabaseManager implements ConnectionResolverInterface
             return;
         }
 
-        $this->app->make('events')->dispatch(
-            new ConnectionEstablished($connection)
-        );
+        /** @var Dispatcher $events */
+        $events = $this->app->make('events');
+
+        if ($events->hasListeners(ConnectionEstablished::class)) {
+            $events->dispatch(new ConnectionEstablished($connection));
+        }
     }
 
     /**
@@ -267,8 +264,7 @@ class DatabaseManager implements ConnectionResolverInterface
         $variants = $this->connectionNameVariants($requestedName);
 
         foreach ($variants as $variant) {
-            // Disconnect current connection if any
-            $this->disconnect($variant);
+            $this->disconnectManagerOwnedConnection(ConnectionName::parse($variant));
         }
 
         foreach ($variants as $variant) {
@@ -281,7 +277,7 @@ class DatabaseManager implements ConnectionResolverInterface
 
         // Clear resolver-level caching (e.g., DatabaseConnectionResolver's static cache)
         $resolver = $this->app->make('db.resolver');
-        if ($resolver instanceof FlushableConnectionResolver) {
+        if ($resolver instanceof CachedConnectionResolver) {
             foreach ($variants as $variant) {
                 $resolver->flush($variant);
             }
@@ -296,12 +292,12 @@ class DatabaseManager implements ConnectionResolverInterface
     /**
      * Disconnect from the given database.
      *
-     * In pooled mode, this nulls the PDOs on the current coroutine's connection
+     * In pooled mode, this disconnects the current coroutine's driver resources
      * (if one exists), forcing a reconnect on the next query. Does not clear
      * context or affect the pool - the connection is still released at coroutine end.
      *
-     * In non-pooled mode (SimpleConnectionResolver), disconnects the connection
-     * stored in the $connections array.
+     * In non-pooled mode, disconnects the connection stored in the manager's cache
+     * for SimpleConnectionResolver or in a CachedConnectionResolver's cache.
      */
     public function disconnect(UnitEnum|string|null $name = null): void
     {
@@ -314,13 +310,28 @@ class DatabaseManager implements ConnectionResolverInterface
             : $name;
         $connectionName = ConnectionName::parse($requestedName);
 
-        // Pooled mode: disconnect the current coroutine's connection
+        $this->disconnectManagerOwnedConnection($connectionName);
+
+        $resolver = $this->app->make('db.resolver');
+
+        if ($resolver instanceof CachedConnectionResolver
+            && ($connection = $resolver->getResolvedConnection($connectionName->requested)) instanceof Connection
+        ) {
+            $connection->disconnect();
+        }
+    }
+
+    /**
+     * Disconnect a connection owned directly by the database manager.
+     */
+    protected function disconnectManagerOwnedConnection(ConnectionName $connectionName): void
+    {
         $connection = CoroutineContext::get($this->getConnectionContextKey($connectionName->requested));
+
         if ($connection instanceof Connection) {
             $connection->disconnect();
         }
 
-        // Non-pooled mode (SimpleConnectionResolver): disconnect from $connections array
         if (isset($this->connections[$connectionName->requested])) {
             $this->connections[$connectionName->requested]->disconnect();
         }
@@ -329,9 +340,9 @@ class DatabaseManager implements ConnectionResolverInterface
     /**
      * Reconnect to the given database.
      *
-     * In pooled mode, if this coroutine already has a connection, reconnects
-     * its PDOs and returns it. In non-pooled mode, refreshes the existing
-     * connection's PDOs in-place. Otherwise gets a fresh connection.
+     * In pooled mode, if this coroutine already has a connection, refreshes
+     * its driver resources and returns it. In non-pooled mode, refreshes the
+     * existing connection in place. Otherwise gets a fresh connection.
      */
     public function reconnect(UnitEnum|string|null $name = null): Connection
     {
@@ -343,23 +354,30 @@ class DatabaseManager implements ConnectionResolverInterface
             ? $this->getDefaultConnection()
             : $name;
 
-        $this->disconnect($name);
-
         // Pooled mode: if we already have a connection in this coroutine, reconnect it
         $contextKey = $this->getConnectionContextKey($name);
         $connection = CoroutineContext::get($contextKey);
         if ($connection instanceof Connection) {
             $connection->reconnect();
-            $this->dispatchConnectionEstablishedEvent($connection);
 
             return $connection;
         }
 
-        // Non-pooled mode: refresh PDOs on existing connection in-place
+        // Non-pooled mode: refresh the existing connection in place.
         if (isset($this->connections[$name])) {
-            return tap($this->refreshPdoConnections($name), function ($connection) {
-                $this->dispatchConnectionEstablishedEvent($connection);
-            });
+            $this->connections[$name]->reconnect();
+
+            return $this->connections[$name];
+        }
+
+        $resolver = $this->app->make('db.resolver');
+
+        if ($resolver instanceof CachedConnectionResolver
+            && ($connection = $resolver->getResolvedConnection($name)) instanceof Connection
+        ) {
+            $connection->reconnect();
+
+            return $connection;
         }
 
         // No existing connection — get a fresh one
@@ -399,17 +417,26 @@ class DatabaseManager implements ConnectionResolverInterface
     }
 
     /**
-     * Refresh the PDO connections on a given connection.
+     * Refresh the driver resources on the invoking connection.
      */
-    protected function refreshPdoConnections(string $name): Connection
+    protected function refreshConnection(Connection $connection): Connection
     {
+        $name = $connection->getName()
+            ?? throw new RuntimeException('Cannot reconnect an unnamed database connection.');
+        $role = $connection->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY);
+
+        if ($role === ConnectionName::READ || $role === ConnectionName::WRITE) {
+            $name .= '::' . $role;
+        }
+
         $fresh = $this->configure(
             $this->makeConnection($name)
         );
 
-        return $this->connections[$name]
-            ->setPdo($fresh->getRawPdo())
-            ->setReadPdo($fresh->getRawReadPdo());
+        $connection->refreshFrom($fresh);
+        $this->dispatchConnectionEstablishedEvent($connection);
+
+        return $connection;
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Listeners;
 
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Horizon\Events\MasterSupervisorLooped;
 use Hypervel\Horizon\Events\MasterSupervisorOutOfMemory;
 
@@ -24,7 +25,12 @@ class MonitorMasterSupervisorMemory
         $memoryLimit = config()->integer('horizon.memory_limit');
 
         if ($master->memoryUsage() > $memoryLimit) {
-            event(new MasterSupervisorOutOfMemory($master));
+            /** @var Dispatcher $events */
+            $events = app('events');
+
+            if ($events->hasListeners(MasterSupervisorOutOfMemory::class)) {
+                $events->dispatch(new MasterSupervisorOutOfMemory($master));
+            }
 
             $master->output('error', 'Memory limit exceeded: Using ' . ceil($master->memoryUsage()) . '/' . $memoryLimit . 'MB. Consider increasing horizon.memory_limit.');
 

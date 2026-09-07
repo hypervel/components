@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Prompts;
 
 use Hypervel\Prompts\Support\Logger;
+use Hypervel\Prompts\Support\TaskFrame;
+use Hypervel\Prompts\Support\Utils;
 use Hypervel\Tests\TestCase;
-use ReflectionProperty;
+use InvalidArgumentException;
+use RuntimeException;
 
 class LoggerTest extends TestCase
 {
@@ -21,8 +24,8 @@ class LoggerTest extends TestCase
             $logger->line('plain');
             $logger->success('done');
 
-            $this->assertSame("plain\n", fgets($sockets[1]));
-            $this->assertSame("abc123_success:done\n", fgets($sockets[1]));
+            $this->assertSame(TaskFrame::encode(null, 'plain'), fread($sockets[1], 10));
+            $this->assertSame(TaskFrame::encode('success', 'done'), fread($sockets[1], 9));
             $this->assertNull($logger->transportFailure());
         } finally {
             fclose($sockets[0]);
@@ -53,14 +56,13 @@ class LoggerTest extends TestCase
 
         $this->assertTrue(pcntl_wifexited($status));
         $this->assertSame(0, pcntl_wexitstatus($status));
-        $this->assertSame($payload . PHP_EOL, $received);
+        $this->assertSame(TaskFrame::encode(null, $payload), $received);
     }
 
     public function testPeerClosureLatchesFailureAndStopsLaterWrites(): void
     {
         $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
         $logger = new Logger('abc123', $sockets[0]);
-        $streamBuffer = new ReflectionProperty($logger, 'streamBuffer');
         $firstChunk = str_repeat('x', 1024 * 1024);
         fclose($sockets[1]);
 
@@ -69,13 +71,11 @@ class LoggerTest extends TestCase
             $failure = $logger->transportFailure();
 
             $this->assertNotNull($failure);
-            $this->assertSame($firstChunk, $streamBuffer->getValue($logger));
 
             $logger->line('ignored');
             $logger->partial(' ignored');
 
             $this->assertSame($failure, $logger->transportFailure());
-            $this->assertSame($firstChunk, $streamBuffer->getValue($logger));
         } finally {
             fclose($sockets[0]);
         }
@@ -84,8 +84,7 @@ class LoggerTest extends TestCase
     public function testNoReaderTimesOutAfterOneWindowFollowingAPartialWrite(): void
     {
         $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
-        stream_set_timeout($sockets[0], 1);
-        $logger = new Logger('abc123', $sockets[0]);
+        $logger = new Logger('abc123', $sockets[0], 1.0);
         $payload = str_repeat('x', 8 * 1024 * 1024);
         $startedAt = hrtime(true);
 
@@ -103,7 +102,7 @@ class LoggerTest extends TestCase
             $received = stream_get_contents($sockets[1]);
 
             $this->assertNotSame('', $received);
-            $this->assertLessThan(strlen($payload), strlen($received));
+            $this->assertLessThan(strlen(TaskFrame::encode(null, $payload)), strlen($received));
         } finally {
             fclose($sockets[0]);
             fclose($sockets[1]);
@@ -113,7 +112,6 @@ class LoggerTest extends TestCase
     public function testProgressingReaderMayExceedTheNoProgressWindow(): void
     {
         $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
-        stream_set_timeout($sockets[0], 1);
         $payload = str_repeat('x', 2 * 1024 * 1024);
         $pid = pcntl_fork();
 
@@ -132,12 +130,12 @@ class LoggerTest extends TestCase
 
             fclose($sockets[1]);
 
-            exit($received === $payload . PHP_EOL ? 0 : 1);
+            exit($received === TaskFrame::encode(null, $payload) ? 0 : 1);
         }
 
         $this->assertGreaterThan(0, $pid);
         fclose($sockets[1]);
-        $logger = new Logger('abc123', $sockets[0]);
+        $logger = new Logger('abc123', $sockets[0], 1.0);
         $startedAt = hrtime(true);
         $logger->line($payload);
         fclose($sockets[0]);
@@ -148,6 +146,59 @@ class LoggerTest extends TestCase
         $this->assertNull($logger->transportFailure());
         $this->assertTrue(pcntl_wifexited($status));
         $this->assertSame(0, pcntl_wexitstatus($status));
+    }
+
+    public function testRestoresTheOriginalBlockingModeAfterATimedOutWrite(): void
+    {
+        $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+        $logger = new Logger('abc123', $sockets[0], 0.5);
+
+        try {
+            $logger->line(str_repeat('x', 1024 * 1024));
+
+            $this->assertNotNull($logger->transportFailure());
+            $this->assertTrue(stream_get_meta_data($sockets[0])['blocked']);
+        } finally {
+            fclose($sockets[0]);
+            fclose($sockets[1]);
+        }
+    }
+
+    public function testLeavesANonBlockingStreamNonBlocking(): void
+    {
+        $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+        stream_set_blocking($sockets[0], false);
+
+        try {
+            Utils::writeAll($sockets[0], "output\n", 0.5);
+
+            $this->assertFalse(stream_get_meta_data($sockets[0])['blocked']);
+
+            // A timed-out write must not silently hand back a blocking stream either.
+            try {
+                Utils::writeAll($sockets[0], str_repeat('x', 1024 * 1024), 0.5);
+            } catch (RuntimeException) {
+                // The timeout is the point of the payload; the mode is what matters here.
+            }
+
+            $this->assertFalse(stream_get_meta_data($sockets[0])['blocked']);
+        } finally {
+            fclose($sockets[0]);
+            fclose($sockets[1]);
+        }
+    }
+
+    public function testWritesAnEntirePayloadToAnInMemoryStream(): void
+    {
+        $stream = fopen('php://memory', 'w+');
+        $payload = str_repeat('prompt output ', 1024);
+
+        Utils::writeAll($stream, $payload);
+        rewind($stream);
+
+        $this->assertSame($payload, stream_get_contents($stream));
+
+        fclose($stream);
     }
 
     public function testDoesNotThrowWhenConstructedWithoutSocket(): void
@@ -163,8 +214,47 @@ class LoggerTest extends TestCase
         $logger->label('Updated');
         $logger->subLabel('detail');
 
-        $streamBuffer = new ReflectionProperty($logger, 'streamBuffer');
+        $this->assertNull($logger->transportFailure());
+    }
 
-        $this->assertSame('', $streamBuffer->getValue($logger));
+    public function testPartialWritesOnlyTheNewChunk(): void
+    {
+        $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+        $logger = new Logger('abc123', $sockets[0]);
+
+        try {
+            $logger->partial('first');
+            $logger->partial(' second');
+            $logger->commitPartial();
+
+            $this->assertSame(TaskFrame::encode('partial', 'first'), fread($sockets[1], 10));
+            $this->assertSame(TaskFrame::encode('partial', ' second'), fread($sockets[1], 12));
+            $this->assertSame(TaskFrame::encode('commitpartial', ''), fread($sockets[1], 5));
+        } finally {
+            fclose($sockets[0]);
+            fclose($sockets[1]);
+        }
+    }
+
+    public function testRejectsUnknownProtectedTypesBeforeWriting(): void
+    {
+        $stream = fopen('php://memory', 'w+');
+        $logger = new class('abc123', $stream) extends Logger {
+            public function debug(string $message): void
+            {
+                $this->write($message, 'debug');
+            }
+        };
+
+        try {
+            $logger->debug('message');
+            $this->fail('Expected the unknown message type to be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame('Unknown task message type [debug].', $exception->getMessage());
+        }
+
+        rewind($stream);
+        $this->assertSame('', stream_get_contents($stream));
+        fclose($stream);
     }
 }

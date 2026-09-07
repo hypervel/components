@@ -1,0 +1,41 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Hypervel\Saloon\Http\Connector;
+use Hypervel\Saloon\Traits\Plugins\AcceptsJson;
+
+class {{ class }} extends Connector
+{
+    use AcceptsJson;
+
+    /**
+     * Resolve the integration base URL.
+     */
+    public function resolveBaseUrl(): string
+    {
+        return '';
+    }
+
+    /**
+     * Resolve the default headers.
+     *
+     * @return array<string, mixed>
+     */
+    protected function defaultHeaders(): array
+    {
+        return [];
+    }
+
+    /**
+     * Resolve the default request options.
+     *
+     * @return array<string, mixed>
+     */
+    protected function defaultOptions(): array
+    {
+        return [];
+    }
+}

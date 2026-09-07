@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Relations\Concerns;
 
 use BackedEnum;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Pivot;
@@ -70,7 +71,7 @@ trait InteractsWithPivotTable
      */
     public function toggleOrFail(mixed $ids, bool $touch = true): array
     {
-        return $this->parent->getConnection()->transaction(fn () => $this->toggle($ids, $touch));
+        return $this->getPivotConnection()->transaction(fn () => $this->toggle($ids, $touch));
     }
 
     /**
@@ -161,7 +162,7 @@ trait InteractsWithPivotTable
      */
     public function syncOrFail(BaseCollection|Model|array|int|string|null $ids, bool $detaching = true): array
     {
-        return $this->parent->getConnection()->transaction(fn () => $this->sync($ids, $detaching));
+        return $this->getPivotConnection()->transaction(fn () => $this->sync($ids, $detaching));
     }
 
     /**
@@ -185,7 +186,7 @@ trait InteractsWithPivotTable
      */
     public function syncWithPivotValuesOrFail(BaseCollection|Model|array|int|string|null $ids, array $values, bool $detaching = true): array
     {
-        return $this->parent->getConnection()->transaction(fn () => $this->syncWithPivotValues($ids, $values, $detaching));
+        return $this->getPivotConnection()->transaction(fn () => $this->syncWithPivotValues($ids, $values, $detaching));
     }
 
     /**
@@ -266,7 +267,7 @@ trait InteractsWithPivotTable
      */
     public function updateExistingPivotOrFail(mixed $id, array $attributes, bool $touch = true): int
     {
-        return $this->parent->getConnection()->transaction(fn () => $this->updateExistingPivot($id, $attributes, $touch));
+        return $this->getPivotConnection()->transaction(fn () => $this->updateExistingPivot($id, $attributes, $touch));
     }
 
     /**
@@ -318,7 +319,7 @@ trait InteractsWithPivotTable
      */
     public function attachOrFail(mixed $ids, array $attributes = [], bool $touch = true): void
     {
-        $this->parent->getConnection()->transaction(fn () => $this->attach($ids, $attributes, $touch));
+        $this->getPivotConnection()->transaction(fn () => $this->attach($ids, $attributes, $touch));
     }
 
     /**
@@ -482,7 +483,7 @@ trait InteractsWithPivotTable
      */
     public function detachOrFail(mixed $ids = null, bool $touch = true): int
     {
-        return $this->parent->getConnection()->transaction(fn () => $this->detach($ids, $touch));
+        return $this->getPivotConnection()->transaction(fn () => $this->detach($ids, $touch));
     }
 
     /**
@@ -540,6 +541,7 @@ trait InteractsWithPivotTable
         );
 
         $pivot = $pivot
+            ->setConnection($this->getPivotConnection()->getName())
             ->setPivotKeys($this->foreignPivotKey, $this->relatedPivotKey)
             ->setRelatedModel($this->related);
 
@@ -568,7 +570,15 @@ trait InteractsWithPivotTable
      */
     public function newPivotStatement(): QueryBuilder
     {
-        return $this->query->getQuery()->newQuery()->from($this->table);
+        return $this->getPivotConnection()->table($this->table);
+    }
+
+    /**
+     * Get the connection that owns the pivot table.
+     */
+    protected function getPivotConnection(): ConnectionInterface
+    {
+        return $this->query->getQuery()->getConnection();
     }
 
     /**

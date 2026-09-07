@@ -240,16 +240,22 @@ class CoroutineSafetyTest extends ScoutTestCase
         // Exception path
         $beforeException = Scout::isImporting();
         $insideException = null;
+        $expectedException = new RuntimeException('boom');
+        $caughtException = null;
+
         try {
-            Scout::whileImporting(function () use (&$insideException) {
+            Scout::whileImporting(function () use ($expectedException, &$insideException): never {
                 $insideException = Scout::isImporting();
-                throw new RuntimeException('boom');
+
+                throw $expectedException;
             });
-        } catch (RuntimeException) {
-            // swallow
+        } catch (RuntimeException $exception) {
+            $caughtException = $exception;
         }
+
         $afterException = Scout::isImporting();
 
+        $this->assertSame($expectedException, $caughtException);
         $this->assertFalse($beforeException);
         $this->assertTrue($insideException);
         $this->assertFalse($afterException);

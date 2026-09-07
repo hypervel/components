@@ -51,7 +51,9 @@ class DumpCommand extends Command
             $path = $this->path($connection)
         );
 
-        $dispatcher->dispatch(new SchemaDumped($connection, $path));
+        if ($dispatcher->hasListeners(SchemaDumped::class)) {
+            $dispatcher->dispatch(new SchemaDumped($connection, $path));
+        }
 
         $info = 'Database schema dumped';
 
@@ -63,7 +65,9 @@ class DumpCommand extends Command
 
             $info .= ' and pruned';
 
-            $dispatcher->dispatch(new MigrationsPruned($connection, $path));
+            if ($dispatcher->hasListeners(MigrationsPruned::class)) {
+                $dispatcher->dispatch(new MigrationsPruned($connection, $path));
+            }
         }
 
         $this->components->info($info . ' successfully.');
@@ -76,9 +80,7 @@ class DumpCommand extends Command
      */
     protected function schemaState(Connection $connection): mixed
     {
-        $migrations = Config::get('database.migrations', 'migrations');
-
-        $migrationTable = is_array($migrations) ? ($migrations['table'] ?? 'migrations') : $migrations;
+        $migrationTable = Config::string('database.migrations.table');
 
         if ($this->option('without-migration-data')) {
             $migrationTable = null;

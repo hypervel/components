@@ -38,6 +38,20 @@ class RouteParameterBinder
     }
 
     /**
+     * Get route parameters from a compiled matcher result.
+     *
+     * @param array<string, mixed> $parameters
+     */
+    public function parametersFromCompiledMatch(array $parameters): array
+    {
+        if ($this->route->parameterNames() === [] && $this->route->defaults === []) {
+            return [];
+        }
+
+        return $this->replaceDefaults($this->matchToKeys($parameters));
+    }
+
+    /**
      * Get the parameter matches for the path portion of the URI.
      */
     protected function bindPathParameters(Request $request): array
@@ -68,11 +82,19 @@ class RouteParameterBinder
             return [];
         }
 
-        $parameters = array_intersect_key($matches, array_flip($parameterNames));
+        $parameters = [];
 
-        return array_filter($parameters, function ($value) {
-            return is_string($value) && strlen($value) > 0;
-        });
+        // Preserve URI order without allocating array_flip() and
+        // array_intersect_key() intermediates for every route match.
+        foreach ($parameterNames as $parameterName) {
+            $value = $matches[$parameterName] ?? null;
+
+            if (is_string($value) && $value !== '') {
+                $parameters[$parameterName] = $value;
+            }
+        }
+
+        return $parameters;
     }
 
     /**

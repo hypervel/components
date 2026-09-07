@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Logs;
 
 use Hypervel\Log\LogManager;
+use Monolog\Level;
 use Monolog\Logger;
 
 class LogChannel extends LogManager
@@ -15,7 +16,7 @@ class LogChannel extends LogManager
     public function __invoke(array $config = []): Logger
     {
         $handler = new LogsHandler(
-            $config['level'] ?? Logger::DEBUG,
+            $config['level'] ?? Level::Debug,
             $config['bubble'] ?? true
         );
 

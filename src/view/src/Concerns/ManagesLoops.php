@@ -13,7 +13,7 @@ trait ManagesLoops
     /**
      * The context key for loops stack.
      */
-    protected const LOOPS_STACK_CONTEXT_KEY = '__view.loops_stack';
+    protected const string LOOPS_STACK_CONTEXT_KEY = '__view.loops_stack';
 
     /**
      * Add new loop to the stack.

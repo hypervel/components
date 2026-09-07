@@ -23,11 +23,11 @@ use Hypervel\Foundation\Events\Terminating;
 use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Env;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
 use ReflectionClass;
 use SplFileInfo;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\ConsoleEvents;
 use Symfony\Component\Console\Event\ConsoleCommandEvent;
@@ -127,12 +127,20 @@ class Kernel implements KernelContract
             $this->symfonyDispatcher = new EventDispatcher;
 
             $this->symfonyDispatcher->addListener(ConsoleEvents::COMMAND, function (ConsoleCommandEvent $event) {
+                if (! $this->events->hasListeners(CommandStarting::class)) {
+                    return;
+                }
+
                 $this->events->dispatch(
                     new CommandStarting($event->getCommand()?->getName() ?? '', $event->getInput(), $event->getOutput())
                 );
             });
 
             $this->symfonyDispatcher->addListener(ConsoleEvents::TERMINATE, function (ConsoleTerminateEvent $event) {
+                if (! $this->events->hasListeners(CommandFinished::class)) {
+                    return;
+                }
+
                 $this->events->dispatch(
                     new CommandFinished($event->getCommand()?->getName() ?? '', $event->getInput(), $event->getOutput(), $event->getExitCode())
                 );
@@ -165,6 +173,8 @@ class Kernel implements KernelContract
             $this->bootstrap();
 
             return $this->getArtisan()->run($input, $output);
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $e) {
             // Keep the original in flight while it is handled, so a failure in
             // reporting or rendering carries it as that failure's previous. The
@@ -189,42 +199,63 @@ class Kernel implements KernelContract
     public function terminate(InputInterface $input, int $status): void
     {
         $exception = null;
+        $cancellation = null;
 
         try {
-            $this->events->dispatch(new Terminating);
+            if ($this->events->hasListeners(Terminating::class)) {
+                $this->events->dispatch(new Terminating);
+            }
+        } catch (CanceledException $throwable) {
+            $cancellation = $throwable;
         } catch (Throwable $throwable) {
             $exception = $throwable;
         }
 
-        try {
-            $this->app->terminate();
-        } catch (Throwable $throwable) {
-            $exception ??= $throwable;
+        if ($cancellation === null) {
+            try {
+                $this->app->terminate();
+            } catch (CanceledException $throwable) {
+                $cancellation = $throwable;
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
         }
 
-        if ($this->commandStartedAt !== null) {
+        if ($cancellation === null && $this->commandStartedAt !== null) {
             try {
                 $this->commandStartedAt = $this->commandStartedAt->setTimezone(
                     $this->app->make('config')->string('app.timezone')
                 );
+            } catch (CanceledException $throwable) {
+                $cancellation = $throwable;
             } catch (Throwable $throwable) {
                 $exception ??= $throwable;
             }
 
-            foreach ($this->commandLifecycleDurationHandlers as ['threshold' => $threshold, 'handler' => $handler]) {
-                try {
-                    $end ??= CarbonImmutable::now();
+            if ($cancellation === null) {
+                foreach ($this->commandLifecycleDurationHandlers as ['threshold' => $threshold, 'handler' => $handler]) {
+                    try {
+                        $end ??= CarbonImmutable::now();
 
-                    if ($this->commandStartedAt->diffInMilliseconds($end) > $threshold) {
-                        $handler($this->commandStartedAt, $input, $status);
+                        if ($this->commandStartedAt->diffInMilliseconds($end) > $threshold) {
+                            $handler($this->commandStartedAt, $input, $status);
+                        }
+                    } catch (CanceledException $throwable) {
+                        $cancellation = $throwable;
+
+                        break;
+                    } catch (Throwable $throwable) {
+                        $exception ??= $throwable;
                     }
-                } catch (Throwable $throwable) {
-                    $exception ??= $throwable;
                 }
             }
         }
 
         $this->commandStartedAt = null;
+
+        if ($cancellation !== null) {
+            throw $cancellation;
+        }
 
         if ($exception !== null) {
             throw $exception;
@@ -280,9 +311,9 @@ class Kernel implements KernelContract
      */
     protected function scheduleTimezone(): ?string
     {
-        $config = $this->app['config'];
+        $config = $this->app->make('config');
 
-        return $config->get('app.schedule_timezone', $config->get('app.timezone'));
+        return $config->get('app.schedule_timezone', $config->string('app.timezone'));
     }
 
     /**
@@ -290,9 +321,7 @@ class Kernel implements KernelContract
      */
     protected function scheduleCache(): ?string
     {
-        return $this->app['config']->get('cache.schedule_store', Env::get('SCHEDULE_CACHE_DRIVER', function () {
-            return Env::get('SCHEDULE_CACHE_STORE');
-        }));
+        return $this->app->make('config')->get('cache.schedule_store');
     }
 
     /**
@@ -499,18 +528,18 @@ class Kernel implements KernelContract
 
         $this->bootstrap();
 
-        $this->artisan = (new ConsoleApplication($this->app, $this->events, $this->app->version()))
+        $artisan = (new ConsoleApplication($this->app, $this->events, $this->app->version()))
             ->resolveCommands($this->commands)
             ->setContainerCommandLoader();
 
-        $this->app->instance(ApplicationContract::class, $this->artisan);
-
         if ($this->symfonyDispatcher instanceof EventDispatcher) {
-            $this->artisan->setDispatcher($this->symfonyDispatcher); /* @phpstan-ignore-line */
-            $this->artisan->setSignalsToDispatchEvent(); /* @phpstan-ignore-line */
+            $artisan->setDispatcher($this->symfonyDispatcher);
+            $artisan->setSignalsToDispatchEvent();
         }
 
-        return $this->artisan;
+        $this->setArtisan($artisan);
+
+        return $artisan;
     }
 
     /**
@@ -519,6 +548,14 @@ class Kernel implements KernelContract
     public function setArtisan(?ApplicationContract $artisan): void
     {
         $this->artisan = $artisan;
+
+        if ($artisan === null) {
+            $this->app->forgetInstance(ApplicationContract::class);
+
+            return;
+        }
+
+        $this->app->instance(ApplicationContract::class, $artisan);
     }
 
     /**

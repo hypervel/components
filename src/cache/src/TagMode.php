@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
+use InvalidArgumentException;
+
 /**
  * Tag mode enum - describes the semantic of how tags participate in a
  * taggable store's behavior.
@@ -23,18 +25,45 @@ enum TagMode: string
     case All = 'all';
 
     /**
-     * Create from a config string, falling back to All on invalid input.
+     * Create from a config string.
+     *
+     * @throws InvalidArgumentException
      */
     public static function fromConfig(string $value): self
     {
-        return self::tryFrom($value) ?? self::All;
+        return self::tryFrom($value) ?? throw new InvalidArgumentException(
+            sprintf(
+                'Invalid cache tag mode [%s]. Supported modes are [%s].',
+                $value,
+                implode(', ', self::supportedValues()),
+            )
+        );
     }
 
+    /**
+     * Get the supported configuration values.
+     *
+     * @return list<string>
+     */
+    public static function supportedValues(): array
+    {
+        return array_map(
+            static fn (self $mode): string => $mode->value,
+            self::cases(),
+        );
+    }
+
+    /**
+     * Determine if this is any mode.
+     */
     public function isAnyMode(): bool
     {
         return $this === self::Any;
     }
 
+    /**
+     * Determine if this is all mode.
+     */
     public function isAllMode(): bool
     {
         return $this === self::All;

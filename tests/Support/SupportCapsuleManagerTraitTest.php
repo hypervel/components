@@ -15,23 +15,23 @@ class SupportCapsuleManagerTraitTest extends TestCase
 {
     use CapsuleManagerTrait;
 
-    public function testSetupContainerForCapsule()
+    public function testSetupContainerForCapsule(): void
     {
         $app = new Container;
 
         $this->setupContainer($app);
-        $this->assertEquals($app, $this->getContainer());
-        $this->assertInstanceOf(Fluent::class, $app['config']);
+        $this->assertSame($app, $this->getContainer());
+        $this->assertInstanceOf(Fluent::class, $app->make('config'));
     }
 
-    public function testSetupContainerForCapsuleWhenConfigIsBound()
+    public function testSetupContainerForCapsuleWhenConfigIsBound(): void
     {
         $app = new Container;
-        $app['config'] = new Repository([]);
+        $app->instance('config', new Repository([]));
 
         $this->setupContainer($app);
-        $this->assertEquals($app, $this->getContainer());
-        $this->assertInstanceOf(Repository::class, $app['config']);
+        $this->assertSame($app, $this->getContainer());
+        $this->assertInstanceOf(Repository::class, $app->make('config'));
     }
 
     public function testFlushStateClearsGlobalInstance()

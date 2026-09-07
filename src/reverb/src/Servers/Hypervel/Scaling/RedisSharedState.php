@@ -9,6 +9,14 @@ use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 
 class RedisSharedState implements SharedState
 {
+    /**
+     * The logical pattern matching all Redis-backed shared-state keys.
+     *
+     * The hash-tag prefix excludes webhook buffers and defines the boundary
+     * cleared by the reverb:clear-state recovery command.
+     */
+    public const string KEY_PATTERN = 'reverb:{*}:*';
+
     protected const string SUBSCRIPTION_KEY_TYPE = 's';
 
     protected const string USER_KEY_TYPE = 'u';
@@ -334,7 +342,12 @@ class RedisSharedState implements SharedState
      */
     protected function key(string $type, string ...$parts): string
     {
-        return 'reverb:' . $this->logicalKey($type, ...$parts);
+        // The leading parts identify the application and, when present, channel. They
+        // choose the Cluster slot so related counters remain atomically scriptable.
+        $scope = array_slice($parts, 0, 2);
+        $hashTag = hash('xxh128', $this->logicalKey('scope', ...$scope));
+
+        return 'reverb:{' . $hashTag . '}:' . $this->logicalKey($type, ...$parts);
     }
 
     /**

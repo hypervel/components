@@ -1,7 +1,7 @@
 {
     "name": "hypervel/notifications",
     "type": "library",
-    "description": "The notifications package for Hypervel.",
+    "description": "The Hypervel Notifications package.",
     "license": "MIT",
     "keywords": [
         "php",

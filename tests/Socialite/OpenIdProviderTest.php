@@ -426,6 +426,92 @@ class OpenIdProviderTest extends TestCase
         $this->assertSame('foo', $provider->verifyToken($this->createSignedToken($key))['sub']);
     }
 
+    public function testOidcJwksDefaultsKeysWithoutAlgorithmToRs256(): void
+    {
+        $key = $this->createRsaKeyPair('missing-algorithm-key');
+        $provider = $this->createVerifyingProvider();
+
+        $this->expectOpenIdConfigRequests($provider->http, 1);
+        $this->expectJwksRequests($provider->http, [$this->jwksWithoutAlgorithm($key)]);
+
+        $this->assertSame('foo', $provider->verifyToken($this->createSignedToken($key))['sub']);
+    }
+
+    public function testOidcJwksCacheIdentityIncludesConfiguredAlgorithm(): void
+    {
+        $key = $this->createRsaKeyPair('algorithm-key');
+        $provider = $this->createVerifyingProvider();
+
+        $this->expectOpenIdConfigRequests($provider->http, 1);
+        $this->expectJwksRequests($provider->http, [
+            $this->jwksWithoutAlgorithm($key),
+            $this->jwksWithoutAlgorithm($key),
+        ]);
+
+        $this->assertSame('foo', $provider->verifyToken($this->createSignedToken($key))['sub']);
+
+        $provider->setConfig(['id_token_alg' => 'RS384']);
+        $rs384Token = $this->createSignedToken($key, algorithm: 'RS384');
+
+        $this->assertSame('foo', $provider->verifyToken($rs384Token)['sub']);
+        $this->assertSame('foo', $provider->verifyToken($rs384Token)['sub']);
+    }
+
+    public function testOidcJwksRefreshCooldownIsIsolatedByConfiguredAlgorithm(): void
+    {
+        $oldKey = $this->createRsaKeyPair('old-algorithm-key');
+        $newKey = $this->createRsaKeyPair('new-algorithm-key');
+        $provider = $this->createVerifyingProvider();
+        $provider->setJwksRefreshCooldownSeconds(60);
+
+        $this->expectOpenIdConfigRequests($provider->http, 3);
+        $this->expectJwksRequests($provider->http, [
+            $this->jwksWithoutAlgorithm($oldKey),
+            $this->jwksWithoutAlgorithm($oldKey),
+            $this->jwksWithoutAlgorithm($oldKey),
+            $this->jwksWithoutAlgorithm($newKey),
+        ]);
+
+        $this->assertSame('foo', $provider->verifyToken($this->createSignedToken($oldKey))['sub']);
+
+        try {
+            $provider->verifyToken($this->createSignedToken($newKey));
+            $this->fail('Expected the RS256 key refresh to remain stale.');
+        } catch (UnexpectedValueException $exception) {
+            $this->assertStringContainsString('"kid" invalid', $exception->getMessage());
+        }
+
+        $provider->setConfig(['id_token_alg' => 'RS384']);
+
+        $this->assertSame(
+            'foo',
+            $provider->verifyToken($this->createSignedToken($newKey, algorithm: 'RS384'))['sub'],
+        );
+    }
+
+    #[DataProvider('invalidIdTokenAlgorithmProvider')]
+    public function testOidcJwksLetsJwtLibraryRejectMismatchedAndUnsupportedAlgorithms(string $algorithm): void
+    {
+        $key = $this->createRsaKeyPair('invalid-algorithm-key-' . $algorithm);
+        $provider = $this->createVerifyingProvider();
+        $provider->setConfig(['id_token_alg' => $algorithm]);
+
+        $this->expectOpenIdConfigRequests($provider->http, 1);
+        $this->expectJwksRequests($provider->http, [$this->jwksWithoutAlgorithm($key)]);
+
+        $this->expectException(UnexpectedValueException::class);
+
+        $provider->verifyToken($this->createSignedToken($key));
+    }
+
+    public static function invalidIdTokenAlgorithmProvider(): array
+    {
+        return [
+            'mismatched' => ['RS384'],
+            'unsupported' => ['unsupported'],
+        ];
+    }
+
     public function testOidcJwksRefreshesWhenTokenKidIsMissingFromCachedKeys(): void
     {
         $oldKey = $this->createRsaKeyPair('old-key');
@@ -817,6 +903,7 @@ class OpenIdProviderTest extends TestCase
         array $key,
         bool $includeKid = true,
         string $issuer = 'http://base.url',
+        string $algorithm = 'RS256',
     ): string {
         return JWT::encode([
             'iss' => $issuer,
@@ -824,6 +911,15 @@ class OpenIdProviderTest extends TestCase
             'aud' => 'client_id',
             'iat' => time(),
             'exp' => time() + 3600,
-        ], $key['private'], 'RS256', $includeKid ? $key['kid'] : null);
+        ], $key['private'], $algorithm, $includeKid ? $key['kid'] : null);
+    }
+
+    private function jwksWithoutAlgorithm(array $key): array
+    {
+        $jwks = $this->jwks($key);
+
+        unset($jwks['keys'][0]['alg']);
+
+        return $jwks;
     }
 }

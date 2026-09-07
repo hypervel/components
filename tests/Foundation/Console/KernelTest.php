@@ -6,18 +6,24 @@ namespace Hypervel\Tests\Foundation\Console;
 
 use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\Command;
+use Hypervel\Console\Scheduling\CacheEventMutex;
+use Hypervel\Console\Scheduling\CacheSchedulingMutex;
+use Hypervel\Contracts\Console\Application as ConsoleApplicationContract;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\BootProviders;
 use Hypervel\Foundation\Console\Kernel;
 use Hypervel\Foundation\Events\Terminating;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\StringInput;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -27,6 +33,11 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class KernelTest extends TestCase
 {
+    protected function useTokyoApplicationTimezone(ApplicationContract $app): void
+    {
+        $app->make('config')->set('app.timezone', 'Asia/Tokyo');
+    }
+
     public function testHandleCatchesExceptionsAndReturnsOne()
     {
         $handler = m::mock(ExceptionHandlerContract::class);
@@ -88,6 +99,38 @@ class KernelTest extends TestCase
         }
     }
 
+    public function testHandlePreservesCancellationWithoutReportingOrRenderingIt(): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler->shouldNotReceive('report', 'renderForConsole');
+        $this->app->instance(ExceptionHandlerContract::class, $handler);
+
+        $kernel = new class($this->app, $this->app->make('events'), $cancellation) extends Kernel {
+            public function __construct(Application $app, Dispatcher $events, private readonly CanceledException $cancellation)
+            {
+                parent::__construct($app, $events);
+            }
+
+            protected function bootstrappers(): array
+            {
+                return [];
+            }
+
+            public function bootstrap(): void
+            {
+                throw $this->cancellation;
+            }
+        };
+
+        try {
+            $kernel->handle(new StringInput(''), new BufferedOutput);
+            $this->fail('Expected console handling to preserve cancellation.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+    }
+
     public function testBootstrapWithoutBootingProvidersSkipsBootProviders()
     {
         $bootstrappedWith = null;
@@ -109,6 +152,91 @@ class KernelTest extends TestCase
 
         $this->assertNotNull($bootstrappedWith);
         $this->assertNotContains(BootProviders::class, $bootstrappedWith);
+    }
+
+    #[DefineEnvironment('useTokyoApplicationTimezone')]
+    public function testMissingScheduleTimezoneUsesTheApplicationTimezone(): void
+    {
+        $event = $this->app->make(KernelContract::class)
+            ->resolveConsoleSchedule()
+            ->call(static fn (): null => null);
+
+        $this->assertSame('Asia/Tokyo', $event->nextRunDate()->getTimezone()->getName());
+    }
+
+    public function testNullScheduleCacheUsesTheDefaultStoreForBothMutexes(): void
+    {
+        $this->app->make('config')->set('cache.schedule_store', null);
+
+        $this->app->make(KernelContract::class)->resolveConsoleSchedule();
+
+        $this->assertNull($this->app->make(CacheEventMutex::class)->store);
+        $this->assertNull($this->app->make(CacheSchedulingMutex::class)->store);
+    }
+
+    public function testConfiguredScheduleCacheUsesTheSelectedStoreForBothMutexes(): void
+    {
+        $this->app->make('config')->set('cache.schedule_store', 'scheduling');
+
+        $this->app->make(KernelContract::class)->resolveConsoleSchedule();
+
+        $this->assertSame('scheduling', $this->app->make(CacheEventMutex::class)->store);
+        $this->assertSame('scheduling', $this->app->make(CacheSchedulingMutex::class)->store);
+    }
+
+    public function testSetArtisanSynchronizesTheKernelAndContainerBeforeReboundCallbacks(): void
+    {
+        $kernel = $this->app->make(KernelContract::class);
+        $kernel->getArtisan();
+        $reboundApplication = null;
+
+        $this->app->rebinding(ConsoleApplicationContract::class, function () use ($kernel, &$reboundApplication): void {
+            $reboundApplication = $kernel->getArtisan();
+        });
+
+        $replacement = new ConsoleApplication($this->app, $this->app->make('events'), $this->app->version());
+        $kernel->setArtisan($replacement);
+
+        $this->assertSame($replacement, $kernel->getArtisan());
+        $this->assertSame($replacement, $this->app->make(ConsoleApplicationContract::class));
+        $this->assertSame($replacement, $reboundApplication);
+    }
+
+    public function testClearingArtisanPreservesTheBindingAndLazilyBuildsAFreshApplication(): void
+    {
+        $kernel = $this->app->make(KernelContract::class);
+        $first = $this->app->make(ConsoleApplicationContract::class);
+        $resolvedFreshApplication = false;
+
+        $this->app->resolving(ConsoleApplicationContract::class, function () use (&$resolvedFreshApplication): void {
+            $resolvedFreshApplication = true;
+        });
+
+        $kernel->setArtisan(null);
+
+        $this->assertFalse($resolvedFreshApplication);
+        $this->assertTrue($this->app->resolved(ConsoleApplicationContract::class));
+
+        $fresh = $this->app->make(ConsoleApplicationContract::class);
+
+        $this->assertTrue($resolvedFreshApplication);
+        $this->assertNotSame($first, $fresh);
+        $this->assertSame($fresh, $kernel->getArtisan());
+    }
+
+    public function testClearingDirectlyConstructedArtisanLetsTheNextAccessRebuildIt(): void
+    {
+        $kernel = $this->app->make(KernelContract::class);
+        $first = $kernel->getArtisan();
+
+        $kernel->setArtisan(null);
+
+        $this->assertFalse($this->app->resolved(ConsoleApplicationContract::class));
+
+        $fresh = $kernel->getArtisan();
+
+        $this->assertNotSame($first, $fresh);
+        $this->assertSame($fresh, $this->app->make(ConsoleApplicationContract::class));
     }
 
     public function testReportExceptionDelegatesToExceptionHandler()

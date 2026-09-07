@@ -107,6 +107,12 @@ class PoolFingerprintTest extends TestCase
         $this->assertNotSame($automatic, $explicit);
     }
 
+    public function testFingerprintsUseXxh128Digests(): void
+    {
+        $this->assertSame('auto:2ae22223e262d74c36b021c43a122413', PoolFingerprint::fromConfig([]));
+        $this->assertSame('explicit:c32c83258bb3b48d882f72cb241666f2', PoolFingerprint::fromExplicit('same-input'));
+    }
+
     public function testCanonicalizationDoesNotMutateItsInput(): void
     {
         $config = ['nested' => ['beta' => 2, 'alpha' => 1]];

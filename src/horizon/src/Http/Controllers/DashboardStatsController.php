@@ -8,6 +8,7 @@ use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
+use Hypervel\Horizon\Repositories\RedisJobRepository;
 use Hypervel\Horizon\WaitTimeCalculator;
 
 class DashboardStatsController extends Controller
@@ -17,13 +18,21 @@ class DashboardStatsController extends Controller
      */
     public function index(): array
     {
+        $failedJobRetention = config()->integer(
+            'horizon.trim.failed',
+            RedisJobRepository::DEFAULT_FAILED_JOB_RETENTION,
+        );
+
         return [
             'failedJobs' => app(JobRepository::class)->countRecentlyFailed(),
             'jobsPerMinute' => app(MetricsRepository::class)->jobsProcessedPerMinute(),
             'pausedMasters' => $this->totalPausedMasters(),
             'periods' => [
-                'failedJobs' => config('horizon.trim.recent_failed', config('horizon.trim.failed')),
-                'recentJobs' => config('horizon.trim.recent'),
+                'failedJobs' => config()->integer('horizon.trim.recent_failed', $failedJobRetention),
+                'recentJobs' => config()->integer(
+                    'horizon.trim.recent',
+                    RedisJobRepository::DEFAULT_RECENT_JOB_RETENTION,
+                ),
             ],
             'processes' => $this->totalProcessCount(),
             'queueWithMaxRuntime' => app(MetricsRepository::class)->queueWithMaximumRuntime(),

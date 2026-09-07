@@ -19,7 +19,7 @@ abstract class TestCase extends Testbench
      *
      * @var array<string, mixed>
      */
-    protected const EXAMPLE_PAGE_OBJECT = [
+    protected const array EXAMPLE_PAGE_OBJECT = [
         'component' => 'Foo/Bar',
         'props' => ['foo' => 'bar'],
         'url' => '/test',

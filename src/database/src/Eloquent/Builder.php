@@ -10,6 +10,7 @@ use Exception;
 use Hypervel\Contracts\Database\Eloquent\Builder as BuilderContract;
 use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Concerns\BuildsQueries;
 use Hypervel\Database\Eloquent\Concerns\QueriesRelationships;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
@@ -33,6 +34,9 @@ use ReflectionMethod;
 use SortDirection;
 
 /**
+ * Forwarded query methods operate on this builder, so their value type is TModel.
+ * Keep toBase() and getQuery() unparameterized because raw queries return stdClass rows.
+ *
  * @template TModel of \Hypervel\Database\Eloquent\Model
  *
  * @property-read $this|HigherOrderBuilderProxy $orWhere
@@ -41,12 +45,14 @@ use SortDirection;
  *
  * @method $this whereCan(\UnitEnum|string $ability, mixed $user = null)
  * @method $this withCan(\UnitEnum|string|list<\UnitEnum|string> $abilities, mixed $user = null)
+ * @method $this fetchUsing(mixed ...$fetchUsing)
+ * @method $this useWritePdo()
  *
- * @mixin \Hypervel\Database\Query\Builder
+ * @mixin \Hypervel\Database\Query\Builder<int, TModel>
  */
 class Builder implements BuilderContract
 {
-    /** @use \Hypervel\Database\Concerns\BuildsQueries<TModel> */
+    /** @use \Hypervel\Database\Concerns\BuildsQueries<int, TModel> */
     use BuildsQueries, ForwardsCalls, QueriesRelationships {
         BuildsQueries::sole as baseSole;
     }
@@ -255,7 +261,7 @@ class Builder implements BuilderContract
         }
 
         if (is_array($id) || $id instanceof Arrayable) {
-            if (in_array($this->model->getKeyType(), ['int', 'integer'])) {
+            if (in_array($this->model->getKeyType(), ['int', 'integer'], true)) {
                 $this->query->whereIntegerInRaw($this->model->getQualifiedKeyName(), $id);
             } else {
                 $this->query->whereIn($this->model->getQualifiedKeyName(), $id);
@@ -264,7 +270,7 @@ class Builder implements BuilderContract
             return $this;
         }
 
-        if ($id !== null && $this->model->getKeyType() === 'string') {
+        if ($id !== null && $this->model->getKeyType() === 'string' && ! $id instanceof BinaryParameter) {
             $id = (string) $id;
         }
 
@@ -281,7 +287,7 @@ class Builder implements BuilderContract
         }
 
         if (is_array($id) || $id instanceof Arrayable) {
-            if (in_array($this->model->getKeyType(), ['int', 'integer'])) {
+            if (in_array($this->model->getKeyType(), ['int', 'integer'], true)) {
                 $this->query->whereIntegerNotInRaw($this->model->getQualifiedKeyName(), $id);
             } else {
                 $this->query->whereNotIn($this->model->getQualifiedKeyName(), $id);
@@ -290,7 +296,7 @@ class Builder implements BuilderContract
             return $this;
         }
 
-        if ($id !== null && $this->model->getKeyType() === 'string') {
+        if ($id !== null && $this->model->getKeyType() === 'string' && ! $id instanceof BinaryParameter) {
             $id = (string) $id;
         }
 
@@ -312,9 +318,9 @@ class Builder implements BuilderContract
     /**
      * Add a basic where clause to the query.
      *
-     * @param array|(Closure(static): mixed)|Expression|string $column
+     * @param array|(Closure(static): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
      */
-    public function where(array|Closure|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
+    public function where(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
         if ($column instanceof Closure && is_null($operator)) {
             // @phpstan-ignore argument.type (closure receives Builder instance, static type not required)
@@ -336,10 +342,10 @@ class Builder implements BuilderContract
     /**
      * Add a basic where clause to the query, and return the first result.
      *
-     * @param array|(Closure(static): mixed)|Expression|string $column
+     * @param array|(Closure(static): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
      * @return null|TModel
      */
-    public function firstWhere(array|Closure|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): ?Model
+    public function firstWhere(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): ?Model
     {
         return $this->where(...func_get_args())->first();
     }
@@ -347,9 +353,9 @@ class Builder implements BuilderContract
     /**
      * Add an "or where" clause to the query.
      *
-     * @param array|(Closure(static): mixed)|Expression|string $column
+     * @param array|(Closure(static): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
      */
-    public function orWhere(array|Closure|Expression|string $column, mixed $operator = null, mixed $value = null): static
+    public function orWhere(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null): static
     {
         [$value, $operator] = $this->query->prepareValueAndOperator(
             $value,
@@ -363,9 +369,9 @@ class Builder implements BuilderContract
     /**
      * Add a basic "where not" clause to the query.
      *
-     * @param array|(Closure(static): mixed)|Expression|string $column
+     * @param array|(Closure(static): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
      */
-    public function whereNot(array|Closure|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
+    public function whereNot(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
         return $this->where($column, $operator, $value, $boolean . ' not');
     }
@@ -373,9 +379,9 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not" clause to the query.
      *
-     * @param array|(Closure(static): mixed)|Expression|string $column
+     * @param array|(Closure(static): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
      */
-    public function orWhereNot(array|Closure|Expression|string $column, mixed $operator = null, mixed $value = null): static
+    public function orWhereNot(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null): static
     {
         return $this->whereNot($column, $operator, $value, 'or');
     }
@@ -383,7 +389,7 @@ class Builder implements BuilderContract
     /**
      * Add an "order by" clause for a timestamp to the query.
      */
-    public function latest(Expression|string|null $column = null): static
+    public function latest(Closure|self|QueryBuilder|Relation|Expression|string|null $column = null): static
     {
         if (is_null($column)) {
             $column = $this->model->getCreatedAtColumn() ?? 'created_at';
@@ -397,7 +403,7 @@ class Builder implements BuilderContract
     /**
      * Add an "order by" clause for a timestamp to the query.
      */
-    public function oldest(Expression|string|null $column = null): static
+    public function oldest(Closure|self|QueryBuilder|Relation|Expression|string|null $column = null): static
     {
         if (is_null($column)) {
             $column = $this->model->getCreatedAtColumn() ?? 'created_at';
@@ -470,16 +476,16 @@ class Builder implements BuilderContract
             return [];
         }
 
-        if (! is_array(array_first($values))) { /* @phpstan-ignore function.alreadyNarrowedType */
+        if (! is_array(array_first($values))) {
             $values = [$values];
         }
 
         $this->model->unguarded(function () use (&$values) {
             foreach ($values as $key => $rowValues) {
-                $values[$key] = tap(
-                    $this->newModelInstance($rowValues),
-                    fn ($model) => $model->setUniqueIds()
-                )->getAttributes();
+                $model = $this->newModelInstance($rowValues);
+                $model->setUniqueIds();
+
+                $values[$key] = $model->prepareBinaryAttributesForDatabase($model->getAttributes());
             }
         });
 
@@ -655,7 +661,6 @@ class Builder implements BuilderContract
         try {
             return $this->withSavepointIfNeeded(fn () => $this->create(array_merge($attributes, value($values))));
         } catch (UniqueConstraintViolationException $e) {
-            // @phpstan-ignore return.type (first() returns hydrated TModel, not stdClass)
             return $this->useWritePdo()->where($attributes)->first() ?? throw $e;
         }
     }
@@ -930,6 +935,13 @@ class Builder implements BuilderContract
 
     /**
      * Invoke the "after query" modification callbacks.
+     *
+     * A callback that replaces the collection type owns the resulting type change.
+     *
+     * @template TCollection of BaseCollection
+     *
+     * @param TCollection $result
+     * @return TCollection
      */
     public function applyAfterQueryCallbacks(BaseCollection $result): BaseCollection
     {
@@ -1374,7 +1386,7 @@ class Builder implements BuilderContract
      */
     public function hasNamedScope(string $scope): bool
     {
-        return $this->model && $this->model->hasNamedScope($scope); // @phpstan-ignore booleanAnd.leftAlwaysTrue (model can be null before setModel() is called)
+        return $this->model && $this->model->hasNamedScope($scope);
     }
 
     /**

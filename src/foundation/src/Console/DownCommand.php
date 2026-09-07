@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Console;
 
-use DateTimeInterface;
 use Exception;
 use Hypervel\Console\Command;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Foundation\Console\Concerns\ReloadsWorkers;
 use Hypervel\Foundation\Events\MaintenanceModeEnabled;
 use Hypervel\Foundation\Exceptions\RegisterErrorViewPaths;
@@ -55,7 +55,12 @@ class DownCommand extends Command
             $exception = null;
 
             try {
-                $this->hypervel->make('events')->dispatch(new MaintenanceModeEnabled);
+                /** @var Dispatcher $events */
+                $events = $this->hypervel->make('events');
+
+                if ($events->hasListeners(MaintenanceModeEnabled::class)) {
+                    $events->dispatch(new MaintenanceModeEnabled);
+                }
             } catch (Throwable $throwable) {
                 $exception = $throwable;
             }
@@ -171,7 +176,7 @@ class DownCommand extends Command
             try {
                 $date = CarbonImmutable::parse($retry);
 
-                return $date->format(DateTimeInterface::RFC7231);
+                return $date->toRfc7231String();
             } catch (Exception) {
                 return null;
             }

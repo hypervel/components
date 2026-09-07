@@ -34,6 +34,7 @@ trait HasAssignedModels
 
         $registrar = Container::getInstance()->make(PermissionRegistrar::class);
         $context = $this->assignedModelRelationContext($registrar);
+        $registrar->ensureTeamIsSelectedForMutation($context);
         $groupedModels = $this->groupModelsByMorphClass($models, $modelClass, $registrar, $context->partition);
 
         if ($groupedModels !== []) {
@@ -55,7 +56,7 @@ trait HasAssignedModels
             if (count($groupedModels) === 1) {
                 $assignGroups();
             } else {
-                $this->getConnection()->transaction($assignGroups);
+                $registrar->getPermissionConnection()->transaction($assignGroups);
             }
         }
 
@@ -82,6 +83,7 @@ trait HasAssignedModels
 
         $registrar = Container::getInstance()->make(PermissionRegistrar::class);
         $context = $this->assignedModelRelationContext($registrar);
+        $registrar->ensureTeamIsSelectedForMutation($context);
         $groupedModels = $this->groupModelsByMorphClass($models, $modelClass, $registrar, $context->partition);
 
         if ($groupedModels !== []) {
@@ -94,7 +96,7 @@ trait HasAssignedModels
             if (count($groupedModels) === 1) {
                 $removeGroups();
             } else {
-                $this->getConnection()->transaction($removeGroups);
+                $registrar->getPermissionConnection()->transaction($removeGroups);
             }
         }
 
@@ -121,9 +123,12 @@ trait HasAssignedModels
 
         $registrar = Container::getInstance()->make(PermissionRegistrar::class);
         $context = $this->assignedModelRelationContext($registrar);
+        $registrar->ensureTeamIsSelectedForMutation($context);
         $groupedModels = $this->groupModelsByMorphClass($models, $modelClass, $registrar, $context->partition);
 
-        $this->getConnection()->transaction(function () use ($context, $groupedModels): void {
+        $registrar->getPermissionConnection()->transaction(function () use ($context, $groupedModels, $registrar): void {
+            $registrar->rotateModelAssignmentCacheTokenAfterMutation($context->partition);
+
             $this->newPivotQueryForRole($context)->delete();
 
             foreach ($groupedModels as $groupedModelClass => $ids) {
@@ -132,7 +137,6 @@ trait HasAssignedModels
         });
 
         $this->unsetRelation('users');
-        $registrar->bumpModelAssignmentCacheTokenFor($context->partition);
 
         return $this;
     }
@@ -256,7 +260,7 @@ trait HasAssignedModels
         $morphType = (new $modelClass)->getMorphClass();
 
         foreach ($ids as $id) {
-            $registrar->forgetModelAssignmentCacheForIdentity(
+            $registrar->invalidateModelAssignmentCacheForIdentityAfterMutation(
                 $morphType,
                 $id,
                 $context->partition,
@@ -270,9 +274,10 @@ trait HasAssignedModels
      */
     private function newPivotQueryForRole(PermissionRelationContext $context): Builder
     {
-        $query = $this->getConnection()
+        $registrar = Container::getInstance()->make(PermissionRegistrar::class);
+        $query = $registrar->getPermissionConnection()
             ->table(Config::modelHasRolesTable())
-            ->where(Container::getInstance()->make(PermissionRegistrar::class)->pivotRole, $this->getKey());
+            ->where($registrar->pivotRole, $this->getKey());
 
         if ($context->partition) {
             $query->where($context->partition->column, $context->partition->value);

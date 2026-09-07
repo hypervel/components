@@ -26,7 +26,6 @@ class HasManyThrough extends HasOneOrManyThrough
      */
     public function one(): HasOneThrough
     {
-        // @phpstan-ignore return.type (template types lost through closure/tap in noConstraints)
         return HasOneThrough::noConstraints(fn () => new HasOneThrough(
             tap($this->getQuery(), fn (Builder $query) => $query->getQuery()->joins = []),
             $this->farParent,

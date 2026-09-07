@@ -74,7 +74,7 @@ class AttributeEnvironmentSetupTest extends TestCase
      */
     protected function classConfig(ApplicationContract $app): void
     {
-        $app['config']->set('testbench.class', 'testbench');
+        $app->make('config')->set('testbench.class', 'testbench');
     }
 
     /**
@@ -82,7 +82,7 @@ class AttributeEnvironmentSetupTest extends TestCase
      */
     protected function globalConfig(ApplicationContract $app): void
     {
-        $app['config']->set('testbench.global', 'testbench');
+        $app->make('config')->set('testbench.global', 'testbench');
     }
 
     /**
@@ -90,7 +90,7 @@ class AttributeEnvironmentSetupTest extends TestCase
      */
     protected function firstConfig(ApplicationContract $app): void
     {
-        $app['config']->set('testbench.one', 'testbench');
+        $app->make('config')->set('testbench.one', 'testbench');
     }
 
     /**
@@ -98,7 +98,7 @@ class AttributeEnvironmentSetupTest extends TestCase
      */
     protected function secondConfig(ApplicationContract $app): void
     {
-        $app['config']->set('testbench.two', 'testbench');
+        $app->make('config')->set('testbench.two', 'testbench');
     }
 
     /**
@@ -106,8 +106,10 @@ class AttributeEnvironmentSetupTest extends TestCase
      */
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app['config']->set('database.default', 'testbench');
-        $app['config']->set('database.connections.testbench', [
+        $config = $app->make('config');
+
+        $config->set('database.default', 'testbench');
+        $config->set('database.connections.testbench', [
             'driver' => 'sqlite',
             'database' => ':memory:',
         ]);

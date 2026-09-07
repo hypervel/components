@@ -13,7 +13,7 @@ class ThrowUncaughtExceptionServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $config = $this->app['config'];
+        $config = $this->app->make('config');
 
         $config->set('logging.default', 'throw_exception');
 

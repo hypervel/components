@@ -113,6 +113,19 @@ class SuggestPromptTest extends TestCase
         Prompt::assertOutputContains('Please enter your name.');
     }
 
+    public function testCancelledZeroIsRenderedInsteadOfThePlaceholder(): void
+    {
+        Prompt::fake(['0', Key::CTRL_C]);
+
+        suggest('Value', ['One'], placeholder: 'placeholder');
+
+        $output = Prompt::strippedContent();
+        $cancelFrame = substr($output, strrpos($output, ' ┌'));
+
+        $this->assertStringContainsString('│ 0 ', $cancelFrame);
+        $this->assertStringNotContainsString('placeholder', $cancelFrame);
+    }
+
     public function testCanFallBack(): void
     {
         Prompt::fallbackWhen(true);

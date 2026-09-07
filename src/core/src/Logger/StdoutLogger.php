@@ -12,6 +12,7 @@ use Psr\Log\InvalidArgumentException as PsrInvalidArgumentException;
 use Psr\Log\LoggerTrait;
 use Psr\Log\LogLevel;
 use Stringable;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Formatter\OutputFormatter;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -27,13 +28,13 @@ class StdoutLogger implements StdoutLoggerInterface
 {
     use LoggerTrait;
 
-    private const JSON_FLAGS = JSON_UNESCAPED_SLASHES
+    private const int JSON_FLAGS = JSON_UNESCAPED_SLASHES
         | JSON_UNESCAPED_UNICODE
         | JSON_PRESERVE_ZERO_FRACTION
         | JSON_INVALID_UTF8_SUBSTITUTE
         | JSON_PARTIAL_OUTPUT_ON_ERROR;
 
-    private const STANDARD_LEVELS = [
+    private const array STANDARD_LEVELS = [
         LogLevel::EMERGENCY => true,
         LogLevel::ALERT => true,
         LogLevel::CRITICAL => true,
@@ -51,6 +52,9 @@ class StdoutLogger implements StdoutLoggerInterface
     /** @var array<string, true> */
     private array $logLevels;
 
+    /**
+     * Create a new stdout logger instance.
+     */
     public function __construct(private Repository $config, ?OutputInterface $output = null)
     {
         $this->output = $output ?? new ConsoleOutput;
@@ -189,6 +193,8 @@ class StdoutLogger implements StdoutLoggerInterface
             $json = json_encode($entry, self::JSON_FLAGS);
 
             return is_string($json) ? $json : null;
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable) {
             return null;
         }
@@ -248,6 +254,8 @@ class StdoutLogger implements StdoutLoggerInterface
     {
         try {
             return (string) $value;
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable) {
             return '<OBJECT> ' . $value::class;
         }

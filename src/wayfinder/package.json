@@ -2,6 +2,11 @@
     "name": "@hypervel/wayfinder",
     "private": true,
     "type": "module",
+    "scripts": {
+        "test": "vitest run",
+        "test:cached": "WAYFINDER_CACHE_ROUTES=1 vitest run",
+        "typecheck": "php tests/generate.php tests/.generated && tsc --noEmit --project tsconfig.json"
+    },
     "devDependencies": {
         "happy-dom": "^20.0.2"
     }

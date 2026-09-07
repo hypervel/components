@@ -10,13 +10,16 @@ use Hypervel\Engine\Channel;
 use Hypervel\Grpc\Compression;
 use Hypervel\Grpc\Exceptions\ProtocolException;
 use Hypervel\Grpc\Exceptions\RpcException;
+use Hypervel\Grpc\GrpcOperationHandle;
+use Hypervel\Grpc\GrpcOperationResult;
 use Hypervel\Grpc\Metadata;
 use Hypervel\Grpc\Protocol\Deadline;
 use Hypervel\Grpc\Protocol\FrameEncoder;
 use Hypervel\Grpc\Protocol\MessageSerializer;
 use Hypervel\Grpc\Status;
-use Hypervel\Support\Sleep;
+use Hypervel\Grpc\StatusCode;
 use LogicException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 abstract class Call
@@ -28,11 +31,17 @@ abstract class Call
 
     private ?Throwable $failure = null;
 
+    private bool $finished = false;
+
     private int $attempts = 1;
 
     private ?Channel $attemptSemaphore = null;
 
     private bool $attemptSemaphoreClosed = false;
+
+    private ?Channel $retryDelayChannel = null;
+
+    private ?Status $cancellationStatus = null;
 
     /** @var null|Closure(int): StreamState */
     private ?Closure $attemptFactory;
@@ -48,6 +57,10 @@ abstract class Call
     private ?Message $unaryResponse = null;
 
     private ?Throwable $unaryResponseFailure = null;
+
+    private bool $hasPendingPayload = false;
+
+    private string $pendingPayload = '';
 
     private bool $reading = false;
 
@@ -78,6 +91,7 @@ abstract class Call
         private readonly ?RetryPolicy $retryPolicy = null,
         ?Closure $attemptFactory = null,
         ?RetryBackoff $retryBackoff = null,
+        private readonly ?GrpcOperationHandle $operationHandle = null,
     ) {
         MessageSerializer::validate($deserialize);
 
@@ -140,7 +154,8 @@ abstract class Call
                 continue;
             }
 
-            $this->finish();
+            $status = $this->resolveStatus($status);
+            $this->finish($status);
 
             return $metadata;
         }
@@ -170,7 +185,8 @@ abstract class Call
                 continue;
             }
 
-            $this->finish();
+            $status = $this->resolveStatus($status);
+            $this->finish($status);
 
             return $trailers;
         }
@@ -199,7 +215,8 @@ abstract class Call
                 continue;
             }
 
-            $this->finish();
+            $status = $this->resolveStatus($status);
+            $this->finish($status);
 
             return $status;
         }
@@ -214,6 +231,51 @@ abstract class Call
     }
 
     /**
+     * Cancel this logical call.
+     */
+    public function cancel(): void
+    {
+        if ($this->finished) {
+            return;
+        }
+
+        $state = $this->state;
+
+        if (! $state->isComplete()) {
+            $this->clearPendingPayload();
+            $status = new Status(
+                StatusCode::Cancelled,
+                'The gRPC call was canceled.',
+            );
+            $state->failWithStatus($status);
+            $this->finish($status);
+
+            return;
+        }
+
+        $status = $state->finalStatus();
+
+        if ($status === null) {
+            $this->finish(exception: $state->finalFailure());
+
+            return;
+        }
+
+        if (! $this->retryEligible($state, $status)) {
+            $this->finish($status);
+
+            return;
+        }
+
+        $this->clearPendingPayload();
+        $this->cancellationStatus = new Status(
+            StatusCode::Cancelled,
+            'The gRPC call was canceled.',
+        );
+        $this->finish($this->cancellationStatus);
+    }
+
+    /**
      * Resolve and cache a unary response for every concurrent waiter.
      */
     protected function waitForUnaryResponse(): Message
@@ -225,12 +287,16 @@ abstract class Call
         $completionSemaphore = $this->completionSemaphore ??= new Channel(1);
 
         if (! $completionSemaphore->push(true)) {
+            if ($completionSemaphore->isCanceled()) {
+                throw new CanceledException('Waiting to resolve the unary gRPC response was canceled.');
+            }
+
             return $this->resolvedUnaryResponse();
         }
 
         try {
             try {
-                $firstPayload = $this->nextPayload();
+                $firstPayload = $this->retainNextPayload();
 
                 if ($firstPayload === null) {
                     throw new ProtocolException('A unary gRPC response must contain exactly one message.');
@@ -240,7 +306,9 @@ abstract class Call
                     throw new ProtocolException('A unary gRPC response cannot contain multiple messages.');
                 }
 
-                $this->unaryResponse = $this->deserialize($firstPayload);
+                $this->unaryResponse = $this->deserializePendingPayload();
+            } catch (CanceledException $throwable) {
+                throw $throwable;
             } catch (Throwable $throwable) {
                 if ($throwable instanceof ProtocolException) {
                     $this->storeFailure($throwable);
@@ -263,9 +331,9 @@ abstract class Call
      */
     protected function readResponse(): ?Message
     {
-        $payload = $this->nextPayload();
+        $payload = $this->retainNextPayload();
 
-        return $payload === null ? null : $this->deserialize($payload);
+        return $payload === null ? null : $this->deserializePendingPayload();
     }
 
     /**
@@ -324,6 +392,10 @@ abstract class Call
         );
 
         if (! $writeSemaphore->push(true)) {
+            if ($writeSemaphore->isCanceled()) {
+                throw new CanceledException('Waiting to write a gRPC request was canceled.');
+            }
+
             $this->throwCompletedWrite();
 
             throw new LogicException('The gRPC request stream has already been closed.');
@@ -341,7 +413,7 @@ abstract class Call
                 );
             } catch (RpcException $exception) {
                 $this->state->failWithStatus($exception->status());
-                $this->finish();
+                $this->finish($exception->status());
 
                 throw $this->rpcException($this->state, $exception->status());
             } catch (ProtocolException $exception) {
@@ -384,6 +456,10 @@ abstract class Call
         );
 
         if (! $writeSemaphore->push(true)) {
+            if ($writeSemaphore->isCanceled()) {
+                throw new CanceledException('Waiting to finish gRPC request writes was canceled.');
+            }
+
             return;
         }
 
@@ -459,7 +535,8 @@ abstract class Call
                 continue;
             }
 
-            $this->finish();
+            $status = $this->resolveStatus($status);
+            $this->finish($status);
 
             if (! $status->isOk()) {
                 throw $this->rpcException($state, $status);
@@ -467,6 +544,49 @@ abstract class Call
 
             return null;
         }
+    }
+
+    /**
+     * Retain the next payload until its deserialization succeeds.
+     */
+    private function retainNextPayload(): ?string
+    {
+        if ($this->hasPendingPayload) {
+            return $this->pendingPayload;
+        }
+
+        $payload = $this->nextPayload();
+
+        if ($payload !== null) {
+            $this->pendingPayload = $payload;
+            $this->hasPendingPayload = true;
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Deserialize and release the retained response payload.
+     */
+    private function deserializePendingPayload(): Message
+    {
+        if (! $this->hasPendingPayload) {
+            throw new LogicException('The gRPC response payload is unavailable.');
+        }
+
+        $message = $this->deserialize($this->pendingPayload);
+        $this->clearPendingPayload();
+
+        return $message;
+    }
+
+    /**
+     * Release the retained response payload.
+     */
+    private function clearPendingPayload(): void
+    {
+        $this->hasPendingPayload = false;
+        $this->pendingPayload = '';
     }
 
     /**
@@ -487,14 +607,24 @@ abstract class Call
         }
 
         if (! $attemptSemaphore->push(true)) {
+            if ($attemptSemaphore->isCanceled()) {
+                throw new CanceledException('Waiting to retry the gRPC call was canceled.');
+            }
+
             $this->throwStoredFailure();
 
             return $state !== $this->state;
         }
 
+        $backoffCheckpoint = null;
+
         try {
             if ($state !== $this->state) {
                 return true;
+            }
+
+            if ($this->isLogicallyCanceled()) {
+                return false;
             }
 
             if (! $this->retryEligible($state, $status)) {
@@ -503,6 +633,7 @@ abstract class Call
                 return false;
             }
 
+            $backoffCheckpoint = $this->retryBackoff?->checkpoint();
             $delay = $this->retryDelay($state);
 
             if ($delay === null) {
@@ -512,17 +643,52 @@ abstract class Call
             }
 
             if ($delay > 0) {
-                Sleep::sleep($delay);
+                // The channel lets logical call cancellation wake this wait. Sleep cannot
+                // be interrupted without cancelling the coroutine that owns the retry.
+                $retryDelayChannel = $this->retryDelayChannel ??= new Channel(1);
+
+                if (! $retryDelayChannel->pop($delay) && $retryDelayChannel->isCanceled()) {
+                    throw new CanceledException('Waiting to retry the gRPC call was canceled.');
+                }
+            }
+
+            if ($this->isLogicallyCanceled()) {
+                $this->retryBackoff?->restore($backoffCheckpoint);
+
+                return false;
             }
 
             $previousAttempts = $this->attempts;
-            ++$this->attempts;
-            $this->state = ($this->attemptFactory ?? throw new LogicException(
+            $replacementState = ($this->attemptFactory ?? throw new LogicException(
                 'The retryable gRPC call has no attempt factory.',
             ))($previousAttempts);
 
+            if ($this->isLogicallyCanceled()) {
+                $this->retryBackoff?->restore($backoffCheckpoint);
+                $replacementState->abandonIfIncomplete();
+
+                return false;
+            }
+
+            $this->state = $replacementState;
+            ++$this->attempts;
+
             return true;
+        } catch (CanceledException $throwable) {
+            if ($backoffCheckpoint !== null) {
+                $this->retryBackoff?->restore($backoffCheckpoint);
+            }
+
+            throw $throwable;
         } catch (Throwable $throwable) {
+            if ($this->isLogicallyCanceled()) {
+                if ($backoffCheckpoint !== null) {
+                    $this->retryBackoff?->restore($backoffCheckpoint);
+                }
+
+                return false;
+            }
+
             $this->storeFailure($throwable);
 
             throw $throwable;
@@ -564,6 +730,24 @@ abstract class Call
         }
 
         return $remainingSeconds === null ? $delay : min($delay, $remainingSeconds);
+    }
+
+    /**
+     * Resolve the logical call status over one transport attempt's status.
+     */
+    private function resolveStatus(Status $status): Status
+    {
+        return $this->cancellationStatus ?? $status;
+    }
+
+    /**
+     * Determine whether this call was canceled during a retry transition.
+     *
+     * @phpstan-impure Another coroutine may cancel the call while this one is suspended.
+     */
+    private function isLogicallyCanceled(): bool
+    {
+        return $this->cancellationStatus !== null;
     }
 
     /**
@@ -627,7 +811,7 @@ abstract class Call
             throw $throwable;
         }
 
-        $this->finish();
+        $this->finish($status);
 
         if (! $status->isOk()) {
             throw $this->rpcException($this->state, $status);
@@ -641,9 +825,14 @@ abstract class Call
      */
     private function storeFailure(Throwable $failure): void
     {
+        if ($failure instanceof CanceledException) {
+            throw $failure;
+        }
+
         $this->failure ??= $failure;
+        $this->clearPendingPayload();
         $this->state->fail($this->failure, abandon: ! $this->state->isComplete());
-        $this->finish();
+        $this->finish(exception: $this->failure);
     }
 
     /**
@@ -692,10 +881,35 @@ abstract class Call
     /**
      * Close call-owned synchronization once no transition remains possible.
      */
-    private function finish(): void
+    private function finish(?Status $status = null, ?Throwable $exception = null): void
     {
+        // Several terminal paths can observe the same logical result, but its
+        // synchronization and operation observer must be completed only once.
+        if ($this->finished) {
+            return;
+        }
+
+        $this->finished = true;
+        $this->closeRetryDelayChannel();
         $this->closeAttemptSemaphore();
         $this->closeWriteSemaphore();
+        $this->operationHandle?->finish(new GrpcOperationResult(
+            $status,
+            $exception,
+            $this->attempts,
+        ));
+    }
+
+    /**
+     * Wake and close the retry delay channel.
+     */
+    private function closeRetryDelayChannel(): void
+    {
+        if ($this->retryDelayChannel === null || $this->retryDelayChannel->isClosing()) {
+            return;
+        }
+
+        $this->retryDelayChannel->close();
     }
 
     /**
@@ -737,5 +951,17 @@ abstract class Call
 
         $this->writeSemaphoreClosed = true;
         $this->writeSemaphore->close();
+    }
+
+    /**
+     * Release unfinished native call resources.
+     */
+    public function __destruct()
+    {
+        try {
+            $this->state->abandonIfIncomplete();
+        } catch (Throwable) {
+            // Destructors cannot safely surface cleanup failures during process shutdown.
+        }
     }
 }

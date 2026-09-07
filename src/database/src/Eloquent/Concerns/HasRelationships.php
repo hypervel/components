@@ -898,13 +898,16 @@ trait HasRelationships
 
     /**
      * Get the class name for polymorphic relations.
+     *
+     * @throws ClassMorphViolationException
      */
     public function getMorphClass(): string
     {
         $morphMap = Relation::morphMap();
+        $alias = array_search(static::class, $morphMap, true);
 
-        if (! empty($morphMap) && in_array(static::class, $morphMap)) {
-            return array_search(static::class, $morphMap, true);
+        if ($alias !== false) {
+            return (string) $alias;
         }
 
         if (static::class === Pivot::class) {

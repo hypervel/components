@@ -4,12 +4,24 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Storage;
 
+use Carbon\CarbonInterface;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Factories\HasFactory;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
 use Hypervel\Telescope\Database\Factories\EntryModelFactory;
 
+/**
+ * Telescope supplies created_at for every entry even though its migration permits null.
+ *
+ * @property string $uuid
+ * @property int|string $sequence
+ * @property string $batch_id
+ * @property string $type
+ * @property null|string $family_hash
+ * @property mixed $content
+ * @property CarbonInterface $created_at
+ */
 class EntryModel extends Model
 {
     use HasFactory;
@@ -21,10 +33,8 @@ class EntryModel extends Model
 
     /**
      * The name of the "updated at" column.
-     *
-     * @var null|string
      */
-    public const UPDATED_AT = null;
+    public const ?string UPDATED_AT = null;
 
     /**
      * The attributes that should be cast to native types.
@@ -50,6 +60,9 @@ class EntryModel extends Model
 
     /**
      * Scope the query for the given query options.
+     *
+     * @param Builder<static> $query
+     * @return Builder<static>
      */
     public function scopeWithTelescopeOptions(Builder $query, ?string $type, EntryQueryOptions $options): Builder
     {
@@ -162,7 +175,7 @@ class EntryModel extends Model
      */
     public function getConnectionName(): ?string
     {
-        return config('telescope.storage.database.connection');
+        return config()->string('telescope.storage.database.connection');
     }
 
     /**

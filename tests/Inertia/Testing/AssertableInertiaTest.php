@@ -6,10 +6,13 @@ namespace Hypervel\Tests\Inertia\Testing;
 
 use Hypervel\Inertia\Inertia;
 use Hypervel\Inertia\Middleware;
+use Hypervel\Inertia\Support\Header;
 use Hypervel\Inertia\Testing\AssertableInertia;
 use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Support\Facades\Route;
+use Hypervel\Support\Json;
 use Hypervel\Tests\Inertia\TestCase;
+use JsonException;
 use PHPUnit\Framework\AssertionFailedError;
 
 class AssertableInertiaTest extends TestCase
@@ -30,6 +33,58 @@ class AssertableInertiaTest extends TestCase
 
         $this->expectException(AssertionFailedError::class);
         $this->expectExceptionMessage('Not a valid Inertia response.');
+
+        $response->assertInertia();
+    }
+
+    public function testTheJsonResponseIsServedByInertia(): void
+    {
+        $this->makeMockRequest(Inertia::render('foo', ['name' => 'Jonathan']), Middleware::class);
+
+        $response = $this->get('/example-url', [Header::INERTIA => 'true']);
+
+        $response->assertHeader(Header::INERTIA, 'true');
+        $response->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('foo')
+            ->where('name', 'Jonathan'));
+    }
+
+    public function testAnInvalidJsonInertiaResponseIsRejected(): void
+    {
+        app('router')->get('/invalid-inertia-response', fn () => response('invalid', 200, [Header::INERTIA => 'true']));
+
+        $response = $this->get('/invalid-inertia-response');
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('Not a valid Inertia response.');
+
+        $response->assertInertia();
+    }
+
+    public function testPagePropsRoundTripAtTheMaximumSupportedNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH - 2; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $response = $this->makeMockRequest(Inertia::render('foo', ['nested' => $value]));
+
+        $response->assertInertia(fn (AssertableInertia $page) => $page->where('nested', $value));
+    }
+
+    public function testPagePropsOverTheMaximumNestingDepthRaiseJsonException(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH - 1; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $response = $this->makeMockRequest(Inertia::render('foo', ['nested' => $value]));
+
+        $this->expectException(JsonException::class);
 
         $response->assertInertia();
     }
@@ -59,13 +114,13 @@ class AssertableInertiaTest extends TestCase
         });
     }
 
-    public function testTheComponentExistsOnTheFilesystem(): void
+    public function testTheComponentExistsOnTheFilesystemWhenSettingIsOmitted(): void
     {
         $response = $this->makeMockRequest(
             Inertia::render('Fixtures/ExamplePage')
         );
 
-        config()->set('inertia.testing.ensure_pages_exist', true);
+        config()->set('inertia.testing', []);
         $response->assertInertia(function ($inertia) {
             $inertia->component('Fixtures/ExamplePage');
         });
@@ -231,7 +286,7 @@ class AssertableInertiaTest extends TestCase
             return Inertia::render('foo', [
                 'foo' => $foo++,
             ]);
-        });
+        }, Middleware::class);
 
         $called = false;
 
@@ -254,7 +309,8 @@ class AssertableInertiaTest extends TestCase
                 'foo' => 'bar',
                 'optional1' => Inertia::optional(fn () => 'baz'),
                 'optional2' => Inertia::optional(fn () => 'qux'),
-            ])
+            ]),
+            Middleware::class,
         );
 
         $called = false;
@@ -284,7 +340,8 @@ class AssertableInertiaTest extends TestCase
                 'foo' => 'bar',
                 'lazy1' => Inertia::optional(fn () => 'baz'),
                 'lazy2' => Inertia::optional(fn () => 'qux'),
-            ])
+            ]),
+            Middleware::class,
         );
 
         $called = false;
@@ -314,7 +371,8 @@ class AssertableInertiaTest extends TestCase
                 'foo' => 'bar',
                 'optional1' => Inertia::optional(fn () => 'baz'),
                 'optional2' => Inertia::optional(fn () => 'qux'),
-            ])
+            ]),
+            Middleware::class,
         );
 
         $called = false;
@@ -342,7 +400,8 @@ class AssertableInertiaTest extends TestCase
                 'foo' => 'bar',
                 'lazy1' => Inertia::optional(fn () => 'baz'),
                 'lazy2' => Inertia::optional(fn () => 'qux'),
-            ])
+            ]),
+            Middleware::class,
         );
 
         $called = false;
@@ -371,7 +430,8 @@ class AssertableInertiaTest extends TestCase
                 'deferred1' => Inertia::defer(fn () => 'baz'),
                 'deferred2' => Inertia::defer(fn () => 'qux', 'custom'),
                 'deferred3' => Inertia::defer(fn () => 'quux', 'custom'),
-            ])
+            ]),
+            Middleware::class,
         );
 
         $called = 0;

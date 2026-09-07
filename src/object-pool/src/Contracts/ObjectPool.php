@@ -64,6 +64,11 @@ interface ObjectPool
     public function getObjectNumberInPool(): int;
 
     /**
+     * Return the number of coroutines waiting for an object.
+     */
+    public function getWaiters(): int;
+
+    /**
      * Get the normalized pool options.
      */
     public function getOptions(): PoolOptions;
@@ -71,7 +76,7 @@ interface ObjectPool
     /**
      * Return statistics about the pool's current state.
      *
-     * @return array{total: int, idle: int, borrowed: int, closed: bool}
+     * @return array{total: int, idle: int, borrowed: int, waiters: int, closed: bool}
      */
     public function getStats(): array;
 }

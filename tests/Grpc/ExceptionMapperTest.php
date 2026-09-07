@@ -66,6 +66,29 @@ class ExceptionMapperTest extends TestCase
         $this->assertSame('The gRPC service returned an invalid response.', $mapped->getMessage());
     }
 
+    public function testPreservesCancellationPassedAsAnInvalidResponse(): void
+    {
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldNotReceive('report');
+        $cancellation = new CanceledException;
+
+        $this->expectExceptionObject($cancellation);
+
+        (new ExceptionMapper($handler))->invalidResponse($cancellation);
+    }
+
+    public function testPreservesCancellationRaisedByTheReporter(): void
+    {
+        $failure = new RuntimeException('service failed');
+        $cancellation = new CanceledException;
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldReceive('report')->once()->with($failure)->andThrow($cancellation);
+
+        $this->expectExceptionObject($cancellation);
+
+        (new ExceptionMapper($handler))->map($failure);
+    }
+
     public function testReporterFailureFallsBackWithoutChangingTheMappedStatus(): void
     {
         $directory = ParallelTesting::tempDir('ExceptionMapperTest');

@@ -6,6 +6,8 @@ namespace Hypervel\Database;
 
 use Faker\Factory as FakerFactory;
 use Faker\Generator as FakerGenerator;
+use Hypervel\Contracts\Database\ConcurrencyErrorDetector as ConcurrencyErrorDetectorContract;
+use Hypervel\Contracts\Database\LostConnectionDetector as LostConnectionDetectorContract;
 use Hypervel\Contracts\Queue\EntityResolver;
 use Hypervel\Core\Events\BeforeServerFork;
 use Hypervel\Core\Events\BeforeWorkerStart;
@@ -47,6 +49,10 @@ class DatabaseServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // Application rebuilds must reset model boot state without relying on test cleanup.
+        // Models must not boot until boot() installs their resolver and event dispatcher.
+        Model::clearBootedModels();
+
         $this->registerConnectionServices();
         $this->registerFakerGenerator();
         $this->registerQueueableEntityResolver();
@@ -54,28 +60,22 @@ class DatabaseServiceProvider extends ServiceProvider
         $this->app->singleton('db.resolver', fn ($app) => $app->make(ConnectionResolver::class));
 
         $this->app->singleton('migration.repository', function ($app) {
-            $migrations = $app['config']['database.migrations'];
-
-            $table = is_array($migrations)
-                ? ($migrations['table'] ?? 'migrations')
-                : $migrations;
-
             return new DatabaseMigrationRepository(
-                $app['db'],
-                $table,
+                $app->make('db'),
+                $app->make('config')->string('database.migrations.table'),
             );
         });
 
         $this->app->singleton('migrator', function ($app) {
             return new Migrator(
-                $app['migration.repository'],
-                $app['db'],
-                $app['files'],
+                $app->make('migration.repository'),
+                $app->make('db'),
+                $app->make('files'),
             );
         });
 
         $this->app->singleton('migration.creator', function ($app) {
-            return new MigrationCreator($app['files'], $app->basePath('stubs'));
+            return new MigrationCreator($app->make('files'), $app->basePath('stubs'));
         });
 
         $this->commands([
@@ -106,16 +106,26 @@ class DatabaseServiceProvider extends ServiceProvider
      */
     protected function registerConnectionServices(): void
     {
+        $this->app->singletonIf(
+            ConcurrencyErrorDetectorContract::class,
+            ConcurrencyErrorDetector::class,
+        );
+
+        $this->app->singletonIf(
+            LostConnectionDetectorContract::class,
+            LostConnectionDetector::class,
+        );
+
         $this->app->singleton('db.factory', function ($app) {
             return new ConnectionFactory($app);
         });
 
         $this->app->singleton('db', function ($app) {
-            return new DatabaseManager($app, $app['db.factory']);
+            return new DatabaseManager($app, $app->make('db.factory'));
         });
 
         $this->app->bind('db.connection', function ($app) {
-            return $app['db']->connection();
+            return $app->make('db')->connection();
         });
 
         $this->app->singleton('db.schema', function () {
@@ -149,7 +159,7 @@ class DatabaseServiceProvider extends ServiceProvider
         }
 
         $this->app->scoped(FakerGenerator::class, function ($app, $parameters) {
-            $locale = $parameters['locale'] ?? $app['config']->get('app.faker_locale', 'en_US');
+            $locale = $parameters['locale'] ?? $app->make('config')->string('app.faker_locale');
 
             return FakerFactory::create($locale);
         });

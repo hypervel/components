@@ -15,7 +15,7 @@ use Throwable;
 
 class DumpWatcher extends Watcher
 {
-    protected const DEFAULT_INSTALLED = false;
+    protected const bool DEFAULT_INSTALLED = false;
 
     /**
      * Whether the Telescope dump handler is installed.
@@ -51,7 +51,7 @@ class DumpWatcher extends Watcher
         }
 
         $handler = function (mixed $value, ?string $label = null) use ($htmlDumper, $previous): void {
-            if (! $this->shouldRecordDump()) {
+            if (! Telescope::isRecording() || ! $this->shouldRecordDump()) {
                 $previous($value, $label);
 
                 return;

@@ -13,7 +13,7 @@ class MigrateWithRealpathTest extends TestCase
     {
         parent::setUp();
 
-        if ($this->app['config']->get('database.default') !== 'testing') {
+        if ($this->app->make('config')->string('database.default') !== 'testing') {
             $this->artisan('db:wipe', ['--drop-views' => true]);
         }
 

@@ -6,10 +6,17 @@ namespace Hypervel\Tests\Database;
 
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
+use Mockery as m;
+use PDO;
+use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 /**
  * Tests for database Connection behavior.
@@ -98,6 +105,86 @@ class ConnectionTest extends TestCase
         // Get a fresh connection - it should have no transaction
         $freshConnection = DB::connection($connectionName);
         $this->assertSame(0, $freshConnection->transactionLevel());
+    }
+
+    public function testDisconnectCancellationFromTransactionResetSupersedesAnOrdinaryDriverFailure(): void
+    {
+        $driverFailure = new RuntimeException('Driver disconnect failed.');
+        $resetCancellation = new CanceledException('Transaction reset was canceled.');
+        $connection = new DisconnectFailureConnection(new PDO('sqlite::memory:'));
+        $connection->disconnectFailure = $driverFailure;
+        $manager = m::mock(DatabaseTransactionsManager::class);
+        $manager->expects('rollback')->once()->with('', 0)->andThrow($resetCancellation);
+        $connection->setTransactionManager($manager);
+
+        try {
+            $connection->disconnect();
+            $this->fail('Expected transaction reset cancellation to propagate.');
+        } catch (CanceledException $throwable) {
+            $this->assertSame($resetCancellation, $throwable);
+        }
+
+        $this->assertSame(1, $connection->disconnectCalls);
+    }
+
+    public function testDisconnectPreservesDriverCancellationOverAnOrdinaryTransactionResetFailure(): void
+    {
+        $driverCancellation = new CanceledException('Driver disconnect was canceled.');
+        $resetFailure = new RuntimeException('Transaction reset failed.');
+        $connection = new DisconnectFailureConnection(new PDO('sqlite::memory:'));
+        $connection->disconnectFailure = $driverCancellation;
+        $manager = m::mock(DatabaseTransactionsManager::class);
+        $manager->expects('rollback')->once()->with('', 0)->andThrow($resetFailure);
+        $connection->setTransactionManager($manager);
+
+        try {
+            $connection->disconnect();
+            $this->fail('Expected driver cancellation to propagate.');
+        } catch (CanceledException $throwable) {
+            $this->assertSame($driverCancellation, $throwable);
+        }
+
+        $this->assertSame(1, $connection->disconnectCalls);
+    }
+
+    public function testDisconnectPreservesTheFirstCancellationWhenTransactionResetIsAlsoCanceled(): void
+    {
+        $driverCancellation = new CanceledException('Driver disconnect was canceled.');
+        $resetCancellation = new CanceledException('Transaction reset was canceled.');
+        $connection = new DisconnectFailureConnection(new PDO('sqlite::memory:'));
+        $connection->disconnectFailure = $driverCancellation;
+        $manager = m::mock(DatabaseTransactionsManager::class);
+        $manager->expects('rollback')->once()->with('', 0)->andThrow($resetCancellation);
+        $connection->setTransactionManager($manager);
+
+        try {
+            $connection->disconnect();
+            $this->fail('Expected driver cancellation to propagate.');
+        } catch (CanceledException $throwable) {
+            $this->assertSame($driverCancellation, $throwable);
+        }
+
+        $this->assertSame(1, $connection->disconnectCalls);
+    }
+
+    public function testDisconnectPreservesTheFirstOrdinaryFailureAfterTransactionResetAlsoFails(): void
+    {
+        $driverFailure = new RuntimeException('Driver disconnect failed.');
+        $resetFailure = new RuntimeException('Transaction reset failed.');
+        $connection = new DisconnectFailureConnection(new PDO('sqlite::memory:'));
+        $connection->disconnectFailure = $driverFailure;
+        $manager = m::mock(DatabaseTransactionsManager::class);
+        $manager->expects('rollback')->once()->with('', 0)->andThrow($resetFailure);
+        $connection->setTransactionManager($manager);
+
+        try {
+            $connection->disconnect();
+            $this->fail('Expected driver disconnect failure to propagate.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($driverFailure, $throwable);
+        }
+
+        $this->assertSame(1, $connection->disconnectCalls);
     }
 
     /**
@@ -239,5 +326,27 @@ class ConnectionTest extends TestCase
         // Third query - should fire again
         $connection->select('SELECT 1');
         $this->assertSame(2, $fireCount);
+    }
+}
+
+class DisconnectFailureConnection extends SQLiteConnection
+{
+    public int $disconnectCalls = 0;
+
+    public ?Throwable $disconnectFailure = null;
+
+    protected function disconnectDriverResources(): void
+    {
+        ++$this->disconnectCalls;
+
+        try {
+            if ($this->disconnectFailure !== null) {
+                throw $this->disconnectFailure;
+            }
+
+            parent::disconnectDriverResources();
+        } finally {
+            $this->forgetDriverResources();
+        }
     }
 }

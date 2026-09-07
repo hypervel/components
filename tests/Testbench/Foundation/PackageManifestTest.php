@@ -7,9 +7,11 @@ namespace Hypervel\Tests\Testbench\Foundation;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\PackageManifest as FoundationPackageManifest;
 use Hypervel\Testbench\Foundation\PackageManifest;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Testbench\TestCase;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
+use UnexpectedValueException;
 
 class PackageManifestTest extends TestCase
 {
@@ -17,20 +19,27 @@ class PackageManifestTest extends TestCase
 
     private string $manifestPath;
 
+    private Filesystem $filesystem;
+
+    private string $tempDirectory;
+
     protected function setUp(): void
     {
         parent::setUp();
 
+        $this->filesystem = new Filesystem;
         $this->basePath = __DIR__ . '/Fixtures/PackageManifest';
-        $this->manifestPath = sys_get_temp_dir() . '/hypervel_testbench_packages_' . getmypid() . '.php';
+        $this->tempDirectory = ParallelTesting::tempDir('PackageManifestTest');
+        $this->manifestPath = $this->tempDirectory . '/packages.php';
 
-        @unlink($this->manifestPath);
+        $this->filesystem->deleteDirectory($this->tempDirectory);
+        $this->filesystem->ensureDirectoryExists($this->tempDirectory);
     }
 
     #[Override]
     protected function tearDown(): void
     {
-        @unlink($this->manifestPath);
+        $this->filesystem->deleteDirectory($this->tempDirectory);
 
         FoundationPackageManifest::flushState();
 
@@ -42,7 +51,7 @@ class PackageManifestTest extends TestCase
      */
     private function makeManifest(?object $testbench = null, ?array $rootPackage = null): PackageManifest
     {
-        return new class(new Filesystem, $this->basePath, $this->manifestPath, $testbench, $rootPackage) extends PackageManifest {
+        return new class($this->filesystem, $this->basePath, $this->manifestPath, $testbench, $rootPackage) extends PackageManifest {
             /**
              * Create a new fixture-backed package manifest instance.
              */
@@ -59,7 +68,7 @@ class PackageManifestTest extends TestCase
             /**
              * Get the root package composer metadata.
              *
-             * @return null|array{name: string, extra?: array{hypervel?: array<string, mixed>}}
+             * @return null|array<string, mixed>
              */
             #[Override]
             protected function providersFromTestbench(): ?array
@@ -105,7 +114,9 @@ class PackageManifestTest extends TestCase
     private function rootPackageFixture(): array
     {
         /** @var array{name: string, extra?: array{hypervel?: array<string, mixed>}} $composer */
-        return json_decode((string) file_get_contents($this->basePath . '/composer.json'), true);
+        $composer = $this->filesystem->json($this->basePath . '/composer.json', JSON_THROW_ON_ERROR);
+
+        return $composer;
     }
 
     #[Test]
@@ -157,6 +168,52 @@ class PackageManifestTest extends TestCase
         $this->assertArrayNotHasKey('testbench/example', $cached);
         $this->assertArrayHasKey('vendor-a/package-a', $cached);
         $this->assertArrayHasKey('vendor-a/package-b', $cached);
+    }
+
+    #[Test]
+    public function itRejectsAnEmptyRootPackageName(): void
+    {
+        $manifest = $this->makeManifest(
+            testbench: $this->makeTestbench([]),
+            rootPackage: ['name' => '']
+        );
+
+        $this->expectException(UnexpectedValueException::class);
+        $this->expectExceptionMessage('member [name] must be a non-empty string.');
+
+        $manifest->build();
+    }
+
+    #[Test]
+    public function itRejectsAnEmptyFormattedRootPackageName(): void
+    {
+        $manifest = $this->makeManifest(
+            testbench: $this->makeTestbench([]),
+            rootPackage: ['name' => '/custom/vendor/']
+        );
+        $manifest->vendorPath = '/custom/vendor';
+
+        $this->expectException(UnexpectedValueException::class);
+        $this->expectExceptionMessage('has an empty formatted package name.');
+
+        $manifest->build();
+    }
+
+    #[Test]
+    public function itRejectsInvalidExplicitRootHypervelMetadata(): void
+    {
+        $manifest = $this->makeManifest(
+            testbench: $this->makeTestbench([]),
+            rootPackage: [
+                'name' => 'testbench/example',
+                'extra' => ['hypervel' => 'invalid'],
+            ]
+        );
+
+        $this->expectException(UnexpectedValueException::class);
+        $this->expectExceptionMessage('member [extra.hypervel] must contain an array.');
+
+        $manifest->build();
     }
 
     #[Test]

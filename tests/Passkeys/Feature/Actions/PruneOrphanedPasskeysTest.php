@@ -199,7 +199,6 @@ class PruneOrphanedPasskeysTest extends TestCase
 
         $action = new PruneOrphanedPasskeys;
         $method = new ReflectionMethod($action, 'orphanedPasskeyIds');
-        $method->setAccessible(true);
 
         $this->assertSame([], $method->invoke($action, new Collection([$passkey]), User::class));
     }

@@ -1,7 +1,7 @@
 {
     "name": "hypervel/http",
     "type": "library",
-    "description": "The http package for Hypervel.",
+    "description": "The Hypervel HTTP package.",
     "license": "MIT",
     "keywords": [
         "php",
@@ -33,8 +33,11 @@
         "ext-filter": "*",
         "fruitcake/php-cors": "^1.3",
         "guzzlehttp/guzzle": "^7.15.1",
+        "guzzlehttp/promises": "^2.5.2",
+        "guzzlehttp/psr7": "^2.13",
         "guzzlehttp/uri-template": "^1.0",
         "nesbot/carbon": "^3.13.1",
+        "psr/http-message": "^2.0",
         "symfony/http-foundation": "^8.1",
         "symfony/http-kernel": "^8.1",
         "symfony/mime": "^8.1",
@@ -52,6 +55,7 @@
     },
     "suggest": {
         "ext-gd": "Required to use Hypervel\\Http\\Testing\\FileFactory::image().",
+        "hypervel/image": "Required for image() method on requests (^0.4).",
         "hypervel/validation": "Required for validate() method on requests."
     },
     "config": {

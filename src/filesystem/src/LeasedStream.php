@@ -12,7 +12,7 @@ use Throwable;
 
 final class LeasedStream
 {
-    public const PROTOCOL = 'hypervel-leased';
+    public const string PROTOCOL = 'hypervel-leased';
 
     /** @var resource */
     public $context;
@@ -54,14 +54,7 @@ final class LeasedStream
             return $stream;
         } catch (Throwable $primaryException) {
             self::closeResource($resource);
-
-            try {
-                $lease->release();
-            } catch (Throwable $cleanupException) {
-                PoolErrorReporter::report($cleanupException);
-            }
-
-            throw $primaryException;
+            $lease->releaseAfterFailure($primaryException);
         }
     }
 

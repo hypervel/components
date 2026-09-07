@@ -152,6 +152,22 @@ class Coroutine implements CoroutineInterface
     }
 
     /**
+     * Determine if the current coroutine was canceled.
+     *
+     * This state must be inspected at the cancellation boundary. It returns
+     * false outside a coroutine.
+     */
+    public static function isCanceled(): bool
+    {
+        if (self::id() < 0) {
+            return false;
+        }
+
+        /* @phpstan-ignore staticMethod.notFound (@TODO: Remove once PHPStan's bundled JetBrains Swoole stub includes Swoole 6.2's isCanceled() method.) */
+        return SwooleCo::isCanceled();
+    }
+
+    /**
      * Wait for the given coroutines to finish.
      */
     public static function join(array $coroutineIds, float $timeout = -1): bool

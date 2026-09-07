@@ -10,6 +10,7 @@ use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Horizon\Supervisor;
 use Hypervel\Horizon\SupervisorOptions;
 use Hypervel\Tests\Integration\Horizon\ControllerTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class MasterSupervisorControllerTest extends ControllerTestCase
 {
@@ -97,5 +98,46 @@ class MasterSupervisorControllerTest extends ControllerTestCase
                 'supervisors' => [],
             ],
         ]);
+    }
+
+    #[DataProvider('environmentProvider')]
+    public function testInactiveSupervisorsUseTheSelectedEnvironment(
+        ?string $horizonEnvironment,
+        string $expectedQueue,
+    ): void {
+        config()->set([
+            'app.env' => 'application',
+            'horizon.env' => $horizonEnvironment,
+            'horizon.environments' => [
+                'application' => [
+                    'supervisor-1' => ['queue' => ['application']],
+                ],
+                'horizon' => [
+                    'supervisor-1' => ['queue' => ['horizon']],
+                ],
+            ],
+        ]);
+
+        $master = new MasterSupervisor;
+        $master->name = 'risa';
+        resolve(MasterSupervisorRepository::class)->update($master);
+
+        $response = $this->actingAs(new Fakes\User)
+            ->get('/horizon/api/masters');
+
+        $response
+            ->assertJsonPath('risa.supervisors.0.status', 'inactive')
+            ->assertJsonPath('risa.supervisors.0.options.queue', $expectedQueue);
+    }
+
+    /**
+     * Provide Horizon environment selection cases.
+     */
+    public static function environmentProvider(): array
+    {
+        return [
+            'application environment' => [null, 'application'],
+            'Horizon environment' => ['horizon', 'horizon'],
+        ];
     }
 }

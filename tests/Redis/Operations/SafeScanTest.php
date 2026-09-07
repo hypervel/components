@@ -35,7 +35,7 @@ class SafeScanTest extends TestCase
         $connection->shouldTransform();
 
         $this->expectException(InvalidRedisConnectionException::class);
-        $this->expectExceptionMessage('SafeScan requires a raw Redis connection.');
+        $this->expectExceptionMessageIsOrContains('SafeScan requires a raw Redis connection.');
 
         new SafeScan($connection, '');
     }
@@ -136,25 +136,22 @@ class SafeScanTest extends TestCase
         $this->assertSame(2, $client->getScanCallCount());
     }
 
-    public function testScanDoesNotDoublePrefixWhenPatternAlreadyHasPrefix(): void
+    public function testScanPreservesLogicalPatternsStartingWithTheConnectionPrefix(): void
     {
         $client = new FakeRedisClient(
             scanResults: [
-                ['keys' => ['myapp:cache:key1'], 'iterator' => 0],
+                ['keys' => ['myapp:myapp:cache:key1'], 'iterator' => 0],
             ],
             optPrefix: 'myapp:',
         );
 
         $safeScan = new SafeScan($this->createConnection($client), 'myapp:');
 
-        // Pattern already has prefix - should NOT add it again
         $keys = iterator_to_array($safeScan->execute('myapp:cache:*'));
 
-        // Should strip prefix from result
-        $this->assertSame(['cache:key1'], $keys);
+        $this->assertSame(['myapp:cache:key1'], $keys);
 
-        // Pattern should NOT be double-prefixed
-        $this->assertSame('myapp:cache:*', $client->getScanCalls()[0]['pattern']);
+        $this->assertSame('myapp:myapp:cache:*', $client->getScanCalls()[0]['pattern']);
     }
 
     public function testScanReturnsKeyAsIsWhenItDoesNotHavePrefix(): void

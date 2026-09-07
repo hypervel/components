@@ -1,0 +1,27 @@
+name: Start test servers
+description: Start a test-server group and wait for it to become ready
+
+inputs:
+  group:
+    description: Test-server group passed to bin/test-servers.sh
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Start test servers
+      shell: bash
+      env:
+        TEST_SERVER_GROUP: ${{ inputs.group }}
+      run: |
+        rm -f /tmp/test-servers-ready
+        bin/test-servers.sh "$TEST_SERVER_GROUP" &
+        test_servers_process_id=$!
+        while [ ! -f /tmp/test-servers-ready ]; do
+          if ! kill -0 "$test_servers_process_id" 2>/dev/null; then
+            echo "The test server launcher for group [${TEST_SERVER_GROUP}] exited before becoming ready." >&2
+            wait "$test_servers_process_id"
+            exit 1
+          fi
+          sleep 1
+        done

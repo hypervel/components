@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace {{ namespace }};
 
-use Hypervel\Http\Request;
 use Hypervel\Http\Resources\JsonApi\JsonApiResource;
 
 class {{ class }} extends JsonApiResource
@@ -12,14 +11,14 @@ class {{ class }} extends JsonApiResource
     /**
      * The resource's attributes.
      */
-    public $attributes = [
+    public array $attributes = [
         // ...
     ];
 
     /**
      * The resource's relationships.
      */
-    public $relationships = [
+    public array $relationships = [
         // ...
     ];
 }

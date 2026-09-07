@@ -70,6 +70,13 @@ class SanctumGuard implements GuardContract
     {
         self::$nullUserSentinel ??= new stdClass;
 
+        /** @var null|Authenticatable $explicitUser */
+        $explicitUser = CoroutineContext::get($this->getExplicitUserContextKey());
+
+        if ($explicitUser !== null) {
+            return $explicitUser;
+        }
+
         $token = $this->getTokenFromRequest();
         $contextKey = $this->getContextKeyForToken($token);
         $cached = CoroutineContext::get($contextKey);
@@ -116,7 +123,7 @@ class SanctumGuard implements GuardContract
 
         // Check for token authentication
         if ($token) {
-            $model = Sanctum::$personalAccessTokenModel;
+            $model = Sanctum::personalAccessTokenModel();
             $accessToken = $model::findToken($token);
 
             if ($this->isValidAccessToken($accessToken)) {
@@ -183,7 +190,7 @@ class SanctumGuard implements GuardContract
             return false;
         }
 
-        $model = Sanctum::$personalAccessTokenModel;
+        $model = Sanctum::personalAccessTokenModel();
         $isValid
             = (! $this->expiration || $accessToken->getAttribute('created_at')->gt(now()->subMinutes($this->expiration)))
             && (! $accessToken->getAttribute('expires_at') || ! $accessToken->getAttribute('expires_at')->isPast())
@@ -217,6 +224,10 @@ class SanctumGuard implements GuardContract
     {
         self::$nullUserSentinel ??= new stdClass;
 
+        if (CoroutineContext::has($this->getExplicitUserContextKey())) {
+            return true;
+        }
+
         $cached = CoroutineContext::get($this->getContextKeyForToken($this->getTokenFromRequest()));
 
         return $cached !== null && $cached !== self::$nullUserSentinel;
@@ -227,7 +238,7 @@ class SanctumGuard implements GuardContract
      */
     public function setUser(Authenticatable $user): static
     {
-        CoroutineContext::set($this->getContextKeyForToken($this->getTokenFromRequest()), $user);
+        CoroutineContext::set($this->getExplicitUserContextKey(), $user);
 
         return $this;
     }
@@ -237,9 +248,22 @@ class SanctumGuard implements GuardContract
      */
     public function forgetUser(): static
     {
+        CoroutineContext::forget($this->getExplicitUserContextKey());
         CoroutineContext::forget($this->getContextKeyForToken($this->getTokenFromRequest()));
 
         return $this;
+    }
+
+    /**
+     * Get durable authentication Context keys.
+     *
+     * Per-request token resolution caches must not cross a request boundary.
+     *
+     * @return array<int, string>
+     */
+    public function getAuthContextKeys(): array
+    {
+        return [$this->getExplicitUserContextKey()];
     }
 
     /**
@@ -248,6 +272,14 @@ class SanctumGuard implements GuardContract
     public function validate(array $credentials = []): bool
     {
         return false;
+    }
+
+    /**
+     * Get the Context key for an explicitly assigned user.
+     */
+    protected function getExplicitUserContextKey(): string
+    {
+        return "__auth.guards.{$this->name}.user.explicit";
     }
 
     /**

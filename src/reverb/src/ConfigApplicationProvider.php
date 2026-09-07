@@ -68,16 +68,18 @@ class ConfigApplicationProvider implements ApplicationProvider
      */
     protected function buildApplication(array $app): Application
     {
+        $maxConnections = $app['max_connections'] ?? null;
+
         return new Application(
             $app['app_id'],
             $app['key'],
             $app['secret'],
             (int) $app['ping_interval'],
-            (int) ($app['activity_timeout'] ?? 30),
+            (int) ($app['activity_timeout'] ?? Application::DEFAULT_ACTIVITY_TIMEOUT),
             $app['allowed_origins'],
             (int) $app['max_message_size'],
-            isset($app['max_connections']) ? (int) $app['max_connections'] : null,
-            $app['accept_client_events_from'] ?? 'members',
+            $maxConnections === null ? null : (int) $maxConnections,
+            $app['accept_client_events_from'] ?? Application::DEFAULT_ACCEPT_CLIENT_EVENTS_FROM,
             $app['rate_limiting'] ?? null,
             $app['options'] ?? [],
             $app['webhooks'] ?? [],

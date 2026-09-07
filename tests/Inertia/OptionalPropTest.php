@@ -18,11 +18,13 @@ class OptionalPropTest extends TestCase
         $this->assertSame('An optional value', $optionalProp());
     }
 
-    public function testStringFunctionNamesAreNotInvoked(): void
+    public function testCallableArraysAndStaticMethodStringsAreInvoked(): void
     {
-        $optionalProp = new OptionalProp('date');
+        $arrayProp = new OptionalProp([OptionalCallableFixture::class, 'resolve']);
+        $stringProp = new OptionalProp(OptionalCallableFixture::class . '::resolve');
 
-        $this->assertSame('date', $optionalProp());
+        $this->assertInstanceOf(Request::class, $arrayProp());
+        $this->assertInstanceOf(Request::class, $stringProp());
     }
 
     public function testCanResolveBindingsWhenInvoked(): void
@@ -44,5 +46,13 @@ class OptionalPropTest extends TestCase
         $this->assertTrue($optionalProp->shouldResolveOnce());
         $this->assertSame('custom-key', $optionalProp->getKey());
         $this->assertNotNull($optionalProp->expiresAt());
+    }
+}
+
+class OptionalCallableFixture
+{
+    public static function resolve(Request $request): Request
+    {
+        return $request;
     }
 }

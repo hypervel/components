@@ -15,7 +15,6 @@ use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
-use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
@@ -88,7 +87,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
             ->with(
                 'select "child".*, "pivot"."parent_id" as "hypervel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ?) limit 1',
                 [123, 'foo'],
-                true,
+                false,
                 [],
             )
             ->andReturn([[
@@ -221,7 +220,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
             ->with(
                 'select "child".*, "pivot"."parent_id" as "hypervel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ? and "val" = ?) limit 1',
                 [123, 'foo', 'bar'],
-                true,
+                false,
                 [],
             )
             ->andReturn([[
@@ -365,7 +364,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
             ->with(
                 'select "child".*, "pivot"."parent_id" as "hypervel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ? and "val" = ?) limit 1',
                 [123, 'foo', 'bar'],
-                true,
+                false,
                 [],
             )
             ->andReturn([[
@@ -409,10 +408,8 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $class = get_class($model);
         $class::setConnectionResolver($resolver);
 
-        $connection->shouldReceive('getPdo')->andReturn($pdo = m::mock(PDO::class));
-
         foreach ($lastInsertIds as $id) {
-            $pdo->expects('lastInsertId')->andReturn($id);
+            $connection->expects('getLastInsertId')->andReturn($id);
         }
     }
 }

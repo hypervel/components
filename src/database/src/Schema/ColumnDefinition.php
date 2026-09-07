@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Schema;
 
 use Hypervel\Support\Fluent;
+use LogicException;
 
 /**
  * @method $this after(string $column) Place the column "after" another column (MySQL)
@@ -39,4 +40,13 @@ use Hypervel\Support\Fluent;
  */
 class ColumnDefinition extends Fluent
 {
+    /**
+     * Reject partial index modifiers on column definitions.
+     */
+    public function whereNotNull(string $column): never
+    {
+        throw new LogicException(
+            'The [whereNotNull] modifier must be chained onto an index definition. Use [$table->index(...)->whereNotNull(...)].',
+        );
+    }
 }

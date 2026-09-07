@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class DatabaseTransactionRecord
@@ -68,8 +69,21 @@ class DatabaseTransactionRecord
      */
     public function executeCallbacks(): void
     {
+        $exception = null;
+
+        // The commit is irreversible, so one failure must not discard independent callbacks.
         foreach ($this->callbacks as $callback) {
-            $callback();
+            try {
+                $callback();
+            } catch (CanceledException $exception) {
+                throw $exception;
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
         }
     }
 
@@ -78,14 +92,21 @@ class DatabaseTransactionRecord
      */
     public function executeCallbacksForRollback(): void
     {
+        $cancellation = null;
         $exception = null;
 
         foreach ($this->callbacksForRollback as $callback) {
             try {
                 $callback();
+            } catch (CanceledException $canceledException) {
+                $cancellation ??= $canceledException;
             } catch (Throwable $throwable) {
                 $exception ??= $throwable;
             }
+        }
+
+        if ($cancellation !== null) {
+            throw $cancellation;
         }
 
         if ($exception !== null) {

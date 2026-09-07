@@ -9,7 +9,7 @@ class SupervisorCommandString
     /**
      * The default base supervisor command.
      */
-    protected const DEFAULT_COMMAND = 'exec @php artisan horizon:supervisor';
+    protected const string DEFAULT_COMMAND = 'exec @php artisan horizon:supervisor';
 
     /**
      * The base worker command.

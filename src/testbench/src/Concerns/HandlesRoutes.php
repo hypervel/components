@@ -18,6 +18,7 @@ use Hypervel\Testbench\Features\TestingFeature;
 use Hypervel\Testbench\Foundation\Bootstrap\SyncTestbenchCachedRoutes;
 use Laravel\SerializableClosure\SerializableClosure;
 use RuntimeException;
+use Throwable;
 
 use function Hypervel\Filesystem\join_paths;
 use function Hypervel\Testbench\refresh_router_lookups;
@@ -29,9 +30,9 @@ trait HandlesRoutes
     use InteractsWithTestCase;
 
     /**
-     * Whether cached routes have been loaded for this test.
+     * Whether Testbench routes have been synchronized for this test.
      */
-    protected bool $requireApplicationCachedRoutesHasRun = false;
+    protected bool $syncTestbenchRoutesHasRun = false;
 
     /**
      * Whether route file cleanup has been registered for this test.
@@ -59,8 +60,7 @@ trait HandlesRoutes
             return;
         }
 
-        /** @var Router $router */
-        $router = $app['router'];
+        $router = $app->make(Router::class);
 
         TestingFeature::run(
             testCase: $this,
@@ -70,13 +70,7 @@ trait HandlesRoutes
                 $router->middleware('web')
                     ->group(fn ($router) => $this->defineWebRoutes($router));
             },
-            attribute: fn () => $this->parseTestMethodAttributes($this->app, DefineRoute::class),
-            pest: function () use ($router) {
-                $this->defineRoutesUsingPest($router); /* @phpstan-ignore method.notFound */
-
-                $router->middleware('web')
-                    ->group(fn ($router) => $this->defineWebRoutesUsingPest($router)); /* @phpstan-ignore method.notFound */
-            },
+            attribute: fn () => $this->parseTestMethodAttributes($app, DefineRoute::class),
         );
 
         refresh_router_lookups($router);
@@ -126,6 +120,19 @@ trait HandlesRoutes
         $files = new Filesystem;
 
         $basePath = static::applicationBasePath();
+
+        if ($this->app instanceof HypervelApplication) {
+            $cachedRoutesPath = $this->app->getCachedRoutesPath();
+        } else {
+            $configuredCachedRoutesPath = Env::get('APP_ROUTES_CACHE');
+
+            $cachedRoutesPath = $configuredCachedRoutesPath === null
+                ? join_paths($basePath, 'bootstrap', 'cache', 'routes-v7.php')
+                : (Str::startsWith($configuredCachedRoutesPath, ['/', '\\'])
+                    ? $configuredCachedRoutesPath
+                    : join_paths($basePath, $configuredCachedRoutesPath));
+        }
+
         if ($route instanceof Closure) {
             $cached = false;
             /** @var string $serializeRoute */
@@ -137,23 +144,11 @@ trait HandlesRoutes
         $routeFile = $this->testbenchRouteFilePath($basePath);
         $this->testbenchRouteFiles[] = $routeFile;
 
-        $files->put($routeFile, $route);
-        $this->registerTestbenchRouteCleanup($files);
+        $files->replace($routeFile, $route);
+        $this->registerTestbenchRouteCleanup($files, $cachedRoutesPath);
 
         if ($cached === true) {
             remote('route:cache')->mustRun();
-
-            if ($this->app instanceof HypervelApplication) {
-                $cachedRoutesPath = $this->app->getCachedRoutesPath();
-            } else {
-                $configuredCachedRoutesPath = Env::get('APP_ROUTES_CACHE');
-
-                $cachedRoutesPath = $configuredCachedRoutesPath === null
-                    ? join_paths($basePath, 'bootstrap', 'cache', 'routes-v7.php')
-                    : (Str::startsWith($configuredCachedRoutesPath, ['/', '\\'])
-                        ? $configuredCachedRoutesPath
-                        : join_paths($basePath, $configuredCachedRoutesPath));
-            }
 
             if (! $files->exists($cachedRoutesPath)) {
                 throw new RuntimeException("Route cache file was not created at [{$cachedRoutesPath}].");
@@ -167,62 +162,87 @@ trait HandlesRoutes
                 $this->reloadApplication();
             } finally {
                 $this->reloadingApplicationForCachedRoutes = false;
+                $this->syncTestbenchRoutesHasRun = false;
 
                 $this->testbenchRouteCleanupRegistered = false;
-                $this->registerTestbenchRouteCleanup($files);
+                $this->registerTestbenchRouteCleanup($files, $cachedRoutesPath);
             }
         }
 
-        $this->requireApplicationCachedRoutes($files, $cached);
+        if ($cached === false) {
+            $this->syncTestbenchRoutes();
+        }
     }
 
     /**
-     * Require application cached routes.
+     * Synchronize Testbench routes.
      *
      * @internal
      */
-    protected function requireApplicationCachedRoutes(Filesystem $files, bool $cached): void
+    protected function syncTestbenchRoutes(): void
     {
-        if ($this->requireApplicationCachedRoutesHasRun === true) {
+        if ($this->syncTestbenchRoutesHasRun === true) {
             return;
         }
 
-        $this->afterApplicationCreated(function () use ($cached): void {
+        $this->afterApplicationCreated(function (): void {
+            /** @var ApplicationContract $app */
             $app = $this->app;
 
-            if ($app instanceof HypervelApplication) {
-                if ($cached === true) {
-                    require $app->getCachedRoutesPath();
-                } else {
-                    (new SyncTestbenchCachedRoutes)->bootstrap($app);
-                }
-            }
+            (new SyncTestbenchCachedRoutes)->bootstrap($app);
         });
 
-        $this->requireApplicationCachedRoutesHasRun = true;
+        $this->syncTestbenchRoutesHasRun = true;
     }
 
     /**
      * Register cleanup for route files and route cache written by this test.
      */
-    protected function registerTestbenchRouteCleanup(Filesystem $files): void
+    protected function registerTestbenchRouteCleanup(Filesystem $files, string $cachedRoutesPath): void
     {
         if ($this->testbenchRouteCleanupRegistered === true) {
             return;
         }
 
-        $this->beforeApplicationDestroyed(function () use ($files): void {
+        $this->beforeApplicationDestroyed(function () use ($files, $cachedRoutesPath): void {
             if ($this->reloadingApplicationForCachedRoutes === true) {
                 return;
             }
 
-            if ($this->app instanceof HypervelApplication) {
-                // Use the dynamic cache path — parallel workers suffix it with _test_{token},
-                // so hardcoding routes-v7.php would miss the actual file and leak stale caches.
-                $files->delete($this->app->getCachedRoutesPath());
+            $failure = null;
+
+            try {
+                if ($files->exists($cachedRoutesPath) && ! $files->delete($cachedRoutesPath)) {
+                    throw new RuntimeException("Unable to remove route cache [{$cachedRoutesPath}].");
+                }
+            } catch (Throwable $throwable) {
+                $failure = $throwable;
             }
 
-            $files->delete($this->testbenchRouteFiles);
+            try {
+                $routeFiles = array_values(array_filter(
+                    $this->testbenchRouteFiles,
+                    static fn (string $routeFile): bool => $files->exists($routeFile),
+                ));
+
+                if ($routeFiles !== [] && ! $files->delete($routeFiles)) {
+                    $survivors = array_values(array_filter(
+                        $routeFiles,
+                        static fn (string $routeFile): bool => $files->exists($routeFile),
+                    ));
+
+                    throw new RuntimeException(sprintf(
+                        'Unable to remove Testbench route files [%s].',
+                        implode(', ', $survivors),
+                    ));
+                }
+            } catch (Throwable $throwable) {
+                $failure ??= $throwable;
+            }
+
+            if ($failure !== null) {
+                throw $failure;
+            }
         });
 
         $this->testbenchRouteCleanupRegistered = true;

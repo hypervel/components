@@ -28,6 +28,15 @@ function test(
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->whereNot('status', 'active'));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->whereCan(Ability::Edit, $user));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->withCan([Ability::Edit, 'delete'], $user));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->useWritePdo());
+    assertType('Hypervel\Types\Builder\User|null', $query->orderBy('id')->first());
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->whereIn('id', [1])->with('relation'));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orderBy('id')->with('relation'));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->limit(1)->with('relation'));
+    assertType('Hypervel\Database\Query\Builder<int, Hypervel\Types\Builder\User>', $query->dump());
+    assertType('Hypervel\Database\Query\Builder<int, Hypervel\Types\Builder\User>', $query->dumpRawSql());
+    assertType('stdClass|null', $query->toBase()->first());
+    assertType('stdClass|null', $query->getQuery()->first());
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->with('relation'));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->with(['relation' => ['foo' => fn ($q) => $q]]));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->with(['relation' => function ($query) {
@@ -186,6 +195,7 @@ function test(
     });
 
     assertType('Hypervel\Types\Builder\CommonBuilder<Hypervel\Types\Builder\Post>', Post::query());
+    assertType('Hypervel\Types\Builder\CommonBuilder<Hypervel\Types\Builder\Post>', Post::query()->whereIn('id', [1])->with('comments'));
     assertType('Hypervel\Types\Builder\CommonBuilder<Hypervel\Types\Builder\Post>', Post::query()->whereCan('edit'));
     assertType('Hypervel\Types\Builder\CommonBuilder<Hypervel\Types\Builder\Post>', Post::on());
     assertType('Hypervel\Types\Builder\CommonBuilder<Hypervel\Types\Builder\Post>', Post::onWriteConnection());
@@ -227,6 +237,7 @@ function test(
     assertType('Hypervel\Types\Builder\CommentBuilder', $comment->newQueryWithoutScopes());
     assertType('Hypervel\Types\Builder\CommentBuilder', $comment->newQueryWithoutScope('foo'));
     assertType('Hypervel\Types\Builder\CommentBuilder', $comment->newQueryForRestoration(1));
+    assertType('Hypervel\Types\Builder\Comment|null', Comment::query()->orderBy('id')->first());
     assertType('Hypervel\Types\Builder\CommentBuilder', $comment->newQuery()->where('foo', 'bar'));
     assertType('Hypervel\Types\Builder\CommentBuilder', $comment->newQuery()->foo());
     assertType('Hypervel\Types\Builder\Comment', $comment->newQuery()->create(['name' => 'John']));

@@ -14,7 +14,7 @@ trait PreventsCircularRecursion
     /**
      * The context key for the recursion cache.
      */
-    protected const RECURSION_CACHE_CONTEXT_KEY = '__database.model.recursion_cache';
+    protected const string RECURSION_CACHE_CONTEXT_KEY = '__database.model.recursion_cache';
 
     /**
      * Prevent a method from being called multiple times on the same object within the same call stack.
@@ -87,7 +87,7 @@ trait PreventsCircularRecursion
     {
         static::getRecursionCache()->offsetSet(
             $object,
-            tap(static::getRecursiveCallStack($object), fn (&$stack) => $stack[$hash] = $value),
+            tap(static::getRecursiveCallStack($object), fn (array &$stack) => $stack[$hash] = $value),
         );
 
         return static::getRecursiveCallStack($object)[$hash];

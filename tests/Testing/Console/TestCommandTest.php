@@ -143,6 +143,12 @@ class TestCommandTest extends TestCase
             $this->assertSame(0, $exitCode, $display);
             $this->assertStringContainsString('Top 10 slowest tests', $display);
             $this->assertStringContainsString('ProfileExampleTest', $display);
+            $this->assertSame(1, preg_match(
+                '/ProfileExampleTest.*?([0-9]+\.[0-9]{3})s/',
+                $display,
+                $matches,
+            ));
+            $this->assertGreaterThanOrEqual(0.05, (float) $matches[1]);
         } finally {
             $this->removeDirectory($basePath);
         }
@@ -168,6 +174,36 @@ class TestCommandTest extends TestCase
         } finally {
             $this->removeDirectory($basePath);
         }
+    }
+
+    #[Test]
+    public function itBuildsCompleteApplicationTestBinaryPaths(): void
+    {
+        $phpunitCommand = new TestCommandHarness;
+        $paratestCommand = new TestCommandHarness(['parallel' => true]);
+        $pestCommand = new TestCommandHarness(usesPest: true);
+        $parallelPestCommand = new TestCommandHarness(['parallel' => true], usesPest: true);
+
+        foreach ([$phpunitCommand, $paratestCommand, $pestCommand, $parallelPestCommand] as $command) {
+            $command->setHypervel($this->app);
+        }
+
+        $this->assertSame(
+            [PHP_BINARY, $this->app->basePath('vendor/phpunit/phpunit/phpunit')],
+            $phpunitCommand->binaryPublic(),
+        );
+        $this->assertSame(
+            [PHP_BINARY, $this->app->basePath('vendor/brianium/paratest/bin/paratest')],
+            $paratestCommand->binaryPublic(),
+        );
+        $this->assertSame(
+            [PHP_BINARY, $this->app->basePath('vendor/pestphp/pest/bin/pest')],
+            $pestCommand->binaryPublic(),
+        );
+        $this->assertSame(
+            [PHP_BINARY, $this->app->basePath('vendor/pestphp/pest/bin/pest'), '--parallel'],
+            $parallelPestCommand->binaryPublic(),
+        );
     }
 
     #[Test]
@@ -604,14 +640,19 @@ XML);
 
 declare(strict_types=1);
 
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 final class ProfileExampleTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        usleep(60000);
+    }
+
     public function test_profile_runs(): void
     {
-        usleep(1000);
-
         $this->assertTrue(true);
     }
 }
@@ -660,6 +701,7 @@ class TestCommandHarness extends TestCommand
         private readonly array $options = [],
         private readonly ?string $basePath = null,
         private readonly ?array $commonArguments = null,
+        private readonly bool $usesPest = false,
     ) {
         parent::__construct();
     }
@@ -683,7 +725,7 @@ class TestCommandHarness extends TestCommand
     #[Override]
     protected function usingPest(): bool
     {
-        return false;
+        return $this->usesPest;
     }
 
     /**
@@ -708,6 +750,16 @@ class TestCommandHarness extends TestCommand
         }
 
         return $this->basePath . ($paths === [] ? '' : DIRECTORY_SEPARATOR . implode(DIRECTORY_SEPARATOR, $paths));
+    }
+
+    /**
+     * Expose the resolved binary command.
+     *
+     * @return array<int, string>
+     */
+    public function binaryPublic(): array
+    {
+        return $this->binary();
     }
 
     /**

@@ -1,7 +1,7 @@
 {
     "name": "hypervel/boost",
     "type": "library",
-    "description": "The boost package for Hypervel.",
+    "description": "Reserved package for future Hypervel AI tooling.",
     "license": "MIT",
     "keywords": [
         "php",
@@ -24,7 +24,8 @@
         "source": "https://github.com/hypervel/components"
     },
     "require": {
-        "php": "^8.4"
+        "php": "^8.4",
+        "hypervel/docs": "^0.4"
     },
     "config": {
         "sort-packages": true

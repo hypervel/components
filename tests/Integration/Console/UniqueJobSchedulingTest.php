@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Console\UniqueJobSchedulingTest;
 
+use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Bus\Queueable;
-use Hypervel\Bus\UniqueJobPayloadContext;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Bus\Dispatcher;
@@ -13,6 +13,7 @@ use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -46,17 +47,24 @@ class UniqueJobSchedulingTest extends TestCase
         Queue::assertPushed(UniqueTestJob::class, 1);
     }
 
-    public function testUniqueJobsRegisterMetadataForPayloadCreation(): void
+    public function testUniqueJobsRemainLockedWhenRecordedByBusFake(): void
+    {
+        Bus::fake();
+
+        $this->dispatchJobs(UniqueTestJob::class, UniqueTestJob::class);
+
+        Bus::assertDispatchedTimes(UniqueTestJob::class, 1);
+    }
+
+    public function testUniqueJobsTransferLockOwnershipToTheFakeQueue(): void
     {
         Queue::fake();
 
         $this->dispatchJobs(UniqueTestJob::class);
 
         Queue::assertPushed(UniqueTestJob::class, function (UniqueTestJob $job): bool {
-            $this->assertSame([
-                'laravel_unique_job_cache_store' => config('cache.default'),
-                'laravel_unique_job_key' => UniqueLock::getKey($job),
-            ], UniqueJobPayloadContext::consume($job));
+            $this->assertNotSame('', $job->uniqueLockOwner);
+            $this->assertNull(DispatchLockContext::peekPayloadMetadata($job));
 
             return true;
         });
@@ -90,17 +98,23 @@ class UniqueJobSchedulingTest extends TestCase
         $schedule->events()[1]->run($this->app);
     }
 
-    public function testUniqueLockIsRetainedWhenDispatchFailsAfterPayloadCreationBegins(): void
+    public function testUniqueLockIsReleasedWhenDispatchFailsAfterPayloadCreationBegins(): void
     {
         $exception = new RuntimeException('Dispatch failed after payload creation began.');
+        $calls = 0;
 
         $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('dispatch')
-            ->once()
-            ->andReturnUsing(function (UniqueTestJob $job) use ($exception): never {
-                $this->assertNotNull(UniqueJobPayloadContext::consume($job));
+            ->twice()
+            ->andReturnUsing(function (UniqueTestJob $job) use (&$calls, $exception): void {
+                $metadata = DispatchLockContext::peekPayloadMetadata($job);
+                $this->assertNotNull($metadata);
+                $this->assertSame(UniqueLock::getKey($job), $metadata['laravel_unique_job_key']);
+                $this->assertNotSame('', $metadata['laravel_unique_job_lock_owner']);
 
-                throw $exception;
+                if (++$calls === 1) {
+                    throw $exception;
+                }
             });
 
         $this->app->instance(Dispatcher::class, $dispatcher);

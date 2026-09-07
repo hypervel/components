@@ -61,6 +61,6 @@ class SyncJob extends Job
      */
     public function getQueue(): string
     {
-        return 'sync';
+        return $this->queue;
     }
 }

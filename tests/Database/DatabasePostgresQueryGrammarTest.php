@@ -8,10 +8,33 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Grammars\PostgresGrammar;
 use Hypervel\Tests\TestCase;
+use JsonException;
 use Mockery as m;
 
 class DatabasePostgresQueryGrammarTest extends TestCase
 {
+    public function testUpdateBindingsRejectUnencodableArrays(): void
+    {
+        $this->expectException(JsonException::class);
+
+        (new PostgresGrammar(m::mock(Connection::class)))
+            ->prepareBindingsForUpdate([], ['payload' => [NAN]]);
+    }
+
+    public function testUpdateFromBindingsRejectArraysOverTheNativeDepthLimit(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < 513; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $this->expectException(JsonException::class);
+
+        (new PostgresGrammar(m::mock(Connection::class)))
+            ->prepareBindingsForUpdateFrom([], ['payload' => $value]);
+    }
+
     public function testToRawSql()
     {
         $connection = m::mock(Connection::class);

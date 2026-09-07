@@ -10,7 +10,8 @@ it("avoids conflicting barrel identifiers when namespace segment repeats", () =>
 
     const contents = readFileSync(indexPath, "utf8");
 
-    expect(contents).toContain("import Prism from './Prism'");
-    expect(contents).toContain("const PrismNamespace = {");
-    expect(contents).toContain("export default PrismNamespace");
+    expect(contents).toContain('import Prism from "./Prism"');
+    expect(contents).toContain("const Prism2 = {");
+    expect(contents).toContain("    Prism,");
+    expect(contents).toContain("export default Prism2");
 });

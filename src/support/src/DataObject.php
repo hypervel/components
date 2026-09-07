@@ -4,608 +4,142 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
-use ArrayAccess;
 use BackedEnum;
-use Carbon\Carbon as BaseCarbon;
-use Carbon\CarbonImmutable as BaseCarbonImmutable;
 use Carbon\CarbonInterface;
-use Carbon\Exceptions\InvalidFormatException;
-use DateTime;
-use DateTimeImmutable;
 use DateTimeInterface;
+use Hypervel\Contracts\Container\Transient;
+use Hypervel\Contracts\Http\CastsRequestInput;
+use Hypervel\Contracts\Http\RequestCastable;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Http\DataObjectRequestCast;
+use InvalidArgumentException;
+use JsonException;
 use JsonSerializable;
 use LogicException;
-use OutOfBoundsException;
 use ReflectionClass;
 use ReflectionNamedType;
-use ReflectionParameter;
 use ReflectionProperty;
-use ReflectionUnionType;
-use RuntimeException;
+use Stringable as BaseStringable;
 
-abstract class DataObject implements ArrayAccess, JsonSerializable
+/**
+ * @phpstan-type Recipe array{
+ *     name: string,
+ *     kind: int,
+ *     target: null|class-string,
+ *     allowsNull: bool,
+ *     hasDefault: bool
+ * }
+ *
+ * @implements Arrayable<string, mixed>
+ */
+abstract class DataObject implements Arrayable, Jsonable, JsonSerializable, RequestCastable, Transient
 {
-    /**
-     * The default date format for DateTime properties.
-     */
-    protected const DEFAULT_DATE_FORMAT = 'Y-m-d H:i:s';
+    private const int KIND_PASSTHROUGH = 0;
+
+    private const int KIND_ARRAY = 1;
+
+    private const int KIND_BOOLEAN = 2;
+
+    private const int KIND_FLOAT = 3;
+
+    private const int KIND_INTEGER = 4;
+
+    private const int KIND_STRING = 5;
+
+    private const int KIND_ENUM = 6;
+
+    private const int KIND_DATA_OBJECT = 7;
+
+    private const int KIND_DATE = 8;
 
     /**
-     * Reflection parameters cache (class name => [ReflectionParameter]).
+     * The compiled construction recipes.
+     *
+     * @var array<class-string, list<Recipe>>
      */
-    public static array $reflectionParametersCache = [];
+    private static array $recipes = [];
 
     /**
-     * Property map cache (class name => [snake_case key => camelCase property]).
+     * Create a new data object from the given values.
      */
-    public static array $propertyMapCache = [];
-
-    /**
-     * Reversed property map cache (class name => [camelCase key => snake_case property]).
-     */
-    public static array $reversedPropertyMapCache = [];
-
-    /**
-     * Flag to indicate if auto-casting is enabled.
-     */
-    protected static bool $autoCasting = true;
-
-    /**
-     * Cache for dependencies map (class name => dependencies array).
-     */
-    protected static array $dependenciesMapCache = [];
-
-    /**
-     * The date format for DateTime properties.
-     */
-    protected static string $dateFormat = self::DEFAULT_DATE_FORMAT;
-
-    /**
-     * Cache for the array representation of the object.
-     */
-    protected array $arrayCache = [];
-
-    /**
-     * Create an instance of the class using the provided data array.
-     */
-    public static function make(array $data, bool $autoResolve = false): static
+    public static function from(array $data): static
     {
-        $properties = static::getReversedPropertyMap();
-        if ($autoResolve) {
-            $data = static::getConvertedData($data);
-        }
+        $class = static::class;
+        $arguments = [];
 
-        $constructorArgs = [];
-        foreach (static::getReflectionParameters() as $parameter) {
-            $paramName = $parameter->getName();
-            $dataKey = $properties[$paramName];
-            $dataValue = null;
+        foreach (self::recipe($class) as $property) {
+            $name = $property['name'];
 
-            // check if the data key exists in the array
-            // and convert the value to the correct type automatically
-            if (array_key_exists($dataKey, $data)) {
-                $dataValue = $data[$dataKey];
-                if (static::$autoCasting) {
-                    $dataValue = static::convertValueToType($dataValue, $parameter);
-                }
-            // use the default value if available
-            } elseif ($parameter->isDefaultValueAvailable()) {
-                $dataValue = $parameter->getDefaultValue();
-            } else {
-                $dataValue = static::getDefaultValueForType($parameter);
+            if (isset($data[$name])) {
+                $arguments[$name] = self::convert($data[$name], $property, $class);
+
+                continue;
             }
 
-            $constructorArgs[$paramName] = $dataValue;
+            if (array_key_exists($name, $data)) {
+                $arguments[$name] = null;
+
+                continue;
+            }
+
+            if ($property['hasDefault']) {
+                continue;
+            }
+
+            if ($property['allowsNull']) {
+                $arguments[$name] = null;
+
+                continue;
+            }
+
+            throw new InvalidArgumentException(sprintf(
+                'Cannot create %s: required property [%s] is missing.',
+                $class,
+                $name,
+            ));
         }
 
-        return new static(...$constructorArgs);
+        return new static(...$arguments);
     }
 
     /**
-     * Create an instance of the class using the provided data array.
-     * This is an alias of the `make` method.
-     */
-    public static function from(array $data, bool $autoResolve = false): static
-    {
-        return static::make($data, $autoResolve);
-    }
-
-    /**
-     * Get the customized dependencies map.
+     * Get the caster to use for validated request input.
      *
-     * @return array<string, callable>
+     * @param string[] $arguments
      */
-    protected static function getCustomizedDependencies(): array
+    public static function castRequestUsing(array $arguments): CastsRequestInput
     {
-        $dependencies = [];
-        $dateTargets = [
-            DateTimeInterface::class,
-            CarbonInterface::class,
-            DateTime::class,
-            DateTimeImmutable::class,
-            Carbon::class,
-            CarbonImmutable::class,
-            BaseCarbon::class,
-            BaseCarbonImmutable::class,
-        ];
-
-        foreach ($dateTargets as $target) {
-            $dependencies[$target] = static fn (mixed $value): ?DateTimeInterface => $value === [] ? null : static::asDateTime($value, $target);
-        }
-
-        return $dependencies;
-    }
-
-    /**
-     * Get the serialization handlers for specific dependency types.
-     *
-     * @return array<string, callable>
-     */
-    protected static function getSerializers(): array
-    {
-        return [
-            DateTimeInterface::class => static fn (DateTimeInterface $value): string => $value->format('c'),
-        ];
-    }
-
-    /**
-     * Convert a value to the declared date target.
-     *
-     * @param BaseCarbon::class|BaseCarbonImmutable::class|Carbon::class|CarbonImmutable::class|CarbonInterface::class|DateTime::class|DateTimeImmutable::class|DateTimeInterface::class $target
-     */
-    protected static function asDateTime(mixed $value, string $target): DateTimeInterface
-    {
-        if ($value instanceof DateTimeInterface) {
-            $date = Date::instance($value);
-        } elseif (is_numeric($value)) {
-            $date = Date::createFromTimestamp(
-                $value,
-                date_default_timezone_get()
+        if ($arguments !== []) {
+            throw new InvalidArgumentException(
+                'Data object request cast [' . static::class . '] does not accept arguments.',
             );
-        } elseif (static::isStandardDateFormat($value)) {
-            $date = Date::parse($value)->startOfDay();
-        } else {
-            try {
-                $date = Date::createFromFormat(static::$dateFormat, $value);
-                // @phpstan-ignore catch.neverThrown (the Date facade's magic dispatch hides Carbon's @throws from analysis)
-            } catch (InvalidFormatException) {
-                $date = null;
-            }
-
-            $date ??= Date::parse($value);
         }
 
-        return match ($target) {
-            DateTimeInterface::class, CarbonInterface::class => $date,
-            DateTime::class => DateTime::createFromInterface($date),
-            DateTimeImmutable::class => DateTimeImmutable::createFromInterface($date),
-            // instance() clones same-mutability subclasses, so cross the mutability
-            // boundary first to honor the exact target while retaining Carbon settings.
-            Carbon::class => Carbon::instance($date->toImmutable()),
-            CarbonImmutable::class => CarbonImmutable::instance($date->toMutable()),
-            BaseCarbon::class => BaseCarbon::instance($date->toImmutable()),
-            BaseCarbonImmutable::class => BaseCarbonImmutable::instance($date->toMutable()),
-        };
+        return new DataObjectRequestCast(static::class);
     }
 
     /**
-     * Determine if the given value is a standard date format.
+     * Convert the data object to an array.
      */
-    protected static function isStandardDateFormat(mixed $value): bool
+    public function toArray(): array
     {
-        return (bool) preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})$/', (string) $value);
-    }
-
-    /**
-     * Get the converted data array with dependencies resolved.
-     */
-    protected static function getConvertedData(array $data): array
-    {
-        if (! $dependencies = static::getDependenciesData()) {
-            return $data;
-        }
-
-        return static::replaceDependenciesData(
-            $dependencies,
-            $data
-        );
-    }
-
-    /**
-     * Get the dependencies map for the current class.
-     *
-     * @return array<string, array{handler: callable, children: array}>
-     */
-    protected static function getDependenciesData(): array
-    {
-        if (array_key_exists(static::class, static::$dependenciesMapCache)) {
-            return static::$dependenciesMapCache[static::class];
-        }
-
-        return static::$dependenciesMapCache[static::class] = static::resolveDependenciesMap(static::class);
-    }
-
-    protected static function getDependencyFromUnionType(ReflectionUnionType $type): ?ReflectionNamedType
-    {
-        foreach ($type->getTypes() as $namedType) {
-            if (! $namedType instanceof ReflectionNamedType) {
-                continue;
-            }
-
-            $className = $namedType->getName();
-            if (
-                is_subclass_of($className, DataObject::class)
-                || is_a($className, DateTimeInterface::class, true)
-            ) {
-                return $namedType;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Check if the union type allows null.
-     */
-    protected static function hasNullableUnionType(ReflectionUnionType $type): bool
-    {
-        foreach ($type->getTypes() as $namedType) {
-            if ($namedType->allowsNull()) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Recursively resolve the dependencies map for the given class.
-     *
-     * @param array<string, bool> $visited
-     * @return array<string, array{handler: callable, children: array}>
-     */
-    protected static function resolveDependenciesMap(string $class, array &$visited = []): array
-    {
-        if (isset($visited[$class])) {
-            return [];
-        }
-
-        $visited[$class] = true;
-        $reflection = new ReflectionClass($class);
-        $properties = $reflection->getProperties(ReflectionProperty::IS_PUBLIC);
-        $customizedDependencies = $class::getCustomizedDependencies();
-
+        $values = (array) $this;
         $result = [];
-        foreach ($properties as $property) {
-            if ($property->isStatic()) {
-                continue;
-            }
-            $propertyType = $property->getType();
 
-            if (! $propertyType instanceof ReflectionNamedType && ! $propertyType instanceof ReflectionUnionType) {
-                continue;
-            }
-
-            $allowsNull = $propertyType->allowsNull();
-            if ($propertyType instanceof ReflectionUnionType) {
-                $allowsNull = static::hasNullableUnionType($propertyType);
-                $propertyType = static::getDependencyFromUnionType($propertyType);
-
-                if ($propertyType === null) {
-                    continue;
-                }
-            }
-
-            $typeName = $propertyType->getName();
-            $dataKey = $class::isAutoCasting()
-                ? $class::convertPropertyToDataKey($property->getName())
-                : $property->getName();
-
-            if (is_subclass_of($typeName, DataObject::class)) {
-                $result[$dataKey] = [
-                    'handler' => fn ($value) => $value instanceof $typeName ? $value : $typeName::make($value),
-                    'nullable' => $allowsNull,
-                    'children' => static::resolveDependenciesMap($typeName, $visited),
-                ];
-                continue;
-            }
-            if (enum_exists($typeName) && is_subclass_of($typeName, BackedEnum::class, true)) {
-                $result[$dataKey] = [
-                    'handler' => fn ($value) => $value instanceof $typeName ? $value : $typeName::from($value),
-                    'nullable' => $allowsNull,
-                    'children' => [],
-                ];
-                continue;
-            }
-            if ($resolver = $customizedDependencies[$typeName] ?? null) {
-                $result[$dataKey] = [
-                    'handler' => $resolver,
-                    'nullable' => $allowsNull,
-                    'children' => [],
-                ];
-                continue;
-            }
+        foreach (self::recipe(static::class) as $property) {
+            $value = $values[$property['name']];
+            $result[$property['name']] = ! is_array($value) && ! is_object($value)
+                ? $value
+                : self::normalize($value);
         }
-
-        unset($visited[$class]);
 
         return $result;
     }
 
     /**
-     * Recursively replace dependencies data in the given data array.
-     */
-    protected static function replaceDependenciesData(array $dependencies, array $data): array
-    {
-        foreach ($dependencies as $key => $dependency) {
-            if (! array_key_exists($key, $data)) {
-                continue;
-            }
-
-            $handler = $dependency['handler'];
-            $children = $dependency['children'] ?? [];
-            $nullable = $dependency['nullable'] ?? false;
-            $matched = $data[$key];
-
-            if ($nullable && $matched === null) {
-                continue;
-            }
-            if (! is_array($matched)) {
-                $data[$key] = $handler($matched === null ? [] : $matched);
-                continue;
-            }
-
-            if ($children) {
-                $data[$key] = static::replaceDependenciesData($children, $matched);
-            }
-
-            $data[$key] = $handler($data[$key]);
-        }
-
-        return $data;
-    }
-
-    /**
-     * Enable or disable auto-casting of data values.
-     *
-     * Boot-only. The auto-casting flag persists in a static property for the
-     * worker lifetime and affects every subsequent data object hydration.
-     */
-    public static function enableAutoCasting(): void
-    {
-        static::$autoCasting = true;
-    }
-
-    /**
-     * Enable or disable auto-casting of data values.
-     */
-    public static function isAutoCasting(): bool
-    {
-        return static::$autoCasting;
-    }
-
-    /**
-     * Disable auto-casting of data values.
-     *
-     * Boot-only. The auto-casting flag persists in a static property for the
-     * worker lifetime and affects every subsequent data object hydration.
-     */
-    public static function disableAutoCasting(): void
-    {
-        static::$autoCasting = false;
-    }
-
-    /**
-     * Convert the property name to the data key format.
-     * It converts camelCase to snake_case by default.
-     */
-    public static function convertPropertyToDataKey(string $input): string
-    {
-        return Str::snake($input);
-    }
-
-    /**
-     * Convert the data key to the property name format.
-     * It converts snake_case to camelCase by default.
-     */
-    public static function convertDataKeyToProperty(string $input): string
-    {
-        return Str::camel($input);
-    }
-
-    /**
-     * Get the reflection parameters for the constructor.
-     *
-     * @return ReflectionParameter[]
-     */
-    protected static function getReflectionParameters(): array
-    {
-        if (! is_null($parameters = static::$reflectionParametersCache[static::class] ?? null)) {
-            return $parameters;
-        }
-
-        $reflection = new ReflectionClass(static::class);
-        $constructor = $reflection->getConstructor();
-        $parameters = $constructor ? $constructor->getParameters() : [];
-
-        return static::$reflectionParametersCache[static::class] = $parameters;
-    }
-
-    /**
-     * Convert the value to the correct type based on the parameter type.
-     */
-    protected static function convertValueToType(mixed $value, ReflectionParameter $parameter): mixed
-    {
-        if (! $type = $parameter->getType()) {
-            return $value;
-        }
-        if ($type->allowsNull() && is_null($value)) {
-            return null;
-        }
-
-        if ($type instanceof ReflectionNamedType) {
-            return match ($type->getName()) {
-                'int' => (int) $value,
-                'float' => (float) $value,
-                'string' => (string) $value,
-                'bool' => (bool) $value,
-                'array' => is_array($value) ? $value : [$value],
-                default => $value,
-            };
-        }
-
-        return $value;
-    }
-
-    /**
-     * Get default value for the parameter type.
-     */
-    protected static function getDefaultValueForType(ReflectionParameter $parameter): mixed
-    {
-        $type = $parameter->getType();
-        if (! $type || $type->allowsNull()) {
-            return null;
-        }
-
-        throw new RuntimeException(
-            "Missing required property `{$parameter->name}` in `" . static::class . '`'
-        );
-    }
-
-    /**
-     * Get property map (snake_case key => camelCase property).
-     *
-     * @return array<string, string>
-     */
-    protected static function getPropertyMap(): array
-    {
-        if (array_key_exists(static::class, static::$propertyMapCache)) {
-            return static::$propertyMapCache[static::class];
-        }
-
-        $reflection = new ReflectionClass(static::class);
-        $properties = $reflection->getProperties(ReflectionProperty::IS_PUBLIC);
-        $map = [];
-
-        foreach ($properties as $property) {
-            if ($property->isStatic()) {
-                continue;
-            }
-            $propName = $property->getName();
-            $snakeKey = static::convertPropertyToDataKey($propName);
-            $map[$snakeKey] = $propName;
-        }
-
-        return static::$propertyMapCache[static::class] = $map;
-    }
-
-    /**
-     * Get reversed property map (camelCase key => snake_case property).
-     *
-     * @return array<string, string>
-     */
-    protected static function getReversedPropertyMap(): array
-    {
-        if (array_key_exists(static::class, static::$reversedPropertyMapCache)) {
-            return static::$reversedPropertyMapCache[static::class];
-        }
-
-        return static::$reversedPropertyMapCache[static::class] = array_flip(
-            static::getPropertyMap()
-        );
-    }
-
-    /**
-     * Update the object properties with the provided data array.
-     */
-    public function update(array $data): static
-    {
-        $properties = static::getPropertyMap();
-        foreach ($data as $key => $value) {
-            $this->{$properties[$key]} = $value;
-        }
-
-        $this->refresh();
-
-        return $this;
-    }
-
-    /**
-     * Check if the offset exists.
-     */
-    public function offsetExists(mixed $offset): bool
-    {
-        return array_key_exists($offset, static::getPropertyMap());
-    }
-
-    /**
-     * Get the value at the specified offset.
-     */
-    public function offsetGet(mixed $offset): mixed
-    {
-        if (array_key_exists($offset, $this->toArray())) {
-            return $this->toArray()[$offset];
-        }
-
-        throw new OutOfBoundsException("Undefined offset: {$offset}");
-    }
-
-    /**
-     * Set the value at the specified offset.
-     */
-    public function offsetSet(mixed $offset, mixed $value): void
-    {
-        throw new LogicException('Data object may not be mutated using array access.');
-    }
-
-    /**
-     * Unset the value at the specified offset.
-     */
-    public function offsetUnset(mixed $offset): void
-    {
-        throw new LogicException('Data object may not be mutated using array access.');
-    }
-
-    /**
-     * Convert the object to an array representation.
-     */
-    public function toArray(): array
-    {
-        if ($this->arrayCache) {
-            return $this->arrayCache;
-        }
-
-        $result = [];
-        $map = static::getPropertyMap();
-
-        $serializers = static::getSerializers();
-        foreach ($map as $snakeKey => $propName) {
-            $value = $this->{$propName};
-            // recursively convert nested objects to arrays
-            if ($value instanceof self) {
-                $value = $value->toArray();
-            } elseif (
-                $value instanceof DateTimeInterface
-                && $serializer = $serializers[DateTimeInterface::class] ?? null
-            ) {
-                $value = $serializer($value);
-            } elseif (
-                is_object($value)
-                && $serializer = $serializers[$value::class] ?? null
-            ) {
-                $value = $serializer($value);
-            } elseif (is_object($value) && method_exists($value, 'toArray')) {
-                $value = $value->toArray();
-            }
-            $result[$snakeKey] = $value;
-        }
-
-        return $this->arrayCache = $result;
-    }
-
-    /**
-     * JSON serialize the object.
+     * Convert the object into something JSON serializable.
      */
     public function jsonSerialize(): array
     {
@@ -613,13 +147,266 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
     }
 
     /**
-     * Return a refreshed instance of the object with cleared cache.
+     * Convert the data object to JSON.
+     *
+     * @throws JsonException
      */
-    public function refresh(): static
+    public function toJson(int $options = 0): string
     {
-        $this->arrayCache = [];
+        return json_encode($this->jsonSerialize(), $options | JSON_THROW_ON_ERROR);
+    }
 
-        return $this;
+    /**
+     * Get the compiled construction recipe for the given class.
+     *
+     * @param class-string $class
+     * @return list<Recipe>
+     */
+    private static function recipe(string $class): array
+    {
+        return self::$recipes[$class] ??= self::compileRecipe($class);
+    }
+
+    /**
+     * Compile the construction recipe for the given class.
+     *
+     * @param class-string $class
+     * @return list<Recipe>
+     */
+    private static function compileRecipe(string $class): array
+    {
+        $reflection = new ReflectionClass($class);
+        $parameters = $reflection->getConstructor()?->getParameters() ?? [];
+        $recipe = [];
+        $promoted = [];
+
+        foreach ($parameters as $parameter) {
+            $name = $parameter->getName();
+
+            if (! $parameter->isPromoted()
+                || ! $parameter->getDeclaringClass()?->getProperty($name)->isPublic()) {
+                throw new LogicException(sprintf(
+                    '%s constructor parameter [%s] must be a public promoted property.',
+                    $class,
+                    $name,
+                ));
+            }
+
+            $kind = self::KIND_PASSTHROUGH;
+            $target = null;
+            $type = $parameter->getType();
+
+            if ($type instanceof ReflectionNamedType && $type->isBuiltin()) {
+                $kind = match ($type->getName()) {
+                    'array' => self::KIND_ARRAY,
+                    'bool' => self::KIND_BOOLEAN,
+                    'float' => self::KIND_FLOAT,
+                    'int' => self::KIND_INTEGER,
+                    'string' => self::KIND_STRING,
+                    default => self::KIND_PASSTHROUGH,
+                };
+            } elseif (($namedTarget = Reflector::getParameterClassName($parameter)) !== null) {
+                if (enum_exists($namedTarget) && is_a($namedTarget, BackedEnum::class, true)) {
+                    $kind = self::KIND_ENUM;
+                    $target = $namedTarget;
+                } elseif (is_a($namedTarget, self::class, true)) {
+                    $kind = self::KIND_DATA_OBJECT;
+                    $target = $namedTarget;
+                } elseif (is_a($namedTarget, DateTimeInterface::class, true)) {
+                    $kind = self::KIND_DATE;
+                    $target = $namedTarget;
+                }
+            }
+
+            $recipe[] = [
+                'name' => $name,
+                'kind' => $kind,
+                'target' => $target,
+                'allowsNull' => $parameter->allowsNull(),
+                'hasDefault' => $parameter->isDefaultValueAvailable(),
+            ];
+            $promoted[$name] = true;
+        }
+
+        foreach ($reflection->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
+            if (! $property->isStatic() && ! isset($promoted[$property->getName()])) {
+                throw new LogicException(sprintf(
+                    '%s public property [%s] must be promoted by its constructor.',
+                    $class,
+                    $property->getName(),
+                ));
+            }
+        }
+
+        return $recipe;
+    }
+
+    /**
+     * Convert a supplied value according to its compiled property kind.
+     *
+     * @param Recipe $property
+     * @param class-string $class
+     */
+    private static function convert(mixed $value, array $property, string $class): mixed
+    {
+        /** @var class-string $target */
+        $target = $property['target'];
+
+        return match ($property['kind']) {
+            self::KIND_ARRAY => is_array($value)
+                ? $value
+                : self::throwInvalidValue($class, $property['name'], 'array', $value),
+            self::KIND_BOOLEAN => self::convertBoolean($value)
+                ?? self::throwInvalidValue($class, $property['name'], 'bool', $value),
+            self::KIND_FLOAT => self::convertFloat($value)
+                ?? self::throwInvalidValue($class, $property['name'], 'float', $value),
+            self::KIND_INTEGER => self::convertInteger($value)
+                ?? self::throwInvalidValue($class, $property['name'], 'int', $value),
+            self::KIND_STRING => self::convertString($value)
+                ?? self::throwInvalidValue($class, $property['name'], 'string', $value),
+            self::KIND_ENUM => $value instanceof $target ? $value : enum_from($target, $value),
+            self::KIND_DATA_OBJECT => is_array($value) ? $target::from($value) : $value,
+            self::KIND_DATE => self::convertDate($value, $target),
+            default => $value,
+        };
+    }
+
+    /**
+     * Convert the given value to a boolean.
+     */
+    private static function convertBoolean(mixed $value): ?bool
+    {
+        return is_bool($value)
+            ? $value
+            : filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    }
+
+    /**
+     * Convert the given value to a float.
+     */
+    private static function convertFloat(mixed $value): ?float
+    {
+        if (is_float($value)) {
+            return $value;
+        }
+
+        if (is_int($value)) {
+            return (float) $value;
+        }
+
+        return is_string($value)
+            ? filter_var($value, FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE)
+            : null;
+    }
+
+    /**
+     * Convert the given value to an integer.
+     */
+    private static function convertInteger(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        return is_string($value) || is_float($value)
+            ? filter_var($value, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE)
+            : null;
+    }
+
+    /**
+     * Convert the given value to a string.
+     */
+    private static function convertString(mixed $value): ?string
+    {
+        return match (true) {
+            is_string($value) => $value,
+            is_scalar($value), $value instanceof BaseStringable => (string) $value,
+            default => null,
+        };
+    }
+
+    /**
+     * Convert the given value to a date.
+     *
+     * @param class-string $target
+     */
+    private static function convertDate(mixed $value, string $target): mixed
+    {
+        if ($value instanceof $target) {
+            return $value;
+        }
+
+        if ($value instanceof DateTimeInterface) {
+            $date = $value;
+        } elseif (is_int($value) || is_float($value)) {
+            $date = Date::createFromTimestamp($value, date_default_timezone_get());
+        } elseif (is_string($value)) {
+            $date = Date::parse($value);
+        } else {
+            return $value;
+        }
+
+        if ($target === DateTimeInterface::class || $target === CarbonInterface::class) {
+            return $value instanceof DateTimeInterface
+                ? Date::instance($value)
+                : $date;
+        }
+
+        if (is_a($target, CarbonInterface::class, true)) {
+            return $target::instance($date);
+        }
+
+        return $target::createFromInterface($date);
+    }
+
+    /**
+     * Throw an exception for a value that cannot be converted.
+     *
+     * @param class-string $class
+     */
+    private static function throwInvalidValue(
+        string $class,
+        string $property,
+        string $expected,
+        mixed $value,
+    ): never {
+        $supplied = is_scalar($value) ? var_export($value, true) : get_debug_type($value);
+
+        throw new InvalidArgumentException(sprintf(
+            'Cannot create %s: property [%s] expects %s; received %s.',
+            $class,
+            $property,
+            $expected,
+            $supplied,
+        ));
+    }
+
+    /**
+     * Normalize a value for array and JSON output.
+     */
+    private static function normalize(mixed $value): mixed
+    {
+        if (! is_array($value) && ! is_object($value)) {
+            return $value;
+        }
+
+        if (is_array($value)) {
+            $normalized = [];
+
+            foreach ($value as $key => $item) {
+                $normalized[$key] = self::normalize($item);
+            }
+
+            return $normalized;
+        }
+
+        return match (true) {
+            $value instanceof DateTimeInterface => $value->format(DATE_ATOM),
+            $value instanceof BackedEnum => $value->value,
+            $value instanceof self => $value->toArray(),
+            $value instanceof Arrayable => self::normalize($value->toArray()),
+            default => $value,
+        };
     }
 
     /**
@@ -627,11 +414,6 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
      */
     public static function flushState(): void
     {
-        static::$reflectionParametersCache = [];
-        static::$propertyMapCache = [];
-        static::$reversedPropertyMapCache = [];
-        static::$autoCasting = true;
-        static::$dependenciesMapCache = [];
-        static::$dateFormat = self::DEFAULT_DATE_FORMAT;
+        self::$recipes = [];
     }
 }

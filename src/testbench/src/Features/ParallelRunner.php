@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Features;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testing\ParallelRunner as BaseParallelRunner;
+use Hypervel\Testing\ParallelTestingServiceProvider;
 
 use function Hypervel\Testbench\container;
 
@@ -21,10 +23,25 @@ class ParallelRunner extends BaseParallelRunner
     protected function createApplication(): ApplicationContract
     {
         if (! defined('TESTBENCH_WORKING_PATH')) {
-            define('TESTBENCH_WORKING_PATH', Env::get('TESTBENCH_WORKING_PATH'));
+            $workingPath = Env::get('TESTBENCH_WORKING_PATH');
+
+            if (is_string($workingPath) && $workingPath !== '') {
+                define('TESTBENCH_WORKING_PATH', $workingPath);
+            }
         }
 
-        $applicationResolver = static::$applicationResolver ?: static fn () => container()->createApplication();
+        $applicationResolver = static::$applicationResolver ?: static function (): ApplicationContract {
+            Bootstrapper::bootstrap();
+
+            $extra = Bootstrapper::getConfiguration()?->getExtraAttributes() ?? [];
+            // Process callbacks belong to the runner even when package discovery is disabled.
+            $extra['providers'] = array_values(array_unique([
+                ...($extra['providers'] ?? []),
+                ParallelTestingServiceProvider::class,
+            ]));
+
+            return container(options: ['extra' => $extra])->createApplication();
+        };
 
         return $applicationResolver();
     }

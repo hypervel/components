@@ -7,6 +7,8 @@ Ported from: https://github.com/orchestral/testbench-core
 
 ## Differences From Orchestra Testbench
 
+Hypervel applies every `#[WithConfig]` value before service providers register. Orchestra's deferred mode is intentionally omitted because configuration is process-global state shared by Hypervel's long-lived Swoole worker. Tests that need a post-boot value should set it explicitly in the test body.
+
 Hypervel does not forward the parent Testbench CLI application's full runtime environment to `package:test` subprocesses. In package-test mode, package and workbench environment files are copied into the child runtime application, while shell or CI environment variables, PHPUnit XML values, and Testbench YAML `env` values continue to reach package-test child processes through their normal channels.
 
 Hypervel does not use Orchestra's `TESTBENCH_APP_BASE_PATH` channel. Each process owns its runtime application identity through `BASE_PATH`, remote child processes receive the current worker clone through `TESTBENCH_BASE_PATH`, and `APP_BASE_PATH` remains the explicit user override.

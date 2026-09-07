@@ -303,6 +303,40 @@ class StartSessionTest extends TestCase
         $this->assertTrue($lock->released);
     }
 
+    public function testNullBlockStoreUsesTheDefaultCacheStore(): void
+    {
+        $request = Request::create('/');
+        $request->setRouteResolver(fn (): Route => (new Route('GET', '/', fn () => new Response))->block(10, 0));
+        $manager = m::mock(SessionManager::class);
+        $cache = m::mock(CacheFactoryContract::class);
+        $session = m::mock(Session::class);
+        $store = m::mock(Repository::class, LockProvider::class);
+        $lock = m::mock(Lock::class);
+        $middleware = new StartSessionRespondingMiddleware(
+            $manager,
+            $cache,
+            m::mock(ExceptionHandlerContract::class),
+        );
+
+        $manager->shouldReceive('blockDriver')->once()->andReturnNull();
+        $cache->shouldReceive('store')->once()->with(null)->andReturn($store);
+        $session->shouldReceive('getId')->once()->andReturn('session-id');
+        $store->shouldReceive('lock')->once()->with('session:session-id', 10)->andReturn($lock);
+        $lock->shouldReceive('betweenBlockedAttemptsSleepFor')->once()->with(50)->andReturnSelf();
+        $lock->shouldReceive('block')
+            ->once()
+            ->with(0, m::type(Closure::class))
+            ->andReturnUsing(fn (int $seconds, Closure $callback): Response => $callback());
+
+        $response = (new ClassInvoker($middleware))->handleRequestWhileBlocking(
+            $request,
+            $session,
+            fn () => new Response,
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
     public function testBlockingTimeoutDoesNotReleaseUnacquiredLock(): void
     {
         $request = Request::create('/');
@@ -373,6 +407,14 @@ class StartSessionThrowingMiddleware extends StartSession
     protected function handleStatefulRequest(Request $request, Session $session, Closure $next): Response
     {
         throw new RuntimeException('request failure');
+    }
+}
+
+class StartSessionRespondingMiddleware extends StartSession
+{
+    protected function handleStatefulRequest(Request $request, Session $session, Closure $next): Response
+    {
+        return $next($request);
     }
 }
 

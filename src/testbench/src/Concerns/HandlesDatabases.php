@@ -33,12 +33,12 @@ trait HandlesDatabases
             attribute: fn () => $this->parseTestMethodAttributes($app, RequiresDatabase::class),
         );
 
-        $app['events']->listen(DatabaseRefreshed::class, function () {
+        $app->make('events')->listen(DatabaseRefreshed::class, function () {
             $this->defineDatabaseMigrationsAfterDatabaseRefreshed();
         });
 
         if (static::usesTestingConcern(WithHypervelMigrations::class)) {
-            $this->setUpWithHypervelMigrations(); /* @phpstan-ignore method.notFound */
+            $this->prepareHypervelMigrations(); /* @phpstan-ignore method.notFound */
         }
 
         TestingFeature::run(
@@ -53,10 +53,6 @@ trait HandlesDatabases
                 $this->beforeApplicationDestroyed(fn () => $this->destroyDatabaseMigrations());
             },
             attribute: fn () => $this->parseTestMethodAttributes($app, DefineDatabase::class),
-            pest: function () {
-                $this->defineDatabaseMigrationsUsingPest(); /* @phpstan-ignore method.notFound */
-                $this->beforeApplicationDestroyed(fn () => $this->destroyDatabaseMigrationsUsingPest()); /* @phpstan-ignore method.notFound */
-            },
         )->get('attribute');
 
         $callback();
@@ -66,7 +62,6 @@ trait HandlesDatabases
         TestingFeature::run(
             testCase: $this,
             default: fn () => $this->defineDatabaseSeeders(),
-            pest: fn () => $this->defineDatabaseSeedersUsingPest(), /* @phpstan-ignore method.notFound */
         );
     }
 
@@ -82,14 +77,10 @@ trait HandlesDatabases
 
         $connection ??= $config->get('database.default');
 
-        /** @var null|array{driver: string, database: string} $database */
-        $database = $config->get("database.connections.{$connection}");
+        $configuration = $config->get("database.connections.{$connection}");
 
-        if ($database === null || $database['driver'] !== 'sqlite') {
-            return false;
-        }
-
-        return SQLiteDatabase::isInMemory($database['database']);
+        return is_array($configuration)
+            && SQLiteDatabase::isInMemoryConfiguration($configuration);
     }
 
     /**

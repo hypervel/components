@@ -10,6 +10,8 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\Rules\File;
 use PHPUnit\Framework\Attributes\TestWith;
+use Symfony\Component\HttpFoundation\File\File as SymfonyFile;
+use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
 
 class FileValidationTest extends TestCase
 {
@@ -55,11 +57,21 @@ class FileValidationTest extends TestCase
         ], $validator->messages()->all());
     }
 
-    public function testFileCustomValidationMessages()
+    #[TestWith([UploadedFile::class])]
+    #[TestWith([SymfonyUploadedFile::class])]
+    #[TestWith([SymfonyFile::class])]
+    public function testFileCustomValidationMessages(string $fileClass): void
     {
+        $upload = UploadedFile::fake()->createWithContent('photo', str_repeat('x', 1000 * 1024));
+        $file = match ($fileClass) {
+            UploadedFile::class => $upload,
+            SymfonyUploadedFile::class => new SymfonyUploadedFile($upload->getPathname(), 'photo', test: true),
+            SymfonyFile::class => new SymfonyFile($upload->getPathname()),
+        };
+
         $validator = Validator::make(
             [
-                'one' => UploadedFile::fake()->create('photo', 1000),
+                'one' => $file,
                 'two' => 'not-a-file',
             ],
             [

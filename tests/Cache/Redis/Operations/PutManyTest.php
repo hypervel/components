@@ -49,15 +49,12 @@ class PutManyTest extends RedisCacheTestCase
     /**
      * @test
      */
-    public function testPutManyUsesMultiInClusterMode(): void
+    public function testPutManyUsesSequentialCommandsInClusterMode(): void
     {
         [$redis, , $connection] = $this->createClusterStore();
 
-        // RedisCluster::multi() returns $this (fluent interface)
-        $connection->shouldReceive('multi')->once()->andReturn($connection);
-        $connection->shouldReceive('setex')->once()->with('prefix:foo', 60, serialize('bar'))->andReturn($connection);
-        $connection->shouldReceive('setex')->once()->with('prefix:baz', 60, serialize('qux'))->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, true]);
+        $connection->shouldReceive('setex')->once()->with('prefix:foo', 60, serialize('bar'))->andReturnTrue();
+        $connection->shouldReceive('setex')->once()->with('prefix:baz', 60, serialize('qux'))->andReturnTrue();
 
         $result = $redis->putMany([
             'foo' => 'bar',
@@ -73,10 +70,8 @@ class PutManyTest extends RedisCacheTestCase
     {
         [$redis, , $connection] = $this->createClusterStore();
 
-        // RedisCluster::multi() returns $this (fluent interface)
-        $connection->shouldReceive('multi')->once()->andReturn($connection);
-        $connection->shouldReceive('setex')->twice()->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, false]); // One failed
+        $connection->shouldReceive('setex')->once()->with('prefix:foo', 60, serialize('bar'))->andReturnFalse();
+        $connection->shouldReceive('setex')->once()->with('prefix:baz', 60, serialize('qux'))->andReturnTrue();
 
         $result = $redis->putMany([
             'foo' => 'bar',

@@ -8,6 +8,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel as EngineChannel;
 use Hypervel\Engine\Exceptions\CoroutineCreateException;
 use SplQueue;
+use Swoole\Coroutine\CanceledException;
 
 /**
  * Store idle objects independently of execution mode and signal coroutine waiters.
@@ -67,6 +68,14 @@ class Channel
     }
 
     /**
+     * Get the number of coroutines waiting for pool state to change.
+     */
+    public function waiters(): int
+    {
+        return $this->waiters;
+    }
+
+    /**
      * Wait for pool state to change.
      */
     public function wait(float $timeout): bool
@@ -83,6 +92,10 @@ class Channel
 
         try {
             $result = $this->signal->pop($timeout);
+
+            if ($result === false && $this->signal->isCanceled()) {
+                throw new CanceledException('The object pool wait was canceled.');
+            }
 
             return $result !== false || ! $this->signal->isTimeout();
         } finally {

@@ -8,6 +8,7 @@ use ArrayAccess;
 use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Broadcasting\HasBroadcastChannel;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\QueueableCollection;
 use Hypervel\Contracts\Queue\QueueableEntity;
@@ -51,7 +52,7 @@ use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
-abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToString, HasBroadcastChannel, Jsonable, JsonSerializable, QueueableEntity, Stringable, UrlRoutable
+abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToString, HasBroadcastChannel, Jsonable, JsonSerializable, QueueableEntity, Stringable, Transient, UrlRoutable
 {
     use Concerns\HasAttributes;
     use Concerns\HasEvents;
@@ -71,22 +72,27 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Context key for storing models that should ignore touch.
      */
-    protected const IGNORE_ON_TOUCH_CONTEXT_KEY = '__database.model.ignore_on_touch';
+    protected const string IGNORE_ON_TOUCH_CONTEXT_KEY = '__database.model.ignore_on_touch';
 
     /**
      * Context key for storing whether broadcasting is enabled.
      */
-    protected const BROADCASTING_CONTEXT_KEY = '__database.model.broadcasting';
+    protected const string BROADCASTING_CONTEXT_KEY = '__database.model.broadcasting';
 
     /**
      * Context key for storing whether events are disabled.
      */
-    protected const EVENTS_DISABLED_CONTEXT_KEY = '__database.model.events_disabled';
+    protected const string EVENTS_DISABLED_CONTEXT_KEY = '__database.model.events_disabled';
+
+    /**
+     * Context key for suppressing missing attribute violations during existence checks.
+     */
+    protected const string MISSING_ATTRIBUTE_ACCESS_SUPPRESSED_CONTEXT_KEY = '__database.model.missing_attribute_access_suppressed';
 
     /**
      * Context key for storing whether mass assignment is unguarded.
      */
-    public const UNGUARDED_CONTEXT_KEY = '__database.model.unguarded';
+    public const string UNGUARDED_CONTEXT_KEY = '__database.model.unguarded';
 
     /**
      * The connection name for the model.
@@ -298,6 +304,13 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     protected static array $scopeMethodAttributes = [];
 
     /**
+     * Cache of whether methods are callable legacy local scopes.
+     *
+     * @var array<string, bool>
+     */
+    protected static array $legacyScopeMethods = [];
+
+    /**
      * Cache of soft deletable models.
      *
      * @var array<class-string<self>, bool>
@@ -320,17 +333,13 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * The name of the "created at" column.
-     *
-     * @var null|string
      */
-    public const CREATED_AT = 'created_at';
+    public const ?string CREATED_AT = 'created_at';
 
     /**
      * The name of the "updated at" column.
-     *
-     * @var null|string
      */
-    public const UPDATED_AT = 'updated_at';
+    public const ?string UPDATED_AT = 'updated_at';
 
     /**
      * Create a new Eloquent model instance.
@@ -551,7 +560,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         static::$classDeclaredAttributes = [];
         static::$classPropertyDeclarers = [];
         static::$guardConfigurations = [];
-        static::$scopeMethodAttributes = [];
+        self::flushScopeCaches();
 
         static::$globalScopes = [];
     }
@@ -891,7 +900,6 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public static function onWriteConnection(): Builder
     {
-        // @phpstan-ignore return.type (useWritePdo returns $this, mixin type inference loses Builder)
         return static::query()->useWritePdo();
     }
 
@@ -1515,7 +1523,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         $dirty = $this->getDirtyForUpdate();
 
         if (count($dirty) > 0) {
-            $this->setKeysForSaveQuery($query)->update($dirty);
+            $this->setKeysForSaveQuery($query)->update(
+                $this->prepareBinaryAttributesForDatabase($dirty)
+            );
 
             // Cached setters were merged while building the statement values. Read
             // the raw array here so nondeterministic setters are not run again.
@@ -1543,7 +1553,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             throw new MissingAttributeException($this, $this->getKeyName());
         }
 
-        $query->where($this->getKeyName(), '=', $key);
+        $query->where($this->getKeyName(), '=', $this->prepareKeyForDatabase($key));
 
         return $query;
     }
@@ -1553,7 +1563,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     protected function getKeyForSelectQuery(): mixed
     {
-        return $this->original[$this->getKeyName()] ?? $this->getKey();
+        return $this->getRawKeyForQuery();
     }
 
     /**
@@ -1570,7 +1580,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             throw new MissingAttributeException($this, $this->getKeyName());
         }
 
-        $query->where($this->getKeyName(), '=', $key);
+        $query->where($this->getKeyName(), '=', $this->prepareKeyForDatabase($key));
 
         return $query;
     }
@@ -1580,7 +1590,30 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     protected function getKeyForSaveQuery(): mixed
     {
-        return $this->original[$this->getKeyName()] ?? $this->getKey();
+        return $this->getRawKeyForQuery();
+    }
+
+    /**
+     * Get the raw primary key value for a model query.
+     */
+    private function getRawKeyForQuery(): mixed
+    {
+        $keyName = $this->getKeyName();
+
+        return $this->original[$keyName]
+            ?? ($this->isBinaryCast($this->getCasts()[$keyName] ?? null) && array_key_exists($keyName, $this->attributes)
+                ? $this->attributes[$keyName]
+                : $this->getKey());
+    }
+
+    /**
+     * Prepare the primary key for database binding.
+     */
+    private function prepareKeyForDatabase(mixed $key): mixed
+    {
+        $keyName = $this->getKeyName();
+
+        return $this->prepareBinaryAttributesForDatabase([$keyName => $key])[$keyName];
     }
 
     /**
@@ -1608,7 +1641,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         // If the model has an incrementing key, we can use the "insertGetId" method on
         // the query builder, which will give us back the final inserted ID for this
         // table from the database. Not all tables have to be incrementing though.
-        $attributes = $this->getAttributesForInsert();
+        $attributes = $this->prepareBinaryAttributesForDatabase(
+            $this->getAttributesForInsert()
+        );
 
         if ($this->getIncrementing()) {
             $this->insertAndSetId($query, $attributes);
@@ -1656,7 +1691,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             $this->updateTimestamps();
         }
 
-        $attributes = $this->getAttributesForInsert();
+        $attributes = $this->prepareBinaryAttributesForDatabase(
+            $this->getAttributesForInsert()
+        );
 
         if ($attributes === []) {
             return true;
@@ -1933,7 +1970,6 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         $builderClass = static::$resolvedBuilderClasses[static::class]
             ??= $this->resolveCustomBuilderClass();
 
-        // @phpstan-ignore function.alreadyNarrowedType (defensive: validates custom builder class at runtime)
         if ($builderClass && is_subclass_of($builderClass, Builder::class)) {
             return new $builderClass($query);
         }
@@ -1981,7 +2017,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public function hasNamedScope(string $scope): bool
     {
-        return method_exists($this, 'scope' . ucfirst($scope))
+        return static::isLegacyScopeMethod($scope)
             || static::isScopeMethodWithAttribute($scope);
     }
 
@@ -2020,6 +2056,33 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         return static::$scopeMethodAttributes[$key] = ! $reflection->isPrivate()
             && $reflection->getAttributes(LocalScope::class) !== [];
+    }
+
+    /**
+     * Determine if the given method is a callable legacy local scope.
+     */
+    protected static function isLegacyScopeMethod(string $scope): bool
+    {
+        $key = static::class . "\0" . strtolower($scope);
+
+        if (array_key_exists($key, static::$legacyScopeMethods)) {
+            return static::$legacyScopeMethods[$key];
+        }
+
+        $method = 'scope' . ucfirst($scope);
+
+        // Query-derived dynamic scope names can be arbitrary. Do not retain misses
+        // for nonexistent methods in a long-running worker.
+        if (! method_exists(static::class, $method)) {
+            return false;
+        }
+
+        $reflection = new ReflectionMethod(static::class, $method);
+        $declaredName = $reflection->getName();
+
+        return static::$legacyScopeMethods[$key] = strlen($declaredName) > 5
+            && ! $reflection->isPrivate()
+            && ! ctype_lower($declaredName[5]);
     }
 
     /**
@@ -2080,7 +2143,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         return $this->setKeysForSelectQuery($this->newQueryWithoutScopes())
             ->useWritePdo()
-            ->with(is_string($with) ? func_get_args() : $with) // @phpstan-ignore method.notFound (Eloquent __call forwarding)
+            ->with(is_string($with) ? func_get_args() : $with)
             ->first();
     }
 
@@ -2659,6 +2722,15 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     }
 
     /**
+     * Flush local scope caches.
+     */
+    private static function flushScopeCaches(): void
+    {
+        static::$scopeMethodAttributes = [];
+        static::$legacyScopeMethods = [];
+    }
+
+    /**
      * Flush all static state.
      */
     public static function flushState(): void
@@ -2674,7 +2746,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         static::$classDeclaredAttributes = [];
         static::$classPropertyDeclarers = [];
         static::$guardConfigurations = [];
-        static::$scopeMethodAttributes = [];
+        self::flushScopeCaches();
         static::$modelsShouldPreventLazyLoading = false;
         static::$modelsShouldAutomaticallyEagerLoadRelationships = false;
         static::$lazyLoadingViolationCallback = null;
@@ -2724,14 +2796,18 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public function offsetExists($offset): bool
     {
-        $shouldPrevent = static::$modelsShouldPreventAccessingMissingAttributes;
+        if (! static::preventsAccessingMissingAttributes()) {
+            return ! is_null($this->getAttribute($offset));
+        }
 
-        static::$modelsShouldPreventAccessingMissingAttributes = false;
+        $wasSuppressed = CoroutineContext::get(self::MISSING_ATTRIBUTE_ACCESS_SUPPRESSED_CONTEXT_KEY, false);
+
+        CoroutineContext::set(self::MISSING_ATTRIBUTE_ACCESS_SUPPRESSED_CONTEXT_KEY, true);
 
         try {
             return ! is_null($this->getAttribute($offset));
         } finally {
-            static::$modelsShouldPreventAccessingMissingAttributes = $shouldPrevent;
+            CoroutineContext::set(self::MISSING_ATTRIBUTE_ACCESS_SUPPRESSED_CONTEXT_KEY, $wasSuppressed);
         }
     }
 
@@ -2861,12 +2937,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         $keys = get_object_vars($this);
 
-        if (version_compare(PHP_VERSION, '8.4.0', '>=')) {
-            foreach ((new ReflectionClass($this))->getProperties() as $property) {
-                // @phpstan-ignore method.notFound (PHP 8.4+ only, guarded by version check)
-                if ($property->hasHooks()) {
-                    unset($keys[$property->getName()]);
-                }
+        foreach ((new ReflectionClass($this))->getProperties() as $property) {
+            if ($property->hasHooks()) {
+                unset($keys[$property->getName()]);
             }
         }
 

@@ -23,7 +23,7 @@ PHP);
     }
 
     #[Test]
-    public function itCanCacheRoutesBeforeParentSetup()
+    public function itCanCacheRoutesBeforeParentSetup(): void
     {
         $this->assertFileExists($this->app->getCachedRoutesPath());
 

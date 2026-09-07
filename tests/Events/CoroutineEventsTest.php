@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Events\CoroutineEventsTest;
 
+use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Tests\TestCase;
-use ReflectionClass;
 use RuntimeException;
 
 use function Hypervel\Coroutine\parallel;
@@ -256,106 +256,88 @@ class CoroutineEventsTest extends TestCase
         $this->assertContains('inner', $dispatched);
     }
 
-    public function testListenersCacheIsPopulatedOnFirstGetListenersCall()
+    public function testPreparedListenersAreSharedAcrossCoroutines(): void
     {
-        $dispatcher = new Dispatcher;
+        $dispatcher = new CoroutinePreparationCountingDispatcher;
         $dispatcher->listen('test-event', function () {
             return 'listener-1';
         });
 
-        // Access the protected listenersCache via reflection
-        $reflection = new ReflectionClass($dispatcher);
-        $cacheProperty = $reflection->getProperty('listenersCache');
+        [$first, $second] = parallel([
+            static fn (): array => $dispatcher->getListeners('test-event'),
+            static fn (): array => $dispatcher->getListeners('test-event'),
+        ]);
 
-        // Cache should be empty before getListeners()
-        $this->assertEmpty($cacheProperty->getValue($dispatcher));
-
-        // First call should populate the cache
-        $listeners = $dispatcher->getListeners('test-event');
-        $this->assertNotEmpty($listeners);
-
-        $cache = $cacheProperty->getValue($dispatcher);
-        $this->assertArrayHasKey('test-event', $cache);
-        $this->assertCount(count($listeners), $cache['test-event']);
-
-        // Second call should return same result from cache
-        $listeners2 = $dispatcher->getListeners('test-event');
-        $this->assertSame($listeners, $listeners2);
+        $this->assertSame($first[0], $second[0]);
+        $this->assertSame(1, $dispatcher->listenerPreparationCount);
     }
 
-    public function testListenersCacheIsInvalidatedOnListen()
+    public function testPreparedListenerBucketIsInvalidatedOnListen(): void
     {
-        $dispatcher = new Dispatcher;
+        $dispatcher = new CoroutinePreparationCountingDispatcher;
         $dispatcher->listen('test-event', function () {
             return 'listener-1';
         });
 
-        $reflection = new ReflectionClass($dispatcher);
-        $cacheProperty = $reflection->getProperty('listenersCache');
-
-        // Populate the cache
         $dispatcher->getListeners('test-event');
-        $this->assertNotEmpty($cacheProperty->getValue($dispatcher));
+        $this->assertSame(1, $dispatcher->listenerPreparationCount);
 
-        // Adding a new listener should invalidate the cache
         $dispatcher->listen('test-event', function () {
             return 'listener-2';
         });
 
-        $this->assertEmpty($cacheProperty->getValue($dispatcher));
-
-        // New call should include both listeners
         $listeners = $dispatcher->getListeners('test-event');
         $this->assertCount(2, $listeners);
+        $this->assertSame(3, $dispatcher->listenerPreparationCount);
     }
 
-    public function testListenersCacheIsInvalidatedOnForget()
+    public function testPreparedListenerBucketIsRemovedOnForget(): void
     {
-        $dispatcher = new Dispatcher;
+        $dispatcher = new CoroutinePreparationCountingDispatcher;
         $dispatcher->listen('test-event', function () {
             return 'listener-1';
         });
 
-        $reflection = new ReflectionClass($dispatcher);
-        $cacheProperty = $reflection->getProperty('listenersCache');
-
-        // Populate the cache
         $dispatcher->getListeners('test-event');
-        $this->assertNotEmpty($cacheProperty->getValue($dispatcher));
-
-        // Forgetting the event should invalidate the cache
         $dispatcher->forget('test-event');
 
-        $this->assertEmpty($cacheProperty->getValue($dispatcher));
-
-        // New call should return empty listeners
-        $listeners = $dispatcher->getListeners('test-event');
-        $this->assertEmpty($listeners);
+        $this->assertSame([], $dispatcher->getListeners('test-event'));
+        $this->assertSame(1, $dispatcher->listenerPreparationCount);
     }
 
-    public function testListenersCacheIsInvalidatedOnWildcardListen()
+    public function testPreparedWildcardListenerBucketIsInvalidatedOnListen(): void
     {
-        $dispatcher = new Dispatcher;
-        $dispatcher->listen('test-event', function () {
+        $dispatcher = new CoroutinePreparationCountingDispatcher;
+        $dispatcher->listen('test-*', function () {
             return 'listener-1';
         });
 
-        $reflection = new ReflectionClass($dispatcher);
-        $cacheProperty = $reflection->getProperty('listenersCache');
+        $first = $dispatcher->getListeners('test-first');
+        $this->assertSame(1, $dispatcher->listenerPreparationCount);
 
-        // Populate the cache
-        $dispatcher->getListeners('test-event');
-        $this->assertNotEmpty($cacheProperty->getValue($dispatcher));
-
-        // Adding a wildcard listener should invalidate the cache
         $dispatcher->listen('test-*', function () {
-            return 'wildcard';
+            return 'listener-2';
         });
 
-        $this->assertEmpty($cacheProperty->getValue($dispatcher));
+        $second = $dispatcher->getListeners('test-second');
+        $third = $dispatcher->getListeners('test-third');
 
-        // New call should include original + wildcard listener
-        $listeners = $dispatcher->getListeners('test-event');
-        $this->assertCount(2, $listeners);
+        $this->assertCount(1, $first);
+        $this->assertCount(2, $second);
+        $this->assertSame($second[0], $third[0]);
+        $this->assertSame($second[1], $third[1]);
+        $this->assertSame(3, $dispatcher->listenerPreparationCount);
+    }
+}
+
+class CoroutinePreparationCountingDispatcher extends Dispatcher
+{
+    public int $listenerPreparationCount = 0;
+
+    public function makeListener(array|object|string $listener, bool $wildcard = false): Closure
+    {
+        ++$this->listenerPreparationCount;
+
+        return parent::makeListener($listener, $wildcard);
     }
 }

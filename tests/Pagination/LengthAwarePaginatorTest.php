@@ -281,6 +281,42 @@ class LengthAwarePaginatorTest extends TestCase
         $this->assertSame(9, (new LengthAwarePaginator([], 0, 1))->currentPage());
     }
 
+    public function testCurrentPageResolverReceivesTheDefaultPageName(): void
+    {
+        $resolvedPageName = null;
+        Paginator::currentPageResolver(function (string $pageName) use (&$resolvedPageName): int {
+            $resolvedPageName = $pageName;
+
+            return 2;
+        });
+
+        $paginator = new LengthAwarePaginator(['first', 'second'], 2, 1);
+
+        $this->assertSame('page', $resolvedPageName);
+        $this->assertSame(2, $paginator->currentPage());
+    }
+
+    public function testCurrentPageResolverAndUrlsUseTheConfiguredPageName(): void
+    {
+        $resolvedPageName = null;
+        Paginator::currentPageResolver(function (string $pageName) use (&$resolvedPageName): int {
+            $resolvedPageName = $pageName;
+
+            return 2;
+        });
+
+        $paginator = new LengthAwarePaginator(
+            ['first', 'second'],
+            2,
+            1,
+            options: ['pageName' => 'users'],
+        );
+
+        $this->assertSame('users', $resolvedPageName);
+        $this->assertSame(2, $paginator->currentPage());
+        $this->assertSame('/?users=2', $paginator->url($paginator->currentPage()));
+    }
+
     public function testLengthAwarePaginatorJsonThrowsForInvalidUtf8(): void
     {
         $paginator = new LengthAwarePaginator(["\xB1\x31"], 1, 1);

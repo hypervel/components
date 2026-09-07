@@ -22,7 +22,7 @@ class DatabaseMySQLSchemaBuilderTest extends TestCase
         $builder = new MySqlBuilder($connection);
         $grammar->shouldReceive('compileTableExists')->once()->andReturn('sql');
         $connection->shouldReceive('getTablePrefix')->once()->andReturn('prefix_');
-        $connection->shouldReceive('scalar')->once()->with('sql')->andReturn(1);
+        $connection->shouldReceive('scalar')->once()->with('sql', [], false)->andReturn(1);
 
         $this->assertTrue($builder->hasTable('table'));
     }

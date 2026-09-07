@@ -11,7 +11,7 @@ trait CompilesLayouts
     /**
      * The name of the last section started during the current compile pass.
      */
-    protected const LAST_SECTION_CONTEXT_KEY = '__view.last_section';
+    protected const string LAST_SECTION_CONTEXT_KEY = '__view.last_section';
 
     /**
      * Compile the extends statements into valid PHP.

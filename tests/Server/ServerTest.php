@@ -8,7 +8,9 @@ use Closure;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Core\Events\BeforeMainServerStart;
 use Hypervel\Core\Events\BeforeServerFork;
+use Hypervel\Core\Events\BeforeServerStart;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Server\Event;
 use Hypervel\Server\Exceptions\InvalidArgumentException as ServerInvalidArgumentException;
@@ -274,6 +276,106 @@ class ServerTest extends TestCase
         ]));
     }
 
+    public function testEverySecondaryServerReceivesGlobalAndOnlyItsOwnSettings(): void
+    {
+        $mainPort = m::mock(SwoolePort::class);
+        $firstSecondary = m::mock(SwoolePort::class);
+        $secondSecondary = m::mock(SwoolePort::class);
+        $nativeServer = m::mock(SwooleServer::class);
+        $nativeServer->ports = [$mainPort];
+        $nativeServer->expects('set')->with([
+            'socket_buffer_size' => 2048,
+            'http_compression' => false,
+            'open_http2_protocol' => true,
+        ])->andReturnTrue();
+        $nativeServer->expects('addlistener')
+            ->with('127.0.0.1', 8001, SWOOLE_SOCK_TCP)
+            ->andReturn($firstSecondary);
+        $firstSecondary->expects('set')->with([
+            'socket_buffer_size' => 4096,
+            'http_compression' => false,
+            'open_http_protocol' => false,
+        ]);
+        $nativeServer->expects('addlistener')
+            ->with('127.0.0.1', 8002, SWOOLE_SOCK_TCP)
+            ->andReturn($secondSecondary);
+        $secondSecondary->expects('set')->with([
+            'socket_buffer_size' => 2048,
+            'http_compression' => false,
+        ]);
+        $server = $this->server(m::mock(Container::class));
+        $server->createWith($nativeServer);
+
+        $server->init(new ServerConfig([
+            'settings' => [
+                'socket_buffer_size' => 2048,
+                'http_compression' => false,
+            ],
+            'servers' => [
+                [
+                    'name' => 'http',
+                    'host' => '127.0.0.1',
+                    'port' => 8000,
+                    'settings' => ['open_http2_protocol' => true],
+                ],
+                [
+                    'name' => 'grpc',
+                    'host' => '127.0.0.1',
+                    'port' => 8001,
+                    'settings' => [
+                        'socket_buffer_size' => 4096,
+                        'open_http_protocol' => false,
+                    ],
+                ],
+                [
+                    'name' => 'metrics',
+                    'host' => '127.0.0.1',
+                    'port' => 8002,
+                ],
+            ],
+        ]));
+    }
+
+    public function testServerInitializationDispatchesLifecycleEventsWhenListenedFor(): void
+    {
+        $mainPort = m::mock(SwoolePort::class);
+        $nativeServer = m::mock(SwooleServer::class);
+        $nativeServer->ports = [$mainPort];
+        $nativeServer->expects('set')->with([])->andReturnTrue();
+
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->expects('hasListeners')->with(BeforeMainServerStart::class)->andReturnTrue();
+        $dispatcher->expects('dispatch')
+            ->with(m::on(function (BeforeMainServerStart $event) use ($nativeServer): bool {
+                $this->assertSame($nativeServer, $event->server);
+                $this->assertSame('http', $event->serverConfig['servers'][0]->getName());
+
+                return true;
+            }))
+            ->andReturnNull();
+        $dispatcher->expects('hasListeners')->with(BeforeServerStart::class)->andReturnTrue();
+        $dispatcher->expects('dispatch')
+            ->with(m::on(function (BeforeServerStart $event): bool {
+                $this->assertSame('http', $event->serverName);
+
+                return true;
+            }))
+            ->andReturnNull();
+
+        $server = new ServerTestServer(
+            m::mock(Container::class),
+            m::mock(LoggerInterface::class),
+            $dispatcher,
+        );
+        $server->createWith($nativeServer);
+
+        $server->init(new ServerConfig([
+            'servers' => [
+                ['name' => 'http'],
+            ],
+        ]));
+    }
+
     public function testListenerCreationFailureStopsConfiguration(): void
     {
         $mainPort = m::mock(SwoolePort::class);
@@ -331,6 +433,7 @@ class ServerTest extends TestCase
         });
 
         $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->expects('hasListeners')->with(BeforeServerFork::class)->andReturnTrue();
         $dispatcher->expects('dispatch')
             ->with(m::on(function (BeforeServerFork $event) use ($nativeServer, &$order): bool {
                 $this->assertSame($nativeServer, $event->server);
@@ -357,6 +460,7 @@ class ServerTest extends TestCase
         $nativeServer->shouldNotReceive('start');
 
         $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->expects('hasListeners')->with(BeforeServerFork::class)->andReturnTrue();
         $dispatcher->expects('dispatch')
             ->with(m::type(BeforeServerFork::class))
             ->andThrow($exception);
@@ -374,6 +478,32 @@ class ServerTest extends TestCase
         } catch (RuntimeException $throwable) {
             $this->assertSame($exception, $throwable);
         }
+    }
+
+    public function testStartSkipsLifecycleEventWithoutListeners(): void
+    {
+        $started = false;
+        $nativeServer = m::mock(SwooleServer::class);
+        $nativeServer->expects('start')->andReturnUsing(function () use (&$started): bool {
+            $started = true;
+
+            return true;
+        });
+
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->expects('hasListeners')->with(BeforeServerFork::class)->andReturnFalse();
+        $dispatcher->shouldNotReceive('dispatch');
+
+        $server = new ServerTestServer(
+            m::mock(Container::class),
+            m::mock(LoggerInterface::class),
+            $dispatcher,
+        );
+        $server->useNativeServer($nativeServer);
+
+        $server->start();
+
+        $this->assertTrue($started);
     }
 
     public function testServerTypesArePrioritizedWithoutReorderingEqualTypes(): void
@@ -435,6 +565,7 @@ class ServerTest extends TestCase
     private function server(Container $container): ServerTestServer
     {
         $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->allows('hasListeners')->andReturnFalse();
         $dispatcher->allows('dispatch')->andReturnNull();
 
         return new ServerTestServer(

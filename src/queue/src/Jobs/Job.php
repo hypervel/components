@@ -10,7 +10,6 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\ObjectPool\Lease;
-use Hypervel\ObjectPool\PoolErrorReporter;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\ManuallyFailedException;
@@ -18,6 +17,7 @@ use Hypervel\Queue\TimeoutExceededException;
 use Hypervel\Support\InteractsWithTime;
 use JsonException;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 abstract class Job implements JobContract
@@ -149,13 +149,14 @@ abstract class Job implements JobContract
      */
     protected function discardPoolLeaseAfterFailure(Throwable $exception): never
     {
-        try {
-            $this->discardPoolLease();
-        } catch (Throwable $cleanupException) {
-            PoolErrorReporter::report($cleanupException);
+        $lease = $this->poolLease;
+        $this->poolLease = null;
+
+        if ($lease === null) {
+            throw $exception;
         }
 
-        throw $exception;
+        $lease->discardAfterFailure($exception);
     }
 
     /**
@@ -262,6 +263,8 @@ abstract class Job implements JobContract
 
             try {
                 $batchRepository->rollBack();
+            } catch (CanceledException $exception) {
+                throw $exception;
             } catch (Throwable) {
                 // ...
             }
@@ -269,11 +272,14 @@ abstract class Job implements JobContract
 
         if ($this->shouldRollBackDatabaseTransaction($e)) {
             $config = $this->container->make('config');
+            $failed = $config->array('queue.failed');
 
             $this->container->make('db')
-                ->connection($config->string('queue.failed.database'))
+                ->connection($failed['database'])
                 ->rollBack(toLevel: 0);
         }
+
+        $canceled = false;
 
         try {
             // If the job has failed, we will delete it, call the "failed" method and then call
@@ -284,13 +290,22 @@ abstract class Job implements JobContract
             if ($this->payloadException === null) {
                 $this->failed($e);
             }
+        } catch (CanceledException $exception) {
+            $canceled = true;
+
+            throw $exception;
         } finally {
-            $this->resolve(Dispatcher::class)
-                ->dispatch(new JobFailed(
-                    $this->connectionName,
-                    $this,
-                    $e ?: new ManuallyFailedException
-                ));
+            if (! $canceled) {
+                $events = $this->resolve(Dispatcher::class);
+
+                if ($events->hasListeners(JobFailed::class)) {
+                    $events->dispatch(new JobFailed(
+                        $this->connectionName,
+                        $this,
+                        $e ?: new ManuallyFailedException
+                    ));
+                }
+            }
         }
     }
 
@@ -304,9 +319,9 @@ abstract class Job implements JobContract
         }
 
         $config = $this->container->make('config');
+        $failed = $config->array('queue.failed');
 
-        return $config->get('queue.failed.database')
-            && in_array($config->get('queue.failed.driver'), ['database', 'database-uuids'], true)
+        return in_array($failed['driver'], ['database', 'database-uuids'], true)
             && $this->container->bound('db');
     }
 

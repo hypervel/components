@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Queue\DeleteModelWhenMissingTest;
 
 use DB;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
@@ -20,10 +21,10 @@ use Override;
 #[WithMigration('queue')]
 class DeleteModelWhenMissingTest extends QueueTestCase
 {
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
-        $app['config']->set('queue.default', 'database');
+        $app->make('config')->set('queue.default', 'database');
     }
 
     protected function defineDatabaseMigrationsAfterDatabaseRefreshed(): void

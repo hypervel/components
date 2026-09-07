@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Session;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
@@ -41,10 +42,11 @@ class CookieSessionHandlerTest extends TestCase
         $this->assertTrue($secureSessionValueCookie->isSecure());
     }
 
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app['config']->set('app.key', Str::random(32));
-        $app['config']->set('session.driver', 'cookie');
-        $app['config']->set('session.expire_on_close', true);
+        $config = $app->make('config');
+        $config->set('app.key', Str::random(32));
+        $config->set('session.driver', 'cookie');
+        $config->set('session.expire_on_close', true);
     }
 }

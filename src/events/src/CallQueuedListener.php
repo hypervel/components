@@ -99,6 +99,11 @@ class CallQueuedListener implements ShouldQueue
     public ?int $uniqueFor = null;
 
     /**
+     * The debounce ID of the listener.
+     */
+    public mixed $debounceId = null;
+
+    /**
      * Create a new job instance.
      *
      * @param class-string $class
@@ -167,6 +172,28 @@ class CallQueuedListener implements ShouldQueue
         }
 
         return $listener->uniqueVia(...array_values($this->data));
+    }
+
+    /**
+     * Get the debounce ID for the listener.
+     */
+    public function debounceId(): mixed
+    {
+        return $this->debounceId;
+    }
+
+    /**
+     * Get the cache store used to manage debounce ownership.
+     */
+    public function debounceVia(): ?Cache
+    {
+        $listener = Container::getInstance()->make($this->class);
+
+        if (! method_exists($listener, 'debounceVia')) {
+            return null;
+        }
+
+        return $listener->debounceVia(...array_values($this->data));
     }
 
     /**

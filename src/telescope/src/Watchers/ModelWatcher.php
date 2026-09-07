@@ -9,6 +9,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\FormatModel;
 use Hypervel\Telescope\IncomingEntry;
@@ -17,7 +18,7 @@ use Hypervel\Telescope\Telescope;
 
 class ModelWatcher extends Watcher
 {
-    public const HYDRATIONS_CONTEXT_KEY = '__telescope.watcher.model.hydrations';
+    public const string HYDRATIONS_CONTEXT_KEY = '__telescope.watcher.model.hydrations';
 
     /**
      * Register the watcher.
@@ -128,7 +129,7 @@ class ModelWatcher extends Watcher
             Telescope::recordModelEvent($this->getHydration($modelClass));
         } else {
             if (is_string($entry->content)) {
-                $entry->content = json_decode($entry->content, true);
+                $entry->content = Json::decode($entry->content);
             }
 
             ++$entry->content['count'];

@@ -10,10 +10,10 @@ use stdClass;
 
 class ContainerExtendTest extends TestCase
 {
-    public function testExtendedBindings()
+    public function testExtendedBindings(): void
     {
         $container = new Container;
-        $container['foo'] = 'foo';
+        $container->bind('foo', fn () => 'foo');
         $container->extend('foo', function ($old, $container) {
             return $old . 'bar';
         });
@@ -34,7 +34,7 @@ class ContainerExtendTest extends TestCase
         $result = $container->make('foo');
 
         $this->assertSame('taylor', $result->name);
-        $this->assertEquals(26, $result->age);
+        $this->assertSame(26, $result->age);
         $this->assertSame($result, $container->make('foo'));
     }
 
@@ -83,13 +83,13 @@ class ContainerExtendTest extends TestCase
         $this->assertTrue(ContainerLazyExtendStub::$initialized);
     }
 
-    public function testExtendCanBeCalledBeforeBind()
+    public function testExtendCanBeCalledBeforeBind(): void
     {
         $container = new Container;
         $container->extend('foo', function ($old, $container) {
             return $old . 'bar';
         });
-        $container['foo'] = 'foo';
+        $container->bind('foo', fn () => 'foo');
 
         $this->assertSame('foobar', $container->make('foo'));
     }
@@ -150,10 +150,10 @@ class ContainerExtendTest extends TestCase
         $this->assertSame('some value extended', $container->make('something'));
     }
 
-    public function testMultipleExtends()
+    public function testMultipleExtends(): void
     {
         $container = new Container;
-        $container['foo'] = 'foo';
+        $container->bind('foo', fn () => 'foo');
         $container->extend('foo', function ($old, $container) {
             return $old . 'bar';
         });
@@ -164,7 +164,8 @@ class ContainerExtendTest extends TestCase
         $this->assertSame('foobarbaz', $container->make('foo'));
     }
 
-    public function testUnsetExtend()
+    // Upstream: testUnsetExtend; Hypervel tests forgetExtenders() without unsupported container unset.
+    public function testForgetExtenders(): void
     {
         $container = new Container;
         $container->bind('foo', function () {
@@ -180,7 +181,6 @@ class ContainerExtendTest extends TestCase
             return $obj;
         });
 
-        unset($container['foo']);
         $container->forgetExtenders('foo');
 
         $container->bind('foo', function () {

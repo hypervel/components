@@ -15,6 +15,9 @@ use Hypervel\Telescope\Telescope;
  */
 class MonitoringDetector
 {
+    /**
+     * Create a new monitoring detector instance.
+     */
     public function __construct(
         private readonly Repository $config,
     ) {

@@ -48,7 +48,7 @@ class ClearCommand extends Command
         // connection being run for the queue operation currently being executed.
         $queueName = $this->getQueue($connection);
 
-        $queue = $this->hypervel['queue']->connection($connection);
+        $queue = $this->hypervel->make('queue')->connection($connection);
 
         if ($queue instanceof ClearableQueue) {
             $count = $queue->clear($queueName);

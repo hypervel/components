@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Pagination\Paginator;
+use Hypervel\Support\Collection;
 
 use function PHPStan\Testing\assertType;
 
@@ -26,6 +27,13 @@ $paginator->each(function ($post) {
 foreach ($paginator as $post) {
     assertType('Post', $post);
 }
+
+$paginatorWithReplacedCollection = clone $paginator;
+$paginatorWithReplacedCollection->setCollection(new Collection([
+    'first' => ['id' => 1],
+]));
+
+assertType('Hypervel\Pagination\Paginator<string, array{id: 1}>', $paginatorWithReplacedCollection);
 
 /** @var LengthAwarePaginator<int, Post> $lengthAwarePaginator */
 $lengthAwarePaginator = new LengthAwarePaginator($items, 1, 1);
@@ -57,6 +65,13 @@ $cursorPaginator->each(function ($post) {
 foreach ($cursorPaginator as $post) {
     assertType('Post', $post);
 }
+
+$cursorPaginatorWithReplacedCollection = clone $cursorPaginator;
+$cursorPaginatorWithReplacedCollection->setCollection(new Collection([
+    'first' => ['id' => 1],
+]));
+
+assertType('Hypervel\Pagination\CursorPaginator<string, array{id: 1}>', $cursorPaginatorWithReplacedCollection);
 
 $throughPaginator = clone $cursorPaginator;
 $throughPaginator->through(function ($post, $key): array {

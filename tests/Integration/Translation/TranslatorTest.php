@@ -14,58 +14,66 @@ class TranslatorTest extends TestCase
 {
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app['translator']->addNamespace('tests', __DIR__ . '/Fixtures/lang');
-        $app['translator']->addJsonPath(__DIR__ . '/Fixtures/lang');
+        $translator = $app->make('translator');
+
+        $translator->addNamespace('tests', __DIR__ . '/Fixtures/lang');
+        $translator->addJsonPath(__DIR__ . '/Fixtures/lang');
     }
 
     public function testItCanGetFromLocaleForJson(): void
     {
-        $this->assertSame('30 Days', $this->app['translator']->get('30 Days'));
+        $translator = $this->app->make('translator');
+
+        $this->assertSame('30 Days', $translator->get('30 Days'));
 
         $this->app->setLocale('fr');
 
-        $this->assertSame('30 jours', $this->app['translator']->get('30 Days'));
+        $this->assertSame('30 jours', $translator->get('30 Days'));
     }
 
     public function testItCanCheckLanguageExistsHasFromLocaleForJson(): void
     {
-        $this->assertTrue($this->app['translator']->has('1 Day'));
-        $this->assertTrue($this->app['translator']->hasForLocale('1 Day'));
-        $this->assertTrue($this->app['translator']->hasForLocale('30 Days'));
+        $translator = $this->app->make('translator');
+
+        $this->assertTrue($translator->has('1 Day'));
+        $this->assertTrue($translator->hasForLocale('1 Day'));
+        $this->assertTrue($translator->hasForLocale('30 Days'));
 
         $this->app->setLocale('fr');
 
-        $this->assertFalse($this->app['translator']->has('1 Day'));
-        $this->assertFalse($this->app['translator']->hasForLocale('1 Day'));
-        $this->assertTrue($this->app['translator']->hasForLocale('30 Days'));
+        $this->assertFalse($translator->has('1 Day'));
+        $this->assertFalse($translator->hasForLocale('1 Day'));
+        $this->assertTrue($translator->hasForLocale('30 Days'));
     }
 
     public function testItCanCheckKeyExistsWithoutTriggeringHandleMissingKeys(): void
     {
         $missingKey = null;
+        $translator = $this->app->make('translator');
 
-        $this->app['translator']->handleMissingKeysUsing(function (string $key) use (&$missingKey): void {
+        $translator->handleMissingKeysUsing(function (string $key) use (&$missingKey): void {
             $missingKey = $key;
         });
 
-        $this->assertFalse($this->app['translator']->has('Foo Bar'));
+        $this->assertFalse($translator->has('Foo Bar'));
         $this->assertNull($missingKey);
 
-        $this->assertFalse($this->app['translator']->hasForLocale('Foo Bar', 'nl'));
+        $this->assertFalse($translator->hasForLocale('Foo Bar', 'nl'));
         $this->assertNull($missingKey);
     }
 
     public function testItCanHandleMissingKeysUsingCallback(): void
     {
         $missingKey = null;
+        $translator = $this->app->make('translator');
 
-        $this->app['translator']->handleMissingKeysUsing(function (string $key) use (&$missingKey): string {
+        $translator->handleMissingKeysUsing(function (string $key) use (&$missingKey): string {
             $missingKey = $key;
 
             return 'callback key';
         });
 
-        $key = $this->app['translator']->get('some missing key');
+        $key = $translator->get('some missing key');
 
         $this->assertSame('callback key', $key);
         $this->assertSame('some missing key', $missingKey);
@@ -74,12 +82,13 @@ class TranslatorTest extends TestCase
     public function testItCanHandleMissingKeysNoReturn(): void
     {
         $missingKey = null;
+        $translator = $this->app->make('translator');
 
-        $this->app['translator']->handleMissingKeysUsing(function (string $key) use (&$missingKey): void {
+        $translator->handleMissingKeysUsing(function (string $key) use (&$missingKey): void {
             $missingKey = $key;
         });
 
-        $key = $this->app['translator']->get('some missing key');
+        $key = $translator->get('some missing key');
 
         $this->assertSame('some missing key', $key);
         $this->assertSame('some missing key', $missingKey);
@@ -88,25 +97,48 @@ class TranslatorTest extends TestCase
     public function testItReturnsCorrectLocaleForMissingKeys(): void
     {
         $missingLocale = null;
+        $translator = $this->app->make('translator');
 
-        $this->app['translator']->handleMissingKeysUsing(function (string $key, array $replacements, string $locale) use (&$missingLocale): void {
+        $translator->handleMissingKeysUsing(function (string $key, array $replacements, string $locale) use (&$missingLocale): void {
             $missingLocale = $locale;
         });
 
-        $this->app['translator']->get('some missing key', [], 'ht');
+        $translator->get('some missing key', [], 'ht');
 
         $this->assertSame('ht', $missingLocale);
+    }
+
+    public function testChoicePassesCallerReplacementsToMissingKeyCallback(): void
+    {
+        $received = null;
+        $translator = $this->app->make('translator');
+
+        $translator->handleMissingKeysUsing(function (string $key, array $replace, string $locale, bool $fallback) use (&$received): string {
+            $received = [$key, $replace, $locale, $fallback];
+
+            return '{1} Hello :name|[2,*] Hello :name, you have :count messages';
+        });
+
+        $this->assertSame(
+            'Hello Taylor, you have 3 messages',
+            $translator->choice('missing.greeting', 3, ['name' => 'Taylor'])
+        );
+        $this->assertSame(
+            ['missing.greeting', ['name' => 'Taylor'], 'en', true],
+            $received
+        );
     }
 
     public function testFileValidationDoesNotAttemptToTranslateAlreadyTranslatedMessages(): void
     {
         $keysLookedUp = [];
+        $translator = $this->app->make('translator');
 
-        $this->app['translator']->handleMissingKeysUsing(function (string $key) use (&$keysLookedUp): void {
+        $translator->handleMissingKeysUsing(function (string $key) use (&$keysLookedUp): void {
             $keysLookedUp[] = $key;
         });
 
-        $validator = $this->app['validator']->make(
+        $validator = $this->app->make('validator')->make(
             ['file' => UploadedFile::fake()->create('file.pdf')],
             ['file' => [File::types(['txt'])]]
         );
@@ -127,7 +159,7 @@ class TranslatorTest extends TestCase
 
         $this->assertSame(
             strtr($expected, [':name' => $name, ':count' => $count]),
-            $this->app['translator']->choice('tests::app.greeting', $count, ['name' => $name])
+            $this->app->make('translator')->choice('tests::app.greeting', $count, ['name' => $name])
         );
     }
 
@@ -142,7 +174,7 @@ class TranslatorTest extends TestCase
 
         $this->assertSame(
             strtr($expected, [':name' => $name, ':count' => $count]),
-            $this->app['translator']->choice('tests::app.greeting', $count, ['name' => $name])
+            $this->app->make('translator')->choice('tests::app.greeting', $count, ['name' => $name])
         );
     }
 

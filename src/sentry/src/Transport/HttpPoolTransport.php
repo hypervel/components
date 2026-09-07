@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Transport;
 
+use Closure;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\WaitGroup;
 use RuntimeException;
@@ -12,10 +14,16 @@ use Sentry\Transport\HttpTransport;
 use Sentry\Transport\Result;
 use Sentry\Transport\ResultStatus;
 use Sentry\Transport\TransportInterface;
+use Swoole\Coroutine\CanceledException;
+use Swoole\Runtime;
 use Throwable;
+
+use function Hypervel\Coroutine\run;
 
 class HttpPoolTransport implements TransportInterface
 {
+    public const string DELIVERY_CONTEXT_KEY = '__sentry.delivery';
+
     protected WaitGroup $group;
 
     public function __construct(protected Pool $pool)
@@ -43,32 +51,47 @@ class HttpPoolTransport implements TransportInterface
         // but this send must call done() on the same group it increments.
         $group = $this->group;
         $group->add();
+        $started = false;
+        $discard = false;
+        $callable = static function () use ($event, $transport, &$discard): void {
+            try {
+                $transport->send($event);
+            } catch (Throwable) {
+                $discard = true;
+            }
+        };
+        $wrapper = function (Closure $run) use ($group, $transport, &$started, &$discard): void {
+            try {
+                $started = true;
+                CoroutineContext::set(self::DELIVERY_CONTEXT_KEY, true);
+                $run();
+            } finally {
+                try {
+                    if ($discard) {
+                        $this->pool->discard($transport);
+                    } else {
+                        $this->pool->release($transport);
+                    }
+                } finally {
+                    $group->done();
+                }
+            }
+        };
 
         try {
-            $this->createCoroutine(function () use ($event, $group, $transport): void {
-                $discard = false;
-
+            $this->createCoroutine($callable, $wrapper);
+        } catch (Throwable $exception) {
+            // Once the child starts, it exclusively owns the transport and wait count.
+            if (! $started) {
                 try {
-                    $transport->send($event);
-                } catch (Throwable) {
-                    $discard = true;
+                    $this->pool->release($transport);
                 } finally {
-                    try {
-                        if ($discard) {
-                            $this->pool->discard($transport);
-                        } else {
-                            $this->pool->release($transport);
-                        }
-                    } finally {
-                        $group->done();
-                    }
+                    $group->done();
                 }
-            });
-        } catch (Throwable) {
-            try {
-                $this->pool->release($transport);
-            } finally {
-                $group->done();
+            }
+
+            if ($exception instanceof CanceledException) {
+                throw $exception;
             }
 
             return new Result(ResultStatus::failed());
@@ -106,9 +129,19 @@ class HttpPoolTransport implements TransportInterface
 
     /**
      * Create the coroutine that owns a checked-out transport.
+     *
+     * @param Closure(Closure(): void): void $wrapper
      */
-    protected function createCoroutine(callable $callback): void
+    protected function createCoroutine(callable $callback, Closure $wrapper): void
     {
-        Coroutine::create($callback);
+        if (Coroutine::inCoroutine()) {
+            Coroutine::createOwned($callback, $wrapper);
+
+            return;
+        }
+
+        run(static function () use ($callback, $wrapper): void {
+            $wrapper(Closure::fromCallable($callback));
+        }, Runtime::getHookFlags());
     }
 }

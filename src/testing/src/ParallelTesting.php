@@ -261,9 +261,13 @@ class ParallelTesting
      */
     public function token(): string|false
     {
-        return $this->tokenResolver
-            ? call_user_func($this->tokenResolver)
-            : ($_SERVER['TEST_TOKEN'] ?? false);
+        if ($this->tokenResolver) {
+            return call_user_func($this->tokenResolver);
+        }
+
+        $token = $_SERVER['TEST_TOKEN'] ?? null;
+
+        return is_scalar($token) ? (string) $token : false;
     }
 
     /**
@@ -275,6 +279,26 @@ class ParallelTesting
     }
 
     /**
+     * Get the filesystem-safe test process token.
+     *
+     * @internal
+     */
+    public static function processToken(): ?string
+    {
+        $token = $_SERVER['TEST_TOKEN'] ?? $_ENV['TEST_TOKEN'] ?? null;
+
+        if (! is_scalar($token)) {
+            return null;
+        }
+
+        $token = (string) $token;
+
+        return $token === ''
+            ? null
+            : preg_replace('/[^A-Za-z0-9_.-]/', '_', $token);
+    }
+
+    /**
      * Get a unique temporary directory path for the current test process.
      *
      * Incorporates TEST_TOKEN (parallel worker ID) and PID to prevent
@@ -282,7 +306,7 @@ class ParallelTesting
      */
     public static function tempDir(string $suffix = ''): string
     {
-        $token = $_SERVER['TEST_TOKEN'] ?? $_ENV['TEST_TOKEN'] ?? 'default';
+        $token = static::processToken() ?? 'default';
         // Canonicalize the temp root so this path matches values derived via realpath() or __DIR__;
         // macOS resolves /var to /private/var, which would otherwise differ.
         $temporaryDirectory = realpath(sys_get_temp_dir()) ?: sys_get_temp_dir();

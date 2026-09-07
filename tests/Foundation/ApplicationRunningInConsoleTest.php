@@ -309,7 +309,7 @@ class ApplicationRunningInConsoleTest extends TestCase
     // detectEnvironment integration
     // ------------------------------------------------------------------
 
-    public function testDetectEnvironmentUsesArgvWhenInConsole()
+    public function testDetectEnvironmentUsesArgvWhenInConsole(): void
     {
         $_SERVER['argv'] = ['artisan', '--env=staging'];
         $app = new Application;
@@ -318,6 +318,7 @@ class ApplicationRunningInConsoleTest extends TestCase
         $result = $app->detectEnvironment(fn () => 'default');
 
         $this->assertSame('staging', $result);
+        $this->assertSame('staging', $app->environment());
     }
 
     public function testDetectEnvironmentIgnoresArgvWhenNotInConsole()

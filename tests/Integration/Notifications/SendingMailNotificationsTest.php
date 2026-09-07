@@ -24,11 +24,11 @@ use Mockery as m;
 
 class SendingMailNotificationsTest extends TestCase
 {
-    public $mailFactory;
+    public MailFactory $mailFactory;
 
-    public $mailer;
+    public Mailer $mailer;
 
-    public $markdown;
+    public Markdown $markdown;
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
@@ -49,7 +49,7 @@ class SendingMailNotificationsTest extends TestCase
             return $this->mailFactory;
         });
 
-        $app['view']->addLocation(__DIR__ . '/Fixtures');
+        $app->make('view')->addLocation(__DIR__ . '/Fixtures');
     }
 
     protected function setUp(): void

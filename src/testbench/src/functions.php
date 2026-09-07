@@ -29,6 +29,7 @@ use PHPUnit\Runner\ShutdownHandler;
 use PHPUnit\Runner\Version;
 use RuntimeException;
 
+use function Hypervel\Filesystem\join_paths as filesystem_join_paths;
 use function Hypervel\Support\php_binary as support_php_binary;
 
 /**
@@ -136,16 +137,14 @@ function load_migration_paths(ApplicationContract $app, array|string $paths): vo
  * Returns the path to the runtime copy of the workbench app used for testing.
  * This is set by Bootstrapper::bootstrap() via the BASE_PATH constant.
  *
- * @param array<int, null|string>|string $path
+ * @no-named-arguments
+ *
+ * @param array<int, string>|string ...$path
  */
 function default_skeleton_path(array|string $path = ''): string|false
 {
     if (! defined('BASE_PATH')) {
         Bootstrapper::bootstrap();
-    }
-
-    if (! defined('BASE_PATH')) {
-        return false;
     }
 
     $result = join_paths(BASE_PATH, ...Arr::wrap(func_num_args() > 1 ? func_get_args() : $path));
@@ -199,19 +198,13 @@ function default_migration_path(?string $type = null): string
  */
 function join_paths(?string $basePath, string ...$paths): string
 {
-    foreach ($paths as $index => $path) {
-        if (empty($path)) {
-            unset($paths[$index]);
-        } else {
-            $paths[$index] = DIRECTORY_SEPARATOR . ltrim($path, DIRECTORY_SEPARATOR);
-        }
-    }
-
-    return $basePath . implode('', $paths);
+    return filesystem_join_paths($basePath, ...$paths);
 }
 
 /**
  * Determine if the path is a symlink for both Unix and Windows environments.
+ *
+ * @phpstan-impure
  */
 function is_symlink(string $path): bool
 {
@@ -225,7 +218,9 @@ function is_symlink(string $path): bool
 /**
  * Get the path to the testbench package folder.
  *
- * @param array<int, null|string>|string ...$path
+ * @no-named-arguments
+ *
+ * @param array<int, string>|string ...$path
  */
 function testbench_path(array|string $path = ''): string
 {
@@ -237,30 +232,31 @@ function testbench_path(array|string $path = ''): string
         return transform_relative_path($path, $workingPath) ?? $workingPath;
     }
 
-    if ($argumentCount === 1 && $path === DIRECTORY_SEPARATOR) {
-        return rtrim($workingPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-    }
-
-    $path = join_paths(null, ...Arr::wrap($argumentCount > 1 ? func_get_args() : $path));
+    $paths = Arr::wrap($argumentCount > 1 ? func_get_args() : $path);
+    $path = join_paths(array_shift($paths), ...$paths);
 
     return str_starts_with($path, './')
         ? transform_relative_path($path, $workingPath) ?? $workingPath
-        : join_paths(rtrim($workingPath, DIRECTORY_SEPARATOR), ltrim($path, DIRECTORY_SEPARATOR));
+        : join_paths(rtrim($workingPath, DIRECTORY_SEPARATOR), $path);
 }
 
 /**
  * Get the path to the package root folder.
  *
- * @param array<int, null|string>|string ...$path
+ * @no-named-arguments
+ *
+ * @param array<int, string>|string ...$path
  */
 function package_path(array|string $path = ''): string
 {
     $argumentCount = func_num_args();
 
     $workingPath = once(static function (): string {
+        $configuredWorkingPath = Env::get('TESTBENCH_WORKING_PATH');
+
         $resolvedPath = realpath(match (true) {
             defined('TESTBENCH_WORKING_PATH') => TESTBENCH_WORKING_PATH,
-            Env::has('TESTBENCH_WORKING_PATH') => (string) Env::get('TESTBENCH_WORKING_PATH'),
+            is_string($configuredWorkingPath) && $configuredWorkingPath !== '' => $configuredWorkingPath,
             default => InstalledVersions::getRootPackage()['install_path'],
         });
 
@@ -271,15 +267,12 @@ function package_path(array|string $path = ''): string
         return transform_relative_path($path, $workingPath) ?? $workingPath;
     }
 
-    if ($argumentCount === 1 && $path === DIRECTORY_SEPARATOR) {
-        return rtrim($workingPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-    }
-
-    $path = join_paths(null, ...Arr::wrap($argumentCount > 1 ? func_get_args() : $path));
+    $paths = Arr::wrap($argumentCount > 1 ? func_get_args() : $path);
+    $path = join_paths(array_shift($paths), ...$paths);
 
     return str_starts_with($path, './')
         ? transform_relative_path($path, $workingPath) ?? $workingPath
-        : join_paths(rtrim($workingPath, DIRECTORY_SEPARATOR), ltrim($path, DIRECTORY_SEPARATOR));
+        : join_paths(rtrim($workingPath, DIRECTORY_SEPARATOR), $path);
 }
 
 /**
@@ -293,10 +286,11 @@ function package_path(array|string $path = ''): string
  */
 function defined_environment_variables(): array
 {
-    return (new Collection(array_merge($_SERVER, $_ENV)))
+    return (new Collection($_ENV + $_SERVER))
         ->keys()
-        ->mapWithKeys(static fn (string $key) => [$key => $_ENV[$key] ?? $_SERVER[$key] ?? null])
-        ->filter(static fn ($value) => $value === null || is_scalar($value))
+        ->filter(static fn (mixed $key): bool => is_string($key))
+        ->mapWithKeys(static fn (string $key): array => [$key => $_ENV[$key] ?? $_SERVER[$key] ?? null])
+        ->filter(static fn (mixed $value): bool => $value === null || is_scalar($value))
         ->when(
             ! Env::has('TESTBENCH_WORKING_PATH'),
             static fn (Collection $env) => $env->put('TESTBENCH_WORKING_PATH', package_path())
@@ -318,15 +312,28 @@ function parse_environment_variables(iterable $variables): array
             } elseif ($value === null || $value === 'null') {
                 $value = '(null)';
             } else {
+                $value = (string) $value;
                 $value = $key === 'APP_DEBUG'
-                    ? sprintf('(%s)', trim((string) $value, '()'))
-                    : "'{$value}'";
+                    ? sprintf('(%s)', trim($value, '()'))
+                    : ($value === '' ? '(empty)' : quote_environment_value($value));
             }
 
             return "{$key}={$value}";
         })
         ->values()
         ->all();
+}
+
+/**
+ * Quote a string for a dotenv entry.
+ */
+function quote_environment_value(string $value): string
+{
+    return '"' . str_replace(
+        ['\\', '"', '$', "\n", "\r", "\f", "\t", "\v"],
+        ['\\\\', '\"', '\$', '\n', '\r', '\f', '\t', '\v'],
+        $value,
+    ) . '"';
 }
 
 /**
@@ -405,7 +412,9 @@ function workbench(): array
 /**
  * Get the path to the workbench folder.
  *
- * @param array<int, null|string>|string ...$path
+ * @no-named-arguments
+ *
+ * @param array<int, string>|string ...$path
  */
 function workbench_path(array|string $path = ''): string
 {
@@ -423,38 +432,46 @@ function workbench_path(array|string $path = ''): string
         return transform_relative_path($path, $workingPath) ?? $workingPath;
     }
 
-    if ($argumentCount === 1 && $path === DIRECTORY_SEPARATOR) {
-        return rtrim($workingPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-    }
-
-    $path = join_paths(null, ...Arr::wrap($argumentCount > 1 ? func_get_args() : $path));
+    $paths = Arr::wrap($argumentCount > 1 ? func_get_args() : $path);
+    $path = join_paths(array_shift($paths), ...$paths);
 
     return str_starts_with($path, './')
         ? transform_relative_path($path, $workingPath) ?? $workingPath
-        : join_paths(rtrim($workingPath, DIRECTORY_SEPARATOR), ltrim($path, DIRECTORY_SEPARATOR));
+        : join_paths(rtrim($workingPath, DIRECTORY_SEPARATOR), $path);
 }
 
 /**
  * Get the package-relative path to the testbench folder.
  *
- * @param array<int, null|string>|string ...$path
+ * @no-named-arguments
+ *
+ * @param array<int, string>|string ...$path
  */
 function testbench_relative_path(array|string $path = ''): string
 {
     $resolvedPath = testbench_path(...Arr::wrap(func_num_args() > 1 ? func_get_args() : $path));
     $packageRoot = rtrim(package_path(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
 
-    return ltrim(str_replace($packageRoot, '', $resolvedPath), DIRECTORY_SEPARATOR);
+    return str_starts_with($resolvedPath, $packageRoot)
+        ? substr($resolvedPath, strlen($packageRoot))
+        : $resolvedPath;
 }
 
 /**
  * Get the package-relative path to the workbench folder.
  *
- * @param array<int, null|string>|string ...$path
+ * @no-named-arguments
+ *
+ * @param array<int, string>|string ...$path
  */
 function workbench_relative_path(array|string $path = ''): string
 {
-    return testbench_relative_path('workbench', ...Arr::wrap(func_num_args() > 1 ? func_get_args() : $path));
+    $resolvedPath = workbench_path(...Arr::wrap(func_num_args() > 1 ? func_get_args() : $path));
+    $packageRoot = rtrim(package_path(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+
+    return str_starts_with($resolvedPath, $packageRoot)
+        ? substr($resolvedPath, strlen($packageRoot))
+        : $resolvedPath;
 }
 
 /**

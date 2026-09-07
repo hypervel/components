@@ -7,6 +7,7 @@ namespace Hypervel\Queue;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Contracts\Queue\IndexAwareQueue;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\ObjectPool\Contracts\Factory;
@@ -16,9 +17,10 @@ use Hypervel\ObjectPool\PoolProxy;
 use Hypervel\Queue\Jobs\Job as PoolLeaseAwareJob;
 use Hypervel\Support\Collection;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
-class QueuePoolProxy extends PoolProxy implements QueueContract
+class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
 {
     /**
      * The logical connection name applied to each borrowed queue.
@@ -78,6 +80,38 @@ class QueuePoolProxy extends PoolProxy implements QueueContract
      * Get the number of reserved jobs.
      */
     public function reservedSize(?string $queue = null): int
+    {
+        return $this->invoke(__FUNCTION__, func_get_args());
+    }
+
+    /**
+     * Get the number of jobs across every queue.
+     */
+    public function totalSize(): int
+    {
+        return $this->invoke(__FUNCTION__, func_get_args());
+    }
+
+    /**
+     * Get the number of pending jobs across every queue.
+     */
+    public function totalPendingSize(): int
+    {
+        return $this->invoke(__FUNCTION__, func_get_args());
+    }
+
+    /**
+     * Get the number of delayed jobs across every queue.
+     */
+    public function totalDelayedSize(): int
+    {
+        return $this->invoke(__FUNCTION__, func_get_args());
+    }
+
+    /**
+     * Get the number of reserved jobs across every queue.
+     */
+    public function totalReservedSize(): int
     {
         return $this->invoke(__FUNCTION__, func_get_args());
     }
@@ -206,14 +240,16 @@ class QueuePoolProxy extends PoolProxy implements QueueContract
     /**
      * Pop the next job off of the queue.
      */
-    public function pop(?string $queue = null): ?Job
+    public function pop(?string $queue = null, int $index = 0): ?Job
     {
         $lease = $this->lease();
 
         try {
             /** @var QueueContract $connection */
             $connection = $lease->get();
-            $job = $connection->pop($queue);
+            $job = $connection instanceof IndexAwareQueue
+                ? $connection->pop($queue, $index)
+                : $connection->pop($queue);
 
             if ($job === null) {
                 $lease->release();
@@ -224,18 +260,14 @@ class QueuePoolProxy extends PoolProxy implements QueueContract
             if (! $job instanceof PoolLeaseAwareJob) {
                 try {
                     $job->release(0);
+                } catch (CanceledException $requeueCancellation) {
+                    $lease->discardAfterFailure($requeueCancellation);
                 } catch (Throwable $requeueException) {
-                    try {
-                        $lease->discard();
-                    } catch (Throwable $cleanupException) {
-                        PoolErrorReporter::report($cleanupException);
-                    }
-
-                    throw new RuntimeException(
+                    $lease->discardAfterFailure(new RuntimeException(
                         'Pooled queue connections require jobs extending Hypervel\Queue\Jobs\Job; '
                         . 'requeueing the popped job also failed.',
                         previous: $requeueException,
-                    );
+                    ));
                 }
 
                 throw new RuntimeException(
@@ -245,31 +277,24 @@ class QueuePoolProxy extends PoolProxy implements QueueContract
 
             try {
                 return $job->withPoolLease($lease);
+            } catch (CanceledException $attachmentCancellation) {
+                $lease->discardAfterFailure($attachmentCancellation);
             } catch (Throwable $attachmentException) {
                 try {
                     $job->release(0);
+                } catch (CanceledException $recoveryCancellation) {
+                    $lease->discardAfterFailure($recoveryCancellation);
                 } catch (Throwable $recoveryException) {
                     PoolErrorReporter::report($recoveryException);
 
-                    try {
-                        // Terminal recovery normally finalizes the attached lease;
-                        // this is an idempotent backstop if attachment or finalization failed first.
-                        $lease->discard();
-                    } catch (Throwable $cleanupException) {
-                        PoolErrorReporter::report($cleanupException);
-                    }
+                    $lease->discardAfterFailure($attachmentException);
                 }
 
                 throw $attachmentException;
             }
         } catch (Throwable $operationException) {
-            try {
-                $lease->release();
-            } catch (Throwable $finalizationException) {
-                PoolErrorReporter::report($finalizationException);
-            }
-
-            throw $operationException;
+            // Inner recovery can finalize this lease before throwing here.
+            $lease->releaseAfterFailure($operationException);
         }
     }
 
@@ -315,13 +340,7 @@ class QueuePoolProxy extends PoolProxy implements QueueContract
             $queue = $lease->get();
             $result = $callback($queue);
         } catch (Throwable $operationException) {
-            try {
-                $lease->release();
-            } catch (Throwable $finalizationException) {
-                PoolErrorReporter::report($finalizationException);
-            }
-
-            throw $operationException;
+            $lease->releaseAfterFailure($operationException);
         }
 
         $lease->release();

@@ -57,7 +57,7 @@ class QuestionHelper extends SymfonyQuestionHelper
 
         if ($question instanceof ChoiceQuestion) {
             foreach ($question->getChoices() as $key => $value) {
-                (new TwoColumnDetail($output))->render($value, $key); /* @phpstan-ignore-line */
+                (new TwoColumnDetail($output))->render($value, $key);
             }
         }
 

@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
+use Hypervel\Database\Connection;
 use Hypervel\Database\Schema\SqliteSchemaState;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Tests\TestCase;
+use LogicException;
 use Mockery as m;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -80,5 +82,18 @@ class DatabaseSqliteSchemaStateTest extends TestCase
             'memory URI path' => ['file::memory:'],
             'named memory URI' => ['file:database?mode=memory'],
         ];
+    }
+
+    public function testLoadSchemaToInMemoryRequiresPdoConnection(): void
+    {
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getDatabaseName')->once()->andReturn(':memory:');
+
+        $schemaState = new SqliteSchemaState($connection, m::mock(Filesystem::class));
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('In-memory SQLite schema loading requires a PDO-backed connection.');
+
+        $schemaState->load('database/schema/sqlite-schema.dump');
     }
 }

@@ -51,7 +51,9 @@ abstract class QueueTestCase extends TestCase
             $count = 0;
 
             do {
-                $this->artisan('queue:work', array_merge($options, [
+                $this->artisan('queue:work', array_merge([
+                    '--sleep' => 0,
+                ], $options, [
                     '--memory' => 1024,
                 ]))->assertSuccessful();
 

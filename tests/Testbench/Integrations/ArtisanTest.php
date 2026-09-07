@@ -17,7 +17,7 @@ use function Hypervel\Testbench\remote;
 class ArtisanTest extends TestCase
 {
     #[Test]
-    public function itCanGenerateTheSameOutput()
+    public function itCanGenerateTheSameOutput(): void
     {
         $remote = remote('--version --no-ansi')->mustRun();
 

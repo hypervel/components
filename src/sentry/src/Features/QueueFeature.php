@@ -37,15 +37,15 @@ class QueueFeature extends Feature
         pushScope as private pushScopeTrait;
     }
 
-    private const QUEUE_SPAN_OP_QUEUE_PUBLISH = 'queue.publish';
+    private const string QUEUE_SPAN_OP_QUEUE_PUBLISH = 'queue.publish';
 
-    private const QUEUE_PAYLOAD_BAGGAGE_DATA = 'sentry_baggage_data';
+    private const string QUEUE_PAYLOAD_BAGGAGE_DATA = 'sentry_baggage_data';
 
-    private const QUEUE_PAYLOAD_TRACE_PARENT_DATA = 'sentry_trace_parent_data';
+    private const string QUEUE_PAYLOAD_TRACE_PARENT_DATA = 'sentry_trace_parent_data';
 
-    private const QUEUE_PAYLOAD_PUBLISH_TIME = 'sentry_publish_time';
+    private const string QUEUE_PAYLOAD_PUBLISH_TIME = 'sentry_publish_time';
 
-    private const QUEUE_PAYLOAD_DESTINATION_NAME = 'sentry_destination_name';
+    private const string QUEUE_PAYLOAD_DESTINATION_NAME = 'sentry_destination_name';
 
     public function isApplicable(): bool
     {
@@ -256,8 +256,6 @@ class QueueFeature extends Feature
     public function handleJobExceptionOccurredQueueEvent(JobExceptionOccurred $event): void
     {
         $this->maybeFinishSpan(SpanStatus::internalError());
-
-        Integration::flushEvents();
     }
 
     private function normalizeQueueName(?string $queue): string
@@ -275,15 +273,15 @@ class QueueFeature extends Feature
         return Str::after($queue, 'queues:');
     }
 
-    protected function pushScope(): void
+    protected function pushScope(): Scope
     {
-        $this->pushScopeTrait();
+        $scope = $this->pushScopeTrait();
 
         // When a job starts, we want to make sure the scope is cleared of breadcrumbs
         // as well as setting a new propagation context.
-        SentrySdk::getCurrentHub()->configureScope(static function (Scope $scope) {
-            $scope->clearBreadcrumbs();
-            $scope->setPropagationContext(PropagationContext::fromDefaults());
-        });
+        $scope->clearBreadcrumbs();
+        $scope->setPropagationContext(PropagationContext::fromDefaults());
+
+        return $scope;
     }
 }

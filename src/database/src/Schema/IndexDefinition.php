@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Schema;
 
 use Hypervel\Support\Fluent;
+use LogicException;
 
 /**
  * @method $this algorithm(string $algorithm) Specify an algorithm for the index (MySQL/PostgreSQL)
@@ -17,4 +18,18 @@ use Hypervel\Support\Fluent;
  */
 class IndexDefinition extends Fluent
 {
+    /**
+     * Limit the index to rows where the given column is not null.
+     */
+    public function whereNotNull(string $column): static
+    {
+        // Fluent stores the command type under name and the physical index name under index.
+        if ($this->get('name') !== 'index') {
+            throw new LogicException(
+                'The [whereNotNull] modifier is only available for ordinary indexes.',
+            );
+        }
+
+        return $this->set('whereNotNull', $column);
+    }
 }

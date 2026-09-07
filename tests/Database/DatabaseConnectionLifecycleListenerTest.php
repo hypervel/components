@@ -12,6 +12,7 @@ use Hypervel\Database\SimpleConnectionResolver;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class DatabaseConnectionLifecycleListenerTest extends TestCase
 {
@@ -110,6 +111,50 @@ class DatabaseConnectionLifecycleListenerTest extends TestCase
             $this->fail('Expected the pool factory failure to propagate.');
         } catch (RuntimeException $throwable) {
             $this->assertSame($exception, $throwable);
+        }
+    }
+
+    public function testPoolFactoryCancellationSupersedesAnOrdinaryResolverFailure(): void
+    {
+        $resolverException = new RuntimeException('Resolver discard failed.');
+        $factoryCancellation = new CanceledException('Pool flush was canceled.');
+        $resolver = m::mock(ConnectionResolver::class);
+        $resolver->expects('discardConnections')->andThrow($resolverException);
+        $factory = m::mock(PoolFactory::class);
+        $factory->expects('flushAll')->andThrow($factoryCancellation);
+        $container = m::mock(Container::class);
+        $container->expects('resolved')->with('db.resolver')->andReturnTrue();
+        $container->expects('make')->with('db.resolver')->andReturn($resolver);
+        $container->expects('resolved')->with(PoolFactory::class)->andReturnTrue();
+        $container->expects('make')->with(PoolFactory::class)->andReturn($factory);
+
+        try {
+            (new DatabaseConnectionLifecycleListener($container))->discardProcessConnections();
+            $this->fail('Expected pool flush cancellation to propagate.');
+        } catch (CanceledException $throwable) {
+            $this->assertSame($factoryCancellation, $throwable);
+        }
+    }
+
+    public function testResolverCancellationRemainsPrimaryOverAnOrdinaryPoolFactoryFailure(): void
+    {
+        $resolverCancellation = new CanceledException('Resolver discard was canceled.');
+        $factoryException = new RuntimeException('Pool flush failed.');
+        $resolver = m::mock(ConnectionResolver::class);
+        $resolver->expects('discardConnections')->andThrow($resolverCancellation);
+        $factory = m::mock(PoolFactory::class);
+        $factory->expects('flushAll')->andThrow($factoryException);
+        $container = m::mock(Container::class);
+        $container->expects('resolved')->with('db.resolver')->andReturnTrue();
+        $container->expects('make')->with('db.resolver')->andReturn($resolver);
+        $container->expects('resolved')->with(PoolFactory::class)->andReturnTrue();
+        $container->expects('make')->with(PoolFactory::class)->andReturn($factory);
+
+        try {
+            (new DatabaseConnectionLifecycleListener($container))->discardProcessConnections();
+            $this->fail('Expected resolver cancellation to propagate.');
+        } catch (CanceledException $throwable) {
+            $this->assertSame($resolverCancellation, $throwable);
         }
     }
 }

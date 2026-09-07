@@ -3,7 +3,7 @@ export type QueryParams = {
         | string
         | number
         | boolean
-        | (string | number)[]
+        | (string | number | boolean)[]
         | null
         | undefined
         | QueryParams;
@@ -38,6 +38,41 @@ const getValue = (value: string | number | boolean) => {
     }
 
     return value.toString();
+};
+
+const routeCharacters: Record<string, string> = {
+    "%2F": "/",
+    "%40": "@",
+    "%3A": ":",
+    "%3B": ";",
+    "%2C": ",",
+    "%3D": "=",
+    "%2B": "+",
+    "%7C": "|",
+    "%26": "&",
+};
+
+export const formatRouteParameter = (
+    value: string | number | boolean | null | undefined,
+    optional: boolean,
+    name: string,
+) => {
+    if (value === undefined || value === null || value === "") {
+        if (optional) return "";
+
+        throw Error(`Missing required route parameter: ${name}.`);
+    }
+
+    const encoded = encodeURIComponent(getValue(value)).replace(
+        /['()]/g,
+        (character) =>
+            `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+    );
+
+    return encoded.replace(
+        /%(?:2F|40|3A|3B|2C|3D|2B|7C|26)/g,
+        (sequence) => routeCharacters[sequence],
+    );
 };
 
 const addNestedParams = (
@@ -99,7 +134,7 @@ export const queryParams = (options?: RouteQueryOptions) => {
 
         if (Array.isArray(queryValue)) {
             queryValue.forEach((value) => {
-                params.append(`${key}[]`, value.toString());
+                params.append(`${key}[]`, getValue(value));
             });
         } else if (typeof queryValue === "object") {
             addNestedParams(queryValue, key, params);
@@ -129,9 +164,9 @@ export const addUrlDefault = (
     });
 };
 
-export const applyUrlDefaults = <T extends UrlDefaults | undefined>(
+export const applyUrlDefaults = <T extends UrlDefaults | null | undefined>(
     existing: T,
-): T => {
+): [T] extends [null | undefined] ? UrlDefaults : T => {
     const existingParams = { ...(existing ?? ({} as UrlDefaults)) };
     const defaultParams = urlDefaults();
 
@@ -145,7 +180,7 @@ export const applyUrlDefaults = <T extends UrlDefaults | undefined>(
         }
     }
 
-    return existingParams as T;
+    return existingParams as [T] extends [null | undefined] ? UrlDefaults : T;
 };
 
 export const validateParameters = (
@@ -158,8 +193,7 @@ export const validateParameters = (
         return (
             value === undefined ||
             value === null ||
-            value === "" ||
-            value === false
+            value === ""
         );
     });
     const expectedMissing = optional.slice(missing.length * -1);

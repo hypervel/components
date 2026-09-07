@@ -11,19 +11,22 @@ use Psr\Http\Message\ResponseInterface;
 use SensitiveParameter;
 use UnexpectedValueException;
 
+/**
+ * @phpstan-require-extends \Hypervel\Socialite\Two\AbstractProvider
+ */
 trait InteractsWithJwks
 {
     /**
      * The parsed JSON Web Key Set for the current URI.
      *
-     * @var null|array{url: string, keys: array, expiresAt: int}
+     * @var null|array{url: string, algorithm: string, keys: array, expiresAt: int}
      */
     protected ?array $jwks = null;
 
     /**
      * The last forced refresh attempt.
      *
-     * @var null|array{url: string, attemptedAt: int}
+     * @var null|array{url: string, algorithm: string, attemptedAt: int}
      */
     protected ?array $jwksRefreshAttempt = null;
 
@@ -66,22 +69,27 @@ trait InteractsWithJwks
     private function getJwks(bool $refresh = false): array
     {
         $url = $this->getJwksUri();
+        /** @var string $algorithm */
+        $algorithm = $this->getConfig('id_token_alg', 'RS256');
         $now = time();
 
         if (! $refresh
             && ($this->jwks['url'] ?? null) === $url
+            && ($this->jwks['algorithm'] ?? null) === $algorithm
             && $now < $this->jwks['expiresAt']) {
             return $this->jwks['keys'];
         }
 
         if ($refresh) {
             if (($this->jwks['url'] ?? null) === $url
+                && ($this->jwks['algorithm'] ?? null) === $algorithm
                 && ($this->jwksRefreshAttempt['url'] ?? null) === $url
+                && ($this->jwksRefreshAttempt['algorithm'] ?? null) === $algorithm
                 && ($now - $this->jwksRefreshAttempt['attemptedAt']) < $this->jwksRefreshCooldownSeconds) {
                 return $this->jwks['keys'];
             }
 
-            $this->jwksRefreshAttempt = ['url' => $url, 'attemptedAt' => $now];
+            $this->jwksRefreshAttempt = compact('url', 'algorithm') + ['attemptedAt' => $now];
 
             $refreshedUrl = $this->getJwksUri(refresh: true);
 
@@ -98,10 +106,10 @@ trait InteractsWithJwks
             throw new UnexpectedValueException('The JWKS response must be a JSON object.');
         }
 
-        $keys = JWK::parseKeySet($keySet);
+        $keys = JWK::parseKeySet($keySet, $algorithm);
         $expiresAt = $this->getJwksExpiresAt($response, $now);
 
-        $this->jwks = compact('url', 'keys', 'expiresAt');
+        $this->jwks = compact('url', 'algorithm', 'keys', 'expiresAt');
 
         return $this->jwks['keys'];
     }

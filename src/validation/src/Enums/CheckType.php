@@ -14,10 +14,13 @@ namespace Hypervel\Validation\Enums;
  *   1. A compiler case in RuleCompiler::tryInline() that emits this CheckType
  *   2. A runner arm in PlanExecutor::executeInline() that handles it
  *   3. A rule name mapping in ruleName() below
+ *   4. A reviewed PlanExecutor::canPreflightInline() safety decision
  *
  * Forgetting (2) fails PHPStan (exhaustive match) or throws UnhandledMatchError
  * at runtime. Forgetting (3) fails PHPStan (exhaustive match, no default arm).
  * Forgetting (1) is harmless — the rule simply flows through DelegatedCheck.
+ * Preflight permits a case only when repeating it cannot invoke user code,
+ * perform I/O, emit warnings, or throw for a supported candidate value.
  */
 enum CheckType
 {

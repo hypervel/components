@@ -18,7 +18,7 @@ Route::group(['middleware' => $groupMiddleware], function () {
     $managementMiddleware = array_values(array_filter(config()->array('passkeys.management_middleware')));
 
     $middleware = function (string ...$middleware): array {
-        $throttle = config('passkeys.throttle');
+        $throttle = config('passkeys.throttle', 'throttle:6,1');
 
         return array_values(array_filter([...$middleware, $throttle]));
     };
@@ -49,7 +49,7 @@ Route::group(['middleware' => $groupMiddleware], function () {
             ->name('passkey.store');
 
         Route::delete('/user/passkeys/{passkey}', [PasskeyRegistrationController::class, 'destroy'])
-            ->middleware($managementMiddleware)
+            ->middleware($middleware(...$managementMiddleware))
             ->name('passkey.destroy');
     });
 });

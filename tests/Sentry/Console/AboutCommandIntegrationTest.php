@@ -81,7 +81,7 @@ class AboutCommandIntegrationTest extends SentryTestCase
         $output = Artisan::output();
 
         // Refresh to ensure the command didn't have side effects on the container
-        $this->refreshApplication();
+        $this->reloadApplication();
 
         $aboutOutput = json_decode($output, true);
 

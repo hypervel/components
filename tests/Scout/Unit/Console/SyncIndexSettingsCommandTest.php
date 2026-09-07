@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Scout\Unit\Console;
 
 use Hypervel\Config\Repository;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Console\SyncIndexSettingsCommand;
 use Hypervel\Scout\Contracts\UpdatesIndexSettings;
 use Hypervel\Scout\EngineManager;
+use Hypervel\Scout\EngineOperationRunner;
 use Hypervel\Scout\Engines\CollectionEngine;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Scout;
@@ -24,15 +26,15 @@ class SyncIndexSettingsCommandTest extends TestCase
         $engine = new CollectionEngine;
 
         $manager = m::mock(EngineManager::class);
+        $manager->shouldReceive('getDefaultDriver')
+            ->once()
+            ->andReturn('collection');
         $manager->shouldReceive('engine')
             ->with('collection')
             ->once()
             ->andReturn($engine);
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('string')
-            ->with('scout.driver')
-            ->andReturn('collection');
 
         $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
         $command->shouldReceive('option')
@@ -47,20 +49,36 @@ class SyncIndexSettingsCommandTest extends TestCase
         $this->assertSame(1, $result);
     }
 
+    public function testNullConfiguredDriverResolvesThroughTheManager(): void
+    {
+        $config = new Repository(['scout' => ['driver' => null]]);
+        $container = m::mock(Container::class);
+        $container->shouldReceive('make')->once()->with('config')->andReturn($config);
+        $manager = new EngineManager($container, new EngineOperationRunner);
+
+        $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
+        $command->shouldReceive('option')->with('driver')->andReturn(null);
+        $command->shouldReceive('error')
+            ->once()
+            ->with('The "null" engine does not support updating index settings.');
+
+        $this->assertSame(1, $command->handle($manager, $config));
+    }
+
     public function testSucceedsWithInfoMessageWhenNoIndexSettingsConfigured(): void
     {
         $engine = m::mock(Engine::class . ', ' . UpdatesIndexSettings::class);
 
         $manager = m::mock(EngineManager::class);
+        $manager->shouldReceive('getDefaultDriver')
+            ->once()
+            ->andReturn('meilisearch');
         $manager->shouldReceive('engine')
             ->with('meilisearch')
             ->once()
             ->andReturn($engine);
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('string')
-            ->with('scout.driver')
-            ->andReturn('meilisearch');
         $config->shouldReceive('array')
             ->with('scout.meilisearch.index-settings', [])
             ->andReturn([]);
@@ -86,22 +104,22 @@ class SyncIndexSettingsCommandTest extends TestCase
             ->with('test_posts', ['filterableAttributes' => ['status']]);
 
         $manager = m::mock(EngineManager::class);
+        $manager->shouldReceive('getDefaultDriver')
+            ->once()
+            ->andReturn('meilisearch');
         $manager->shouldReceive('engine')
             ->with('meilisearch')
             ->once()
             ->andReturn($engine);
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('string')
-            ->with('scout.driver')
-            ->andReturn('meilisearch');
         $config->shouldReceive('array')
             ->with('scout.meilisearch.index-settings', [])
             ->andReturn([
                 'test_posts' => ['filterableAttributes' => ['status']],
             ]);
         $config->shouldReceive('string')
-            ->with('scout.prefix', '')
+            ->with('scout.prefix')
             ->andReturn('');
 
         $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
@@ -134,15 +152,15 @@ class SyncIndexSettingsCommandTest extends TestCase
                 'filterableAttributes' => ['__soft_deleted', 'tenant_id'],
             ]);
         $manager = m::mock(EngineManager::class);
+        $manager->shouldReceive('getDefaultDriver')->once()->andReturn('meilisearch');
         $manager->shouldReceive('engine')->with('meilisearch')->once()->andReturn($engine);
         $config = m::mock(Repository::class);
-        $config->shouldReceive('string')->with('scout.driver')->andReturn('meilisearch');
         $config->shouldReceive('array')
             ->with('scout.meilisearch.index-settings', [])
             ->andReturn([
                 SyncIndexSettingsSoftDeleteModel::class => ['searchableAttributes' => ['title']],
             ]);
-        $config->shouldReceive('boolean')->with('scout.soft_delete', false)->andReturn(true);
+        $config->shouldReceive('boolean')->with('scout.soft_delete')->andReturn(true);
 
         Scout::prepareIndexSettingsUsing(function (
             array $settings,
@@ -181,7 +199,7 @@ class SyncIndexSettingsCommandTest extends TestCase
             ->andReturn($engine);
 
         $config = m::mock(Repository::class);
-        // Note: scout.driver should NOT be called when driver option is provided
+        // Note: scout.driver should not be called when driver option is provided
         $config->shouldReceive('array')
             ->with('scout.typesense.index-settings', [])
             ->andReturn([]);
@@ -230,15 +248,15 @@ class SyncIndexSettingsCommandTest extends TestCase
         $engine = m::mock(Engine::class . ', ' . UpdatesIndexSettings::class);
 
         $manager = m::mock(EngineManager::class);
+        $manager->shouldReceive('getDefaultDriver')
+            ->once()
+            ->andReturn('meilisearch');
         $manager->shouldReceive('engine')
             ->with('meilisearch')
             ->once()
             ->andReturn($engine);
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('string')
-            ->with('scout.driver')
-            ->andReturn('meilisearch');
         $config->shouldReceive('array')
             ->with('scout.meilisearch.index-settings', [])
             ->andReturn([]);
@@ -259,11 +277,10 @@ class SyncIndexSettingsCommandTest extends TestCase
         $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
 
         $method = new ReflectionMethod(SyncIndexSettingsCommand::class, 'indexName');
-        $method->setAccessible(true);
 
         $config = m::mock(Repository::class);
         $config->shouldReceive('string')
-            ->with('scout.prefix', '')
+            ->with('scout.prefix')
             ->andReturn('prod_');
 
         // Test that prefix is prepended when not already present
@@ -276,14 +293,13 @@ class SyncIndexSettingsCommandTest extends TestCase
         $command = m::mock(SyncIndexSettingsCommand::class)->makePartial();
 
         $method = new ReflectionMethod(SyncIndexSettingsCommand::class, 'indexName');
-        $method->setAccessible(true);
 
         $config = m::mock(Repository::class);
         $config->shouldReceive('string')
-            ->with('scout.prefix', '')
+            ->with('scout.prefix')
             ->andReturn('prod_');
 
-        // Test that prefix is NOT duplicated when already present
+        // Test that prefix is not duplicated when already present
         $result = $method->invoke($command, 'prod_posts', $config);
         $this->assertSame('prod_posts', $result);
     }

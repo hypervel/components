@@ -27,6 +27,10 @@ class WorkerExitCallbackTest extends TestCase
 
         SwooleCoroutine\run(function (): void {
             $dispatcher = m::mock(Dispatcher::class);
+            $dispatcher->shouldReceive('hasListeners')
+                ->once()
+                ->with(OnWorkerExit::class)
+                ->andReturnTrue();
             $dispatcher->shouldReceive('dispatch')
                 ->once()
                 ->with(m::type(OnWorkerExit::class));
@@ -43,11 +47,35 @@ class WorkerExitCallbackTest extends TestCase
     }
 
     #[RunInSeparateProcess]
+    public function testWorkerExitResumesCoordinationWithoutListeners(): void
+    {
+        SwooleCoroutine\run(function (): void {
+            $dispatcher = m::mock(Dispatcher::class);
+            $dispatcher->shouldReceive('hasListeners')
+                ->once()
+                ->with(OnWorkerExit::class)
+                ->andReturnFalse();
+            $dispatcher->shouldNotReceive('dispatch');
+            $coordinator = CoordinatorManager::until(Constants::WORKER_EXIT);
+            $callback = new WorkerExitCallback($dispatcher);
+
+            $callback->onWorkerExit(m::mock(Server::class), 3);
+            $callback->onWorkerExit(m::mock(Server::class), 3);
+
+            $this->assertTrue($coordinator->isClosing());
+        });
+    }
+
+    #[RunInSeparateProcess]
     public function testWorkerExitResumesCoordinationWhenAListenerThrows(): void
     {
         SwooleCoroutine\run(function (): void {
             $failure = new RuntimeException('worker exit listener failed');
             $dispatcher = m::mock(Dispatcher::class);
+            $dispatcher->shouldReceive('hasListeners')
+                ->once()
+                ->with(OnWorkerExit::class)
+                ->andReturnTrue();
             $dispatcher->shouldReceive('dispatch')->once()->andThrow($failure);
             $coordinator = CoordinatorManager::until(Constants::WORKER_EXIT);
             $callback = new WorkerExitCallback($dispatcher);

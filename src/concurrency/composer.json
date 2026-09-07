@@ -1,7 +1,7 @@
 {
     "name": "hypervel/concurrency",
     "type": "library",
-    "description": "The concurrency package for Hypervel.",
+    "description": "The Hypervel Concurrency package.",
     "license": "MIT",
     "keywords": [
         "php",
@@ -37,9 +37,11 @@
         "hypervel/context": "^0.4",
         "hypervel/contracts": "^0.4",
         "hypervel/coroutine": "^0.4",
+        "hypervel/log": "^0.4",
         "hypervel/process": "^0.4",
         "hypervel/support": "^0.4",
-        "nesbot/carbon": "^3.13.1"
+        "nesbot/carbon": "^3.13.1",
+        "symfony/console": "^8.1"
     },
     "config": {
         "sort-packages": true

@@ -23,7 +23,7 @@ class CookieJar implements JarContract
     /**
      * Context key for the queued cookies.
      */
-    protected const QUEUE_CONTEXT_KEY = '__cookie.queue';
+    protected const string QUEUE_CONTEXT_KEY = '__cookie.queue';
 
     /**
      * The default path (if specified).
@@ -86,6 +86,10 @@ class CookieJar implements JarContract
 
     /**
      * Create a cookie that lasts "forever" (400 days).
+     *
+     * This matches the recommended browser cookie lifetime limit.
+     *
+     * @see https://datatracker.ietf.org/doc/draft-ietf-httpbis-rfc6265bis/#section-5.5
      */
     public function forever(UnitEnum|string $name, string $value, ?string $path = null, ?string $domain = null, ?bool $secure = null, bool $httpOnly = true, bool $raw = false, ?string $sameSite = null): Cookie
     {

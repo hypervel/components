@@ -32,7 +32,7 @@ class ModelSerializationTest extends TestCase
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app['config']->set('database.connections.custom', [
+        $app->make('config')->set('database.connections.custom', [
             'driver' => 'sqlite',
             'database' => ':memory:',
             'prefix' => '',

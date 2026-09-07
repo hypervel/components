@@ -10,6 +10,7 @@ use Hypervel\Support\LazyCollection;
 use Hypervel\Testbench\Foundation\Console\TerminatingConsole;
 use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\Foundation\EnvironmentFile;
+use RuntimeException;
 
 use function Hypervel\Testbench\join_paths;
 
@@ -40,21 +41,27 @@ trait CopyTestbenchFiles
         $testbenchFile = $app->basePath(join_paths('bootstrap', 'cache', 'testbench.yaml'));
 
         if ($backupExistingFile === true && $filesystem->isFile($testbenchFile)) {
-            $filesystem->copy($testbenchFile, "{$testbenchFile}.backup");
+            $backupFile = "{$testbenchFile}.backup";
 
-            TerminatingConsole::beforeWhen($resetOnTerminating, static function () use ($filesystem, $testbenchFile) {
-                if ($filesystem->isFile("{$testbenchFile}.backup")) {
-                    $filesystem->move("{$testbenchFile}.backup", $testbenchFile);
+            if (! $filesystem->copy($testbenchFile, $backupFile)) {
+                throw new RuntimeException("Unable to back up Testbench configuration [{$testbenchFile}].");
+            }
+
+            TerminatingConsole::beforeWhen($resetOnTerminating, static function () use ($filesystem, $testbenchFile, $backupFile) {
+                if (! $filesystem->isFile($backupFile) || ! $filesystem->move($backupFile, $testbenchFile)) {
+                    throw new RuntimeException("Unable to restore Testbench configuration [{$testbenchFile}].");
                 }
             });
         }
 
         if ($configurationFile !== null) {
-            $filesystem->copy($configurationFile, $testbenchFile);
+            if (! $filesystem->copy($configurationFile, $testbenchFile)) {
+                throw new RuntimeException("Unable to publish Testbench configuration [{$testbenchFile}].");
+            }
 
             TerminatingConsole::beforeWhen($resetOnTerminating, static function () use ($filesystem, $testbenchFile) {
-                if ($filesystem->isFile($testbenchFile)) {
-                    $filesystem->delete($testbenchFile);
+                if ($filesystem->isFile($testbenchFile) && ! $filesystem->delete($testbenchFile)) {
+                    throw new RuntimeException("Unable to remove Testbench configuration [{$testbenchFile}].");
                 }
             });
         }
@@ -81,18 +88,28 @@ trait CopyTestbenchFiles
         $environmentFile = $app->basePath('.env');
 
         if ($backupExistingFile === true && $filesystem->isFile($environmentFile)) {
-            $filesystem->copy($environmentFile, "{$environmentFile}.backup");
+            $backupFile = "{$environmentFile}.backup";
 
-            TerminatingConsole::beforeWhen($resetOnTerminating, static function () use ($filesystem, $environmentFile) {
-                $filesystem->move("{$environmentFile}.backup", $environmentFile);
+            if (! $filesystem->copy($environmentFile, $backupFile)) {
+                throw new RuntimeException("Unable to back up Testbench environment [{$environmentFile}].");
+            }
+
+            TerminatingConsole::beforeWhen($resetOnTerminating, static function () use ($filesystem, $environmentFile, $backupFile) {
+                if (! $filesystem->isFile($backupFile) || ! $filesystem->move($backupFile, $environmentFile)) {
+                    throw new RuntimeException("Unable to restore Testbench environment [{$environmentFile}].");
+                }
             });
         }
 
         if ($configurationFile !== null) {
-            $filesystem->copy($configurationFile, $environmentFile);
+            if (! $filesystem->copy($configurationFile, $environmentFile)) {
+                throw new RuntimeException("Unable to publish Testbench environment [{$environmentFile}].");
+            }
 
             TerminatingConsole::beforeWhen($resetOnTerminating, static function () use ($filesystem, $environmentFile) {
-                $filesystem->delete($environmentFile);
+                if ($filesystem->isFile($environmentFile) && ! $filesystem->delete($environmentFile)) {
+                    throw new RuntimeException("Unable to remove Testbench environment [{$environmentFile}].");
+                }
             });
         }
     }

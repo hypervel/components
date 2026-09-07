@@ -6,23 +6,34 @@ namespace Hypervel\Tests\Integration\Database;
 
 use Closure;
 use Exception;
+use Generator;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
+use Hypervel\Contracts\Pool\ConnectionInterface as PoolConnectionInterface;
+use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
+use Hypervel\Database\MySqlConnection;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Pool\DbPool;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\SessionConfigurator;
 use Hypervel\Database\SQLiteConnection;
+use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Pool\Events\ReleaseConnection;
 use Hypervel\Pool\PoolOption;
 use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
+use Mockery as m;
 use PDO;
 use ReflectionProperty;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 /**
  * Tests for PooledConnection — the adapter that wraps a database Connection
@@ -85,6 +96,42 @@ class PooledConnectionTest extends DatabaseTestCase
         $this->createPooledConnection($pool);
 
         $this->assertTrue($fired, 'ConnectionEstablished event should be fired when a pooled connection is created');
+    }
+
+    public function testPassiveObserversDoNotCausePooledLifecycleEventsToDispatch(): void
+    {
+        $this->app->make('config')->set('database.connections.pool_test.pool.events', [
+            ReleaseConnection::class,
+        ]);
+        $events = $this->app->make(Dispatcher::class);
+        $establishedConnections = [];
+        $releasedConnections = [];
+        $events->observe(
+            ConnectionEstablished::class,
+            static function (ConnectionEstablished $event) use (&$establishedConnections): void {
+                $establishedConnections[] = $event->connection;
+            }
+        );
+        $events->observe(
+            ReleaseConnection::class,
+            static function (ReleaseConnection $event) use (&$releasedConnections): void {
+                $releasedConnections[] = $event->connection;
+            }
+        );
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+
+        try {
+            $pooledConnection->reconnect();
+            $pooledConnection->release();
+
+            $this->assertSame([], $establishedConnections);
+            $this->assertSame([], $releasedConnections);
+        } finally {
+            $pool->close();
+        }
     }
 
     public function testGetConnectionReturnsConnection(): void
@@ -201,15 +248,20 @@ class PooledConnectionTest extends DatabaseTestCase
         $writePath = $directory . '/write.sqlite';
         touch($readPath);
         touch($writePath);
+        $pool = null;
+        $pooledConnection = null;
 
         try {
             $this->app->make('config')->set('database.connections.file_read_pool_test', [
                 'driver' => 'sqlite',
+                'prefix' => 'base_',
                 'read' => [
                     'database' => $readPath,
+                    'prefix' => 'read_',
                 ],
                 'write' => [
                     'database' => $writePath,
+                    'prefix' => 'write_',
                 ],
                 'pool' => [
                     'min_connections' => 1,
@@ -226,10 +278,27 @@ class PooledConnectionTest extends DatabaseTestCase
 
             $this->assertSame('file_read_pool_test', $connection->getName());
             $this->assertSame($readPath, $connection->getConfig('database'));
+            $this->assertSame($readPath, $connection->getDatabaseName());
+            $this->assertSame('read_', $connection->getTablePrefix());
             $this->assertSame('read', $connection->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY));
 
+            $connection->setDatabaseName('tenant_database');
+            $connection->setTablePrefix('tenant_');
+            $releasedConnection = $pooledConnection;
             $pooledConnection->release();
+            $pooledConnection = null;
+
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->get();
+            $connection = $pooledConnection->getConnection();
+
+            $this->assertSame($releasedConnection, $pooledConnection);
+            $this->assertSame($readPath, $connection->getDatabaseName());
+            $this->assertSame('read_', $connection->getTablePrefix());
+            $this->assertSame('read', $connection->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY));
         } finally {
+            $pooledConnection?->release();
+            $pool?->close();
             $filesystem->deleteDirectory($directory);
         }
     }
@@ -318,6 +387,54 @@ class PooledConnectionTest extends DatabaseTestCase
         $this->assertFalse($pooledConnection->check());
     }
 
+    public function testCloseForgetsTheConnectionWhenTransactionCleanupFails(): void
+    {
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+        $connection = $pooledConnection->getConnection();
+        $failure = new RuntimeException('Transaction cleanup failed.');
+        $connection->beginTransaction();
+        $connection->afterRollBack(static fn () => throw $failure);
+
+        try {
+            $pooledConnection->close();
+            $this->fail('Expected transaction cleanup to fail.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($failure, $throwable);
+        }
+
+        $this->assertFalse($pooledConnection->check());
+
+        $pooledConnection->release();
+        $pool->close();
+    }
+
+    public function testCloseForgetsTheConnectionWhenTransactionCleanupIsCanceled(): void
+    {
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+        $connection = $pooledConnection->getConnection();
+        $cancellation = new CanceledException('Transaction cleanup was canceled.');
+        $connection->beginTransaction();
+        $connection->afterRollBack(static fn () => throw $cancellation);
+
+        try {
+            $pooledConnection->close();
+            $this->fail('Expected transaction cleanup cancellation to propagate.');
+        } catch (CanceledException $throwable) {
+            $this->assertSame($cancellation, $throwable);
+        }
+
+        $this->assertFalse($pooledConnection->check());
+
+        $pooledConnection->release();
+        $pool->close();
+    }
+
     public function testGetActiveConnectionReconnectsWhenStale(): void
     {
         $pool = new DbPool($this->app, 'pool_test');
@@ -389,7 +506,7 @@ class PooledConnectionTest extends DatabaseTestCase
     public function testCleanReleasePreservesMatchingPhysicalSessionState(): void
     {
         $configurator = new PoolSessionConfigurator;
-        Connection::configureSessionUsing($configurator);
+        PdoConnection::configureSessionUsing($configurator);
         $pool = new DbPool($this->app, 'pool_test');
 
         /** @var PooledConnection $pooledConnection */
@@ -425,7 +542,7 @@ class PooledConnectionTest extends DatabaseTestCase
     public function testAbandonedTransactionRollbackInvalidatesPhysicalSessionState(): void
     {
         $configurator = new PoolSessionConfigurator;
-        Connection::configureSessionUsing($configurator);
+        PdoConnection::configureSessionUsing($configurator);
         $pool = new DbPool($this->app, 'pool_test');
 
         /** @var PooledConnection $pooledConnection */
@@ -452,7 +569,7 @@ class PooledConnectionTest extends DatabaseTestCase
     public function testUnknownSessionIsMarkedInvalidAtFinalReleaseBoundary(): void
     {
         $configurator = new PoolSessionConfigurator;
-        Connection::configureSessionUsing($configurator);
+        PdoConnection::configureSessionUsing($configurator);
         $pool = new DbPool($this->app, 'pool_test');
 
         /** @var PooledConnection $pooledConnection */
@@ -483,7 +600,7 @@ class PooledConnectionTest extends DatabaseTestCase
     public function testUnknownReadSessionIsDetectedWithoutResolvingUnopenedPdos(): void
     {
         $configurator = new PoolSessionConfigurator;
-        Connection::configureSessionUsing($configurator);
+        PdoConnection::configureSessionUsing($configurator);
         $pool = new DbPool($this->app, 'pool_test');
 
         /** @var PooledConnection $pooledConnection */
@@ -494,13 +611,17 @@ class PooledConnectionTest extends DatabaseTestCase
             $readPdo = new PDO('sqlite::memory:');
             $connection->setReadPdo($readPdo);
             $configurator->desiredState = 'fail';
-            $configurator->applyCallback = static fn () => throw new Exception('Configuration failed.');
+            $configurationException = new Exception('Configuration failed.');
+            $configurator->applyCallback = static fn () => throw $configurationException;
+            $caughtException = null;
 
             try {
                 $connection->getReadPdo();
-                $this->fail('Expected configuration exception was not thrown.');
-            } catch (Exception) {
+            } catch (Exception $exception) {
+                $caughtException = $exception;
             }
+
+            $this->assertSame($configurationException, $caughtException);
 
             $connection->setPdo(static fn () => throw new Exception('Write PDO must not be resolved.'));
             $releasedConnection = $pooledConnection;
@@ -520,7 +641,7 @@ class PooledConnectionTest extends DatabaseTestCase
             ReleaseConnection::class,
         ]);
         $configurator = new PoolSessionConfigurator;
-        Connection::configureSessionUsing($configurator);
+        PdoConnection::configureSessionUsing($configurator);
         $pool = new DbPool($this->app, 'pool_test');
         $configurator->desiredState = 'fail';
         $configurator->applyCallback = static fn () => throw new Exception('Configuration failed.');
@@ -568,8 +689,9 @@ class PooledConnectionTest extends DatabaseTestCase
             ],
         ]);
         $configurator = new PoolSessionConfigurator('session_reconnect_test');
-        $configurator->applyCallback = static fn () => throw new Exception('Configuration failed.');
-        Connection::configureSessionUsing($configurator);
+        $configurationException = new Exception('Configuration failed.');
+        $configurator->applyCallback = static fn () => throw $configurationException;
+        PdoConnection::configureSessionUsing($configurator);
         $pool = new DbPool($this->app, 'session_reconnect_test');
         $pooledConnection = null;
 
@@ -577,12 +699,15 @@ class PooledConnectionTest extends DatabaseTestCase
             /** @var PooledConnection $pooledConnection */
             $pooledConnection = $pool->get();
             $connection = $pooledConnection->getConnection();
+            $caughtException = null;
 
             try {
                 $connection->getPdo();
-                $this->fail('Expected configuration exception was not thrown.');
-            } catch (Exception) {
+            } catch (Exception $exception) {
+                $caughtException = $exception;
             }
+
+            $this->assertSame($configurationException, $caughtException);
 
             $oldPdo = $connection->getRawPdo();
             $firstPooledConnection = $pooledConnection;
@@ -599,6 +724,50 @@ class PooledConnectionTest extends DatabaseTestCase
             $this->assertSame($firstPooledConnection, $nextPooledConnection);
             $this->assertNotSame($oldPdo, $newPdo);
             $this->assertSame(2, $configurator->applyCalls);
+        } finally {
+            $pooledConnection?->release();
+            $pool->close();
+            $filesystem->deleteDirectory($directory);
+        }
+    }
+
+    public function testLeakedForeignKeySuppressionScopeReconnectsANormalPoolWithoutAConfigurator(): void
+    {
+        $filesystem = new Filesystem;
+        $directory = ParallelTesting::tempDir('PooledConnectionTest-suppression-reconnect');
+        $filesystem->deleteDirectory($directory);
+        $filesystem->ensureDirectoryExists($directory);
+        $databasePath = $directory . '/database.sqlite';
+        touch($databasePath);
+        $this->app->make('config')->set('database.connections.suppression_reconnect_test', [
+            'driver' => 'sqlite',
+            'database' => $databasePath,
+            'prefix' => '',
+            'pool' => [
+                'min_connections' => 1,
+                'max_connections' => 1,
+                'heartbeat' => -1,
+            ],
+        ]);
+        $pool = new DbPool($this->app, 'suppression_reconnect_test');
+        $pooledConnection = null;
+
+        try {
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->get();
+            $connection = $pooledConnection->getConnection();
+            $oldPdo = $connection->getPdo();
+            $connection->beginForeignKeyConstraintSuppression();
+            $firstPooledConnection = $pooledConnection;
+            $pooledConnection->release();
+            $pooledConnection = null;
+
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->get();
+            $newPdo = $pooledConnection->getConnection()->getPdo();
+
+            $this->assertSame($firstPooledConnection, $pooledConnection);
+            $this->assertNotSame($oldPdo, $newPdo);
         } finally {
             $pooledConnection?->release();
             $pool->close();
@@ -625,7 +794,7 @@ class PooledConnectionTest extends DatabaseTestCase
             ],
         ]);
         $configurator = new PoolSessionConfigurator('session_refresh_failure_test');
-        Connection::configureSessionUsing($configurator);
+        PdoConnection::configureSessionUsing($configurator);
         $pool = new DbPool($this->app, 'session_refresh_failure_test');
         $pooledConnection = null;
 
@@ -676,10 +845,8 @@ class PooledConnectionTest extends DatabaseTestCase
         }
     }
 
-    public function testSharedInMemorySqliteUnknownRecoveryIsBoundedAndFailsClosed(): void
+    public function testSharedInMemorySqliteUnknownSessionFailsClosedWithoutDiscardingTheDatabase(): void
     {
-        $configurator = new PoolSessionConfigurator;
-        Connection::configureSessionUsing($configurator);
         $pool = new DbPool($this->app, 'pool_test');
 
         /** @var PooledConnection $pooledConnection */
@@ -688,22 +855,15 @@ class PooledConnectionTest extends DatabaseTestCase
         try {
             $connection = $pooledConnection->getConnection();
             $sharedPdo = $connection->getPdo();
-            $configurator->desiredState = 'fail';
-            $configurator->applyCallback = static fn () => throw new Exception('Configuration failed.');
-
-            try {
-                $connection->getPdo();
-                $this->fail('Expected configuration exception was not thrown.');
-            } catch (Exception) {
-            }
+            $sharedPdo->exec('create table records (id integer primary key)');
+            $sharedPdo->exec('insert into records (id) values (1)');
+            $connection->beginForeignKeyConstraintSuppression();
 
             $pooledConnection->release();
             $pooledConnection = null;
-            $configurator->applyCallback = null;
 
             /** @var PooledConnection $pooledConnection */
             $pooledConnection = $pool->get();
-            $replacementConnection = $pooledConnection->getConnection();
             $connectionEstablished = 0;
             $this->app->make(Dispatcher::class)->listen(
                 ConnectionEstablished::class,
@@ -713,15 +873,18 @@ class PooledConnectionTest extends DatabaseTestCase
             );
 
             try {
-                $replacementConnection->getPdo();
+                $pooledConnection->getConnection();
                 $this->fail('Expected unknown session exception was not thrown.');
             } catch (RuntimeException $exception) {
-                $this->assertSame('Database session state remains unknown after reconnecting.', $exception->getMessage());
+                $this->assertSame(
+                    'The shared in-memory SQLite database session is unknown and its sole connection cannot be replaced without discarding the database.',
+                    $exception->getMessage()
+                );
             }
 
-            $this->assertSame($sharedPdo, $replacementConnection->getRawPdo());
-            $this->assertSame(1, $connectionEstablished);
-            $this->assertSame(2, $configurator->applyCalls);
+            $this->assertSame($sharedPdo, $pool->getSharedInMemorySqlitePdo());
+            $this->assertSame(1, (int) $sharedPdo->query('select count(*) from records')->fetchColumn());
+            $this->assertSame(0, $connectionEstablished);
         } finally {
             $pooledConnection?->release();
             $pool->close();
@@ -731,7 +894,7 @@ class PooledConnectionTest extends DatabaseTestCase
     public function testHeartbeatDoesNotComputeOrInvalidateSessionState(): void
     {
         $configurator = new PoolSessionConfigurator;
-        Connection::configureSessionUsing($configurator);
+        PdoConnection::configureSessionUsing($configurator);
         $pool = new DbPool($this->app, 'pool_test');
         $stateCallsAfterCreation = $configurator->stateCalls;
         $applyCallsAfterCreation = $configurator->applyCalls;
@@ -780,6 +943,196 @@ class PooledConnectionTest extends DatabaseTestCase
         $pooledConnection->release();
 
         $this->assertTrue($fired, 'ReleaseConnection event should be dispatched when configured');
+    }
+
+    public function testOrdinaryReleaseListenerFailureStillReturnsAnInvalidConnection(): void
+    {
+        $this->app->make('config')->set('database.connections.pool_test.pool.events', [
+            ReleaseConnection::class,
+        ]);
+        $failure = new RuntimeException('Release listener failed.');
+        $this->app->make(Dispatcher::class)->listen(
+            ReleaseConnection::class,
+            static fn () => throw $failure
+        );
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+        $pooledConnection->release();
+
+        $this->assertTrue($this->isInvalid($pooledConnection));
+        $this->assertSame(1, $pool->getConnectionsInChannel());
+
+        $pool->close();
+    }
+
+    public function testReleasePreservesTheFirstOrdinaryCleanupFailure(): void
+    {
+        $this->app->make('config')->set('database.connections.pool_test.pool.events', [
+            ReleaseConnection::class,
+        ]);
+        $listenerFailure = new RuntimeException('Release listener failed.');
+        $loggingFailure = new RuntimeException('Release failure logging failed.');
+        $poolReleaseFailure = new RuntimeException('Pool release failed.');
+        $logger = m::mock(StdoutLoggerInterface::class);
+        $logger->shouldReceive('error')->once()->andThrow($loggingFailure);
+        $this->app->instance(StdoutLoggerInterface::class, $logger);
+        $this->app->make(Dispatcher::class)->listen(
+            ReleaseConnection::class,
+            static fn () => throw $listenerFailure
+        );
+        $pool = new FailingReleaseDbPool($this->app, 'pool_test');
+        $pool->releaseFailure = $poolReleaseFailure;
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+
+        try {
+            $pooledConnection->release();
+            $this->fail('Expected release failure logging to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($loggingFailure, $exception);
+        }
+
+        $this->assertSame(1, $pool->getConnectionsInChannel());
+
+        $pool->close();
+    }
+
+    public function testRollbackCancellationStillReturnsTheConnectionAndEscapesExactly(): void
+    {
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+        $connection = $pooledConnection->getConnection();
+        $cancellation = new CanceledException('Rollback was canceled.');
+        $connection->beginTransaction();
+        $connection->afterRollBack(static fn () => throw $cancellation);
+
+        try {
+            $pooledConnection->release();
+            $this->fail('Expected rollback cancellation to propagate.');
+        } catch (CanceledException $throwable) {
+            $this->assertSame($cancellation, $throwable);
+        }
+
+        $this->assertTrue($this->isInvalid($pooledConnection));
+        $this->assertSame(1, $pool->getConnectionsInChannel());
+
+        $pool->close();
+    }
+
+    public function testReleaseListenerCancellationStillReturnsTheConnectionAndEscapesExactly(): void
+    {
+        $this->app->make('config')->set('database.connections.pool_test.pool.events', [
+            ReleaseConnection::class,
+        ]);
+        $cancellation = new CanceledException('Release listener was canceled.');
+        $this->app->make(Dispatcher::class)->listen(
+            ReleaseConnection::class,
+            static fn () => throw $cancellation
+        );
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+
+        try {
+            $pooledConnection->release();
+            $this->fail('Expected release listener cancellation to propagate.');
+        } catch (CanceledException $throwable) {
+            $this->assertSame($cancellation, $throwable);
+        }
+
+        $this->assertTrue($this->isInvalid($pooledConnection));
+        $this->assertSame(1, $pool->getConnectionsInChannel());
+
+        $pool->close();
+    }
+
+    public function testPoolReleaseCancellationEscapesAfterReturningTheConnectionOnce(): void
+    {
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+        $connection = $pooledConnection->getConnection();
+        $cancellation = new CanceledException('Pool release was canceled.');
+        $this->stageRollbackCallback($connection, static fn () => throw $cancellation);
+        $pool->close();
+
+        try {
+            $pooledConnection->release();
+            $this->fail('Expected pool release cancellation to propagate.');
+        } catch (CanceledException $throwable) {
+            $this->assertSame($cancellation, $throwable);
+        }
+
+        $this->assertSame(0, $pool->getCurrentConnections());
+    }
+
+    public function testOperationCancellationRemainsPrimaryOverPoolReleaseCancellation(): void
+    {
+        $this->app->make('config')->set('database.connections.pool_test.pool.events', [
+            ReleaseConnection::class,
+        ]);
+        $operationCancellation = new CanceledException('Release listener was canceled.');
+        $cleanupCancellation = new CanceledException('Pool release was canceled.');
+        $this->app->make(Dispatcher::class)->listen(
+            ReleaseConnection::class,
+            static fn () => throw $operationCancellation
+        );
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+        $this->stageRollbackCallback(
+            $pooledConnection->getConnection(),
+            static fn () => throw $cleanupCancellation
+        );
+        $pool->close();
+
+        try {
+            $pooledConnection->release();
+            $this->fail('Expected release listener cancellation to propagate.');
+        } catch (CanceledException $throwable) {
+            $this->assertSame($operationCancellation, $throwable);
+        }
+
+        $this->assertSame(0, $pool->getCurrentConnections());
+    }
+
+    public function testPoolReleaseCancellationSupersedesAnOrdinaryListenerFailure(): void
+    {
+        $this->app->make('config')->set('database.connections.pool_test.pool.events', [
+            ReleaseConnection::class,
+        ]);
+        $listenerFailure = new RuntimeException('Release listener failed.');
+        $cleanupCancellation = new CanceledException('Pool release was canceled.');
+        $this->app->make(Dispatcher::class)->listen(
+            ReleaseConnection::class,
+            static fn () => throw $listenerFailure
+        );
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+        $this->stageRollbackCallback(
+            $pooledConnection->getConnection(),
+            static fn () => throw $cleanupCancellation
+        );
+        $pool->close();
+
+        try {
+            $pooledConnection->release();
+            $this->fail('Expected pool release cancellation to propagate.');
+        } catch (CanceledException $throwable) {
+            $this->assertSame($cleanupCancellation, $throwable);
+        }
+
+        $this->assertSame(0, $pool->getCurrentConnections());
     }
 
     public function testReuseCheckDoesNotResetLastUseTime(): void
@@ -899,6 +1252,96 @@ class PooledConnectionTest extends DatabaseTestCase
 
         $this->assertTrue($pooledConnection->ping(1.0));
         $this->assertSame($createdAt, $pooledConnection->getCreatedAt());
+    }
+
+    public function testPingCancellationStopsTheHeartbeatChildAndEscapesExactly(): void
+    {
+        $pool = new DbPool($this->app, 'pool_test');
+        $pooledConnection = $this->createPooledConnection($pool);
+        $pingStarted = new Channel(1);
+        $blocker = new Channel(1);
+        $connection = new CancellablePingConnection(1, ':memory:', '', [], $pingStarted, $blocker);
+        (new ReflectionProperty(PooledConnection::class, 'connection'))->setValue($pooledConnection, $connection);
+        $parentCancellation = null;
+
+        $parent = EngineCoroutine::create(function () use ($pooledConnection, &$parentCancellation): void {
+            try {
+                $pooledConnection->ping(10.0);
+            } catch (CanceledException $exception) {
+                $parentCancellation = $exception;
+            }
+        });
+
+        $this->assertTrue($pingStarted->pop());
+        $this->assertTrue(EngineCoroutine::cancelById($parent->getId(), throwException: true));
+        $this->assertInstanceOf(CanceledException::class, $parentCancellation);
+        $this->assertInstanceOf(CanceledException::class, $connection->cancellation);
+        $this->assertIsInt($connection->coroutineId);
+        $this->assertFalse(EngineCoroutine::exists($connection->coroutineId));
+    }
+
+    public function testPingCancellationDuringStartupReportingStopsThePublishedHeartbeatChild(): void
+    {
+        $handler = m::mock(ExceptionHandlerContract::class);
+        $this->app->instance(ExceptionHandlerContract::class, $handler);
+        $pool = new DbPool($this->app, 'pool_test');
+        $pooledConnection = $this->createPooledConnection($pool);
+        $connection = new NeutralPoolConnection(1, ':memory:', '', []);
+        (new ReflectionProperty(PooledConnection::class, 'connection'))->setValue($pooledConnection, $connection);
+        $hookFailure = new RuntimeException('The startup hook failed.');
+        $reportStarted = new Channel(1);
+        $releaseReport = new Channel(1);
+        $parentCoroutineId = null;
+        $parentCancellation = null;
+        $childCoroutineId = null;
+
+        $handler->shouldReceive('report')
+            ->once()
+            ->with($hookFailure)
+            ->andReturnUsing(static function () use ($reportStarted, $releaseReport, &$childCoroutineId): void {
+                $childCoroutineId = EngineCoroutine::id();
+                $reportStarted->push(true);
+                $releaseReport->pop();
+            });
+
+        FrameworkCoroutine::afterCreated(static function () use ($hookFailure): void {
+            throw $hookFailure;
+        });
+
+        $canceller = EngineCoroutine::create(static function () use ($reportStarted, &$parentCoroutineId): void {
+            $reportStarted->pop();
+
+            if (is_int($parentCoroutineId)) {
+                EngineCoroutine::cancelById($parentCoroutineId, throwException: true);
+            }
+        });
+
+        $parent = EngineCoroutine::create(function () use ($pooledConnection, &$parentCoroutineId, &$parentCancellation): void {
+            $parentCoroutineId = EngineCoroutine::id();
+
+            try {
+                $pooledConnection->ping(10.0);
+            } catch (CanceledException $exception) {
+                $parentCancellation = $exception;
+            }
+        });
+
+        try {
+            $this->assertInstanceOf(CanceledException::class, $parentCancellation);
+            $this->assertSame(0, $connection->pingCalls);
+            $this->assertIsInt($childCoroutineId);
+            $this->assertFalse(EngineCoroutine::exists($childCoroutineId));
+        } finally {
+            $releaseReport->push(true, 0.001);
+
+            if (is_int($childCoroutineId) && EngineCoroutine::exists($childCoroutineId)) {
+                EngineCoroutine::cancelById($childCoroutineId, throwException: true);
+                FrameworkCoroutine::join([$childCoroutineId], 1);
+            }
+        }
+
+        $this->assertFalse(EngineCoroutine::exists($parent->getId()));
+        $this->assertFalse(EngineCoroutine::exists($canceller->getId()));
     }
 
     public function testConnectionGenerationLifetimeIsJitteredWithinConfiguredUpperBound(): void
@@ -1031,8 +1474,8 @@ class PooledConnectionTest extends DatabaseTestCase
     public function testReconnectHonoursFactoryExtensions(): void
     {
         // Use a file-based SQLite connection so reconnect() takes the
-        // factory->make() path (not the makeSqliteFromSharedPdo() path
-        // that in-memory SQLite uses).
+        // factory->make() path rather than the shared-PDO path used by
+        // pooled in-memory SQLite.
         $filesystem = new Filesystem;
         $directory = ParallelTesting::tempDir('PooledConnectionTest-extension');
         $filesystem->deleteDirectory($directory);
@@ -1040,6 +1483,7 @@ class PooledConnectionTest extends DatabaseTestCase
 
         $databasePath = $directory . '/extension.sqlite';
         touch($databasePath);
+        $pooledConnection = null;
 
         try {
             $this->app->make('config')->set('database.connections.extension_test', [
@@ -1056,24 +1500,153 @@ class PooledConnectionTest extends DatabaseTestCase
                 ],
             ]);
 
-            $custom = new SQLiteConnection(
-                new PDO('sqlite::memory:'),
-                ':memory:',
-                '',
-                ['name' => 'extension_test']
-            );
-
             /** @var ConnectionFactory $factory */
             $factory = $this->app->make('db.factory');
-            $factory->extend('sqlite', fn () => $custom);
+            $resolutions = 0;
+            $factory->extend('sqlite', static function (array $config) use (&$resolutions): SQLiteConnection {
+                ++$resolutions;
+
+                return new SQLiteConnection(
+                    new PDO('sqlite:' . $config['database']),
+                    $config['database'],
+                    $config['prefix'],
+                    $config
+                );
+            });
 
             $pool = new DbPool($this->app, 'extension_test');
             $pooledConnection = $this->createPooledConnectionForName($pool, 'extension_test');
+            $connection = $pooledConnection->getConnection();
+            $firstPdo = $connection->getPdo();
 
-            // reconnect() calls factory->make() which should consult the extension
-            $this->assertSame($custom, $pooledConnection->getConnection());
+            // Reconnecting through the pool should consult the factory extension.
+            $connection->setPdo(null);
+            $connection->reconnectIfMissingConnection();
+
+            $this->assertSame($connection, $pooledConnection->getConnection());
+            $this->assertNotSame($firstPdo, $connection->getPdo());
+            $this->assertSame(2, $resolutions);
         } finally {
+            $pooledConnection?->close();
             $filesystem->deleteDirectory($directory);
+        }
+    }
+
+    public function testConfigFirstNonPdoExtensionSupportsTheCompletePoolLifecycle(): void
+    {
+        $this->app->make('config')->set('database.connections.neutral_pool_test', [
+            'driver' => 'neutral',
+            'database' => 'first',
+            'prefix' => '',
+            'pool' => [
+                'min_connections' => 1,
+                'max_connections' => 1,
+                'heartbeat' => -1,
+            ],
+        ]);
+
+        /** @var ConnectionFactory $factory */
+        $factory = $this->app->make('db.factory');
+        $resolutions = 0;
+        $factory->extend('neutral', static function (array $config) use (&$resolutions): NeutralPoolConnection {
+            return new NeutralPoolConnection(++$resolutions, $config['database'], $config['prefix'], $config);
+        });
+
+        $pool = new DbPool($this->app, 'neutral_pool_test');
+        $pooledConnection = null;
+
+        try {
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->get();
+            $connection = $pooledConnection->getConnection();
+
+            $this->assertInstanceOf(NeutralPoolConnection::class, $connection);
+            $this->assertSame(1, $connection->generation);
+            $this->assertTrue($pooledConnection->ping(1.0));
+            $this->assertSame(1, $connection->pingCalls);
+
+            $connection->dropResources();
+            $connection->reconnectIfMissingConnection();
+
+            $this->assertSame($connection, $pooledConnection->getConnection());
+            $this->assertSame(2, $connection->generation);
+            $this->assertSame(2, $resolutions);
+            $this->assertSame(1, $connection->disconnectCalls);
+
+            $pooledConnection->release();
+            $pooledConnection = null;
+
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->get();
+            $this->assertSame($connection, $pooledConnection->getConnection());
+
+            $pooledConnection->release();
+            $pooledConnection = null;
+            $pool->close();
+
+            $this->assertSame(2, $connection->disconnectCalls);
+        } finally {
+            $pooledConnection?->release();
+            $pool->close();
+        }
+    }
+
+    public function testReleaseClearsCapturedMySqlInsertIdBeforeReborrow(): void
+    {
+        $this->app->make('config')->set('database.connections.mysql_insert_id_pool_test', [
+            'driver' => 'mysql_insert_id',
+            'database' => 'unused',
+            'prefix' => '',
+            'pool' => [
+                'min_connections' => 1,
+                'max_connections' => 1,
+                'heartbeat' => -1,
+            ],
+        ]);
+
+        /** @var ConnectionFactory $factory */
+        $factory = $this->app->make('db.factory');
+        $factory->extend(
+            'mysql_insert_id',
+            static fn (array $config): PoolMySqlConnection => new PoolMySqlConnection(
+                new PDO('sqlite::memory:'),
+                $config['database'],
+                $config['prefix'],
+                $config
+            )
+        );
+
+        $pool = new DbPool($this->app, 'mysql_insert_id_pool_test');
+        $pooledConnection = null;
+
+        try {
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->get();
+            $connection = $pooledConnection->getConnection();
+            $this->assertInstanceOf(PoolMySqlConnection::class, $connection);
+            $connection->rememberLastInsertId(42);
+            $this->assertSame(42, $connection->getLastInsertId());
+
+            $pooledConnection->release();
+            $pooledConnection = null;
+
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->get();
+            $this->assertSame($connection, $pooledConnection->getConnection());
+
+            $exception = null;
+
+            try {
+                $connection->getLastInsertId();
+            } catch (RuntimeException $runtimeException) {
+                $exception = $runtimeException;
+            }
+
+            $this->assertNotNull($exception);
+            $this->assertSame('No last insert ID has been captured for this connection.', $exception->getMessage());
+        } finally {
+            $pooledConnection?->release();
+            $pool->close();
         }
     }
 
@@ -1094,6 +1667,16 @@ class PooledConnectionTest extends DatabaseTestCase
         $config['name'] = $name;
 
         return new PooledConnection($this->app, $pool, $config);
+    }
+
+    private function stageRollbackCallback(Connection $connection, callable $callback): void
+    {
+        $manager = $connection->getTransactionManager();
+        $this->assertNotNull($manager);
+        $connectionName = $connection->getName() ?? '';
+
+        $manager->begin($connectionName, 1);
+        $manager->addCallbackForRollback($callback, $connectionName);
     }
 
     private function ageConnectionGeneration(PooledConnection $connection): void
@@ -1133,7 +1716,7 @@ class PoolSessionConfigurator implements SessionConfigurator
     ) {
     }
 
-    public function state(Connection $connection): ?string
+    public function state(PdoConnection $connection): ?string
     {
         ++$this->stateCalls;
 
@@ -1142,12 +1725,175 @@ class PoolSessionConfigurator implements SessionConfigurator
             : null;
     }
 
-    public function apply(PDO $pdo, string $state, Connection $connection): void
+    public function apply(PDO $pdo, string $state, PdoConnection $connection): void
     {
         ++$this->applyCalls;
 
         if ($this->applyCallback instanceof Closure) {
             ($this->applyCallback)($pdo, $state, $connection);
         }
+    }
+}
+
+class FailingReleaseDbPool extends DbPool
+{
+    public ?RuntimeException $releaseFailure = null;
+
+    /**
+     * Release a connection back to the pool.
+     */
+    public function release(PoolConnectionInterface $connection): void
+    {
+        parent::release($connection);
+
+        if ($this->releaseFailure !== null) {
+            throw $this->releaseFailure;
+        }
+    }
+}
+
+class NeutralPoolConnection extends Connection
+{
+    public int $pingCalls = 0;
+
+    public int $disconnectCalls = 0;
+
+    private bool $hasResources = true;
+
+    public function __construct(
+        public int $generation,
+        string $database,
+        string $tablePrefix,
+        array $config,
+    ) {
+        parent::__construct($database, $tablePrefix, $config);
+    }
+
+    public function select(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): array
+    {
+        return [];
+    }
+
+    public function cursor(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): Generator
+    {
+        yield from [];
+    }
+
+    public function statement(string $query, array $bindings = []): bool
+    {
+        return true;
+    }
+
+    public function affectingStatement(string $query, array $bindings = []): int
+    {
+        return 0;
+    }
+
+    public function unprepared(string $query): bool
+    {
+        return true;
+    }
+
+    public function ping(): bool
+    {
+        ++$this->pingCalls;
+
+        return $this->hasResources;
+    }
+
+    public function inTransaction(): bool
+    {
+        return false;
+    }
+
+    public function getServerVersion(): string
+    {
+        return 'test';
+    }
+
+    protected function getDefaultDriverName(): string
+    {
+        return 'neutral';
+    }
+
+    public function dropResources(): void
+    {
+        $this->hasResources = false;
+    }
+
+    protected function escapeString(string $value): string
+    {
+        return "'" . str_replace("'", "''", $value) . "'";
+    }
+
+    protected function hasDriverResources(): bool
+    {
+        return $this->hasResources;
+    }
+
+    protected function disconnectDriverResources(): void
+    {
+        ++$this->disconnectCalls;
+        $this->forgetDriverResources();
+    }
+
+    protected function forgetDriverResources(): void
+    {
+        $this->hasResources = false;
+    }
+
+    protected function replaceDriverResources(Connection $fresh): void
+    {
+        /** @var self $fresh */
+        $generation = $fresh->generation;
+        $hasResources = $fresh->hasResources;
+
+        try {
+            $this->disconnectDriverResources();
+        } finally {
+            $this->generation = $generation;
+            $this->hasResources = $hasResources;
+        }
+    }
+}
+
+class PoolMySqlConnection extends MySqlConnection
+{
+    public function rememberLastInsertId(int|string $lastInsertId): void
+    {
+        $this->lastInsertId = $lastInsertId;
+    }
+}
+
+class CancellablePingConnection extends NeutralPoolConnection
+{
+    public ?CanceledException $cancellation = null;
+
+    public ?int $coroutineId = null;
+
+    public function __construct(
+        int $generation,
+        string $database,
+        string $tablePrefix,
+        array $config,
+        private readonly Channel $pingStarted,
+        private readonly Channel $blocker,
+    ) {
+        parent::__construct($generation, $database, $tablePrefix, $config);
+    }
+
+    public function ping(): bool
+    {
+        $this->coroutineId = EngineCoroutine::id();
+        $this->pingStarted->push(true);
+
+        try {
+            $this->blocker->pop();
+        } catch (CanceledException $exception) {
+            $this->cancellation = $exception;
+            throw $exception;
+        }
+
+        return true;
     }
 }

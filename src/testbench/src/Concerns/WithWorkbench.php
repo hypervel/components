@@ -31,8 +31,6 @@ trait WithWorkbench
 
         Workbench::start($app, $config);
 
-        $seeders = $config['seeders'] ?? false;
-
         $seeders = static::usesTestingConcern(CanConfigureMigrationCommands::class)
             ? $this->mergeSeedersForWorkbench($config)
             : ($config['seeders'] ?? false);

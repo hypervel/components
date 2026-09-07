@@ -43,6 +43,7 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Uri;
 use League\Uri\Contracts\UriInterface;
 use Psr\Log\LoggerInterface;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -176,7 +177,13 @@ if (! function_exists('app_path')) {
      */
     function app_path(string $path = ''): string
     {
-        return join_paths(base_path('app'), $path);
+        if (! Container::getInstance()->has(Application::class)) {
+            return defined('BASE_PATH')
+                ? join_paths(BASE_PATH, 'app', $path)
+                : throw new RuntimeException('BASE_PATH constant is not defined.');
+        }
+
+        return app()->path($path);
     }
 }
 
@@ -238,7 +245,6 @@ if (! function_exists('bcrypt')) {
      */
     function bcrypt(#[\SensitiveParameter] string $value, array $options = []): string
     {
-        /* @phpstan-ignore-next-line */
         return app('hash')->driver('bcrypt')->make($value, $options);
     }
 }
@@ -301,7 +307,7 @@ if (! function_exists('cache')) {
             return $manager->get($key, $default);
         }
 
-        if (! is_array($key)) { // @phpstan-ignore function.alreadyNarrowedType (validates PHPDoc contract at runtime)
+        if (! is_array($key)) {
             throw new InvalidArgumentException(
                 'When setting a value in the cache, you must pass an array of key / value pairs.'
             );
@@ -441,7 +447,6 @@ if (! function_exists('decrypt')) {
      */
     function decrypt(string $value, bool $unserialize = true): mixed
     {
-        /* @phpstan-ignore-next-line */
         return app('encrypter')->decrypt($value, $unserialize);
     }
 }
@@ -481,7 +486,6 @@ if (! function_exists('encrypt')) {
      */
     function encrypt(#[\SensitiveParameter] mixed $value, bool $serialize = true): string
     {
-        /* @phpstan-ignore-next-line */
         return app('encrypter')->encrypt($value, $serialize);
     }
 }
@@ -758,6 +762,8 @@ if (! function_exists('rescue')) {
     {
         try {
             return $callback();
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $e) {
             if (value($report, $e)) {
                 report($e);
@@ -973,6 +979,10 @@ if (! function_exists('uri')) {
      */
     function uri(UriInterface|\Stringable|array|string $uri, mixed $parameters = [], bool $absolute = true): Uri
     {
+        if (! is_array($uri)) {
+            $uri = (string) $uri;
+        }
+
         return match (true) {
             is_array($uri) || str_contains($uri, '\\') => Uri::action($uri, $parameters, $absolute),
             str_contains($uri, '.') && Route::has($uri) => Uri::route($uri, $parameters, $absolute),

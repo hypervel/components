@@ -20,7 +20,7 @@ class HandleCorsTest extends TestCase
     {
         parent::defineEnvironment($app);
 
-        $app['config']->set('cors', [
+        $app->make('config')->set('cors', [
             'paths' => ['api/*'],
             'supports_credentials' => false,
             'allowed_origins' => ['http://localhost'],

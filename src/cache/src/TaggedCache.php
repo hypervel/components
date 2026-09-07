@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Cache\Events\CacheFlushed;
+use Hypervel\Cache\Events\CacheFlushFailed;
 use Hypervel\Cache\Events\CacheFlushing;
 use Hypervel\Contracts\Cache\Store;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -74,13 +76,31 @@ abstract class TaggedCache extends Repository
      */
     public function flush(): bool
     {
-        $this->event(CacheFlushing::class, fn (): CacheFlushing => new CacheFlushing($this->getName()));
+        if ($this->events?->hasListeners(CacheFlushing::class)) {
+            $this->event(new CacheFlushing($this->getName()));
+        }
 
-        $this->tags->reset();
+        try {
+            $result = $this->tags->reset();
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            if ($this->events?->hasListeners(CacheFlushFailed::class)) {
+                $this->event(new CacheFlushFailed($this->getName(), exception: $exception));
+            }
 
-        $this->event(CacheFlushed::class, fn (): CacheFlushed => new CacheFlushed($this->getName()));
+            throw $exception;
+        }
 
-        return true;
+        if ($result) {
+            if ($this->events?->hasListeners(CacheFlushed::class)) {
+                $this->event(new CacheFlushed($this->getName()));
+            }
+        } elseif ($this->events?->hasListeners(CacheFlushFailed::class)) {
+            $this->event(new CacheFlushFailed($this->getName()));
+        }
+
+        return $result;
     }
 
     /**
@@ -104,16 +124,12 @@ abstract class TaggedCache extends Repository
     /**
      * Fire an event for this cache instance.
      */
-    protected function event(string $eventClass, Closure $event): void
+    protected function event(object $event): void
     {
-        parent::event($eventClass, function () use ($event): object {
-            $resolvedEvent = $event();
+        if (method_exists($event, 'setTags')) {
+            $event->setTags($this->tags->getNames());
+        }
 
-            if (method_exists($resolvedEvent, 'setTags')) {
-                $resolvedEvent->setTags($this->tags->getNames());
-            }
-
-            return $resolvedEvent;
-        });
+        parent::event($event);
     }
 }

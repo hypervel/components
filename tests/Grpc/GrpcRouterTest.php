@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Grpc\GrpcRouterTest;
 
 use Google\Protobuf\Any;
 use Google\Protobuf\GPBEmpty;
+use Google\Protobuf\Internal\DescriptorPool;
 use Google\Protobuf\Internal\Message;
-use GPBMetadata\Google\Protobuf\GPBEmpty as GPBEmptyMetadata;
 use Hypervel\Container\Container;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Grpc\Exceptions\RpcException;
@@ -85,7 +85,6 @@ class GrpcRouterTest extends TestCase
     public function testWarmsProtobufMessageDescriptorsBeforeWorkerFork(): void
     {
         $this->assertFalse(TestService::$is_initialized);
-        $this->assertFalse(GPBEmptyMetadata::$is_initialized);
         [$router, $registrar] = $this->router();
         $route = $registrar->unary(
             'testing.Router/Warm',
@@ -95,7 +94,9 @@ class GrpcRouterTest extends TestCase
         $router->compileAndWarm();
 
         $this->assertTrue(TestService::$is_initialized);
-        $this->assertTrue(GPBEmptyMetadata::$is_initialized);
+        $this->assertNotNull(
+            DescriptorPool::getGeneratedPool()->getDescriptorByClassName(GPBEmpty::class),
+        );
         $this->assertSame(TestRequest::class, $route->getAction('_grpc.request_class'));
     }
 

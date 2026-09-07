@@ -14,6 +14,7 @@ use Hypervel\Support\Str;
 use Hypervel\Telescope\ExtractProperties;
 use Hypervel\Telescope\ExtractTags;
 use Hypervel\Telescope\IncomingEntry;
+use Hypervel\Telescope\JsonNormalizer;
 use Hypervel\Telescope\Telescope;
 use ReflectionFunction;
 
@@ -66,10 +67,11 @@ class EventWatcher extends Watcher
             return ExtractProperties::from($payload[0]);
         }
 
+        // Native encoding captures event object state instead of its published representation.
         return Collection::make($payload)->map(function ($value) {
             return is_object($value) ? [
                 'class' => get_class($value),
-                'properties' => json_decode(json_encode($value), true),
+                'properties' => JsonNormalizer::normalize($value),
             ] : $value;
         })->toArray();
     }

@@ -6,5 +6,5 @@ namespace Hypervel\Engine;
 
 class Constant
 {
-    public const ENGINE = 'Swoole';
+    public const string ENGINE = 'Swoole';
 }

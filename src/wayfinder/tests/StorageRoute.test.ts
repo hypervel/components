@@ -6,4 +6,8 @@ it("can import storage routes", () => {
         url: "/storage/file-name",
         method: "get",
     });
+    expect(storage.export.upload("file-name")).toEqual({
+        url: "/storage/file-name",
+        method: "put",
+    });
 });

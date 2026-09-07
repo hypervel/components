@@ -19,7 +19,7 @@ use Throwable;
 
 class FileResponseBuilder
 {
-    private const CHUNK_SIZE = 64 * 1024;
+    private const int CHUNK_SIZE = 64 * 1024;
 
     /**
      * Build and stream a range-aware file response.

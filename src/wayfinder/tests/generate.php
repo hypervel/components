@@ -15,6 +15,8 @@ declare(strict_types=1);
  */
 
 use Hypervel\Contracts\Console\Kernel;
+use Hypervel\Routing\RouteCollection;
+use Hypervel\Routing\Router;
 use Hypervel\Support\Facades\URL;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Foundation\Application;
@@ -48,6 +50,17 @@ if (getenv('WAYFINDER_FORCE_HTTPS') === '1') {
 }
 
 require $fixtureRoutes;
+
+if (getenv('WAYFINDER_CACHE_ROUTES') === '1') {
+    $router = $app->make(Router::class);
+    $routes = $router->getRoutes();
+
+    if (! $routes instanceof RouteCollection) {
+        throw new RuntimeException('Cached-route generation requires an uncompiled RouteCollection.');
+    }
+
+    $router->setCompiledRoutes($routes->compile());
+}
 
 exit($kernel->call('wayfinder:generate', [
     '--path' => $outputPath,

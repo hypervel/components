@@ -20,6 +20,7 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Mail\Mailer;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Log\Context\Repository;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Stringable;
@@ -43,17 +44,17 @@ class Event
     /**
      * Context key prefix for the current run's exit code.
      */
-    protected const EXIT_CODE_CONTEXT_KEY_PREFIX = '__console.scheduling_exit_code.';
+    protected const string EXIT_CODE_CONTEXT_KEY_PREFIX = '__console.scheduling_exit_code.';
 
     /**
      * Context key prefix for the current run's process.
      */
-    protected const PROCESS_CONTEXT_KEY_PREFIX = '__console.scheduling_process.';
+    protected const string PROCESS_CONTEXT_KEY_PREFIX = '__console.scheduling_process.';
 
     /**
      * Context key prefix for the current run's overlap skip state.
      */
-    protected const SKIPPED_BECAUSE_OVERLAPPING_CONTEXT_KEY_PREFIX = '__console.scheduling_skipped_because_overlapping.';
+    protected const string SKIPPED_BECAUSE_OVERLAPPING_CONTEXT_KEY_PREFIX = '__console.scheduling_skipped_because_overlapping.';
 
     /**
      * The command string.
@@ -265,10 +266,13 @@ class Event
      */
     protected function runProcess(Container $container): int
     {
+        $context = base64_encode(serialize(Repository::getInstance()->dehydrate()));
+
         /** @var \Hypervel\Contracts\Foundation\Application $container */
         $process = Process::fromShellCommandline(
             $this->command,
-            $container->basePath()
+            $container->basePath(),
+            ['__HYPERVEL_CONTEXT' => $context]
         );
 
         CoroutineContext::set($this->processContextKey(), $process);

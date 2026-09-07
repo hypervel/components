@@ -8,22 +8,10 @@ use Generator;
 use Hypervel\Cache\TagMode;
 use Hypervel\Support\Facades\Cache;
 
-/**
- * Integration tests for tag query operations (ANY MODE ONLY).
- *
- * Tests:
- * - getTaggedKeys() - retrieves all keys for a tag
- * - items() - retrieves key-value pairs for tags
- * - HKEYS vs HSCAN threshold behavior
- * - Deduplication of items with multiple tags
- * - Chunking for large datasets
- * - Handling of expired/missing keys
- */
 class TagQueryIntegrationTest extends RedisCacheIntegrationTestCase
 {
-    protected function setUp(): void
+    protected function setUpInCoroutine(): void
     {
-        parent::setUp();
         $this->setTagMode(TagMode::Any);
     }
 

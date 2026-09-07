@@ -15,7 +15,7 @@ use RuntimeException;
 
 class SlackWebApiChannel
 {
-    protected const SLACK_API_URL = 'https://slack.com/api/chat.postMessage';
+    protected const string SLACK_API_URL = 'https://slack.com/api/chat.postMessage';
 
     /**
      * Create a new Slack channel instance.
@@ -35,7 +35,6 @@ class SlackWebApiChannel
             throw new RuntimeException('Notification is missing `toSlack` method.');
         }
 
-        // @phpstan-ignore-next-line
         $message = $notification->toSlack($notifiable);
 
         $route = $this->determineRoute($notifiable, $notification);

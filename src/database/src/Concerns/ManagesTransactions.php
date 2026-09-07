@@ -7,8 +7,8 @@ namespace Hypervel\Database\Concerns;
 use Closure;
 use Hypervel\Database\DeadlockException;
 use LogicException;
-use PDO;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -76,16 +76,20 @@ trait ManagesTransactions
 
             try {
                 $this->transactionsManager?->commit(
-                    $this->getName(),
+                    $this->getName() ?? '',
                     $levelBeingCommitted,
                     $this->transactions
                 );
+            } catch (CanceledException $cancellation) {
+                throw $cancellation;
             } catch (Throwable $throwable) {
                 $exception = $throwable;
             }
 
             try {
                 $this->fireConnectionEvent('committed');
+            } catch (CanceledException $cancellation) {
+                throw $cancellation;
             } catch (Throwable $throwable) {
                 $exception ??= $throwable;
             }
@@ -113,7 +117,7 @@ trait ManagesTransactions
         // let the developer handle it in another way. We will decrement too.
         if ($this->causedByConcurrencyError($e)
             && $this->transactions > 1) {
-            $this->invalidateSessionState($this->resolvePdo());
+            $this->invalidateCurrentSessionState();
 
             --$this->transactions;
 
@@ -125,9 +129,11 @@ trait ManagesTransactions
 
             try {
                 $this->transactionsManager?->rollback(
-                    $this->getName(),
+                    $this->getName() ?? '',
                     $this->transactions
                 );
+            } catch (CanceledException $cancellation) {
+                throw $cancellation;
             } catch (Throwable) {
                 // Preserve the transaction failure.
             }
@@ -142,6 +148,12 @@ trait ManagesTransactions
 
         try {
             $this->rollBack();
+        } catch (CanceledException $cancellation) {
+            if (! $e instanceof CanceledException) {
+                throw $cancellation;
+            }
+
+            $cleanedUp = false;
         } catch (Throwable) {
             $cleanedUp = false;
         }
@@ -173,7 +185,7 @@ trait ManagesTransactions
 
         try {
             $this->transactionsManager?->begin(
-                $this->getName(),
+                $this->getName() ?? '',
                 $this->transactions
             );
 
@@ -181,6 +193,10 @@ trait ManagesTransactions
         } catch (Throwable $exception) {
             try {
                 $this->rollBack($previousLevel);
+            } catch (CanceledException $cancellation) {
+                if (! $exception instanceof CanceledException) {
+                    throw $cancellation;
+                }
             } catch (Throwable) {
                 // Preserve the transaction publication failure.
             }
@@ -207,18 +223,6 @@ trait ManagesTransactions
         } elseif ($this->transactions >= 1 && $this->queryGrammar->supportsSavepoints()) {
             $this->createSavepoint();
         }
-    }
-
-    /**
-     * Create a save point within the database.
-     *
-     * @throws Throwable
-     */
-    protected function createSavepoint(): void
-    {
-        $this->resolvePdo()->exec(
-            $this->queryGrammar->compileSavepoint('trans' . ($this->transactions + 1))
-        );
     }
 
     /**
@@ -258,42 +262,25 @@ trait ManagesTransactions
 
         try {
             $this->transactionsManager?->commit(
-                $this->getName(),
+                $this->getName() ?? '',
                 $levelBeingCommitted,
                 $this->transactions
             );
+        } catch (CanceledException $cancellation) {
+            throw $cancellation;
         } catch (Throwable $throwable) {
             $exception = $throwable;
         }
 
         try {
             $this->fireConnectionEvent('committed');
+        } catch (CanceledException $cancellation) {
+            throw $cancellation;
         } catch (Throwable $throwable) {
             $exception ??= $throwable;
         }
 
         if ($exception !== null) {
-            throw $exception;
-        }
-    }
-
-    /**
-     * Commit the active physical transaction.
-     */
-    protected function performCommit(): void
-    {
-        $pdo = $this->resolvePdo();
-
-        try {
-            $pdo->commit();
-        } catch (Throwable $exception) {
-            $this->invalidateSessionState($pdo);
-
-            if (! $this->causedByLostConnection($exception)
-                && ! $this->causedByConcurrencyError($exception)) {
-                $this->markSessionStateUnknown($pdo);
-            }
-
             throw $exception;
         }
     }
@@ -307,7 +294,9 @@ trait ManagesTransactions
     {
         if ($this->causedByLostConnection($e)) {
             try {
-                $this->terminateTransactionState();
+                $this->forgetLostConnection();
+            } catch (CanceledException $cancellation) {
+                throw $cancellation;
             } catch (Throwable) {
                 // Preserve the physical commit failure.
             }
@@ -319,6 +308,12 @@ trait ManagesTransactions
 
         try {
             $this->rollBack(0);
+        } catch (CanceledException $cancellation) {
+            if (! $e instanceof CanceledException) {
+                throw $cancellation;
+            }
+
+            $cleanedUp = false;
         } catch (Throwable) {
             $cleanedUp = false;
         }
@@ -353,18 +348,10 @@ trait ManagesTransactions
         // Next, we will actually perform this rollback within this database and fire the
         // rollback event. We will also set the current transaction level to the given
         // level that was passed into this method so it will be right from here out.
-        $pdo = $this->resolvePdo();
-
         try {
-            $this->performRollBack($toLevel, $pdo);
+            $this->performRollBack($toLevel);
         } catch (Throwable $exception) {
-            if (! $this->causedByLostConnection($exception)) {
-                $this->markSessionStateUnknown($pdo);
-            }
-
             $this->handleRollBackException($exception);
-        } finally {
-            $this->invalidateSessionState($pdo);
         }
 
         $this->transactions = $toLevel;
@@ -372,39 +359,25 @@ trait ManagesTransactions
 
         try {
             $this->transactionsManager?->rollback(
-                $this->getName(),
+                $this->getName() ?? '',
                 $this->transactions
             );
+        } catch (CanceledException $cancellation) {
+            throw $cancellation;
         } catch (Throwable $throwable) {
             $exception = $throwable;
         }
 
         try {
             $this->fireConnectionEvent('rollingBack');
+        } catch (CanceledException $cancellation) {
+            throw $cancellation;
         } catch (Throwable $throwable) {
             $exception ??= $throwable;
         }
 
         if ($exception !== null) {
             throw $exception;
-        }
-    }
-
-    /**
-     * Perform a rollback within the database.
-     *
-     * @throws Throwable
-     */
-    protected function performRollBack(int $toLevel, PDO $pdo): void
-    {
-        if ($toLevel === 0) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-        } elseif ($this->queryGrammar->supportsSavepoints()) {
-            $pdo->exec(
-                $this->queryGrammar->compileSavepointRollBack('trans' . ($toLevel + 1))
-            );
         }
     }
 
@@ -417,7 +390,9 @@ trait ManagesTransactions
     {
         if ($this->causedByLostConnection($e)) {
             try {
-                $this->terminateTransactionState();
+                $this->forgetLostConnection();
+            } catch (CanceledException $cancellation) {
+                throw $cancellation;
             } catch (Throwable) {
                 // Preserve the physical rollback failure.
             }
@@ -427,23 +402,14 @@ trait ManagesTransactions
     }
 
     /**
-     * Detach transaction records and physical connection references.
+     * Forget a connection after a lost transaction operation.
      */
-    protected function terminateTransactionState(): void
+    protected function forgetLostConnection(): void
     {
-        $this->transactions = 0;
-        $exception = null;
-
         try {
-            $this->transactionsManager?->rollback($this->getName(), 0);
-        } catch (Throwable $throwable) {
-            $exception = $throwable;
-        }
-
-        $this->setPdo(null)->setReadPdo(null);
-
-        if ($exception !== null) {
-            throw $exception;
+            $this->resetTransactionState();
+        } finally {
+            $this->forgetDriverResources();
         }
     }
 
@@ -465,12 +431,26 @@ trait ManagesTransactions
     public function afterCommit(callable $callback): void
     {
         if ($this->transactionsManager) {
-            $this->transactionsManager->addCallback($callback, $this->getName());
+            $this->transactionsManager->addCallback($callback, $this->getName() ?? '');
 
             return;
         }
 
         throw new RuntimeException('Transactions Manager has not been set.');
+    }
+
+    /**
+     * Execute the callback after commit, or immediately when no transaction exists.
+     */
+    public function afterCommitOrNow(callable $callback): void
+    {
+        if ($this->transactionsManager === null && $this->transactionLevel() === 0) {
+            $callback();
+
+            return;
+        }
+
+        $this->afterCommit($callback);
     }
 
     /**
@@ -483,7 +463,7 @@ trait ManagesTransactions
     public function afterRollBack(callable $callback): void
     {
         if ($this->transactionsManager) {
-            $this->transactionsManager->addCallbackForRollback($callback, $this->getName());
+            $this->transactionsManager->addCallbackForRollback($callback, $this->getName() ?? '');
 
             return;
         }

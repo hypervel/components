@@ -109,7 +109,7 @@ class RouteCacheCommandTest extends TestCase
 
         require $this->app->getCachedRoutesPath();
 
-        $this->assertInstanceOf(CompiledRouteCollection::class, $this->app['router']->getRoutes());
+        $this->assertInstanceOf(CompiledRouteCollection::class, $this->app->make('router')->getRoutes());
     }
 
     public function testNamedRoutesSurviveCache(): void
@@ -125,7 +125,7 @@ class RouteCacheCommandTest extends TestCase
 
         require $this->app->getCachedRoutesPath();
 
-        $routes = $this->app['router']->getRoutes();
+        $routes = $this->app->make('router')->getRoutes();
 
         $this->assertSame('users', $routes->getByName('users.index')?->uri());
         $this->assertSame('posts', $routes->getByName('posts.index')?->uri());
@@ -147,7 +147,7 @@ class RouteCacheCommandTest extends TestCase
 
         require $this->app->getCachedRoutesPath();
 
-        $route = $this->app['router']->getRoutes()->getByName('api.users');
+        $route = $this->app->make('router')->getRoutes()->getByName('api.users');
 
         $this->assertNotNull($route);
         $this->assertSame('api.example.com', $route->getDomain());
@@ -213,7 +213,7 @@ class RouteCacheCommandTest extends TestCase
 
         require $this->app->getCachedRoutesPath();
 
-        $route = $this->app['router']->getRoutes()->getByName('source.route');
+        $route = $this->app->make('router')->getRoutes()->getByName('source.route');
 
         $this->assertNotNull($route);
         $this->assertSame('beta', $route->uri());

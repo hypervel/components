@@ -21,9 +21,11 @@ trait InteractsWithAuthentication
      */
     public function actingAsGuest(?string $guard = null): static
     {
-        $this->app['auth']->guard($guard)->forgetUser();
+        $auth = $this->app->make('auth');
 
-        $this->app['auth']->shouldUse($guard);
+        $auth->guard($guard)->forgetUser();
+
+        $auth->shouldUse($guard);
 
         return $this;
     }
@@ -37,9 +39,11 @@ trait InteractsWithAuthentication
             $user->wasRecentlyCreated = false;
         }
 
-        $this->app['auth']->guard($guard)->setUser($user);
+        $auth = $this->app->make('auth');
 
-        $this->app['auth']->shouldUse($guard);
+        $auth->guard($guard)->setUser($user);
+
+        $auth->shouldUse($guard);
 
         return $this;
     }

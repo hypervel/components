@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
-use Hypervel\Foundation\Application;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Foundation\Support\Providers\RouteServiceProvider;
+use Hypervel\Routing\RouteCollection;
+use Hypervel\Routing\Router;
+use RuntimeException;
 
 trait WithCachedRoutes
 {
@@ -15,7 +18,11 @@ trait WithCachedRoutes
     protected function setUpWithCachedRoutes(): void
     {
         if ((CachedState::$cachedRoutes ?? null) === null) {
-            $routes = $this->app['router']->getRoutes();
+            $routes = $this->app->make(Router::class)->getRoutes();
+
+            if (! $routes instanceof RouteCollection) {
+                throw new RuntimeException('Cached routes require an uncompiled RouteCollection.');
+            }
 
             $routes->refreshNameLookups();
             $routes->refreshActionLookups();
@@ -43,8 +50,11 @@ trait WithCachedRoutes
     {
         $app->instance('routes.cached', true);
 
+        /** @var array $cachedRoutes */
+        $cachedRoutes = CachedState::$cachedRoutes;
+
         RouteServiceProvider::loadCachedRoutesUsing(
-            static fn () => app('router')->setCompiledRoutes(CachedState::$cachedRoutes)
+            static fn (Router $router) => $router->setCompiledRoutes($cachedRoutes)
         );
     }
 }

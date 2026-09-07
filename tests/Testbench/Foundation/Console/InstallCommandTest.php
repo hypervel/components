@@ -18,6 +18,7 @@ use Mockery as m;
 use Override;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\Test;
+use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 use Symfony\Component\Process\Process;
@@ -307,6 +308,18 @@ class InstallCommandTest extends TestCase
         $this->assertSame('APP_NAME=Workbench', $this->filesystem->get($this->path('workbench/.env.dist')));
     }
 
+    #[Test]
+    public function itStopsWhenSqliteDatabaseCreationFails(): void
+    {
+        $command = new InstallCommandFailureHarness;
+        $composer = m::mock(Composer::class);
+        $composer->shouldNotReceive('setWorkingPath');
+        $composer->shouldNotReceive('dumpAutoloads');
+
+        $this->assertSame(InstallCommand::FAILURE, $command->handle($this->filesystem, $composer));
+        $this->assertSame(['package:create-sqlite-db'], $command->calls);
+    }
+
     /**
      * Run the package install command against the temporary package.
      *
@@ -446,5 +459,39 @@ class InstallCommandTest extends TestCase
     private function componentPath(string $path): string
     {
         return join_paths(dirname(__DIR__, 4), $path);
+    }
+}
+
+class InstallCommandFailureHarness extends InstallCommand
+{
+    /** @var list<string> */
+    public array $calls = [];
+
+    public function call(SymfonyCommand|string $command, array $arguments = []): int
+    {
+        $this->calls[] = is_string($command) ? $command : $command->getName();
+
+        return self::FAILURE;
+    }
+
+    protected function configureComposerAutoloads(Composer $composer, string $workingPath): array
+    {
+        return ['app' => 'Workbench\App\\', 'factories' => 'Workbench\Database\Factories\\', 'seeders' => 'Workbench\Database\Seeders\\'];
+    }
+
+    protected function prepareWorkbenchDirectories(Filesystem $filesystem, string $workingPath): void
+    {
+    }
+
+    protected function copyTestbenchConfigurationFile(Filesystem $filesystem, string $workingPath, array $namespaces): void
+    {
+    }
+
+    protected function copyWorkbenchFiles(Filesystem $filesystem, string $workingPath, array $namespaces): void
+    {
+    }
+
+    protected function copyWorkbenchDotEnvFile(Filesystem $filesystem, string $workingPath): void
+    {
     }
 }

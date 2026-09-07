@@ -9,6 +9,7 @@ use Hypervel\Auth\Middleware\UseGuard;
 use Hypervel\Http\Request;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Route;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Fortify\Fixtures\Admin;
 
@@ -35,7 +36,7 @@ class FortifyRouteTest extends TestCase
         $this->assertSame('web', config('passkeys.guard'));
     }
 
-    public function testPasskeyDeletionUsesPasswordConfirmationWithoutThrottle(): void
+    public function testPasskeyDeletionUsesPasswordConfirmationAndOmitsNullLimiter(): void
     {
         $route = Route::getRoutes()->getByName('passkey.destroy');
 
@@ -48,16 +49,49 @@ class FortifyRouteTest extends TestCase
         $this->assertStringNotContainsString('throttle:', implode('|', $middleware));
     }
 
+    #[DefineEnvironment('withPasskeysLimiter')]
+    public function testPasskeyDeletionUsesConfiguredThrottle(): void
+    {
+        $route = Route::getRoutes()->getByName('passkey.destroy');
+
+        $this->assertNotNull($route);
+
+        $middleware = $route->gatherMiddleware();
+
+        $this->assertContains('auth', $middleware);
+        $this->assertContains('password.confirm', $middleware);
+        $this->assertContains('throttle:passkeys', $middleware);
+    }
+
     public function testTwoFactorChallengeIsThrottledByDefault(): void
     {
         $route = Route::getRoutes()->getByName('two-factor.login.store');
 
         $this->assertNotNull($route);
 
-        $this->assertContains('throttle:5,1', $route->gatherMiddleware());
+        $this->assertContains('throttle:two-factor', $route->gatherMiddleware());
     }
 
+    public function testOmittedVerificationLimiterUsesTheDefault(): void
+    {
+        config(['fortify.limiters' => [
+            'login' => null,
+            'two-factor' => '5,1',
+            'passkeys' => null,
+        ]]);
+
+        require dirname(__DIR__, 2) . '/src/fortify/routes/routes.php';
+
+        $route = Route::getRoutes()->getByName('verification.send');
+
+        $this->assertNotNull($route);
+        $this->assertContains('throttle:6,1', $route->gatherMiddleware());
+    }
+
+    #[WithConfig('fortify.limiters.login', null)]
+    #[WithConfig('fortify.limiters.passkeys', null)]
     #[WithConfig('fortify.limiters.two-factor', '10,1')]
+    #[WithConfig('fortify.limiters.verification', '6,1')]
     public function testTwoFactorChallengeThrottleCanBeCustomized(): void
     {
         $route = Route::getRoutes()->getByName('two-factor.login.store');

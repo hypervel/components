@@ -169,7 +169,7 @@ class VerifyPasskey
             throw new RuntimeException('Passkey passwordless login requires an Eloquent authentication guard provider.');
         }
 
-        $provider = $guard->getProvider(); /* @phpstan-ignore method.notFound (getProvider() is on GuardHelpers, not the guard contract) */
+        $provider = $guard->getProvider();
 
         if (! $provider instanceof EloquentUserProvider) {
             throw new RuntimeException('Passkey passwordless login requires an Eloquent authentication guard provider.');

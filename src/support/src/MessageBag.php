@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Countable;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Contracts\Support\MessageBag as MessageBagContract;
@@ -13,12 +14,12 @@ use JsonException;
 use JsonSerializable;
 use Stringable;
 
-class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagContract, MessageProvider, Stringable
+class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagContract, MessageProvider, Stringable, Transient
 {
     /**
      * All of the registered messages.
      *
-     * @var array<string, array<string>>
+     * @var array<array-key, array<string>>
      */
     protected array $messages = [];
 
@@ -30,7 +31,7 @@ class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagCon
     /**
      * Create a new message bag instance.
      *
-     * @param array<string, array<string>|Arrayable|string> $messages
+     * @param array<array-key, array<string>|Arrayable|string> $messages
      */
     public function __construct(array $messages = [])
     {
@@ -44,7 +45,7 @@ class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagCon
     /**
      * Get the keys present in the message bag.
      *
-     * @return array<string>
+     * @return list<array-key>
      */
     public function keys(): array
     {
@@ -86,7 +87,7 @@ class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagCon
     /**
      * Merge a new array of messages into the message bag.
      *
-     * @param array<string, array<string>>|MessageProvider $messages
+     * @param array<array-key, array<string>>|MessageProvider $messages
      * @return $this
      */
     public function merge(MessageProvider|array $messages): static
@@ -169,7 +170,7 @@ class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagCon
     /**
      * Get all of the messages from the message bag for a given key.
      *
-     * @return array<string, array<string>>|array<string>
+     * @return array<array-key, array<string>>|array<string>
      */
     public function get(string $key, ?string $format = null): array
     {
@@ -194,7 +195,7 @@ class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagCon
     /**
      * Get the messages for a wildcard key.
      *
-     * @return array<string, array<string>>
+     * @return array<array-key, array<string>>
      */
     protected function getMessagesForWildcardKey(string $key, ?string $format): array
     {
@@ -226,6 +227,8 @@ class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagCon
 
     /**
      * Get all of the unique messages for every key in the message bag.
+     *
+     * @return array<string>
      */
     public function unique(?string $format = null): array
     {
@@ -250,7 +253,7 @@ class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagCon
      * @param array<string> $messages
      * @return array<string>
      */
-    protected function transform(array $messages, string $format, string $messageKey): array
+    protected function transform(array $messages, string $format, int|string $messageKey): array
     {
         if ($format === ':message') {
             return $messages;
@@ -276,7 +279,7 @@ class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagCon
     /**
      * Get the raw messages in the message bag.
      *
-     * @return array<string, array<string>>
+     * @return array<array-key, array<string>>
      */
     public function messages(): array
     {
@@ -286,7 +289,7 @@ class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagCon
     /**
      * Get the raw messages in the message bag.
      *
-     * @return array<string, array<string>>
+     * @return array<array-key, array<string>>
      */
     public function getMessages(): array
     {
@@ -355,6 +358,8 @@ class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagCon
 
     /**
      * Get the instance as an array.
+     *
+     * @return array<array-key, array<string>>
      */
     public function toArray(): array
     {
@@ -363,6 +368,8 @@ class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagCon
 
     /**
      * Convert the object into something JSON serializable.
+     *
+     * @return array<array-key, array<string>>
      */
     public function jsonSerialize(): array
     {

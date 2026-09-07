@@ -7,6 +7,7 @@ namespace Hypervel\Testbench\Foundation\Console;
 use Composer\Config as ComposerConfig;
 use Hypervel\Console\OutputStyle;
 use Hypervel\Console\View\Components\Factory;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Server\Commands\ServerStartCommand as Command;
 use Hypervel\Testbench\Foundation\Events\ServeCommandEnded;
 use Hypervel\Testbench\Foundation\Events\ServeCommandStarted;
@@ -21,13 +22,13 @@ use function Hypervel\Testbench\package_path;
 #[AsCommand(name: 'serve', description: 'Start Hypervel servers.')]
 class ServeCommand extends Command
 {
+    /**
+     * Execute the console command.
+     */
     #[Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        if (
-            class_exists(ComposerConfig::class, false)
-            && method_exists(ComposerConfig::class, 'disableProcessTimeout') // @phpstan-ignore function.impossibleType
-        ) {
+        if (class_exists(ComposerConfig::class, false)) {
             ComposerConfig::disableProcessTimeout();
         }
 
@@ -42,17 +43,26 @@ class ServeCommand extends Command
             : new OutputStyle($input, $output);
         $components = new Factory($styledOutput);
 
-        event(new ServeCommandStarted($input, $styledOutput, $components));
+        /** @var Dispatcher $events */
+        $events = app('events');
+
+        if ($events->hasListeners(ServeCommandStarted::class)) {
+            $events->dispatch(new ServeCommandStarted($input, $styledOutput, $components));
+        }
 
         try {
             $exitCode = $this->startServer($input);
         } catch (Throwable $throwable) {
-            event(new ServeCommandEnded($input, $styledOutput, $components, self::FAILURE));
+            if ($events->hasListeners(ServeCommandEnded::class)) {
+                $events->dispatch(new ServeCommandEnded($input, $styledOutput, $components, self::FAILURE));
+            }
 
             throw $throwable;
         }
 
-        event(new ServeCommandEnded($input, $styledOutput, $components, $exitCode));
+        if ($events->hasListeners(ServeCommandEnded::class)) {
+            $events->dispatch(new ServeCommandEnded($input, $styledOutput, $components, $exitCode));
+        }
 
         return $exitCode;
     }

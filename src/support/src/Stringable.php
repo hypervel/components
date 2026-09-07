@@ -8,6 +8,7 @@ use ArrayAccess;
 use Carbon\CarbonInterface;
 use Closure;
 use Countable;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Dumpable;
@@ -16,7 +17,7 @@ use Hypervel\Support\Traits\Tappable;
 use JsonSerializable;
 use Stringable as BaseStringable;
 
-class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
+class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Transient
 {
     use Conditionable;
     use Dumpable;
@@ -188,6 +189,8 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
 
     /**
      * Convert the case of a string.
+     *
+     * @param MB_CASE_FOLD|MB_CASE_FOLD_SIMPLE|MB_CASE_LOWER|MB_CASE_LOWER_SIMPLE|MB_CASE_TITLE|MB_CASE_TITLE_SIMPLE|MB_CASE_UPPER|MB_CASE_UPPER_SIMPLE $mode
      */
     public function convertCase(int $mode = MB_CASE_FOLD, ?string $encoding = 'UTF-8'): static
     {
@@ -221,7 +224,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Determine if a given string ends with a given substring.
      *
-     * @param iterable<string>|string $needles
+     * @param null|BaseStringable|bool|float|int|iterable<null|BaseStringable|bool|float|int|string>|string $needles
      */
     public function endsWith(string|int|float|bool|BaseStringable|iterable|null $needles): bool
     {
@@ -231,7 +234,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Determine if a given string doesn't end with a given substring.
      *
-     * @param iterable<string>|string $needles
+     * @param null|BaseStringable|bool|float|int|iterable<null|BaseStringable|bool|float|int|string>|string $needles
      */
     public function doesntEndWith(string|int|float|bool|BaseStringable|iterable|null $needles): bool
     {
@@ -251,7 +254,9 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     }
 
     /**
-     * Extracts an excerpt from text that matches the first instance of a phrase.
+     * Extract an excerpt from text that matches the first instance of a phrase.
+     *
+     * @param array{radius?: int, omission?: string} $options
      */
     public function excerpt(string $phrase = '', array $options = []): ?string
     {
@@ -276,12 +281,12 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     public function split(string|int $pattern, int $limit = -1, int $flags = 0): Collection
     {
         if (filter_var($pattern, FILTER_VALIDATE_INT) !== false) {
-            return new Collection(mb_str_split($this->value, $pattern)); // @phpstan-ignore return.type
+            return new Collection(mb_str_split($this->value, $pattern));
         }
 
         $segments = preg_split($pattern, $this->value, $limit, $flags);
 
-        return ! empty($segments) ? new Collection($segments) : new Collection; // @phpstan-ignore return.type
+        return ! empty($segments) ? new Collection($segments) : new Collection;
     }
 
     /**
@@ -744,7 +749,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Determine if a given string starts with a given substring.
      *
-     * @param iterable<string>|string $needles
+     * @param null|BaseStringable|bool|float|int|iterable<null|BaseStringable|bool|float|int|string>|string $needles
      */
     public function startsWith(string|int|float|bool|BaseStringable|iterable|null $needles): bool
     {
@@ -754,7 +759,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Determine if a given string doesn't start with a given substring.
      *
-     * @param iterable<string>|string $needles
+     * @param null|BaseStringable|bool|float|int|iterable<null|BaseStringable|bool|float|int|string>|string $needles
      */
     public function doesntStartWith(string|int|float|bool|BaseStringable|iterable|null $needles): bool
     {

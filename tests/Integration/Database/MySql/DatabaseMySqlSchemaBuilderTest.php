@@ -15,7 +15,7 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 #[RequiresPhpExtension('pdo_mysql')]
 class DatabaseMySqlSchemaBuilderTest extends MySqlTestCase
 {
-    public function testAddCommentToTable()
+    public function testAddCommentToTable(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
@@ -23,7 +23,7 @@ class DatabaseMySqlSchemaBuilderTest extends MySqlTestCase
         });
 
         $tableInfo = DB::table('information_schema.tables')
-            ->where('table_schema', $this->app['config']->get('database.connections.mysql.database'))
+            ->where('table_schema', $this->app->make('config')->string('database.connections.mysql.database'))
             ->where('table_name', 'users')
             ->select('table_comment as table_comment')
             ->first();
@@ -45,5 +45,37 @@ class DatabaseMySqlSchemaBuilderTest extends MySqlTestCase
         $indexes = Schema::getIndexes('table');
 
         $this->assertSame([], collect($indexes)->firstWhere('name', 'table_raw_index')['columns']);
+    }
+
+    public function testWithoutForeignKeyConstraintsPreservesIncomingStateAndNests(): void
+    {
+        $connection = DB::connection();
+        $outer = $connection->getSchemaBuilder();
+        $inner = $connection->getSchemaBuilder();
+
+        try {
+            $outer->enableForeignKeyConstraints();
+
+            $outer->withoutForeignKeyConstraints(function () use ($connection, $inner): void {
+                $this->assertSame(0, (int) $connection->scalar('select @@foreign_key_checks'));
+
+                $inner->withoutForeignKeyConstraints(function () use ($connection): void {
+                    $this->assertSame(0, (int) $connection->scalar('select @@foreign_key_checks'));
+                });
+
+                $this->assertSame(0, (int) $connection->scalar('select @@foreign_key_checks'));
+            });
+
+            $this->assertSame(1, (int) $connection->scalar('select @@foreign_key_checks'));
+
+            $outer->disableForeignKeyConstraints();
+            $outer->withoutForeignKeyConstraints(function () use ($connection): void {
+                $this->assertSame(0, (int) $connection->scalar('select @@foreign_key_checks'));
+            });
+
+            $this->assertSame(0, (int) $connection->scalar('select @@foreign_key_checks'));
+        } finally {
+            $outer->enableForeignKeyConstraints();
+        }
     }
 }

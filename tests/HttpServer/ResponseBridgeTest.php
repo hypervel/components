@@ -93,6 +93,25 @@ class ResponseBridgeTest extends TestCase
         $this->assertSame(['one', 'two'], $sentHeaders['X-Repeated'] ?? null);
     }
 
+    #[DataProvider('numericOnlyFieldNames')]
+    public function testSendNumericOnlyHeaderNameAsString(string $name): void
+    {
+        $response = new Response('OK', headers: [$name => 'value']);
+        $swooleResponse = $this->mockSwooleResponse();
+
+        $swooleResponse->shouldReceive('header')->once()->with($name, 'value')->andReturnTrue();
+
+        ResponseBridge::send($response, $swooleResponse);
+    }
+
+    public static function numericOnlyFieldNames(): array
+    {
+        return [
+            'zero' => ['0'],
+            'positive integer' => ['123'],
+        ];
+    }
+
     public function testSendCookies(): void
     {
         $response = new Response('OK', 200);
@@ -513,7 +532,7 @@ class ResponseBridgeTest extends TestCase
         try {
             BinaryFileResponse::trustXSendfileTypeHeader();
             $request = Request::create('/', 'HEAD', server: [
-                'HTTP_X_SENDFILE_TYPE' => 'X-Custom-Sendfile',
+                'HTTP_X_SENDFILE_TYPE' => 'X-LIGHTTPD-send-file',
             ]);
             $response = new BinaryFileResponse($path);
             $response->deleteFileAfterSend();
@@ -522,7 +541,7 @@ class ResponseBridgeTest extends TestCase
 
             $swooleResponse->shouldNotReceive('sendfile');
             $swooleResponse->shouldNotReceive('write');
-            $swooleResponse->shouldReceive('header')->with('X-Custom-Sendfile', $path)->andReturnTrue();
+            $swooleResponse->shouldReceive('header')->with('X-LIGHTTPD-send-file', $path)->andReturnTrue();
             $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
 
             ResponseBridge::send($response, $swooleResponse, withBody: false, request: $request);
@@ -902,23 +921,26 @@ class ResponseBridgeTest extends TestCase
         ResponseBridge::send($response, $this->mockSwooleResponse());
     }
 
-    #[DataProvider('invalidFinalTrailers')]
-    public function testFinalTrailerNamesAndValuesMustBeStrings(array $trailers): void
+    #[DataProvider('numericOnlyFieldNames')]
+    public function testNumericOnlyFinalTrailerNameIsEmittedAsString(string $name): void
     {
-        $response = new ResponseBridgeTrailerResponse('body', [], $trailers);
+        $response = new ResponseBridgeTrailerResponse('body', [$name], [$name => 'value']);
+        $swooleResponse = $this->mockSwooleResponse();
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Response trailer names and values must be strings.');
+        $swooleResponse->shouldReceive('header')->once()->with('Trailer', $name)->andReturnTrue();
+        $swooleResponse->shouldReceive('trailer')->once()->with($name, 'value')->andReturnTrue();
 
-        ResponseBridge::send($response, $this->mockSwooleResponse());
+        ResponseBridge::send($response, $swooleResponse);
     }
 
-    public static function invalidFinalTrailers(): array
+    public function testFinalTrailerValuesMustBeStrings(): void
     {
-        return [
-            'numeric name' => [[0 => 'value']],
-            'non-string value' => [['x-value' => 123]],
-        ];
+        $response = new ResponseBridgeTrailerResponse('body', [], ['x-value' => 123]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Response trailer values must be strings.');
+
+        ResponseBridge::send($response, $this->mockSwooleResponse());
     }
 
     public function testFinalTrailerValuesCannotContainLineBreaks(): void

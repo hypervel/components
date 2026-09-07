@@ -14,9 +14,16 @@ use Hypervel\Testbench\Contracts\Attributes\Invokable;
 #[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD | Attribute::IS_REPEATABLE)]
 final class WithConfig implements Invokable
 {
+    // Orchestra's deferred `defer` parameter is intentionally not ported. Hypervel's
+    // long-lived Swoole workers share process-global configuration, so values must be
+    // applied before providers register. Set post-boot values explicitly in the test body.
+
+    /**
+     * Create a new attribute instance.
+     */
     public function __construct(
         public readonly string $key,
-        public readonly mixed $value
+        public readonly mixed $value,
     ) {
     }
 

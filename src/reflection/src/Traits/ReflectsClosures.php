@@ -110,8 +110,14 @@ trait ReflectsClosures
 
         return $namedTypes
             ->reject(fn (ReflectionNamedType $type) => $type->isBuiltin())
-            ->reject(fn (ReflectionNamedType $type) => in_array($type->getName(), ['static', 'self', 'parent']))
-            ->map(fn (ReflectionNamedType $type) => $type->getName())
+            // PHP resolves relative types differently for named and anonymous closures.
+            ->map(fn (ReflectionNamedType $type): ?string => match ($type->getName()) {
+                'self' => $reflection->getClosureScopeClass()?->getName(),
+                'parent' => ($reflection->getClosureScopeClass()?->getParentClass() ?: null)?->getName(),
+                'static' => $reflection->getClosureCalledClass()?->getName(),
+                default => $type->getName(),
+            })
+            ->filter(fn (?string $type): bool => $type !== null)
             ->values()
             ->all();
     }

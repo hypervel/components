@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Foundation\Auth;
 use Hypervel\Auth\Events\Verified;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\MustVerifyEmail;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Foundation\Auth\EmailVerificationRequest;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Facades\Event;
@@ -26,7 +27,7 @@ class EmailVerificationRequestTest extends TestCase
         })->name('verification.verify');
     }
 
-    public function testAuthorizeReturnsTrueWhenIdAndHashMatch()
+    public function testAuthorizeReturnsTrueWhenIdAndHashMatch(): void
     {
         $user = $this->mockUser(123, 'user@example.com');
         $user->shouldReceive('hasVerifiedEmail')->andReturn(false);
@@ -37,7 +38,7 @@ class EmailVerificationRequestTest extends TestCase
             ->assertOk();
     }
 
-    public function testAuthorizeReturnsFalseWhenIdDoesNotMatch()
+    public function testAuthorizeReturnsFalseWhenIdDoesNotMatch(): void
     {
         $user = $this->mockUser(123, 'user@example.com');
 
@@ -46,7 +47,7 @@ class EmailVerificationRequestTest extends TestCase
             ->assertForbidden();
     }
 
-    public function testAuthorizeReturnsFalseWhenHashDoesNotMatch()
+    public function testAuthorizeReturnsFalseWhenHashDoesNotMatch(): void
     {
         $user = $this->mockUser(123, 'user@example.com');
 
@@ -55,7 +56,7 @@ class EmailVerificationRequestTest extends TestCase
             ->assertForbidden();
     }
 
-    public function testFulfillMarksEmailAsVerifiedAndDispatchesEvent()
+    public function testFulfillMarksEmailAsVerifiedAndDispatchesEvent(): void
     {
         Event::fake([Verified::class]);
 
@@ -70,7 +71,28 @@ class EmailVerificationRequestTest extends TestCase
         Event::assertDispatched(Verified::class);
     }
 
-    public function testFulfillSkipsWhenAlreadyVerified()
+    public function testPassiveObserverDoesNotCauseVerifiedEventToDispatch(): void
+    {
+        $observedEvents = [];
+        $this->app->make(Dispatcher::class)->observe(
+            Verified::class,
+            static function (Verified $event) use (&$observedEvents): void {
+                $observedEvents[] = $event;
+            }
+        );
+
+        $user = $this->mockUser(123, 'user@example.com');
+        $user->shouldReceive('hasVerifiedEmail')->once()->andReturn(false);
+        $user->shouldReceive('markEmailAsVerified')->once();
+
+        $this->actingAs($user)
+            ->get('/email/verify/123/' . sha1('user@example.com'))
+            ->assertOk();
+
+        $this->assertSame([], $observedEvents);
+    }
+
+    public function testFulfillSkipsWhenAlreadyVerified(): void
     {
         Event::fake([Verified::class]);
 
@@ -85,7 +107,7 @@ class EmailVerificationRequestTest extends TestCase
         Event::assertNotDispatched(Verified::class);
     }
 
-    public function testRulesReturnsEmptyArray()
+    public function testRulesReturnsEmptyArray(): void
     {
         $this->assertSame([], (new EmailVerificationRequest)->rules());
     }

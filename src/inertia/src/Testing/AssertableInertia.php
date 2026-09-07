@@ -6,7 +6,9 @@ namespace Hypervel\Inertia\Testing;
 
 use Closure;
 use Hypervel\Http\Response;
+use Hypervel\Inertia\Support\Header;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Json;
 use Hypervel\Testing\Fluent\AssertableJson;
 use Hypervel\Testing\TestResponse;
 use InvalidArgumentException;
@@ -62,8 +64,12 @@ class AssertableInertia extends AssertableJson
     public static function fromTestResponse(TestResponse $response): self
     {
         try {
-            $response->assertViewHas('page');
-            $page = json_decode(json_encode($response->viewData('page')), true);
+            if ($response->headers->has(Header::INERTIA)) {
+                $page = $response->json();
+            } else {
+                $response->assertViewHas('page');
+                $page = Json::decode(Json::encode($response->viewData('page')));
+            }
 
             PHPUnit::assertIsArray($page);
             PHPUnit::assertArrayHasKey('component', $page);
@@ -95,7 +101,7 @@ class AssertableInertia extends AssertableJson
     {
         PHPUnit::assertSame($value, $this->component, 'Unexpected Inertia page component.');
 
-        if ($shouldExist || (is_null($shouldExist) && config('inertia.testing.ensure_pages_exist', true))) {
+        if ($shouldExist || (is_null($shouldExist) && config()->boolean('inertia.testing.ensure_pages_exist', true))) {
             try {
                 app('inertia.view-finder')->find($value);
             } catch (InvalidArgumentException $exception) {

@@ -221,6 +221,65 @@ class EventWatcherTest extends FeatureTestCase
             $filesystem->deleteDirectory($directory);
         }
     }
+
+    public function testPlainObjectPayloadRoundTripsAtTheMaximumNestingDepth(): void
+    {
+        $nested = $this->nestedValue(511);
+        $payload = (new ReflectionMethod(EventWatcher::class, 'extractPayload'))->invoke(
+            $this->app->make(EventWatcher::class),
+            'custom-event',
+            [(object) ['nested' => $nested]],
+        );
+
+        $this->assertSame($nested, $payload[0]['properties']['nested']);
+    }
+
+    public function testEventWatcherPurgesLiftedDeepPayloadWithoutLosingTheEntry(): void
+    {
+        $this->app->make(EventWatcher::class)->recordEvent('custom-event', [
+            (object) ['nested' => $this->nestedValue(511)],
+        ]);
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame(EntryType::EVENT, $entry->type);
+        $this->assertSame('custom-event', $entry->content['name']);
+        $this->assertSame(Telescope::PURGED_VALUE, $entry->content['payload']);
+        $this->assertSame([], $entry->content['listeners']);
+    }
+
+    public function testPlainObjectPayloadUsesPartialOutputAndInvalidUtf8Substitution(): void
+    {
+        $payload = (new ReflectionMethod(EventWatcher::class, 'extractPayload'))->invoke(
+            $this->app->make(EventWatcher::class),
+            'custom-event',
+            [(object) ['number' => NAN, 'text' => "invalid\xB1"]],
+        );
+
+        $this->assertSame(['number' => 0, 'text' => 'invalid�'], $payload[0]['properties']);
+    }
+
+    public function testPlainObjectPayloadBeyondTheJsonNestingLimitIsPurged(): void
+    {
+        $payload = (new ReflectionMethod(EventWatcher::class, 'extractPayload'))->invoke(
+            $this->app->make(EventWatcher::class),
+            'custom-event',
+            [(object) ['nested' => $this->nestedValue(513)]],
+        );
+
+        $this->assertSame(Telescope::PURGED_VALUE, $payload[0]['properties']);
+    }
+
+    private function nestedValue(int $depth): array
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < $depth; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        return $value;
+    }
 }
 
 namespace Telescope\Dummies;

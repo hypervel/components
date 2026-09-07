@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth;
 
+use Hypervel\Auth\Passwords\DatabaseTokenRepository;
 use Hypervel\Auth\Passwords\PasswordBroker as PasswordBrokerImplementation;
 use Hypervel\Auth\Passwords\PasswordBrokerManager;
+use Hypervel\Cache\Repository as CacheRepository;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
@@ -14,10 +16,12 @@ use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Hashing\Hasher;
 use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionProperty;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -44,6 +48,21 @@ class AuthPasswordBrokerManagerTest extends TestCase
             'auth' => [
                 'guards' => [
                     'staff' => [],
+                ],
+            ],
+        ]));
+
+        $this->assertNull($manager->resolveBrokerNameForGuard('staff'));
+    }
+
+    public function testResolveBrokerNameForGuardReturnsNullWhenExplicitlyNull(): void
+    {
+        $manager = new PasswordBrokerManager($this->makeContainer([
+            'auth' => [
+                'guards' => [
+                    'staff' => [
+                        'passwords' => null,
+                    ],
                 ],
             ],
         ]));
@@ -91,7 +110,6 @@ class AuthPasswordBrokerManagerTest extends TestCase
     public static function malformedPasswordBrokerProvider(): array
     {
         return [
-            'null' => [null],
             'integer' => [123],
             'array' => [['users']],
         ];
@@ -107,6 +125,16 @@ class AuthPasswordBrokerManagerTest extends TestCase
                     ],
                 ],
             ],
+        ]);
+        $container->instance(AuthFactory::class, $this->mockAuthFactory('web'));
+
+        $this->assertSame('users', (new PasswordBrokerManager($container))->getDefaultDriver());
+    }
+
+    public function testDefaultDriverResolvesFromShippedWebGuard(): void
+    {
+        $container = $this->makeContainer([
+            'auth' => require __DIR__ . '/../../src/foundation/config/auth.php',
         ]);
         $container->instance(AuthFactory::class, $this->mockAuthFactory('web'));
 
@@ -246,26 +274,40 @@ class AuthPasswordBrokerManagerTest extends TestCase
                 'timebox_duration' => 200000,
                 'passwords' => [
                     'admins' => [
+                        'driver' => 'database',
                         'provider' => 'admins',
                         'table' => 'admin_password_reset_tokens',
+                        'connection' => 'passwords',
                     ],
                 ],
             ],
         ]);
         $container->instance('auth', $auth = m::mock());
-        $container->instance('db', $db = m::mock());
+        $container->instance('db', $database = m::mock(ConnectionResolverInterface::class));
         $container->instance('hash', m::mock(Hasher::class));
 
         $auth->shouldReceive('createUserProvider')
             ->once()
             ->with('admins')
             ->andReturn(m::mock(UserProvider::class));
-        $db->shouldReceive('connection')
+        $connection = m::mock(ConnectionInterface::class);
+        $resolutions = 0;
+        $database->shouldReceive('connection')
             ->once()
-            ->with(null)
-            ->andReturn(m::mock(ConnectionInterface::class));
+            ->with('passwords')
+            ->andReturnUsing(function () use (&$resolutions, $connection) {
+                ++$resolutions;
 
-        $this->assertInstanceOf(PasswordBrokerContract::class, (new PasswordBrokerManager($container))->broker('admins'));
+                return $connection;
+            });
+
+        $broker = (new PasswordBrokerManager($container))->broker('admins');
+        $repository = (new ReflectionProperty($broker, 'tokens'))->getValue($broker);
+
+        $this->assertInstanceOf(PasswordBrokerContract::class, $broker);
+        $this->assertSame(0, $resolutions);
+        $this->assertSame($connection, $repository->getConnection());
+        $this->assertSame(1, $resolutions);
     }
 
     public function testBrokerWithExplicitFalseyNameDoesNotFallBackToDefaultDriver(): void
@@ -278,6 +320,7 @@ class AuthPasswordBrokerManagerTest extends TestCase
                 'timebox_duration' => 200000,
                 'passwords' => [
                     '0' => [
+                        'driver' => 'database',
                         'provider' => 'zero',
                         'table' => 'zero_password_reset_tokens',
                     ],
@@ -285,19 +328,151 @@ class AuthPasswordBrokerManagerTest extends TestCase
             ],
         ]);
         $container->instance('auth', $auth = m::mock());
-        $container->instance('db', $db = m::mock());
+        $container->instance('db', $database = m::mock(ConnectionResolverInterface::class));
         $container->instance('hash', m::mock(Hasher::class));
 
         $auth->shouldReceive('createUserProvider')
             ->once()
             ->with('zero')
             ->andReturn(m::mock(UserProvider::class));
-        $db->shouldReceive('connection')
-            ->once()
-            ->with(null)
-            ->andReturn(m::mock(ConnectionInterface::class));
+        $database->shouldNotReceive('connection');
 
         $this->assertInstanceOf(PasswordBrokerContract::class, (new PasswordBrokerManager($container))->broker('0'));
+    }
+
+    public function testShippedDatabaseBrokerUsesDefaultConnection(): void
+    {
+        $container = $this->makeContainer([
+            'app' => [
+                'key' => 'base64:' . base64_encode(str_repeat('a', 32)),
+            ],
+            'auth' => require __DIR__ . '/../../src/foundation/config/auth.php',
+        ]);
+        $container->instance('auth', $auth = m::mock());
+        $container->instance('db', $database = m::mock(ConnectionResolverInterface::class));
+        $container->instance('hash', m::mock(Hasher::class));
+
+        $auth->shouldReceive('createUserProvider')
+            ->once()
+            ->with('users')
+            ->andReturn(m::mock(UserProvider::class));
+        $connection = m::mock(ConnectionInterface::class);
+        $database->shouldReceive('connection')->once()->with(null)->andReturn($connection);
+
+        $broker = (new PasswordBrokerManager($container))->broker('users');
+        $repository = (new ReflectionProperty($broker, 'tokens'))->getValue($broker);
+
+        $this->assertInstanceOf(PasswordBrokerContract::class, $broker);
+        $this->assertSame($connection, $repository->getConnection());
+    }
+
+    public function testBrokerUsesDefaultExpiryAndThrottleWhenOmitted(): void
+    {
+        $container = $this->makeContainer([
+            'app' => [
+                'key' => 'base64:' . base64_encode(str_repeat('a', 32)),
+            ],
+            'auth' => [
+                'timebox_duration' => 200000,
+                'passwords' => [
+                    'users' => [
+                        'driver' => 'database',
+                        'provider' => 'users',
+                        'table' => 'password_reset_tokens',
+                    ],
+                ],
+            ],
+        ]);
+        $container->instance('auth', $auth = m::mock());
+        $container->instance('db', $database = m::mock(ConnectionResolverInterface::class));
+        $container->instance('hash', m::mock(Hasher::class));
+
+        $auth->shouldReceive('createUserProvider')
+            ->once()
+            ->with('users')
+            ->andReturn(m::mock(UserProvider::class));
+        $database->shouldNotReceive('connection');
+
+        $broker = (new PasswordBrokerManager($container))->broker('users');
+        $repository = (new ReflectionProperty($broker, 'tokens'))->getValue($broker);
+
+        $this->assertInstanceOf(DatabaseTokenRepository::class, $repository);
+        $this->assertSame(
+            PasswordBrokerManager::DEFAULT_EXPIRE_MINUTES * 60,
+            (new ReflectionProperty($repository, 'expires'))->getValue($repository),
+        );
+        $this->assertSame(0, (new ReflectionProperty($repository, 'throttle'))->getValue($repository));
+    }
+
+    #[DataProvider('defaultCacheStoreProvider')]
+    public function testCacheBrokerUsesDefaultStore(array $broker): void
+    {
+        $container = $this->makeContainer([
+            'app' => [
+                'key' => 'base64:' . base64_encode(str_repeat('a', 32)),
+            ],
+            'auth' => [
+                'timebox_duration' => 200000,
+                'passwords' => [
+                    'users' => $broker,
+                ],
+            ],
+        ]);
+        $container->instance('auth', $auth = m::mock());
+        $container->instance('cache', $cache = m::mock());
+        $container->instance('hash', m::mock(Hasher::class));
+
+        $auth->shouldReceive('createUserProvider')
+            ->once()
+            ->with('users')
+            ->andReturn(m::mock(UserProvider::class));
+        $cache->shouldReceive('store')
+            ->once()
+            ->with(null)
+            ->andReturn(m::mock(CacheRepository::class));
+
+        $this->assertInstanceOf(
+            PasswordBrokerContract::class,
+            (new PasswordBrokerManager($container))->broker('users')
+        );
+    }
+
+    /**
+     * Provide cache broker configurations that use the default store.
+     */
+    public static function defaultCacheStoreProvider(): array
+    {
+        $broker = [
+            'driver' => 'cache',
+            'provider' => 'users',
+        ];
+
+        return [
+            'omitted' => [$broker],
+            'explicit null' => [$broker + ['store' => null]],
+        ];
+    }
+
+    public function testBrokerRejectsUnknownDriver(): void
+    {
+        $container = $this->makeContainer([
+            'app' => [
+                'key' => 'base64:' . base64_encode(str_repeat('a', 32)),
+            ],
+            'auth' => [
+                'passwords' => [
+                    'users' => [
+                        'driver' => 'unknown',
+                        'provider' => 'users',
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Password resetter driver [unknown] is not defined.');
+
+        (new PasswordBrokerManager($container))->broker('users');
     }
 
     public function testBrokerNormalizesEnumsBeforeCaching(): void
@@ -339,6 +514,7 @@ class AuthPasswordBrokerManagerTest extends TestCase
             'auth' => [
                 'passwords' => [
                     'users' => [
+                        'driver' => 'database',
                         'provider' => 'users',
                         'table' => 'password_reset_tokens',
                     ],

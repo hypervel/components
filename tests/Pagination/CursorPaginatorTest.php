@@ -8,6 +8,7 @@ use ArrayObject;
 use Exception;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Pagination\Cursor;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Support\Collection;
@@ -276,6 +277,19 @@ class CursorPaginatorTest extends TestCase
 
         $params = $p->getParametersForItem(['id' => 5, 'name' => 'test']);
         $this->assertSame(['id' => 5, 'name' => 'test'], $params);
+    }
+
+    public function testGetParametersForJsonResourceItem(): void
+    {
+        $paginator = new CursorPaginator([], 1, null, [
+            'parameters' => ['id', 'name'],
+        ]);
+        $resource = new JsonResource((object) ['id' => 5, 'name' => 'test']);
+
+        $this->assertSame(
+            ['id' => 5, 'name' => 'test'],
+            $paginator->getParametersForItem($resource),
+        );
     }
 
     #[DataProvider('missingCursorParameterProvider')]

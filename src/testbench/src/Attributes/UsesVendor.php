@@ -24,7 +24,7 @@ final class UsesVendor implements AfterEach, BeforeEach
 
         (new CreateVendorSymlink(package_path('vendor')))->handle($hypervel);
 
-        $this->vendorSymlinkCreated = $hypervel['TESTBENCH_VENDOR_SYMLINK'] ?? false;
+        $this->vendorSymlinkCreated = $hypervel->make('TESTBENCH_VENDOR_SYMLINK');
     }
 
     public function afterEach(ApplicationContract $app): void

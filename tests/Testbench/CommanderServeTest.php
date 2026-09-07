@@ -29,7 +29,7 @@ class CommanderServeTest extends TestCase
     private static bool $shutdownRegistered = false;
 
     #[Test]
-    public function itCanCallCommanderUsingCliAndStartServeWithoutStartupErrors()
+    public function itCanCallCommanderUsingCliAndStartServeWithoutStartupErrors(): void
     {
         $this->withoutSqliteDatabase(function (): void {
             [$process, $serverPort] = $this->startServeProcess();

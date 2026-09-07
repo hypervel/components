@@ -14,17 +14,54 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Container\CircularDependencyException;
 use Hypervel\Contracts\Container\ContextualAttribute;
+use Hypervel\Contracts\Container\ExecutionScopedAttribute;
 use Hypervel\Contracts\Container\SelfBuilding;
+use Hypervel\Contracts\Container\Transient;
+use Hypervel\Foundation\Application;
+use Hypervel\Tests\Container\Fixtures\BindBeforeBindWhenInterface;
+use Hypervel\Tests\Container\Fixtures\BindBeforeConcrete;
+use Hypervel\Tests\Container\Fixtures\BindFallbackConcrete;
+use Hypervel\Tests\Container\Fixtures\BindWhenAndBindInterface;
+use Hypervel\Tests\Container\Fixtures\BindWhenCondition;
+use Hypervel\Tests\Container\Fixtures\BindWhenConditionalConcrete;
+use Hypervel\Tests\Container\Fixtures\BindWhenConditionalInterface;
+use Hypervel\Tests\Container\Fixtures\BindWhenFallbackInterface;
+use Hypervel\Tests\Container\Fixtures\BindWhenInterface;
+use Hypervel\Tests\Container\Fixtures\BindWhenMaterializedConcrete;
+use Hypervel\Tests\Container\Fixtures\BindWhenMaterializedInterface;
+use Hypervel\Tests\Container\Fixtures\BindWhenNoMatchInterface;
+use Hypervel\Tests\Container\Fixtures\BindWhenScopedInterface;
+use Hypervel\Tests\Container\Fixtures\BindWhenSingletonConcrete;
+use Hypervel\Tests\Container\Fixtures\BindWhenSingletonInterface;
+use Hypervel\Tests\Container\Fixtures\BindWhenState;
+use Hypervel\Tests\Container\Fixtures\BindWhenTrueConcrete;
+use Hypervel\Tests\Container\Fixtures\BindWhenWinsConcrete;
+use Hypervel\Tests\Container\Fixtures\FirstWildcardConcrete;
+use Hypervel\Tests\Container\Fixtures\MultipleWildcardBindInterface;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use LogicException;
+use PHPUnit\Framework\Attributes\RequiresPhp;
 use Psr\Container\ContainerExceptionInterface;
+use ReflectionClass;
 use ReflectionProperty;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
 use TypeError;
+
+use function Hypervel\Coroutine\parallel;
 
 class ContainerTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        if (version_compare(PHP_VERSION, '8.5.0', '>=')) {
+            require_once __DIR__ . '/Fixtures/ContainerBindWhenFixtures.php';
+        }
+    }
+
     public function testContainerSingleton()
     {
         $container = Container::setInstance(new Container);
@@ -37,6 +74,16 @@ class ContainerTest extends TestCase
 
         $this->assertInstanceOf(Container::class, $container2);
         $this->assertNotSame($container, $container2);
+    }
+
+    public function testContainerSingletonIsSharedAcrossInheritanceHierarchy(): void
+    {
+        $application = new Application;
+
+        Container::setInstance($application);
+
+        $this->assertSame($application, Container::getInstance());
+        $this->assertSame($application, Application::getInstance());
     }
 
     public function testClosureResolution()
@@ -297,33 +344,12 @@ class ContainerTest extends TestCase
         $this->assertSame($c, $container);
     }
 
-    public function testArrayAccess()
+    // REMOVED: Container ArrayAccess is intentionally unsupported; use named container methods.
+
+    public function testAliases(): void
     {
         $container = new Container;
-        $this->assertFalse(isset($container['something']));
-        $container['something'] = function () {
-            return 'foo';
-        };
-        $this->assertTrue(isset($container['something']));
-        $this->assertNotEmpty($container['something']);
-        $this->assertSame('foo', $container['something']);
-        unset($container['something']);
-        $this->assertFalse(isset($container['something']));
-
-        // test offsetSet when it's not instanceof Closure
-        $container = new Container;
-        $container['something'] = 'text';
-        $this->assertTrue(isset($container['something']));
-        $this->assertNotEmpty($container['something']);
-        $this->assertSame('text', $container['something']);
-        unset($container['something']);
-        $this->assertFalse(isset($container['something']));
-    }
-
-    public function testAliases()
-    {
-        $container = new Container;
-        $container['foo'] = 'bar';
+        $container->bind('foo', fn () => 'bar');
         $container->alias('foo', 'baz');
         $container->alias('baz', 'bat');
         $this->assertSame('bar', $container->make('foo'));
@@ -341,12 +367,12 @@ class ContainerTest extends TestCase
         $this->assertEquals([1, 2, 3], $container->make('baz', [1, 2, 3]));
     }
 
-    public function testBindingsCanBeOverridden()
+    public function testBindingsCanBeOverridden(): void
     {
         $container = new Container;
-        $container['foo'] = 'bar';
-        $container['foo'] = 'baz';
-        $this->assertSame('baz', $container['foo']);
+        $container->bind('foo', fn () => 'bar');
+        $container->bind('foo', fn () => 'baz');
+        $this->assertSame('baz', $container->make('foo'));
     }
 
     public function testBindingAnInstanceReturnsTheInstance()
@@ -522,23 +548,17 @@ class ContainerTest extends TestCase
         $this->assertFalse($container->bound(ContainerConcreteStub::class));
     }
 
-    public function testUnsetRemoveBoundInstances()
-    {
-        $container = new Container;
-        $container->instance('object', new stdClass);
-        unset($container['object']);
+    // REMOVED: Instance-forgetting coverage is consolidated in testForgetInstanceForgetsInstance.
 
-        $this->assertFalse($container->bound('object'));
-    }
-
-    public function testBoundInstanceAndAliasCheckViaArrayAccess()
+    // Upstream: testBoundInstanceAndAliasCheckViaArrayAccess; Hypervel uses named binding checks.
+    public function testBoundInstanceAndAliasCheck(): void
     {
         $container = new Container;
         $container->instance('object', new stdClass);
         $container->alias('object', 'alias');
 
-        $this->assertTrue(isset($container['object']));
-        $this->assertTrue(isset($container['alias']));
+        $this->assertTrue($container->bound('object'));
+        $this->assertTrue($container->bound('alias'));
     }
 
     public function testReboundListeners()
@@ -638,14 +658,30 @@ class ContainerTest extends TestCase
         $container->build('Foo\Bar\Baz\DummyClass');
     }
 
-    public function testForgetInstanceForgetsInstance()
+    public function testForgetInstanceForgetsInstance(): void
     {
         $container = new Container;
         $containerConcreteStub = new ContainerConcreteStub;
         $container->instance(ContainerConcreteStub::class, $containerConcreteStub);
+        $this->assertTrue($container->bound(ContainerConcreteStub::class));
         $this->assertTrue($container->isShared(ContainerConcreteStub::class));
         $container->forgetInstance(ContainerConcreteStub::class);
+        $this->assertFalse($container->bound(ContainerConcreteStub::class));
         $this->assertFalse($container->isShared(ContainerConcreteStub::class));
+    }
+
+    public function testForgetInstanceResolvesAliasBeforeForgettingCachedInstance(): void
+    {
+        $container = new Container;
+        $container->singleton(ContainerConcreteStub::class);
+        $container->alias(ContainerConcreteStub::class, 'container.stub');
+
+        $first = $container->make('container.stub');
+        $container->forgetInstance('container.stub');
+        $second = $container->make('container.stub');
+
+        $this->assertNotSame($first, $second);
+        $this->assertSame($second, $container->make(ContainerConcreteStub::class));
     }
 
     public function testForgetInstanceForgetsScopedInstance()
@@ -676,6 +712,80 @@ class ContainerTest extends TestCase
 
         $this->assertNotSame($temporary, $restored);
         $this->assertSame($restored, $container->make(ContainerConcreteStub::class));
+    }
+
+    public function testResolvedScopedReportsWhetherAScopedBindingWasResolved(): void
+    {
+        $container = new Container;
+        $container->scoped(ContainerConcreteStub::class);
+
+        $this->assertFalse($container->resolvedScoped(ContainerConcreteStub::class));
+
+        $container->make(ContainerConcreteStub::class);
+
+        $this->assertTrue($container->resolvedScoped(ContainerConcreteStub::class));
+    }
+
+    public function testResolvedScopedIsFalseForBindingsThatAreNotScoped(): void
+    {
+        $container = new Container;
+        $container->singleton('singleton', fn (): stdClass => new stdClass);
+        $container->bind('transient', fn (): stdClass => new stdClass);
+
+        $container->make('singleton');
+        $container->make('transient');
+
+        $this->assertFalse($container->resolvedScoped('singleton'));
+        $this->assertFalse($container->resolvedScoped('transient'));
+        $this->assertFalse($container->resolvedScoped('unbound'));
+    }
+
+    public function testResolvedScopedResolvesAliases(): void
+    {
+        $container = new Container;
+        $container->scoped(ContainerConcreteStub::class);
+        $container->alias(ContainerConcreteStub::class, 'stub');
+
+        $this->assertFalse($container->resolvedScoped('stub'));
+
+        $container->make(ContainerConcreteStub::class);
+
+        $this->assertTrue($container->resolvedScoped('stub'));
+    }
+
+    public function testResolvedScopedSeesAnInstanceReplacingAScopedBinding(): void
+    {
+        $container = new Container;
+        $container->scoped(ContainerConcreteStub::class);
+
+        // instance() supersedes the scoped binding during resolution, so an
+        // existing instance counts as resolved for the current coroutine.
+        $container->instance(ContainerConcreteStub::class, new ContainerConcreteStub);
+
+        $this->assertTrue($container->resolvedScoped(ContainerConcreteStub::class));
+    }
+
+    public function testResolvedScopedIsIsolatedBetweenCoroutines(): void
+    {
+        $container = new Container;
+        $container->scoped(ContainerConcreteStub::class);
+
+        [$resolver, $observer] = parallel([
+            function () use ($container) {
+                $container->make(ContainerConcreteStub::class);
+                usleep(5000);
+
+                return $container->resolvedScoped(ContainerConcreteStub::class);
+            },
+            function () use ($container) {
+                usleep(1000);
+
+                return $container->resolvedScoped(ContainerConcreteStub::class);
+            },
+        ]);
+
+        $this->assertTrue($resolver);
+        $this->assertFalse($observer, 'A scoped instance resolved in one coroutine leaked into another.');
     }
 
     public function testExplicitTransientBindingOverridesScopedAttribute(): void
@@ -800,30 +910,6 @@ class ContainerTest extends TestCase
         $this->assertInstanceOf(ContainerImplementationStubTwo::class, $second);
     }
 
-    public function testOffsetUnsetClearsScopedInstance()
-    {
-        $container = new Container;
-        $container->scoped(ContainerConcreteStub::class);
-
-        $first = $container->make(ContainerConcreteStub::class);
-
-        unset($container[ContainerConcreteStub::class]);
-
-        $second = $container->make(ContainerConcreteStub::class);
-
-        $this->assertNotSame($first, $second);
-    }
-
-    public function testOffsetUnsetClearsScopedLifecycleMarker(): void
-    {
-        $container = new Container;
-        $container->scoped(ContainerConcreteStub::class);
-
-        unset($container[ContainerConcreteStub::class]);
-
-        $this->assertFalse($container->isScoped(ContainerConcreteStub::class));
-    }
-
     public function testExtendingResolvedAutoSingletonUpdatesCachedInstance(): void
     {
         $container = new Container;
@@ -875,6 +961,43 @@ class ContainerTest extends TestCase
         $resolved = $container->make(ContainerCurrentResolvingConcrete::class);
 
         $this->assertEquals(ContainerCurrentResolvingConcrete::class, $resolved->currentlyResolving);
+    }
+
+    public function testContextualNullTakesPrecedenceOverPrimitiveBindingAndDefault(): void
+    {
+        $container = new Container;
+        $container->when(ContainerContextualNullFallbacks::class)
+            ->needs('$bound')
+            ->give('bound value');
+
+        $resolved = $container->make(ContainerContextualNullFallbacks::class);
+
+        $this->assertNull($resolved->bound);
+        $this->assertNull($resolved->default);
+    }
+
+    public function testCurrentlyResolvingDoesNotCreateResolutionStateWhenIdle(): void
+    {
+        $container = new ContainerStateInspectionStub;
+
+        $this->assertFalse($container->hasResolutionState());
+        $this->assertNull($container->currentlyResolving());
+        $this->assertFalse($container->hasResolutionState());
+    }
+
+    public function testCachedSingletonDoesNotCreateResolutionStateWhenContextualBindingsExist(): void
+    {
+        $container = new ContainerStateInspectionStub;
+        $instance = new stdClass;
+
+        $container->when(ContainerCurrentResolvingConcrete::class)
+            ->needs('$currentlyResolving')
+            ->give('resolved');
+        $container->instance('cached', $instance);
+
+        $this->assertFalse($container->hasResolutionState());
+        $this->assertSame($instance, $container->make('cached'));
+        $this->assertFalse($container->hasResolutionState());
     }
 
     public function testGetAliasRecursive()
@@ -1110,14 +1233,7 @@ class ContainerTest extends TestCase
         $this->assertInstanceOf(stdClass::class, $container->get('Taylor'));
     }
 
-    public function testContainerCanDynamicallySetService()
-    {
-        $container = new Container;
-        $this->assertFalse(isset($container['name']));
-        $container['name'] = 'Taylor';
-        $this->assertTrue(isset($container['name']));
-        $this->assertSame('Taylor', $container['name']);
-    }
+    // REMOVED: Container ArrayAccess is intentionally unsupported; use named container methods.
 
     public function testUnknownEntryThrowsException()
     {
@@ -1125,6 +1241,21 @@ class ContainerTest extends TestCase
 
         $container = new Container;
         $container->get('Taylor');
+    }
+
+    public function testGetPreservesCancellationWhileResolvingUnboundConcrete(): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $container = new Container;
+        $container->beforeResolving(ContainerConcreteStub::class, fn () => throw $cancellation);
+
+        try {
+            $container->get(ContainerConcreteStub::class);
+
+            $this->fail('The cancellation was not preserved.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testBoundEntriesThrowsContainerExceptionWhenNotResolvable()
@@ -1282,6 +1413,137 @@ class ContainerTest extends TestCase
         $this->assertInstanceOf(DevConcrete::class, $second);
     }
 
+    #[RequiresPhp('>= 8.5.0')]
+    public function testBindWhenBindsFirstConditionThatPasses(): void
+    {
+        $container = new Container;
+
+        $this->assertInstanceOf(BindWhenTrueConcrete::class, $container->make(BindWhenInterface::class));
+    }
+
+    #[RequiresPhp('>= 8.5.0')]
+    public function testBindWhenSingletonAttribute(): void
+    {
+        $container = new Container;
+
+        $first = $container->make(BindWhenSingletonInterface::class);
+        $second = $container->make(BindWhenSingletonInterface::class);
+
+        $this->assertInstanceOf(BindWhenSingletonConcrete::class, $first);
+        $this->assertSame($first, $second);
+    }
+
+    #[RequiresPhp('>= 8.5.0')]
+    public function testBindWhenScopedAttribute(): void
+    {
+        $container = new Container;
+
+        $first = $container->make(BindWhenScopedInterface::class);
+
+        $this->assertSame($first, $container->make(BindWhenScopedInterface::class));
+
+        $container->forgetScopedInstances();
+
+        $this->assertNotSame($first, $container->make(BindWhenScopedInterface::class));
+    }
+
+    #[RequiresPhp('>= 8.5.0')]
+    public function testBindWhenThrowsWhenNoConditionPasses(): void
+    {
+        $this->expectException(BindingResolutionException::class);
+
+        (new Container)->make(BindWhenNoMatchInterface::class);
+    }
+
+    #[RequiresPhp('>= 8.5.0')]
+    public function testBindWhenIsReevaluatedAfterAnInitialMiss(): void
+    {
+        $container = new Container;
+
+        try {
+            $container->make(BindWhenConditionalInterface::class);
+
+            $this->fail('Expected binding resolution to fail when the BindWhen condition does not match.');
+        } catch (BindingResolutionException) {
+            // Continue after the expected first resolution failure.
+        }
+
+        $container->instance(BindWhenCondition::class, new BindWhenCondition);
+
+        $this->assertInstanceOf(
+            BindWhenConditionalConcrete::class,
+            $container->make(BindWhenConditionalInterface::class),
+        );
+    }
+
+    #[RequiresPhp('>= 8.5.0')]
+    public function testBindWhenTakesPrecedenceOverBind(): void
+    {
+        $container = new Container;
+        $container->resolveEnvironmentUsing(fn (): bool => true);
+
+        $this->assertInstanceOf(
+            BindWhenWinsConcrete::class,
+            $container->make(BindWhenAndBindInterface::class),
+        );
+    }
+
+    #[RequiresPhp('>= 8.5.0')]
+    public function testBindWhenFallsThroughToBind(): void
+    {
+        $container = new Container;
+        $container->resolveEnvironmentUsing(fn (): bool => true);
+
+        $this->assertInstanceOf(
+            BindFallbackConcrete::class,
+            $container->make(BindWhenFallbackInterface::class),
+        );
+    }
+
+    #[RequiresPhp('>= 8.5.0')]
+    public function testBindAndBindWhenResolveInDeclarationOrder(): void
+    {
+        $container = new Container;
+        $container->resolveEnvironmentUsing(fn (array $environments): bool => in_array('foobar', $environments, true));
+
+        $this->assertInstanceOf(
+            BindBeforeConcrete::class,
+            $container->make(BindBeforeBindWhenInterface::class),
+        );
+    }
+
+    #[RequiresPhp('>= 8.5.0')]
+    public function testFirstWildcardBindWinsDuringAttributeResolution(): void
+    {
+        $container = new Container;
+        $container->resolveEnvironmentUsing(fn (): bool => false);
+
+        $this->assertInstanceOf(
+            FirstWildcardConcrete::class,
+            $container->make(MultipleWildcardBindInterface::class),
+        );
+    }
+
+    #[RequiresPhp('>= 8.5.0')]
+    public function testMatchingBindWhenConditionMaterializesWorkerLifetimeBinding(): void
+    {
+        $container = new Container;
+        $state = new BindWhenState(true);
+        $container->instance(BindWhenState::class, $state);
+
+        $this->assertInstanceOf(
+            BindWhenMaterializedConcrete::class,
+            $container->make(BindWhenMaterializedInterface::class),
+        );
+
+        $state->enabled = false;
+
+        $this->assertInstanceOf(
+            BindWhenMaterializedConcrete::class,
+            $container->make(BindWhenMaterializedInterface::class),
+        );
+    }
+
     public function testNoMatchingEnvironmentAndNoWildcardThrowsBindingResolutionException(): void
     {
         $this->expectException(BindingResolutionException::class);
@@ -1310,6 +1572,240 @@ class ContainerTest extends TestCase
         $container = new Container;
 
         $this->assertTrue($container->isScoped(ContainerScopedAttribute::class));
+    }
+
+    public function testExecutionScopedConstructorAttributeUsesTheExistingScopedLifetime(): void
+    {
+        ContainerExecutionScopeAttribute::$classifications = 0;
+        $container = new Container;
+
+        $this->assertTrue($container->isShared(ContainerExecutionScopedConsumer::class));
+        $this->assertTrue($container->isScoped(ContainerExecutionScopedConsumer::class));
+
+        $first = $container->make(ContainerExecutionScopedConsumer::class);
+        $second = $container->make(ContainerExecutionScopedConsumer::class);
+
+        $this->assertSame($first, $second);
+        $this->assertArrayNotHasKey(
+            ContainerExecutionScopedConsumer::class,
+            (new ReflectionProperty($container, 'instances'))->getValue($container),
+        );
+        $this->assertArrayNotHasKey(
+            ContainerExecutionScopedConsumer::class,
+            (new ReflectionProperty($container, 'autoSingletons'))->getValue($container),
+        );
+        $this->assertSame(1, ContainerExecutionScopeAttribute::$classifications);
+
+        $container->forgetScopedInstances();
+
+        $this->assertNotSame($first, $container->make(ContainerExecutionScopedConsumer::class));
+    }
+
+    public function testStaticConstructorAttributeRetainsTheOrdinaryAutoSingletonLifetime(): void
+    {
+        ContainerExecutionScopeAttribute::$classifications = 0;
+        $container = new Container;
+
+        $this->assertFalse($container->isShared(ContainerStaticContextualConsumer::class));
+        $this->assertFalse($container->isScoped(ContainerStaticContextualConsumer::class));
+        $this->assertSame(
+            $container->make(ContainerStaticContextualConsumer::class),
+            $container->make(ContainerStaticContextualConsumer::class),
+        );
+        $this->assertSame(1, ContainerExecutionScopeAttribute::$classifications);
+    }
+
+    public function testExplicitLifetimesTakePrecedenceOverDerivedExecutionScope(): void
+    {
+        $transientContainer = new Container;
+        $transientContainer->bind(ContainerExecutionScopedConsumer::class);
+
+        $this->assertFalse($transientContainer->isShared(ContainerExecutionScopedConsumer::class));
+        $this->assertFalse($transientContainer->isScoped(ContainerExecutionScopedConsumer::class));
+        $this->assertNotSame(
+            $transientContainer->make(ContainerExecutionScopedConsumer::class),
+            $transientContainer->make(ContainerExecutionScopedConsumer::class),
+        );
+
+        $singletonContainer = new Container;
+        $singletonContainer->singleton(ContainerExecutionScopedConsumer::class);
+
+        $this->assertTrue($singletonContainer->isShared(ContainerExecutionScopedConsumer::class));
+        $this->assertFalse($singletonContainer->isScoped(ContainerExecutionScopedConsumer::class));
+        $this->assertSame(
+            $singletonContainer->make(ContainerExecutionScopedConsumer::class),
+            $singletonContainer->make(ContainerExecutionScopedConsumer::class),
+        );
+
+        $instanceContainer = new Container;
+        $instance = new ContainerExecutionScopedConsumer(new stdClass);
+        $instanceContainer->instance(ContainerExecutionScopedConsumer::class, $instance);
+
+        $this->assertSame($instance, $instanceContainer->make(ContainerExecutionScopedConsumer::class));
+
+        $attributedContainer = new Container;
+
+        $this->assertTrue($attributedContainer->isShared(ContainerSingletonExecutionScopedConsumer::class));
+        $this->assertFalse($attributedContainer->isScoped(ContainerSingletonExecutionScopedConsumer::class));
+        $this->assertSame(
+            $attributedContainer->make(ContainerSingletonExecutionScopedConsumer::class),
+            $attributedContainer->make(ContainerSingletonExecutionScopedConsumer::class),
+        );
+    }
+
+    public function testTransientAndSelfBuildingMarkersExcludeDerivedExecutionScope(): void
+    {
+        $container = new Container;
+
+        $this->assertFalse($container->isScoped(ContainerTransientExecutionScopedConsumer::class));
+        $this->assertNotSame(
+            $container->make(ContainerTransientExecutionScopedConsumer::class),
+            $container->make(ContainerTransientExecutionScopedConsumer::class),
+        );
+        $this->assertFalse($container->isScoped(ContainerSelfBuildingExecutionScopedConsumer::class));
+        $this->assertNotSame(
+            $container->make(ContainerSelfBuildingExecutionScopedConsumer::class),
+            $container->make(ContainerSelfBuildingExecutionScopedConsumer::class),
+        );
+    }
+
+    public function testParameterizedBuildsBypassDerivedExecutionScope(): void
+    {
+        $container = new Container;
+        $firstValue = new stdClass;
+        $secondValue = new stdClass;
+
+        $first = $container->make(ContainerExecutionScopedConsumer::class, ['value' => $firstValue]);
+        $second = $container->make(ContainerExecutionScopedConsumer::class, ['value' => $secondValue]);
+
+        $this->assertNotSame($first, $second);
+        $this->assertSame($firstValue, $first->value);
+        $this->assertSame($secondValue, $second->value);
+    }
+
+    public function testDerivedScopeDoesNotChangeAttributeBindingsOrCacheArbitraryKeys(): void
+    {
+        $container = new Container;
+        $container->resolveEnvironmentUsing(fn (): bool => true);
+        $buildRecipes = new ReflectionProperty(Container::class, 'buildRecipes');
+        $scopedTypes = new ReflectionProperty(Container::class, 'checkedForSingletonOrScopedAttributes');
+        $recipeCount = count($buildRecipes->getValue());
+        $scopedTypeCount = count($scopedTypes->getValue($container));
+
+        $this->assertFalse($container->isScoped('execution-scoped-service'));
+        $this->assertCount($recipeCount, $buildRecipes->getValue());
+        $this->assertCount($scopedTypeCount, $scopedTypes->getValue($container));
+
+        $first = $container->make(ContainerExecutionScopedBinding::class);
+        $second = $container->make(ContainerExecutionScopedBinding::class);
+
+        $this->assertInstanceOf(ContainerBoundExecutionScopedConsumer::class, $first);
+        $this->assertNotSame($first, $second);
+        $this->assertFalse($container->isScoped(ContainerExecutionScopedBinding::class));
+    }
+
+    public function testTransientBindingsOwnTheLifetimeOfTheirConcrete(): void
+    {
+        $container = new Container;
+        $container->bind(ContainerImplicitLifetimeContract::class, ContainerBoundExecutionScopedConsumer::class);
+
+        $first = $container->make(ContainerImplicitLifetimeContract::class);
+        $second = $container->make(ContainerImplicitLifetimeContract::class);
+
+        $this->assertNotSame($first, $second);
+        $this->assertArrayNotHasKey(
+            ContainerBoundExecutionScopedConsumer::class,
+            (new ReflectionProperty($container, 'autoSingletons'))->getValue($container),
+        );
+
+        $scopedContextPrefix = (new ReflectionClass(Container::class))
+            ->getReflectionConstant('SCOPED_CONTEXT_PREFIX')
+            ->getValue();
+
+        $this->assertFalse(CoroutineContext::has($scopedContextPrefix . ContainerBoundExecutionScopedConsumer::class));
+    }
+
+    public function testTransientBindingDoesNotAdoptAPriorImplicitConcreteLifetime(): void
+    {
+        foreach ([ContainerBoundExecutionScopedConsumer::class, ContainerOrdinaryImplicitLifetimeConsumer::class] as $concrete) {
+            $container = new Container;
+            $container->bind(ContainerImplicitLifetimeContract::class, $concrete);
+
+            $direct = $container->make($concrete);
+            $first = $container->make(ContainerImplicitLifetimeContract::class);
+            $second = $container->make(ContainerImplicitLifetimeContract::class);
+
+            $this->assertNotSame($direct, $first);
+            $this->assertNotSame($direct, $second);
+            $this->assertNotSame($first, $second);
+        }
+    }
+
+    public function testExplicitConcreteLifetimesApplyThroughTransientBindings(): void
+    {
+        $singletonContainer = new Container;
+        $singletonContainer->bind(
+            ContainerImplicitLifetimeContract::class,
+            ContainerSingletonExecutionScopedConsumer::class,
+        );
+
+        $singleton = $singletonContainer->make(ContainerImplicitLifetimeContract::class);
+
+        $this->assertSame($singleton, $singletonContainer->make(ContainerImplicitLifetimeContract::class));
+        $this->assertSame($singleton, $singletonContainer->make(ContainerSingletonExecutionScopedConsumer::class));
+
+        $scopedContainer = new Container;
+        $scopedContainer->bind(
+            ContainerImplicitLifetimeContract::class,
+            ContainerScopedExecutionScopedConsumer::class,
+        );
+
+        $scoped = $scopedContainer->make(ContainerImplicitLifetimeContract::class);
+
+        $this->assertSame($scoped, $scopedContainer->make(ContainerImplicitLifetimeContract::class));
+        $this->assertSame($scoped, $scopedContainer->make(ContainerScopedExecutionScopedConsumer::class));
+
+        $scopedContainer->forgetScopedInstances();
+
+        $this->assertNotSame($scoped, $scopedContainer->make(ContainerImplicitLifetimeContract::class));
+    }
+
+    public function testExplicitBindingKeysRetainTheirOwnLifetimes(): void
+    {
+        $outerSingletonContainer = new Container;
+        $outerSingletonContainer->singleton(
+            ContainerImplicitLifetimeContract::class,
+            ContainerOrdinaryImplicitLifetimeConsumer::class,
+        );
+
+        $outerSingleton = $outerSingletonContainer->make(ContainerImplicitLifetimeContract::class);
+
+        $this->assertSame(
+            $outerSingleton,
+            $outerSingletonContainer->make(ContainerImplicitLifetimeContract::class),
+        );
+        $this->assertNotSame(
+            $outerSingleton,
+            $outerSingletonContainer->make(ContainerOrdinaryImplicitLifetimeConsumer::class),
+        );
+
+        $concreteSingletonContainer = new Container;
+        $concreteSingletonContainer->bind(
+            ContainerImplicitLifetimeContract::class,
+            ContainerOrdinaryImplicitLifetimeConsumer::class,
+        );
+        $concreteSingletonContainer->singleton(ContainerOrdinaryImplicitLifetimeConsumer::class);
+
+        $concreteSingleton = $concreteSingletonContainer->make(ContainerOrdinaryImplicitLifetimeConsumer::class);
+
+        $this->assertSame(
+            $concreteSingleton,
+            $concreteSingletonContainer->make(ContainerImplicitLifetimeContract::class),
+        );
+        $this->assertSame(
+            $concreteSingleton,
+            $concreteSingletonContainer->make(ContainerImplicitLifetimeContract::class),
+        );
     }
 
     public function testSingletonWithBind()
@@ -1405,7 +1901,7 @@ class ContainerTest extends TestCase
     public function testDepthLimitFailureDoesNotMutateResolutionState(): void
     {
         $container = new ContainerStateInspectionStub;
-        CoroutineContext::set(Container::DEPTH_CONTEXT_KEY, $container->resolutionLimit());
+        $container->setResolutionDepth($container->resolutionLimit());
 
         try {
             $container->make(ContainerConcreteStub::class);
@@ -1414,11 +1910,11 @@ class ContainerTest extends TestCase
             $this->assertStringContainsString('Maximum resolution depth', $exception->getMessage());
         }
 
-        $this->assertSame($container->resolutionLimit(), CoroutineContext::get(Container::DEPTH_CONTEXT_KEY));
+        $this->assertSame($container->resolutionLimit(), $container->resolutionDepth());
         $this->assertSame([], $container->resolvingStack());
         $this->assertSame([], $container->parameterOverrideStack());
 
-        CoroutineContext::set(Container::DEPTH_CONTEXT_KEY, 0);
+        $container->setResolutionDepth(0);
 
         $this->assertInstanceOf(ContainerConcreteStub::class, $container->make(ContainerConcreteStub::class));
     }
@@ -1433,6 +1929,221 @@ class ContainerTest extends TestCase
         $second = $container->make(AutoSingletonStub::class);
 
         $this->assertSame($first, $second);
+    }
+
+    public function testMakeTransientIgnoresAutoSingletonWithoutReplacingIt(): void
+    {
+        $container = new Container;
+
+        $shared = $container->make(MakeTransientStub::class);
+        $first = $container->makeTransient(MakeTransientStub::class);
+        $second = $container->makeTransient(MakeTransientStub::class);
+
+        $this->assertNotSame($shared, $first);
+        $this->assertNotSame($first, $second);
+        $this->assertSame($shared, $container->make(MakeTransientStub::class));
+    }
+
+    public function testMakeTransientPreservesExplicitLifetimes(): void
+    {
+        $singletonContainer = new Container;
+        $singletonContainer->singleton(MakeTransientStub::class);
+        $singleton = $singletonContainer->makeTransient(MakeTransientStub::class);
+
+        $this->assertSame($singleton, $singletonContainer->makeTransient(MakeTransientStub::class));
+
+        $scopedContainer = new Container;
+        $scopedContainer->scoped(MakeTransientStub::class);
+        $scoped = $scopedContainer->makeTransient(MakeTransientStub::class);
+
+        $this->assertSame($scoped, $scopedContainer->makeTransient(MakeTransientStub::class));
+
+        $singletonAttributeContainer = new Container;
+        $singletonAttribute = $singletonAttributeContainer->makeTransient(ContainerSingletonAttribute::class);
+
+        $this->assertSame(
+            $singletonAttribute,
+            $singletonAttributeContainer->makeTransient(ContainerSingletonAttribute::class),
+        );
+
+        $scopedAttributeContainer = new Container;
+        $scopedAttribute = $scopedAttributeContainer->makeTransient(ContainerScopedAttribute::class);
+
+        $this->assertSame(
+            $scopedAttribute,
+            $scopedAttributeContainer->makeTransient(ContainerScopedAttribute::class),
+        );
+
+        $instanceContainer = new Container;
+        $instance = new MakeTransientStub;
+        $instanceContainer->instance(MakeTransientStub::class, $instance);
+
+        $this->assertSame($instance, $instanceContainer->makeTransient(MakeTransientStub::class));
+
+        $boundContainer = new Container;
+        $boundContainer->bind(MakeTransientStub::class);
+
+        $this->assertNotSame(
+            $boundContainer->makeTransient(MakeTransientStub::class),
+            $boundContainer->makeTransient(MakeTransientStub::class),
+        );
+    }
+
+    public function testMakeTransientOverridesDerivedExecutionScopePerCall(): void
+    {
+        $container = new Container;
+
+        $first = $container->makeTransient(ContainerExecutionScopedConsumer::class);
+        $second = $container->makeTransient(ContainerExecutionScopedConsumer::class);
+
+        $this->assertNotSame($first, $second);
+        $this->assertNotSame($first->value, $second->value);
+
+        $scoped = $container->make(ContainerExecutionScopedConsumer::class);
+
+        $this->assertNotSame($second, $scoped);
+        $this->assertSame($scoped, $container->make(ContainerExecutionScopedConsumer::class));
+    }
+
+    public function testMakeTransientHonorsLifetimeRegisteredBeforeResolution(): void
+    {
+        $container = new Container;
+        $registered = false;
+        $container->beforeResolving(
+            MakeTransientStub::class,
+            function (string $abstract, array $parameters, Container $container) use (&$registered): void {
+                if ($registered) {
+                    return;
+                }
+
+                $registered = true;
+                $container->singleton($abstract);
+            },
+        );
+
+        $shared = $container->makeTransient(MakeTransientStub::class);
+
+        $this->assertSame($shared, $container->makeTransient(MakeTransientStub::class));
+    }
+
+    public function testMakeTransientResolvesAliasesBeforeDeterminingTheLifetime(): void
+    {
+        $container = new Container;
+        $container->singleton('make-transient', fn (): MakeTransientStub => new MakeTransientStub);
+        $container->alias('make-transient', MakeTransientStub::class);
+
+        $shared = $container->make('make-transient');
+
+        $this->assertSame($shared, $container->makeTransient(MakeTransientStub::class));
+    }
+
+    public function testMakeTransientHonorsContainerHooks(): void
+    {
+        $container = new Container;
+        $callbacks = [];
+
+        $container->beforeResolving(
+            MakeTransientStub::class,
+            function () use (&$callbacks): void {
+                $callbacks[] = 'before';
+            },
+        );
+        $container->extend(MakeTransientStub::class, function (MakeTransientStub $instance): MakeTransientStub {
+            $instance->marks[] = 'extended';
+
+            return $instance;
+        });
+        $container->resolving(MakeTransientStub::class, function () use (&$callbacks): void {
+            $callbacks[] = 'resolving';
+        });
+        $container->afterResolving(MakeTransientStub::class, function () use (&$callbacks): void {
+            $callbacks[] = 'after';
+        });
+
+        $instance = $container->makeTransient(MakeTransientStub::class);
+
+        $this->assertSame(['extended'], $instance->marks);
+        $this->assertSame(['before', 'resolving', 'after'], $callbacks);
+        $this->assertTrue($container->resolved(MakeTransientStub::class));
+    }
+
+    public function testMakeTransientPreservesNestedDependencyLifetimes(): void
+    {
+        $container = new Container;
+
+        $first = $container->makeTransient(MakeTransientConsumerStub::class);
+        $second = $container->makeTransient(MakeTransientConsumerStub::class);
+
+        $this->assertNotSame($first, $second);
+        $this->assertSame($first->dependency, $second->dependency);
+    }
+
+    public function testTransientClassIsNotAutoSingletoned(): void
+    {
+        $container = new Container;
+
+        $first = $container->make(TransientStub::class);
+        $second = $container->get(TransientStub::class);
+
+        $this->assertNotSame($first, $second);
+    }
+
+    public function testTransientLifetimeIsInheritedBySubclasses(): void
+    {
+        $container = new Container;
+
+        $first = $container->make(TransientChildStub::class);
+        $second = $container->make(TransientChildStub::class);
+
+        $this->assertNotSame($first, $second);
+    }
+
+    public function testTransientClassCanBeExplicitlySingletoned(): void
+    {
+        $container = new Container;
+        $container->singleton(TransientStub::class);
+
+        $first = $container->make(TransientStub::class);
+        $second = $container->make(TransientStub::class);
+
+        $this->assertSame($first, $second);
+    }
+
+    public function testTransientClassCanBeExplicitlyScoped(): void
+    {
+        $container = new Container;
+        $container->scoped(TransientStub::class);
+
+        $first = $container->make(TransientStub::class);
+        $second = $container->make(TransientStub::class);
+
+        $this->assertSame($first, $second);
+    }
+
+    public function testTransientClassCanBeRegisteredAsAnInstance(): void
+    {
+        $container = new Container;
+        $instance = new TransientStub;
+        $container->instance(TransientStub::class, $instance);
+
+        $this->assertSame($instance, $container->make(TransientStub::class));
+    }
+
+    public function testTransientClassExtendersRunForEveryInstance(): void
+    {
+        $container = new Container;
+        $container->extend(TransientStub::class, function (TransientStub $instance): TransientStub {
+            $instance->marks[] = 'extended';
+
+            return $instance;
+        });
+
+        $first = $container->make(TransientStub::class);
+        $second = $container->make(TransientStub::class);
+
+        $this->assertNotSame($first, $second);
+        $this->assertSame(['extended'], $first->marks);
+        $this->assertSame(['extended'], $second->marks);
     }
 
     public function testAutoSingletonSkippedWhenParametersProvided()
@@ -1523,6 +2234,71 @@ class ContainerTest extends TestCase
         $this->assertSame(1, $second->value);
 
         unset($_SERVER['__selfBuilding.counter']);
+    }
+
+    public function testSelfBuildingClassCanBeExplicitlyBound(): void
+    {
+        $container = new Container;
+
+        $container->bind(SelfBuildingBuildStub::class);
+
+        $first = $container->make(SelfBuildingBuildStub::class);
+        $second = $container->make(SelfBuildingBuildStub::class);
+
+        $this->assertSame('factory', $first->value);
+        $this->assertSame('factory', $second->value);
+        $this->assertNotSame($first, $second);
+    }
+
+    public function testExplicitClosureBindingTakesPrecedenceOverSelfBuildingFactory(): void
+    {
+        $container = new Container;
+
+        $container->bind(
+            SelfBuildingBuildStub::class,
+            fn () => new SelfBuildingBuildStub('closure')
+        );
+
+        $this->assertSame('closure', $container->make(SelfBuildingBuildStub::class)->value);
+    }
+
+    public function testInterfaceBindingDispatchesSelfBuildingFactory(): void
+    {
+        $container = new Container;
+
+        $container->bind(SelfBuildingContractStub::class, SelfBuildingBuildStub::class);
+
+        $this->assertSame('factory', $container->make(SelfBuildingContractStub::class)->value);
+    }
+
+    public function testBuildDirectlyConstructsSelfBuildingClass(): void
+    {
+        $container = new Container;
+
+        $instance = $container->build(SelfBuildingBuildStub::class);
+
+        $this->assertSame('constructor', $instance->value);
+    }
+
+    public function testBuildWithDirectlyConstructsSelfBuildingClassWithOverrides(): void
+    {
+        $container = new Container;
+
+        $instance = $container->buildWith(SelfBuildingBuildStub::class, ['value' => 'override']);
+
+        $this->assertSame('override', $instance->value);
+    }
+
+    public function testBuildWithKeepsSelfBuildingClassOnContextualBuildStack(): void
+    {
+        $container = new Container;
+        $container->when(SelfBuildingContextualBuildStub::class)
+            ->needs('$value')
+            ->give('contextual');
+
+        $instance = $container->buildWith(SelfBuildingContextualBuildStub::class);
+
+        $this->assertSame('contextual', $instance->value);
     }
 }
 
@@ -1654,22 +2430,39 @@ class ContainerContextualBindingCallTarget
 }
 
 #[Attribute(Attribute::TARGET_PARAMETER)]
-class ContainerCurrentResolvingAttribute implements ContextualAttribute
+class ContainerCurrentResolvingAttribute
 {
-    public function resolve()
-    {
-    }
 }
 
 class ContainerCurrentResolvingConcrete
 {
-    public $currentlyResolving;
+    public string $currentlyResolving;
 
     public function __construct(
         #[ContainerCurrentResolvingAttribute]
         string $currentlyResolving
     ) {
         $this->currentlyResolving = $currentlyResolving;
+    }
+}
+
+#[Attribute(Attribute::TARGET_PARAMETER)]
+class ContainerNullContextualAttribute implements ContextualAttribute
+{
+    public static function resolve(): mixed
+    {
+        return null;
+    }
+}
+
+class ContainerContextualNullFallbacks
+{
+    public function __construct(
+        #[ContainerNullContextualAttribute]
+        public ?string $bound,
+        #[ContainerNullContextualAttribute]
+        public ?string $default = 'default value',
+    ) {
     }
 }
 
@@ -1680,6 +2473,85 @@ class ContainerSingletonAttribute
 
 #[Scoped]
 class ContainerScopedAttribute
+{
+}
+
+#[Attribute(Attribute::TARGET_PARAMETER)]
+class ContainerExecutionScopeAttribute implements ExecutionScopedAttribute
+{
+    public static int $classifications = 0;
+
+    public function __construct(public bool $executionScoped = true)
+    {
+    }
+
+    public function isExecutionScoped(): bool
+    {
+        ++self::$classifications;
+
+        return $this->executionScoped;
+    }
+
+    public static function resolve(): stdClass
+    {
+        return new stdClass;
+    }
+}
+
+class ContainerExecutionScopedConsumer
+{
+    public function __construct(
+        #[ContainerExecutionScopeAttribute]
+        public readonly object $value,
+    ) {
+    }
+}
+
+class ContainerStaticContextualConsumer
+{
+    public function __construct(
+        #[ContainerExecutionScopeAttribute(false)]
+        public readonly object $value,
+    ) {
+    }
+}
+
+#[Singleton]
+class ContainerSingletonExecutionScopedConsumer extends ContainerExecutionScopedConsumer
+{
+}
+
+#[Scoped]
+class ContainerScopedExecutionScopedConsumer extends ContainerExecutionScopedConsumer
+{
+}
+
+class ContainerTransientExecutionScopedConsumer extends ContainerExecutionScopedConsumer implements Transient
+{
+}
+
+class ContainerSelfBuildingExecutionScopedConsumer extends ContainerExecutionScopedConsumer implements SelfBuilding
+{
+    public static function newInstance(): self
+    {
+        return new self(new stdClass);
+    }
+}
+
+#[Bind(ContainerBoundExecutionScopedConsumer::class)]
+interface ContainerExecutionScopedBinding
+{
+}
+
+interface ContainerImplicitLifetimeContract
+{
+}
+
+class ContainerBoundExecutionScopedConsumer extends ContainerExecutionScopedConsumer implements ContainerExecutionScopedBinding, ContainerImplicitLifetimeContract
+{
+}
+
+class ContainerOrdinaryImplicitLifetimeConsumer implements ContainerImplicitLifetimeContract
 {
 }
 
@@ -1882,6 +2754,36 @@ class AutoSingletonWithParamStub
     }
 }
 
+class MakeTransientStub
+{
+    public array $marks = [];
+}
+
+class MakeTransientDependencyStub
+{
+}
+
+class MakeTransientConsumerStub
+{
+    public function __construct(
+        public readonly MakeTransientDependencyStub $dependency,
+    ) {
+    }
+}
+
+class TransientStub implements Transient
+{
+    public array $marks = [];
+}
+
+class TransientChildStub extends TransientStub
+{
+}
+
+interface SelfBuildingContractStub
+{
+}
+
 class SelfBuildingCounterStub implements SelfBuilding
 {
     public function __construct(
@@ -1892,6 +2794,32 @@ class SelfBuildingCounterStub implements SelfBuilding
     public static function newInstance(): self
     {
         return new self($_SERVER['__selfBuilding.counter']);
+    }
+}
+
+class SelfBuildingBuildStub implements SelfBuilding, SelfBuildingContractStub
+{
+    public function __construct(
+        public readonly string $value = 'constructor',
+    ) {
+    }
+
+    public static function newInstance(): self
+    {
+        return new self('factory');
+    }
+}
+
+class SelfBuildingContextualBuildStub implements SelfBuilding
+{
+    public function __construct(
+        public readonly string $value,
+    ) {
+    }
+
+    public static function newInstance(): self
+    {
+        return new self('factory');
     }
 }
 
@@ -1946,6 +2874,11 @@ class ContainerVariadicDependencyConsumer
 
 class ContainerStateInspectionStub extends Container
 {
+    public function hasResolutionState(): bool
+    {
+        return CoroutineContext::has(self::RESOLUTION_STATE_CONTEXT_KEY);
+    }
+
     public function resolutionLimit(): int
     {
         return parent::MAX_RESOLUTION_DEPTH;
@@ -1953,11 +2886,21 @@ class ContainerStateInspectionStub extends Container
 
     public function resolvingStack(): array
     {
-        return $this->getResolvingStack();
+        return $this->getOrCreateResolutionState()->resolvingStack;
     }
 
     public function parameterOverrideStack(): array
     {
-        return $this->getParameterOverrideStack();
+        return $this->getOrCreateResolutionState()->parameterOverrides;
+    }
+
+    public function resolutionDepth(): int
+    {
+        return $this->getOrCreateResolutionState()->depth;
+    }
+
+    public function setResolutionDepth(int $depth): void
+    {
+        $this->getOrCreateResolutionState()->depth = $depth;
     }
 }

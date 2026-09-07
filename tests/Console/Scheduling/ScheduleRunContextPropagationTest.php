@@ -15,9 +15,11 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Concurrent;
 use Hypervel\Engine\Channel;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Stringable;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use ReflectionMethod;
@@ -30,6 +32,8 @@ class ScheduleRunContextPropagationTest extends TestCase
 
     protected ExceptionHandler $handler;
 
+    protected ?string $outputFile = null;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -39,6 +43,20 @@ class ScheduleRunContextPropagationTest extends TestCase
         $this->dispatcher->shouldReceive('dispatch');
 
         $this->handler = m::mock(ExceptionHandler::class);
+    }
+
+    /**
+     * Remove captured process output.
+     */
+    protected function tearDown(): void
+    {
+        try {
+            if ($this->outputFile !== null) {
+                (new Filesystem)->delete($this->outputFile);
+            }
+        } finally {
+            parent::tearDown();
+        }
     }
 
     public function testBackgroundTaskReceivesParentContext()
@@ -139,6 +157,28 @@ class ScheduleRunContextPropagationTest extends TestCase
         $this->assertSame('child', $childValues['child_only']);
         $this->assertSame('original', ContextRepository::getInstance()->get('parent_key'));
         $this->assertNull(ContextRepository::getInstance()->get('child_only'));
+    }
+
+    public function testSystemTaskReceivesContextThroughItsEnvironment(): void
+    {
+        ContextRepository::getInstance()
+            ->add('trace_id', 'parent-trace-123')
+            ->addHidden('token', 'secret');
+
+        $context = null;
+        $event = new Event(m::mock(EventMutex::class), 'printf %s "$__HYPERVEL_CONTEXT"', isSystem: true);
+        $event->thenWithOutput(static function (Stringable $output) use (&$context): void {
+            $context = (string) $output;
+        });
+        $this->outputFile = $event->output;
+
+        $event->run($this->app);
+
+        $this->assertSame(0, $event->exitCode());
+        $this->assertSame([
+            'data' => ['trace_id' => serialize('parent-trace-123')],
+            'hidden' => ['token' => serialize('secret')],
+        ], unserialize(base64_decode($context, true), ['allowed_classes' => false]));
     }
 
     /**

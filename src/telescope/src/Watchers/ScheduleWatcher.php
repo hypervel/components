@@ -15,7 +15,7 @@ use Hypervel\Telescope\Telescope;
 
 class ScheduleWatcher extends Watcher
 {
-    protected const LAST_RECORDED_TASK_CONTEXT_KEY = '__telescope.schedule_watcher.last_recorded_task';
+    protected const string LAST_RECORDED_TASK_CONTEXT_KEY = '__telescope.schedule_watcher.last_recorded_task';
 
     /**
      * The application instance.
@@ -120,7 +120,10 @@ class ScheduleWatcher extends Watcher
     protected function makeEntry(Event $task, array $outcome): IncomingEntry
     {
         return IncomingEntry::make(array_merge([
-            'command' => $task instanceof CallbackEvent ? 'Closure' : $task->command,
+            // Event::$command is an opaque shell string whose arguments cannot be classified safely.
+            'command' => $task instanceof CallbackEvent
+                ? 'Closure'
+                : 'Scheduled command',
             'description' => $task->description,
             'expression' => $task->expression,
             'timezone' => $task->timezone,

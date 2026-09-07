@@ -137,7 +137,6 @@ class MailChannel
     {
         $this->addressMessage($mailMessage, $notifiable, $notification, $message);
 
-        /* @phpstan-ignore-next-line */
         $mailMessage->subject($message->subject ?: Str::title(
             Str::snake(class_basename($notification), ' ')
         ));
@@ -156,7 +155,7 @@ class MailChannel
 
         if ($message->metadata) {
             foreach ($message->metadata as $key => $value) {
-                $mailMessage->getHeaders()->add(new MetadataHeader($key, $value));
+                $mailMessage->getHeaders()->add(new MetadataHeader($key, (string) $value));
             }
         }
 

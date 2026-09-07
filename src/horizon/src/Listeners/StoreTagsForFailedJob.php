@@ -6,6 +6,7 @@ namespace Hypervel\Horizon\Listeners;
 
 use Hypervel\Horizon\Contracts\TagRepository;
 use Hypervel\Horizon\Events\JobFailed;
+use Hypervel\Horizon\Repositories\RedisJobRepository;
 
 class StoreTagsForFailedJob
 {
@@ -29,7 +30,7 @@ class StoreTagsForFailedJob
         })->all();
 
         $this->tags->addTemporary(
-            config('horizon.trim.failed', 10080),
+            config()->integer('horizon.trim.failed', RedisJobRepository::DEFAULT_FAILED_JOB_RETENTION),
             $event->payload->id(),
             $tags
         );

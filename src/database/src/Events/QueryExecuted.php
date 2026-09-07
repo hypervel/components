@@ -31,10 +31,10 @@ class QueryExecuted
     /**
      * The database connection name.
      */
-    public string $connectionName;
+    public ?string $connectionName;
 
     /**
-     * The PDO read / write type for the executed query.
+     * The connection role used for the executed query.
      *
      * @var null|'read'|'write'
      */

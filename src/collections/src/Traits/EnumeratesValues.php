@@ -20,6 +20,7 @@ use Stringable;
 use UnexpectedValueException;
 use UnitEnum;
 
+use function Hypervel\Support\enum_from;
 use function Hypervel\Support\enum_value;
 
 /**
@@ -72,7 +73,7 @@ trait EnumeratesValues
     /**
      * The default methods that can be proxied.
      */
-    protected const DEFAULT_PROXIES = [
+    protected const array DEFAULT_PROXIES = [
         'average',
         'avg',
         'contains',
@@ -189,8 +190,9 @@ trait EnumeratesValues
      *
      * @return static<TKey, TValue>
      */
-    public static function fromJson(string $json, int $depth = 512, int $flags = 0, mixed ...$args): static
+    public static function fromJson(string $json, int $depth = 513, int $flags = 0, mixed ...$args): static
     {
+        // Support depends on Collections, so this native depth cannot reference Support\Json; 513 reads 512 containers.
         return new static(json_decode($json, true, $depth, $flags), ...$args);
     }
 
@@ -327,7 +329,7 @@ trait EnumeratesValues
             : $key;
 
         return $this
-            ->unless($filter == null)
+            ->unless($filter === null)
             ->filter($filter)
             ->take(2)
             ->count() === 2;
@@ -432,16 +434,13 @@ trait EnumeratesValues
     /**
      * Map a collection and flatten the result by a single level.
      *
-     * No return type: Eloquent\Collection::collapse() returns base collection,
-     * which would violate `: static` when called on Eloquent\Collection.
-     *
      * @template TFlatMapKey of array-key
      * @template TFlatMapValue
      *
      * @param callable(TValue, TKey): (array<TFlatMapKey, TFlatMapValue>|Collection<TFlatMapKey, TFlatMapValue>) $callback
-     * @return static<TFlatMapKey, TFlatMapValue>
+     * @return Collection<TFlatMapKey, TFlatMapValue>|static<TFlatMapKey, TFlatMapValue>
      */
-    public function flatMap(callable $callback)
+    public function flatMap(callable $callback): Collection|static
     {
         return $this->map($callback)->collapse();
     }
@@ -452,12 +451,12 @@ trait EnumeratesValues
      * @template TMapIntoValue
      *
      * @param class-string<TMapIntoValue> $class
-     * @return static<TKey, TMapIntoValue>
+     * @return Collection<TKey, TMapIntoValue>|static<TKey, TMapIntoValue>
      */
-    public function mapInto(string $class)
+    public function mapInto(string $class): Collection|static
     {
         if (is_subclass_of($class, BackedEnum::class)) {
-            return $this->map(fn ($value, $key) => $class::from($value));
+            return $this->map(fn ($value, $key) => enum_from($class, $value));
         }
 
         return $this->map(fn ($value, $key) => new $class($value, $key));
@@ -515,7 +514,7 @@ trait EnumeratesValues
      * @param (callable(TValue, TKey): bool)|string|TValue $key
      * @return static<int<0, 1>, static<TKey, TValue>>
      */
-    public function partition(mixed $key, mixed $operator = null, mixed $value = null)
+    public function partition(mixed $key, mixed $operator = null, mixed $value = null): Collection|static
     {
         $callback = func_num_args() === 1
             ? $this->valueRetriever($key)
@@ -934,7 +933,8 @@ trait EnumeratesValues
         return array_map(function ($value) {
             return match (true) {
                 $value instanceof JsonSerializable => $value->jsonSerialize(),
-                $value instanceof Jsonable => json_decode($value->toJson(), true),
+                // Support depends on Collections, so this native depth cannot reference Support\Json; 513 reads 512 containers.
+                $value instanceof Jsonable => json_decode($value->toJson(), true, 513),
                 $value instanceof Arrayable => $value->toArray(),
                 default => $value,
             };

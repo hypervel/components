@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Horizon;
 
 use Exception;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Horizon\Contracts\HorizonCommandQueue;
 use Hypervel\Horizon\Events\MasterSupervisorDeployed;
 use Hypervel\Horizon\MasterSupervisorCommands\AddSupervisor;
@@ -42,7 +43,11 @@ class ProvisioningPlan
      */
     public static function get(string $master): static
     {
-        return new static($master, config('horizon.environments'), config('horizon.defaults', []));
+        return new static(
+            $master,
+            config()->array('horizon.environments'),
+            config()->array('horizon.defaults', []),
+        );
     }
 
     /**
@@ -90,7 +95,12 @@ class ProvisioningPlan
             }
         }
 
-        event(new MasterSupervisorDeployed($this->master));
+        /** @var Dispatcher $events */
+        $events = app('events');
+
+        if ($events->hasListeners(MasterSupervisorDeployed::class)) {
+            $events->dispatch(new MasterSupervisorDeployed($this->master));
+        }
     }
 
     /**

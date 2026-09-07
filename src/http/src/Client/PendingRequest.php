@@ -18,6 +18,7 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\TransferStats;
 use GuzzleHttp\UriTemplate\UriTemplate;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Http\Client\Events\ConnectionFailed;
 use Hypervel\Http\Client\Events\RequestSending;
@@ -35,14 +36,21 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 use SensitiveParameter;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\VarDumper\VarDumper;
 use Throwable;
 use UnitEnum;
 
-class PendingRequest
+class PendingRequest implements Transient
 {
     use Conditionable;
     use Macroable;
+
+    public const string DATA_OPTION = 'hypervel_data';
+
+    public const string PRIOR_SENDS_OPTION = 'hypervel_prior_sends';
+
+    protected const string PREPARED_BODY_OPTION = 'hypervel_prepared_body';
 
     /**
      * The Guzzle client instance.
@@ -92,6 +100,11 @@ class PendingRequest
      * The transfer stats for the request.
      */
     protected ?TransferStats $transferStats = null;
+
+    /**
+     * The number of physical requests started during the current logical send.
+     */
+    protected int $sendCount = 0;
 
     /**
      * The request options.
@@ -178,12 +191,12 @@ class PendingRequest
     /**
      * The pending request promise.
      */
-    protected ?PromiseInterface $promise;
+    protected ?PromiseInterface $promise = null;
 
     /**
      * The sent request object, if a request has been made.
      */
-    protected ?Request $request;
+    protected ?Request $request = null;
 
     /**
      * The current connection name for the pending request.
@@ -232,8 +245,9 @@ class PendingRequest
             'timeout' => 30,
         ], $options);
 
+        // A bound callback would keep the request alive until cyclic garbage collection runs.
         $this->beforeSendingCallbacks = new Collection([
-            function (Request $request, array $options, PendingRequest $pendingRequest) {
+            static function (Request $request, array $options, PendingRequest $pendingRequest): void {
                 $pendingRequest->request = $request;
                 $pendingRequest->cookies = $options['cookies'];
 
@@ -261,7 +275,7 @@ class PendingRequest
      *
      * @throws InvalidArgumentException
      */
-    public function withBody(mixed $content, string $contentType = 'application/json'): static
+    public function withBody(mixed $content, ?string $contentType = 'application/json'): static
     {
         $this->bodyFormat('body');
 
@@ -271,7 +285,9 @@ class PendingRequest
 
         $this->pendingBody = $content;
 
-        $this->contentType($contentType);
+        if ($contentType !== null) {
+            $this->contentType($contentType);
+        }
 
         return $this;
     }
@@ -492,6 +508,12 @@ class PendingRequest
     public function maxRedirects(int $max): static
     {
         return tap($this, function () use ($max) {
+            // withoutRedirecting() and withOptions() may leave a boolean here,
+            // which cannot be indexed to apply the per-request limit.
+            if (! is_array($this->options['allow_redirects'] ?? null)) {
+                $this->options['allow_redirects'] = [];
+            }
+
             $this->options['allow_redirects']['max'] = $max;
         });
     }
@@ -587,6 +609,16 @@ class PendingRequest
     }
 
     /**
+     * Prepend new middleware to the client handler stack.
+     */
+    public function prependMiddleware(callable $middleware): static
+    {
+        $this->middleware->prepend($middleware);
+
+        return $this;
+    }
+
+    /**
      * Add new request middleware the client handler stack.
      */
     public function withRequestMiddleware(callable $middleware): static
@@ -614,6 +646,14 @@ class PendingRequest
         $this->attributes = array_merge_recursive($this->attributes, $attributes);
 
         return $this;
+    }
+
+    /**
+     * Get the attributes stored with the request.
+     */
+    public function attributes(): array
+    {
+        return $this->attributes;
     }
 
     /**
@@ -661,7 +701,7 @@ class PendingRequest
      */
     public function throw(?callable $callback = null): static
     {
-        $this->throwCallback = $callback === null ? fn () => null : $callback(...);
+        $this->throwCallback = $callback === null ? static fn (): null => null : $callback(...);
 
         return $this;
     }
@@ -688,7 +728,7 @@ class PendingRequest
     public function throwUnless(bool|callable $condition, ?callable $callback = null): static
     {
         if (is_callable($condition)) {
-            return $this->throwIf(fn (Response $response) => ! $condition($response), $callback);
+            return $this->throwIf(static fn (Response $response): bool => ! $condition($response), $callback);
         }
 
         return $this->throwIf(! $condition, $callback);
@@ -701,7 +741,7 @@ class PendingRequest
     {
         $values = func_get_args();
 
-        return $this->beforeSending(function (Request $request, array $options) use ($values) {
+        return $this->beforeSending(static function (Request $request, array $options) use ($values): void {
             foreach (array_merge($values, [$request, $options]) as $value) {
                 VarDumper::dump($value);
             }
@@ -715,7 +755,7 @@ class PendingRequest
     {
         $values = func_get_args();
 
-        return $this->beforeSending(function (Request $request, array $options) use ($values) {
+        return $this->beforeSending(static function (Request $request, array $options) use ($values): never {
             foreach (array_merge($values, [$request, $options]) as $value) {
                 VarDumper::dump($value);
             }
@@ -728,6 +768,7 @@ class PendingRequest
      * Issue a GET request to the given URL.
      *
      * @throws ConnectionException
+     * @throws InvalidArgumentException
      */
     public function get(string $url, Arrayable|array|JsonSerializable|string|null $query = null): PromiseInterface|Response
     {
@@ -744,8 +785,9 @@ class PendingRequest
      * Issue a HEAD request to the given URL.
      *
      * @throws ConnectionException
+     * @throws InvalidArgumentException
      */
-    public function head(string $url, array|string|null $query = null): PromiseInterface|Response
+    public function head(string $url, Arrayable|array|JsonSerializable|string|null $query = null): PromiseInterface|Response
     {
         return $this->send(
             'HEAD',
@@ -760,6 +802,7 @@ class PendingRequest
      * Issue a QUERY request to the given URL.
      *
      * @throws ConnectionException
+     * @throws InvalidArgumentException
      */
     public function query(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
     {
@@ -772,6 +815,7 @@ class PendingRequest
      * Issue a POST request to the given URL.
      *
      * @throws ConnectionException
+     * @throws InvalidArgumentException
      */
     public function post(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
     {
@@ -784,6 +828,7 @@ class PendingRequest
      * Issue a PATCH request to the given URL.
      *
      * @throws ConnectionException
+     * @throws InvalidArgumentException
      */
     public function patch(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
     {
@@ -796,6 +841,7 @@ class PendingRequest
      * Issue a PUT request to the given URL.
      *
      * @throws ConnectionException
+     * @throws InvalidArgumentException
      */
     public function put(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
     {
@@ -808,6 +854,7 @@ class PendingRequest
      * Issue a DELETE request to the given URL.
      *
      * @throws ConnectionException
+     * @throws InvalidArgumentException
      */
     public function delete(string $url, Arrayable|array|JsonSerializable $data = []): PromiseInterface|Response
     {
@@ -830,6 +877,7 @@ class PendingRequest
      *
      * @throws Exception
      * @throws ConnectionException|Throwable
+     * @throws InvalidArgumentException
      */
     public function send(string $method, string $url, array $options = []): PromiseInterface|Response
     {
@@ -840,6 +888,8 @@ class PendingRequest
         $url = $this->expandUrlParameters($url);
 
         $options = $this->parseHttpOptions($options);
+
+        $this->sendCount = 0;
 
         [$this->pendingBody, $this->pendingFiles] = [null, []];
 
@@ -926,17 +976,35 @@ class PendingRequest
      */
     protected function expandUrlParameters(string $url): string
     {
+        if ($this->urlParameters === []) {
+            return $url;
+        }
+
         return UriTemplate::expand($url, $this->urlParameters);
     }
 
     /**
      * Parse the given HTTP options and set the appropriate additional options.
+     *
+     * @throws InvalidArgumentException
      */
     protected function parseHttpOptions(array $options): array
     {
         if (isset($options[$this->bodyFormat])) {
             if ($this->bodyFormat === 'multipart') {
-                $options[$this->bodyFormat] = $this->parseMultipartBodyFormat($options[$this->bodyFormat]);
+                $data = $options[$this->bodyFormat];
+
+                if ($data instanceof JsonSerializable) {
+                    $data = $data->jsonSerialize();
+                } elseif ($data instanceof Arrayable) {
+                    $data = $data->toArray();
+                }
+
+                if (! is_array($data)) {
+                    throw new InvalidArgumentException('HTTP multipart data must resolve to an array.');
+                }
+
+                $options[$this->bodyFormat] = $this->parseMultipartBodyFormat($data);
             } elseif ($this->bodyFormat === 'body') {
                 $options[$this->bodyFormat] = $this->pendingBody;
             }
@@ -997,6 +1065,10 @@ class PendingRequest
                 return $this->runAfterResponseCallbacks($response);
             })
             ->otherwise(function (Throwable $e) {
+                if ($e instanceof CanceledException) {
+                    throw $e;
+                }
+
                 if ($e instanceof StrayRequestException) {
                     throw $e;
                 }
@@ -1054,6 +1126,8 @@ class PendingRequest
                 $response instanceof Response ? $response->toException() : $response,
                 $this
             ) : true;
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Exception $exception) {
             return $exception;
         }
@@ -1071,6 +1145,8 @@ class PendingRequest
             && ($this->throwIfCallback === null || call_user_func($this->throwIfCallback, $response))) {
             try {
                 $response->throw($this->throwCallback);
+            } catch (CanceledException $exception) {
+                throw $exception;
             } catch (Exception $exception) {
                 return $exception;
             }
@@ -1112,7 +1188,6 @@ class PendingRequest
     {
         $clientMethod = $this->async ? 'requestAsync' : 'request';
 
-        $data = $this->parseRequestData($method, $url, $options);
         $onStats = function (TransferStats $transferStats) {
             if (($callback = ($this->getOptions()['on_stats'] ?? false)) instanceof Closure) {
                 $transferStats = $callback($transferStats) ?: $transferStats;
@@ -1121,10 +1196,16 @@ class PendingRequest
             $this->transferStats = $transferStats;
         };
 
-        $mergedOptions = $this->normalizeRequestOptions($this->mergeOptions([
-            'hypervel_data' => $data,
+        $requestOptions = [
             'on_stats' => $onStats,
-        ], $options));
+            self::PRIOR_SENDS_OPTION => $this->sendCount,
+        ];
+
+        if ($this->bodyFormat !== 'body' && ! array_key_exists('body', $options)) {
+            $requestOptions[self::DATA_OPTION] = $this->parseRequestData($method, $url, $options);
+        }
+
+        $mergedOptions = $this->normalizeRequestOptions($this->mergeOptions($requestOptions, $options));
 
         return $this->buildClient()->{$clientMethod}($method, $url, $mergedOptions);
     }
@@ -1140,9 +1221,15 @@ class PendingRequest
 
         $data = $options[$this->bodyFormat] ?? $options['query'] ?? [];
 
+        if ($this->bodyFormat === 'multipart' && isset($options['multipart'])) {
+            return is_array($data) ? $this->normalizeMultipartOption($data) : [];
+        }
+
+        $data = $this->normalizeStructuredDataValue($data);
+
         $urlString = (new Stringable($url));
 
-        if (empty($data) && $method === 'GET' && $urlString->contains('?')) {
+        if (empty($data) && in_array($method, ['GET', 'HEAD'], true) && $urlString->contains('?')) {
             $data = (string) $urlString->after('?');
         }
 
@@ -1150,19 +1237,13 @@ class PendingRequest
             parse_str($data, $data);
         }
 
-        if ($data instanceof JsonSerializable) {
-            $data = $data->jsonSerialize();
-        }
-
-        if (is_array($data) && $this->bodyFormat === 'multipart') {
-            return $this->normalizeMultipartOption($data);
-        }
-
         return is_array($data) ? $data : [];
     }
 
     /**
      * Normalize the given request options.
+     *
+     * @throws InvalidArgumentException
      */
     protected function normalizeRequestOptions(array $options): array
     {
@@ -1173,10 +1254,30 @@ class PendingRequest
                 continue;
             }
 
-            if (($key === 'query' || $key === 'form_params') && is_array($value)) {
-                $options[$key] = $this->normalizeNonFiniteFloatValues(
-                    $this->normalizeRequestOptionValue($value)
-                );
+            if ($key === 'query') {
+                $options[$key] = $this->normalizeQuery($value);
+
+                if (is_array($options[$key])) {
+                    $options[$key] = $this->normalizeNonFiniteFloatValues($options[$key]);
+                }
+
+                continue;
+            }
+
+            if ($key === 'form_params') {
+                // parseHttpOptions() plants null for a configured body format with no payload;
+                // a value that becomes null during normalization is caller-supplied and invalid.
+                if ($value === null) {
+                    continue;
+                }
+
+                $options[$key] = $this->normalizeStructuredDataValue($value);
+
+                if (! is_array($options[$key])) {
+                    throw new InvalidArgumentException('HTTP form data must resolve to an array.');
+                }
+
+                $options[$key] = $this->normalizeNonFiniteFloatValues($options[$key]);
 
                 continue;
             }
@@ -1207,6 +1308,10 @@ class PendingRequest
     protected function normalizeHeaderValues(array $headers): array
     {
         foreach ($headers as $name => $value) {
+            if (! is_string($name)) {
+                throw new InvalidArgumentException('HTTP header names must be strings.');
+            }
+
             $headers[$name] = $this->normalizeHeaderValue($value);
         }
 
@@ -1278,7 +1383,7 @@ class PendingRequest
                     continue;
                 }
 
-                $part[$key] = $this->normalizeRequestOptionValue($value);
+                $part[$key] = $this->normalizeStructuredDataValue($value);
 
                 if ($key === 'contents') {
                     if (is_array($part[$key])) {
@@ -1329,6 +1434,36 @@ class PendingRequest
             $value instanceof Stringable => $value->toString(),
             $value instanceof JsonSerializable => $value,
             $value instanceof Arrayable => $this->normalizeRequestOptionValue($value->toArray()),
+            default => $value,
+        };
+    }
+
+    /**
+     * Normalize a query supplied to a GET request.
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function normalizeQuery(mixed $query): array|string|null
+    {
+        $query = $this->normalizeStructuredDataValue($query);
+
+        if (! is_array($query) && ! is_string($query) && $query !== null) {
+            throw new InvalidArgumentException('HTTP query data must resolve to an array, string, or null.');
+        }
+
+        return $query;
+    }
+
+    /**
+     * Normalize nested structured data values.
+     */
+    protected function normalizeStructuredDataValue(mixed $value): mixed
+    {
+        return match (true) {
+            is_array($value) => array_map(fn ($item) => $this->normalizeStructuredDataValue($item), $value),
+            $value instanceof Stringable => $value->toString(),
+            $value instanceof JsonSerializable => $this->normalizeStructuredDataValue($value->jsonSerialize()),
+            $value instanceof Arrayable => $this->normalizeStructuredDataValue($value->toArray()),
             default => $value,
         };
     }
@@ -1415,7 +1550,7 @@ class PendingRequest
     {
         $handler = $this->handler;
 
-        if ($handler === null && $this->connection !== null && $this->factory !== null) {
+        if ($handler === null && ! $this->async && $this->connection !== null && $this->factory !== null) {
             $handler = $this->factory->getConnectionHandler($this->connection);
         }
 
@@ -1428,14 +1563,36 @@ class PendingRequest
     public function pushHandlers(HandlerStack $handlerStack): HandlerStack
     {
         return tap($handlerStack, function ($stack) {
+            $stack->remove('prepare_body');
+
+            if ($this->middleware->isNotEmpty()) {
+                // Only middleware can replace the prepared body before callbacks run.
+                $stack->push($this->buildPreparedBodyHandler());
+            }
+
             $this->middleware->each(function ($middleware) use ($stack) {
                 $stack->push($middleware);
             });
 
             $stack->push($this->buildBeforeSendingHandler());
+            $stack->push(Middleware::prepareBody(), 'prepare_body');
             $stack->push($this->buildRecorderHandler());
             $stack->push($this->buildStubHandler());
         });
+    }
+
+    /**
+     * Build the prepared body tracking handler.
+     */
+    protected function buildPreparedBodyHandler(): Closure
+    {
+        return function ($handler) {
+            return function ($request, $options) use ($handler) {
+                $options[self::PREPARED_BODY_OPTION] = $request->getBody();
+
+                return $handler($request, $options);
+            };
+        };
     }
 
     /**
@@ -1445,7 +1602,20 @@ class PendingRequest
     {
         return function ($handler) {
             return function ($request, $options) use ($handler) {
-                return $handler($this->runBeforeSendingCallbacks($request, $options), $options);
+                ++$this->sendCount;
+
+                $preparedBody = $options[self::PREPARED_BODY_OPTION] ?? $request->getBody();
+                $request = $this->runBeforeSendingCallbacks($request, $options);
+
+                // Direct stream mutation is a low-level escape hatch; only replacement
+                // streams invalidate structured data.
+                if ($request->getBody() !== $preparedBody) {
+                    unset($options[self::DATA_OPTION]);
+                }
+
+                unset($options[self::PREPARED_BODY_OPTION]);
+
+                return $handler($request, $options);
             };
         };
     }
@@ -1463,7 +1633,7 @@ class PendingRequest
                     function ($response) use ($request, $options) {
                         $this->factory?->recordRequestResponsePair(
                             (new Request($request))
-                                ->withData($options['hypervel_data'] ?? [])
+                                ->withData($options[self::DATA_OPTION] ?? [])
                                 ->setRequestAttributes($this->attributes),
                             $this->newResponse($response)
                         );
@@ -1473,7 +1643,7 @@ class PendingRequest
                     function ($reason) use ($request, $options) {
                         $this->factory?->recordRequestResponsePair(
                             (new Request($request))
-                                ->withData($options['hypervel_data'] ?? [])
+                                ->withData($options[self::DATA_OPTION] ?? [])
                                 ->setRequestAttributes($this->attributes),
                             $reason instanceof RequestException && $reason->hasResponse()
                                 ? $this->newResponse($reason->getResponse())
@@ -1496,7 +1666,7 @@ class PendingRequest
             return function ($request, $options) use ($handler) {
                 $response = ($this->stubCallbacks ?? new Collection)
                     ->map
-                    ->__invoke((new Request($request))->withData($options['hypervel_data'] ?? [])->setRequestAttributes($this->attributes), $options)
+                    ->__invoke((new Request($request))->withData($options[self::DATA_OPTION] ?? [])->setRequestAttributes($this->attributes), $options)
                     ->filter()
                     ->first();
 
@@ -1526,13 +1696,14 @@ class PendingRequest
      *
      * @param resource|StreamInterface|string $sink
      */
-    protected function sinkStubHandler($sink): Closure
+    protected function sinkStubHandler(mixed $sink): Closure
     {
-        return function ($psrResponse) use ($sink) {
+        return function (ResponseInterface $psrResponse) use ($sink): ResponseInterface {
             $body = $psrResponse->getBody()->getContents();
+            $length = strlen($body);
 
             if (is_string($sink)) {
-                if (@file_put_contents($sink, $body) !== strlen($body)) {
+                if (@file_put_contents($sink, $body) !== $length) {
                     throw new RuntimeException("Unable to write response body to sink [{$sink}].");
                 }
 
@@ -1540,17 +1711,40 @@ class PendingRequest
             }
 
             if (is_resource($sink)) {
-                if (@fwrite($sink, $body) === false) {
-                    throw new RuntimeException('Unable to write to stream');
+                $offset = 0;
+
+                while ($offset < $length) {
+                    $written = @fwrite($sink, $offset === 0 ? $body : substr($body, $offset));
+
+                    if ($written === false || $written === 0) {
+                        throw new RuntimeException('Unable to write to stream');
+                    }
+
+                    $offset += $written;
                 }
 
-                rewind($sink);
+                if (stream_get_meta_data($sink)['seekable'] && ! @rewind($sink)) {
+                    throw new RuntimeException('Unable to rewind stream');
+                }
 
                 return $psrResponse;
             }
 
-            $sink->write($body);
-            $sink->rewind();
+            $offset = 0;
+
+            while ($offset < $length) {
+                $written = $sink->write($offset === 0 ? $body : substr($body, $offset));
+
+                if ($written === 0) {
+                    throw new RuntimeException('Unable to write to stream');
+                }
+
+                $offset += $written;
+            }
+
+            if ($sink->isSeekable()) {
+                $sink->rewind();
+            }
 
             return $psrResponse;
         };
@@ -1562,11 +1756,23 @@ class PendingRequest
     public function runBeforeSendingCallbacks(RequestInterface $request, array $options): RequestInterface
     {
         return tap($request, function (&$request) use ($options) {
-            $this->beforeSendingCallbacks->each(function ($callback) use (&$request, $options) {
+            $preparedBody = $options[self::PREPARED_BODY_OPTION] ?? $request->getBody();
+            unset($options[self::PREPARED_BODY_OPTION]);
+
+            $originalData = $options[self::DATA_OPTION] ?? [];
+            $data = $request->getBody() === $preparedBody ? $originalData : [];
+
+            $this->beforeSendingCallbacks->each(function ($callback) use (
+                &$data,
+                &$request,
+                $options,
+                $originalData,
+                $preparedBody
+            ) {
                 $callbackResult = call_user_func(
                     $callback,
                     (new Request($request))
-                        ->withData($options['hypervel_data'] ?? [])
+                        ->withData($data)
                         ->setRequestAttributes($this->attributes),
                     $options,
                     $this
@@ -1577,6 +1783,8 @@ class PendingRequest
                 } elseif ($callbackResult instanceof Request) {
                     $request = $callbackResult->toPsrRequest();
                 }
+
+                $data = $request->getBody() === $preparedBody ? $originalData : [];
             });
         });
     }

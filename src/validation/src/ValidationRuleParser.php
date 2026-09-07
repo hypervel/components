@@ -89,7 +89,8 @@ class ValidationRuleParser
 
         if (is_object($rule)) {
             if ($rule instanceof Date || $rule instanceof Numeric || $rule instanceof StringRule) {
-                return explode('|', (string) $rule);
+                // Composite rules already separate constraints; literal parameters may contain pipes.
+                return $rule->toArray();
             }
 
             return Arr::wrap($this->prepareRule($rule, $attribute));
@@ -99,7 +100,7 @@ class ValidationRuleParser
 
         foreach ($rule as $value) {
             if ($value instanceof Date || $value instanceof Numeric || $value instanceof StringRule) {
-                $rules = array_merge($rules, explode('|', (string) $value));
+                $rules = array_merge($rules, $value->toArray());
             } else {
                 $rules[] = $this->prepareRule($value, $attribute);
             }
@@ -121,15 +122,11 @@ class ValidationRuleParser
             $rule = InvokableValidationRule::make($rule);
         }
 
-        if (! is_object($rule)
-            || $rule instanceof RuleContract
-            || ($rule instanceof Exists && $rule->queryCallbacks())
-            || ($rule instanceof Unique && $rule->queryCallbacks())
-        ) {
-            return $rule;
+        if (static::ruleReducesToString($rule)) {
+            return (string) $rule;
         }
 
-        if ($rule instanceof CompilableRules) {
+        if ($rule instanceof CompilableRules && ! $rule instanceof RuleContract) {
             return $rule->compile(
                 $attribute,
                 $this->data[$attribute] ?? null,
@@ -139,6 +136,21 @@ class ValidationRuleParser
         }
 
         return $rule;
+    }
+
+    /**
+     * Determine if the parser reduces a rule object to its string form.
+     */
+    public static function ruleReducesToString(mixed $rule): bool
+    {
+        return is_object($rule)
+            && ! $rule instanceof Closure
+            && ! $rule instanceof InvokableRule
+            && ! $rule instanceof ValidationRule
+            && ! $rule instanceof RuleContract
+            && ! $rule instanceof CompilableRules
+            && ! (($rule instanceof Exists || $rule instanceof Unique)
+                && $rule->queryCallbacks() !== []);
     }
 
     /**
@@ -157,7 +169,7 @@ class ValidationRuleParser
             return $this->explodeWildcardRulesCompilable($results, $attribute, $rules);
         }
 
-        $keys = $this->expandWildcardKeys($attribute, $this->data);
+        $keys = ValidationData::expandWildcardKeys($attribute, $this->data);
 
         if ($keys === []) {
             return $results;
@@ -176,7 +188,10 @@ class ValidationRuleParser
         foreach ($keys as $key) {
             $this->implicitAttributes[$attribute][] = $key;
 
-            $results[$key] = array_merge($results[$key] ?? [], $explodedRules);
+            $results[$key] = array_merge(
+                isset($results[$key]) ? $this->explodeExplicitRule($results[$key], $key) : [],
+                $explodedRules,
+            );
         }
 
         return $results;
@@ -190,7 +205,7 @@ class ValidationRuleParser
      */
     protected function explodeWildcardRulesCompilable(array $results, string $attribute, array|object|string $rules): array
     {
-        $keys = $this->expandWildcardKeys($attribute, $this->data);
+        $keys = ValidationData::expandWildcardKeys($attribute, $this->data);
 
         if ($keys === []) {
             return $results;
@@ -281,55 +296,6 @@ class ValidationRuleParser
         }
 
         return $results;
-    }
-
-    /**
-     * Expand a wildcard attribute into all matching concrete keys by
-     * traversing the data structure directly.
-     *
-     * @param array<string, mixed> $data
-     * @return list<string>
-     */
-    protected function expandWildcardKeys(string $attribute, array $data): array
-    {
-        $segments = explode('.', $attribute);
-        $results = [];
-
-        $this->traverseWildcardSegments($segments, 0, $data, '', $results);
-
-        return $results;
-    }
-
-    /**
-     * Recursively traverse data segments to expand wildcard keys.
-     *
-     * @param list<string> $segments
-     * @param list<string> $results
-     */
-    protected function traverseWildcardSegments(array $segments, int $index, mixed $data, string $prefix, array &$results): void
-    {
-        if ($index >= count($segments)) {
-            $results[] = rtrim($prefix, '.');
-            return;
-        }
-
-        $segment = $segments[$index];
-
-        if ($segment === '*') {
-            if (! is_array($data)) {
-                return;
-            }
-
-            foreach ($data as $key => $value) {
-                $this->traverseWildcardSegments($segments, $index + 1, $value, $prefix . $key . '.', $results);
-            }
-
-            return;
-        }
-
-        $nextData = is_array($data) && array_key_exists($segment, $data) ? $data[$segment] : null;
-
-        $this->traverseWildcardSegments($segments, $index + 1, $nextData, $prefix . $segment . '.', $results);
     }
 
     /**
@@ -456,7 +422,8 @@ class ValidationRuleParser
      */
     protected static function parseParameters(string $rule, string $parameter): array
     {
-        return static::ruleIsRegex($rule) ? [$parameter] : str_getcsv($parameter, escape: '\\');
+        // Builders use doubled quotes; a backslash escape corrupts trailing backslashes.
+        return static::ruleIsRegex($rule) ? [$parameter] : str_getcsv($parameter, escape: '');
     }
 
     /**

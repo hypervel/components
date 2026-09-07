@@ -26,6 +26,10 @@ class DeferredWebhookManagerTest extends ReverbTestCase
         parent::setUp();
 
         $this->manager = new DeferredWebhookManager;
+        $webhooks = array_replace($this->webhookConfig(), [
+            'url' => 'https://example.com/webhook',
+            'events' => ['channel_vacated', 'member_removed'],
+        ]);
         $this->testApp = new Application(
             'test-app',
             'test-key',
@@ -34,10 +38,7 @@ class DeferredWebhookManagerTest extends ReverbTestCase
             30,
             ['*'],
             10_000,
-            webhooks: [
-                'url' => 'https://example.com/webhook',
-                'events' => ['channel_vacated', 'member_removed'],
-            ],
+            webhooks: $webhooks,
         );
     }
 

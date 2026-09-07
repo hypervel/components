@@ -16,7 +16,7 @@ class SchemaLoaded
     /**
      * The database connection name.
      */
-    public string $connectionName;
+    public ?string $connectionName;
 
     /**
      * The path to the schema dump.

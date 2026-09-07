@@ -7,6 +7,7 @@ namespace Hypervel\Support;
 use ArrayAccess;
 use ArrayIterator;
 use Closure;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\CanBeEscapedWhenCastToString;
 use Hypervel\Support\Traits\EnumeratesValues;
@@ -26,7 +27,7 @@ use UnitEnum;
  * @implements ArrayAccess<TKey, TValue>
  * @implements \Hypervel\Support\Enumerable<TKey, TValue>
  */
-class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerable
+class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerable, Transient
 {
     /**
      * @use \Hypervel\Support\Traits\EnumeratesValues<TKey, TValue>
@@ -157,7 +158,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      *
      * @return static<int, mixed>
      */
-    public function collapse()
+    public function collapse(): Collection
     {
         return $this->newInstance(Arr::collapse($this->items));
     }
@@ -338,7 +339,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
 
         $uniqueItems = $items->unique(null, $strict);
 
-        $compare = $this->duplicateComparator($strict);
+        $compare = $items->duplicateComparator($strict);
 
         $duplicates = $this->newInstance();
 
@@ -432,7 +433,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      *
      * @return static<int, mixed>
      */
-    public function flatten(int|float $depth = INF)
+    public function flatten(int|float $depth = INF): Collection
     {
         return $this->newInstance(Arr::flatten($this->items, $depth));
     }
@@ -443,7 +444,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @return static<TValue, TKey>
      * @phpstan-ignore generics.notSubtype (TValue becomes key - only valid when TValue is array-key, but can't express this constraint)
      */
-    public function flip()
+    public function flip(): Collection
     {
         return $this->newInstance(array_flip($this->items));
     }
@@ -731,7 +732,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      *
      * @return static<int, TKey>
      */
-    public function keys()
+    public function keys(): Collection
     {
         return $this->newInstance(array_keys($this->items));
     }
@@ -757,7 +758,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param null|array<array-key, string>|Closure|int|string $key
      * @return static<array-key, mixed>
      */
-    public function pluck(Closure|string|int|array|null $value, Closure|string|int|array|null $key = null)
+    public function pluck(Closure|string|int|array|null $value, Closure|string|int|array|null $key = null): Collection
     {
         return $this->newInstance(Arr::pluck($this->items, $value, $key));
     }
@@ -770,7 +771,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param callable(TValue, TKey): TMapValue $callback
      * @return static<TKey, TMapValue>
      */
-    public function map(callable $callback)
+    public function map(callable $callback): Collection
     {
         return $this->newInstance(Arr::map($this->items, $callback));
     }
@@ -818,7 +819,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param callable(TValue, TKey): array<TMapWithKeysKey, TMapWithKeysValue> $callback
      * @return static<TMapWithKeysKey, TMapWithKeysValue>
      */
-    public function mapWithKeys(callable $callback)
+    public function mapWithKeys(callable $callback): Collection
     {
         return $this->newInstance(Arr::mapWithKeys($this->items, $callback));
     }
@@ -1195,7 +1196,6 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      */
     public function shift(int $count = 1): mixed
     {
-        // @phpstan-ignore smaller.alwaysFalse (defensive validation - native int type allows negative values)
         if ($count < 0) {
             throw new InvalidArgumentException('Number of shifted items may not be less than zero.');
         }
@@ -1242,11 +1242,10 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      */
     public function sliding(int $size = 2, int $step = 1): static
     {
-        // @phpstan-ignore smaller.alwaysFalse (defensive validation - native int type allows non-positive values)
         if ($size < 1) {
             throw new InvalidArgumentException('Size value must be at least 1.');
         }
-        if ($step < 1) { // @phpstan-ignore smaller.alwaysFalse
+        if ($step < 1) {
             throw new InvalidArgumentException('Step value must be at least 1.');
         }
 
@@ -1364,7 +1363,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
             ? $this->operatorForWhere(...func_get_args())
             : $key;
 
-        $items = $this->unless($filter == null)->filter($filter);
+        $items = $this->unless($filter === null)->filter($filter);
 
         $count = $items->count();
 
@@ -1391,7 +1390,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
             : $key;
 
         return $this
-            ->unless($filter == null)
+            ->unless($filter === null)
             ->filter($filter)
             ->count() === 1;
     }
@@ -1772,7 +1771,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param Arrayable<array-key, TZipValue>|iterable<array-key, TZipValue> ...$items
      * @return static<int, static<int, TValue|TZipValue>>
      */
-    public function zip(Arrayable|iterable ...$items)
+    public function zip(Arrayable|iterable ...$items): Collection
     {
         $arrayableItems = array_map(fn ($items) => $this->getArrayableItems($items), $items);
 
@@ -1789,7 +1788,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param TPadValue $value
      * @return static<int, TPadValue|TValue>
      */
-    public function pad(int $size, mixed $value)
+    public function pad(int $size, mixed $value): Collection
     {
         return $this->newInstance(array_pad($this->items, $size, $value));
     }
@@ -1820,7 +1819,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param null|(callable(TValue, TKey): (array-key|UnitEnum))|string $countBy
      * @return static<array-key, int>
      */
-    public function countBy(callable|string|null $countBy = null)
+    public function countBy(callable|string|null $countBy = null): Collection
     {
         return $this->newInstance($this->lazy()->countBy($countBy)->all());
     }

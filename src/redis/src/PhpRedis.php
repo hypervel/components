@@ -6,7 +6,7 @@ namespace Hypervel\Redis;
 
 final class PhpRedis
 {
-    private const NULL_INITIAL_CURSOR_VERSION = '6.1.0';
+    private const string NULL_INITIAL_CURSOR_VERSION = '6.1.0';
 
     /**
      * Determine if phpredis uses null as the initial SCAN-family cursor.

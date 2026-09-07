@@ -6,6 +6,7 @@ namespace Hypervel\Database;
 
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Support\Collection;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -16,11 +17,11 @@ use Throwable;
  */
 class DatabaseTransactionsManager
 {
-    protected const COMMITTED_CONTEXT_KEY = '__database.transactions.committed';
+    protected const string COMMITTED_CONTEXT_KEY = '__database.transactions.committed';
 
-    protected const PENDING_CONTEXT_KEY = '__database.transactions.pending';
+    protected const string PENDING_CONTEXT_KEY = '__database.transactions.pending';
 
-    protected const CURRENT_CONTEXT_KEY = '__database.transactions.current';
+    protected const string CURRENT_CONTEXT_KEY = '__database.transactions.current';
 
     /**
      * Get all committed transactions for the current coroutine.
@@ -141,7 +142,7 @@ class DatabaseTransactionsManager
 
         $this->setCommittedTransactions($forOtherConnections->values());
 
-        $forThisConnection->map->executeCallbacks();
+        $this->executeCommitCallbacks($forThisConnection);
 
         return $forThisConnection;
     }
@@ -282,20 +283,51 @@ class DatabaseTransactionsManager
     }
 
     /**
+     * Execute commit callbacks for every detached transaction.
+     *
+     * @param Collection<int, DatabaseTransactionRecord> $transactions
+     */
+    protected function executeCommitCallbacks(Collection $transactions): void
+    {
+        $exception = null;
+
+        foreach ($transactions as $transaction) {
+            try {
+                $transaction->executeCallbacks();
+            } catch (CanceledException $exception) {
+                throw $exception;
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
+    }
+
+    /**
      * Execute rollback callbacks for every detached transaction.
      *
      * @param Collection<int, DatabaseTransactionRecord> $transactions
      */
     protected function executeRollbackCallbacks(Collection $transactions): void
     {
+        $cancellation = null;
         $exception = null;
 
         foreach ($transactions as $transaction) {
             try {
                 $transaction->executeCallbacksForRollback();
+            } catch (CanceledException $canceledException) {
+                $cancellation ??= $canceledException;
             } catch (Throwable $throwable) {
                 $exception ??= $throwable;
             }
+        }
+
+        if ($cancellation !== null) {
+            throw $cancellation;
         }
 
         if ($exception !== null) {

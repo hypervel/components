@@ -55,21 +55,44 @@ class Limiter
     }
 
     /**
+     * Atomically extend a cooldown block.
+     */
+    public function block(
+        Cooldown $cooldown,
+        int $seconds,
+        UnitEnum|string|null $limiterName = null,
+    ): CooldownResult {
+        if ($seconds < 1 || $seconds > intdiv(AdmissionPolicy::MAX_INTEGER, 1_000_000)) {
+            throw new InvalidRateLimitException(
+                'The cooldown duration must be a positive representable number of seconds.'
+            );
+        }
+
+        $durationMicroseconds = $seconds * 1_000_000;
+        $this->validateTimeRange($durationMicroseconds);
+
+        return $this->store->block(
+            $this->resolveKey($cooldown, $limiterName),
+            $durationMicroseconds,
+        );
+    }
+
+    /**
      * Inspect a policy without mutating its state.
      *
-     * @return ($policy is Backoff ? BackoffResult : LimitResult)
+     * @return ($policy is Backoff ? BackoffResult : ($policy is Cooldown ? CooldownResult : LimitResult))
      */
     public function inspect(
-        AdmissionPolicy|Backoff $policy,
+        AdmissionPolicy|Backoff|Cooldown $policy,
         UnitEnum|string|null $limiterName = null,
-    ): LimitResult|BackoffResult {
+    ): LimitResult|BackoffResult|CooldownResult {
         if ($policy instanceof Unlimited) {
             return $this->unlimitedResult();
         }
 
         if ($policy instanceof AdmissionPolicy) {
             $this->validateAdmission($policy);
-        } else {
+        } elseif ($policy instanceof Backoff) {
             $this->validateTimeRange($policy->resetAfter * 1_000_000);
         }
 
@@ -118,7 +141,7 @@ class Limiter
      * Clear the state for an identically parameterized policy.
      */
     public function clear(
-        AdmissionPolicy|Backoff $policy,
+        AdmissionPolicy|Backoff|Cooldown $policy,
         UnitEnum|string|null $limiterName = null,
     ): bool {
         if ($policy instanceof Unlimited) {
@@ -212,7 +235,7 @@ class Limiter
      * Resolve the physical state key for a policy.
      */
     protected function resolveKey(
-        AdmissionPolicy|Backoff $policy,
+        AdmissionPolicy|Backoff|Cooldown $policy,
         UnitEnum|string|null $limiterName,
     ): string {
         if ($limiterName instanceof UnitEnum) {

@@ -14,14 +14,9 @@ jobs:
     runs-on: ubuntu-latest
 
     container:
-      image: phpswoole/swoole:6.2.0-php8.4
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.2.2
 
     steps:
-      - name: Install Git
-        run: |
-          apt-get update -qq
-          apt-get install -y -qq git > /dev/null
-
       - name: Checkout default branch
         uses: actions/checkout@v6
         with:

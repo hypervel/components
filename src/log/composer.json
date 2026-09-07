@@ -1,7 +1,7 @@
 {
     "name": "hypervel/log",
     "type": "library",
-    "description": "The log package for Hypervel.",
+    "description": "The Hypervel Log package.",
     "license": "MIT",
     "keywords": [
         "php",

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\Command;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Foundation\Console\Concerns\ReloadsWorkers;
 use Hypervel\Foundation\Events\MaintenanceModeDisabled;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -45,7 +46,12 @@ class UpCommand extends Command
             $exception = null;
 
             try {
-                $this->hypervel->make('events')->dispatch(new MaintenanceModeDisabled);
+                /** @var Dispatcher $events */
+                $events = $this->hypervel->make('events');
+
+                if ($events->hasListeners(MaintenanceModeDisabled::class)) {
+                    $events->dispatch(new MaintenanceModeDisabled);
+                }
             } catch (Throwable $throwable) {
                 $exception = $throwable;
             }

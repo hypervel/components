@@ -1,7 +1,7 @@
 {
     "name": "hypervel/mail",
     "type": "library",
-    "description": "The mail package for Hypervel.",
+    "description": "The Hypervel Mail package.",
     "license": "MIT",
     "keywords": [
         "php",
@@ -30,7 +30,7 @@
     },
     "require": {
         "php": "^8.4",
-        "league/commonmark": "^2.7",
+        "league/commonmark": "^2.10",
         "psr/log": "^3.0",
         "symfony/http-foundation": "^8.1",
         "symfony/mailer": "^8.1",

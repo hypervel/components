@@ -12,6 +12,7 @@ use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Support\Stringable;
 use Hypervel\View\Compilers\CompilerInterface;
 use Hypervel\View\ViewException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
@@ -20,7 +21,7 @@ class CompilerEngine extends PhpEngine
     /**
      * The context key for a stack of the compiled template path.
      */
-    public const COMPILED_PATH_CONTEXT_KEY = '__view.compiled_path';
+    public const string COMPILED_PATH_CONTEXT_KEY = '__view.compiled_path';
 
     /**
      * The view paths that were compiled or are not expired, keyed by the path.
@@ -110,7 +111,8 @@ class CompilerEngine extends PhpEngine
      */
     protected function handleViewException(Throwable $e, int $obLevel): void
     {
-        if ($e instanceof HttpException
+        if ($e instanceof CanceledException
+            || $e instanceof HttpException
             || $e instanceof HttpResponseException
             || $e instanceof RecordNotFoundException
             || $e instanceof RecordsNotFoundException
@@ -144,8 +146,9 @@ class CompilerEngine extends PhpEngine
     /**
      * Clear the cache of views that were compiled or not expired.
      *
-     * Boot or tests only. Clears the worker-wide compile-check cache shared
-     * by every coroutine; concurrent compilations may re-check disk redundantly.
+     * Boot or tests only when called directly. Clears the worker-wide compile-check
+     * cache shared by every coroutine; concurrent compilations may re-check disk
+     * redundantly. The view:clear command owns runtime invalidation.
      */
     public static function forgetCompiledOrNotExpired(): void
     {

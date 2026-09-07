@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Passkeys;
 
+use Hypervel\Contracts\Auth\Factory as AuthFactory;
+use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Passkeys\Console\PruneOrphanedPasskeys;
 use Hypervel\Passkeys\Contracts\PasskeyConfirmationResponse as PasskeyConfirmationResponseContract;
 use Hypervel\Passkeys\Contracts\PasskeyDeletedResponse as PasskeyDeletedResponseContract;
 use Hypervel\Passkeys\Contracts\PasskeyLoginResponse as PasskeyLoginResponseContract;
 use Hypervel\Passkeys\Contracts\PasskeyRegistrationResponse as PasskeyRegistrationResponseContract;
+use Hypervel\Passkeys\Contracts\PasskeyUser;
 use Hypervel\Passkeys\Http\Responses\PasskeyConfirmationResponse;
 use Hypervel\Passkeys\Http\Responses\PasskeyDeletedResponse;
 use Hypervel\Passkeys\Http\Responses\PasskeyLoginResponse;
@@ -82,14 +85,18 @@ class PasskeysServiceProvider extends ServiceProvider
     {
         $this->app->make(Router::class)->bind('passkey', function (string $value): Passkey {
             $model = Passkeys::passkeyModel();
+            $guard = $this->app->make(AuthFactory::class)->guard();
+            $user = $guard instanceof StatefulGuard ? $guard->user() : null;
 
-            $passkey = $this->app->make($model)->resolveRouteBinding($value);
-
-            if (! $passkey instanceof Passkey) {
+            if (! $user instanceof PasskeyUser) {
                 throw (new ModelNotFoundException)->setModel($model, [$value]);
             }
 
-            return $passkey;
+            $passkeys = $user->passkeys();
+
+            return $passkeys->getRelated()
+                ->resolveRouteBindingQuery($passkeys, $value)
+                ->firstOrFail();
         });
     }
 

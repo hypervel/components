@@ -8,6 +8,7 @@ use Exception;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Horizon\Contracts\TagRepository;
 use Hypervel\Horizon\Events\JobFailed;
+use Hypervel\Horizon\Repositories\RedisJobRepository;
 use Hypervel\Queue\Jobs\Job;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
@@ -34,13 +35,22 @@ class StoreTagsForFailedTest extends IntegrationTestCase
         $this->app->make(Dispatcher::class)->dispatch($event);
     }
 
-    public function testFailedJobTrimDefaultSurvivesReplaceWholeConfiguration(): void
+    public function testFailedJobTrimUsesItsDefaultWhenTrimConfigurationIsReplaced(): void
     {
-        config()->set('horizon.trim', ['recent' => 60]);
+        config()->set('horizon.trim', [
+            'recent' => 60,
+            'pending' => 60,
+            'completed' => 60,
+            'recent_failed' => 10080,
+            'monitored' => 10080,
+        ]);
 
         $tagRepository = m::mock(TagRepository::class);
-        $tagRepository->shouldReceive('addTemporary')->once()->with(10080, '1', ['failed:foobar'])->andReturn([]);
-
+        $tagRepository->shouldReceive('addTemporary')->once()->with(
+            RedisJobRepository::DEFAULT_FAILED_JOB_RETENTION,
+            '1',
+            ['failed:foobar'],
+        )->andReturn([]);
         $this->instance(TagRepository::class, $tagRepository);
 
         $event = new JobFailed(

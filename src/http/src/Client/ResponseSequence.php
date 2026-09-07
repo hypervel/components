@@ -21,7 +21,7 @@ class ResponseSequence
     /**
      * The response that should be returned when the sequence is empty.
      */
-    protected PromiseInterface $emptyResponse;
+    protected Closure|PromiseInterface|null $emptyResponse = null;
 
     /**
      * Create a new response sequence.

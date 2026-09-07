@@ -45,7 +45,7 @@ class CacheFeature extends Feature
      */
     public bool $detectSessionKeyOnConsole = false;
 
-    private const FEATURE_KEY = 'cache';
+    private const string FEATURE_KEY = 'cache';
 
     public function isApplicable(): bool
     {
@@ -55,11 +55,6 @@ class CacheFeature extends Feature
 
     public function onBoot(): void
     {
-        $config = $this->container->make('config');
-        $stores = array_keys($config->array('cache.stores', []));
-        foreach ($stores as $store) {
-            $config->set("cache.stores.{$store}.events", true);
-        }
         /** @var Dispatcher $dispatcher */
         $dispatcher = $this->container->make('events');
         if ($this->isBreadcrumbFeatureEnabled(self::FEATURE_KEY)) {
@@ -227,7 +222,9 @@ class CacheFeature extends Feature
         // End of span for ForgettingKey event
         if ($event instanceof KeyForgotten || $event instanceof KeyForgetFailed) {
             $this->maybeFinishSpan(
-                $event instanceof KeyForgotten ? SpanStatus::ok() : SpanStatus::internalError()
+                $event instanceof KeyForgotten
+                    ? SpanStatus::ok()
+                    : ($event->exception === null ? null : SpanStatus::internalError())
             );
 
             return true;

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Testing\Concerns;
 
+use Hypervel\Contracts\Config\Repository as ConfigContract;
+use Hypervel\Database\ConfigurationUrlParser;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Foundation\Testing;
@@ -143,6 +145,14 @@ trait TestDatabases
             return;
         }
 
+        /** @var ConfigContract $config */
+        $config = config();
+        $default = $config->string('database.default');
+        $configuration = (new ConfigurationUrlParser)->parseConfiguration(
+            $config->array("database.connections.{$default}")
+        );
+        $this->validateManagedDatabaseTopology($configuration);
+
         /** @var string $database */
         $database = DB::getConfig('database');
 
@@ -169,21 +179,17 @@ trait TestDatabases
     {
         DB::purge();
 
-        $default = config('database.default');
+        /** @var ConfigContract $config */
+        $config = config();
+        $default = $config->string('database.default');
+        $configurationPath = "database.connections.{$default}";
+        $configuration = (new ConfigurationUrlParser)->parseConfiguration(
+            $config->array($configurationPath)
+        );
+        $this->validateManagedDatabaseTopology($configuration);
+        $configuration['database'] = $database;
 
-        $url = config("database.connections.{$default}.url");
-
-        if ($url) {
-            config()->set(
-                "database.connections.{$default}.url",
-                preg_replace('/^(.*)(\/[\w-]*)(\??.*)$/', "$1/{$database}$3", $url),
-            );
-        } else {
-            config()->set(
-                "database.connections.{$default}.database",
-                $database,
-            );
-        }
+        $config->set($configurationPath, $configuration);
     }
 
     /**
@@ -197,5 +203,42 @@ trait TestDatabases
         return str_ends_with($database, $suffix)
             ? $database
             : "{$database}{$suffix}";
+    }
+
+    /**
+     * Validate a managed database topology.
+     *
+     * @param array<string, mixed> $configuration
+     */
+    private function validateManagedDatabaseTopology(array $configuration): void
+    {
+        foreach (['read', 'write'] as $role) {
+            $endpoints = $configuration[$role] ?? null;
+
+            if (! is_array($endpoints)) {
+                continue;
+            }
+
+            $hasEndpointIdentity = array_key_exists('database', $endpoints)
+                || array_key_exists('url', $endpoints);
+
+            if (isset($endpoints[0])) {
+                foreach ($endpoints as $endpoint) {
+                    if (is_array($endpoint)
+                        && (array_key_exists('database', $endpoint) || array_key_exists('url', $endpoint))) {
+                        $hasEndpointIdentity = true;
+
+                        break;
+                    }
+                }
+            }
+
+            if ($hasEndpointIdentity) {
+                throw new InvalidArgumentException(
+                    'Read/write connections with endpoint-specific databases or URLs cannot be automatically managed during parallel testing. '
+                    . 'Configure a single database identity or run with --without-databases.'
+                );
+            }
+        }
     }
 }

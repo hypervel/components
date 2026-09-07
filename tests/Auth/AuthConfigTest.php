@@ -4,16 +4,39 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth;
 
+use Hypervel\Auth\EloquentUserProvider;
+use Hypervel\Auth\Passwords\PasswordBrokerManager;
 use Hypervel\Support\Env;
 use Hypervel\Tests\TestCase;
 
 class AuthConfigTest extends TestCase
 {
+    public function testUserCacheEnabledIsLoadedAsBooleanFromEnvironment(): void
+    {
+        $config = $this->loadConfigWithEnvironmentValue('AUTH_USER_CACHE_ENABLED', '0');
+
+        $this->assertFalse($config['providers']['users']['cache']['enabled']);
+    }
+
     public function testUserCacheTtlIsLoadedAsIntegerFromEnvironment(): void
     {
-        $config = $this->loadConfigWithEnvironmentValue('AUTH_USERS_CACHE_TTL', '600');
+        $config = $this->loadConfigWithEnvironmentValue('AUTH_USER_CACHE_TTL', '600');
 
         $this->assertSame(600, $config['providers']['users']['cache']['ttl']);
+    }
+
+    public function testUserCacheDefaultsMatchTheProviderDefaults(): void
+    {
+        $config = $this->loadConfigWithEnvironmentValue('AUTH_USER_CACHE_PREFIX', null);
+
+        $this->assertSame(
+            EloquentUserProvider::DEFAULT_CACHE_TTL,
+            $config['providers']['users']['cache']['ttl'],
+        );
+        $this->assertSame(
+            EloquentUserProvider::DEFAULT_CACHE_PREFIX,
+            $config['providers']['users']['cache']['prefix'],
+        );
     }
 
     public function testPasswordTimeoutIsLoadedAsIntegerFromEnvironment(): void
@@ -21,6 +44,16 @@ class AuthConfigTest extends TestCase
         $config = $this->loadConfigWithEnvironmentValue('AUTH_PASSWORD_TIMEOUT', '300');
 
         $this->assertSame(300, $config['password_timeout']);
+    }
+
+    public function testPasswordBrokerExpiryMatchesTheManagerDefault(): void
+    {
+        $config = $this->loadConfigWithEnvironmentValue('AUTH_USER_CACHE_PREFIX', null);
+
+        $this->assertSame(
+            PasswordBrokerManager::DEFAULT_EXPIRE_MINUTES,
+            $config['passwords']['users']['expire'],
+        );
     }
 
     public function testVerificationExpiryIsLoadedAsIntegerFromEnvironment(): void
@@ -42,7 +75,7 @@ class AuthConfigTest extends TestCase
      *
      * @return array<string, mixed>
      */
-    private function loadConfigWithEnvironmentValue(string $key, string $value): array
+    private function loadConfigWithEnvironmentValue(string $key, ?string $value): array
     {
         $originalPutenv = getenv($key);
         $originalServerExists = array_key_exists($key, $_SERVER);
@@ -52,7 +85,7 @@ class AuthConfigTest extends TestCase
 
         try {
             unset($_SERVER[$key], $_ENV[$key]);
-            putenv("{$key}={$value}");
+            $value === null ? putenv($key) : putenv("{$key}={$value}");
             Env::flushRepository();
 
             return require dirname(__DIR__, 2) . '/src/foundation/config/auth.php';

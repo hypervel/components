@@ -1,7 +1,7 @@
 {
     "name": "hypervel/components",
     "type": "library",
-    "description": "The components for Hypervel framework.",
+    "description": "The Hypervel Framework.",
     "license": "MIT",
     "keywords": [
         "php",
@@ -38,6 +38,7 @@
             "Hypervel\\Context\\": "src/context/src/",
             "Hypervel\\Coordinator\\": "src/coordinator/src/",
             "Hypervel\\Cookie\\": "src/cookie/src/",
+            "Hypervel\\Data\\": "src/data/src/",
             "Hypervel\\Database\\": "src/database/src/",
             "Hypervel\\Concurrency\\": "src/concurrency/src/",
             "Hypervel\\Coroutine\\": "src/coroutine/src/",
@@ -52,6 +53,7 @@
             "Hypervel\\Hashing\\": "src/hashing/src/",
             "Hypervel\\Horizon\\": "src/horizon/src/",
             "Hypervel\\Http\\": "src/http/src/",
+            "Hypervel\\Image\\": "src/image/src/",
             "Hypervel\\Inertia\\": "src/inertia/src/",
             "Hypervel\\JsonSchema\\": "src/json-schema/src/",
             "Hypervel\\Jwt\\": "src/jwt/src/",
@@ -60,6 +62,7 @@
             "Hypervel\\NestedSet\\": "src/nested-set/src/",
             "Hypervel\\Notifications\\": "src/notifications/src/",
             "Hypervel\\ObjectPool\\": "src/object-pool/src/",
+            "Hypervel\\OpenTelemetry\\": "src/opentelemetry/src/",
             "Hypervel\\Pagination\\": "src/pagination/src/",
             "Hypervel\\Passkeys\\": "src/passkeys/src/",
             "Hypervel\\Pipeline\\": "src/pipeline/src/",
@@ -71,6 +74,7 @@
             "Hypervel\\Redis\\": "src/redis/src/",
             "Hypervel\\Reverb\\": "src/reverb/src/",
             "Hypervel\\Routing\\": "src/routing/src/",
+            "Hypervel\\Saloon\\": "src/saloon/src/",
             "Hypervel\\Sanctum\\": "src/sanctum/src/",
             "Hypervel\\Scout\\": "src/scout/src/",
             "Hypervel\\Server\\": "src/server/src/",
@@ -146,8 +150,9 @@
         "ext-posix": "*",
         "ext-redis": "^6.1",
         "ext-session": "*",
+        "ext-simplexml": "*",
         "ext-sockets": "*",
-        "ext-swoole": "^6.2",
+        "ext-swoole": "^6.2.2",
         "ext-tokenizer": "*",
         "ext-zlib": "*",
         "composer-runtime-api": "^2.2",
@@ -162,11 +167,13 @@
         "google/common-protos": "^4.14",
         "google/protobuf": "^5.35",
         "guzzlehttp/guzzle": "^7.15.1",
+        "guzzlehttp/promises": "^2.5.2",
+        "guzzlehttp/psr7": "^2.13",
         "guzzlehttp/uri-template": "^1.0",
         "hypervel/laminas-mime": "^0.1.0",
         "laravel/serializable-closure": "^2.0.10",
         "lcobucci/jwt": "^5.0",
-        "league/commonmark": "^2.7",
+        "league/commonmark": "^2.10",
         "league/flysystem": "^3.25.1",
         "league/flysystem-aws-s3-v3": "^3.25.1",
         "league/flysystem-path-prefixing": "^3.25.1",
@@ -177,8 +184,14 @@
         "nikic/php-parser": "^5.7",
         "nunomaduro/termwind": "^2.0",
         "nyholm/psr7": "^1.0",
+        "open-telemetry/api": "^1.10",
+        "open-telemetry/context": "^1.5",
+        "open-telemetry/exporter-otlp": "^1.4",
+        "open-telemetry/sdk": "^1.15",
+        "open-telemetry/sem-conv": "^1.38",
         "paragonie/constant_time_encoding": "^3.1",
         "phpoption/phpoption": "^1.9",
+        "phpstan/phpdoc-parser": "^2.3",
         "psr/clock": "^1.0",
         "psr/container": "^2.0.1",
         "psr/http-client": "^1.0",
@@ -186,9 +199,10 @@
         "psr/log": "^3.0",
         "psr/simple-cache": "^3.0",
         "psy/psysh": "^0.12.22",
-        "sentry/sentry": "^4.27",
+        "sentry/sentry": "dev-master",
         "spomky-labs/otphp": "^11.0",
         "symfony/console": "^8.1",
+        "symfony/dom-crawler": "^8.1",
         "symfony/error-handler": "^8.1",
         "symfony/event-dispatcher": "^8.1",
         "symfony/finder": "^8.1",
@@ -229,8 +243,10 @@
         "hypervel/coordinator": "self.version",
         "hypervel/cookie": "self.version",
         "hypervel/coroutine": "self.version",
+        "hypervel/data": "self.version",
         "hypervel/database": "self.version",
         "hypervel/di": "self.version",
+        "hypervel/docs": "self.version",
         "hypervel/encryption": "self.version",
         "hypervel/engine": "self.version",
         "hypervel/events": "self.version",
@@ -243,6 +259,7 @@
         "hypervel/hashing": "self.version",
         "hypervel/horizon": "self.version",
         "hypervel/http": "self.version",
+        "hypervel/image": "self.version",
         "hypervel/inertia": "self.version",
         "hypervel/json-schema": "self.version",
         "hypervel/jwt": "self.version",
@@ -252,6 +269,7 @@
         "hypervel/nested-set": "self.version",
         "hypervel/notifications": "self.version",
         "hypervel/object-pool": "self.version",
+        "hypervel/opentelemetry": "self.version",
         "hypervel/pagination": "self.version",
         "hypervel/passkeys": "self.version",
         "hypervel/pipeline": "self.version",
@@ -263,6 +281,7 @@
         "hypervel/redis": "self.version",
         "hypervel/reflection": "self.version",
         "hypervel/routing": "self.version",
+        "hypervel/saloon": "self.version",
         "hypervel/sanctum": "self.version",
         "hypervel/scout": "self.version",
         "hypervel/session": "self.version",
@@ -289,16 +308,17 @@
         "ably/ably-php": "^1.0",
         "algolia/algoliasearch-client-php": "^4.0",
         "brianium/paratest": "^7.24",
+        "composer/composer": "^2.10.3",
         "composer/semver": "^3.4",
         "fakerphp/faker": "^1.24",
         "friendsofphp/php-cs-fixer": "^3.57.2",
+        "intervention/image": "^4.2",
         "league/flysystem-google-cloud-storage": "^3.0",
         "meilisearch/meilisearch-php": "^1.16",
-        "mockery/mockery": "1.6.x-dev",
+        "mockery/mockery": "^1.6.15",
         "opis/json-schema": "^2.6.0",
         "pda/pheanstalk": "^8.0.2",
-        "phpstan/phpdoc-parser": "^2.3",
-        "phpstan/phpstan": "^2.0",
+        "phpstan/phpstan": "^2.2.11",
         "phpunit/phpunit": "^13.0.3",
         "pusher/pusher-php-server": "^7.2",
         "resend/resend-php": "^1.0",
@@ -311,10 +331,14 @@
         "symfony/yaml": "^8.1",
         "typesense/typesense-php": "^5.2"
     },
+    "conflict": {
+        "intervention/image": "<4.0 || >=5.0"
+    },
     "config": {
         "sort-packages": true,
         "allow-plugins": {
-            "php-http/discovery": true
+            "php-http/discovery": true,
+            "tbachert/spi": true
         }
     },
     "extra": {
@@ -328,6 +352,7 @@
                 "Hypervel\\Concurrency\\ConcurrencyServiceProvider",
                 "Hypervel\\Console\\ConsoleServiceProvider",
                 "Hypervel\\Cookie\\CookieServiceProvider",
+                "Hypervel\\Data\\DataServiceProvider",
                 "Hypervel\\Database\\DatabaseServiceProvider",
                 "Hypervel\\Encryption\\EncryptionServiceProvider",
                 "Hypervel\\Engine\\EngineServiceProvider",
@@ -336,6 +361,7 @@
                 "Hypervel\\Hashing\\HashingServiceProvider",
                 "Hypervel\\Horizon\\HorizonServiceProvider",
                 "Hypervel\\Http\\HttpServiceProvider",
+                "Hypervel\\Image\\ImageServiceProvider",
                 "Hypervel\\Inertia\\InertiaServiceProvider",
                 "Hypervel\\Jwt\\JwtServiceProvider",
                 "Hypervel\\Log\\Context\\ContextServiceProvider",
@@ -344,6 +370,7 @@
                 "Hypervel\\NestedSet\\NestedSetServiceProvider",
                 "Hypervel\\Notifications\\NotificationServiceProvider",
                 "Hypervel\\ObjectPool\\ObjectPoolServiceProvider",
+                "Hypervel\\OpenTelemetry\\OpenTelemetryServiceProvider",
                 "Hypervel\\Pagination\\PaginationServiceProvider",
                 "Hypervel\\Passkeys\\PasskeysServiceProvider",
                 "Hypervel\\Fortify\\FortifyServiceProvider",
@@ -355,6 +382,7 @@
                 "Hypervel\\Redis\\RedisServiceProvider",
                 "Hypervel\\Reverb\\ReverbServiceProvider",
                 "Hypervel\\Routing\\RoutingServiceProvider",
+                "Hypervel\\Saloon\\SaloonServiceProvider",
                 "Hypervel\\Sanctum\\SanctumServiceProvider",
                 "Hypervel\\Server\\ServerServiceProvider",
                 "Hypervel\\ServerProcess\\ServerProcessServiceProvider",
@@ -375,6 +403,8 @@
                 "Hypervel\\View\\ViewServiceProvider"
             ],
             "aliases": {
+                "OpenTelemetry": "Hypervel\\OpenTelemetry\\Facades\\OpenTelemetry",
+                "Saloon": "Hypervel\\Saloon\\Facades\\Saloon",
                 "Sentry": "Hypervel\\Sentry\\Facade"
             }
         },
@@ -383,9 +413,22 @@
         }
     },
     "scripts": {
-        "test": "phpunit",
-        "test:parallel": "paratest",
-        "test:testbench": "php src/testbench/bin/testbench package:test --parallel tests/Testbench",
+        "test": [
+            "Composer\\Config::disableProcessTimeout",
+            "phpunit"
+        ],
+        "test:parallel": [
+            "Composer\\Config::disableProcessTimeout",
+            "paratest"
+        ],
+        "test:profile": [
+            "Composer\\Config::disableProcessTimeout",
+            "@php src/testing/bin/hypervel-test-profile"
+        ],
+        "test:testbench": [
+            "Composer\\Config::disableProcessTimeout",
+            "php src/testbench/bin/testbench package:test --parallel tests/Testbench"
+        ],
         "test:dogfood": [
             "Composer\\Config::disableProcessTimeout",
             "composer --working-dir=dogfood/testbench-package install --prefer-dist -n -o",
@@ -398,6 +441,8 @@
         "lint": "php-cs-fixer fix --diff --dry-run",
         "lint:fix": "php-cs-fixer fix",
         "facade": "php -f src/facade-documenter/facade.php --",
+        "generate:grpc-health": "bash bin/generate-grpc-health.sh",
+        "sync:grpc-health": "php src/grpc/resources/proto/sync-health-protocol.php",
         "check": [
             "@test",
             "@test:testbench",

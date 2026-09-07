@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Contracts\Support;
 
 use Countable;
+use Stringable;
 
-interface MessageBag extends Arrayable, Countable
+interface MessageBag extends Arrayable, Countable, Stringable
 {
     /**
      * Get the keys present in the message bag.

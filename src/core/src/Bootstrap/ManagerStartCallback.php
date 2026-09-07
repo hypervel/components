@@ -19,6 +19,8 @@ class ManagerStartCallback
      */
     public function onManagerStart(SwooleServer $server): void
     {
-        $this->dispatcher->dispatch(new OnManagerStart($server));
+        if ($this->dispatcher->hasListeners(OnManagerStart::class)) {
+            $this->dispatcher->dispatch(new OnManagerStart($server));
+        }
     }
 }

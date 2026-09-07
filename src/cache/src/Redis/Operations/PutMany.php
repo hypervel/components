@@ -16,8 +16,7 @@ use Hypervel\Redis\RedisConnection;
  *
  * Performance:
  * - Standard mode: Single Lua script execution with evalSha caching
- * - Cluster mode: Uses MULTI/EXEC for transactional grouping per-node, but
- *   commands are sent sequentially (RedisCluster does not support pipelining)
+ * - Cluster mode: Sequential SETEX commands over one held connection
  */
 class PutMany
 {
@@ -43,7 +42,7 @@ class PutMany
             return true;
         }
 
-        // Cluster mode: Keys may hash to different slots, use MULTI + individual SETEX
+        // Cluster mode: Keys may hash to different slots.
         if ($this->context->isCluster()) {
             return $this->executeCluster($values, $seconds);
         }
@@ -53,57 +52,27 @@ class PutMany
     }
 
     /**
-     * Execute for cluster using MULTI/EXEC.
-     *
-     * In cluster mode, keys may hash to different slots. Unlike standalone Redis,
-     * RedisCluster does NOT currently support pipelining - commands are sent sequentially
-     * to each node as they are encountered. MULTI/EXEC still provides value by:
-     *
-     * 1. Grouping commands into transactions per-node (atomicity per slot)
-     * 2. Aggregating results from all nodes into a single array on exec()
-     * 3. Matching Laravel's default RedisStore behavior for consistency
-     *
-     * Note: For true cross-slot batching, phpredis would need pipeline() support
-     * which is currently intentionally not implemented due to MOVED/ASK error complexity.
-     *
-     * @see https://github.com/phpredis/phpredis/blob/develop/cluster.md
-     * @see https://github.com/phpredis/phpredis/issues/1910
+     * Execute for Redis Cluster using individual SETEX commands.
      */
     private function executeCluster(array $values, int $seconds): bool
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($values, $seconds) {
             $prefix = $this->context->prefix();
             $seconds = max(1, $seconds);
-
-            // MULTI/EXEC groups commands by node but does NOT pipeline them.
-            // Commands are sent sequentially; exec() aggregates results from all nodes.
-            $multi = $connection->multi();
+            $successful = true;
 
             foreach ($values as $key => $value) {
-                // Use serialization helper to respect client configuration
                 $serializedValue = $this->serialization->serialize($connection, $value);
-
-                $multi->setex(
+                $result = $connection->setex(
                     $prefix . $key,
                     $seconds,
                     $serializedValue
                 );
+
+                $successful = $result !== false && $successful;
             }
 
-            $results = $multi->exec();
-
-            // Check all results succeeded
-            if (! is_array($results)) {
-                return false;
-            }
-
-            foreach ($results as $result) {
-                if ($result === false) {
-                    return false;
-                }
-            }
-
-            return true;
+            return $successful;
         });
     }
 

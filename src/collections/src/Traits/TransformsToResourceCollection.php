@@ -6,7 +6,6 @@ namespace Hypervel\Support\Traits;
 
 use Hypervel\Database\Eloquent\Attributes\UseResource;
 use Hypervel\Database\Eloquent\Attributes\UseResourceCollection;
-use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Http\Resources\Json\ResourceCollection;
 use LogicException;
@@ -18,7 +17,7 @@ trait TransformsToResourceCollection
     /**
      * Create a new resource collection instance for the given resource.
      *
-     * @param null|class-string<\Hypervel\Http\Resources\Json\JsonResource> $resourceClass
+     * @param null|class-string<JsonResource> $resourceClass
      *
      * @throws Throwable
      */
@@ -42,14 +41,12 @@ trait TransformsToResourceCollection
             return new ResourceCollection($this);
         }
 
-        $model = $this->items[0] ?? null;
+        $model = $this->first();
 
         throw_unless(is_object($model), LogicException::class, 'Resource collection guesser expects the collection to contain objects.');
 
-        /** @var class-string<Model> $className */
         $className = get_class($model);
 
-        // @phpstan-ignore function.alreadyNarrowedType (defensive: validates model uses TransformsToResource trait)
         throw_unless(method_exists($className, 'guessResourceName'), LogicException::class, sprintf('Expected class %s to implement guessResourceName method. Make sure the model uses the TransformsToResource trait.', $className));
 
         $useResourceCollection = $this->resolveResourceCollectionFromAttribute($className);

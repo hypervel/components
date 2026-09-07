@@ -14,6 +14,7 @@ use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\FailoverStore;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\Repository;
+use Hypervel\Contracts\Cache\RawReadable;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\Facades\Cache;
@@ -72,16 +73,13 @@ class FailoverStoreTest extends TestCase
             ->twice()
             ->with(m::on(fn (object $event) => $event instanceof CacheFailedOver && $event->storeName === 'failing'));
 
-        // FailoverStore::get() now delegates to getRaw() internally (for sentinel-aware
-        // reads via RawReadable). The mocks target getRaw() accordingly — the contract
-        // is the same, just routed through the raw-read path.
-        $failingRepository = m::mock(CacheRepository::class);
+        $failingRepository = m::mock(CacheRepository::class, RawReadable::class);
         $failingRepository->shouldReceive('getRaw')
             ->twice()
             ->with(m::type('string'))
             ->andThrow(new Exception('The primary store failed.'));
 
-        $fallbackRepository = m::mock(CacheRepository::class);
+        $fallbackRepository = m::mock(CacheRepository::class, RawReadable::class);
         $fallbackRepository->shouldReceive('getRaw')
             ->twice()
             ->with(m::type('string'))
@@ -113,13 +111,13 @@ class FailoverStoreTest extends TestCase
             ->andReturn(false);
         $events->shouldNotReceive('dispatch');
 
-        $failingRepository = m::mock(CacheRepository::class);
+        $failingRepository = m::mock(CacheRepository::class, RawReadable::class);
         $failingRepository->shouldReceive('getRaw')
             ->once()
             ->with('test')
             ->andThrow(new Exception('The primary store failed.'));
 
-        $fallbackRepository = m::mock(CacheRepository::class);
+        $fallbackRepository = m::mock(CacheRepository::class, RawReadable::class);
         $fallbackRepository->shouldReceive('getRaw')
             ->once()
             ->with('test')
@@ -143,7 +141,7 @@ class FailoverStoreTest extends TestCase
     public function testGetRawNormalizesIntegerBackedEnumKeys(): void
     {
         $events = m::mock(Dispatcher::class);
-        $repository = m::mock(CacheRepository::class);
+        $repository = m::mock(CacheRepository::class, RawReadable::class);
         $repository->shouldReceive('getRaw')->once()->with('0')->andReturn('zero');
 
         $cacheManager = m::mock(CacheManager::class);
@@ -351,12 +349,12 @@ class FailoverStoreTest extends TestCase
 
     public function testAllFailingFirstSuccessOperationStillRethrowsTheLastException(): void
     {
-        $primary = m::mock(CacheRepository::class);
+        $primary = m::mock(CacheRepository::class, RawReadable::class);
         $primary->shouldReceive('getRaw')
             ->once()
             ->with('key')
             ->andThrow(new Exception('Primary failed.'));
-        $fallback = m::mock(CacheRepository::class);
+        $fallback = m::mock(CacheRepository::class, RawReadable::class);
         $fallback->shouldReceive('getRaw')
             ->once()
             ->with('key')
@@ -408,10 +406,10 @@ class FailoverStoreTest extends TestCase
 
     public function testSuccessfulReadsAndWritesRemainFirstSuccessOperations(): void
     {
-        $primary = m::mock(CacheRepository::class);
+        $primary = m::mock(CacheRepository::class, RawReadable::class);
         $primary->shouldReceive('getRaw')->once()->with('key')->andReturn('value');
         $primary->shouldReceive('put')->once()->with('key', 'updated', 60)->andReturn(true);
-        $fallback = m::mock(CacheRepository::class);
+        $fallback = m::mock(CacheRepository::class, RawReadable::class);
         $fallback->shouldNotReceive('getRaw');
         $fallback->shouldNotReceive('put');
         $store = $this->failoverStore([

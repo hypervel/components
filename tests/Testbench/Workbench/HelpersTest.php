@@ -17,7 +17,7 @@ use function Hypervel\Testbench\workbench_path;
 class HelpersTest extends TestCase
 {
     #[Test]
-    public function itCanResolveWorkbench()
+    public function itCanResolveWorkbench(): void
     {
         $this->instance(ConfigContract::class, new Config([
             'workbench' => [
@@ -47,7 +47,7 @@ class HelpersTest extends TestCase
     }
 
     #[Test]
-    public function itCanResolveWorkbenchWithoutBound()
+    public function itCanResolveWorkbenchWithoutBound(): void
     {
         $this->assertSame([
             'install' => true,
@@ -67,7 +67,7 @@ class HelpersTest extends TestCase
     }
 
     #[Test]
-    public function itCanResolveWorkbenchPath()
+    public function itCanResolveWorkbenchPath(): void
     {
         $expected = realpath(package_path('src/testbench/workbench/database/migrations/2013_07_26_182750_create_testbench_users_table.php'));
 
@@ -84,6 +84,16 @@ class HelpersTest extends TestCase
         $this->assertSame(
             $expected,
             workbench_path(['database', 'migrations', '2013_07_26_182750_create_testbench_users_table.php'])
+        );
+
+        $this->assertSame(
+            $expected,
+            workbench_path('./database', 'migrations', '2013_07_26_182750_create_testbench_users_table.php')
+        );
+
+        $this->assertSame(
+            $expected,
+            workbench_path(['./database', 'migrations', '2013_07_26_182750_create_testbench_users_table.php'])
         );
     }
 }

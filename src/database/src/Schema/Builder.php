@@ -170,7 +170,8 @@ class Builder
         $table = $this->connection->getTablePrefix() . $table;
 
         if ($sql = $this->grammar->compileTableExists($schema, $table)) {
-            return (bool) $this->connection->scalar($sql);
+            // Schema existence must be read from the same write connection that migrations mutate.
+            return (bool) $this->connection->scalar($sql, [], false);
         }
 
         foreach ($this->getTables($schema ?? $this->getCurrentSchemaName()) as $value) {
@@ -366,7 +367,7 @@ class Builder
     /**
      * Get the indexes for a given table.
      *
-     * @return list<array{name: string, columns: list<string>, type: string, unique: bool, primary: bool}>
+     * @return list<array{name: string, columns: list<string>, type: null|string, unique: bool, primary: bool, partial: bool}>
      */
     public function getIndexes(string $table): array
     {
@@ -389,6 +390,22 @@ class Builder
     public function getIndexListing(string $table): array
     {
         return array_column($this->getIndexes($table), 'name');
+    }
+
+    /**
+     * Qualify an explicit index name.
+     *
+     * The configured table prefix is applied only when index prefixing is
+     * enabled. Names are always lowercased, with dashes and dots normalized to
+     * underscores to match generated index names.
+     */
+    public function qualifyIndexName(string $name): string
+    {
+        if ($this->connection->getConfig('prefix_indexes')) {
+            $name = $this->connection->getTablePrefix() . $name;
+        }
+
+        return str_replace(['-', '.'], '_', strtolower($name));
     }
 
     /**
@@ -428,6 +445,8 @@ class Builder
 
     /**
      * Get the foreign keys for a given table.
+     *
+     * @return list<array{name: null|string, columns: list<string>, foreign_schema: null|string, foreign_table: string, foreign_columns: list<string>, on_update: null|string, on_delete: null|string}>
      */
     public function getForeignKeys(string $table): array
     {
@@ -559,13 +578,67 @@ class Builder
      */
     public function withoutForeignKeyConstraints(Closure $callback): mixed
     {
-        $this->disableForeignKeyConstraints();
+        $outermost = $this->connection->beginForeignKeyConstraintSuppression();
+        $restoreConstraints = false;
 
         try {
+            // Pretend mode cannot inspect physical state, but it must still log both session statements.
+            $restoreConstraints = $outermost
+                && ($this->connection->pretending() || $this->foreignKeyConstraintsAreEnabled());
+
+            if ($restoreConstraints) {
+                $this->setForeignKeyConstraints(false);
+            }
+
             return $callback();
         } finally {
-            $this->enableForeignKeyConstraints();
+            try {
+                if ($restoreConstraints) {
+                    $this->setForeignKeyConstraints(true);
+                }
+            } finally {
+                $this->connection->endForeignKeyConstraintSuppression();
+            }
         }
+    }
+
+    /**
+     * Determine whether foreign key constraints are enabled.
+     *
+     * Drivers that cannot inspect the current mode report enabled so the
+     * outer scope applies and restores their normal constraint mode.
+     */
+    protected function foreignKeyConstraintsAreEnabled(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Set the foreign key constraint state for an internal suppression scope.
+     */
+    protected function setForeignKeyConstraints(bool $enabled): void
+    {
+        $statement = $enabled
+            ? $this->grammar->compileEnableForeignKeyConstraints()
+            : $this->grammar->compileDisableForeignKeyConstraints();
+
+        if ($this->connection->pretending()) {
+            if ($this->connection->statement($statement) === false) {
+                throw new RuntimeException("Failed to execute schema statement [{$statement}].");
+            }
+
+            return;
+        }
+
+        $this->executeSessionStatement($statement);
+    }
+
+    /**
+     * Execute internal physical-session maintenance.
+     */
+    protected function executeSessionStatement(string $statement): void
+    {
+        $this->connection->executeSessionStatement($statement);
     }
 
     /**
@@ -594,11 +667,53 @@ class Builder
     }
 
     /**
+     * Execute the given schema blueprint.
+     */
+    public function executeBlueprint(Blueprint $blueprint): void
+    {
+        $this->executeStatements($blueprint->toSql());
+    }
+
+    /**
      * Execute the blueprint to build / modify the table.
      */
     protected function build(Blueprint $blueprint): void
     {
-        $blueprint->build();
+        $this->executeBlueprint($blueprint);
+    }
+
+    /**
+     * Execute the given schema statements in order.
+     *
+     * @param list<string> $statements
+     */
+    protected function executeStatements(array $statements): void
+    {
+        foreach ($statements as $statement) {
+            if ($this->connection->statement($statement) === false) {
+                throw new RuntimeException("Failed to execute schema statement [{$statement}].");
+            }
+        }
+    }
+
+    /**
+     * Determine whether every executable command is declared by the framework grammar.
+     *
+     * @param class-string<Grammars\Grammar> $grammar
+     */
+    protected function commandsAreDeclaredOn(Blueprint $blueprint, string $grammar): bool
+    {
+        foreach ($blueprint->getCommands() as $command) {
+            if ($command->shouldBeSkipped) {
+                continue;
+            }
+
+            if (! method_exists($grammar, 'compile' . ucfirst($command->name))) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

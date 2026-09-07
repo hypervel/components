@@ -11,6 +11,28 @@ use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
 class TrimStringsTest extends TestCase
 {
+    public function testNonStringValuesDoNotPerformExclusionMatching()
+    {
+        $middleware = new TrimStringsTrackingExclusionMatches;
+        $symfonyRequest = new SymfonyRequest([
+            'integer' => 123,
+            'boolean' => true,
+            'null' => null,
+            'string' => ' value ',
+        ]);
+        $symfonyRequest->server->set('REQUEST_METHOD', 'GET');
+        $request = Request::createFromBase($symfonyRequest);
+
+        $middleware->handle($request, function (Request $request) {
+            $this->assertSame(123, $request->input('integer'));
+            $this->assertTrue($request->input('boolean'));
+            $this->assertNull($request->input('null'));
+            $this->assertSame('value', $request->input('string'));
+        });
+
+        $this->assertSame(1, $middleware->exclusionMatchCount);
+    }
+
     public function testTrimStringsIgnoringExceptAttribute()
     {
         $middleware = new TrimStringsWithExceptAttribute;
@@ -29,6 +51,65 @@ class TrimStringsTest extends TestCase
             $this->assertSame('  789  ', $request->input('foo'));
             $this->assertSame('  010  ', $request->input('bar'));
         });
+    }
+
+    public function testTrimStringsSupportsExactAndWildcardExceptAttributes()
+    {
+        $middleware = new TrimStringsWithExactAndWildcardExceptAttributes;
+        $symfonyRequest = new SymfonyRequest([
+            'exact' => ' exact ',
+            'other' => ' other ',
+            'users' => [
+                ['secret' => ' first ', 'name' => ' Taylor '],
+                ['secret' => ' second ', 'name' => ' Abigail '],
+            ],
+        ]);
+        $symfonyRequest->server->set('REQUEST_METHOD', 'GET');
+        $request = Request::createFromBase($symfonyRequest);
+
+        $middleware->handle($request, function (Request $request) {
+            $this->assertSame(' exact ', $request->input('exact'));
+            $this->assertSame('other', $request->input('other'));
+            $this->assertSame(' first ', $request->input('users.0.secret'));
+            $this->assertSame('Taylor', $request->input('users.0.name'));
+            $this->assertSame(' second ', $request->input('users.1.secret'));
+            $this->assertSame('Abigail', $request->input('users.1.name'));
+        });
+    }
+
+    public function testGlobalExceptAppliesToAnExistingMiddlewareInstance()
+    {
+        $middleware = new TrimStrings;
+
+        $this->assertSame('value', $this->handle($middleware, ['token' => ' value '])->input('token'));
+
+        TrimStrings::except('token');
+
+        $this->assertSame(' value ', $this->handle($middleware, ['token' => ' value '])->input('token'));
+    }
+
+    public function testFlushStateAppliesToAnExistingMiddlewareInstance()
+    {
+        TrimStrings::except('token');
+
+        $middleware = new TrimStrings;
+
+        $this->assertSame(' value ', $this->handle($middleware, ['token' => ' value '])->input('token'));
+
+        TrimStrings::flushState();
+
+        $this->assertSame('value', $this->handle($middleware, ['token' => ' value '])->input('token'));
+    }
+
+    public function testInstanceExceptChangesAreUsedBySubsequentRequests(): void
+    {
+        $middleware = new MutableExceptTrimStrings;
+
+        $this->assertSame('value', $this->handle($middleware, ['token' => ' value '])->input('token'));
+
+        $middleware->setExcept(['token']);
+
+        $this->assertSame(' value ', $this->handle($middleware, ['token' => ' value '])->input('token'));
     }
 
     public function testTrimStringsNBSP()
@@ -58,6 +139,17 @@ class TrimStringsTest extends TestCase
             $this->assertSame("\xE9", $request->input('binary'));
         });
     }
+
+    private function handle(TrimStrings $middleware, array $input): Request
+    {
+        $symfonyRequest = new SymfonyRequest($input);
+        $symfonyRequest->server->set('REQUEST_METHOD', 'GET');
+        $request = Request::createFromBase($symfonyRequest);
+
+        $middleware->handle($request, fn (Request $request) => $request);
+
+        return $request;
+    }
 }
 
 class TrimStringsWithExceptAttribute extends TrimStrings
@@ -66,4 +158,32 @@ class TrimStringsWithExceptAttribute extends TrimStrings
         'foo',
         'bar',
     ];
+}
+
+class TrimStringsWithExactAndWildcardExceptAttributes extends TrimStrings
+{
+    protected array $except = [
+        'exact',
+        'users.*.secret',
+    ];
+}
+
+class TrimStringsTrackingExclusionMatches extends TrimStrings
+{
+    public int $exclusionMatchCount = 0;
+
+    protected function shouldSkip(string $key, array $except): bool
+    {
+        ++$this->exclusionMatchCount;
+
+        return parent::shouldSkip($key, $except);
+    }
+}
+
+class MutableExceptTrimStrings extends TrimStrings
+{
+    public function setExcept(array $except): void
+    {
+        $this->except = $except;
+    }
 }

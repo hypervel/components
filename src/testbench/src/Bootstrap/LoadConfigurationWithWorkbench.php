@@ -37,7 +37,7 @@ class LoadConfigurationWithWorkbench extends LoadConfiguration
 
         $userModel = Workbench::applicationUserModel();
 
-        if (is_string($userModel) && is_a($userModel, AuthenticatableContract::class, true)) { /* @phpstan-ignore function.alreadyNarrowedType */
+        if (is_string($userModel) && is_a($userModel, AuthenticatableContract::class, true)) {
             $app->make('config')->set('auth.providers.users.model', $userModel);
         }
     }

@@ -13,40 +13,103 @@
 >
 > Hypervel 0.4 is not ready for use yet. APIs, behavior, configuration, and package internals may change unexpectedly while the rewrite is still in progress.
 >
+> The published documentation at [hypervel.org/docs](https://hypervel.org/docs) currently covers Hypervel 0.3. If you are experimenting with this branch, use the [in-progress 0.4 documentation](https://github.com/hypervel/components/tree/0.4/src/docs). If you are coming from Laravel, begin with the [porting guide](https://github.com/hypervel/components/blob/0.4/src/docs/porting-from-laravel.md).
+>
 > Please do not use this branch for projects until a beta release is tagged. If you are experimenting or testing the rewrite, bug reports and feedback are very welcome.
 
-## Introduction
+## About Hypervel
 
-> Note: This repository contains the core code of the Hypervel framework. If you want to build an application using Hypervel, visit the [Hypervel repository](https://github.com/hypervel/hypervel).
+> [!NOTE]
+> This repository contains the core components of the Hypervel framework. If you want to create a Hypervel application, visit the [Hypervel application repository](https://github.com/hypervel/hypervel).
 
-**Hypervel** is a Laravel-style PHP framework with native coroutine support for ultra-high performance.
+Hypervel is a modern, opinionated PHP framework built for Swoole. It runs applications in long-lived workers and uses coroutines to handle many requests, jobs, and connections concurrently.
 
-Hypervel ports many core components from Laravel while maintaining familiar usage patterns, making it instantly accessible to Laravel developers. The framework combines the elegant and expressive development experience of Laravel with the powerful performance benefits of coroutine-based programming. If you're a Laravel developer, you'll feel right at home with this framework, requiring minimal learning curve.
+When one coroutine is waiting on a database query, cache lookup, queue operation, file access, or HTTP request, the worker can keep serving other requests and jobs instead of sitting idle. You write ordinary sequential code, and the runtime yields to other work while yours waits.
 
-This is an ideal choice for building microservices, API gateways, and high-concurrency applications where traditional PHP frameworks often encounter performance constraints.
+Hypervel is built for traditional web applications, APIs, microservices, real-time services, background workers, and other applications that spend meaningful time waiting on external systems.
 
-## Why Hypervel?
+## Framework Features
 
-While Laravel Octane impressively enhances your Laravel application's performance, it's crucial to understand the nature of modern web applications. In most cases, the majority of latency stems from I/O operations, such as file operations, database queries, and API requests.
+Hypervel includes the features expected from a modern full-stack framework:
 
-However, Laravel doesn't support coroutines - the entire framework is designed for a blocking I/O environment. Applications heavily dependent on I/O operations will still face performance bottlenecks. Consider this scenario:
+- Fast, expressive [routing](https://github.com/hypervel/components/blob/0.4/src/docs/routing.md) and middleware.
+- A powerful [dependency injection container](https://github.com/hypervel/components/blob/0.4/src/docs/container.md) and service provider system.
+- [Eloquent ORM](https://github.com/hypervel/components/blob/0.4/src/docs/eloquent.md), schema building, and [database migrations](https://github.com/hypervel/components/blob/0.4/src/docs/migrations.md).
+- Multiple [session](https://github.com/hypervel/components/blob/0.4/src/docs/session.md) and [cache](https://github.com/hypervel/components/blob/0.4/src/docs/cache.md) stores.
+- [Background jobs](https://github.com/hypervel/components/blob/0.4/src/docs/queues.md), job batching, and [task scheduling](https://github.com/hypervel/components/blob/0.4/src/docs/scheduling.md).
+- Real-time [event broadcasting](https://github.com/hypervel/components/blob/0.4/src/docs/broadcasting.md) and [WebSocket support](https://github.com/hypervel/components/blob/0.4/src/docs/websockets.md).
+- [Authentication](https://github.com/hypervel/components/blob/0.4/src/docs/authentication.md), [authorization](https://github.com/hypervel/components/blob/0.4/src/docs/authorization.md), [validation](https://github.com/hypervel/components/blob/0.4/src/docs/validation.md), [notifications](https://github.com/hypervel/components/blob/0.4/src/docs/notifications.md), [mail](https://github.com/hypervel/components/blob/0.4/src/docs/mail.md), and [filesystem storage](https://github.com/hypervel/components/blob/0.4/src/docs/filesystem.md).
+- [Blade templates](https://github.com/hypervel/components/blob/0.4/src/docs/blade.md) and [Vite](https://github.com/hypervel/components/blob/0.4/src/docs/vite.md) integration for full-stack applications.
+- First-class [coroutines](https://github.com/hypervel/components/blob/0.4/src/docs/coroutines.md) and [concurrent HTTP requests](https://github.com/hypervel/components/blob/0.4/src/docs/http-client.md#concurrent-requests).
+- Persistent [database](https://github.com/hypervel/components/blob/0.4/src/docs/database.md#connection-pooling) and [Redis](https://github.com/hypervel/components/blob/0.4/src/docs/redis.md#connection-pooling) connection pools.
+- Coroutine-aware [testing](https://github.com/hypervel/components/blob/0.4/src/docs/testing.md), with [Testbench](https://github.com/hypervel/components/blob/0.4/src/docs/testbench.md) for package development.
+- [gRPC](https://github.com/hypervel/components/blob/0.4/src/docs/grpc.md) and [custom server processes](https://github.com/hypervel/components/blob/0.4/src/docs/server-processes.md).
 
-Imagine building an AI-powered chatbot where each conversation API takes 3-5 seconds to respond. With 10 workers in Laravel Octane receiving 10 concurrent requests, all workers would be blocked until these requests complete.
+## Laravel Compatibility
 
-> You can see [benchmark comparison](https://hypervel.org/docs/introduction.html#benchmark) between Laravel Octane and Hypervel
+Hypervel aims for Laravel API compatibility wherever it fits. However, Hypervel is not a Laravel clone or drop-in replacement. Many Hypervel components are ports of Laravel packages, adapted for Hypervel's asynchronous runtime, performance requirements, and coroutine safety, but the framework itself has its own architecture, features, supported integrations, and direction.
 
-Even with Laravel Octane's improvements, your application's concurrent request handling capacity remains constrained by I/O operation duration. Hypervel addresses this limitation through coroutines, enabling efficient handling of concurrent I/O operations without blocking workers. This approach significantly enhances performance and concurrency for I/O-intensive applications.
+Moving an existing Laravel application or package to Hypervel is a deliberate port, not a namespace replacement. The [porting guide](https://github.com/hypervel/components/blob/0.4/src/docs/porting-from-laravel.md) explains what needs to change and why.
 
-> See [this issue](https://github.com/laravel/octane/issues/765) for more discussions.
+## Project Direction
+
+Hypervel will continue to track and port Laravel features where they fit, while building features designed for Hypervel's runtime. The dedicated [rate limiter](https://github.com/hypervel/components/blob/0.4/src/docs/rate-limiting.md), [dual-mode Redis cache tags](https://github.com/hypervel/components/blob/0.4/src/docs/cache.md#redis-tag-modes), [layered cache stores](https://github.com/hypervel/components/blob/0.4/src/docs/cache.md#building-cache-stacks), and [Redis session system with user-session management](https://github.com/hypervel/components/blob/0.4/src/docs/session.md#managing-user-sessions) are examples of that direction.
+
+First-party ClickHouse support and built-in integration with [SonicStack](https://sonicstack.io) are also planned. SonicStack is Hypervel's deployment platform and is how we plan to fund ongoing framework development.
+
+## Requirements
+
+Hypervel 0.4 requires PHP 8.4 or later and Swoole 6.2.2 or later. Hypervel's Redis integrations use the PhpRedis extension 6.1 or later; Predis is not supported.
+
+See the [installation documentation](https://github.com/hypervel/components/blob/0.4/src/docs/installation.md#requirements) for the complete list of required PHP extensions and setup instructions.
+
+## This Repository
+
+This monorepo contains Hypervel's core framework components and first-party packages. Components are developed and tested together here, then published as separate Composer packages. Framework changes and pull requests should be submitted to this repository rather than the split package repositories.
 
 ## Documentation
 
-[https://hypervel.org/docs](https://hypervel.org/docs)
+The complete Hypervel documentation is available at [hypervel.org/docs](https://hypervel.org/docs).
 
-Hypervel provides comprehensive and user-friendly documentation that allows you to quickly get started. From this documentation, you can learn how to use various components in Hypervel and understand the differences between this framework and Laravel.
+Hypervel's documentation follows the structure and style of Laravel's documentation, and portions are adapted from it. Our thanks to the Laravel community.
 
-> Most of the content in this documentation is referenced from the official Laravel documentation. We appreciate the Laravel community's contributions.
+## Contributing
+
+Thank you for considering contributing to Hypervel. The [contribution guide](https://github.com/hypervel/components/blob/0.4/src/docs/contributions.md) explains which changes are accepted, how to run the required checks, and how to prepare a pull request.
+
+For support questions, ideas, and feature requests, please use [GitHub Discussions](https://github.com/hypervel/components/discussions).
+
+## Code of Conduct
+
+Please review and follow Hypervel's [Code of Conduct](https://github.com/hypervel/components/blob/0.4/src/docs/contributions.md#code-of-conduct) when participating in the community.
+
+## Security Vulnerabilities
+
+If you discover a security vulnerability in Hypervel, please report it privately by emailing Albert Chen at [albert@hypervel.org](mailto:albert@hypervel.org). Security vulnerabilities will be addressed promptly.
+
+Please do not report security vulnerabilities through public GitHub issues or discussions.
 
 ## License
 
-The Hypervel framework is open-sourced software licensed under the [MIT](https://opensource.org/licenses/MIT) license.
+The Hypervel framework is open-sourced software licensed under the [MIT license](https://github.com/hypervel/components/blob/0.4/LICENSE.md).
+
+## Created by
+
+<table align="center">
+    <tr>
+        <td align="center">
+            <a href="https://github.com/albertcht">
+                <img src="https://github.com/albertcht.png?size=96" width="96" alt="Albert Chen">
+                <br>
+                <sub><b>Albert Chen</b></sub>
+            </a>
+        </td>
+        <td align="center">
+            <a href="https://github.com/binaryfire">
+                <img src="https://github.com/binaryfire.png?size=96" width="96" alt="Raj Siva-Rajah">
+                <br>
+                <sub><b>Raj Siva-Rajah</b></sub>
+            </a>
+        </td>
+    </tr>
+</table>

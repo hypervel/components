@@ -6,41 +6,41 @@ namespace Hypervel\Telescope;
 
 class EntryType
 {
-    public const BATCH = 'batch';
+    public const string BATCH = 'batch';
 
-    public const CACHE = 'cache';
+    public const string CACHE = 'cache';
 
-    public const COMMAND = 'command';
+    public const string COMMAND = 'command';
 
-    public const DUMP = 'dump';
+    public const string DUMP = 'dump';
 
-    public const EVENT = 'event';
+    public const string EVENT = 'event';
 
-    public const EXCEPTION = 'exception';
+    public const string EXCEPTION = 'exception';
 
-    public const JOB = 'job';
+    public const string JOB = 'job';
 
-    public const LOG = 'log';
+    public const string LOG = 'log';
 
-    public const MAIL = 'mail';
+    public const string MAIL = 'mail';
 
-    public const MODEL = 'model';
+    public const string MODEL = 'model';
 
-    public const NOTIFICATION = 'notification';
+    public const string NOTIFICATION = 'notification';
 
-    public const QUERY = 'query';
+    public const string QUERY = 'query';
 
-    public const REDIS = 'redis';
+    public const string REDIS = 'redis';
 
-    public const REVERB = 'reverb';
+    public const string REVERB = 'reverb';
 
-    public const REQUEST = 'request';
+    public const string REQUEST = 'request';
 
-    public const SCHEDULED_TASK = 'schedule';
+    public const string SCHEDULED_TASK = 'schedule';
 
-    public const GATE = 'gate';
+    public const string GATE = 'gate';
 
-    public const VIEW = 'view';
+    public const string VIEW = 'view';
 
-    public const CLIENT_REQUEST = 'client_request';
+    public const string CLIENT_REQUEST = 'client_request';
 }

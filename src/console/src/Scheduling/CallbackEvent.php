@@ -18,7 +18,7 @@ class CallbackEvent extends Event
     /**
      * Context key prefix for the current callback invocation.
      */
-    protected const CALLBACK_CONTEXT_KEY_PREFIX = '__console.scheduling_callback.';
+    protected const string CALLBACK_CONTEXT_KEY_PREFIX = '__console.scheduling_callback.';
 
     /**
      * The callback to call.

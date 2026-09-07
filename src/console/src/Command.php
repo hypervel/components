@@ -14,13 +14,17 @@ use Hypervel\Console\Events\AfterExecute;
 use Hypervel\Console\Events\AfterHandle;
 use Hypervel\Console\Events\BeforeHandle;
 use Hypervel\Console\View\Components\Factory;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Console\Isolatable;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Support\Defer\DeferredCallback;
+use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Traits\Macroable;
 use ReflectionClass;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Swoole\ExitException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\InputInterface;
@@ -287,24 +291,34 @@ class Command extends SymfonyCommand
                     $this->getName()
                 ));
 
-                return (int) (is_numeric($this->option('isolated'))
+                return $this->normalizeExitCode((int) (is_numeric($this->option('isolated'))
                     ? $this->option('isolated')
-                    : $this->isolatedExitCode);
+                    : $this->isolatedExitCode));
             }
         }
 
         $exception = null;
+        $runsInOwnCoroutine = $this->coroutine && ! Coroutine::inCoroutine();
 
-        $callback = function () use ($input, $output, $commandMutex, &$exception): int {
+        $callback = function () use ($input, $output, $commandMutex, $runsInOwnCoroutine, &$exception): int {
             try {
                 $this->exitCode = $this->executeCommand($input, $output);
-            } catch (Throwable $e) {
-                $exception = $e;
+            } catch (Throwable $throwable) {
+                $exception = $throwable;
                 $this->exitCode = self::FAILURE;
             } finally {
                 try {
                     if ($this->eventDispatcher?->hasListeners(AfterExecute::class)) {
-                        $this->eventDispatcher->dispatch(new AfterExecute($this, $exception));
+                        $this->eventDispatcher->dispatch(new AfterExecute(
+                            $this,
+                            $exception,
+                            $input,
+                            $this->normalizeExitCode($this->exitCode),
+                        ));
+                    }
+                } catch (CanceledException $cancellation) {
+                    if (! $exception instanceof CanceledException) {
+                        $exception = $cancellation;
                     }
                 } catch (Throwable $throwable) {
                     $exception ??= $throwable;
@@ -313,8 +327,27 @@ class Command extends SymfonyCommand
                 if ($commandMutex !== null) {
                     try {
                         $commandMutex->forget($this);
+                    } catch (CanceledException $cancellation) {
+                        if (! $exception instanceof CanceledException) {
+                            $exception = $cancellation;
+                        }
                     } catch (Throwable $throwable) {
                         $exception ??= $throwable;
+                    }
+                }
+
+                if ($runsInOwnCoroutine && ! $exception instanceof CanceledException) {
+                    $container = Container::getInstance();
+
+                    if ($container->resolvedScoped(DeferredCallbackCollection::class)) {
+                        try {
+                            $container->make(DeferredCallbackCollection::class)
+                                ->invokeWhen(fn (DeferredCallback $callback): bool => ($exception === null && $this->normalizeExitCode($this->exitCode) === self::SUCCESS) || $callback->always);
+                        } catch (CanceledException $cancellation) {
+                            $exception = $cancellation;
+                        } catch (Throwable $throwable) {
+                            $exception ??= $throwable;
+                        }
                     }
                 }
             }
@@ -322,7 +355,7 @@ class Command extends SymfonyCommand
             return $this->exitCode;
         };
 
-        if ($this->coroutine && ! Coroutine::inCoroutine()) {
+        if ($runsInOwnCoroutine) {
             run($callback, $this->hookFlags);
         } else {
             $callback();
@@ -332,7 +365,7 @@ class Command extends SymfonyCommand
             throw $exception;
         }
 
-        return $this->exitCode >= 0 && $this->exitCode <= 255 ? $this->exitCode : self::INVALID;
+        return $this->normalizeExitCode($this->exitCode);
     }
 
     /**
@@ -347,10 +380,9 @@ class Command extends SymfonyCommand
 
         try {
             if ($this->eventDispatcher?->hasListeners(BeforeHandle::class)) {
-                $this->eventDispatcher->dispatch(new BeforeHandle($this));
+                $this->eventDispatcher->dispatch(new BeforeHandle($this, $input));
             }
 
-            /* @phpstan-ignore-next-line */
             $statusCode = $this->hypervel->call([$this, $method]);
             if (is_int($statusCode)) {
                 $this->exitCode = $statusCode;
@@ -373,6 +405,14 @@ class Command extends SymfonyCommand
         }
 
         return $this->exitCode;
+    }
+
+    /**
+     * Normalize the command exit code.
+     */
+    protected function normalizeExitCode(int $exitCode): int
+    {
+        return $exitCode >= 0 && $exitCode <= 255 ? $exitCode : self::INVALID;
     }
 
     /**
@@ -419,7 +459,7 @@ class Command extends SymfonyCommand
             if (! class_exists($command)) {
                 $command = clone $this->getApplication()->find($command);
             } else {
-                $command = $this->hypervel->make($command);
+                $command = clone $this->hypervel->make($command);
             }
         } else {
             $command = clone $command;

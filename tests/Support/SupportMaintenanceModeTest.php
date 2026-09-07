@@ -11,11 +11,11 @@ use Hypervel\Testbench\TestCase;
 
 class SupportMaintenanceModeTest extends TestCase
 {
-    public function testExtend()
+    public function testExtend(): void
     {
         MaintenanceMode::extend('test', fn () => new TestMaintenanceMode);
 
-        $this->app->config->set('app.maintenance.driver', 'test');
+        $this->app->make('config')->set('app.maintenance.driver', 'test');
 
         $driver = $this->app->make(MaintenanceModeManager::class)->driver();
 
@@ -24,7 +24,9 @@ class SupportMaintenanceModeTest extends TestCase
 
     public function testCacheDriverPreservesZeroStoreAndEmptyFallback(): void
     {
-        $this->app->config->set([
+        $config = $this->app->make('config');
+
+        $config->set([
             'app.maintenance.driver' => 'cache',
             'cache.default' => 'array',
             'cache.stores.0' => ['driver' => 'array'],
@@ -32,7 +34,7 @@ class SupportMaintenanceModeTest extends TestCase
         ]);
 
         $this->app->make('cache')->store('0')->put('hypervel:foundation:down', ['store' => 'zero']);
-        $this->app->config->set('app.maintenance.store', '0');
+        $config->set('app.maintenance.store', '0');
 
         $this->assertSame(
             ['store' => 'zero'],
@@ -40,7 +42,7 @@ class SupportMaintenanceModeTest extends TestCase
         );
 
         $this->app->make('cache')->store('array')->put('hypervel:foundation:down', ['store' => 'default']);
-        $this->app->config->set('app.maintenance.store', '');
+        $config->set('app.maintenance.store', '');
 
         $this->assertSame(
             ['store' => 'default'],

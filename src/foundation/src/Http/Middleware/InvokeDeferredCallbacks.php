@@ -26,8 +26,16 @@ class InvokeDeferredCallbacks
      */
     public function terminate(Request $request, Response $response): void
     {
-        Container::getInstance()
-            ->make(DeferredCallbackCollection::class)
+        $container = Container::getInstance();
+
+        // The collection is scoped, so it only exists here if something in this
+        // request actually called defer(). Resolving it otherwise would build a
+        // collection on every request just to iterate nothing.
+        if (! $container->resolvedScoped(DeferredCallbackCollection::class)) {
+            return;
+        }
+
+        $container->make(DeferredCallbackCollection::class)
             ->invokeWhen(fn (DeferredCallback $callback) => $response->getStatusCode() < 400 || $callback->always);
     }
 }

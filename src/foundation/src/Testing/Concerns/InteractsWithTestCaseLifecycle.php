@@ -103,17 +103,17 @@ trait InteractsWithTestCaseLifecycle
         $exception = null;
         $app = $this->app;
 
+        try {
+            $this->runInCoroutine(
+                fn () => $this->callBeforeApplicationDestroyedCallbacks()
+            );
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        }
+
+        $exception ??= $this->callbackException;
+
         if ($app !== null) {
-            try {
-                $this->runInCoroutine(
-                    fn () => $this->callBeforeApplicationDestroyedCallbacks()
-                );
-            } catch (Throwable $throwable) {
-                $exception = $throwable;
-            }
-
-            $exception ??= $this->callbackException;
-
             try {
                 $this->runInCoroutine(
                     fn () => DatabaseConnectionResolver::flushCachedConnections()
@@ -151,8 +151,6 @@ trait InteractsWithTestCaseLifecycle
             } catch (Throwable $throwable) {
                 $exception ??= $throwable;
             }
-        } else {
-            $exception = $this->callbackException;
         }
 
         try {
@@ -179,7 +177,7 @@ trait InteractsWithTestCaseLifecycle
      */
     protected function setUpTraits()
     {
-        $uses = array_flip(class_uses_recursive(static::class));
+        $uses = $this->traitsUsedByTest ??= class_uses_recursive(static::class);
 
         if (isset($uses[WithFaker::class])) {
             $this->setUpFaker();

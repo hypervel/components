@@ -4,16 +4,39 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Horizon\Feature;
 
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Horizon\Events\MasterSupervisorDeployed;
 use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Horizon\MasterSupervisorCommands\AddSupervisor;
 use Hypervel\Horizon\ProvisioningPlan;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
 class ProvisioningPlanTest extends IntegrationTestCase
 {
+    public function testGetUsesNoSharedOptionsWhenDefaultsAreOmitted(): void
+    {
+        $horizonConfig = config()->array('horizon');
+        $supervisor = $horizonConfig['defaults']['supervisor-1'];
+        unset($horizonConfig['defaults']);
+        $horizonConfig['environments'] = [
+            'local' => ['supervisor-1' => $supervisor],
+        ];
+        config()->set('horizon', $horizonConfig);
+
+        $options = ProvisioningPlan::get(MasterSupervisor::name())
+            ->optionsFor('local', 'supervisor-1');
+
+        $this->assertNotNull($options);
+        $this->assertSame('redis', $options->connection);
+        $this->assertSame('default', $options->queue);
+    }
+
     public function testSupervisorsAreAdded()
     {
+        Event::fake([MasterSupervisorDeployed::class]);
+
         $plan = [
             'production' => [
                 'supervisor-1' => [
@@ -38,6 +61,41 @@ class ProvisioningPlanTest extends IntegrationTestCase
         $this->assertSame(AddSupervisor::class, $command->command);
         $this->assertSame('first', $command->options['queue']);
         $this->assertSame(20, $command->options['maxProcesses']);
+        Event::assertDispatched(
+            fn (MasterSupervisorDeployed $event): bool => $event->master === MasterSupervisor::name()
+        );
+    }
+
+    public function testPassiveObserverDoesNotCauseDeploymentEventToDispatch(): void
+    {
+        $observedEvents = [];
+        $this->app->make(Dispatcher::class)->observe(
+            MasterSupervisorDeployed::class,
+            static function (MasterSupervisorDeployed $event) use (&$observedEvents): void {
+                $observedEvents[] = $event;
+            }
+        );
+
+        $plan = [
+            'production' => [
+                'supervisor-1' => [
+                    'connection' => 'redis',
+                    'queue' => 'first',
+                    'max_processes' => 20,
+                ],
+            ],
+        ];
+
+        (new ProvisioningPlan(MasterSupervisor::name(), $plan))->deploy('production');
+
+        $commands = Redis::connection('horizon')->lRange(
+            'commands:' . MasterSupervisor::commandQueueFor(MasterSupervisor::name()),
+            0,
+            -1
+        );
+
+        $this->assertCount(1, $commands);
+        $this->assertSame([], $observedEvents);
     }
 
     public function testSupervisorsAreAddedAsFallbackForWildcardEnvironments()

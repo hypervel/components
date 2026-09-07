@@ -28,6 +28,7 @@ use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\SystemInfo;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
+use Throwable;
 
 #[AsCommand(name: 'cache:redis-benchmark')]
 class BenchmarkCommand extends Command
@@ -102,11 +103,12 @@ class BenchmarkCommand extends Command
             return self::FAILURE;
         }
 
-        // Validate tag mode if provided
         $tagModeOption = $this->option('tag-mode');
+        $tagMode = is_string($tagModeOption) ? TagMode::tryFrom($tagModeOption) : null;
 
-        if ($tagModeOption !== null && ! in_array($tagModeOption, ['all', 'any'], true)) {
-            $this->error("Invalid tag mode: {$tagModeOption}. Available: all, any");
+        if ($tagModeOption !== null && $tagMode === null) {
+            $availableTagModes = implode(', ', TagMode::supportedValues());
+            $this->error("Invalid tag mode: {$tagModeOption}. Available: {$availableTagModes}");
 
             return self::FAILURE;
         }
@@ -141,6 +143,7 @@ class BenchmarkCommand extends Command
 
         $cacheManager = $this->hypervel->make(CacheContract::class);
         $context = $this->createContext($config, $cacheManager);
+        $cleanupFailed = false;
 
         try {
             // Run Benchmark(s)
@@ -149,20 +152,26 @@ class BenchmarkCommand extends Command
             } else {
                 // Use provided tag mode or current config
                 $store = $context->getStoreInstance();
-                $tagMode = $tagModeOption ?? $store->getTagMode()->value;
+                $tagMode ??= $store->getTagMode();
                 $this->runSuiteWithRuns($tagMode, $context, $runs);
             }
-        } catch (BenchmarkMemoryException $e) {
-            $this->displayMemoryError($e);
+        } catch (BenchmarkMemoryException $exception) {
+            $this->displayMemoryError($exception, $context);
 
             return self::FAILURE;
+        } finally {
+            $this->newLine();
+            $this->info('Cleaning up benchmark data...');
+
+            try {
+                $context->cleanup();
+            } catch (Throwable $exception) {
+                $cleanupFailed = true;
+                $this->error('Benchmark cleanup failed (' . $exception::class . '): ' . $exception->getMessage());
+            }
         }
 
-        $this->newLine();
-        $this->info('Cleaning up benchmark data...');
-        $context->cleanup();
-
-        return self::SUCCESS;
+        return $cleanupFailed ? self::FAILURE : self::SUCCESS;
     }
 
     /**
@@ -228,8 +237,8 @@ class BenchmarkCommand extends Command
 
             // Test connection
             $cacheManager->store($this->storeName)->get('test');
-        } catch (Exception $e) {
-            $this->error("Could not connect to Redis store '{$this->storeName}': " . $e->getMessage());
+        } catch (Exception $exception) {
+            $this->error("Could not connect to Redis store '{$this->storeName}': " . $exception->getMessage());
 
             return false;
         }
@@ -283,7 +292,7 @@ class BenchmarkCommand extends Command
         }
 
         $config = $this->hypervel->make('config');
-        $env = $config->string('app.env', 'production');
+        $env = $config->string('app.env');
         $scale = $this->option('scale');
 
         $this->warn('WARNING: This benchmark will put EXTREME load on your Redis instance');
@@ -322,11 +331,11 @@ class BenchmarkCommand extends Command
         $this->newLine();
 
         $this->info('--- Phase 1: All Mode (Intersection) ---');
-        $allResults = $this->runSuiteWithRuns('all', $context, $runs, returnResults: true);
+        $allResults = $this->runSuiteWithRuns(TagMode::All, $context, $runs, returnResults: true);
 
         $this->newLine();
         $this->info('--- Phase 2: Any Mode (Union) ---');
-        $anyResults = $this->runSuiteWithRuns('any', $context, $runs, returnResults: true);
+        $anyResults = $this->runSuiteWithRuns(TagMode::Any, $context, $runs, returnResults: true);
 
         $this->formatter->displayComparisonTable($allResults, $anyResults);
     }
@@ -336,7 +345,7 @@ class BenchmarkCommand extends Command
      *
      * @return array<string, ScenarioResult>
      */
-    protected function runSuiteWithRuns(string $tagMode, BenchmarkContext $context, int $runs, bool $returnResults = false): array
+    protected function runSuiteWithRuns(TagMode $tagMode, BenchmarkContext $context, int $runs, bool $returnResults = false): array
     {
         /** @var array<int, array<string, ScenarioResult>> $allRunResults */
         $allRunResults = [];
@@ -360,7 +369,7 @@ class BenchmarkCommand extends Command
         $averagedResults = $this->averageResults($allRunResults);
 
         if (! $returnResults) {
-            $this->formatter->displayResultsTable($averagedResults, $tagMode);
+            $this->formatter->displayResultsTable($averagedResults, $tagMode->value);
         }
 
         return $averagedResults;
@@ -371,13 +380,12 @@ class BenchmarkCommand extends Command
      *
      * @return array<string, ScenarioResult>
      */
-    protected function runSuite(string $tagMode, BenchmarkContext $context): array
+    protected function runSuite(TagMode $tagMode, BenchmarkContext $context): array
     {
-        // Set the tag mode on the store
         $store = $context->getStoreInstance();
-        $store->setTagMode(TagMode::fromConfig($tagMode));
+        $store->setTagMode($tagMode);
 
-        $this->line("Tag Mode: <fg=green>{$tagMode}</>");
+        $this->line("Tag Mode: <fg=green>{$tagMode->value}</>");
 
         $results = [];
 
@@ -520,8 +528,11 @@ class BenchmarkCommand extends Command
 
                 $this->line('  Tag Mode: <fg=cyan>' . $store->getTagMode()->value . '</>');
             }
-        } catch (Exception) {
-            // Silently skip if Redis connection fails
+        } catch (Throwable $exception) {
+            $this->line(
+                '  Cache Service: <fg=red>Connection failed ('
+                . $exception::class . '): ' . $exception->getMessage() . '</>'
+            );
         }
 
         $this->newLine();
@@ -551,27 +562,28 @@ class BenchmarkCommand extends Command
     /**
      * Display memory exhaustion error with recovery guidance.
      */
-    protected function displayMemoryError(BenchmarkMemoryException $e): void
+    protected function displayMemoryError(BenchmarkMemoryException $exception, BenchmarkContext $context): void
     {
-        $config = $this->hypervel->make('config');
-
         $this->newLine();
         $this->error('Benchmark aborted due to memory constraints.');
         $this->newLine();
-        $this->line($e->getMessage());
+        $this->line($exception->getMessage());
         $this->newLine();
-        $this->warn('Cleanup skipped to avoid further memory exhaustion.');
-        $this->line('   After fixing memory issues, clean up leftover benchmark keys:');
+        $this->warn('Automatic cleanup will run next.');
+        $this->line('   If benchmark keys remain, clean them up after fixing the memory issue:');
         $this->newLine();
-        $this->line('   Option 1 - Clear all cache (simple):');
+        $this->line('   Option 1 - Flush the entire Redis database for this connection (removes all keys, not only cache):');
         $this->line('   <fg=cyan>php artisan cache:clear ' . $this->storeName . '</>');
         $this->newLine();
-        $this->line('   Option 2 - Clear only benchmark keys (preserves other cache):');
-        $cachePrefix = $config->string(
-            "cache.stores.{$this->storeName}.prefix",
-            $config->string('cache.prefix'),
-        );
-        $this->line('   <fg=cyan>redis-cli KEYS "' . $cachePrefix . BenchmarkContext::KEY_PREFIX . '*" | xargs redis-cli DEL</>');
+        $this->line('   Option 2 - Clear benchmark-owned keys only (preserves other cache):');
+
+        foreach ($context->getCleanupPatterns() as $pattern) {
+            $this->line(
+                '   <fg=cyan>redis-cli --scan --pattern '
+                . escapeshellarg($pattern)
+                . ' | xargs -r -n 1000 redis-cli UNLINK</>'
+            );
+        }
     }
 
     /**

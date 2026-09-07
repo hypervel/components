@@ -6,11 +6,17 @@ namespace Hypervel\Tests\Auth;
 
 use Hypervel\Auth\Notifications\ResetPassword;
 use Hypervel\Auth\Passwords\PasswordBroker;
+use Hypervel\Auth\Passwords\PasswordBrokerManager;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 
-#[WithConfig('auth.passwords.admins', ['provider' => 'users', 'table' => 'admin_password_reset_tokens', 'expire' => 15])]
+#[WithConfig('auth.passwords.admins', [
+    'driver' => 'database',
+    'provider' => 'users',
+    'table' => 'admin_password_reset_tokens',
+    'expire' => 15,
+])]
 class ResetPasswordNotificationTest extends TestCase
 {
     public function testExpiryIsCapturedFromSendingBrokerContext(): void
@@ -53,6 +59,20 @@ class ResetPasswordNotificationTest extends TestCase
             'This password reset link will expire in 15 minutes.',
             $this->mailLines($notification),
         );
+    }
+
+    public function testOmittedBrokerExpiryUsesTheBrokerDefault(): void
+    {
+        config()->set('auth.passwords.admins', [
+            'driver' => 'database',
+            'provider' => 'users',
+            'table' => 'admin_password_reset_tokens',
+        ]);
+        CoroutineContext::set(PasswordBroker::SENDING_BROKER_CONTEXT_KEY, 'admins');
+
+        $notification = new ResetPassword('token');
+
+        $this->assertSame(PasswordBrokerManager::DEFAULT_EXPIRE_MINUTES, $notification->expireMinutes);
     }
 
     /**

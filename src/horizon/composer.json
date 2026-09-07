@@ -1,6 +1,6 @@
 {
     "name": "hypervel/horizon",
-    "description": "The horizon package for Hypervel.",
+    "description": "The Hypervel Horizon package.",
     "license": "MIT",
     "keywords": [
         "php",

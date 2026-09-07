@@ -13,7 +13,7 @@ use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Foundation\Exceptions\Handler as ExceptionHandler;
-use Hypervel\Foundation\Testing\RedisTestDatabases;
+use Hypervel\Foundation\Testing\RedisTestConfiguration;
 use Hypervel\Horizon\HorizonServiceProvider;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
@@ -43,17 +43,15 @@ $config->set('queue', [
             'retry_after' => 90,
             'block_for' => null,
             'after_commit' => false,
+            'migration_batch_size' => -1,
         ],
     ],
 ]);
 
-// Parallel test isolation: use the same per-worker Redis DB as the test process.
-// InteractsWithRedis sets this in the test, but this subprocess bootstraps separately.
 $token = getenv('TEST_TOKEN');
 
-if (is_string($token)) {
-    $config->set('database.redis.default.database', RedisTestDatabases::databaseForToken($token));
-}
+// This subprocess must apply the topology before Horizon snapshots its Redis connection.
+RedisTestConfiguration::configure($config, $token);
 
 $app->register(HorizonServiceProvider::class);
 

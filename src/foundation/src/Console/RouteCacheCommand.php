@@ -50,7 +50,7 @@ class RouteCacheCommand extends Command
         // The app booted against a guaranteed-unused cache path, so the router
         // holds a live RouteCollection loaded from source route definitions.
         if (is_string($dumpPath = $this->option('dump-to')) && $dumpPath !== '') {
-            $routes = $this->hypervel['router']->getRoutes();
+            $routes = $this->hypervel->make('router')->getRoutes();
 
             if (! $routes instanceof RouteCollection) {
                 throw new LogicException('Fresh route dump expected a live RouteCollection.');

@@ -16,7 +16,7 @@ class Renderer
     /**
      * The path to the renderer's distribution files.
      */
-    protected const DIST = __DIR__ . '/../../../resources/exceptions/renderer/dist/';
+    protected const string DIST = __DIR__ . '/../../../resources/exceptions/renderer/dist/';
 
     /**
      * Create a new exception renderer instance.

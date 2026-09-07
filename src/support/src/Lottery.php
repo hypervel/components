@@ -52,7 +52,7 @@ class Lottery
             throw new RuntimeException('Float must not be greater than 1.');
         }
 
-        if ($outOf !== null && $outOf < 1) { /* @phpstan-ignore smaller.alwaysFalse, booleanAnd.alwaysFalse */
+        if ($outOf !== null && $outOf < 1) {
             throw new RuntimeException('Lottery "out of" value must be greater than or equal to 1.');
         }
 

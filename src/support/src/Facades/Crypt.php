@@ -8,17 +8,17 @@ use RuntimeException;
 use SensitiveParameter;
 
 /**
- * @method static bool supported(string $key, string $cipher)
- * @method static string generateKey(string $cipher)
- * @method static string encrypt(mixed $value, bool $serialize = true)
- * @method static string encryptString(string $value)
+ * @method static bool appearsEncrypted(mixed $value)
  * @method static mixed decrypt(string $payload, bool $unserialize = true)
  * @method static string decryptString(string $payload)
- * @method static bool appearsEncrypted(mixed $value)
- * @method static string getKey()
+ * @method static string encrypt(mixed $value, bool $serialize = true)
+ * @method static string encryptString(string $value)
+ * @method static string generateKey(string $cipher)
  * @method static array getAllKeys()
+ * @method static string getKey()
  * @method static array getPreviousKeys()
  * @method static \Hypervel\Encryption\Encrypter previousKeys(array $keys)
+ * @method static bool supported(string $key, string $cipher)
  *
  * @see \Hypervel\Encryption\Encrypter
  */

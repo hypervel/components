@@ -194,6 +194,41 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
         $this->assertNull($poppedJob);
     }
 
+    public function testReservedJobIsNotReclaimedBeforeRetryAfterAtFractionalSecond(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+
+        $queue = new DatabaseQueue(
+            $this->app->make('db'),
+            null,
+            'jobs',
+            retryAfter: 1,
+        );
+        $queue->setConnectionName('default');
+        $queue->setContainer($this->app);
+
+        $this->connection()->table('jobs')->insert([
+            'id' => 1,
+            'queue' => 'fractional',
+            'payload' => 'mock_payload',
+            'attempts' => 0,
+            'reserved_at' => null,
+            'available_at' => 1000,
+            'created_at' => 1000,
+        ]);
+
+        $this->assertNotNull($queue->pop('fractional'));
+        $this->assertSame(1001, $this->connection()->table('jobs')->find(1)->reserved_at);
+
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1001.900000'));
+
+        $this->assertNull($queue->pop('fractional'));
+
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1002.000000'));
+
+        $this->assertNotNull($queue->pop('fractional'));
+    }
+
     public function testJobPayloadIsAvailableOnEvents()
     {
         $jobQueueingEvent = null;

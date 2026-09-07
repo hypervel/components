@@ -133,17 +133,17 @@ class AboutCommand extends Command
         $formatStorageLinkedStatus = fn ($value) => $value ? '<fg=green;options=bold>LINKED</>' : '<fg=yellow;options=bold>NOT LINKED</>';
 
         static::addToSection('Environment', fn () => [
-            'Application Name' => config('app.name'),
+            'Application Name' => config()->string('app.name'),
             'Hypervel Version' => $this->hypervel->version(),
             'PHP Version' => phpversion(),
             'Swoole Version' => swoole_version(),
             'Composer Version' => $this->composer->getVersion() ?? '<fg=yellow;options=bold>-</>',
             'Environment' => $this->hypervel->environment(),
-            'Debug Mode' => static::format(config('app.debug'), console: $formatEnabledStatus),
+            'Debug Mode' => static::format(config()->boolean('app.debug'), console: $formatEnabledStatus),
             'URL' => Str::of(config('app.url'))->replace(['http://', 'https://'], ''),
             'Maintenance Mode' => static::format($this->hypervel->isDownForMaintenance(), console: $formatEnabledStatus),
-            'Timezone' => config('app.timezone'),
-            'Locale' => config('app.locale'),
+            'Timezone' => config()->string('app.timezone'),
+            'Locale' => config()->string('app.locale'),
         ]);
 
         static::addToSection('Cache', fn () => [
@@ -151,16 +151,16 @@ class AboutCommand extends Command
             'Events' => static::format($this->hypervel->eventsAreCached(), console: $formatCachedStatus),
             'Routes' => static::format($this->hypervel->routesAreCached(), console: $formatCachedStatus),
             'AOP Proxies' => static::format($this->hasPhpFiles($this->hypervel->storagePath('framework/aop'), 'cache'), console: $formatCachedStatus),
-            'Views' => static::format($this->hasPhpFiles(config('view.compiled')), console: $formatCachedStatus),
+            'Views' => static::format($this->hasPhpFiles(config()->string('view.compiled')), console: $formatCachedStatus),
         ]);
 
         static::addToSection('Drivers', fn () => array_filter([
-            'Broadcasting' => config('broadcasting.default'),
+            'Broadcasting' => config()->string('broadcasting.default'),
             'Cache' => function ($json) {
-                $cacheStore = config('cache.default');
+                $cacheStore = config()->string('cache.default');
 
-                if (config('cache.stores.' . $cacheStore . '.driver') === 'failover') {
-                    $secondary = new Collection(config('cache.stores.' . $cacheStore . '.stores'));
+                if (config()->string('cache.stores.' . $cacheStore . '.driver') === 'failover') {
+                    $secondary = config()->collection('cache.stores.' . $cacheStore . '.stores');
 
                     return value(static::format(
                         value: $cacheStore,
@@ -171,12 +171,12 @@ class AboutCommand extends Command
 
                 return $cacheStore;
             },
-            'Database' => config('database.default'),
+            'Database' => config()->string('database.default'),
             'Logs' => function ($json) {
                 $logChannel = config('logging.default');
 
-                if (config('logging.channels.' . $logChannel . '.driver') === 'stack') {
-                    $secondary = new Collection(config('logging.channels.' . $logChannel . '.channels'));
+                if (is_string($logChannel) && config()->string('logging.channels.' . $logChannel . '.driver') === 'stack') {
+                    $secondary = config()->collection('logging.channels.' . $logChannel . '.channels');
 
                     return value(static::format(
                         value: $logChannel,
@@ -188,10 +188,10 @@ class AboutCommand extends Command
                 return $logChannel;
             },
             'Mail' => function ($json) {
-                $mailMailer = config('mail.default');
+                $mailMailer = config()->string('mail.default');
 
-                if (in_array(config('mail.mailers.' . $mailMailer . '.transport'), ['failover', 'roundrobin'])) {
-                    $secondary = new Collection(config('mail.mailers.' . $mailMailer . '.mailers'));
+                if (in_array(config()->string('mail.mailers.' . $mailMailer . '.transport'), ['failover', 'roundrobin'], true)) {
+                    $secondary = config()->collection('mail.mailers.' . $mailMailer . '.mailers');
 
                     return value(static::format(
                         value: $mailMailer,
@@ -203,10 +203,10 @@ class AboutCommand extends Command
                 return $mailMailer;
             },
             'Queue' => function ($json) {
-                $queueConnection = config('queue.default');
+                $queueConnection = config()->string('queue.default');
 
-                if (config('queue.connections.' . $queueConnection . '.driver') === 'failover') {
-                    $secondary = new Collection(config('queue.connections.' . $queueConnection . '.connections'));
+                if (config()->string('queue.connections.' . $queueConnection . '.driver') === 'failover') {
+                    $secondary = config()->collection('queue.connections.' . $queueConnection . '.connections');
 
                     return value(static::format(
                         value: $queueConnection,
@@ -218,7 +218,7 @@ class AboutCommand extends Command
                 return $queueConnection;
             },
             'Scout' => config('scout.driver'),
-            'Session' => config('session.driver'),
+            'Session' => config()->string('session.driver'),
         ]));
 
         static::addToSection('Storage', fn () => [
@@ -235,7 +235,7 @@ class AboutCommand extends Command
      */
     protected function determineStoragePathLinkStatus(callable $formatStorageLinkedStatus): array
     {
-        return (new Collection(config('filesystems.links', [])))
+        return config()->collection('filesystems.links')
             ->mapWithKeys(function ($target, $link) use ($formatStorageLinkedStatus) {
                 $path = Str::replace(public_path(), '', $link);
 

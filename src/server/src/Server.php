@@ -54,7 +54,10 @@ class Server implements ServerInterface
     public function start(): void
     {
         $server = $this->getServer();
-        $this->eventDispatcher->dispatch(new BeforeServerFork($server));
+
+        if ($this->eventDispatcher->hasListeners(BeforeServerFork::class)) {
+            $this->eventDispatcher->dispatch(new BeforeServerFork($server));
+        }
 
         if ($server->start() === false) {
             throw new ServerException('Failed to start the Swoole server.');
@@ -94,13 +97,19 @@ class Server implements ServerInterface
                 ServerManager::add($name, [$type, current($this->server->ports)]);
 
                 // Trigger BeforeMainServerStart event, this event only triggers once before main server start.
-                $this->eventDispatcher->dispatch(new BeforeMainServerStart($this->server, $config->toArray()));
+                if ($this->eventDispatcher->hasListeners(BeforeMainServerStart::class)) {
+                    $this->eventDispatcher->dispatch(new BeforeMainServerStart($this->server, $config->toArray()));
+                }
             } else {
                 $slaveServer = $this->server->addlistener($host, $port, $sockType);
                 if ($slaveServer === false) {
                     throw new ServerException("Failed to listen on server port [{$host}:{$port}].");
                 }
-                $server->getSettings() && $slaveServer->set(array_replace($config->getSettings(), $server->getSettings()));
+                $settings = array_replace($config->getSettings(), $server->getSettings());
+                // Swoole declares this method void, but malformed SNI settings warn and return false.
+                if ($slaveServer->set($settings) === false) {
+                    throw new ServerException("Failed to configure server [{$name}].");
+                }
                 $this->registerSwooleEvents($slaveServer, $callbacks, $name);
                 ServerManager::add($name, [$type, $slaveServer]);
             }
@@ -114,7 +123,9 @@ class Server implements ServerInterface
             }
 
             // Trigger BeforeServerStart event.
-            $this->eventDispatcher->dispatch(new BeforeServerStart($name));
+            if ($this->eventDispatcher->hasListeners(BeforeServerStart::class)) {
+                $this->eventDispatcher->dispatch(new BeforeServerStart($name));
+            }
         }
     }
 

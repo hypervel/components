@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\DatabaseEloquentFactoryTest;
 
 use BadMethodCallException;
+use Faker\Factory as FakerFactory;
 use Faker\Generator;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Hypervel\Database\Eloquent\Attributes\UseFactory;
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Casts\Attribute;
 use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Concerns\HasUuids;
 use Hypervel\Database\Eloquent\Factories\Attributes\UseModel;
 use Hypervel\Database\Eloquent\Factories\CrossJoinSequence;
 use Hypervel\Database\Eloquent\Factories\Factory;
@@ -20,6 +24,7 @@ use Hypervel\Database\Eloquent\Factories\Sequence;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Database\Fixtures\Models\Money\Price;
@@ -31,9 +36,11 @@ class DatabaseEloquentFactoryTest extends TestCase
 {
     protected function setUp(): void
     {
+        parent::setUp();
+
         $container = Container::getInstance();
         $container->singleton(Generator::class, function ($app, $parameters) {
-            return \Faker\Factory::create('en_US');
+            return FakerFactory::create('en_US');
         });
         $container->instance(Application::class, $app = m::mock(Application::class));
         $app->shouldReceive('getNamespace')->andReturn('App\\');
@@ -1155,7 +1162,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertEquals('other body', Comment::first()->body);
     }
 
-    public function testFactoryCanInsert()
+    public function testFactoryCanInsert(): void
     {
         (new PostFactory)
             ->count(5)
@@ -1167,24 +1174,31 @@ class DatabaseEloquentFactoryTest extends TestCase
             ->insert();
         $this->assertCount(5, $posts = Post::query()->where('title', 'hello')->get());
         $this->assertEquals(strtoupper($posts[0]->user->name), $posts[0]->upper_case_name);
-        $this->assertEquals(
+        $this->assertCount(
             2,
-            ($users = User::query()->get())->count()
+            $users = User::query()->get()
         );
         $this->assertCount(1, $users->where('name', 'totwell'));
         $this->assertCount(1, $users->where('name', 'shaedrich'));
     }
 
-    public function testFactoryCanInsertWithHidden()
+    public function testFactoryCanInsertZeroModels(): void
+    {
+        (new PostFactory)->count(0)->insert();
+
+        $this->assertCount(0, Post::all());
+    }
+
+    public function testFactoryCanInsertWithHidden(): void
     {
         (new UserFactory)->forEachSequence(['name' => Name::Taylor, 'options' => 'abc'])->insert();
         $user = DB::table('users')->sole();
-        $this->assertEquals('abc', $user->options);
+        $this->assertSame('abc', $user->options);
         $userModel = User::query()->sole();
-        $this->assertEquals('abc', $userModel->options);
+        $this->assertSame('abc', $userModel->options);
     }
 
-    public function testFactoryCanInsertWithArrayCasts()
+    public function testFactoryCanInsertWithArrayCasts(): void
     {
         (new UserWithArrayFactory)->count(2)->insert();
         $users = DB::table('users')->get();
@@ -1194,6 +1208,80 @@ class DatabaseEloquentFactoryTest extends TestCase
             $updatedAt = CarbonImmutable::parse($user->updated_at);
             $this->assertEquals($updatedAt, $createdAt);
         }
+    }
+
+    public function testFactoryInsertDoesNotApplyMutatorsTwice(): void
+    {
+        (new UserFactory)->useModel(UserWithMutator::class)->insert(['name' => 'Taylor']);
+
+        $user = DB::table('users')->sole();
+
+        $this->assertSame('prefix:Taylor', $user->name);
+        $this->assertNull($user->created_at);
+        $this->assertNull($user->updated_at);
+    }
+
+    public function testFactoryInsertPreservesAttributesExcludedFromSerialization(): void
+    {
+        (new UserFactory)
+            ->afterMaking(fn (User $user) => $user->setVisible(['options']))
+            ->insert(['name' => 'Taylor', 'options' => 'abc']);
+
+        $user = DB::table('users')->sole();
+
+        $this->assertSame('Taylor', $user->name);
+        $this->assertSame('abc', $user->options);
+    }
+
+    public function testFactoryInsertGeneratesUniqueIdsAndPreservesTimestampValues(): void
+    {
+        $this->schema()->table('users', function (Blueprint $table): void {
+            $table->timestamp('joined_at')->nullable();
+            $table->timestamp('changed_at')->nullable();
+        });
+
+        CarbonImmutable::setTestNow('2026-09-06 12:00:00');
+        $suppliedId = '11111111-0000-7000-8000-000000000000';
+        $factory = (new UserFactory)->useModel(UserWithUniqueIds::class);
+
+        $factory->forEachSequence(
+            ['name' => 'generated'],
+            ['name' => 'supplied', 'options' => $suppliedId, 'joined_at' => '2020-01-01 00:00:00', 'changed_at' => null],
+            ['name' => 'another generated'],
+        )->insert();
+
+        $users = DB::table('users')->get()->keyBy('name');
+
+        $this->assertCount(3, $users);
+        foreach (['generated', 'another generated'] as $name) {
+            $this->assertTrue(Str::isUuid($users[$name]->options));
+            $this->assertSame('2026-09-06 12:00:00', $users[$name]->joined_at);
+            $this->assertSame($users[$name]->joined_at, $users[$name]->changed_at);
+        }
+        $this->assertNotSame($users['generated']->options, $users['another generated']->options);
+        $this->assertSame($suppliedId, $users['supplied']->options);
+        $this->assertSame('2020-01-01 00:00:00', $users['supplied']->joined_at);
+        $this->assertNull($users['supplied']->changed_at);
+
+        // Values equal to model defaults are clean, but bulk insertion must retain them.
+        $factory->useModel(UserWithTimestampDefaults::class)->insert([
+            'name' => 'defaults', 'joined_at' => null, 'changed_at' => '2020-01-01 00:00:00',
+        ]);
+
+        $defaults = DB::table('users')->where('name', 'defaults')->sole();
+
+        $this->assertNull($defaults->joined_at);
+        $this->assertSame('2020-01-01 00:00:00', $defaults->changed_at);
+    }
+
+    public function testFactoryInsertUsesTheCustomEloquentBuilder(): void
+    {
+        DB::enableQueryLog();
+
+        (new UserFactory)->useModel(UserWithInsertBuilder::class)->count(2)->insert();
+
+        $this->assertCount(1, DB::getQueryLog());
+        $this->assertSame(['custom builder', 'custom builder'], DB::table('users')->pluck('options')->all());
     }
 
     /**
@@ -1500,6 +1588,61 @@ class UserWithArrayFactory extends Factory
             'name' => 'killer mike',
             'options' => ['rtj'],
         ];
+    }
+}
+
+class UserWithMutator extends User
+{
+    public bool $timestamps = false;
+
+    /**
+     * Prefix the stored name.
+     */
+    protected function name(): Attribute
+    {
+        return Attribute::set(fn (string $value): string => 'prefix:' . $value);
+    }
+}
+
+class UserWithUniqueIds extends User
+{
+    use HasUuids;
+
+    public const ?string CREATED_AT = 'joined_at';
+
+    public const ?string UPDATED_AT = 'changed_at';
+
+    /**
+     * Get the columns that should receive a unique identifier.
+     */
+    public function uniqueIds(): array
+    {
+        return ['options'];
+    }
+}
+
+class UserWithTimestampDefaults extends UserWithUniqueIds
+{
+    protected array $attributes = ['joined_at' => null, 'changed_at' => '2020-01-01 00:00:00'];
+}
+
+#[UseEloquentBuilder(FactoryInsertBuilder::class)]
+class UserWithInsertBuilder extends User
+{
+}
+
+class FactoryInsertBuilder extends Builder
+{
+    /**
+     * Apply custom attributes to the inserted rows.
+     */
+    public function insert(array $values): bool
+    {
+        foreach ($values as &$row) {
+            $row['options'] = 'custom builder';
+        }
+
+        return $this->toBase()->insert($values);
     }
 }
 

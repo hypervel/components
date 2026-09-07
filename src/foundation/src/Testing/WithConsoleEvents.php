@@ -13,6 +13,6 @@ trait WithConsoleEvents
      */
     protected function setUpWithConsoleEvents(): void
     {
-        $this->app[ConsoleKernel::class]->rerouteSymfonyCommandEvents();
+        $this->app->make(ConsoleKernel::class)->rerouteSymfonyCommandEvents();
     }
 }

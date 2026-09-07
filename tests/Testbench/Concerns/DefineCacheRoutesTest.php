@@ -4,19 +4,43 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Concerns;
 
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\Support\Providers\RouteServiceProvider;
 use Hypervel\Routing\CompiledRouteCollection;
 use Hypervel\Routing\RouteCollection;
 use Hypervel\Routing\Router;
 use Hypervel\Testbench\TestCase;
+use Override;
+use RuntimeException;
 use Throwable;
 
 class DefineCacheRoutesTest extends TestCase
 {
+    protected bool $failApplicationReload = false;
+
+    #[Override]
+    protected function reloadApplication(): void
+    {
+        if (! $this->failApplicationReload) {
+            parent::reloadApplication();
+
+            return;
+        }
+
+        $this->tearDown();
+
+        throw new RuntimeException('Application reload failed.');
+    }
+
     public function testCompiledRouteCollectionIsInstalledAfterDefineCacheRoutes(): void
     {
         $this->assertInstanceOf(
+            RouteServiceProvider::class,
+            $this->app->getProvider(RouteServiceProvider::class)
+        );
+        $this->assertInstanceOf(
             RouteCollection::class,
-            $this->app['router']->getRoutes()
+            $this->app->make(Router::class)->getRoutes()
         );
 
         $this->defineCacheRoutes(<<<'PHP'
@@ -27,7 +51,7 @@ PHP);
 
         $this->assertInstanceOf(
             CompiledRouteCollection::class,
-            $this->app['router']->getRoutes()
+            $this->app->make(Router::class)->getRoutes()
         );
     }
 
@@ -67,17 +91,16 @@ use Hypervel\Support\Facades\Route;
 Route::get('/named', fn () => 'named_response')->name('test.named');
 PHP);
 
-        /** @var Router $router */
-        $router = $this->app['router'];
+        $router = $this->app->make(Router::class);
         $routes = $router->getRoutes();
 
         $this->assertNotNull($routes->getByName('test.named'));
         $this->assertSame('named', $routes->getByName('test.named')->uri());
     }
 
-    public function testDefineCacheRoutesHasRunFlagIsSet(): void
+    public function testCachedRoutesDoNotRegisterTestbenchRouteSynchronization(): void
     {
-        $this->assertFalse($this->requireApplicationCachedRoutesHasRun);
+        $this->assertFalse($this->syncTestbenchRoutesHasRun);
 
         $this->defineCacheRoutes(<<<'PHP'
 <?php
@@ -85,7 +108,49 @@ use Hypervel\Support\Facades\Route;
 Route::get('/flag-check', fn () => 'ok');
 PHP);
 
-        $this->assertTrue($this->requireApplicationCachedRoutesHasRun);
+        $this->assertFalse($this->syncTestbenchRoutesHasRun);
+    }
+
+    public function testUncachedRoutesRegisterTestbenchRouteSynchronization(): void
+    {
+        $this->assertFalse($this->syncTestbenchRoutesHasRun);
+
+        $this->defineCacheRoutes(static function (Router $router): void {
+            $router->get('/sync-flag-check', static fn (): string => 'ok');
+        });
+
+        $this->assertTrue($this->syncTestbenchRoutesHasRun);
+        $this->get('/sync-flag-check')->assertOk();
+    }
+
+    public function testSuccessiveUncachedRouteDefinitionsRemainAvailable(): void
+    {
+        $this->defineStashRoutes(static function (Router $router): void {
+            $router->get('/first-stash', static fn (): string => 'first');
+        });
+
+        $this->defineStashRoutes(static function (Router $router): void {
+            $router->get('/second-stash', static fn (): string => 'second');
+        });
+
+        $this->get('/first-stash')->assertOk()->assertSee('first');
+        $this->get('/second-stash')->assertOk()->assertSee('second');
+    }
+
+    public function testStashRoutesRemainAvailableAfterCachedRoutes(): void
+    {
+        $this->defineCacheRoutes(<<<'PHP'
+<?php
+use Hypervel\Support\Facades\Route;
+Route::get('/cached-before-stash', fn () => 'cached');
+PHP);
+
+        $this->defineStashRoutes(static function (Router $router): void {
+            $router->get('/stash-after-cached', static fn (): string => 'stash');
+        });
+
+        $this->get('/cached-before-stash')->assertOk()->assertSee('cached');
+        $this->get('/stash-after-cached')->assertOk()->assertSee('stash');
     }
 
     public function testDefineCacheRoutesTracksOwnedRouteFile(): void
@@ -151,6 +216,64 @@ PHP);
         $this->assertFileDoesNotExist($routeFile);
     }
 
+    public function testFailedReloadCleansTheCapturedWorkerRouteCacheWithoutAnApplication(): void
+    {
+        $cachedRoutesPath = $this->app->getCachedRoutesPath();
+        $this->failApplicationReload = true;
+
+        try {
+            try {
+                $this->defineCacheRoutes(<<<'PHP'
+<?php
+use Hypervel\Support\Facades\Route;
+Route::get('/reload-failure', fn () => 'failed');
+PHP);
+                $this->fail('Expected application reload to fail.');
+            } catch (RuntimeException $exception) {
+                $this->assertSame('Application reload failed.', $exception->getMessage());
+            }
+
+            $this->assertNull($this->app);
+            $this->assertFileExists($cachedRoutesPath);
+            $this->assertCount(1, $this->testbenchRouteFiles);
+            $this->assertFileExists($this->testbenchRouteFiles[0]);
+
+            $this->callBeforeApplicationDestroyedCallbacks();
+
+            $this->assertFileDoesNotExist($cachedRoutesPath);
+            $this->assertFileDoesNotExist($this->testbenchRouteFiles[0]);
+        } finally {
+            $this->failApplicationReload = false;
+
+            if ($this->app === null) {
+                $this->setUp();
+            }
+        }
+    }
+
+    public function testRouteCleanupReportsOwnedFilesThatSurviveDeletion(): void
+    {
+        $routeFile = $this->testbenchRouteFilePath($this->app->basePath());
+        file_put_contents($routeFile, '<?php');
+        $this->testbenchRouteFiles[] = $routeFile;
+        $this->registerTestbenchRouteCleanup(
+            new FailingRouteFileDeleteFilesystem($routeFile),
+            $this->app->getCachedRoutesPath(),
+        );
+
+        try {
+            $this->callBeforeApplicationDestroyedCallbacks();
+            $this->assertInstanceOf(RuntimeException::class, $this->callbackException);
+            $this->assertSame(
+                "Unable to remove Testbench route files [{$routeFile}].",
+                $this->callbackException->getMessage(),
+            );
+        } finally {
+            $this->callbackException = null;
+            @unlink($routeFile);
+        }
+    }
+
     public function testTestbenchRouteFilePathIsUniquePerCall(): void
     {
         $firstRouteFile = $this->testbenchRouteFilePath($this->app->basePath());
@@ -159,6 +282,38 @@ PHP);
         $this->assertNotSame($firstRouteFile, $secondRouteFile);
         $this->assertStringStartsWith($this->app->basePath('routes/testbench-'), $firstRouteFile);
         $this->assertStringEndsWith('.php', $firstRouteFile);
+    }
+
+    public function testTestbenchRouteFilePathUsesTheFilesystemSafeProcessToken(): void
+    {
+        $hadServerToken = array_key_exists('TEST_TOKEN', $_SERVER);
+        $originalServerToken = $_SERVER['TEST_TOKEN'] ?? null;
+        $hadEnvironmentToken = array_key_exists('TEST_TOKEN', $_ENV);
+        $originalEnvironmentToken = $_ENV['TEST_TOKEN'] ?? null;
+
+        try {
+            $_SERVER['TEST_TOKEN'] = 'worker/token:one';
+            $_ENV['TEST_TOKEN'] = 'ignored-token';
+
+            $routeFile = $this->testbenchRouteFilePath($this->app->basePath());
+
+            $this->assertStringStartsWith(
+                $this->app->basePath('routes/testbench-worker_token_one-'),
+                $routeFile,
+            );
+        } finally {
+            if ($hadServerToken) {
+                $_SERVER['TEST_TOKEN'] = $originalServerToken;
+            } else {
+                unset($_SERVER['TEST_TOKEN']);
+            }
+
+            if ($hadEnvironmentToken) {
+                $_ENV['TEST_TOKEN'] = $originalEnvironmentToken;
+            } else {
+                unset($_ENV['TEST_TOKEN']);
+            }
+        }
     }
 
     public function testCacheFileExistsAfterDefineCacheRoutes(): void
@@ -183,9 +338,34 @@ PHP);
         // routesAreCached() should return true
         $this->assertTrue($this->app->routesAreCached());
 
-        // Routes from defineRoutes() should NOT be registered since
+        // Routes from defineRoutes() should not be registered since
         // setUpApplicationRoutes returns early when routes are cached.
         // Only the cached /cached-only route should exist.
         $this->get('/cached-only')->assertOk();
+    }
+}
+
+class FailingRouteFileDeleteFilesystem extends Filesystem
+{
+    /**
+     * Construct the filesystem.
+     */
+    public function __construct(
+        private readonly string $failingPath,
+    ) {
+    }
+
+    /**
+     * Delete the file at a given path.
+     */
+    public function delete(array|string $paths): bool
+    {
+        $paths = is_array($paths) ? $paths : [$paths];
+
+        if (in_array($this->failingPath, $paths, true)) {
+            return false;
+        }
+
+        return parent::delete($paths);
     }
 }

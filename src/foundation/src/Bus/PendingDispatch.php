@@ -7,15 +7,17 @@ namespace Hypervel\Foundation\Bus;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Bus\DebounceLock;
-use Hypervel\Bus\UniqueJobPayloadContext;
+use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Cache\Repository as Cache;
+use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\PreparesForDispatch;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Queue\Attributes\DebounceFor;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
+use Hypervel\Queue\Events\UniqueJobSkipped;
 use Hypervel\Support\Traits\Conditionable;
 use LogicException;
 use UnitEnum;
@@ -189,11 +191,24 @@ class PendingDispatch
             throw new LogicException('A debounced job cannot also implement ShouldBeUnique.');
         }
 
-        $cache = Container::getInstance()
-            ->make(Cache::class);
+        $container = Container::getInstance();
+        $lockAcquired = (new UniqueLock($container->make(Cache::class)))
+            ->acquireForDispatch($this->job);
 
-        return (new UniqueLock($cache))
-            ->acquire($this->job);
+        if ($lockAcquired) {
+            return true;
+        }
+
+        if ($container->bound('events')) {
+            /** @var EventDispatcher $events */
+            $events = $container->make('events');
+
+            if ($events->hasListeners(UniqueJobSkipped::class)) {
+                $events->dispatch(new UniqueJobSkipped($this->job));
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -211,9 +226,7 @@ class PendingDispatch
         }
 
         $result = (new DebounceLock(Container::getInstance()->make(Cache::class)))
-            ->acquire($this->job, $debounceFor);
-
-        $this->job->debounceOwner = $result['owner'];
+            ->acquireForDispatch($this->job, $debounceFor);
 
         if (is_null($this->job->delay)) {
             $this->job->delay = $result['maxWaitExceeded'] ? 0 : $debounceFor;
@@ -235,24 +248,24 @@ class PendingDispatch
      */
     public function __destruct()
     {
-        if (! $this->shouldDispatch()) {
-            return;
-        }
+        try {
+            if (! $this->shouldDispatch()) {
+                return;
+            }
 
-        if ($this->job instanceof ShouldBeUnique) {
-            UniqueJobPayloadContext::register($this->job);
-        }
+            $this->acquireDebounceLock();
 
-        $this->acquireDebounceLock();
-
-        if ($this->afterResponse) {
-            Container::getInstance()
-                ->make(Dispatcher::class)
-                ->dispatchAfterResponse($this->job);
-        } else {
-            Container::getInstance()
-                ->make(Dispatcher::class)
-                ->dispatch($this->job);
+            if ($this->afterResponse) {
+                Container::getInstance()
+                    ->make(Dispatcher::class)
+                    ->dispatchAfterResponse($this->job);
+            } else {
+                Container::getInstance()
+                    ->make(Dispatcher::class)
+                    ->dispatch($this->job);
+            }
+        } finally {
+            DispatchLockContext::release($this->job);
         }
     }
 }

@@ -6,6 +6,10 @@ namespace Hypervel\Tests\Queue;
 
 use DateInterval;
 use Exception;
+use Hypervel\Bus\DispatchLockContext;
+use Hypervel\Bus\UniqueLock;
+use Hypervel\Cache\ArrayStore as WorkerArrayStore;
+use Hypervel\Cache\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -14,13 +18,22 @@ use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
+use Hypervel\Events\Dispatcher as EventsDispatcher;
+use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\BackgroundQueue;
+use Hypervel\Queue\Events\JobAttempted;
+use Hypervel\Queue\Events\JobExceptionOccurred;
+use Hypervel\Queue\Events\JobFailed;
+use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
+use Throwable;
 
 use function Hypervel\Coroutine\run;
 
@@ -42,6 +55,53 @@ class QueueBackgroundQueueTest extends TestCase
 
         $this->assertInstanceOf(SyncJob::class, $_SERVER['__background.test'][0]);
         $this->assertEquals(['foo' => 'bar'], $_SERVER['__background.test'][1]);
+    }
+
+    public function testPushRawRunsPayloadInBackground(): void
+    {
+        unset($_SERVER['__background.test']);
+
+        $background = new BackgroundQueue;
+        $background->setContainer($this->getContainer());
+        $background->setConnectionName('background');
+
+        run(fn () => $background->pushRaw(json_encode([
+            'uuid' => 'raw-job',
+            'job' => BackgroundQueueTestHandler::class,
+            'data' => ['foo' => 'raw'],
+        ], JSON_THROW_ON_ERROR)));
+
+        $this->assertInstanceOf(SyncJob::class, $_SERVER['__background.test'][0]);
+        $this->assertSame(['foo' => 'raw'], $_SERVER['__background.test'][1]);
+    }
+
+    public function testJobsReportTheirResolvedQueueName(): void
+    {
+        $background = new BackgroundQueue;
+        $background->setConnectionName('background-connection');
+        $container = $this->getContainer();
+        $events = new EventsDispatcher($container);
+        $observed = [];
+
+        $events->listen(JobProcessing::class, static function (JobProcessing $event) use (&$observed): void {
+            $observed[] = [$event->connectionName, $event->job->getQueue()];
+        });
+
+        $container->instance('events', $events);
+        $container->instance(Dispatcher::class, $events);
+        $background->setContainer($container);
+
+        foreach ([
+            [null, 'background'],
+            ['', 'background'],
+            ['emails', 'emails'],
+            // A queue named "0" is valid and must not be treated as empty.
+            ['0', '0'],
+        ] as [$queue, $expected]) {
+            $observed = [];
+            run(fn () => $background->push(BackgroundQueueTestHandler::class, queue: $queue));
+            $this->assertSame([['background-connection', $expected]], $observed);
+        }
     }
 
     public function testPushSnapshotsMutableJobBeforeBackgroundExecution(): void
@@ -93,6 +153,10 @@ class QueueBackgroundQueueTest extends TestCase
         $background->setConnectionName('background');
         $container = $this->getContainer();
         $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->once()->with(JobExceptionOccurred::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->once()->with(JobAttempted::class)->andReturnTrue();
         $events->shouldReceive('dispatch')->times(4);
         $container->instance('events', $events);
         $container->instance(Dispatcher::class, $events);
@@ -104,6 +168,33 @@ class QueueBackgroundQueueTest extends TestCase
 
         $this->assertInstanceOf(Exception::class, $result);
         $this->assertTrue($_SERVER['__background.failed']);
+    }
+
+    public function testCancellationDoesNotInvokeBackgroundExceptionCallback(): void
+    {
+        CancelingBackgroundQueueTestHandler::$failed = false;
+        $result = null;
+        $background = new BackgroundQueue;
+        $background->setExceptionCallback(static function (Throwable $exception) use (&$result): void {
+            $result = $exception;
+        });
+        $background->setConnectionName('background');
+        $container = $this->getContainer();
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnTrue();
+        $events->shouldReceive('dispatch')->once();
+        $container->instance('events', $events);
+        $container->instance(Dispatcher::class, $events);
+        $background->setContainer($container);
+
+        try {
+            run(fn () => $background->push(CancelingBackgroundQueueTestHandler::class));
+
+            $this->assertNull($result);
+            $this->assertFalse(CancelingBackgroundQueueTestHandler::$failed);
+        } finally {
+            CancelingBackgroundQueueTestHandler::$failed = false;
+        }
     }
 
     public function testItAddsATransactionCallbackForAfterCommitJobs()
@@ -142,8 +233,11 @@ class QueueBackgroundQueueTest extends TestCase
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
 
+        $job = new BackgroundQueueAfterCommitUniqueJob;
+        DispatchLockContext::registerUnique($job, $container->make(Cache::class), null, 'unique-key', 'owner');
+
         $background->setContainer($container);
-        run(fn () => $background->push(new BackgroundQueueAfterCommitUniqueJob));
+        run(fn () => $background->push($job));
     }
 
     public function testItAddsATransactionRollbackCallbackForAfterCommitDebouncedJobs(): void
@@ -156,8 +250,11 @@ class QueueBackgroundQueueTest extends TestCase
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
 
+        $job = new BackgroundQueueAfterCommitDebouncedJob;
+        DispatchLockContext::registerDebounce($job, $container->make(Cache::class), 'debounce-key', 'owner');
+
         $background->setContainer($container);
-        run(fn () => $background->push(new BackgroundQueueAfterCommitDebouncedJob));
+        run(fn () => $background->push($job));
     }
 
     public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitUniqueJobs()
@@ -170,8 +267,11 @@ class QueueBackgroundQueueTest extends TestCase
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
 
+        $job = new BackgroundQueueAfterCommitInterfaceUniqueJob;
+        DispatchLockContext::registerUnique($job, $container->make(Cache::class), null, 'unique-key', 'owner');
+
         $background->setContainer($container);
-        run(fn () => $background->push(new BackgroundQueueAfterCommitInterfaceUniqueJob));
+        run(fn () => $background->push($job));
     }
 
     public function testLaterSchedulesJobWithDelay()
@@ -195,6 +295,21 @@ class QueueBackgroundQueueTest extends TestCase
 
         $this->assertInstanceOf(SyncJob::class, $_SERVER['__background.later.test'][0]);
         $this->assertEquals(['foo' => 'bar'], $_SERVER['__background.later.test'][1]);
+    }
+
+    public function testBulkRespectsDelayAttribute(): void
+    {
+        $timer = m::mock(Timer::class);
+        $timer->shouldReceive('after')
+            ->once()
+            ->with(5.0, m::type('Closure'))
+            ->andReturn(1);
+
+        $background = new BackgroundQueue(timer: $timer);
+        $background->setConnectionName('background');
+        $background->setContainer($this->getContainer());
+
+        $this->assertNull($background->bulk([new BackgroundQueueBulkDelayJob]));
     }
 
     public function testLaterSnapshotsMutableJobBeforeTheTimerRuns(): void
@@ -371,9 +486,11 @@ class QueueBackgroundQueueTest extends TestCase
             });
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
+        $job = new BackgroundQueueAfterCommitUniqueJob;
+        DispatchLockContext::registerUnique($job, $container->make(Cache::class), null, 'unique-key', 'owner');
         $background->setContainer($container);
 
-        run(fn () => $background->later(5, new BackgroundQueueAfterCommitUniqueJob));
+        run(fn () => $background->later(5, $job));
     }
 
     public function testLaterAddsTransactionRollbackCallbackForAfterCommitDebouncedJobs(): void
@@ -394,9 +511,11 @@ class QueueBackgroundQueueTest extends TestCase
             });
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
+        $job = new BackgroundQueueAfterCommitDebouncedJob;
+        DispatchLockContext::registerDebounce($job, $container->make(Cache::class), 'debounce-key', 'owner');
         $background->setContainer($container);
 
-        run(fn () => $background->later(5, new BackgroundQueueAfterCommitDebouncedJob));
+        run(fn () => $background->later(5, $job));
     }
 
     public function testLaterAddsTransactionCallbackForInterfaceBasedAfterCommitUniqueJobs()
@@ -417,9 +536,11 @@ class QueueBackgroundQueueTest extends TestCase
             });
         $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
+        $job = new BackgroundQueueAfterCommitInterfaceUniqueJob;
+        DispatchLockContext::registerUnique($job, $container->make(Cache::class), null, 'unique-key', 'owner');
         $background->setContainer($container);
 
-        run(fn () => $background->later(5, new BackgroundQueueAfterCommitInterfaceUniqueJob));
+        run(fn () => $background->later(5, $job));
     }
 
     public function testLaterClampsNegativeIntegerDelay()
@@ -472,6 +593,10 @@ class QueueBackgroundQueueTest extends TestCase
         $background->setConnectionName('background');
         $container = $this->getContainer();
         $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->once()->with(JobExceptionOccurred::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnTrue();
+        $events->shouldReceive('hasListeners')->once()->with(JobAttempted::class)->andReturnTrue();
         $events->shouldReceive('dispatch')->times(4);
         $container->instance('events', $events);
         $container->instance(Dispatcher::class, $events);
@@ -487,12 +612,21 @@ class QueueBackgroundQueueTest extends TestCase
     {
         unset($_SERVER['__background.later.test']);
 
+        $cache = new Repository(new WorkerArrayStore);
+        $job = new BackgroundQueueAfterCommitUniqueJob;
+        $lock = new UniqueLock($cache);
+        $this->assertTrue($lock->acquireForDispatch($job));
+        $metadata = DispatchLockContext::peekPayloadMetadata($job);
+        $this->assertNotNull($metadata);
+
+        $callback = null;
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')
             ->once()
             ->with(5.0, m::type('Closure'))
-            ->andReturnUsing(function ($delay, $callback) {
-                $callback(true);
+            ->andReturnUsing(function ($delay, $scheduledCallback) use (&$callback) {
+                $callback = $scheduledCallback;
+
                 return 1;
             });
 
@@ -500,15 +634,27 @@ class QueueBackgroundQueueTest extends TestCase
         $background->setConnectionName('background');
         $background->setContainer($this->getContainer());
 
-        run(fn () => $background->later(5, BackgroundQueueLaterTestHandler::class, ['foo' => 'bar']));
+        run(fn () => $background->later(5, $job));
 
         $this->assertArrayNotHasKey('__background.later.test', $_SERVER);
+        $this->assertNotNull($callback);
+        $this->assertTrue(
+            $cache->restoreLock($metadata['laravel_unique_job_key'], $metadata['laravel_unique_job_lock_owner'])->isLocked()
+        );
+
+        $callback(true);
+
+        $this->assertFalse(
+            $cache->restoreLock($metadata['laravel_unique_job_key'], $metadata['laravel_unique_job_lock_owner'])->isLocked()
+        );
     }
 
     protected function getContainer(): Container
     {
         $container = new Container;
         $container->instance(Cache::class, m::mock(Cache::class));
+        $container->instance(Dispatcher::class, new EventsDispatcher($container));
+        Container::setInstance($container);
 
         return $container;
     }
@@ -550,6 +696,31 @@ class FailingBackgroundQueueTestHandler
     public function failed()
     {
         $_SERVER['__background.failed'] = true;
+    }
+}
+
+class CancelingBackgroundQueueTestHandler
+{
+    public static bool $failed = false;
+
+    public function fire(): never
+    {
+        $gate = new Channel(1);
+        $coroutineId = EngineCoroutine::id();
+
+        EngineCoroutine::create(static function () use ($coroutineId, $gate): void {
+            $gate->pop();
+            EngineCoroutine::cancelById($coroutineId, throwException: true);
+        });
+
+        $gate->push(true);
+
+        throw new RuntimeException('Cancellation was not delivered.');
+    }
+
+    public function failed(): void
+    {
+        static::$failed = true;
     }
 }
 
@@ -612,6 +783,11 @@ class BackgroundQueueLaterTestHandler
     {
         $_SERVER['__background.later.test'] = func_get_args();
     }
+}
+
+#[Delay(5)]
+class BackgroundQueueBulkDelayJob
+{
 }
 
 class BackgroundQueueSnapshotHandler

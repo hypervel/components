@@ -10,6 +10,8 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Exceptions\MathException;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class EloquentModelDecimalCastingTest extends DatabaseTestCase
 {
@@ -120,6 +122,49 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
 
         $model->amount = '0.8989898989';
         $this->assertSame('0.90', $model->amount);
+    }
+
+    public function testItAcceptsZeroScale(): void
+    {
+        $model = new class extends Model {
+            public bool $timestamps = false;
+
+            protected array $casts = [
+                'amount' => 'decimal:0',
+            ];
+        };
+
+        $model->amount = '12.5';
+
+        $this->assertSame('13', $model->amount);
+    }
+
+    #[DataProvider('invalidDecimalCastProvider')]
+    public function testItRejectsInvalidScaleDeclarations(string $cast): void
+    {
+        $model = new class extends Model {
+            public bool $timestamps = false;
+        };
+        $model->mergeCasts(['amount' => $cast]);
+        $model->setRawAttributes(['amount' => '12.5']);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The decimal cast for attribute [amount] requires a non-negative integer scale.');
+
+        $model->amount;
+    }
+
+    public static function invalidDecimalCastProvider(): array
+    {
+        return [
+            'missing scale' => ['decimal'],
+            'empty scale' => ['decimal:'],
+            'non-numeric scale' => ['decimal:foo'],
+            'fractional scale' => ['decimal:2.5'],
+            'negative scale' => ['decimal:-2'],
+            'multiple arguments' => ['decimal:2,3'],
+            'out-of-range scale' => ['decimal:' . PHP_INT_MAX . '0'],
+        ];
     }
 
     public function testItTrimsLongValues()

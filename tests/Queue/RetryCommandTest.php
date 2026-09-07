@@ -12,6 +12,7 @@ use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Queue\Console\RetryCommand;
+use Hypervel\Queue\Events\JobRetryRequested;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Queue\NullQueue;
 use Hypervel\Queue\QueueManager;
@@ -20,6 +21,7 @@ use Hypervel\Queue\SqsQueue;
 use Hypervel\Testbench\TestCase;
 use JsonException;
 use Mockery as m;
+use RuntimeException;
 use stdClass;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -85,6 +87,13 @@ class RetryCommandTest extends TestCase
 
         $this->app->instance('queue.failer', $failedJobs);
         $this->app->instance('queue', $queueManager);
+        $retryRequested = null;
+        $this->app->make('events')->listen(
+            JobRetryRequested::class,
+            static function (JobRetryRequested $event) use (&$retryRequested): void {
+                $retryRequested = $event;
+            },
+        );
 
         $command = new RetryCommand;
         $command->setHypervel($this->app);
@@ -98,6 +107,36 @@ class RetryCommandTest extends TestCase
         $expected['retryUntil'] = 987654321;
 
         $this->assertSame($expected, $pushedPayload);
+        $this->assertSame($failedJob, $retryRequested->job);
+    }
+
+    public function testPassiveObserverDoesNotCauseRetryRequestedEventToDispatch(): void
+    {
+        $payload = json_encode([
+            'uuid' => 'job-uuid',
+            'attempts' => 3,
+            'data' => [],
+        ], JSON_THROW_ON_ERROR);
+        $failedJob = $this->failedJob($payload);
+        $failedJobs = m::mock(FailedJobProviderInterface::class);
+        $failedJobs->shouldReceive('find')->once()->with('failed-id')->andReturn($failedJob);
+        $failedJobs->shouldReceive('forget')->once()->with('failed-id')->andReturn(true);
+        $queue = new NullQueue;
+        $queueManager = m::mock(QueueManager::class);
+        $queueManager->shouldReceive('connection')->once()->with('sqs')->andReturn($queue);
+        $observed = false;
+        $this->app->make('events')->observe(
+            JobRetryRequested::class,
+            static function () use (&$observed): void {
+                $observed = true;
+            },
+        );
+        $this->app->instance('queue.failer', $failedJobs);
+        $this->app->instance('queue', $queueManager);
+
+        $this->runRetryCommand();
+
+        $this->assertFalse($observed);
     }
 
     public function testRetryPreservesFifoOptionsOnDirectSqsQueue(): void
@@ -197,6 +236,63 @@ class RetryCommandTest extends TestCase
 
         $this->assertTrue($beanstalkd->pushed);
         $this->assertSame([], $beanstalkd->options);
+    }
+
+    public function testSuccessfulSyncRetryExecutesBeforeFailedRecordIsForgotten(): void
+    {
+        RetryCommandSyncHandler::$handled = false;
+        $failedJob = $this->failedJob(json_encode([
+            'uuid' => 'job-uuid',
+            'attempts' => 3,
+            'job' => RetryCommandSyncHandler::class,
+            'data' => [],
+        ], JSON_THROW_ON_ERROR));
+        $failedJob->connection = 'sync';
+        $failedJob->queue = 'sync';
+
+        $failedJobs = m::mock(FailedJobProviderInterface::class);
+        $failedJobs->shouldReceive('find')->once()->with('failed-id')->andReturn($failedJob);
+        $failedJobs->shouldReceive('forget')
+            ->once()
+            ->with('failed-id')
+            ->andReturnUsing(function (): bool {
+                $this->assertTrue(RetryCommandSyncHandler::$handled);
+
+                return true;
+            });
+
+        $this->app->instance('queue.failer', $failedJobs);
+
+        try {
+            $this->runRetryCommand();
+
+            $this->assertTrue(RetryCommandSyncHandler::$handled);
+        } finally {
+            RetryCommandSyncHandler::$handled = false;
+        }
+    }
+
+    public function testFailedSyncRetryPreservesFailedRecord(): void
+    {
+        $failedJob = $this->failedJob(json_encode([
+            'uuid' => 'job-uuid',
+            'attempts' => 3,
+            'job' => FailingRetryCommandSyncHandler::class,
+            'data' => [],
+        ], JSON_THROW_ON_ERROR));
+        $failedJob->connection = 'sync';
+        $failedJob->queue = 'sync';
+
+        $failedJobs = m::mock(FailedJobProviderInterface::class);
+        $failedJobs->shouldReceive('find')->once()->with('failed-id')->andReturn($failedJob);
+        $failedJobs->shouldNotReceive('forget');
+
+        $this->app->instance('queue.failer', $failedJobs);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Sync retry failed.');
+
+        $this->runRetryCommand();
     }
 
     public function testMalformedPayloadIsNotForgottenWhenRetryFails(): void
@@ -299,5 +395,23 @@ class RetryCommandPooledQueue extends NullQueue
         $this->options = $options;
 
         return 'retried-id';
+    }
+}
+
+class RetryCommandSyncHandler
+{
+    public static bool $handled = false;
+
+    public function fire(): void
+    {
+        static::$handled = true;
+    }
+}
+
+class FailingRetryCommandSyncHandler
+{
+    public function fire(): never
+    {
+        throw new RuntimeException('Sync retry failed.');
     }
 }

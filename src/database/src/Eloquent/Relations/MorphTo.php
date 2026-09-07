@@ -10,6 +10,7 @@ use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithDictionary;
 use Hypervel\Support\Arr;
+use InvalidArgumentException;
 use Override;
 
 /**
@@ -94,15 +95,28 @@ class MorphTo extends BelongsTo
         $isAssociative = Arr::isAssoc($models->all());
 
         foreach ($models as $key => $model) {
-            if ($model->{$this->morphType}) {
-                $morphTypeKey = $this->getDictionaryKey($model->{$this->morphType});
-                $foreignKeyKey = $this->getDictionaryKey($model->{$this->foreignKey});
+            $morphType = $model->{$this->morphType};
 
-                if ($isAssociative) {
-                    $this->dictionary[$morphTypeKey][$foreignKeyKey][$key] = $model;
-                } else {
-                    $this->dictionary[$morphTypeKey][$foreignKeyKey][] = $model;
-                }
+            if ($morphType === '') {
+                continue;
+            }
+
+            $morphTypeKey = $this->getDictionaryKey($morphType);
+
+            if ($morphTypeKey === null) {
+                continue;
+            }
+
+            $foreignKeyKey = $this->getDictionaryKey($model->{$this->foreignKey});
+
+            if ($foreignKeyKey === null) {
+                continue;
+            }
+
+            if ($isAssociative) {
+                $this->dictionary[$morphTypeKey][$foreignKeyKey][$key] = $model;
+            } else {
+                $this->dictionary[$morphTypeKey][$foreignKeyKey][] = $model;
             }
         }
     }
@@ -128,7 +142,7 @@ class MorphTo extends BelongsTo
      *
      * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
      */
-    protected function getResultsByType(string $type): EloquentCollection
+    protected function getResultsByType(int|string $type): EloquentCollection
     {
         $instance = $this->createModelByType($type);
 
@@ -159,13 +173,13 @@ class MorphTo extends BelongsTo
     /**
      * Gather all of the foreign keys for a given type.
      */
-    protected function gatherKeysByType(string $type, string $keyType): array
+    protected function gatherKeysByType(int|string $type, string $keyType): array
     {
         return $keyType !== 'string'
             ? array_keys($this->dictionary[$type])
             : array_map(function ($modelId) {
                 return (string) $modelId;
-            }, array_filter(array_keys($this->dictionary[$type])));
+            }, array_keys($this->dictionary[$type]));
     }
 
     /**
@@ -173,7 +187,7 @@ class MorphTo extends BelongsTo
      *
      * @return TRelatedModel
      */
-    public function createModelByType(string $type): Model
+    public function createModelByType(int|string $type): Model
     {
         $class = Model::getActualClassNameForMorph($type);
 
@@ -195,7 +209,7 @@ class MorphTo extends BelongsTo
      *
      * @param \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> $results
      */
-    protected function matchToMorphParents(string $type, EloquentCollection $results): void
+    protected function matchToMorphParents(int|string $type, EloquentCollection $results): void
     {
         foreach ($results as $result) {
             $ownerKey = $this->getDictionaryKey(! is_null($this->ownerKey) ? $result->{$this->ownerKey} : $result->getKey());
@@ -213,25 +227,27 @@ class MorphTo extends BelongsTo
      *
      * @param null|TRelatedModel $model
      * @return TDeclaringModel
+     *
+     * @throws InvalidArgumentException
      */
     #[Override]
     public function associate(Model|string|int|null $model): Model
     {
-        if ($model instanceof Model) {
-            $foreignKey = $this->ownerKey && $model->{$this->ownerKey}
-                ? $this->ownerKey
-                : $model->getKeyName();
+        if ($model !== null && ! $model instanceof Model) {
+            throw new InvalidArgumentException('MorphTo relationships may only be associated with a model instance or null.');
         }
 
-        $this->parent->setAttribute(
-            $this->foreignKey,
-            $model instanceof Model ? $model->{$foreignKey} : null
-        );
+        $foreignKeyValue = null;
+        $morphClass = null;
 
-        $this->parent->setAttribute(
-            $this->morphType,
-            $model instanceof Model ? $model->getMorphClass() : null
-        );
+        if ($model instanceof Model) {
+            $foreignKeyValue = $model->{$this->ownerKey ?? $model->getKeyName()};
+            $morphClass = $model->getMorphClass();
+        }
+
+        $this->parent->setAttribute($this->foreignKey, $foreignKeyValue);
+
+        $this->parent->setAttribute($this->morphType, $morphClass);
 
         return $this->parent->setRelation($this->relationName, $model);
     }

@@ -183,12 +183,12 @@ class NotificationMailMessageTest extends TestCase
     {
         $message = new MailMessage;
         $message->metadata('origin', 'test-suite');
-        $message->metadata('user_id', '1');
+        $message->metadata('user_id', 1);
 
         $this->assertArrayHasKey('origin', $message->metadata);
         $this->assertSame('test-suite', $message->metadata['origin']);
         $this->assertArrayHasKey('user_id', $message->metadata);
-        $this->assertSame('1', $message->metadata['user_id']);
+        $this->assertSame(1, $message->metadata['user_id']);
     }
 
     public function testTagIsSetCorrectly(): void

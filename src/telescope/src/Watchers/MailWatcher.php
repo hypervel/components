@@ -33,21 +33,20 @@ class MailWatcher extends Watcher
             return;
         }
 
-        /* @phpstan-ignore-next-line */
         $body = $event->message->getBody();
 
         Telescope::recordMail(IncomingEntry::make([
             'mailable' => $this->getMailable($event),
             'queued' => $this->getQueuedStatus($event),
-            'from' => $this->formatAddresses($event->message->getFrom()), // @phpstan-ignore-line
-            'replyTo' => $this->formatAddresses($event->message->getReplyTo()), // @phpstan-ignore-line
-            'to' => $this->formatAddresses($event->message->getTo()), // @phpstan-ignore-line
-            'cc' => $this->formatAddresses($event->message->getCc()), // @phpstan-ignore-line
-            'bcc' => $this->formatAddresses($event->message->getBcc()), // @phpstan-ignore-line
-            'subject' => $event->message->getSubject(), // @phpstan-ignore-line
-            'html' => $body instanceof AbstractPart ? ($event->message->getHtmlBody() ?? $event->message->getTextBody()) : $body, // @phpstan-ignore-line
-            'raw' => $event->message->toString(), // @phpstan-ignore-line
-        ])->tags($this->tags($event->message, $event->data))); // @phpstan-ignore-line
+            'from' => $this->formatAddresses($event->message->getFrom()),
+            'replyTo' => $this->formatAddresses($event->message->getReplyTo()),
+            'to' => $this->formatAddresses($event->message->getTo()),
+            'cc' => $this->formatAddresses($event->message->getCc()),
+            'bcc' => $this->formatAddresses($event->message->getBcc()),
+            'subject' => $event->message->getSubject(),
+            'html' => $body instanceof AbstractPart ? ($event->message->getHtmlBody() ?? $event->message->getTextBody()) : $body,
+            'raw' => $event->message->toString(),
+        ])->tags($this->tags($event->message, $event->data)));
     }
 
     /**
@@ -98,9 +97,9 @@ class MailWatcher extends Watcher
     private function tags(mixed $message, array $data): array
     {
         return array_merge(
-            array_keys($this->formatAddresses($message->getTo()) ?: []), // @phpstan-ignore-line
-            array_keys($this->formatAddresses($message->getCc()) ?: []), // @phpstan-ignore-line
-            array_keys($this->formatAddresses($message->getBcc()) ?: []), // @phpstan-ignore-line
+            array_keys($this->formatAddresses($message->getTo()) ?: []),
+            array_keys($this->formatAddresses($message->getCc()) ?: []),
+            array_keys($this->formatAddresses($message->getBcc()) ?: []),
             $data['__telescope'] ?? []
         );
     }

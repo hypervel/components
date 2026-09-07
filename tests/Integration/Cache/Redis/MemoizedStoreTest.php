@@ -14,6 +14,7 @@ use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\NullSentinel;
+use Hypervel\Cache\Repository;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Support\Facades\Cache;
@@ -535,6 +536,28 @@ class MemoizedStoreTest extends TestCase
         $value = Cache::get('key');
 
         $this->assertSame('value-2', $value);
+    }
+
+    public function testFlexibleRechecksMemoizedMarkerAgainstBackingStore(): void
+    {
+        $this->freezeTime();
+        $markerKey = Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'key';
+        Cache::flexible('key', [10, 20], 'value-1');
+
+        $this->travel(11)->seconds();
+
+        $callbackInvocations = 0;
+        $this->assertSame('value-1', Cache::memo()->flexible('key', [10, 20], function () use (&$callbackInvocations): string {
+            ++$callbackInvocations;
+
+            return 'value-2';
+        }));
+
+        Cache::put($markerKey, Cache::get($markerKey) + 1, 20);
+        defer()->invoke();
+
+        $this->assertSame(0, $callbackInvocations);
+        $this->assertSame('value-1', Cache::get('key'));
     }
 
     public function testItSupportsRestoreLock()

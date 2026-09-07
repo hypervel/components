@@ -11,10 +11,12 @@ use CachingIterator;
 use Error;
 use Exception;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\ItemNotFoundException;
+use Hypervel\Support\Json;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\MultipleItemsFoundException;
 use Hypervel\Support\Str;
@@ -31,6 +33,7 @@ use SortDirection;
 use stdClass;
 use Symfony\Component\VarDumper\VarDumper;
 use Throwable;
+use TypeError;
 use UnexpectedValueException;
 use WeakMap;
 
@@ -206,6 +209,26 @@ class SupportCollectionTest extends TestCase
         ]);
 
         $this->assertTrue($data->hasMany->verified);
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testEmptyFilterStringIsRejectedLikeAnyOtherNonCallableString($collection): void
+    {
+        foreach (['sole', 'hasSole', 'hasMany', 'firstOrFail'] as $method) {
+            $thrown = null;
+
+            try {
+                (new $collection([true, false]))->{$method}('');
+            } catch (TypeError $exception) {
+                $thrown = $exception;
+            }
+
+            $this->assertInstanceOf(
+                TypeError::class,
+                $thrown,
+                "Expected {$collection}::{$method}() to reject an empty filter string."
+            );
+        }
     }
 
     #[DataProvider('collectionClassProvider')]
@@ -2178,7 +2201,7 @@ class SupportCollectionTest extends TestCase
     #[DataProvider('collectionClassProvider')]
     public function testSortByMany($collection): void
     {
-        $defaultLocale = setlocale(LC_ALL, 0);
+        $defaultLocale = setlocale(LC_ALL, '0');
 
         $data = new $collection([['item' => '1'], ['item' => '10'], ['item' => 5], ['item' => 20]]);
         $expected = $data->pluck('item')->toArray();
@@ -3120,6 +3143,57 @@ class SupportCollectionTest extends TestCase
     }
 
     #[DataProvider('collectionClassProvider')]
+    public function testJsonRoundTripsAtTheSupportNestingLimit($collection): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $instance = new $collection($value);
+
+        $this->assertSame($value, $collection::fromJson($instance->toJson())->all());
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testToJsonRejectsOneLevelOverTheSupportNestingLimit($collection): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index <= Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $this->expectException(JsonException::class);
+
+        (new $collection($value))->toJson();
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testJsonSerializeDecodesJsonableItemsAtTheSupportNestingLimit($collection): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $jsonable = new class(Json::encode($value)) implements Jsonable {
+            public function __construct(private readonly string $json)
+            {
+            }
+
+            public function toJson(int $options = 0): string
+            {
+                return $this->json;
+            }
+        };
+
+        $this->assertSame([$value], (new $collection([$jsonable]))->jsonSerialize());
+    }
+
+    #[DataProvider('collectionClassProvider')]
     public function testFromJsonWithDepth($collection): void
     {
         $json = json_encode(['foo' => ['baz' => ['quz']], 'bar' => 'baz']);
@@ -3444,7 +3518,7 @@ class SupportCollectionTest extends TestCase
     public function testMapIntoWithIntBackedEnums($collection): void
     {
         $data = new $collection([
-            1, 2,
+            1, '2',
         ]);
 
         $data = $data->mapInto(TestBackedEnum::class);

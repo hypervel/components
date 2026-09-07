@@ -19,6 +19,8 @@ class ConnectCallback
      */
     public function onConnect(Server $server, int $fd, int $reactorId): void
     {
-        $this->dispatcher->dispatch(new OnConnect($server, $fd, $reactorId));
+        if ($this->dispatcher->hasListeners(OnConnect::class)) {
+            $this->dispatcher->dispatch(new OnConnect($server, $fd, $reactorId));
+        }
     }
 }

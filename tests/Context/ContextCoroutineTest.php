@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Context;
 
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Context\NonCopyableContext;
+use Hypervel\Context\ReplicableContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Waiter;
@@ -42,6 +44,41 @@ class ContextCoroutineTest extends TestCase
         );
     }
 
+    public function testCaptureOmitsNonCopyableValuesForAllAndSelectedKeys(): void
+    {
+        CoroutineContext::set('capture.copyable', 'value');
+        CoroutineContext::set('capture.non-copyable', new class implements NonCopyableContext {
+        });
+
+        $this->assertSame(
+            ['capture.copyable' => 'value'],
+            CoroutineContext::captureFrom(),
+        );
+        $this->assertSame(
+            [],
+            CoroutineContext::captureFrom(['capture.non-copyable']),
+        );
+    }
+
+    public function testNonCopyableMarkerTakesPrecedenceOverReplication(): void
+    {
+        $value = new class implements NonCopyableContext, ReplicableContext {
+            public bool $replicated = false;
+
+            public function replicate(): static
+            {
+                $this->replicated = true;
+
+                return clone $this;
+            }
+        };
+
+        CoroutineContext::set('capture.both-markers', $value);
+
+        $this->assertSame([], CoroutineContext::captureFrom());
+        $this->assertFalse($value->replicated);
+    }
+
     public function testCaptureFromExplicitCoroutine(): void
     {
         $sourceReady = new Channel(1);
@@ -73,7 +110,7 @@ class ContextCoroutineTest extends TestCase
         }
     }
 
-    public function testCopy()
+    public function testCopy(): void
     {
         CoroutineContext::set('test.store.id', $uid = uniqid());
         $id = Coroutine::id();
@@ -85,7 +122,7 @@ class ContextCoroutineTest extends TestCase
         ]);
     }
 
-    public function testCopyAfterSet()
+    public function testCopyAfterSet(): void
     {
         CoroutineContext::set('test.store.id', $uid = uniqid());
         $id = Coroutine::id();
@@ -101,7 +138,7 @@ class ContextCoroutineTest extends TestCase
         ]);
     }
 
-    public function testContextChangeAfterCopy()
+    public function testContextChangeAfterCopy(): void
     {
         $obj = new stdClass;
         $obj->id = $uid = uniqid();
@@ -123,7 +160,7 @@ class ContextCoroutineTest extends TestCase
         $this->assertSame($tid, CoroutineContext::get('test.store.id')->id);
     }
 
-    public function testContextFromNull()
+    public function testContextFromNull(): void
     {
         $res = CoroutineContext::get('id', $default = 'Hello World!', -1);
         $this->assertSame($default, $res);
@@ -144,7 +181,7 @@ class ContextCoroutineTest extends TestCase
         ]);
     }
 
-    public function testRequestContextWithCoroutineId()
+    public function testRequestContextWithCoroutineId(): void
     {
         $request = m::mock(Request::class);
         RequestContext::set($request);
@@ -154,7 +191,7 @@ class ContextCoroutineTest extends TestCase
         });
     }
 
-    public function testContextOverrideWithCoroutineId()
+    public function testContextOverrideWithCoroutineId(): void
     {
         $id = Coroutine::id();
         $value = uniqid();
@@ -173,7 +210,7 @@ class ContextCoroutineTest extends TestCase
         $this->assertSame('123', CoroutineContext::get('override.id.coroutine_id'));
     }
 
-    public function testContextGetOrSetWithCoroutineId()
+    public function testContextGetOrSetWithCoroutineId(): void
     {
         $id = Coroutine::id();
         $value = uniqid();
@@ -211,5 +248,34 @@ class ContextCoroutineTest extends TestCase
         $this->assertSame('destination', CoroutineContext::get('stable'));
         $this->assertSame('value', CoroutineContext::get('untouched'));
         $this->assertFalse(CoroutineContext::has('throwing'));
+    }
+
+    public function testCopyFromPreservesDestinationValueForOmittedSourceKey(): void
+    {
+        $sourceReady = new Channel(1);
+        $releaseSource = new Channel(1);
+
+        Coroutine::create(static function () use ($sourceReady, $releaseSource): void {
+            CoroutineContext::set('copyable', 'source');
+            CoroutineContext::set('owned-resource', new class implements NonCopyableContext {
+            });
+            $sourceReady->push(Coroutine::id());
+            $releaseSource->pop();
+        });
+
+        $destinationResource = new stdClass;
+        CoroutineContext::set('copyable', 'destination');
+        CoroutineContext::set('owned-resource', $destinationResource);
+        CoroutineContext::set('untouched', 'value');
+
+        try {
+            CoroutineContext::copyFrom($sourceReady->pop(1.0));
+        } finally {
+            $releaseSource->push(true);
+        }
+
+        $this->assertSame('source', CoroutineContext::get('copyable'));
+        $this->assertSame($destinationResource, CoroutineContext::get('owned-resource'));
+        $this->assertSame('value', CoroutineContext::get('untouched'));
     }
 }

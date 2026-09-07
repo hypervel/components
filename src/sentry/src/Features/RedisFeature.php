@@ -33,7 +33,7 @@ class RedisFeature extends Feature
 
     public function isApplicable(): bool
     {
-        return $this->isTracingFeatureEnabled('redis_commands');
+        return $this->isTracingFeatureEnabled('redis_commands', false);
     }
 
     public function onBoot(): void
@@ -92,7 +92,7 @@ class RedisFeature extends Feature
             'db.system' => 'redis',
             'db.statement' => $redisStatement,
             'db.redis.connection' => $event->connectionName,
-            'db.redis.database_index' => (int) ($config['database'] ?? 0),
+            'db.redis.database_index' => $config['database'] ?? 0,
             'db.redis.pool.name' => $event->connectionName,
             'db.redis.pool.max' => $pool->getOption()->getMaxConnections(),
             'db.redis.pool.max_idle_time' => $pool->getOption()->getMaxIdleTime(),

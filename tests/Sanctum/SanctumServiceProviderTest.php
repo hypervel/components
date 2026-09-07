@@ -84,15 +84,12 @@ class SanctumServiceProviderTest extends TestCase
         ], $resolver());
     }
 
-    public function testConsoleStartupValidatesTheConfiguredStoreUsingCapturedDependencies(): void
+    public function testConsoleStartupUsesDefaultsForOmittedCacheMembers(): void
     {
         $config = new ConfigRepository([
             'sanctum' => [
                 'cache' => [
                     'enabled' => true,
-                    'store' => '',
-                    'ttl' => 300,
-                    'last_used_at_update_interval' => 0,
                 ],
             ],
             'auth' => [
@@ -139,7 +136,7 @@ class SanctumServiceProviderTest extends TestCase
     {
         $config = new ConfigRepository([
             'sanctum' => [
-                'cache' => ['enabled' => false],
+                'cache' => [],
             ],
             'auth' => [
                 'guards' => [],
@@ -288,12 +285,20 @@ class SanctumServiceProviderTest extends TestCase
         mixed $value,
         string $message,
     ): void {
+        $config = new ConfigRepository([
+            'sanctum' => [
+                'routes' => true,
+                'prefix' => 'sanctum',
+            ],
+        ]);
+        $config->set($key, $value);
+
         $application = m::mock(Application::class);
         $application->shouldReceive('routesAreCached')->once()->andReturnFalse();
         $application->shouldReceive('make')
             ->once()
             ->with(ConfigRepositoryContract::class)
-            ->andReturn(new ConfigRepository([$key => $value]));
+            ->andReturn($config);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage($message);
@@ -318,6 +323,50 @@ class SanctumServiceProviderTest extends TestCase
                 'Configuration value for key [sanctum.prefix] must be a string, boolean given.',
             ],
         ];
+    }
+
+    public function testDefineRoutesRequiresRoutesSetting(): void
+    {
+        $config = new ConfigRepository([
+            'sanctum' => [
+                'prefix' => 'sanctum',
+            ],
+        ]);
+        $application = m::mock(Application::class);
+        $application->shouldReceive('routesAreCached')->once()->andReturnFalse();
+        $application->shouldReceive('make')
+            ->once()
+            ->with(ConfigRepositoryContract::class)
+            ->andReturn($config);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Configuration value for key [sanctum.routes] must be a boolean, NULL given.'
+        );
+
+        (new SanctumServiceProviderFixture($application))->defineRoutesUsingParent();
+    }
+
+    public function testDefineRoutesRequiresPrefixWhenRoutesAreEnabled(): void
+    {
+        $config = new ConfigRepository([
+            'sanctum' => [
+                'routes' => true,
+            ],
+        ]);
+        $application = m::mock(Application::class);
+        $application->shouldReceive('routesAreCached')->once()->andReturnFalse();
+        $application->shouldReceive('make')
+            ->once()
+            ->with(ConfigRepositoryContract::class)
+            ->andReturn($config);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Configuration value for key [sanctum.prefix] must be a string, NULL given.'
+        );
+
+        (new SanctumServiceProviderFixture($application))->defineRoutesUsingParent();
     }
 
     // REMOVED: Hypervel's Middleware::statefulApi() owns middleware priority before kernel construction.
@@ -422,7 +471,7 @@ class SanctumServiceProviderTest extends TestCase
     }
 
     #[DataProvider('invalidCacheTtlProvider')]
-    public function testCachingRequiresPositiveIntegerTtl(array $cache): void
+    public function testCachingRequiresPositiveIntegerTtl(array $cache, string $message): void
     {
         $config = new ConfigRepository([
             'sanctum' => [
@@ -440,24 +489,23 @@ class SanctumServiceProviderTest extends TestCase
         $startup = $this->bootAndCaptureStartupValidation($manager, $config);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Sanctum cache TTL must be a positive integer.');
+        $this->expectExceptionMessage($message);
 
         $startup();
     }
 
     public static function invalidCacheTtlProvider(): iterable
     {
-        yield 'missing' => [[]];
-        yield 'null' => [['ttl' => null]];
-        yield 'zero' => [['ttl' => 0]];
-        yield 'negative' => [['ttl' => -1]];
-        yield 'numeric string' => [['ttl' => '300']];
-        yield 'float' => [['ttl' => 1.5]];
-        yield 'boolean' => [['ttl' => true]];
+        yield 'null' => [['ttl' => null], 'Configuration value for key [sanctum.cache.ttl] must be an integer, NULL given.'];
+        yield 'zero' => [['ttl' => 0], 'Sanctum cache TTL must be a positive integer.'];
+        yield 'negative' => [['ttl' => -1], 'Sanctum cache TTL must be a positive integer.'];
+        yield 'numeric string' => [['ttl' => '300'], 'Configuration value for key [sanctum.cache.ttl] must be an integer, string given.'];
+        yield 'float' => [['ttl' => 1.5], 'Configuration value for key [sanctum.cache.ttl] must be an integer, double given.'];
+        yield 'boolean' => [['ttl' => true], 'Configuration value for key [sanctum.cache.ttl] must be an integer, boolean given.'];
     }
 
     #[DataProvider('invalidLastUsedUpdateIntervalProvider')]
-    public function testCachingRequiresNonNegativeIntegerLastUsedUpdateInterval(array $cache): void
+    public function testCachingRequiresNonNegativeIntegerLastUsedUpdateInterval(array $cache, string $message): void
     {
         $config = new ConfigRepository([
             'sanctum' => [
@@ -476,21 +524,18 @@ class SanctumServiceProviderTest extends TestCase
         $startup = $this->bootAndCaptureStartupValidation($manager, $config);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
-            'Sanctum cache last_used_at_update_interval must be a non-negative integer.'
-        );
+        $this->expectExceptionMessage($message);
 
         $startup();
     }
 
     public static function invalidLastUsedUpdateIntervalProvider(): iterable
     {
-        yield 'missing' => [[]];
-        yield 'null' => [['last_used_at_update_interval' => null]];
-        yield 'negative' => [['last_used_at_update_interval' => -1]];
-        yield 'numeric string' => [['last_used_at_update_interval' => '300']];
-        yield 'float' => [['last_used_at_update_interval' => 1.5]];
-        yield 'boolean' => [['last_used_at_update_interval' => true]];
+        yield 'null' => [['last_used_at_update_interval' => null], 'Configuration value for key [sanctum.cache.last_used_at_update_interval] must be an integer, NULL given.'];
+        yield 'negative' => [['last_used_at_update_interval' => -1], 'Sanctum cache last_used_at_update_interval must be a non-negative integer.'];
+        yield 'numeric string' => [['last_used_at_update_interval' => '300'], 'Configuration value for key [sanctum.cache.last_used_at_update_interval] must be an integer, string given.'];
+        yield 'float' => [['last_used_at_update_interval' => 1.5], 'Configuration value for key [sanctum.cache.last_used_at_update_interval] must be an integer, double given.'];
+        yield 'boolean' => [['last_used_at_update_interval' => true], 'Configuration value for key [sanctum.cache.last_used_at_update_interval] must be an integer, boolean given.'];
     }
 
     /**

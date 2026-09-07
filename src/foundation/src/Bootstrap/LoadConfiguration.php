@@ -10,6 +10,7 @@ use Hypervel\Contracts\Config\Repository as RepositoryContract;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Foundation\Configuration\ConfigMutationTracker;
 use Hypervel\Support\Collection;
+use RuntimeException;
 use SplFileInfo;
 use Symfony\Component\Finder\Finder;
 use Throwable;
@@ -72,11 +73,11 @@ class LoadConfiguration
             // Finally, we will set the application's environment based on the configuration
             // values that were loaded. We will pass a callback which will be used to get
             // the environment in a web context where an "--env" switch is not present.
-            $app->detectEnvironment(fn () => $config->string('app.env', 'production'));
+            $app->detectEnvironment(fn () => $config->string('app.env'));
 
             $app->resolveEnvironmentUsing($app->environment(...));
 
-            date_default_timezone_set($config->get('app.timezone', 'UTC'));
+            date_default_timezone_set($config->string('app.timezone'));
 
             mb_internal_encoding('UTF-8');
         } catch (Throwable $exception) {
@@ -212,6 +213,20 @@ class LoadConfiguration
     }
 
     /**
+     * Get the framework configuration directory.
+     */
+    public static function frameworkConfigPath(): string
+    {
+        $path = realpath(dirname(__DIR__, 2) . '/config');
+
+        if ($path === false) {
+            throw new RuntimeException('Unable to locate the framework configuration directory.');
+        }
+
+        return $path;
+    }
+
+    /**
      * Get the base configuration files.
      *
      * @return array<string, array<string, mixed>>
@@ -220,8 +235,8 @@ class LoadConfiguration
     {
         $config = [];
 
-        foreach (Finder::create()->files()->name('*.php')->in(__DIR__ . '/../../config') as $file) {
-            $config[basename($file->getRealPath(), '.php')] = require $file->getRealPath();
+        foreach (Finder::create()->files()->name('*.php')->in(static::frameworkConfigPath()) as $file) {
+            $config[basename($file->getRealPath(), '.php')] = (fn () => require $file->getRealPath())();
         }
 
         return $config;

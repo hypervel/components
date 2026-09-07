@@ -16,7 +16,7 @@ class EncodedHtmlString extends HtmlString
     /**
      * Context key for temporarily scoped encoder callbacks.
      */
-    protected const ENCODER_CONTEXT_KEY = '__support.encoded_html.encoder';
+    protected const string ENCODER_CONTEXT_KEY = '__support.encoded_html.encoder';
 
     /**
      * The callback that should be used to encode the HTML strings.

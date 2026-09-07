@@ -6,10 +6,22 @@ namespace Hypervel\Database\Query\Grammars;
 
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\JoinLateralClause;
+use Override;
 use RuntimeException;
 
 class MariaDbGrammar extends MySqlGrammar
 {
+    /**
+     * Compile the query timeout for a complete select statement.
+     */
+    #[Override]
+    protected function compileSelectTimeout(Builder $query, string $sql): string
+    {
+        return $query->timeout === null
+            ? $sql
+            : 'SET STATEMENT max_statement_time=' . $query->timeout . ' FOR ' . $sql;
+    }
+
     /**
      * Compile a "lateral join" clause.
      */

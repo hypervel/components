@@ -34,7 +34,7 @@ class KeyResolver
     /**
      * Resolve a stable fixed-length physical key.
      */
-    public function resolve(AdmissionPolicy|Backoff $policy, ?string $limiterName = null): string
+    public function resolve(AdmissionPolicy|Backoff|Cooldown $policy, ?string $limiterName = null): string
     {
         $identity = $this->segment('domain', 'hypervel-rate-limiter-v1')
             . $this->segment('prefix', $this->prefix);
@@ -62,7 +62,7 @@ class KeyResolver
     /**
      * Build the stable policy portion of an identity.
      */
-    protected function policyIdentity(AdmissionPolicy|Backoff $policy): string
+    protected function policyIdentity(AdmissionPolicy|Backoff|Cooldown $policy): string
     {
         // Laravel's fallbackKey() changes only colliding named keys. Hypervel
         // always includes stable policy parameters so configuration changes
@@ -86,6 +86,7 @@ class KeyResolver
                 . $this->segment('initial-delay', (string) $policy->initialDelay)
                 . $this->segment('max-delay', (string) $policy->maxDelay)
                 . $this->segment('reset-after', (string) $policy->resetAfter),
+            $policy instanceof Cooldown => $this->segment('policy', 'cooldown'),
             default => throw new InvalidRateLimitException(sprintf(
                 'Policy [%s] is not supported.',
                 $policy::class,

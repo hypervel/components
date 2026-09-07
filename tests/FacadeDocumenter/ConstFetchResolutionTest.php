@@ -314,6 +314,8 @@ class ConstFetchResolutionTest extends FacadeDocumenterTestCase
 
     /**
      * Resolve relative constant owners from the declaring and selected classes.
+     *
+     * The generated fixtures intentionally use untyped constants to cover userland code.
      */
     public function testRelativeConstantOwnersUsePhpSemantics(): void
     {

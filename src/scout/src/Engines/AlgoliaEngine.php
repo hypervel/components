@@ -230,45 +230,27 @@ class AlgoliaEngine extends Engine implements DeletesByFilter, UpdatesIndexSetti
                     throw new InvalidArgumentException("Unsupported Algolia filter operator [{$operator}].");
                 }
 
-                if ($value instanceof BackedEnum) {
-                    $value = $value->value;
-                }
-
-                if ($value === null) {
-                    throw new InvalidArgumentException('Algolia filters do not support null values.');
-                }
-
-                if (is_float($value) && ! is_finite($value)) {
-                    throw new InvalidArgumentException('Algolia filters require finite numeric values.');
-                }
-
                 if (in_array($operator, ['<', '>', '<=', '>='], true)) {
+                    $formattedValue = $this->formatFilterValue($value);
+
+                    if ($value instanceof BackedEnum) {
+                        $value = $value->value;
+                    }
+
                     if (is_bool($value)) {
                         $value = $value ? '1' : '0';
                     } elseif (is_int($value) || is_float($value)) {
-                        $value = (string) $value;
-                    } elseif (! is_string($value)
-                        || preg_match('/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/D', $value) !== 1) {
+                        $value = $formattedValue;
+                    } elseif (preg_match('/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/D', $value) !== 1) {
                         throw new InvalidArgumentException('Algolia ordering filters require a numeric value.');
                     }
 
                     return $field . $operator . $value;
                 }
 
-                if (is_string($value) || is_bool($value)) {
-                    $value = $this->formatFilterValue($value);
+                $expression = $this->equalityFilter($field, $value);
 
-                    if ($operator === '!=') {
-                        return 'NOT ' . $field . ':' . $value;
-                    }
-
-                    $operator = ':';
-                } elseif ($operator === '=') {
-                    $operator = ':';
-                    $value = "'{$value}'";
-                }
-
-                return $field . $operator . $value;
+                return $operator === '!=' ? 'NOT ' . $expression : $expression;
             })
             ->values();
 
@@ -279,7 +261,7 @@ class AlgoliaEngine extends Engine implements DeletesByFilter, UpdatesIndexSetti
                 }
 
                 return '(' . collect($values)
-                    ->map(fn (mixed $value): string => $key . ':' . $this->formatFilterValue($value))
+                    ->map(fn (mixed $value): string => $this->equalityFilter($key, $value))
                     ->implode(' OR ') . ')';
             })
             ->values();
@@ -291,7 +273,7 @@ class AlgoliaEngine extends Engine implements DeletesByFilter, UpdatesIndexSetti
                 }
 
                 return collect($values)
-                    ->map(fn (mixed $value): string => 'NOT ' . $key . ':' . $this->formatFilterValue($value))
+                    ->map(fn (mixed $value): string => 'NOT ' . $this->equalityFilter($key, $value))
                     ->implode(' AND ');
             })
             ->values();
@@ -316,6 +298,20 @@ class AlgoliaEngine extends Engine implements DeletesByFilter, UpdatesIndexSetti
     }
 
     /**
+     * Build an equality filter for the given field and value.
+     */
+    protected function equalityFilter(string $field, mixed $value): string
+    {
+        $formattedValue = $this->formatFilterValue($value);
+
+        if ($value instanceof BackedEnum) {
+            $value = $value->value;
+        }
+
+        return $field . (is_int($value) || is_float($value) ? ' = ' : ':') . $formattedValue;
+    }
+
+    /**
      * Format the given value for use in an Algolia filter.
      */
     protected function formatFilterValue(mixed $value): string
@@ -324,11 +320,31 @@ class AlgoliaEngine extends Engine implements DeletesByFilter, UpdatesIndexSetti
             $value = $value->value;
         }
 
+        if ($value === null) {
+            throw new InvalidArgumentException('Algolia filters do not support null values.');
+        }
+
+        if (! is_scalar($value)) {
+            throw new InvalidArgumentException('Algolia filters require scalar values.');
+        }
+
+        if (is_float($value) && ! is_finite($value)) {
+            throw new InvalidArgumentException('Algolia filters require finite numeric values.');
+        }
+
         if (is_bool($value)) {
             return $value ? 'true' : 'false';
         }
 
-        return "'" . str_replace(['\\', "'"], ['\\\\', "\\'"], (string) $value) . "'";
+        if (is_int($value)) {
+            return (string) $value;
+        }
+
+        if (is_float($value)) {
+            return json_encode($value, JSON_THROW_ON_ERROR);
+        }
+
+        return "'" . str_replace(['\\', "'"], ['\\\\', "\\'"], $value) . "'";
     }
 
     /**
@@ -442,20 +458,27 @@ class AlgoliaEngine extends Engine implements DeletesByFilter, UpdatesIndexSetti
 
         $index = $builder->index ?? $builder->model->indexableAs();
 
-        try {
-            /** @var array{taskID: int}|UpdatedAtResponse $response */
-            $response = $this->algolia->deleteBy($index, ['filters' => $filters]);
-        } catch (NotFoundException) {
-            // The index is already absent.
-            return;
-        }
+        $this->runOperation(
+            'delete_by_filter',
+            $builder,
+            function () use ($filters, $index): void {
+                try {
+                    /** @var array{taskID: int}|UpdatedAtResponse $response */
+                    $response = $this->algolia->deleteBy($index, ['filters' => $filters]);
+                } catch (NotFoundException) {
+                    // The index is already absent.
+                    return;
+                }
 
-        /** @var null|array<string, mixed>|GetTaskResponse $task */
-        $task = $this->algolia->waitForTask($index, $response['taskID']);
+                /** @var null|array<string, mixed>|GetTaskResponse $task */
+                $task = $this->algolia->waitForTask($index, $response['taskID']);
 
-        if (($task['status'] ?? null) !== 'published') {
-            throw new ScoutException('Algolia filter deletion did not complete successfully.');
-        }
+                if (($task['status'] ?? null) !== 'published') {
+                    throw new ScoutException('Algolia filter deletion did not complete successfully.');
+                }
+            },
+            index: $index,
+        );
     }
 
     /**

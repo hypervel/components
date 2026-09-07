@@ -6,15 +6,15 @@ namespace Hypervel\WebSocketServer;
 
 class Security
 {
-    public const VERSION = '13';
+    public const string VERSION = '13';
 
-    public const PATTERN = '#^[+/0-9A-Za-z]{21}[AQgw]==$#';
+    public const string PATTERN = '#^[+/0-9A-Za-z]{21}[AQgw]==$#';
 
-    public const KEY = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
+    public const string KEY = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
-    public const SEC_WEBSOCKET_KEY = 'sec-websocket-key';
+    public const string SEC_WEBSOCKET_KEY = 'sec-websocket-key';
 
-    public const SEC_WEBSOCKET_PROTOCOL = 'sec-websocket-protocol';
+    public const string SEC_WEBSOCKET_PROTOCOL = 'sec-websocket-protocol';
 
     /**
      * Determine if the given key is an invalid WebSocket security key.

@@ -25,6 +25,14 @@ use stdClass;
 
 class CacheMemoizedStoreTest extends TestCase
 {
+    public function testExposesTheUnderlyingStore(): void
+    {
+        $innerStore = new ArrayStore;
+        $store = new MemoizedStore('test', new Repository($innerStore));
+
+        $this->assertSame($innerStore, $store->getInnerStore());
+    }
+
     public function testTouchExtendsTtl(): void
     {
         $store = new MemoizedStore('test', new Repository(new ArrayStore));
@@ -57,6 +65,20 @@ class CacheMemoizedStoreTest extends TestCase
         });
         $this->assertNull($result2);
         $this->assertFalse($invoked, 'Callback must not re-run — proves the RawReadable seam works across the memo layer');
+    }
+
+    public function testAuthoritativeReadBypassesMemoizedValueWithoutUpdatingMemo(): void
+    {
+        $repository = new Repository(new ArrayStore);
+        $store = new MemoizedStore('memoized', $repository);
+
+        $repository->put('key', 'stale', 60);
+        $this->assertSame('stale', $store->getRaw('key'));
+
+        $repository->put('key', 'fresh', 60);
+
+        $this->assertSame('fresh', $store->getAuthoritativeRaw('key'));
+        $this->assertSame('stale', $store->getRaw('key'));
     }
 
     public function testPlainRememberTreatsCachedSentinelAsHitThroughMemoizedStore(): void

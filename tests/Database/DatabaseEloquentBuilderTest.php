@@ -6,6 +6,8 @@ namespace Hypervel\Tests\Database\DatabaseEloquentBuilderTest;
 
 use BadMethodCallException;
 use Closure;
+use Hypervel\Database\BinaryParameter;
+use Hypervel\Database\ClassMorphViolationException;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
@@ -16,6 +18,7 @@ use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\RelationNotFoundException;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder as BaseBuilder;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Query\Grammars\Grammar;
@@ -27,6 +30,7 @@ use InvalidArgumentException;
 use Mockery as m;
 use PDO;
 use stdClass;
+use Stringable;
 
 class DatabaseEloquentBuilderTest extends TestCase
 {
@@ -1405,6 +1409,48 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals($builder, $result);
     }
 
+    public function testQueryableWhereForwardersAcceptBuilderAndRelationSubqueries(): void
+    {
+        $model = new ModelParentStub;
+        $model->foo_id = 7;
+        $connection = $this->mockConnectionForModel($model, 'SQLite');
+        $subquery = $connection->query()
+            ->select('score')
+            ->from('scores')
+            ->where('active', true);
+
+        $builder = $model->newQuery()
+            ->where($model->foo(), '>', 5)
+            ->orWhere($subquery, '<', 4)
+            ->whereNot($subquery, '=', 3)
+            ->orWhereNot($subquery, '=', 2);
+
+        $this->assertSame(
+            'select * from "model_parent_stubs" where (select * from "model_close_related_stubs" where "model_close_related_stubs"."id" = ?) > ? or (select "score" from "scores" where "active" = ?) < ? and not (select "score" from "scores" where "active" = ?) = ? or not (select "score" from "scores" where "active" = ?) = ?',
+            $builder->toSql()
+        );
+        $this->assertSame([7, 5, true, 4, true, 3, true, 2], $builder->getBindings());
+    }
+
+    public function testFirstWhereAcceptsRelationSubquery(): void
+    {
+        $model = new ModelParentStub;
+        $model->foo_id = 7;
+        $connection = $this->mockConnectionForModel($model, 'SQLite');
+        $connection->shouldReceive('getName')->andReturn('database');
+        $connection->expects('select')->with(
+            'select * from "model_parent_stubs" where (select * from "model_close_related_stubs" where "model_close_related_stubs"."id" = ?) > ? limit 1',
+            [7, 5],
+            true,
+            [],
+        )->andReturn([['id' => 11]]);
+
+        $result = $model->newQuery()->firstWhere($model->foo(), '>', 5);
+
+        $this->assertInstanceOf(ModelParentStub::class, $result);
+        $this->assertSame(11, $result->id);
+    }
+
     public function testRealQueryHigherOrderOrWhereScopes()
     {
         $model = new HigherOrderWhereScopeStub;
@@ -1759,6 +1805,24 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select "model_parent_stubs".*, exists(select * from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "foo_exists" from "model_parent_stubs"', $builder->toSql());
     }
 
+    public function testWithExistsRejectsConstraintTimeoutBeforeEmbeddingTheConstraint(): void
+    {
+        $this->assertRelationshipConstraintTimeoutRejected(function (Builder $builder): void {
+            $builder->withExists(['foo' => function ($query): void {
+                $query->where('active', true)->timeout(2);
+            }]);
+        });
+    }
+
+    public function testWithCountRejectsConstraintTimeoutBeforeEmbeddingTheConstraint(): void
+    {
+        $this->assertRelationshipConstraintTimeoutRejected(function (Builder $builder): void {
+            $builder->withCount(['foo' => function ($query): void {
+                $query->where('active', true)->timeout(2);
+            }]);
+        });
+    }
+
     public function testWithExistsAndSelect()
     {
         $model = new ModelParentStub;
@@ -1911,6 +1975,24 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         $this->assertSame('select * from "model_parent_stubs" where "bar" = ? and (select count(*) from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id" having "bam" > ?) >= 2 and "quux" = ?', $builder->toSql());
         $this->assertEquals(['baz', 'qux', 'quuux'], $builder->getBindings());
+    }
+
+    public function testRelationshipExistsRejectsConstraintTimeoutBeforeEmbeddingTheConstraint(): void
+    {
+        $this->assertRelationshipConstraintTimeoutRejected(function (Builder $builder): void {
+            $builder->whereHas('foo', function ($query): void {
+                $query->where('active', true)->timeout(2);
+            });
+        });
+    }
+
+    public function testRelationshipCountRejectsConstraintTimeoutBeforeEmbeddingTheConstraint(): void
+    {
+        $this->assertRelationshipConstraintTimeoutRejected(function (Builder $builder): void {
+            $builder->whereHas('foo', function ($query): void {
+                $query->where('active', true)->timeout(2);
+            }, '>=', 2);
+        });
     }
 
     public function testWithCountAndConstraintsWithBindingInSelectSub()
@@ -2187,6 +2269,17 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         $builder = $model->whereMorphedTo('morph', null);
         $this->assertSame('select * from "model_parent_stubs" where "model_parent_stubs"."morph_type" is null', $builder->toSql());
+    }
+
+    public function testWhereNotMorphedToNull(): void
+    {
+        $model = new ModelParentStub;
+        $this->mockConnectionForModel($model, '');
+
+        $builder = $model->whereNotMorphedTo('morph', null);
+
+        $this->assertSame('select * from "model_parent_stubs" where "model_parent_stubs"."morph_type" is not null', $builder->toSql());
+        $this->assertSame([], $builder->getBindings());
     }
 
     public function testWhereNotMorphedTo()
@@ -2474,21 +2567,90 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame([ModelCloseRelatedStub::class], $builder->getBindings());
     }
 
-    public function testWhereMorphedToAlias()
+    // REMOVED: SQL Server whereNotMorphedTo tests; SQL Server is not supported.
+
+    public function testWhereMorphedToAlias(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, '');
 
-        Relation::morphMap([
+        Relation::enforceMorphMap([
             'alias' => ModelCloseRelatedStub::class,
         ]);
 
         $builder = $model->whereMorphedTo('morph', ModelCloseRelatedStub::class);
 
         $this->assertSame('select * from "model_parent_stubs" where "model_parent_stubs"."morph_type" = ?', $builder->toSql());
-        $this->assertEquals(['alias'], $builder->getBindings());
+        $this->assertSame(['alias'], $builder->getBindings());
+    }
 
-        Relation::morphMap([], false);
+    public function testWhereMorphedToAcceptsStoredAliasesWhenMorphMapIsRequired(): void
+    {
+        $model = new ModelParentStub;
+        $this->mockConnectionForModel($model, '');
+
+        Relation::enforceMorphMap([
+            ModelCloseRelatedStub::class => ModelFarRelatedStub::class,
+        ]);
+
+        $classAliasBuilder = $model->whereMorphedTo('morph', ModelCloseRelatedStub::class);
+        $plainAliasBuilder = $model->whereMorphedTo('morph', 'legacy-alias');
+
+        $this->assertSame([ModelCloseRelatedStub::class], $classAliasBuilder->getBindings());
+        $this->assertSame(['legacy-alias'], $plainAliasBuilder->getBindings());
+    }
+
+    public function testWhereMorphedToClassRequiresMorphMap(): void
+    {
+        $model = new ModelParentStub;
+        $this->mockConnectionForModel($model, '');
+
+        Relation::requireMorphMap();
+
+        $this->expectException(ClassMorphViolationException::class);
+
+        $model->whereMorphedTo('morph', ModelCloseRelatedStub::class);
+    }
+
+    public function testWhereMorphedToAbstractClassRequiresMorphMap(): void
+    {
+        $model = new ModelParentStub;
+        $this->mockConnectionForModel($model, '');
+
+        Relation::requireMorphMap();
+
+        $this->expectException(ClassMorphViolationException::class);
+
+        $model->whereMorphedTo('morph', AbstractModelRelatedStub::class);
+    }
+
+    public function testWhereNotMorphedToClassRequiresMorphMap(): void
+    {
+        $model = new ModelParentStub;
+        $this->mockConnectionForModel($model, '');
+
+        Relation::requireMorphMap();
+
+        $this->expectException(ClassMorphViolationException::class);
+
+        $model->whereNotMorphedTo('morph', ModelCloseRelatedStub::class);
+    }
+
+    public function testWhereMorphedToClassUsesIntegerAliasForBothPolarities(): void
+    {
+        $model = new ModelParentStub;
+        $this->mockConnectionForModel($model, '');
+
+        Relation::morphMap([
+            0 => ModelCloseRelatedStub::class,
+            2 => ModelFarRelatedStub::class,
+        ]);
+
+        $builder = $model->whereMorphedTo('morph', ModelCloseRelatedStub::class);
+        $negativeBuilder = $model->whereNotMorphedTo('morph', ModelCloseRelatedStub::class);
+
+        $this->assertSame(['0'], $builder->getBindings());
+        $this->assertSame(['0'], $negativeBuilder->getBindings());
     }
 
     public function testWhereKeyMethodWithInt()
@@ -2574,6 +2736,33 @@ class DatabaseEloquentBuilderTest extends TestCase
         });
     }
 
+    public function testWhereKeyMethodWithBinaryParameter(): void
+    {
+        $model = new StubStringPrimaryKey;
+        $builder = $this->getBuilder()->setModel($model);
+        $binary = new BinaryParameter("\0binary-key");
+
+        $builder->getQuery()->shouldReceive('where')->once()->with($model->getQualifiedKeyName(), '=', $binary);
+
+        $builder->whereKey($binary);
+    }
+
+    public function testWhereKeyMethodKeepsStringableCoercion(): void
+    {
+        $model = new StubStringPrimaryKey;
+        $builder = $this->getBuilder()->setModel($model);
+        $identifier = new class implements Stringable {
+            public function __toString(): string
+            {
+                return 'stringable-key';
+            }
+        };
+
+        $builder->getQuery()->shouldReceive('where')->once()->with($model->getQualifiedKeyName(), '=', 'stringable-key');
+
+        $builder->whereKey($identifier);
+    }
+
     public function testWhereKeyNotMethodWithStringZero()
     {
         $model = new StubStringPrimaryKey;
@@ -2655,6 +2844,33 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->whereKeyNot(new class extends Model {
             protected array $attributes = ['id' => 1];
         });
+    }
+
+    public function testWhereKeyNotMethodWithBinaryParameter(): void
+    {
+        $model = new StubStringPrimaryKey;
+        $builder = $this->getBuilder()->setModel($model);
+        $binary = new BinaryParameter("\0binary-key");
+
+        $builder->getQuery()->shouldReceive('where')->once()->with($model->getQualifiedKeyName(), '!=', $binary);
+
+        $builder->whereKeyNot($binary);
+    }
+
+    public function testWhereKeyNotMethodKeepsStringableCoercion(): void
+    {
+        $model = new StubStringPrimaryKey;
+        $builder = $this->getBuilder()->setModel($model);
+        $identifier = new class implements Stringable {
+            public function __toString(): string
+            {
+                return 'stringable-key';
+            }
+        };
+
+        $builder->getQuery()->shouldReceive('where')->once()->with($model->getQualifiedKeyName(), '!=', 'stringable-key');
+
+        $builder->whereKeyNot($identifier);
     }
 
     public function testExceptMethodWithModel()
@@ -2755,6 +2971,32 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->getQuery()->shouldReceive('latest')->once()->with('foo');
 
         $builder->latest('foo');
+    }
+
+    public function testLatestAndOldestAcceptQueryableSubqueries(): void
+    {
+        $model = new ModelParentStub;
+        $model->foo_id = 7;
+        $this->mockConnectionForModel($model, 'SQLite');
+
+        $latest = $model->newQuery()->latest($model->foo());
+
+        $this->assertSame(
+            'select * from "model_parent_stubs" order by (select * from "model_close_related_stubs" where "model_close_related_stubs"."id" = ?) desc',
+            $latest->toSql()
+        );
+        $this->assertSame([7], $latest->getBindings());
+
+        $subquery = $model->foo()->getRelated()->newQuery()
+            ->select('score')
+            ->where('active', true);
+        $oldest = $model->newQuery()->oldest($subquery);
+
+        $this->assertSame(
+            'select * from "model_parent_stubs" order by (select "score" from "model_close_related_stubs" where "active" = ?) asc',
+            $oldest->toSql()
+        );
+        $this->assertSame([true], $oldest->getBindings());
     }
 
     public function testOldestWithoutColumnWithCreatedAt()
@@ -3100,7 +3342,7 @@ class DatabaseEloquentBuilderTest extends TestCase
     public function testPipeCallback()
     {
         $query = new Builder(new BaseBuilder(
-            $connection = new Connection(new PDO('sqlite::memory:')),
+            $connection = new PdoConnection(new PDO('sqlite::memory:')),
             new Grammar($connection),
             new Processor,
         ));
@@ -3185,6 +3427,29 @@ class DatabaseEloquentBuilderTest extends TestCase
         $result = $builder->incrementEach(['votes' => 1]);
 
         $this->assertSame(1, $result);
+    }
+
+    /**
+     * Assert that a relationship constraint timeout is rejected before it is embedded.
+     */
+    protected function assertRelationshipConstraintTimeoutRejected(Closure $accept): void
+    {
+        $builder = (new ModelParentStub)->newQuery()->where('tenant_id', 7);
+        $sql = $builder->toSql();
+        $bindings = $builder->getBindings();
+
+        try {
+            $accept($builder);
+            $this->fail('Expected the relationship constraint timeout to be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame(
+                'A relationship constraint cannot define its own query timeout. Apply the timeout to the outer query instead.',
+                $exception->getMessage()
+            );
+        }
+
+        $this->assertSame($sql, $builder->toSql());
+        $this->assertSame($bindings, $builder->getBindings());
     }
 
     protected function mockConnectionForModel($model, $database)
@@ -3363,6 +3628,10 @@ class ModelCloseRelatedStub extends Model
     }
 }
 
+abstract class AbstractModelRelatedStub extends Model
+{
+}
+
 class ModelFarRelatedStub extends Model
 {
     public function roles()
@@ -3436,7 +3705,7 @@ class ModelSelfRelatedStub extends Model
 
 class StubWithoutTimestamp extends Model
 {
-    public const UPDATED_AT = null;
+    public const ?string UPDATED_AT = null;
 
     protected ?string $table = 'table';
 }

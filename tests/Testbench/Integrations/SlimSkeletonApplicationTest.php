@@ -18,14 +18,14 @@ class SlimSkeletonApplicationTest extends TestCase
     use WithWorkbench;
 
     #[Test]
-    public function itCanAccessWelcomePageUsingRouteName()
+    public function itCanAccessWelcomePageUsingRouteName(): void
     {
         $this->get(route('welcome'))
             ->assertOk();
     }
 
     #[Test]
-    public function itThrowsExceptionWhenTryingToAccessAuthenticatedRoutesAsGuestWithoutLoginRouteName()
+    public function itThrowsExceptionWhenTryingToAccessAuthenticatedRoutesAsGuestWithoutLoginRouteName(): void
     {
         $this->expectException(RouteNotFoundException::class);
         $this->expectExceptionMessage('Route [login] not defined.');
@@ -36,7 +36,7 @@ class SlimSkeletonApplicationTest extends TestCase
 
     #[Test]
     #[DefineRoute('defineLoginRoutes')]
-    public function itCanBeRedirectedToLoginRouteNameWhenTryingToAccessAuthenticatedRoutes()
+    public function itCanBeRedirectedToLoginRouteNameWhenTryingToAccessAuthenticatedRoutes(): void
     {
         $this->get(route('dashboard'))
             ->assertRedirectToRoute('login');

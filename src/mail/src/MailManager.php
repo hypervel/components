@@ -54,7 +54,7 @@ class MailManager implements FactoryContract
     /**
      * Mailer-level keys that do not affect built-in transport construction.
      */
-    protected const TRANSPORT_PRESENTATION_KEYS = [
+    protected const array TRANSPORT_PRESENTATION_KEYS = [
         'from', 'reply_to', 'return_path', 'to', 'name', 'pool',
     ];
 
@@ -76,11 +76,10 @@ class MailManager implements FactoryContract
     /**
      * The array of drivers which will be wrapped as pool proxies.
      */
-    // API transports use Symfony HTTP clients that keep mutable request state on
-    // the transport instance. Pooling ensures each concurrent coroutine borrows a
-    // separate transport/client pair instead of sharing one mailer-held instance.
+    // These transports retain persistent connections, mutable clients, interactive
+    // processes, or composite state that must not be shared by concurrent sends.
     protected array $poolables = [
-        'smtp', 'sendmail', 'mailgun', 'ses-v2', 'postmark', 'resend', 'cloudflare', 'failover', 'roundrobin',
+        'smtp', 'sendmail', 'mail', 'mailgun', 'ses-v2', 'postmark', 'resend', 'cloudflare', 'failover', 'roundrobin',
     ];
 
     /**
@@ -541,10 +540,8 @@ class MailManager implements FactoryContract
      */
     protected function createMailgunTransport(array $config): TransportInterface
     {
-        /* @phpstan-ignore-next-line */
         $factory = new MailgunTransportFactory(null, $this->getHttpClient($config));
 
-        /* @phpstan-ignore-next-line */
         return $factory->create(new Dsn(
             'mailgun+' . $config['scheme'],
             $config['endpoint'],
@@ -635,8 +632,6 @@ class MailManager implements FactoryContract
 
     /**
      * Get a configured Symfony HTTP client instance.
-     *
-     * @phpstan-ignore-next-line
      */
     protected function getHttpClient(array $config): ?HttpClientInterface
     {
@@ -647,7 +642,6 @@ class MailManager implements FactoryContract
             $maxHostConnections = Arr::pull($options, 'max_host_connections', 6);
             $maxPendingPushes = Arr::pull($options, 'max_pending_pushes', 50);
 
-            /* @phpstan-ignore-next-line */
             return HttpClient::create($options, $maxHostConnections, $maxPendingPushes);
         }
 

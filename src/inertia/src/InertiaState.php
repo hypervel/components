@@ -22,7 +22,7 @@ class InertiaState implements ReplicableContext
     /**
      * The coroutine Context key for this state.
      */
-    public const CONTEXT_KEY = '__inertia.state';
+    public const string CONTEXT_KEY = '__inertia.state';
 
     /**
      * The root Blade template name.
@@ -126,7 +126,7 @@ class InertiaState implements ReplicableContext
     }
 
     /**
-     * Create an independent copy with the same state.
+     * Copy all current configuration and request state into an independent object.
      */
     public function replicate(): static
     {

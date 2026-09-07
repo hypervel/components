@@ -38,7 +38,7 @@ class CacheManager implements FactoryContract
     /**
      * The context key prefix for memoized cache repositories.
      */
-    protected const MEMOIZED_CONTEXT_KEY_PREFIX = '__cache.memoized.';
+    protected const string MEMOIZED_CONTEXT_KEY_PREFIX = '__cache.memoized.';
 
     /**
      * The array of resolved cache stores.
@@ -233,7 +233,8 @@ class CacheManager implements FactoryContract
         return $this->repository(new FailoverStore(
             $this,
             $this->app->make(DispatcherContract::class),
-            $config['stores']
+            $config['stores'],
+            $config['store'],
         ), ['events' => false, ...$config]);
     }
 
@@ -291,7 +292,7 @@ class CacheManager implements FactoryContract
             $connection,
             serializableClassPolicy: $this->serializableClassPolicy,
         );
-        $store->setTagMode($config['tag_mode'] ?? 'all');
+        $store->setTagMode($config['tag_mode'] ?? TagMode::All);
 
         return $this->repository(
             $store->setLockConnection($config['lock_connection'] ?? $connection),
@@ -390,16 +391,21 @@ class CacheManager implements FactoryContract
     }
 
     /**
-     * Re-set the event dispatcher on all resolved cache repositories.
+     * Re-set the event dispatcher on resolved event-emitting cache repositories.
      *
-     * Boot or tests only. Replaces the dispatcher on every cached repository
-     * for the worker lifetime; per-request use races across coroutines.
-     * Reached by Event::fake() / Event::fakeFor() to point cached repositories
-     * at the fake dispatcher and to restore them afterwards.
+     * Boot or tests only. Replaces the dispatcher on cached concrete repositories
+     * that already emit events, preserving disabled stores and custom repository
+     * implementations. Per-request use races across coroutines. Reached by
+     * Event::fake() / Event::fakeFor() to install and restore fake dispatchers.
      */
     public function refreshEventDispatcher(): void
     {
-        array_map($this->setEventDispatcher(...), $this->stores);
+        foreach ($this->stores as $repository) {
+            // The current dispatcher records whether this repository emits events.
+            if ($repository instanceof Repository && $repository->getEventDispatcher() !== null) {
+                $this->setEventDispatcher($repository);
+            }
+        }
     }
 
     /**
@@ -466,6 +472,8 @@ class CacheManager implements FactoryContract
             if (isset($this->stores[$cacheName])) {
                 unset($this->stores[$cacheName]);
             }
+
+            CoroutineContext::forget(self::MEMOIZED_CONTEXT_KEY_PREFIX . $cacheName);
         }
 
         return $this;
@@ -527,10 +535,9 @@ class CacheManager implements FactoryContract
      * Register classes that cache stores may unserialize.
      *
      * Boot-only. The resolver contributes to the worker-lifetime cache policy
-     * and is evaluated after every provider has booted: at application boot
-     * completion in console processes or after configuration reload in each
-     * Swoole worker. An earlier cache read evaluates the current contributions
-     * without memoizing them.
+     * and is evaluated at application boot completion in console processes or
+     * after the worker configuration is rebuilt in Swoole workers. An earlier
+     * cache read evaluates the current contributions without memoizing them.
      *
      * @param Closure(): array<array-key, class-string> $resolver
      *

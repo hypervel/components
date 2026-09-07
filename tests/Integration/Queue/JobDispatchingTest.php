@@ -175,6 +175,10 @@ class JobDispatchingTest extends QueueTestCase
             'laravel_unique_job:' . UniqueJob::class . ':after-response-metadata',
             unserialize($payload['illuminate:log:context']['hidden']['laravel_unique_job_key'])
         );
+        $this->assertNotSame(
+            '',
+            unserialize($payload['illuminate:log:context']['hidden']['laravel_unique_job_lock_owner'])
+        );
     }
 
     public function testPayloadHookFailureDoesNotLeakUniqueMetadataIntoTheNextPayload(): void
@@ -227,10 +231,12 @@ class JobDispatchingTest extends QueueTestCase
     {
         Config::set('queue.default', 'database');
         $events = [];
-        $this->app['events']->listen(function (JobQueueing $e) use (&$events) {
+        $dispatcher = $this->app->make('events');
+
+        $dispatcher->listen(function (JobQueueing $e) use (&$events) {
             $events[] = $e;
         });
-        $this->app['events']->listen(function (JobQueued $e) use (&$events) {
+        $dispatcher->listen(function (JobQueued $e) use (&$events) {
             $events[] = $e;
         });
 
@@ -253,7 +259,7 @@ class JobDispatchingTest extends QueueTestCase
     {
         Config::set('queue.default', 'database');
         $events = [];
-        $this->app['events']->listen(function (JobQueued $e) use (&$events) {
+        $this->app->make('events')->listen(function (JobQueued $e) use (&$events) {
             $events[] = $e;
         });
 

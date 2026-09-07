@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Sanctum\Http\Middleware;
 
 use Closure;
+use Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Hypervel\Cookie\Middleware\EncryptCookies;
+use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Pipeline;
 use Hypervel\Sanctum\Sanctum;
+use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
@@ -50,12 +54,18 @@ class EnsureFrontendRequestsAreStateful
      */
     protected function frontendMiddleware(): array
     {
+        $configuredMiddleware = array_replace([
+            'authenticate_session' => null,
+            'encrypt_cookies' => EncryptCookies::class,
+            'validate_csrf_token' => PreventRequestForgery::class,
+        ], config()->array('sanctum.middleware', []));
+
         $middleware = [
-            config('sanctum.middleware.encrypt_cookies', \Hypervel\Cookie\Middleware\EncryptCookies::class),
-            \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
-            \Hypervel\Session\Middleware\StartSession::class,
-            config('sanctum.middleware.validate_csrf_token', \Hypervel\Foundation\Http\Middleware\PreventRequestForgery::class),
-            config('sanctum.middleware.authenticate_session'),
+            $configuredMiddleware['encrypt_cookies'],
+            AddQueuedCookiesToResponse::class,
+            StartSession::class,
+            $configuredMiddleware['validate_csrf_token'],
+            $configuredMiddleware['authenticate_session'],
         ];
 
         $filtered = [];
@@ -116,7 +126,7 @@ class EnsureFrontendRequestsAreStateful
             return self::filterDomainList((static::$statefulDomainsResolver)($request));
         }
 
-        return self::filterDomainList(config('sanctum.stateful_domains', []));
+        return self::filterDomainList(config()->array('sanctum.stateful_domains'));
     }
 
     /**

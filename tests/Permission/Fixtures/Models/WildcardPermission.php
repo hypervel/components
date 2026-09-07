@@ -8,12 +8,11 @@ use Hypervel\Permission\WildcardPermission as BaseWildcardPermission;
 
 class WildcardPermission extends BaseWildcardPermission
 {
-    /** @var string */
-    public const WILDCARD_TOKEN = '@';
+    public const string WILDCARD_TOKEN = '@';
 
     /** @var non-empty-string */
-    public const PART_DELIMITER = ':';
+    public const string PART_DELIMITER = ':';
 
     /** @var non-empty-string */
-    public const SUBPART_DELIMITER = ';';
+    public const string SUBPART_DELIMITER = ';';
 }

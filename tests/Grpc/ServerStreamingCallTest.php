@@ -17,6 +17,7 @@ use Hypervel\Grpc\Protocol\FrameEncoder;
 use Hypervel\Grpc\StatusCode;
 use Hypervel\Tests\TestCase;
 use LogicException;
+use Swoole\Coroutine\CanceledException;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -33,6 +34,42 @@ class ServerStreamingCallTest extends TestCase
         $this->assertSame('second', $call->read()?->getValue());
         $this->assertNull($call->read());
         $this->assertNull($call->read());
+    }
+
+    public function testCanceledDeserializationLeavesAnEmptyPayloadForTheNextReader(): void
+    {
+        $deadline = Deadline::fromTimeout(null);
+        $state = $this->state($deadline);
+        $this->respond($state, ['']);
+        $cancellation = new CanceledException;
+        $deserializations = 0;
+        $call = $this->call(
+            $state,
+            $deadline,
+            deserialize: static function (string $payload) use (&$deserializations, $cancellation): Message {
+                ++$deserializations;
+
+                if ($deserializations === 1) {
+                    throw $cancellation;
+                }
+
+                $message = new StringValue;
+                $message->mergeFromString($payload);
+
+                return $message;
+            },
+        );
+
+        try {
+            $call->read();
+            $this->fail('Expected cancellation to propagate.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame('', $call->read()?->getValue());
+        $this->assertNull($call->read());
+        $this->assertSame(2, $deserializations);
     }
 
     public function testResponsesYieldsEveryMessageAndOwnsTheReaderUntilCompletion(): void
@@ -221,18 +258,20 @@ class ServerStreamingCallTest extends TestCase
 
     /**
      * @param null|Closure(int): StreamState $attemptFactory
+     * @param array{class-string<Message>, string}|callable(string): Message $deserialize
      */
     private function call(
         StreamState $state,
         Deadline $deadline,
         ?RetryPolicy $retryPolicy = null,
         ?Closure $attemptFactory = null,
+        array|callable $deserialize = [StringValue::class, 'decode'],
     ): ServerStreamingCall {
         return new ServerStreamingCall(
             $state,
             '/testing.Service/ServerStream',
             'example.test:8443',
-            [StringValue::class, 'decode'],
+            $deserialize,
             $deadline,
             $retryPolicy,
             $attemptFactory,

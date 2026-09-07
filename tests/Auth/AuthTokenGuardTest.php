@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Auth;
 
 use Hypervel\Auth\TokenGuard;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Http\Request;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+
+use function Hypervel\Coroutine\parallel;
 
 class AuthTokenGuardTest extends TestCase
 {
@@ -364,37 +367,113 @@ class AuthTokenGuardTest extends TestCase
         $this->assertFalse($guard->hasUser());
     }
 
-    public function testSetUserOperatesPerToken()
+    public function testSetUserOverridesAnUnrelatedRequestToken(): void
     {
         $user = new AuthTokenGuardTestUser;
         $user->id = 1;
 
         $provider = m::mock(UserProvider::class);
+        $provider->shouldNotReceive('retrieveByCredentials');
         $request = Request::create('/', 'GET', ['api_token' => 'my-token']);
 
         $guard = $this->createGuard($provider, $request);
         $guard->setUser($user);
+        RequestContext::set(Request::create('/', 'GET', ['api_token' => 'different-token']));
 
         $this->assertTrue($guard->hasUser());
         $this->assertSame($user, $guard->user());
     }
 
-    public function testForgetUserClearsCacheForCurrentToken()
+    public function testForgetUserRestoresNormalTokenAuthentication(): void
     {
-        $user = new AuthTokenGuardTestUser;
-        $user->id = 1;
+        $explicitUser = new AuthTokenGuardTestUser;
+        $explicitUser->id = 1;
+        $tokenUser = new AuthTokenGuardTestUser;
+        $tokenUser->id = 2;
 
         $provider = m::mock(UserProvider::class);
+        $provider->shouldReceive('retrieveByCredentials')
+            ->once()
+            ->with(['api_token' => 'my-token'])
+            ->andReturn($tokenUser);
         $request = Request::create('/', 'GET', ['api_token' => 'my-token']);
 
         $guard = $this->createGuard($provider, $request);
-        $guard->setUser($user);
+        $guard->setUser($explicitUser);
 
         $this->assertTrue($guard->hasUser());
+        $this->assertSame($explicitUser, $guard->user());
 
         $guard->forgetUser();
 
         $this->assertFalse($guard->hasUser());
+        $this->assertSame($tokenUser, $guard->user());
+
+        RequestContext::set(Request::create('/'));
+        $this->assertNull($guard->user());
+    }
+
+    public function testExplicitUsersAreIsolatedByGuard(): void
+    {
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldNotReceive('retrieveByCredentials');
+        $request = Request::create('/', 'GET', ['api_token' => 'request-token']);
+        RequestContext::set($request);
+
+        $firstUser = new AuthTokenGuardTestUser;
+        $firstUser->id = 1;
+        $secondUser = new AuthTokenGuardTestUser;
+        $secondUser->id = 2;
+
+        $firstGuard = new TokenGuard('first', $provider, $this->app);
+        $secondGuard = new TokenGuard('second', $provider, $this->app);
+        $firstGuard->setUser($firstUser);
+        $secondGuard->setUser($secondUser);
+
+        $this->assertSame($firstUser, $firstGuard->user());
+        $this->assertSame($secondUser, $secondGuard->user());
+    }
+
+    public function testExplicitUsersAreIsolatedBetweenCoroutines(): void
+    {
+        $provider = m::mock(UserProvider::class);
+        $provider->shouldNotReceive('retrieveByCredentials');
+        $guard = new TokenGuard('token', $provider, $this->app);
+
+        [$first, $second] = parallel([
+            function () use ($guard): int {
+                $user = new AuthTokenGuardTestUser;
+                $user->id = 1;
+                $guard->setUser($user);
+                usleep(5000);
+
+                return $guard->user()->id;
+            },
+            function () use ($guard): int {
+                $user = new AuthTokenGuardTestUser;
+                $user->id = 2;
+                $guard->setUser($user);
+                usleep(5000);
+
+                return $guard->user()->id;
+            },
+        ]);
+
+        $this->assertSame([1, 2], [$first, $second]);
+        $this->assertNull(CoroutineContext::get('__auth.guards.token.user.explicit'));
+    }
+
+    public function testAuthContextKeysIncludeOnlyDurableExplicitState(): void
+    {
+        $provider = m::mock(UserProvider::class);
+        $guard = $this->createGuard(
+            $provider,
+            Request::create('/', 'GET', ['api_token' => 'request-token']),
+        );
+
+        $this->assertSame([
+            '__auth.guards.token.user.explicit',
+        ], $guard->getAuthContextKeys());
     }
 
     public function testChangingRequestTokenChangesWhichCachedUserIsSeen()

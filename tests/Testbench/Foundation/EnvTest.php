@@ -12,6 +12,13 @@ use PHPUnit\Framework\Attributes\Test;
 class EnvTest extends TestCase
 {
     #[Test]
+    public function itEncodesOnlyAnEmptyStringAsEmpty(): void
+    {
+        $this->assertSame('(empty)', Env::encode(''));
+        $this->assertSame('0', Env::encode('0'));
+    }
+
+    #[Test]
     public function itCanDeterminedHasEnvValues(): void
     {
         $_ENV['TESTING_TRUE_EXAMPLE'] = true;

@@ -22,3 +22,5 @@ Calling `refresh()` without arguments on a permanent native-expiry lock verifies
 `Cache::funnel()->acquire()` returns a caller-held concurrency lease that can be released explicitly after work spanning multiple operations. Laravel only exposes the callback-scoped funnel API.
 
 Cache funnel timeout failures throw `Hypervel\Contracts\Limiters\LimiterTimeoutException`, shared with Redis funnels and Redis throttles. Laravel uses separate cache and Redis limiter timeout exception classes.
+
+The failure callback passed to `Cache::funnel()->then()` runs only when acquiring a slot times out. A `LimiterTimeoutException` thrown by the user callback propagates normally; Laravel routes it to the failure callback.

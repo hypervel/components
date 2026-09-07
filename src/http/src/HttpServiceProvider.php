@@ -6,6 +6,8 @@ namespace Hypervel\Http;
 
 use Http\Discovery\ClassDiscovery;
 use Hypervel\Context\RequestContext;
+use Hypervel\Core\Events\BeforeServerFork;
+use Hypervel\Http\Client\Factory;
 use Hypervel\Http\Discovery\GuzzlePsr18Strategy;
 use Hypervel\Support\ServiceProvider;
 
@@ -18,7 +20,22 @@ class HttpServiceProvider extends ServiceProvider
     {
         $this->registerPsr18Discovery();
         $this->registerRequestFactory();
-        $this->registerResponseFactory();
+    }
+
+    /**
+     * Bootstrap the service provider.
+     */
+    public function boot(): void
+    {
+        $events = $this->app->make('events');
+
+        $events->listen(BeforeServerFork::class, function (): void {
+            // The framework leaves Factory unbound, so a resolved concrete
+            // identifies the auto-singleton that would cross the fork.
+            if ($this->app->resolved(Factory::class)) {
+                $this->app->make(Factory::class)->forgetConnectionHandlers();
+            }
+        });
     }
 
     /**
@@ -58,17 +75,7 @@ class HttpServiceProvider extends ServiceProvider
     {
         $this->app->bind('request', function ($app) {
             return RequestContext::getOrNull()
-                ?? Request::create($app->make('config')->string('app.url'));
+                ?? Request::create($app->make('config')->get('app.url') ?? 'http://localhost');
         });
-    }
-
-    /**
-     * Register the response factory.
-     */
-    protected function registerResponseFactory(): void
-    {
-        // Response is mutable, so it must bypass the container's unbound
-        // concrete auto-singleton and remain fresh for every resolution.
-        $this->app->bind(Response::class, static fn (): Response => new Response);
     }
 }

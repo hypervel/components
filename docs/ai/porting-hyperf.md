@@ -1,6 +1,6 @@
 # Porting Hyperf Code to Hypervel
 
-Read this before porting Hyperf code or modifying a Hyperf-ported package. It covers the Hyperf side of the conversion: container calls, ConfigProviders, listeners/events, and tests. Hypervel's own container semantics, binding patterns, and alias rules live in the Container section of `AGENTS.md` — this doc assumes you have read them.
+Read this guide only when porting a Hyperf package or update. It covers the Hyperf side of the conversion: container calls, ConfigProviders, listeners/events, and tests. Hypervel's own container semantics, binding patterns, and alias rules live in the Container section of `AGENTS.md` — this doc assumes you have read them.
 
 Hyperf ports do not aim for upstream fidelity. The preserve-upstream rules under Porting Packages in `AGENTS.md` exist for upstreams we keep merging from — Laravel first-party and Laravel-ecosystem packages — and Hyperf is neither: it's a historical reference. Adapt ported code fully to Hypervel structure, style, and naming, including cleaning up variable and method names, following this guide.
 
@@ -72,9 +72,9 @@ Hyperf packages use `ConfigProvider` classes to register bindings, listeners, co
 
 Before migrating a ConfigProvider, read:
 
-- `src/boost/docs/providers.md`
-- `src/boost/docs/aop.md` if the ConfigProvider has aspects
-- `src/boost/docs/packages.md#class-map-overrides` if the package uses class map replacement
+- `src/docs/providers.md`
+- `src/docs/aop.md` if the ConfigProvider has aspects
+- `src/docs/packages.md#class-map-overrides` if the package uses class map replacement
 - `Hypervel\Support\ServiceProvider`
 
 Use existing Hypervel packages as pattern references. For low-level Swoole / Hyperf-style infrastructure, useful references include `pool`, `object-pool`, `engine`, `server`, `signal`, and `sentry`. The `database` package is a good reference for translating Hyperf provider patterns into Hypervel provider code.

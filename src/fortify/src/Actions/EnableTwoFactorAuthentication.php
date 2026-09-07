@@ -37,7 +37,10 @@ class EnableTwoFactorAuthentication
             $user->forceFill([
                 'two_factor_secret' => Fortify::currentEncrypter()->encrypt($this->provider->generateSecretKey($secretLength)),
                 'two_factor_recovery_codes' => Fortify::currentEncrypter()->encrypt(json_encode(Collection::times(8, static fn (): string => RecoveryCode::generate())->all(), JSON_THROW_ON_ERROR)),
-            ])->save();
+            ] + ($force && (Fortify::confirmsTwoFactorAuthentication()
+                || $user->getAttribute('two_factor_confirmed_at') !== null) ? [
+                    'two_factor_confirmed_at' => null,
+                ] : []))->save();
 
             $this->dispatchIfListening(
                 TwoFactorAuthenticationEnabled::class,

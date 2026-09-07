@@ -60,9 +60,8 @@ class DatabaseEloquentRelationTest extends TestCase
         $relation->touch();
     }
 
-    public function testCanDisableParentTouchingForAllModels()
+    public function testCanDisableParentTouchingForAllModels(): void
     {
-        /** @var \Illuminate\Tests\Database\NoTouchingModelStub $related */
         $related = m::mock(NoTouchingModelStub::class)->makePartial();
         $related->shouldReceive('getUpdatedAtColumn')->never();
         $related->shouldReceive('freshTimestampString')->never();
@@ -198,50 +197,69 @@ class DatabaseEloquentRelationTest extends TestCase
         $this->assertFalse($related::isIgnoringTouch());
         $this->assertFalse($relatedChild::isIgnoringTouch());
 
+        $expectedException = new Exception;
+        $relatedIgnoredTouch = null;
+        $relatedChildIgnoredTouch = null;
+        $caughtException = null;
+
         try {
-            NoTouchingModelStub::withoutTouching(function () use ($related, $relatedChild) {
-                $this->assertTrue($related::isIgnoringTouch());
-                $this->assertTrue($relatedChild::isIgnoringTouch());
+            NoTouchingModelStub::withoutTouching(function () use (
+                $expectedException,
+                $related,
+                &$relatedIgnoredTouch,
+                $relatedChild,
+                &$relatedChildIgnoredTouch,
+            ): never {
+                $relatedIgnoredTouch = $related::isIgnoringTouch();
+                $relatedChildIgnoredTouch = $relatedChild::isIgnoringTouch();
 
-                throw new Exception;
+                throw $expectedException;
             });
-
-            $this->fail('Exception was not thrown');
-        } catch (Exception) {
-            // Does nothing.
+        } catch (Exception $exception) {
+            $caughtException = $exception;
         }
 
+        $this->assertSame($expectedException, $caughtException);
+        $this->assertTrue($relatedIgnoredTouch);
+        $this->assertTrue($relatedChildIgnoredTouch);
         $this->assertFalse($related::isIgnoringTouch());
         $this->assertFalse($relatedChild::isIgnoringTouch());
     }
 
-    public function testSettingMorphMapWithNumericArrayUsesTheTableNames()
+    public function testSettingMorphMapWithNumericArrayUsesTheTableNames(): void
     {
         Relation::morphMap([ResetModelStub::class]);
 
         $this->assertEquals([
             'reset' => ResetModelStub::class,
         ], Relation::morphMap());
-
-        Relation::morphMap([], false);
     }
 
-    public function testSettingMorphMapWithNumericKeys()
+    public function testSettingMorphMapWithNumericKeys(): void
     {
         Relation::morphMap([1 => 'App\User']);
 
         $this->assertEquals([
             1 => 'App\User',
         ], Relation::morphMap());
-
-        Relation::morphMap([], false);
     }
 
-    public function testGetMorphAlias()
+    public function testGetMorphedModel(): void
     {
-        Relation::morphMap(['user' => 'App\User']);
+        Relation::morphMap(['user' => 'App\User', 1 => 'App\Team']);
+
+        $this->assertSame('App\User', Relation::getMorphedModel('user'));
+        $this->assertSame('App\Team', Relation::getMorphedModel(1));
+        $this->assertNull(Relation::getMorphedModel('does_not_exist'));
+        $this->assertNull(Relation::getMorphedModel(null));
+    }
+
+    public function testGetMorphAlias(): void
+    {
+        Relation::morphMap(['user' => 'App\User', 0 => 'App\Team']);
 
         $this->assertSame('user', Relation::getMorphAlias('App\User'));
+        $this->assertSame(0, Relation::getMorphAlias('App\Team'));
         $this->assertSame('Does\Not\Exist', Relation::getMorphAlias('Does\Not\Exist'));
     }
 

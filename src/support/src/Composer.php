@@ -50,7 +50,7 @@ class Composer
      */
     public function hasPackage(string $package): bool
     {
-        $composer = json_decode($this->files->get($this->findComposerFile()), true, 512, JSON_THROW_ON_ERROR);
+        $composer = Json::decode($this->files->get($this->findComposerFile()));
 
         return array_key_exists($package, $composer['require'] ?? [])
             || array_key_exists($package, $composer['require-dev'] ?? []);
@@ -118,15 +118,18 @@ class Composer
     {
         $composerFile = $this->findComposerFile();
 
-        $composer = json_decode($this->files->get($composerFile), true, 512, JSON_THROW_ON_ERROR);
+        $composer = Json::decode($this->files->get($composerFile));
+        $updatedComposer = call_user_func($callback, $composer);
+        $encodedComposer = Json::encode(
+            $updatedComposer,
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+        );
+        $fileMode = $this->fileMode($composerFile);
 
         $this->files->replace(
             $composerFile,
-            json_encode(
-                call_user_func($callback, $composer),
-                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
-            ),
-            $this->fileMode($composerFile),
+            $encodedComposer,
+            $fileMode,
         );
     }
 

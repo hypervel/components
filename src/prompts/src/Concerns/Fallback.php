@@ -14,12 +14,12 @@ trait Fallback
     /**
      * Context key for the fallback condition.
      */
-    protected const SHOULD_FALLBACK_CONTEXT_KEY = '__prompts.should_fallback';
+    protected const string SHOULD_FALLBACK_CONTEXT_KEY = '__prompts.should_fallback';
 
     /**
      * Context key for the fallback implementations.
      */
-    protected const FALLBACKS_CONTEXT_KEY = '__prompts.fallbacks';
+    protected const string FALLBACKS_CONTEXT_KEY = '__prompts.fallbacks';
 
     /**
      * Whether to fallback to a custom implementation.

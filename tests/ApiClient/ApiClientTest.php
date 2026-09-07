@@ -6,6 +6,7 @@ namespace Hypervel\Tests\ApiClient;
 
 use Hypervel\ApiClient\ApiClient;
 use Hypervel\ApiClient\ApiResource;
+use Hypervel\ApiClient\PendingRequest;
 use Hypervel\Http\Client\Request;
 use Hypervel\Http\Client\Response;
 use Hypervel\Support\Facades\Http;
@@ -65,4 +66,68 @@ class ApiClientTest extends TestCase
                 && $request->header('Content-Type')[0] === 'application/x-www-form-urlencoded';
         });
     }
+
+    public function testConcreteClientConfiguresFreshPendingRequests(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://example.test/issues' => Http::response(['id' => 1]),
+        ]);
+
+        $client = new ApiClientTestClient('secret');
+
+        $first = $client->createPendingRequest();
+        $second = $client->createPendingRequest();
+
+        $this->assertNotSame($first, $second);
+        $this->assertSame('tenant-1', $first->context('tenant'));
+        $this->assertSame('fallback', $first->context('missing', 'fallback'));
+
+        $resource = $first->get('/issues');
+
+        $this->assertInstanceOf(ApiClientTestResource::class, $resource);
+
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://example.test/issues'
+            && $request->hasHeader('Authorization', 'Bearer secret'));
+    }
+
+    public function testDynamicCallsDoNotMutateTheClientPrototype(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://example.test/*' => Http::response([]),
+        ]);
+
+        $client = new ApiClient;
+
+        $client->withHeader('X-Operation', 'first')->get('https://example.test/first');
+        $client->get('https://example.test/second');
+
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://example.test/first'
+            && $request->hasHeader('X-Operation', 'first'));
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://example.test/second'
+            && ! $request->hasHeader('X-Operation'));
+    }
+}
+
+/** @extends ApiClient<ApiClientTestResource> */
+class ApiClientTestClient extends ApiClient
+{
+    protected string $resource = ApiClientTestResource::class;
+
+    public function __construct(protected string $token)
+    {
+    }
+
+    protected function configurePendingRequest(PendingRequest $request): void
+    {
+        $request
+            ->baseUrl('https://example.test')
+            ->withToken($this->token)
+            ->withContext('tenant', 'tenant-1');
+    }
+}
+
+class ApiClientTestResource extends ApiResource
+{
 }

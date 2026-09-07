@@ -11,7 +11,7 @@ class SystemProcessCounter
     /**
      * The default base command.
      */
-    protected const DEFAULT_COMMAND = 'horizon:work';
+    protected const string DEFAULT_COMMAND = 'horizon:work';
 
     /**
      * The base command to search for.

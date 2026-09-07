@@ -9,6 +9,7 @@ use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
@@ -25,8 +26,6 @@ use Hypervel\Telescope\Jobs\ProcessPendingUpdates;
 use RuntimeException;
 use Throwable;
 
-use function event;
-
 class Telescope
 {
     use AuthorizesRequests;
@@ -34,29 +33,27 @@ class Telescope
     use ListensForStorageOpportunities;
     use RegistersWatchers;
 
-    protected const DEFAULT_HIDDEN_REQUEST_HEADERS = [
+    protected const array DEFAULT_HIDDEN_REQUEST_HEADERS = [
         'authorization',
         'php-auth-pw',
     ];
 
-    protected const DEFAULT_HIDDEN_REQUEST_PARAMETERS = [
+    protected const array DEFAULT_HIDDEN_REQUEST_PARAMETERS = [
         'password',
         'password_confirmation',
     ];
 
-    public const ENTRIES_QUEUE_CONTEXT_KEY = '__telescope.entries_queue';
+    public const string PURGED_VALUE = 'Purged By Telescope';
 
-    public const UPDATES_QUEUE_CONTEXT_KEY = '__telescope.updates_queue';
+    public const string REDACTED_VALUE = '********';
 
-    public const SHOULD_RECORD_CONTEXT_KEY = '__telescope.should_record';
+    public const string SHOULD_RECORD_CONTEXT_KEY = '__telescope.should_record';
 
-    public const IS_RECORDING_CONTEXT_KEY = '__telescope.is_recording';
+    public const string BATCH_ID_CONTEXT_KEY = '__telescope.batch_id';
 
-    public const HAS_STORED_CONTEXT_KEY = '__telescope.has_stored';
+    protected const string RECORDING_STATE_CONTEXT_KEY = '__telescope.recording_state';
 
-    public const BATCH_ID_CONTEXT_KEY = '__telescope.batch_id';
-
-    protected const CSP_NONCE_CONTEXT_KEY = '__telescope.csp_nonce';
+    protected const string CSP_NONCE_CONTEXT_KEY = '__telescope.csp_nonce';
 
     /**
      * The callbacks that filter the entries that should be recorded.
@@ -129,7 +126,7 @@ class Telescope
      */
     public static function start(Application $app): void
     {
-        if (! config('telescope.enabled')) {
+        if (! config()->boolean('telescope.enabled')) {
             return;
         }
 
@@ -162,7 +159,8 @@ class Telescope
                 'horizon:work',
                 'horizon:supervisor',
                 'watch',
-            ], config('telescope.ignore_commands', [])),
+                'telescope:clear',
+            ], config()->array('telescope.ignore_commands', [])),
             true
         );
     }
@@ -172,7 +170,7 @@ class Telescope
      */
     protected static function requestIsToApprovedUri(Request $request): bool
     {
-        if (! empty($only = config('telescope.only_paths', []))) {
+        if (! empty($only = config()->array('telescope.only_paths', []))) {
             return $request->is($only);
         }
 
@@ -193,10 +191,9 @@ class Telescope
             'vendor/telescope*',
             (config('horizon.path') ?? 'horizon') . '*',
             'vendor/horizon*',
-        ])->merge(config('telescope.ignore_paths', []))
-            ->unless(is_null(config('telescope.path')), function ($paths) {
-                return $paths->prepend(config('telescope.path') . '*');
-            })->all();
+        ])->merge(config()->array('telescope.ignore_paths', []))
+            ->prepend(config()->string('telescope.path') . '*')
+            ->all();
     }
 
     /**
@@ -267,18 +264,22 @@ class Telescope
             return;
         }
 
-        if (CoroutineContext::get(static::IS_RECORDING_CONTEXT_KEY, false)) {
+        $state = static::getOrCreateRecordingState();
+
+        if ($state->processingEntry) {
             return;
         }
 
-        if (! CoroutineContext::get(static::HAS_STORED_CONTEXT_KEY, false)) {
+        if (Coroutine::inCoroutine()
+            && ! $state->storeScheduled
+        ) {
             Coroutine::defer(function () {
                 static::store(static::$store);
             });
-            CoroutineContext::set(static::HAS_STORED_CONTEXT_KEY, true);
+            $state->storeScheduled = true;
         }
 
-        CoroutineContext::set(static::IS_RECORDING_CONTEXT_KEY, true);
+        $state->processingEntry = true;
 
         try {
             try {
@@ -293,11 +294,9 @@ class Telescope
                 return $tagCallback($entry);
             }, static::$tagUsing)));
 
-            static::withoutRecording(function () use ($entry) {
+            static::withoutRecording(function () use ($entry, $state) {
                 if (Collection::make(static::$filterUsing)->every->__invoke($entry)) {
-                    CoroutineContext::override(static::ENTRIES_QUEUE_CONTEXT_KEY, function ($entries) use ($entry) {
-                        return array_merge($entries ?? [], [$entry]);
-                    });
+                    $state->entries[] = $entry;
                 }
 
                 if (static::$afterRecordingHook) {
@@ -305,7 +304,7 @@ class Telescope
                 }
             });
         } finally {
-            CoroutineContext::set(static::IS_RECORDING_CONTEXT_KEY, false);
+            $state->processingEntry = false;
         }
     }
 
@@ -314,7 +313,9 @@ class Telescope
      */
     public static function getEntriesQueue(): array
     {
-        return CoroutineContext::get(static::ENTRIES_QUEUE_CONTEXT_KEY, []);
+        $state = static::getRecordingState();
+
+        return $state ? $state->entries : [];
     }
 
     /**
@@ -322,7 +323,35 @@ class Telescope
      */
     public static function getUpdatesQueue(): array
     {
-        return CoroutineContext::get(static::UPDATES_QUEUE_CONTEXT_KEY, []);
+        $state = static::getRecordingState();
+
+        return $state ? $state->updates : [];
+    }
+
+    /**
+     * Get the current recording state.
+     */
+    protected static function getRecordingState(): ?RecordingState
+    {
+        /** @var null|RecordingState $state */
+        $state = CoroutineContext::get(static::RECORDING_STATE_CONTEXT_KEY);
+
+        return $state;
+    }
+
+    /**
+     * Get or create the current recording state.
+     */
+    protected static function getOrCreateRecordingState(): RecordingState
+    {
+        if (($state = static::getRecordingState()) !== null) {
+            return $state;
+        }
+
+        $state = new RecordingState;
+        CoroutineContext::set(static::RECORDING_STATE_CONTEXT_KEY, $state);
+
+        return $state;
     }
 
     /**
@@ -334,9 +363,7 @@ class Telescope
             return;
         }
 
-        CoroutineContext::override(static::UPDATES_QUEUE_CONTEXT_KEY, function ($updates) use ($update) {
-            return array_merge($updates ?? [], [$update]);
-        });
+        static::getOrCreateRecordingState()->updates[] = $update;
     }
 
     /**
@@ -496,7 +523,9 @@ class Telescope
      */
     public static function flushEntries(): static
     {
-        CoroutineContext::set(static::ENTRIES_QUEUE_CONTEXT_KEY, []);
+        if (($state = static::getRecordingState()) !== null) {
+            $state->entries = [];
+        }
 
         return new static;
     }
@@ -506,7 +535,9 @@ class Telescope
      */
     public static function flushUpdates(): static
     {
-        CoroutineContext::set(static::UPDATES_QUEUE_CONTEXT_KEY, []);
+        if (($state = static::getRecordingState()) !== null) {
+            $state->updates = [];
+        }
 
         return new static;
     }
@@ -516,10 +547,15 @@ class Telescope
      */
     public static function catch(Throwable $e, array $tags = []): void
     {
-        event(new MessageLogged('error', $e->getMessage(), [
-            'exception' => $e,
-            'telescope' => $tags,
-        ]));
+        /** @var Dispatcher $events */
+        $events = Container::getInstance()->make('events');
+
+        if ($events->hasListeners(MessageLogged::class)) {
+            $events->dispatch(new MessageLogged('error', $e->getMessage(), [
+                'exception' => $e,
+                'telescope' => $tags,
+            ]));
+        }
     }
 
     /**
@@ -596,7 +632,7 @@ class Telescope
             return;
         }
 
-        if (config('telescope.defer', true)) {
+        if (config()->boolean('telescope.defer') && Coroutine::inCoroutine()) {
             Coroutine::defer(fn () => static::executeStore($storage));
             return;
         }
@@ -638,7 +674,9 @@ class Telescope
                     $storage->terminate();
                 }
 
-                Collection::make(static::$afterStoringHooks)->every->__invoke(static::getEntriesQueue(), $batchId);
+                foreach (static::$afterStoringHooks as $afterStoringHook) {
+                    $afterStoringHook(static::getEntriesQueue(), $batchId);
+                }
             } catch (Throwable $e) {
                 Container::getInstance()
                     ->make(ExceptionHandler::class)
@@ -820,8 +858,8 @@ class Telescope
     public static function scriptVariables(): array
     {
         return [
-            'path' => config('telescope.path'),
-            'timezone' => config('app.timezone'),
+            'path' => config()->string('telescope.path'),
+            'timezone' => config()->string('app.timezone'),
             'recording' => ! cache('telescope:pause-recording'),
         ];
     }

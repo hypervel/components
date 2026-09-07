@@ -11,12 +11,14 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\HtmlString;
+use Hypervel\Support\Json;
 use Hypervel\Support\Stringable;
 use Hypervel\Support\Uri;
 use Hypervel\Tests\Support\Fixtures\StringableObjectStub;
 use Hypervel\Tests\TestCase;
 use League\CommonMark\Environment\EnvironmentBuilderInterface;
 use League\CommonMark\Extension\ExtensionInterface;
+use Symfony\Component\VarDumper\VarDumper;
 
 class SupportStringableTest extends TestCase
 {
@@ -79,7 +81,7 @@ class SupportStringableTest extends TestCase
         $this->assertFalse($this->stringable('01GJSNW9MAF-792C0XYY8RX6ssssss-QFT')->isUlid());
     }
 
-    public function testIsJson()
+    public function testIsJson(): void
     {
         $this->assertTrue($this->stringable('1')->isJson());
         $this->assertTrue($this->stringable('[1,2,3]')->isJson());
@@ -94,6 +96,18 @@ class SupportStringableTest extends TestCase
         $this->assertFalse($this->stringable('[{first: "John"}, {first: "Jane"}]')->isJson());
         $this->assertFalse($this->stringable('')->isJson());
         $this->assertFalse($this->stringable(null)->isJson());
+
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $this->assertTrue($this->stringable(Json::encode($value))->isJson());
+
+        $value = ['value' => $value];
+
+        $this->assertFalse($this->stringable(json_encode($value, JSON_THROW_ON_ERROR, Json::MAXIMUM_NESTING_DEPTH + 1))->isJson());
     }
 
     public function testIsMatch()
@@ -205,7 +219,7 @@ class SupportStringableTest extends TestCase
         $this->assertSame('Taylor Otwell', (string) $this->stringable('Taylor Otwell')->words(3));
     }
 
-    public function testUcwords()
+    public function testUcwords(): void
     {
         $this->assertSame('Hypervel', (string) $this->stringable('hypervel')->ucwords());
         $this->assertSame('Hypervel Framework', (string) $this->stringable('hypervel framework')->ucwords());
@@ -213,6 +227,8 @@ class SupportStringableTest extends TestCase
         $this->assertSame('Мама', (string) $this->stringable('мама')->ucwords());
         $this->assertSame('Мама Мыла Раму', (string) $this->stringable('мама мыла раму')->ucwords());
         $this->assertSame('JJ Watt', (string) $this->stringable('JJ watt')->ucwords());
+        $this->assertSame('Мама мыла раму', (string) $this->stringable('мама мыла раму')->ucwords(''));
+        $this->assertSame('', (string) $this->stringable('')->ucwords(''));
     }
 
     public function testUnless()
@@ -284,6 +300,13 @@ class SupportStringableTest extends TestCase
 
         $this->assertSame(DIRECTORY_SEPARATOR, (string) $this->stringable('/framework/')->dirname());
         $this->assertSame(DIRECTORY_SEPARATOR, (string) $this->stringable('/')->dirname());
+    }
+
+    public function testBasename(): void
+    {
+        $this->assertSame('Support', (string) $this->stringable('/framework/tests/Support')->basename());
+        $this->assertSame('Str.php', (string) $this->stringable('/framework/src/Str.php')->basename());
+        $this->assertSame('Str', (string) $this->stringable('/framework/src/Str.php')->basename('.php'));
     }
 
     public function testUcsplitOnStringable()
@@ -631,6 +654,55 @@ class SupportStringableTest extends TestCase
     {
         $this->assertSame('Jefferson Costella', (string) $this->stringable('jefferson costella')->title());
         $this->assertSame('Jefferson Costella', (string) $this->stringable('jefFErson coSTella')->title());
+    }
+
+    public function testHeadline(): void
+    {
+        $this->assertSame('Jefferson Costella', (string) $this->stringable('jefferson costella')->headline());
+        $this->assertSame('Hypervel Php Framework', (string) $this->stringable('hypervel_php_framework')->headline());
+        $this->assertSame('Foo Bar Baz', (string) $this->stringable('foo-barBaz')->headline());
+    }
+
+    public function testApa(): void
+    {
+        $this->assertSame('Back to the Future', (string) $this->stringable('back to the future')->apa());
+        $this->assertSame('Self-Report', (string) $this->stringable('self-report')->apa());
+    }
+
+    public function testLcfirst(): void
+    {
+        $this->assertSame('hypervel', (string) $this->stringable('Hypervel')->lcfirst());
+        $this->assertSame('hypervel framework', (string) $this->stringable('Hypervel framework')->lcfirst());
+    }
+
+    public function testUcfirst(): void
+    {
+        $this->assertSame('Hypervel', (string) $this->stringable('hypervel')->ucfirst());
+        $this->assertSame('Hypervel framework', (string) $this->stringable('hypervel framework')->ucfirst());
+    }
+
+    public function testConvertCase(): void
+    {
+        $this->assertSame('HELLO', (string) $this->stringable('hello')->convertCase(MB_CASE_UPPER));
+        $this->assertSame('hello', (string) $this->stringable('HELLO')->convertCase(MB_CASE_LOWER));
+    }
+
+    public function testWordWrap(): void
+    {
+        $this->assertSame('Hello<br />World', (string) $this->stringable('Hello World')->wordWrap(3, '<br />'));
+        $this->assertSame('Hel<br />lo<br />Wor<br />ld', (string) $this->stringable('Hello World')->wordWrap(3, '<br />', true));
+    }
+
+    public function testPlural(): void
+    {
+        $this->assertSame('Laracons', (string) $this->stringable('Laracon')->plural(3));
+        $this->assertSame('Laracon', (string) $this->stringable('Laracon')->plural(1));
+    }
+
+    public function testSingular(): void
+    {
+        $this->assertSame('child', (string) $this->stringable('children')->singular());
+        $this->assertSame('mouse', (string) $this->stringable('mice')->singular());
     }
 
     public function testWithoutWordsDoesntProduceError()
@@ -1034,6 +1106,20 @@ class SupportStringableTest extends TestCase
     public function testKebab()
     {
         $this->assertSame('hypervel-php-framework', (string) $this->stringable('HypervelPhpFramework')->kebab());
+    }
+
+    public function testChopStart(): void
+    {
+        $this->assertSame('hypervel.com', (string) $this->stringable('http://hypervel.com')->chopStart('http://'));
+        $this->assertSame('http://hypervel.com', (string) $this->stringable('http://hypervel.com')->chopStart('https://'));
+        $this->assertSame('hypervel.com', (string) $this->stringable('http://hypervel.com')->chopStart(['https://', 'http://']));
+    }
+
+    public function testChopEnd(): void
+    {
+        $this->assertSame('path/to/file', (string) $this->stringable('path/to/file.php')->chopEnd('.php'));
+        $this->assertSame('path/to/file.php', (string) $this->stringable('path/to/file.php')->chopEnd('.html'));
+        $this->assertSame('path/to/file', (string) $this->stringable('path/to/file.php')->chopEnd(['.html', '.php']));
     }
 
     public function testLower()
@@ -1649,5 +1735,22 @@ class SupportStringableTest extends TestCase
 
         $this->assertNotSame('foo', $encrypted->value());
         $this->assertSame('foo', $encrypted->decrypt()->value());
+    }
+
+    public function testDump(): void
+    {
+        $log = new Collection;
+
+        $previousHandler = VarDumper::setHandler(function (mixed $value) use ($log): void {
+            $log->add($value);
+        });
+
+        try {
+            $this->stringable('foo')->dump('one', 'two');
+
+            $this->assertSame(['foo', 'one', 'two'], $log->all());
+        } finally {
+            VarDumper::setHandler($previousHandler);
+        }
     }
 }

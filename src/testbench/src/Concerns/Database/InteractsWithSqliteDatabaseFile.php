@@ -9,7 +9,10 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Concerns\InteractsWithPublishedFiles;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\AfterClass;
+use RuntimeException;
+use Throwable;
 
 trait InteractsWithSqliteDatabaseFile
 {
@@ -90,13 +93,25 @@ trait InteractsWithSqliteDatabaseFile
         }
 
         $config->set('database.connections.sqlite.database', $activeDatabase);
-        $this->purgeSqliteConnection();
+        $failure = null;
 
         try {
-            value($callback);
-        } finally {
             $this->purgeSqliteConnection();
-            $config->set('database.connections.sqlite.database', $originalDatabase);
+            value($callback);
+        } catch (Throwable $throwable) {
+            $failure = $throwable;
+        }
+
+        try {
+            $this->purgeSqliteConnection();
+        } catch (Throwable $throwable) {
+            $failure ??= $throwable;
+        }
+
+        $config->set('database.connections.sqlite.database', $originalDatabase);
+
+        if ($failure !== null) {
+            throw $failure;
         }
     }
 
@@ -108,47 +123,80 @@ trait InteractsWithSqliteDatabaseFile
     protected function withoutSqliteDatabase(callable $callback): void
     {
         $time = time();
-        $filesystem = new Filesystem;
-
+        $filesystem = $this->app->make(Filesystem::class);
         $baseDatabase = $this->baseSqliteDatabasePath();
         $activeDatabase = $this->activeSqliteDatabasePath();
+        $databases = array_values(array_unique([$baseDatabase, $activeDatabase]));
 
-        $this->purgeSqliteConnection();
-
-        if ($filesystem->exists($baseDatabase)) {
-            $filesystem->move($baseDatabase, $temporaryBaseDatabase = "{$baseDatabase}.backup-{$time}");
-
-            $this->files[] = $temporaryBaseDatabase;
+        foreach ($databases as $database) {
+            if (SQLiteDatabase::isInMemory($database) || SQLiteDatabase::isUri($database)) {
+                throw new InvalidArgumentException(
+                    "SQLite database [{$database}] is not a local filesystem path."
+                );
+            }
         }
 
-        if ($activeDatabase !== $baseDatabase && $filesystem->exists($activeDatabase)) {
-            $filesystem->move($activeDatabase, $temporaryActiveDatabase = "{$activeDatabase}.backup-{$time}");
+        $originals = [];
+        $backups = [];
+        $failure = null;
 
-            $this->files[] = $temporaryActiveDatabase;
+        foreach ($databases as $database) {
+            $originals[$database] = $filesystem->exists($database);
         }
 
         try {
+            foreach ($databases as $database) {
+                if (! $originals[$database]) {
+                    continue;
+                }
+
+                $backup = "{$database}.backup-{$time}";
+                $this->purgeSqliteConnection();
+
+                if (! $filesystem->move($database, $backup)) {
+                    throw new RuntimeException("Unable to back up SQLite database [{$database}].");
+                }
+
+                $backups[$database] = $backup;
+            }
+
             value($callback);
+        } catch (Throwable $throwable) {
+            $failure = $throwable;
         } finally {
-            $this->purgeSqliteConnection();
-
-            if ($filesystem->exists($baseDatabase)) {
-                $filesystem->delete($baseDatabase);
-            }
-
-            if (isset($temporaryBaseDatabase)) {
-                $filesystem->move($temporaryBaseDatabase, $baseDatabase);
-            }
-
-            if ($activeDatabase !== $baseDatabase) {
-                if ($filesystem->exists($activeDatabase)) {
-                    $filesystem->delete($activeDatabase);
+            foreach ($databases as $database) {
+                if ($originals[$database] && ! isset($backups[$database])) {
+                    continue;
                 }
 
-                if (isset($temporaryActiveDatabase)) {
-                    $filesystem->move($temporaryActiveDatabase, $activeDatabase);
+                try {
+                    $this->purgeSqliteConnection();
+                    $restoreFailure = null;
+
+                    if ($filesystem->exists($database) && ! $filesystem->delete($database)) {
+                        $restoreFailure = new RuntimeException(
+                            "Unable to remove temporary SQLite database [{$database}]."
+                        );
+                    }
+
+                    if (isset($backups[$database])
+                        && ! $filesystem->move($backups[$database], $database)) {
+                        $restoreFailure ??= new RuntimeException(
+                            "Unable to restore SQLite database [{$database}]."
+                        );
+                    }
+
+                    if ($restoreFailure !== null) {
+                        throw $restoreFailure;
+                    }
+                } catch (Throwable $throwable) {
+                    $failure ??= $throwable;
                 }
             }
+        }
+
+        if ($failure !== null) {
+            throw $failure;
         }
     }
 
@@ -160,34 +208,61 @@ trait InteractsWithSqliteDatabaseFile
     protected function withSqliteDatabase(callable $callback): void
     {
         $this->withoutSqliteDatabase(function () use ($callback) {
-            $filesystem = new Filesystem;
-
+            $filesystem = $this->app->make(Filesystem::class);
             $baseDatabase = $this->baseSqliteDatabasePath();
             $activeDatabase = $this->activeSqliteDatabasePath();
             $exampleDatabase = "{$baseDatabase}.example";
+            $createdBaseDatabase = false;
+            $createdActiveDatabase = false;
 
             $this->purgeSqliteConnection();
 
             if (! $filesystem->exists($baseDatabase)) {
-                $filesystem->copy($exampleBaseDatabase = $exampleDatabase, $baseDatabase);
+                if (! $filesystem->copy($exampleDatabase, $baseDatabase)) {
+                    throw new RuntimeException("Unable to create SQLite database [{$baseDatabase}].");
+                }
+
+                $createdBaseDatabase = true;
             }
 
             if ($activeDatabase !== $baseDatabase && ! $filesystem->exists($activeDatabase)) {
-                $filesystem->copy($exampleActiveDatabase = $exampleDatabase, $activeDatabase);
+                $this->purgeSqliteConnection();
+
+                if (! $filesystem->copy($exampleDatabase, $activeDatabase)) {
+                    throw new RuntimeException("Unable to create SQLite database [{$activeDatabase}].");
+                }
+
+                $createdActiveDatabase = true;
             }
+
+            $failure = null;
 
             try {
                 $this->useActiveSqliteDatabasePath($callback);
+            } catch (Throwable $throwable) {
+                $failure = $throwable;
             } finally {
-                $this->purgeSqliteConnection();
-
-                if (isset($exampleBaseDatabase)) {
-                    $filesystem->delete($baseDatabase);
+                try {
+                    $this->purgeSqliteConnection();
+                } catch (Throwable $throwable) {
+                    $failure ??= $throwable;
                 }
 
-                if (isset($exampleActiveDatabase)) {
-                    $filesystem->delete($activeDatabase);
+                if ($createdBaseDatabase
+                    && $filesystem->exists($baseDatabase)
+                    && ! $filesystem->delete($baseDatabase)) {
+                    $failure ??= new RuntimeException("Unable to remove SQLite database [{$baseDatabase}].");
                 }
+
+                if ($createdActiveDatabase
+                    && $filesystem->exists($activeDatabase)
+                    && ! $filesystem->delete($activeDatabase)) {
+                    $failure ??= new RuntimeException("Unable to remove SQLite database [{$activeDatabase}].");
+                }
+            }
+
+            if ($failure !== null) {
+                throw $failure;
             }
         });
     }

@@ -4,135 +4,77 @@ declare(strict_types=1);
 
 namespace Hypervel\ApiClient;
 
-use Hypervel\Support\DataObject;
-use InvalidArgumentException;
+use Hypervel\Support\Traits\ForwardsCalls;
 
 /**
- * @template TConfig of DataObject
- * @template TResource of ApiResource
+ * @template TResource of ApiResource = ApiResource
  * @mixin PendingRequest<TResource>
  */
 class ApiClient
 {
-    /**
-     * @var null|TConfig
-     */
-    protected ?DataObject $config = null;
+    use ForwardsCalls;
 
     /**
      * @var class-string<TResource>
      */
     protected string $resource = ApiResource::class;
 
-    protected bool $enableMiddleware = true;
-
     /**
-     * @var array<callable|object|string>
+     * @var list<callable|object|string>
      */
     protected array $requestMiddleware = [];
 
     /**
-     * @var array<callable|object|string>
+     * @var list<callable|object|string>
      */
     protected array $responseMiddleware = [];
 
     /**
-     * The resolved middleware instances for this client.
+     * Create a pending API request.
      *
-     * @var array<class-string, object>
+     * @return PendingRequest<TResource>
      */
-    protected array $middlewareCache = [];
+    public function createPendingRequest(): PendingRequest
+    {
+        $request = $this->newPendingRequest()
+            ->withResource($this->resource)
+            ->replaceApiRequestMiddleware($this->requestMiddleware)
+            ->replaceApiResponseMiddleware($this->responseMiddleware);
+
+        $this->configurePendingRequest($request);
+
+        return $request;
+    }
 
     /**
-     * Dynamically pass method calls to the pending request.
+     * Create a new pending API request instance.
+     *
+     * @return PendingRequest<TResource>
+     */
+    protected function newPendingRequest(): PendingRequest
+    {
+        /** @var PendingRequest<TResource> $request */
+        $request = new PendingRequest;
+
+        return $request;
+    }
+
+    /**
+     * Configure a pending API request.
+     */
+    protected function configurePendingRequest(PendingRequest $request): void
+    {
+    }
+
+    /**
+     * Dynamically pass method calls to a pending API request.
      */
     public function __call(string $method, array $parameters): mixed
     {
-        return $this->getClient()
-            ->{$method}(...$parameters);
-    }
-
-    /**
-     * Get the configuration for the API client.
-     *
-     * @return null|TConfig
-     */
-    public function getConfig(): ?DataObject
-    {
-        return $this->config;
-    }
-
-    /**
-     * Get the resource class name.
-     */
-    public function getResource(): string
-    {
-        return $this->resource;
-    }
-
-    /**
-     * Determine whether middleware is enabled for the client.
-     */
-    public function getEnableMiddleware(): bool
-    {
-        return $this->enableMiddleware;
-    }
-
-    /**
-     * Enable middleware for the client.
-     */
-    public function enableMiddleware(): static
-    {
-        $this->enableMiddleware = true;
-
-        return $this;
-    }
-
-    /**
-     * Disable middleware for the client.
-     */
-    public function disableMiddleware(): static
-    {
-        $this->enableMiddleware = false;
-
-        return $this;
-    }
-
-    /**
-     * Get the request middleware.
-     */
-    public function getRequestMiddleware(): array
-    {
-        return $this->requestMiddleware;
-    }
-
-    /**
-     * Get the response middleware.
-     */
-    public function getResponseMiddleware(): array
-    {
-        return $this->responseMiddleware;
-    }
-
-    /**
-     * Resolve a middleware instance for this client.
-     */
-    public function resolveMiddleware(string $middleware): object
-    {
-        if (! class_exists($middleware)) {
-            throw new InvalidArgumentException(
-                sprintf('Middleware class `%s` does not exist', $middleware)
-            );
-        }
-
-        return $this->middlewareCache[$middleware] ??= new $middleware($this->getConfig());
-    }
-
-    /**
-     * Get a new pending request instance.
-     */
-    public function getClient(): PendingRequest
-    {
-        return new PendingRequest($this);
+        return $this->forwardCallTo(
+            $this->createPendingRequest(),
+            $method,
+            $parameters,
+        );
     }
 }

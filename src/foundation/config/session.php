@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+$secureCookie = env('SESSION_SECURE_COOKIE');
+
 return [
     /*
     |--------------------------------------------------------------------------
@@ -62,12 +64,13 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Session Database Connection
+    | Session Connection
     |--------------------------------------------------------------------------
     |
     | When using the "database" or "redis" session drivers, you may specify a
     | connection that should be used to manage these sessions. This should
-    | correspond to a connection in your database configuration options.
+    | correspond to a connection in the matching driver configuration.
+    | Set it to null to use that driver's default connection.
     |
     */
 
@@ -88,18 +91,16 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Session Cache Store
+    | User Session Tracking
     |--------------------------------------------------------------------------
     |
-    | When using one of the framework's cache driven session backends, you may
-    | define the cache store which should be used to store the session data
-    | between requests. This must match one of your defined cache stores.
-    |
-    | Affects: "redis"
+    | When using the Redis session driver, this option maintains the metadata
+    | required to list and invalidate all sessions belonging to a user.
+    | It requires PhpRedis 6.3.0+ with Redis 8.0+ or Valkey 9.0+.
     |
     */
 
-    'store' => env('SESSION_STORE'),
+    'track_user_sessions' => (bool) env('SESSION_TRACK_USER_SESSIONS', false),
 
     /*
     |--------------------------------------------------------------------------
@@ -121,7 +122,10 @@ return [
     |
     | Session blocking prevents concurrent requests for the same session
     | from executing at the same time. You may configure the cache store
-    | and time limits used to acquire and maintain the session lock.
+    | and time limits used to acquire and maintain the session lock. Set the
+    | block store to null to use the default cache store. The selected store
+    | must support atomic locks and be shared by every application instance
+    | that should coordinate.
     |
     */
 
@@ -178,8 +182,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | This value determines the domain and subdomains the session cookie is
-    | available to. By default, the cookie will be available to the root
-    | domain and all subdomains. Typically, this shouldn't be changed.
+    | available to. A null value creates a host-only cookie. Set an explicit
+    | domain when the cookie should be shared with subdomains.
     |
     */
 
@@ -193,10 +197,12 @@ return [
     | By setting this option to true, session cookies will only be sent back
     | to the server if the browser has a HTTPS connection. This will keep
     | the cookie from being sent to you when it can't be done securely.
+    | A null value follows the current request scheme, securing the cookie
+    | for HTTPS responses but not HTTP responses.
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    'secure' => $secureCookie === null ? null : (bool) $secureCookie,
 
     /*
     |--------------------------------------------------------------------------
@@ -209,7 +215,7 @@ return [
     |
     */
 
-    'http_only' => env('SESSION_HTTP_ONLY', true),
+    'http_only' => (bool) env('SESSION_HTTP_ONLY', true),
 
     /*
     |--------------------------------------------------------------------------
@@ -239,7 +245,7 @@ return [
     |
     */
 
-    'partitioned' => env('SESSION_PARTITIONED_COOKIE', false),
+    'partitioned' => (bool) env('SESSION_PARTITIONED_COOKIE', false),
 
     /*
     |--------------------------------------------------------------------------

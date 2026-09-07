@@ -67,7 +67,7 @@ class MonitorCommand extends DatabaseInspectionCommand
     {
         return (new Collection(explode(',', $databases ?? '')))->map(function ($database) {
             if ($database === '') {
-                $database = $this->hypervel->make('config')->string('database.default', 'default');
+                $database = $this->hypervel->make('config')->string('database.default');
             }
 
             $maxConnections = $this->option('max');
@@ -105,6 +105,10 @@ class MonitorCommand extends DatabaseInspectionCommand
      */
     protected function dispatchEvents(Collection $databases): void
     {
+        if (! $this->events->hasListeners(DatabaseBusy::class)) {
+            return;
+        }
+
         $databases->each(function ($database) {
             if ($database['status'] === '<fg=green;options=bold>OK</>') {
                 return;

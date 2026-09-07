@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Traits;
 
+use Hypervel\Permission\Models\Role as BaseRole;
+use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Tests\Permission\Fixtures\Models\Admin;
+use Hypervel\Tests\Permission\Fixtures\Models\Permission;
 use Hypervel\Tests\Permission\Fixtures\Models\Role;
 
 class HasRolesWithCustomModelsTest extends HasRolesTest
@@ -21,6 +24,58 @@ class HasRolesWithCustomModelsTest extends HasRolesTest
     public function testItCanUseCustomModelRole(): void
     {
         $this->assertSame(Role::class, $this->testUserRole::class);
+    }
+
+    public function testBaseRoleRequestsReuseTheConfiguredCustomCatalogAndPrimaryKey(): void
+    {
+        $registrar = app(PermissionRegistrar::class);
+        $registrar->getRoles();
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $indexed = $registrar->getRoles(
+            ['id' => $this->testUserRole->getKey()],
+            true,
+            BaseRole::class,
+        )->sole();
+        $fallback = $registrar->getRoles(
+            ['id' => $this->testUserRole->getKey(), 'name' => $this->testUserRole->name],
+            true,
+            BaseRole::class,
+        )->sole();
+        $found = BaseRole::findById($this->testUserRole->getKey());
+
+        $this->assertInstanceOf(Role::class, $indexed);
+        $this->assertTrue($indexed->is($fallback));
+        $this->assertTrue($indexed->is($found));
+        $this->assertSame([], DB::getQueryLog());
+    }
+
+    public function testWarmRoleChecksDoNotConstructPermissionModelsForCacheIdentity(): void
+    {
+        config()->set('permission.models.permission', ConstructionCountingPermission::class);
+        $this->flushPermissionState();
+
+        $this->testUser->hasRole('testRole');
+        ConstructionCountingPermission::$constructionCount = 0;
+
+        $this->testUser->hasRole('testRole');
+        $this->testUser->hasRole('testRole');
+
+        $this->assertSame(0, ConstructionCountingPermission::$constructionCount);
+    }
+
+    public function testCleanAssignmentTokenReadsDoNotConstructPermissionModelsForCacheIdentity(): void
+    {
+        config()->set('permission.models.permission', ConstructionCountingPermission::class);
+        $this->flushPermissionState();
+        ConstructionCountingPermission::$constructionCount = 0;
+
+        $registrar = app(PermissionRegistrar::class);
+        $registrar->modelAssignmentCacheToken();
+        $registrar->modelAssignmentCacheToken();
+
+        $this->assertSame(0, ConstructionCountingPermission::$constructionCount);
     }
 
     public function testFindOrCreateRestoresSoftDeletedRole(): void
@@ -65,6 +120,8 @@ class HasRolesWithCustomModelsTest extends HasRolesTest
     public function testItDoesNotDetachUsersWhenSoftDeleting(): void
     {
         $this->testUser->assignRole($this->testUserRole);
+        $registrar = app(PermissionRegistrar::class);
+        $token = $registrar->modelAssignmentCacheToken();
 
         DB::enableQueryLog();
         $this->testUserRole->delete();
@@ -80,6 +137,7 @@ class HasRolesWithCustomModelsTest extends HasRolesTest
                 ->where('role_test_id', $role->getKey())
                 ->count(),
         );
+        $this->assertSame($token, $registrar->modelAssignmentCacheToken());
     }
 
     public function testItDoesDetachPermissionsAndUsersWhenForceDeleting(): void
@@ -87,6 +145,8 @@ class HasRolesWithCustomModelsTest extends HasRolesTest
         $roleId = $this->testUserRole->getKey();
         $this->testUserPermission->assignRole($roleId);
         $this->testUser->assignRole($roleId);
+        $registrar = app(PermissionRegistrar::class);
+        $token = $registrar->modelAssignmentCacheToken();
 
         DB::enableQueryLog();
         $this->testUserRole->forceDelete();
@@ -107,6 +167,7 @@ class HasRolesWithCustomModelsTest extends HasRolesTest
                 ->where('role_test_id', $roleId)
                 ->count(),
         );
+        $this->assertNotSame($token, $registrar->modelAssignmentCacheToken());
     }
 
     public function testItTouchesWhenAssigningNewRoles(): void
@@ -126,5 +187,17 @@ class HasRolesWithCustomModelsTest extends HasRolesTest
 
         $this->assertSame('2021-07-20 19:13:14', $role1->refresh()->updated_at->format('Y-m-d H:i:s'));
         $this->assertSame('2021-07-20 19:13:14', $role2->refresh()->updated_at->format('Y-m-d H:i:s'));
+    }
+}
+
+class ConstructionCountingPermission extends Permission
+{
+    public static int $constructionCount = 0;
+
+    public function __construct(array $attributes = [])
+    {
+        ++static::$constructionCount;
+
+        parent::__construct($attributes);
     }
 }

@@ -7,9 +7,12 @@ namespace Hypervel\Tests\Sentry\Http;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
 use Hypervel\Sentry\Http\FlushEventsMiddleware;
+use Hypervel\Sentry\State\CoroutineRuntimeContextStorage;
+use Hypervel\Sentry\State\RuntimeContextBoundary;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Sentry\ClientInterface;
+use Sentry\Options;
 use Sentry\SentrySdk;
 use Sentry\State\Hub;
 use Sentry\Transport\Result;
@@ -23,7 +26,9 @@ class FlushEventsMiddlewareTest extends TestCase
     {
         $handled = new Channel(1);
         $flushed = new Channel(1);
+        $storage = new CoroutineRuntimeContextStorage;
         $client = m::mock(ClientInterface::class);
+        $client->shouldReceive('getOptions')->once()->andReturn(new Options);
         $client->shouldReceive('flush')
             ->once()
             ->with(null)
@@ -33,13 +38,23 @@ class FlushEventsMiddlewareTest extends TestCase
                 return new Result(ResultStatus::success());
             });
         $previousHub = SentrySdk::getCurrentHub();
-        SentrySdk::setCurrentHub(new Hub($client));
+        $hub = new Hub($client);
+        SentrySdk::init();
+        SentrySdk::setRuntimeContextStorage($storage);
+        SentrySdk::setCurrentHub($hub);
+        $middleware = new FlushEventsMiddleware(
+            new RuntimeContextBoundary($hub, $storage),
+        );
 
         try {
-            Coroutine::create(static function () use ($handled): void {
-                $response = (new FlushEventsMiddleware)->handle(
+            Coroutine::create(function () use ($handled, $middleware, $storage): void {
+                $response = $middleware->handle(
                     Request::create('/'),
-                    static fn (): Response => new Response('OK'),
+                    function () use ($storage): Response {
+                        $this->assertNotNull($storage->get());
+
+                        return new Response('OK');
+                    },
                 );
 
                 $handled->push($response->getContent());

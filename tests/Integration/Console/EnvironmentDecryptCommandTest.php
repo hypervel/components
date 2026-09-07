@@ -11,6 +11,7 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use Mockery as m;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class EnvironmentDecryptCommandTest extends TestCase
 {
@@ -52,6 +53,28 @@ class EnvironmentDecryptCommandTest extends TestCase
         $this->artisan('env:decrypt', ['--cipher' => 'aes-128-cbc', '--key' => 'invalid'])
             ->expectsOutputToContain('incorrect key length')
             ->assertExitCode(1);
+    }
+
+    public function testItPreservesCancellationWhileReadingTheEncryptedEnvironment(): void
+    {
+        $cancellation = new CanceledException('canceled');
+
+        $this->filesystem->shouldReceive('exists')
+            ->once()
+            ->andReturn(true)
+            ->shouldReceive('exists')
+            ->once()
+            ->andReturn(false)
+            ->shouldReceive('get')
+            ->once()
+            ->andThrow($cancellation);
+
+        try {
+            $this->artisan('env:decrypt', ['--key' => 'abcdefghijklmnopabcdefghijklmnop'])->execute();
+            $this->fail('Expected environment decryption to preserve cancellation.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testItFailsWhenEncryptionFileCannotBeFound(): void

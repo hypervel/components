@@ -59,8 +59,10 @@ class QueueImportCommandTest extends ScoutTestCase
         Bus::assertDispatched(MakeRangeSearchable::class, 5);
     }
 
-    public function testItUsesDefaultChunkSizeFromConfig(): void
+    public function testItUsesDefaultChunkSizeWhenConfigMemberIsOmitted(): void
     {
+        $this->app->make('config')->set('scout.chunk', []);
+
         for ($i = 1; $i <= 3; ++$i) {
             SearchableModel::create(['title' => "Title {$i}", 'body' => 'Body']);
         }

@@ -12,6 +12,8 @@ use DateTime;
 use Hypervel\Contracts\Database\Query\ConditionExpression;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Expression as Raw;
 use Hypervel\Database\Query\Grammars\Grammar;
@@ -931,10 +933,28 @@ class DatabaseQueryBuilderTest extends TestCase
     public function testWhereNullSafeEquals(): void
     {
         $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->whereNullSafeEquals('foo', 'bar');
+        $this->assertSame('select * from "users" where "foo" is not distinct from ?', $builder->toSql());
+        $this->assertSame(['bar'], $builder->getBindings());
+
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->whereNullSafeEquals('foo', 'bar')->whereNullSafeEquals('baz', 'qux');
+        $this->assertSame('select * from "users" where "foo" is not distinct from ? and "baz" is not distinct from ?', $builder->toSql());
+        $this->assertSame(['bar', 'qux'], $builder->getBindings());
+
+        $builder = $this->getBuilder();
         $builder->select('*')->from('users')->whereNullSafeEquals('foo', 'bar')->whereNullSafeEquals('baz', null);
 
         $this->assertSame('select * from "users" where "foo" is not distinct from ? and "baz" is not distinct from ?', $builder->toSql());
         $this->assertSame(['bar', null], $builder->getBindings());
+    }
+
+    public function testOrWhereNullSafeEquals(): void
+    {
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->where('foo', 'bar')->orWhereNullSafeEquals('baz', 'qux');
+        $this->assertSame('select * from "users" where "foo" = ? or "baz" is not distinct from ?', $builder->toSql());
+        $this->assertSame(['bar', 'qux'], $builder->getBindings());
 
         $builder = $this->getBuilder();
         $builder->select('*')->from('users')->where('foo', 'bar')->orWhereNullSafeEquals('baz', new Raw('qux'));
@@ -943,19 +963,126 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame(['bar'], $builder->getBindings());
     }
 
-    public function testWhereNullSafeEqualsUsesSupportedDriverSyntax(): void
+    public function testWhereNullSafeEqualsViaNullSafeOperator(): void
+    {
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->where('foo', '<=>', 'bar');
+        $this->assertSame('select * from "users" where "foo" is not distinct from ?', $builder->toSql());
+        $this->assertSame(['bar'], $builder->getBindings());
+    }
+
+    public function testWhereNullSafeEqualsWithNullViaOperator(): void
+    {
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->where('foo', '<=>', null);
+        $this->assertSame('select * from "users" where "foo" is null', $builder->toSql());
+    }
+
+    public function testWhereNullSafeEqualsMySql(): void
     {
         $builder = $this->getMySqlBuilder();
         $builder->select('*')->from('users')->whereNullSafeEquals('foo', 'bar');
         $this->assertSame('select * from `users` where `foo` <=> ?', $builder->toSql());
+        $this->assertSame(['bar'], $builder->getBindings());
 
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('users')->where('foo', '<=>', 'bar');
+        $this->assertSame('select * from `users` where `foo` <=> ?', $builder->toSql());
+        $this->assertSame(['bar'], $builder->getBindings());
+    }
+
+    public function testWhereNullSafeEqualsSQLite(): void
+    {
         $builder = $this->getSQLiteBuilder();
         $builder->select('*')->from('users')->whereNullSafeEquals('foo', 'bar');
         $this->assertSame('select * from "users" where "foo" is ?', $builder->toSql());
+        $this->assertSame(['bar'], $builder->getBindings());
 
+        $builder = $this->getSQLiteBuilder();
+        $builder->select('*')->from('users')->where('foo', '<=>', 'bar');
+        $this->assertSame('select * from "users" where "foo" is ?', $builder->toSql());
+        $this->assertSame(['bar'], $builder->getBindings());
+    }
+
+    public function testWhereNullSafeEqualsPostgres(): void
+    {
         $builder = $this->getPostgresBuilder();
         $builder->select('*')->from('users')->whereNullSafeEquals('foo', 'bar');
         $this->assertSame('select * from "users" where "foo" is not distinct from ?', $builder->toSql());
+        $this->assertSame(['bar'], $builder->getBindings());
+
+        $builder = $this->getPostgresBuilder();
+        $builder->select('*')->from('users')->where('foo', '<=>', 'bar');
+        $this->assertSame('select * from "users" where "foo" is not distinct from ?', $builder->toSql());
+        $this->assertSame(['bar'], $builder->getBindings());
+    }
+
+    // REMOVED: SQL Server null-safe equality tests; SQL Server is not supported.
+
+    public function testWhereNullSafeEqualsWithJsonBooleansMySql(): void
+    {
+        $builder = $this->getMySqlBuilder();
+        $builder->from('users')->where('id', 1)->whereNullSafeEquals('options->enabled', true)->orWhereNullSafeEquals('options->archived', false);
+        $this->assertSame('select * from `users` where `id` = ? and json_extract(`options`, \'$."enabled"\') <=> true or json_extract(`options`, \'$."archived"\') <=> false', $builder->toSql());
+        $this->assertSame([1], $builder->getBindings());
+
+        $builder = $this->getMySqlBuilder();
+        $builder->from('users')->where('id', 1)->where('options->enabled', '<=>', true)->orWhere('options->archived', '<=>', false);
+        $this->assertSame('select * from `users` where `id` = ? and json_extract(`options`, \'$."enabled"\') <=> true or json_extract(`options`, \'$."archived"\') <=> false', $builder->toSql());
+        $this->assertSame([1], $builder->getBindings());
+    }
+
+    public function testWhereNullSafeEqualsWithJsonBooleansSQLite(): void
+    {
+        $builder = $this->getSQLiteBuilder();
+        $builder->from('users')->where('id', 1)->whereNullSafeEquals('options->enabled', true)->orWhereNullSafeEquals('options->archived', false);
+        $this->assertSame('select * from "users" where "id" = ? and json_extract("options", \'$."enabled"\') is 1 or json_extract("options", \'$."archived"\') is 0', $builder->toSql());
+        $this->assertSame([1], $builder->getBindings());
+
+        $builder = $this->getSQLiteBuilder();
+        $builder->from('users')->where('id', 1)->where('options->enabled', '<=>', true)->orWhere('options->archived', '<=>', false);
+        $this->assertSame('select * from "users" where "id" = ? and json_extract("options", \'$."enabled"\') is 1 or json_extract("options", \'$."archived"\') is 0', $builder->toSql());
+        $this->assertSame([1], $builder->getBindings());
+    }
+
+    public function testWhereNullSafeEqualsWithJsonBooleansPostgres(): void
+    {
+        $builder = $this->getPostgresBuilder();
+        $builder->from('users')->where('id', 1)->whereNullSafeEquals('options->enabled', true)->orWhereNullSafeEquals('options->archived', false);
+        $this->assertSame('select * from "users" where "id" = ? and ("options"->\'enabled\')::jsonb is not distinct from \'true\'::jsonb or ("options"->\'archived\')::jsonb is not distinct from \'false\'::jsonb', $builder->toSql());
+        $this->assertSame([1], $builder->getBindings());
+
+        $builder = $this->getPostgresBuilder();
+        $builder->from('users')->where('id', 1)->where('options->enabled', '<=>', true)->orWhere('options->archived', '<=>', false);
+        $this->assertSame('select * from "users" where "id" = ? and ("options"->\'enabled\')::jsonb is not distinct from \'true\'::jsonb or ("options"->\'archived\')::jsonb is not distinct from \'false\'::jsonb', $builder->toSql());
+        $this->assertSame([1], $builder->getBindings());
+    }
+
+    public function testWhereNullSafeEqualsWithSubqueryMySql(): void
+    {
+        $builder = $this->getMySqlBuilder();
+        $builder->from('users')->where('id', 1)->orWhere('foo', '<=>', fn (Builder $query) => $query->selectRaw('?', ['bar']));
+
+        $this->assertSame('select * from `users` where `id` = ? or `foo` <=> (select ?)', $builder->toSql());
+        $this->assertSame([1, 'bar'], $builder->getBindings());
+    }
+
+    public function testWhereNullSafeEqualsWithSubquerySQLite(): void
+    {
+        $builder = $this->getSQLiteBuilder();
+        $builder->from('users')->where('id', 1)->orWhere('foo', '<=>', fn (Builder $query) => $query->selectRaw('?', ['bar']));
+
+        $this->assertSame('select * from "users" where "id" = ? or "foo" is (select ?)', $builder->toSql());
+        $this->assertSame([1, 'bar'], $builder->getBindings());
+    }
+
+    public function testWhereNullSafeEqualsWithSubqueryPostgres(): void
+    {
+        $builder = $this->getPostgresBuilder();
+        $builder->from('users')->where('id', 1)->orWhere('foo', '<=>', fn (Builder $query) => $query->selectRaw('?', ['bar']));
+
+        $this->assertSame('select * from "users" where "id" = ? or "foo" is not distinct from (select ?)', $builder->toSql());
+        $this->assertSame([1, 'bar'], $builder->getBindings());
     }
 
     public function testWhereBetweens()
@@ -1370,7 +1497,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals([0 => 1], $builder->getBindings());
     }
 
-    public function testWhereIntegerInRaw()
+    public function testWhereIntegerInRaw(): void
     {
         $builder = $this->getBuilder();
         $builder->select('*')->from('users')->whereIntegerInRaw('id', [
@@ -1388,6 +1515,10 @@ class DatabaseQueryBuilderTest extends TestCase
         ]);
         $this->assertSame('select * from "users" where "id" in (1, 2, 3, 5)', $builder->toSql());
         $this->assertEquals([], $builder->getBindings());
+
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->whereIntegerInRaw('id', [1, null]);
+        $this->assertSame('select * from "users" where "id" in (1)', $builder->toSql());
     }
 
     public function testOrWhereIntegerInRaw()
@@ -1398,12 +1529,16 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals([0 => 1], $builder->getBindings());
     }
 
-    public function testWhereIntegerNotInRaw()
+    public function testWhereIntegerNotInRaw(): void
     {
         $builder = $this->getBuilder();
         $builder->select('*')->from('users')->whereIntegerNotInRaw('id', ['1a', 2]);
         $this->assertSame('select * from "users" where "id" not in (1, 2)', $builder->toSql());
         $this->assertEquals([], $builder->getBindings());
+
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->whereIntegerNotInRaw('id', [1, null]);
+        $this->assertSame('select * from "users" where "id" not in (1)', $builder->toSql());
     }
 
     public function testOrWhereIntegerNotInRaw()
@@ -2582,6 +2717,485 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals(1, $count);
     }
 
+    public function testGroupLimitCompilationWithAndWithoutOffset(): void
+    {
+        $builder = $this->getSQLiteBuilder()
+            ->select('id')
+            ->from('posts')
+            ->where('active', true)
+            ->orderByDesc('created_at')
+            ->groupLimit(2, 'user_id');
+
+        $this->assertSame(
+            'select * from (select "id", row_number() over (partition by "user_id" order by "created_at" desc) as "hypervel_row" from "posts" where "active" = ?) as "hypervel_table" where "hypervel_row" <= 2 order by "hypervel_row"',
+            $builder->toSql()
+        );
+        $this->assertSame([true], $builder->getBindings());
+
+        $offsetBuilder = $this->getSQLiteBuilder()
+            ->select('id')
+            ->from('posts')
+            ->where('active', true)
+            ->orderByDesc('created_at')
+            ->offset(3)
+            ->groupLimit(2, 'user_id');
+
+        $this->assertSame(
+            'select * from (select "id", row_number() over (partition by "user_id" order by "created_at" desc) as "hypervel_row" from "posts" where "active" = ?) as "hypervel_table" where "hypervel_row" <= 5 and "hypervel_row" > 3 order by "hypervel_row"',
+            $offsetBuilder->toSql()
+        );
+        $this->assertSame([true], $offsetBuilder->getBindings());
+    }
+
+    public function testGroupedPaginationAppliesTimeoutToTheOuterCountStatement(): void
+    {
+        $builder = $this->getMySqlBuilder()
+            ->from('users')
+            ->where('active', true)
+            ->groupBy('team_id')
+            ->having('score', '>', 10)
+            ->timeout(5);
+
+        $builder->getConnection()->shouldReceive('select')->once()->with(
+            'select /*+ MAX_EXECUTION_TIME(5000) */ count(*) as `aggregate` from (select * from `users` where `active` = ? group by `team_id` having `score` > ?) as `aggregate_table`',
+            [true, 10],
+            true,
+            [],
+        )->andReturn([['aggregate' => 1]]);
+        $builder->getProcessor()->shouldReceive('processSelect')->once()->andReturnUsing(function ($builder, $results) {
+            return $results;
+        });
+
+        $this->assertSame(1, $builder->getCountForPagination());
+        $this->assertSame(5, $builder->timeout);
+        $this->assertSame(
+            'select /*+ MAX_EXECUTION_TIME(5000) */ * from `users` where `active` = ? group by `team_id` having `score` > ?',
+            $builder->toSql()
+        );
+    }
+
+    public function testOuterTimeoutAcceptsUntimedSubqueriesExistsClausesAndUnionMembers(): void
+    {
+        $parsed = $this->getMySqlBuilder()->select('user_id')->from('memberships')->where('active', true);
+        $exists = $this->getMySqlBuilder()->selectRaw('1')->from('flags')->whereColumn('flags.user_id', 'users.id');
+        $union = $this->getMySqlBuilder()->from('archived_users')->where('status', 'enabled');
+
+        $builder = $this->getMySqlBuilder()
+            ->from('users')
+            ->whereIn('id', $parsed)
+            ->whereExists($exists)
+            ->unionAll($union)
+            ->timeout(6);
+
+        $sql = $builder->toSql();
+
+        $this->assertSame(
+            '(select /*+ MAX_EXECUTION_TIME(6000) */ * from `users` where `id` in (select `user_id` from `memberships` where `active` = ?) and exists (select 1 from `flags` where `flags`.`user_id` = `users`.`id`)) union all (select * from `archived_users` where `status` = ?)',
+            $sql
+        );
+        $this->assertSame([true, 'enabled'], $builder->getBindings());
+        $this->assertSame(1, substr_count($sql, 'MAX_EXECUTION_TIME'));
+    }
+
+    public function testRetainedMySqlSubqueriesUseTheOuterStatementTimeoutAfterTheirOwnTimeoutChanges(): void
+    {
+        $this->assertRetainedSubqueriesUseOuterStatementTimeout(
+            fn () => $this->getMySqlBuilder(),
+            '(select /*+ MAX_EXECUTION_TIME(5000) */ * from `users` where `score` > (select `score` from `scores` where `active` = ?) and exists (select 1 from `flags` where `active` = ?)) union all (select * from `archived_users` where `active` = ?)',
+            'select /*+ MAX_EXECUTION_TIME(2000) */ `score` from `scores` where `active` = ?',
+            'select /*+ MAX_EXECUTION_TIME(2000) */ 1 from `flags` where `active` = ?',
+            'select /*+ MAX_EXECUTION_TIME(2000) */ * from `archived_users` where `active` = ?',
+        );
+    }
+
+    public function testRetainedMariaDbSubqueriesUseTheOuterStatementTimeoutAfterTheirOwnTimeoutChanges(): void
+    {
+        $this->assertRetainedSubqueriesUseOuterStatementTimeout(
+            fn () => $this->getMariaDbBuilder(),
+            'SET STATEMENT max_statement_time=5 FOR (select * from `users` where `score` > (select `score` from `scores` where `active` = ?) and exists (select 1 from `flags` where `active` = ?)) union all (select * from `archived_users` where `active` = ?)',
+            'SET STATEMENT max_statement_time=2 FOR select `score` from `scores` where `active` = ?',
+            'SET STATEMENT max_statement_time=2 FOR select 1 from `flags` where `active` = ?',
+            'SET STATEMENT max_statement_time=2 FOR select * from `archived_users` where `active` = ?',
+        );
+    }
+
+    public function testRetainedSubqueriesUseTheirOwnGrammarTablePrefix(): void
+    {
+        $whereSubquery = $this->getBuilder('child_')
+            ->select('score')
+            ->from('scores')
+            ->where('active', true);
+        $where = $this->getBuilder()
+            ->from('users')
+            ->where('score', '>', $whereSubquery);
+
+        $this->assertSame(
+            'select * from "users" where "score" > (select "score" from "child_scores" where "active" = ?)',
+            $where->toSql()
+        );
+        $this->assertSame([true], $where->getBindings());
+
+        $existsSubquery = $this->getBuilder('child_')->from('flags')->where('active', true);
+        $exists = $this->getBuilder()->from('users')->whereExists($existsSubquery);
+
+        $this->assertSame(
+            'select * from "users" where exists (select * from "child_flags" where "active" = ?)',
+            $exists->toSql()
+        );
+        $this->assertSame([true], $exists->getBindings());
+
+        $notExistsSubquery = $this->getBuilder('child_')->from('blocks')->where('active', true);
+        $notExists = $this->getBuilder()->from('users')->whereNotExists($notExistsSubquery);
+
+        $this->assertSame(
+            'select * from "users" where not exists (select * from "child_blocks" where "active" = ?)',
+            $notExists->toSql()
+        );
+        $this->assertSame([true], $notExists->getBindings());
+
+        $unionMember = $this->getBuilder('child_')->from('archived_users')->where('active', true);
+        $union = $this->getBuilder()->from('users')->unionAll($unionMember);
+
+        $this->assertSame(
+            '(select * from "users") union all (select * from "child_archived_users" where "active" = ?)',
+            $union->toSql()
+        );
+        $this->assertSame([true], $union->getBindings());
+    }
+
+    public function testEloquentUnionMemberIsNormalizedWithItsGlobalScope(): void
+    {
+        $union = new EloquentBuilder($this->getMySqlBuilder());
+        $union->setModel(new QueryableSubqueryRelatedModel);
+        $union->withGlobalScope('active', fn (EloquentBuilder $query) => $query->where('active', true));
+
+        $builder = $this->getMySqlBuilder()
+            ->from('users')
+            ->where('tenant_id', 7)
+            ->unionAll($union);
+
+        $this->assertSame(
+            '(select * from `users` where `tenant_id` = ?) union all (select * from `queryable_subquery_related` where (`active` = ?))',
+            $builder->toSql()
+        );
+        $this->assertSame([7, true], $builder->getBindings());
+    }
+
+    public function testParsedEloquentSubqueryRejectsATimeoutAppliedByItsGlobalScope(): void
+    {
+        $scopeApplications = 0;
+        $embedded = new EloquentBuilder($this->getMySqlBuilder());
+        $embedded->setModel(new QueryableSubqueryRelatedModel);
+        $embedded->withGlobalScope('timeout', function (EloquentBuilder $query) use (&$scopeApplications): void {
+            ++$scopeApplications;
+            $query->timeout(2);
+        });
+
+        try {
+            $this->getMySqlBuilder()->from('users')->whereIn('id', $embedded);
+            $this->fail('Expected the embedded query timeout to be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame(
+                'An embedded query cannot define its own timeout. Apply the timeout to the outer query instead.',
+                $exception->getMessage()
+            );
+        }
+
+        $this->assertSame(1, $scopeApplications);
+    }
+
+    public function testEloquentUnionMemberRejectsATimeoutAppliedByItsGlobalScope(): void
+    {
+        $scopeApplications = 0;
+        $embedded = new EloquentBuilder($this->getMySqlBuilder());
+        $embedded->setModel(new QueryableSubqueryRelatedModel);
+        $embedded->withGlobalScope('timeout', function (EloquentBuilder $query) use (&$scopeApplications): void {
+            ++$scopeApplications;
+            $query->timeout(2);
+        });
+
+        try {
+            $this->getMySqlBuilder()->from('users')->unionAll($embedded);
+            $this->fail('Expected the embedded query timeout to be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame(
+                'An embedded query cannot define its own timeout. Apply the timeout to the outer query instead.',
+                $exception->getMessage()
+            );
+        }
+
+        $this->assertSame(1, $scopeApplications);
+    }
+
+    public function testParsedSubqueryRejectsItsOwnTimeoutBeforeEmbeddingIt(): void
+    {
+        $outer = $this->getMySqlBuilder()->from('users')->where('tenant_id', 7);
+        $embedded = $this->getMySqlBuilder()->select('user_id')->from('memberships')->where('active', true)->timeout(2);
+
+        $this->assertTimedEmbeddingRejectedBeforeQueryIsEmbedded(
+            $outer,
+            $embedded,
+            fn () => $outer->whereIn('id', $embedded),
+        );
+    }
+
+    public function testParsedRelationRejectsItsOwnTimeoutBeforeEmbeddingIt(): void
+    {
+        $outer = $this->getMySqlBuilder()->from('users')->where('tenant_id', 7);
+        $relation = $this->getRelationSubquery(grammarClass: MySqlGrammar::class);
+        $relation->timeout(2);
+        $sql = $outer->toSql();
+        $bindings = $outer->getBindings();
+
+        try {
+            $outer->update(['score' => $relation]);
+            $this->fail('Expected the embedded relation timeout to be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame(
+                'An embedded query cannot define its own timeout. Apply the timeout to the outer query instead.',
+                $exception->getMessage()
+            );
+        }
+
+        $this->assertSame($sql, $outer->toSql());
+        $this->assertSame($bindings, $outer->getBindings());
+    }
+
+    public function testWhereSubqueryRejectsItsOwnTimeoutBeforeEmbeddingIt(): void
+    {
+        $outer = $this->getMySqlBuilder()->from('users')->where('tenant_id', 7);
+        $embedded = $this->getMySqlBuilder()->select('score')->from('scores')->where('active', true)->timeout(2);
+
+        $this->assertTimedEmbeddingRejectedBeforeQueryIsEmbedded(
+            $outer,
+            $embedded,
+            fn () => $outer->where('score', '>', $embedded),
+        );
+    }
+
+    public function testWhereExistsRejectsItsOwnTimeoutBeforeEmbeddingIt(): void
+    {
+        $outer = $this->getMySqlBuilder()->from('users')->where('tenant_id', 7);
+        $embedded = $this->getMySqlBuilder()->selectRaw('1')->from('flags')->where('active', true)->timeout(2);
+
+        $this->assertTimedEmbeddingRejectedBeforeQueryIsEmbedded(
+            $outer,
+            $embedded,
+            fn () => $outer->addWhereExistsQuery($embedded),
+        );
+    }
+
+    public function testUnionRejectsItsOwnTimeoutBeforeEmbeddingIt(): void
+    {
+        $outer = $this->getMySqlBuilder()->from('users')->where('tenant_id', 7);
+        $embedded = $this->getMySqlBuilder()->from('archived_users')->where('active', true)->timeout(2);
+
+        $this->assertTimedEmbeddingRejectedBeforeQueryIsEmbedded(
+            $outer,
+            $embedded,
+            fn () => $outer->unionAll($embedded),
+        );
+    }
+
+    public function testExplainRejectsQueryTimeoutWithoutMutatingTheBuilder(): void
+    {
+        $builder = $this->getMySqlBuilder()->from('users')->where('id', 1)->timeout(2);
+        $sql = $builder->toSql();
+        $bindings = $builder->getBindings();
+
+        try {
+            $builder->explain();
+            $this->fail('Expected the EXPLAIN timeout to be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame(
+                'A query timeout cannot be applied to an EXPLAIN statement. Clear the timeout before calling explain().',
+                $exception->getMessage()
+            );
+        }
+
+        $this->assertSame($sql, $builder->toSql());
+        $this->assertSame($bindings, $builder->getBindings());
+    }
+
+    public function testExplainKeepsUntimedStatementSqlAndBindings(): void
+    {
+        $builder = $this->getMySqlBuilder()->from('users')->where('id', 1);
+        $explanation = (object) ['id' => 1];
+
+        $builder->getConnection()->expects('select')->with(
+            'EXPLAIN select * from `users` where `id` = ?',
+            [1],
+        )->andReturn([$explanation]);
+
+        $this->assertSame([$explanation], $builder->explain()->all());
+    }
+
+    public function testRelationSubqueriesCompileInSelectAndFromClausesAcrossDatabases(): void
+    {
+        $select = $this->getBuilder()
+            ->from('parents')
+            ->select(['related_score' => $this->getRelationSubquery('other_database')]);
+
+        $this->assertSame(
+            'select (select "score" from "other_database"."queryable_subquery_related" where "queryable_subquery_related"."parent_id" = ? and "queryable_subquery_related"."parent_id" is not null) as "related_score" from "parents"',
+            $select->toSql()
+        );
+        $this->assertSame([7], $select->getBindings());
+
+        $from = $this->getBuilder()
+            ->select('*')
+            ->from($this->getRelationSubquery('other_database'), 'related');
+
+        $this->assertSame(
+            'select * from (select "score" from "other_database"."queryable_subquery_related" where "queryable_subquery_related"."parent_id" = ? and "queryable_subquery_related"."parent_id" is not null) as "related"',
+            $from->toSql()
+        );
+        $this->assertSame([7], $from->getBindings());
+    }
+
+    public function testCrossDatabaseQualificationKeepsQualifiedDerivedTablesAndTablelessSubqueriesUnchanged(): void
+    {
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getDatabaseName')->andReturn('other_database');
+        $connection->shouldReceive('getTablePrefix')->andReturn('');
+
+        $derived = new Builder($connection, new Grammar($connection), m::mock(Processor::class));
+        $derived->from('other_database.events');
+
+        $subquery = new Builder($connection, new Grammar($connection), m::mock(Processor::class));
+        $subquery->fromSub($derived, 'derived');
+
+        $outer = $this->getBuilder()->from('users')->whereIn('id', $subquery);
+
+        $this->assertSame(
+            'select * from "users" where "id" in (select * from (select * from "other_database"."events") as "derived")',
+            $outer->toSql()
+        );
+
+        $tableless = new Builder($connection, new Grammar($connection), m::mock(Processor::class));
+        $tableless->selectRaw('1');
+
+        $this->assertSame(
+            'select * from "users" where "id" in (select 1)',
+            $this->getBuilder()->from('users')->whereIn('id', $tableless)->toSql()
+        );
+    }
+
+    public function testRelationSubqueriesCompileInWhereAndStraightJoinClauses(): void
+    {
+        $where = $this->getBuilder()
+            ->from('parents')
+            ->where('score', '>', $this->getRelationSubquery());
+
+        $this->assertSame(
+            'select * from "parents" where "score" > (select "score" from "queryable_subquery_related" where "queryable_subquery_related"."parent_id" = ? and "queryable_subquery_related"."parent_id" is not null)',
+            $where->toSql()
+        );
+        $this->assertSame([7], $where->getBindings());
+
+        $join = $this->getMySqlBuilder()
+            ->from('parents')
+            ->straightJoinSub(
+                $this->getRelationSubquery(grammarClass: MySqlGrammar::class),
+                'related',
+                'related.parent_id',
+                '=',
+                'parents.id',
+            );
+
+        $this->assertSame(
+            'select * from `parents` straight_join (select `score` from `queryable_subquery_related` where `queryable_subquery_related`.`parent_id` = ? and `queryable_subquery_related`.`parent_id` is not null) as `related` on `related`.`parent_id` = `parents`.`id`',
+            $join->toSql()
+        );
+        $this->assertSame([7], $join->getBindings());
+    }
+
+    public function testRelationSubqueryCompilesForInsertUsing(): void
+    {
+        $builder = $this->getBuilder()->from('archived_scores');
+        $builder->getConnection()->expects('affectingStatement')->with(
+            'insert into "archived_scores" ("score") select "score" from "queryable_subquery_related" where "queryable_subquery_related"."parent_id" = ? and "queryable_subquery_related"."parent_id" is not null',
+            [7],
+        )->andReturn(1);
+
+        $this->assertSame(
+            1,
+            $builder->insertUsing(['score'], $this->getRelationSubquery())
+        );
+    }
+
+    public function testWhereForwardersAcceptQueryBuilderSubqueries(): void
+    {
+        $subquery = $this->getBuilder()
+            ->select('score')
+            ->from('scores')
+            ->where('active', true);
+
+        $builder = $this->getBuilder()
+            ->from('parents')
+            ->where('tenant_id', 1)
+            ->orWhere($subquery, '>', 5)
+            ->whereNot($subquery, '<', 0)
+            ->orWhereNot($subquery, '=', 3);
+
+        $this->assertSame(
+            'select * from "parents" where "tenant_id" = ? or (select "score" from "scores" where "active" = ?) > ? and not (select "score" from "scores" where "active" = ?) < ? or not (select "score" from "scores" where "active" = ?) = ?',
+            $builder->toSql()
+        );
+        $this->assertSame([1, true, 5, true, 0, true, 3], $builder->getBindings());
+    }
+
+    public function testBetweenForwardersAcceptQueryBuilderSubqueries(): void
+    {
+        $subquery = $this->getBuilder()->select('score')->from('scores')->where('active', true);
+        $builder = $this->getBuilder()
+            ->from('parents')
+            ->whereBetween($subquery, [1, 2])
+            ->orWhereBetween($subquery, [3, 4])
+            ->whereNotBetween($subquery, [5, 6])
+            ->orWhereNotBetween($subquery, [7, 8]);
+
+        $this->assertSame(
+            'select * from "parents" where (select "score" from "scores" where "active" = ?) between ? and ? or (select "score" from "scores" where "active" = ?) between ? and ? and (select "score" from "scores" where "active" = ?) not between ? and ? or (select "score" from "scores" where "active" = ?) not between ? and ?',
+            $builder->toSql()
+        );
+        $this->assertSame([true, 1, 2, true, 3, 4, true, 5, 6, true, 7, 8], $builder->getBindings());
+    }
+
+    public function testBetweenColumnsForwardersAcceptQueryBuilderSubqueries(): void
+    {
+        $subquery = $this->getBuilder()->select('score')->from('scores')->where('active', true);
+        $builder = $this->getBuilder()
+            ->from('parents')
+            ->whereBetweenColumns($subquery, ['minimum', 'maximum'])
+            ->orWhereBetweenColumns($subquery, ['minimum', 'maximum'])
+            ->whereNotBetweenColumns($subquery, ['minimum', 'maximum'])
+            ->orWhereNotBetweenColumns($subquery, ['minimum', 'maximum']);
+
+        $this->assertSame(
+            'select * from "parents" where (select "score" from "scores" where "active" = ?) between "minimum" and "maximum" or (select "score" from "scores" where "active" = ?) between "minimum" and "maximum" and (select "score" from "scores" where "active" = ?) not between "minimum" and "maximum" or (select "score" from "scores" where "active" = ?) not between "minimum" and "maximum"',
+            $builder->toSql()
+        );
+        $this->assertSame([true, true, true, true], $builder->getBindings());
+    }
+
+    public function testOrderForwardersAcceptQueryableSubqueries(): void
+    {
+        $subquery = $this->getBuilder()->select('score')->from('scores')->where('active', true);
+        $sql = 'select * from "parents" order by (select "score" from "scores" where "active" = ?)';
+
+        foreach ([
+            [$this->getBuilder()->from('parents')->orderByDesc($subquery), $sql . ' desc'],
+            [$this->getBuilder()->from('parents')->latest($subquery), $sql . ' desc'],
+            [$this->getBuilder()->from('parents')->oldest($subquery), $sql . ' asc'],
+            [$this->getBuilder()->from('parents')->orderBy('name')->reorder($subquery, 'desc'), $sql . ' desc'],
+            [$this->getBuilder()->from('parents')->orderBy('name')->reorderDesc($subquery), $sql . ' desc'],
+        ] as [$builder, $expectedSql]) {
+            $this->assertSame($expectedSql, $builder->toSql());
+            $this->assertSame([true], $builder->getBindings());
+        }
+    }
+
     public function testWhereShortcut()
     {
         $builder = $this->getBuilder();
@@ -2943,7 +3557,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals([0 => 'bar', 1 => 'foo'], $builder->getBindings());
     }
 
-    public function testIncrementManyArgumentValidation1()
+    public function testIncrementManyArgumentValidation1(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Non-numeric value passed as increment amount for column: \'col\'.');
@@ -2951,12 +3565,28 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder->from('users')->incrementEach(['col' => 'a']);
     }
 
-    public function testIncrementManyArgumentValidation2()
+    public function testIncrementManyArgumentValidation2(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Non-associative array passed to incrementEach method.');
         $builder = $this->getBuilder();
         $builder->from('users')->incrementEach([11 => 11]);
+    }
+
+    public function testDecrementManyArgumentValidation1(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Non-numeric value passed as decrement amount for column: \'col\'.');
+        $builder = $this->getBuilder();
+        $builder->from('users')->decrementEach(['col' => '1; DROP TABLE users']);
+    }
+
+    public function testDecrementManyArgumentValidation2(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Non-associative array passed to decrementEach method.');
+        $builder = $this->getBuilder();
+        $builder->from('users')->decrementEach([11 => 11]);
     }
 
     public function testWhereNotWithArrayConditions()
@@ -3563,9 +4193,9 @@ class DatabaseQueryBuilderTest extends TestCase
     {
         $builder = $this->getMockQueryBuilder();
         $data = m::mock(stdClass::class);
-        $builder->shouldReceive('first')->andReturn($data)->once();
-        $builder->shouldReceive('first')->with(['column'])->andReturn($data)->once();
-        $builder->shouldReceive('first')->andReturn(null)->once();
+        $builder->shouldReceive('get')->with(['*'])->andReturn(new Collection([$data]))->once();
+        $builder->shouldReceive('get')->with(['column'])->andReturn(new Collection([$data]))->once();
+        $builder->shouldReceive('get')->with(['*'])->andReturn(new Collection)->once();
 
         $this->assertSame($data, $builder->findOr(1, fn () => 'callback result'));
         $this->assertSame($data, $builder->findOr(1, ['column'], fn () => 'callback result'));
@@ -3687,12 +4317,12 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals(1, $results);
 
         $builder = $this->getBuilder();
-        $builder->getConnection()->shouldReceive('select')->once()->with('select exists(select * from "users") as "exists"', [], true, [])->andReturn([['exists' => 1]]);
+        $builder->getConnection()->shouldReceive('select')->once()->with('select exists(select * from "users") as "exists"', [], true)->andReturn([['exists' => 1]]);
         $results = $builder->from('users')->exists();
         $this->assertTrue($results);
 
         $builder = $this->getBuilder();
-        $builder->getConnection()->shouldReceive('select')->once()->with('select exists(select * from "users") as "exists"', [], true, [])->andReturn([['exists' => 0]]);
+        $builder->getConnection()->shouldReceive('select')->once()->with('select exists(select * from "users") as "exists"', [], true)->andReturn([['exists' => 0]]);
         $results = $builder->from('users')->doesntExist();
         $this->assertTrue($results);
 
@@ -4760,7 +5390,7 @@ class DatabaseQueryBuilderTest extends TestCase
     public function testPreservedAreAppliedByExists()
     {
         $builder = $this->getBuilder();
-        $builder->getConnection()->shouldReceive('select')->once()->with('select exists(select * from "users") as "exists"', [], true, []);
+        $builder->getConnection()->shouldReceive('select')->once()->with('select exists(select * from "users") as "exists"', [], true);
         $builder->beforeQuery(function ($builder) {
             $builder->from('users');
         });
@@ -7148,6 +7778,99 @@ SQL;
         return $connection;
     }
 
+    /**
+     * Get a real relation backed by a query builder on the given database.
+     *
+     * @param class-string<Grammar> $grammarClass
+     */
+    protected function getRelationSubquery(string $database = 'database', string $grammarClass = Grammar::class): HasMany
+    {
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getDatabaseName')->andReturn($database);
+        $connection->shouldReceive('getTablePrefix')->andReturn('');
+
+        $query = new EloquentBuilder(new Builder(
+            $connection,
+            new $grammarClass($connection),
+            m::mock(Processor::class),
+        ));
+        $query->setModel(new QueryableSubqueryRelatedModel);
+
+        $parent = new QueryableSubqueryParentModel;
+        $parent->id = 7;
+        $parent->exists = true;
+
+        $relation = new HasMany(
+            $query,
+            $parent,
+            'queryable_subquery_related.parent_id',
+            'id',
+        );
+        $relation->select('score');
+
+        return $relation;
+    }
+
+    /**
+     * Assert retained subqueries carry only the outer statement's timeout.
+     *
+     * @param Closure(): Builder $newBuilder
+     */
+    protected function assertRetainedSubqueriesUseOuterStatementTimeout(
+        Closure $newBuilder,
+        string $outerSql,
+        string $whereSql,
+        string $existsSql,
+        string $unionSql,
+    ): void {
+        $where = $newBuilder()->select('score')->from('scores')->where('active', true);
+        $exists = $newBuilder()->selectRaw('1')->from('flags')->where('active', true);
+        $union = $newBuilder()->from('archived_users')->where('active', true);
+
+        $outer = $newBuilder()
+            ->from('users')
+            ->where('score', '>', $where)
+            ->whereExists($exists)
+            ->unionAll($union)
+            ->timeout(5);
+
+        $where->timeout(2);
+        $exists->timeout(2);
+        $union->timeout(2);
+
+        $this->assertSame($outerSql, $outer->toSql());
+        $this->assertSame($whereSql, $where->toSql());
+        $this->assertSame($existsSql, $exists->toSql());
+        $this->assertSame($unionSql, $union->toSql());
+        $this->assertSame([true, true, true], $outer->getBindings());
+    }
+
+    /**
+     * Assert that a timed embedded query is rejected before it is embedded.
+     */
+    protected function assertTimedEmbeddingRejectedBeforeQueryIsEmbedded(Builder $outer, Builder $embedded, Closure $accept): void
+    {
+        $outerSql = $outer->toSql();
+        $outerBindings = $outer->getBindings();
+        $embeddedSql = $embedded->toSql();
+        $embeddedBindings = $embedded->getBindings();
+
+        try {
+            $accept();
+            $this->fail('Expected the embedded query timeout to be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame(
+                'An embedded query cannot define its own timeout. Apply the timeout to the outer query instead.',
+                $exception->getMessage()
+            );
+        }
+
+        $this->assertSame($outerSql, $outer->toSql());
+        $this->assertSame($outerBindings, $outer->getBindings());
+        $this->assertSame($embeddedSql, $embedded->toSql());
+        $this->assertSame($embeddedBindings, $embedded->getBindings());
+    }
+
     protected function getBuilder(string $prefix = '')
     {
         $connection = $this->getConnection(prefix: $prefix);
@@ -7222,4 +7945,18 @@ SQL;
             m::mock(Processor::class),
         ])->makePartial();
     }
+}
+
+class QueryableSubqueryParentModel extends Model
+{
+    protected ?string $table = 'queryable_subquery_parents';
+
+    public bool $timestamps = false;
+}
+
+class QueryableSubqueryRelatedModel extends Model
+{
+    protected ?string $table = 'queryable_subquery_related';
+
+    public bool $timestamps = false;
 }

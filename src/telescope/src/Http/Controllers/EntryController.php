@@ -52,7 +52,7 @@ abstract class EntryController
      */
     protected function status(): string
     {
-        if (! config('telescope.enabled', false)) {
+        if (! config()->boolean('telescope.enabled')) {
             return 'disabled';
         }
 

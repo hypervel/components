@@ -74,6 +74,8 @@ class MailMessage extends SimpleMessage implements Renderable
 
     /**
      * The metadata for the message.
+     *
+     * @var array<string, int|string>
      */
     public array $metadata = [];
 
@@ -288,7 +290,7 @@ class MailMessage extends SimpleMessage implements Renderable
     /**
      * Add a metadata header to the message when supported by the underlying transport.
      */
-    public function metadata(string $key, string $value): static
+    public function metadata(string $key, int|string $value): static
     {
         $this->metadata[$key] = $value;
 

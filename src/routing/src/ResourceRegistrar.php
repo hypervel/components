@@ -11,7 +11,7 @@ class ResourceRegistrar
     /**
      * The default verbs used in resource URIs.
      */
-    protected const DEFAULT_VERBS = [
+    protected const array DEFAULT_VERBS = [
         'create' => 'create',
         'edit' => 'edit',
     ];

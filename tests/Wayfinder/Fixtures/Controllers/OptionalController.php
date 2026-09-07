@@ -6,11 +6,19 @@ namespace Hypervel\Tests\Wayfinder\Fixtures\Controllers;
 
 class OptionalController
 {
-    public function optional()
+    public function root(): void
     {
     }
 
-    public function manyOptional()
+    public function optional(): void
+    {
+    }
+
+    public function manyOptional(): void
+    {
+    }
+
+    public function requiredWithOptional(string $required, ?string $one = null, ?string $two = null): void
     {
     }
 }

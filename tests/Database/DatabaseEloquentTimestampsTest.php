@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Database\Schema\Builder;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
@@ -30,23 +33,23 @@ class DatabaseEloquentTimestampsTest extends TestCase
     }
 
     /**
-     * Setup the database schema.
+     * Set up the database schema.
      */
-    public function createSchema()
+    public function createSchema(): void
     {
-        $this->schema()->create('users', function ($table) {
+        $this->schema()->create('users', function (Blueprint $table): void {
             $table->increments('id');
             $table->string('email')->unique();
             $table->timestamps();
         });
 
-        $this->schema()->create('users_created_at', function ($table) {
+        $this->schema()->create('users_created_at', function (Blueprint $table): void {
             $table->increments('id');
             $table->string('email')->unique();
             $table->string('created_at');
         });
 
-        $this->schema()->create('users_updated_at', function ($table) {
+        $this->schema()->create('users_updated_at', function (Blueprint $table): void {
             $table->increments('id');
             $table->string('email')->unique();
             $table->string('updated_at');
@@ -65,10 +68,7 @@ class DatabaseEloquentTimestampsTest extends TestCase
         parent::tearDown();
     }
 
-    /**
-     * Tests...
-     */
-    public function testUserWithCreatedAtAndUpdatedAt()
+    public function testUserWithCreatedAtAndUpdatedAt(): void
     {
         CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
@@ -76,11 +76,11 @@ class DatabaseEloquentTimestampsTest extends TestCase
             'email' => 'test@test.com',
         ]);
 
-        $this->assertEquals($now->toDateTimeString(), $user->created_at->toDateTimeString());
-        $this->assertEquals($now->toDateTimeString(), $user->updated_at->toDateTimeString());
+        $this->assertSame($now->toDateTimeString(), $user->created_at->toDateTimeString());
+        $this->assertSame($now->toDateTimeString(), $user->updated_at->toDateTimeString());
     }
 
-    public function testUserWithCreatedAt()
+    public function testUserWithCreatedAt(): void
     {
         CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
@@ -88,10 +88,10 @@ class DatabaseEloquentTimestampsTest extends TestCase
             'email' => 'test@test.com',
         ]);
 
-        $this->assertEquals($now->toDateTimeString(), $user->created_at->toDateTimeString());
+        $this->assertSame($now->toDateTimeString(), $user->created_at->toDateTimeString());
     }
 
-    public function testUserWithUpdatedAt()
+    public function testUserWithUpdatedAt(): void
     {
         CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
@@ -99,10 +99,10 @@ class DatabaseEloquentTimestampsTest extends TestCase
             'email' => 'test@test.com',
         ]);
 
-        $this->assertEquals($now->toDateTimeString(), $user->updated_at->toDateTimeString());
+        $this->assertSame($now->toDateTimeString(), $user->updated_at->toDateTimeString());
     }
 
-    public function testWithoutTimestamp()
+    public function testWithoutTimestamp(): void
     {
         CarbonImmutable::setTestNow($now = CarbonImmutable::now()->setYear(1995)->startOfYear());
         $user = UserWithCreatedAndUpdated::create(['email' => 'foo@example.com']);
@@ -110,10 +110,10 @@ class DatabaseEloquentTimestampsTest extends TestCase
 
         $this->assertTrue($user->usesTimestamps());
 
-        $user->withoutTimestamps(function () use ($user) {
+        $user->withoutTimestamps(function () use ($user): void {
             $this->assertFalse($user->usesTimestamps());
 
-            $user->withoutTimestamps(function () use ($user) {
+            $user->withoutTimestamps(function () use ($user): void {
                 $this->assertFalse($user->usesTimestamps());
             });
 
@@ -128,7 +128,7 @@ class DatabaseEloquentTimestampsTest extends TestCase
         $this->assertSame('bar@example.com', $user->email);
     }
 
-    public function testWithoutTimestampWhenAlreadyIgnoringTimestamps()
+    public function testWithoutTimestampWhenAlreadyIgnoringTimestamps(): void
     {
         CarbonImmutable::setTestNow($now = CarbonImmutable::now()->setYear(1995)->startOfYear());
         $user = UserWithCreatedAndUpdated::create(['email' => 'foo@example.com']);
@@ -138,7 +138,7 @@ class DatabaseEloquentTimestampsTest extends TestCase
 
         $this->assertFalse($user->usesTimestamps());
 
-        $user->withoutTimestamps(function () use ($user) {
+        $user->withoutTimestamps(function () use ($user): void {
             $this->assertFalse($user->usesTimestamps());
             $user->update([
                 'email' => 'bar@example.com',
@@ -150,25 +150,31 @@ class DatabaseEloquentTimestampsTest extends TestCase
         $this->assertSame('bar@example.com', $user->email);
     }
 
-    public function testWithoutTimestampRestoresWhenClosureThrowsException()
+    public function testWithoutTimestampRestoresWhenClosureThrowsException(): void
     {
         $user = UserWithCreatedAndUpdated::create(['email' => 'foo@example.com']);
 
         $user->timestamps = true;
+        $expectedException = new RuntimeException;
+        $usedTimestamps = null;
+        $caughtException = null;
 
         try {
-            $user->withoutTimestamps(function () use ($user) {
-                $this->assertFalse($user->usesTimestamps());
-                throw new RuntimeException;
+            $user->withoutTimestamps(function () use ($expectedException, $user, &$usedTimestamps): never {
+                $usedTimestamps = $user->usesTimestamps();
+
+                throw $expectedException;
             });
-            $this->fail();
-        } catch (RuntimeException) {
+        } catch (RuntimeException $exception) {
+            $caughtException = $exception;
         }
 
+        $this->assertSame($expectedException, $caughtException);
+        $this->assertFalse($usedTimestamps);
         $this->assertTrue($user->timestamps);
     }
 
-    public function testWithoutTimestampsRespectsClasses()
+    public function testWithoutTimestampsRespectsClasses(): void
     {
         $a = new UserWithCreatedAndUpdated;
         $b = new UserWithCreatedAndUpdated;
@@ -180,7 +186,7 @@ class DatabaseEloquentTimestampsTest extends TestCase
         $this->assertFalse(Eloquent::isIgnoringTimestamps(UserWithCreatedAndUpdated::class));
         $this->assertFalse(Eloquent::isIgnoringTimestamps(UserWithUpdated::class));
 
-        Eloquent::withoutTimestamps(function () use ($a, $b, $z) {
+        Eloquent::withoutTimestamps(function () use ($a, $b, $z): void {
             $this->assertFalse($a->usesTimestamps());
             $this->assertFalse($b->usesTimestamps());
             $this->assertFalse($z->usesTimestamps());
@@ -194,7 +200,7 @@ class DatabaseEloquentTimestampsTest extends TestCase
         $this->assertFalse(Eloquent::isIgnoringTimestamps(UserWithCreatedAndUpdated::class));
         $this->assertFalse(Eloquent::isIgnoringTimestamps(UserWithUpdated::class));
 
-        UserWithCreatedAndUpdated::withoutTimestamps(function () use ($a, $b, $z) {
+        UserWithCreatedAndUpdated::withoutTimestamps(function () use ($a, $b, $z): void {
             $this->assertFalse($a->usesTimestamps());
             $this->assertFalse($b->usesTimestamps());
             $this->assertTrue($z->usesTimestamps());
@@ -208,7 +214,7 @@ class DatabaseEloquentTimestampsTest extends TestCase
         $this->assertFalse(Eloquent::isIgnoringTimestamps(UserWithCreatedAndUpdated::class));
         $this->assertFalse(Eloquent::isIgnoringTimestamps(UserWithUpdated::class));
 
-        UserWithUpdated::withoutTimestamps(function () use ($a, $b, $z) {
+        UserWithUpdated::withoutTimestamps(function () use ($a, $b, $z): void {
             $this->assertTrue($a->usesTimestamps());
             $this->assertTrue($b->usesTimestamps());
             $this->assertFalse($z->usesTimestamps());
@@ -222,7 +228,7 @@ class DatabaseEloquentTimestampsTest extends TestCase
         $this->assertFalse(Eloquent::isIgnoringTimestamps(UserWithCreatedAndUpdated::class));
         $this->assertFalse(Eloquent::isIgnoringTimestamps(UserWithUpdated::class));
 
-        Eloquent::withoutTimestampsOn([], function () use ($a, $b, $z) {
+        Eloquent::withoutTimestampsOn([], function () use ($a, $b, $z): void {
             $this->assertTrue($a->usesTimestamps());
             $this->assertTrue($b->usesTimestamps());
             $this->assertTrue($z->usesTimestamps());
@@ -236,7 +242,7 @@ class DatabaseEloquentTimestampsTest extends TestCase
         $this->assertFalse(Eloquent::isIgnoringTimestamps(UserWithCreatedAndUpdated::class));
         $this->assertFalse(Eloquent::isIgnoringTimestamps(UserWithUpdated::class));
 
-        Eloquent::withoutTimestampsOn([UserWithCreatedAndUpdated::class], function () use ($a, $b, $z) {
+        Eloquent::withoutTimestampsOn([UserWithCreatedAndUpdated::class], function () use ($a, $b, $z): void {
             $this->assertFalse($a->usesTimestamps());
             $this->assertFalse($b->usesTimestamps());
             $this->assertTrue($z->usesTimestamps());
@@ -250,7 +256,7 @@ class DatabaseEloquentTimestampsTest extends TestCase
         $this->assertFalse(Eloquent::isIgnoringTimestamps(UserWithCreatedAndUpdated::class));
         $this->assertFalse(Eloquent::isIgnoringTimestamps(UserWithUpdated::class));
 
-        Eloquent::withoutTimestampsOn([UserWithUpdated::class], function () use ($a, $b, $z) {
+        Eloquent::withoutTimestampsOn([UserWithUpdated::class], function () use ($a, $b, $z): void {
             $this->assertTrue($a->usesTimestamps());
             $this->assertTrue($b->usesTimestamps());
             $this->assertFalse($z->usesTimestamps());
@@ -264,7 +270,7 @@ class DatabaseEloquentTimestampsTest extends TestCase
         $this->assertFalse(Eloquent::isIgnoringTimestamps(UserWithCreatedAndUpdated::class));
         $this->assertFalse(Eloquent::isIgnoringTimestamps(UserWithUpdated::class));
 
-        Eloquent::withoutTimestampsOn([UserWithCreatedAndUpdated::class, UserWithUpdated::class], function () use ($a, $b, $z) {
+        Eloquent::withoutTimestampsOn([UserWithCreatedAndUpdated::class, UserWithUpdated::class], function () use ($a, $b, $z): void {
             $this->assertFalse($a->usesTimestamps());
             $this->assertFalse($b->usesTimestamps());
             $this->assertFalse($z->usesTimestamps());
@@ -281,28 +287,22 @@ class DatabaseEloquentTimestampsTest extends TestCase
 
     /**
      * Get a database connection instance.
-     *
-     * @return \Illuminate\Database\Connection
      */
-    protected function connection()
+    protected function connection(): ConnectionInterface
     {
         return Eloquent::getConnectionResolver()->connection();
     }
 
     /**
      * Get a schema builder instance.
-     *
-     * @return \Illuminate\Database\Schema\Builder
      */
-    protected function schema()
+    protected function schema(): Builder
     {
         return $this->connection()->getSchemaBuilder();
     }
 }
 
-/**
- * Eloquent Models...
- */
+// Eloquent models.
 class UserWithCreatedAndUpdated extends Eloquent
 {
     protected ?string $table = 'users';
@@ -312,7 +312,7 @@ class UserWithCreatedAndUpdated extends Eloquent
 
 class UserWithCreated extends Eloquent
 {
-    public const UPDATED_AT = null;
+    public const ?string UPDATED_AT = null;
 
     protected ?string $table = 'users_created_at';
 
@@ -323,7 +323,7 @@ class UserWithCreated extends Eloquent
 
 class UserWithUpdated extends Eloquent
 {
-    public const CREATED_AT = null;
+    public const ?string CREATED_AT = null;
 
     protected ?string $table = 'users_updated_at';
 

@@ -16,6 +16,6 @@ class ParentServiceProvider extends AggregateServiceProvider
     {
         parent::register();
 
-        $this->app['parent.loaded'] = true;
+        $this->app->instance('parent.loaded', true);
     }
 }

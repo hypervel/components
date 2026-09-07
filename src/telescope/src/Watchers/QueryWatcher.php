@@ -6,11 +6,11 @@ namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use PDO;
-use PDOException;
+use RuntimeException;
 
 class QueryWatcher extends Watcher
 {
@@ -83,9 +83,10 @@ class QueryWatcher extends Watcher
         $sql = $event->sql;
 
         foreach ($this->formatBindings($event) as $key => $binding) {
-            $regex = is_numeric($key)
-                ? "/\\?(?=(?:[^'\\\\']*'[^'\\\\']*')*[^'\\\\']*$)/"
-                : "/:{$key}(?=(?:[^'\\\\']*'[^'\\\\']*')*[^'\\\\']*$)/";
+            $isPositional = is_numeric($key);
+            $regex = $isPositional
+                ? "/(?<!\\?)\\?(?!\\?)(?=(?:[^'\\\\']*'[^'\\\\']*')*[^'\\\\']*$)/"
+                : '/(?<!:):' . preg_quote((string) $key, '/') . "(?![A-Za-z0-9_])(?=(?:[^'\\\\']*'[^'\\\\']*')*[^'\\\\']*$)/";
 
             if ($binding === null) {
                 $binding = 'null';
@@ -93,11 +94,11 @@ class QueryWatcher extends Watcher
                 $binding = $this->quoteStringBinding($event, $binding);
             }
 
-            $sql = preg_replace(
+            $sql = preg_replace_callback(
                 $regex,
-                (string) $binding,
+                static fn (): string => (string) $binding,
                 $sql,
-                is_numeric($key) ? 1 : -1
+                $isPositional ? 1 : -1
             );
         }
 
@@ -105,29 +106,20 @@ class QueryWatcher extends Watcher
     }
 
     /**
-     * Add quotes to string bindings.
+     * Quote a non-numeric binding.
+     *
+     * @param BinaryParameter|resource|string $binding
      */
-    protected function quoteStringBinding(QueryExecuted $event, string $binding): string
+    protected function quoteStringBinding(QueryExecuted $event, mixed $binding): string
     {
-        try {
-            $pdo = $event->connection->getPdo();
-
-            if ($pdo instanceof PDO) { // @phpstan-ignore instanceof.alwaysTrue (fallback exists for edge cases)
-                return $pdo->quote($binding);
-            }
-        } catch (PDOException $e) {
-            throw_if($e->getCode() !== 'IM001', $e);
+        if (is_resource($binding) || gettype($binding) === 'resource (closed)') {
+            $binding = (string) $binding;
         }
 
-        // Fallback when PDO::quote function is missing...
-        $binding = \strtr($binding, [
-            chr(26) => '\Z',
-            chr(8) => '\b',
-            '"' => '\"',
-            "'" => "\\'",
-            '\\' => '\\\\',
-        ]);
-
-        return "'" . $binding . "'";
+        try {
+            return $event->connection->escape($binding);
+        } catch (RuntimeException) {
+            return '[REDACTED: UNESCAPABLE BINDING]';
+        }
     }
 }

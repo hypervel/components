@@ -4,19 +4,36 @@ declare(strict_types=1);
 
 namespace Hypervel\Http;
 
+use ArrayObject;
+use Hypervel\Contracts\Container\Transient;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\Support\Json;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use JsonSerializable;
 use Override;
+use Stringable;
 use Symfony\Component\HttpFoundation\JsonResponse as BaseJsonResponse;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
+use TypeError;
 
-class JsonResponse extends BaseJsonResponse
+class JsonResponse extends BaseJsonResponse implements Transient
 {
+    use Concerns\PreparesResponse;
     use ResponseTrait, Macroable {
         Macroable::__call as macroCall;
     }
+
+    /**
+     * The pristine header bag cloned for responses that add no headers of their own.
+     */
+    protected static ?ResponseHeaderBag $headerPrototype = null;
+
+    /**
+     * Unix second represented by the prototype's Date header.
+     */
+    protected static int $headerPrototypeTimestamp = 0;
 
     /**
      * Create a new JSON response instance.
@@ -25,7 +42,48 @@ class JsonResponse extends BaseJsonResponse
     {
         $this->encodingOptions = $options;
 
-        parent::__construct($data, $status, $headers, $json);
+        if ($json
+            && ! is_string($data)
+            && ! is_numeric($data)
+            && ! $data instanceof Stringable
+        ) {
+            throw new TypeError(sprintf(
+                '"%s": If $json is set to true, argument $data must be a string or object implementing __toString(), "%s" given.',
+                BaseJsonResponse::class . '::__construct',
+                get_debug_type($data),
+            ));
+        }
+
+        // Symfony builds a ResponseHeaderBag per response, and its constructor
+        // sets Cache-Control to an empty string only to parse that value back
+        // out through a regex — roughly four fifths of the cost of building a
+        // JSON response, for a result identical every time. Cloning a prototype
+        // skips it. SymfonyResponse::__construct is called rather than
+        // parent::__construct because JsonResponse's signature only accepts an
+        // array of headers, while Response's also accepts a prepared bag.
+        // HTTP dates have one-second precision, so all responses created in the
+        // same second can clone one value. Caller headers are applied afterward.
+        $timestamp = time();
+
+        if (static::$headerPrototype === null) {
+            static::$headerPrototype = new ResponseHeaderBag;
+            static::$headerPrototypeTimestamp = $timestamp;
+        } elseif (static::$headerPrototypeTimestamp !== $timestamp) {
+            static::$headerPrototype->set('Date', gmdate('D, d M Y H:i:s', $timestamp) . ' GMT');
+            static::$headerPrototypeTimestamp = $timestamp;
+        }
+
+        $bag = clone static::$headerPrototype;
+
+        if ($headers !== []) {
+            $bag->add($headers);
+        }
+
+        SymfonyResponse::__construct('', $status, $bag);
+
+        $data ??= new ArrayObject;
+
+        $json ? $this->setJson((string) $data) : $this->setData($data);
     }
 
     /**
@@ -48,7 +106,7 @@ class JsonResponse extends BaseJsonResponse
     /**
      * Get the decoded JSON data from the response.
      */
-    public function getData(bool $assoc = false, int $depth = 512): mixed
+    public function getData(bool $assoc = false, int $depth = Json::MAXIMUM_NESTING_DEPTH + 1): mixed
     {
         return json_decode($this->data, $assoc, $depth);
     }
@@ -122,5 +180,8 @@ class JsonResponse extends BaseJsonResponse
     public static function flushState(): void
     {
         static::flushMacros();
+
+        static::$headerPrototype = null;
+        static::$headerPrototypeTimestamp = 0;
     }
 }

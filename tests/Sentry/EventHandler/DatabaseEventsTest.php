@@ -14,10 +14,10 @@ class DatabaseEventsTest extends SentryTestCase
     public function testSqlQueriesAreRecordedWhenEnabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.sql_queries' => true,
+            'sentry' => $this->sentryConfigWith(['breadcrumbs.sql_queries' => true]),
         ]);
 
-        $this->assertTrue($this->app['config']->get('sentry.breadcrumbs.sql_queries'));
+        $this->assertTrue($this->app->make('config')->boolean('sentry.breadcrumbs.sql_queries'));
 
         $this->dispatchHypervelEvent(new QueryExecuted(
             $query = 'SELECT * FROM breadcrumbs WHERE bindings = ?;',
@@ -34,10 +34,10 @@ class DatabaseEventsTest extends SentryTestCase
     public function testSqlBindingsAreRecordedWhenEnabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.sql_bindings' => true,
+            'sentry' => $this->sentryConfigWith(['breadcrumbs.sql_bindings' => true]),
         ]);
 
-        $this->assertTrue($this->app['config']->get('sentry.breadcrumbs.sql_bindings'));
+        $this->assertTrue($this->app->make('config')->boolean('sentry.breadcrumbs.sql_bindings'));
 
         $this->dispatchHypervelEvent(new QueryExecuted(
             $query = 'SELECT * FROM breadcrumbs WHERE bindings = ?;',
@@ -55,10 +55,10 @@ class DatabaseEventsTest extends SentryTestCase
     public function testSqlQueriesAreRecordedWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.sql_queries' => false,
+            'sentry' => $this->sentryConfigWith(['breadcrumbs.sql_queries' => false]),
         ]);
 
-        $this->assertFalse($this->app['config']->get('sentry.breadcrumbs.sql_queries'));
+        $this->assertFalse($this->app->make('config')->boolean('sentry.breadcrumbs.sql_queries'));
 
         $this->dispatchHypervelEvent(new QueryExecuted(
             'SELECT * FROM breadcrumbs WHERE bindings = ?;',
@@ -73,10 +73,10 @@ class DatabaseEventsTest extends SentryTestCase
     public function testSqlBindingsAreRecordedWhenDisabled(): void
     {
         $this->resetApplicationWithConfig([
-            'sentry.breadcrumbs.sql_bindings' => false,
+            'sentry' => $this->sentryConfigWith(['breadcrumbs.sql_bindings' => false]),
         ]);
 
-        $this->assertFalse($this->app['config']->get('sentry.breadcrumbs.sql_bindings'));
+        $this->assertFalse($this->app->make('config')->boolean('sentry.breadcrumbs.sql_bindings'));
 
         $this->dispatchHypervelEvent(new QueryExecuted(
             $query = 'SELECT * FROM breadcrumbs WHERE bindings <> ?;',

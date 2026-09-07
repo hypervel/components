@@ -12,6 +12,9 @@ use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class PoolFactoryTest extends TestCase
 {
@@ -37,6 +40,21 @@ class PoolFactoryTest extends TestCase
         $pool2 = $factory->getPool('cache');
 
         $this->assertNotSame($pool1, $pool2);
+    }
+
+    public function testPoolsReturnsOnlyExistingPools(): void
+    {
+        $factory = new PoolFactory($this->mockContainerWithPools());
+
+        $this->assertSame([], $factory->pools());
+
+        $default = $factory->getPool('default');
+        $cache = $factory->getPool('cache');
+
+        $this->assertSame([
+            'default' => $default,
+            'cache' => $cache,
+        ], $factory->pools());
     }
 
     public function testFlushAll(): void
@@ -108,6 +126,35 @@ class PoolFactoryTest extends TestCase
         $this->assertSame($replacement, $factory->getPool('default'));
     }
 
+    public function testFlushAllClosesEveryPoolAndPreservesTheFirstCancellation(): void
+    {
+        $ordinaryFailure = new RuntimeException('First close failed.');
+        $cancellation = new CanceledException('Second close canceled.');
+        $laterCancellation = new CanceledException('Third close canceled.');
+        $container = m::mock(ContainerContract::class);
+        $first = m::mock(RedisPool::class);
+        $first->expects('close')->andThrow($ordinaryFailure);
+        $second = m::mock(RedisPool::class);
+        $second->expects('close')->andThrow($cancellation);
+        $third = m::mock(RedisPool::class);
+        $third->expects('close')->andThrow($laterCancellation);
+        $container->expects('make')
+            ->with(RedisPool::class, m::type('array'))
+            ->times(3)
+            ->andReturn($first, $second, $third);
+        $factory = new PoolFactory($container);
+        $factory->getPool('first');
+        $factory->getPool('second');
+        $factory->getPool('third');
+
+        try {
+            $factory->flushAll();
+            $this->fail('Expected the first cancellation to propagate.');
+        } catch (Throwable $throwable) {
+            $this->assertSame($cancellation, $throwable);
+        }
+    }
+
     public function testFlushPoolOnlyFlushesNamedPool(): void
     {
         $container = $this->mockContainerWithPools();
@@ -169,12 +216,16 @@ class PoolFactoryTest extends TestCase
         $this->assertSame($replacement, $factory->getPool('default'));
     }
 
+    /**
+     * Mock a container with Redis pools.
+     */
     private function mockContainerWithPools(): m\MockInterface|ContainerContract
     {
         $connectionConfig = [
             'host' => 'localhost',
             'port' => 6379,
             'database' => 0,
+            'timeout' => null,
             'pool' => [
                 'min_connections' => 1,
                 'max_connections' => 10,

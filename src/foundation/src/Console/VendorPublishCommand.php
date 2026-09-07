@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Console;
 
 use Carbon\CarbonInterface;
 use Hypervel\Console\Command;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Events\VendorTagPublished;
 use Hypervel\Support\Arr;
@@ -29,7 +30,7 @@ class VendorPublishCommand extends Command
     /**
      * The migration filename pattern.
      */
-    protected const MIGRATION_NAME_PATTERN = '/^\d{4}_\d{2}_\d{2}_\d{6}_(.+)$/';
+    protected const string MIGRATION_NAME_PATTERN = '/^\d{4}_\d{2}_\d{2}_\d{6}_(.+)$/';
 
     /**
      * The console command signature.
@@ -177,7 +178,12 @@ class VendorPublishCommand extends Command
         if ($publishing === false) {
             $this->components->info('No publishable resources for tag [' . $tag . '].');
         } else {
-            $this->hypervel->make('events')->dispatch(new VendorTagPublished($tag, $pathsToPublish));
+            /** @var Dispatcher $events */
+            $events = $this->hypervel->make('events');
+
+            if ($events->hasListeners(VendorTagPublished::class)) {
+                $events->dispatch(new VendorTagPublished($tag, $pathsToPublish));
+            }
 
             $this->newLine();
         }

@@ -74,6 +74,42 @@ class BeanstalkdQueue extends Queue implements QueueContract
     }
 
     /**
+     * Get the number of jobs across every queue.
+     */
+    public function totalSize(): int
+    {
+        $stats = $this->pheanstalk->stats();
+
+        return $stats->currentJobsReady
+            + $stats->currentJobsDelayed
+            + $stats->currentJobsReserved;
+    }
+
+    /**
+     * Get the number of pending jobs across every queue.
+     */
+    public function totalPendingSize(): int
+    {
+        return $this->pheanstalk->stats()->currentJobsReady;
+    }
+
+    /**
+     * Get the number of delayed jobs across every queue.
+     */
+    public function totalDelayedSize(): int
+    {
+        return $this->pheanstalk->stats()->currentJobsDelayed;
+    }
+
+    /**
+     * Get the number of reserved jobs across every queue.
+     */
+    public function totalReservedSize(): int
+    {
+        return $this->pheanstalk->stats()->currentJobsReserved;
+    }
+
+    /**
      * Get the pending jobs for the given queue.
      */
     public function pendingJobs(?string $queue = null): Collection
@@ -187,22 +223,6 @@ class BeanstalkdQueue extends Queue implements QueueContract
                 );
             }
         );
-    }
-
-    /**
-     * Push an array of jobs onto the queue.
-     */
-    public function bulk(array $jobs, mixed $data = '', ?string $queue = null): mixed
-    {
-        foreach ((array) $jobs as $job) {
-            if (isset($job->delay)) {
-                $this->later($job->delay, $job, $data, $queue);
-            } else {
-                $this->push($job, $data, $queue);
-            }
-        }
-
-        return null;
     }
 
     /**

@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Filesystem;
 
 use Hypervel\Contracts\Filesystem\Filesystem;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 
+#[RequiresOperatingSystem('Linux|Darwin')]
 #[WithConfig('filesystems.disks.local.serve', true)]
 class ReceiveFileTest extends TestCase
 {
@@ -20,11 +22,33 @@ class ReceiveFileTest extends TestCase
             Storage::delete([
                 'receive-file-test.txt',
                 'receive-file-test.txt?pad=x',
+                'receive-file-test%2F.txt',
                 'nested/folder/receive-file-test.txt',
             ]);
+            Storage::disk('scoped-upload')->delete('receive-file-test.txt');
         });
 
         parent::setUp();
+    }
+
+    /**
+     * Set up the application environment.
+     */
+    protected function defineEnvironment(ApplicationContract $app): void
+    {
+        $app->make('config')->set([
+            'filesystems.disks.served-upload' => [
+                'driver' => 'local',
+                'root' => $app->storagePath('app/served-upload'),
+                'url' => '/served-upload',
+                'serve' => true,
+            ],
+            'filesystems.disks.scoped-upload' => [
+                'driver' => 'scoped',
+                'disk' => 'served-upload',
+                'prefix' => 'tenant',
+            ],
+        ]);
     }
 
     public function testItCanReceiveAFile()
@@ -35,6 +59,26 @@ class ReceiveFileTest extends TestCase
 
         $response->assertNoContent();
         Storage::assertExists('receive-file-test.txt', 'Hello World');
+    }
+
+    public function testScopedDiskUploadsThroughItsServedParentRoute(): void
+    {
+        $result = Storage::disk('scoped-upload')
+            ->temporaryUploadUrl('receive-file-test.txt', now()->addMinutes(1));
+
+        $this->assertStringContainsString(
+            '/served-upload/tenant/receive-file-test.txt',
+            $result['url'],
+        );
+
+        $response = $this->call('PUT', $result['url'], [], [], [], [], 'Hello Scoped Upload');
+
+        $response->assertNoContent();
+        Storage::disk('scoped-upload')->assertExists('receive-file-test.txt', 'Hello Scoped Upload');
+        Storage::disk('served-upload')->assertExists(
+            'tenant/receive-file-test.txt',
+            'Hello Scoped Upload',
+        );
     }
 
     public function testStorageFailureReturnsServerError(): void
@@ -99,7 +143,6 @@ class ReceiveFileTest extends TestCase
         $response->assertForbidden();
     }
 
-    #[RequiresOperatingSystem('Linux|Darwin')]
     public function testItCanReceiveAFileWithUriDelimitersInThePath(): void
     {
         $result = Storage::temporaryUploadUrl('receive-file-test.txt?pad=x', now()->addMinutes(1));
@@ -111,7 +154,17 @@ class ReceiveFileTest extends TestCase
         Storage::assertMissing('receive-file-test.txt');
     }
 
-    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testItCanReceiveAFileWithAnEncodedSeparatorInItsName(): void
+    {
+        $result = Storage::temporaryUploadUrl('receive-file-test%2F.txt', now()->addMinutes(1));
+
+        $response = $this->call('PUT', $result['url'], [], [], [], [], 'Hello Percent Escape');
+
+        $response->assertNoContent();
+        Storage::assertExists('receive-file-test%2F.txt', 'Hello Percent Escape');
+        Storage::assertMissing('receive-file-test.txt');
+    }
+
     public function testTemporaryUploadUrlPreservesPathSeparatorsInNestedPaths(): void
     {
         $result = Storage::temporaryUploadUrl('nested/folder/receive-file-test.txt', now()->addMinutes(1));
@@ -119,7 +172,6 @@ class ReceiveFileTest extends TestCase
         $this->assertStringContainsString('nested/folder/receive-file-test.txt', $result['url']);
     }
 
-    #[RequiresOperatingSystem('Linux|Darwin')]
     public function testUriDelimitersInThePathCannotHideAnExpiredUploadUrl(): void
     {
         $result = Storage::temporaryUploadUrl('receive-file-test.txt?pad=x', now()->subMinutes(1));

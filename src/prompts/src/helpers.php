@@ -34,7 +34,7 @@ if (! function_exists('\Hypervel\Prompts\number')) {
     /**
      * Prompt the user for number input.
      */
-    function number(string $label, string $placeholder = '', string $default = '', bool|string $required = false, mixed $validate = null, string $hint = '', ?int $min = null, ?int $max = null, ?int $step = null): int|string
+    function number(string $label, string $placeholder = '', int|string $default = '', bool|string $required = false, mixed $validate = null, string $hint = '', ?int $min = null, ?int $max = null, ?int $step = null, ?Closure $transform = null): int|string
     {
         return (new NumberPrompt(...get_defined_vars()))->prompt();
     }

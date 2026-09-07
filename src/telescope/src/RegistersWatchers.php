@@ -18,7 +18,7 @@ trait RegistersWatchers
      */
     public static function hasWatcher(string $class): bool
     {
-        return in_array($class, static::$watchers);
+        return in_array($class, static::$watchers, true);
     }
 
     /**
@@ -38,7 +38,7 @@ trait RegistersWatchers
      */
     protected static function registerWatchers(Application $app): void
     {
-        foreach (config('telescope.watchers', []) as $key => $watcher) {
+        foreach (config()->array('telescope.watchers') as $key => $watcher) {
             if (is_string($key) && $watcher === false) {
                 continue;
             }

@@ -401,6 +401,11 @@ class RequirePasswordMiddlewareTest extends TestCase
             $config ?? new Repository([
                 'auth' => [
                     'password_timeout' => 10800,
+                    'guards' => [
+                        $guard => [
+                            'password_timeout' => null,
+                        ],
+                    ],
                 ],
             ]),
         );

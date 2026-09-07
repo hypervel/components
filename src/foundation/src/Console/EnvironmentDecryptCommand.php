@@ -12,6 +12,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Env;
 use Hypervel\Support\Str;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 use function Hypervel\Prompts\password;
@@ -99,6 +100,8 @@ class EnvironmentDecryptCommand extends Command
             }
 
             $this->files->replace($outputFile, $decrypted, $mode);
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Exception $e) {
             $this->fail($e->getMessage());
         }

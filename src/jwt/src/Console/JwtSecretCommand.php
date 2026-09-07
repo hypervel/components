@@ -63,7 +63,6 @@ class JwtSecretCommand extends Command
 
         Env::writeVariables([
             'JWT_SECRET' => $key,
-            'JWT_ALGO' => 'HS256',
         ], $environmentFile, overwrite: true);
 
         $this->components->info('JWT secret set successfully.');

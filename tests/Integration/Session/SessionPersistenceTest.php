@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Session;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Session\NullSessionHandler;
 use Hypervel\Session\TokenMismatchException;
 use Hypervel\Support\Facades\Exceptions;
@@ -53,11 +54,12 @@ class SessionPersistenceTest extends TestCase
         $this->assertSame(2, $handler->writeCount);
     }
 
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app['config']->set('app.key', Str::random(32));
-        $app['config']->set('session.driver', 'fake-null');
-        $app['config']->set('session.expire_on_close', true);
+        $config = $app->make('config');
+        $config->set('app.key', Str::random(32));
+        $config->set('session.driver', 'fake-null');
+        $config->set('session.expire_on_close', true);
     }
 }
 

@@ -15,6 +15,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -42,6 +43,38 @@ class ObjectPoolTest extends TestCase
         $this->assertSame(0, $pool->getCurrentObjectNumber());
         $this->assertSame(0, $pool->getObjectNumberInPool());
         $this->assertEqualsCanonicalizing($objects, $destroyed);
+    }
+
+    public function testCloseDrainsEveryIdleObjectBeforeRethrowingTheFirstCancellation(): void
+    {
+        $firstCancellation = new CanceledException('first cleanup canceled');
+        $secondCancellation = new CanceledException('second cleanup canceled');
+        $destroyed = [];
+        $pool = $this->pool(
+            ['max_objects' => 2],
+            destroyCallback: function (object $object) use (&$destroyed, $firstCancellation, $secondCancellation): never {
+                $destroyed[] = $object;
+
+                throw count($destroyed) === 1 ? $firstCancellation : $secondCancellation;
+            },
+        );
+        $objects = [$pool->get(), $pool->get()];
+
+        foreach ($objects as $object) {
+            $pool->release($object);
+        }
+
+        try {
+            $pool->close();
+            $this->fail('Expected idle cleanup cancellation to be rethrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($firstCancellation, $exception);
+        }
+
+        $this->assertTrue($pool->isClosed());
+        $this->assertSame($objects, $destroyed);
+        $this->assertSame(0, $pool->getCurrentObjectNumber());
+        $this->assertSame(0, $pool->getObjectNumberInPool());
     }
 
     public function testBorrowFromClosedPoolThrows(): void
@@ -90,8 +123,10 @@ class ObjectPoolTest extends TestCase
         }
 
         usleep(5_000);
+        $this->assertSame(2, $pool->getWaiters());
         $pool->close();
         usleep(5_000);
+        $this->assertSame(0, $pool->getWaiters());
         $pool->release($borrowed);
 
         ksort($messages);
@@ -582,6 +617,27 @@ class ObjectPoolTest extends TestCase
         $this->assertSame(0, $pool->getObjectNumberInPool());
     }
 
+    public function testDestroyCancellationEscapesAfterReleasingPoolCapacity(): void
+    {
+        $cancellation = new CanceledException;
+        $pool = $this->pool(
+            destroyCallback: static function () use ($cancellation): never {
+                throw $cancellation;
+            },
+        );
+        $object = $pool->get();
+
+        try {
+            $pool->discard($object);
+            $this->fail('Expected object destruction cancellation to be rethrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
+
+        $this->assertSame(0, $pool->getCurrentObjectNumber());
+        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+    }
+
     public function testStatsUseTrackedOwnershipState(): void
     {
         $pool = $this->pool(['max_objects' => 2]);
@@ -593,6 +649,7 @@ class ObjectPoolTest extends TestCase
             'total' => 2,
             'idle' => 1,
             'borrowed' => 1,
+            'waiters' => 0,
             'closed' => false,
         ], $pool->getStats());
 
@@ -603,6 +660,7 @@ class ObjectPoolTest extends TestCase
             'total' => 0,
             'idle' => 0,
             'borrowed' => 0,
+            'waiters' => 0,
             'closed' => true,
         ], $pool->getStats());
     }

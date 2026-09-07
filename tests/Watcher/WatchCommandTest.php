@@ -18,7 +18,9 @@ use Hypervel\Watcher\Watcher;
 use Hypervel\Watcher\WatchPath;
 use Mockery as m;
 use RuntimeException;
+use Symfony\Component\Console\Exception\RuntimeException as ConsoleRuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Input\StringInput;
 use Symfony\Component\Console\Output\NullOutput;
 
 class WatchCommandTest extends TestCase
@@ -198,6 +200,17 @@ class WatchCommandTest extends TestCase
         $filePathStrings = array_map(fn (WatchPath $path): string => $path->path, $filePaths);
         $this->assertContains('.env', $filePathStrings);
         $this->assertContains('composer.json', $filePathStrings);
+    }
+
+    public function testPathOptionRequiresAValue(): void
+    {
+        $command = new WatchCommand(m::mock(Container::class));
+        $input = new StringInput('--path');
+
+        $this->expectException(ConsoleRuntimeException::class);
+        $this->expectExceptionMessage('The "--path" option requires a value.');
+
+        $input->bind($command->getDefinition());
     }
 
     /**

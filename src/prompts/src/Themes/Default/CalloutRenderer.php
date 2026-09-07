@@ -22,6 +22,7 @@ class CalloutRenderer extends Renderer
      */
     public function __invoke(Callout $prompt): string
     {
+        $this->minWidth = max(1, min($this->minWidth, $prompt->terminal()->cols() - 6));
         $content = is_array($prompt->content) ? $prompt->content : [$prompt->content];
 
         $sections = [];

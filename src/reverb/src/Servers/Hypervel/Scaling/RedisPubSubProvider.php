@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Reverb\Servers\Hypervel\Scaling;
 
+use Closure;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Redis\Subscriber\Subscriber;
 use Hypervel\Reverb\FailureReporter;
@@ -13,8 +15,6 @@ use Hypervel\Reverb\Loggers\Log;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubIncomingMessageHandler;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
 use Throwable;
-
-use function Hypervel\Coroutine\go;
 
 class RedisPubSubProvider implements PubSubProvider
 {
@@ -70,11 +70,23 @@ class RedisPubSubProvider implements PubSubProvider
 
         $this->shouldRetry = true;
         $this->running = true;
+        $started = false;
+        $wrapper = function (Closure $run) use (&$started): void {
+            try {
+                $started = true;
+                $run();
+            } finally {
+                $this->running = false;
+            }
+        };
 
         try {
-            go(fn () => $this->runSubscriberLifecycle());
+            Coroutine::createOwned($this->runSubscriberLifecycle(...), $wrapper);
         } catch (Throwable $exception) {
-            $this->running = false;
+            // The child owns the running flag once its lifecycle starts.
+            if (! $started) {
+                $this->running = false;
+            }
 
             throw $exception;
         }
@@ -98,37 +110,33 @@ class RedisPubSubProvider implements PubSubProvider
     {
         $workerExit = CoordinatorManager::until(Constants::WORKER_EXIT);
 
-        try {
-            while ($this->shouldRetry() && ! $workerExit->isClosing()) {
-                $subscriber = null;
+        while ($this->shouldRetry() && ! $workerExit->isClosing()) {
+            $subscriber = null;
 
-                try {
-                    $subscriber = $this->redis->subscriber();
-                    $subscribedChannel = $subscriber->prefix . $this->channel;
-                    $subscriber->subscribe($this->channel);
+            try {
+                $subscriber = $this->redis->subscriber();
+                $subscribedChannel = $subscriber->prefix . $this->channel;
+                $subscriber->subscribe($this->channel);
 
-                    if (! $this->shouldRetry()) {
-                        continue;
-                    }
-
-                    $this->subscriber = $subscriber;
-                    $this->subscribedChannel = $subscribedChannel;
-                    $this->retryTimer = 0;
-                    Log::info('Redis connection established');
-                    $this->consumeMessages($subscriber, $subscribedChannel);
-                } catch (Throwable $exception) {
-                    $this->reportConnectionFailure($exception);
-                } finally {
-                    $this->clearSubscriber($subscriber);
-                    $this->closeSubscriber($subscriber);
+                if (! $this->shouldRetry()) {
+                    continue;
                 }
 
-                if ($this->shouldRetry() && $this->waitBeforeRetry()) {
-                    break;
-                }
+                $this->subscriber = $subscriber;
+                $this->subscribedChannel = $subscribedChannel;
+                $this->retryTimer = 0;
+                Log::info('Redis connection established');
+                $this->consumeMessages($subscriber, $subscribedChannel);
+            } catch (Throwable $exception) {
+                $this->reportConnectionFailure($exception);
+            } finally {
+                $this->clearSubscriber($subscriber);
+                $this->closeSubscriber($subscriber);
             }
-        } finally {
-            $this->running = false;
+
+            if ($this->shouldRetry() && $this->waitBeforeRetry()) {
+                break;
+            }
         }
     }
 

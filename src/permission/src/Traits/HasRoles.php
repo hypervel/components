@@ -41,18 +41,27 @@ trait HasRoles
      */
     public static function bootHasRoles(): void
     {
-        static::deleting(function (Model $model): void {
-            if (method_exists($model, 'isForceDeleting') && ! $model->isForceDeleting()) {
+        static::deleted(function (Model $model): void {
+            if (! static::shouldDeletePermissionAssignments($model)) {
                 return;
             }
 
             $registrar = Container::getInstance()->make(PermissionRegistrar::class);
+            $modelKey = static::requireDeletionModelKey($model);
 
             if ($model instanceof Permission) {
-                static::deletePermissionRecordAssignments(
-                    $model,
-                    Config::modelHasPermissionsTable(),
-                    $registrar->pivotPermission,
+                $partition = static::permissionRecordDeletionPartition($model, $registrar);
+
+                $registrar->runPermissionStorageMutationAfterSubjectCommit(
+                    $model->getConnection(),
+                    static fn () => $registrar->getPermissionConnection()->transaction(
+                        static fn () => static::deletePermissionRecordAssignments(
+                            $modelKey,
+                            Config::modelHasPermissionsTable(),
+                            $registrar->pivotPermission,
+                            $partition,
+                        ),
+                    ),
                 );
 
                 return;
@@ -62,22 +71,42 @@ trait HasRoles
                 return;
             }
 
-            $contexts = static::deleteSubjectAssignments(
-                $model,
-                Config::modelHasRolesTable(),
-            );
+            $morphType = $model->getMorphClass();
 
-            if ($contexts === null) {
-                $registrar->forgetModelRoleCache($model);
-            } else {
-                foreach ($contexts as $context) {
-                    $registrar->forgetModelRoleCacheFor(
-                        $model,
-                        $context->partition,
-                        $context->team,
+            $registrar->runPermissionStorageMutationAfterSubjectCommit(
+                $model->getConnection(),
+                static function () use ($modelKey, $morphType, $registrar): void {
+                    $registrar->getPermissionConnection()->transaction(
+                        static function () use ($modelKey, $morphType, $registrar): void {
+                            $contexts = static::deleteSubjectAssignments(
+                                $morphType,
+                                $modelKey,
+                                Config::modelHasRolesTable(),
+                            );
+
+                            if ($contexts === null) {
+                                $registrar->invalidateModelRoleCacheForIdentityAfterMutation(
+                                    $morphType,
+                                    (string) $modelKey,
+                                    null,
+                                    null,
+                                );
+
+                                return;
+                            }
+
+                            foreach ($contexts as $context) {
+                                $registrar->invalidateModelRoleCacheForIdentityAfterMutation(
+                                    $morphType,
+                                    (string) $modelKey,
+                                    $context->partition,
+                                    $context->team,
+                                );
+                            }
+                        },
                     );
-                }
-            }
+                },
+            );
 
             $registrar->forgetLoadedRelationProvenance($model, 'roles');
         });
@@ -169,7 +198,9 @@ trait HasRoles
     /**
      * Scope the model query to certain roles only.
      *
+     * @param Builder<static> $query
      * @param array|Collection|int|Role|string|UnitEnum $roles
+     * @return Builder<static>
      */
     public function scopeRole(Builder $query, $roles, ?string $guard = null, bool $without = false): Builder
     {
@@ -215,7 +246,9 @@ trait HasRoles
     /**
      * Scope the model query to only those without certain roles.
      *
+     * @param Builder<static> $query
      * @param array|Collection|int|Role|string|UnitEnum $roles
+     * @return Builder<static>
      */
     public function scopeWithoutRole(Builder $query, $roles, ?string $guard = null): Builder
     {
@@ -261,7 +294,9 @@ trait HasRoles
     /**
      * Scope the model query to certain teams only.
      *
+     * @param Builder<static> $query
      * @param array|Collection|int|Model|string $teams
+     * @return Builder<static>
      */
     public function scopeTeam(Builder $query, $teams, bool $without = false): Builder
     {
@@ -300,7 +335,9 @@ trait HasRoles
     /**
      * Scope the model query to those without certain teams.
      *
+     * @param Builder<static> $query
      * @param array|Collection|int|Model|string $teams
+     * @return Builder<static>
      */
     public function scopeWithoutTeam(Builder $query, $teams): Builder
     {
@@ -345,6 +382,7 @@ trait HasRoles
     {
         $registrar = $this->permissionRegistrar();
         $context = $this->roleAssignmentContext($registrar);
+        $registrar->ensureTeamIsSelectedForMutation($context);
         $roles = $this->collectRoles($roles, $context->partition);
 
         if ($roles === []) {
@@ -392,9 +430,9 @@ trait HasRoles
         $this->unsetRelation('roles');
 
         if ($this instanceof Permission) {
-            $registrar->forgetCachedPermissionsFor($context->partition);
+            $registrar->invalidatePermissionCatalogAfterMutation($context->partition);
         } else {
-            $registrar->forgetModelRoleCacheFor(
+            $registrar->invalidateModelRoleCacheAfterMutation(
                 $this,
                 $context->partition,
                 $context->team,
@@ -514,7 +552,15 @@ trait HasRoles
             return;
         }
 
-        $this->getConnection()->transaction(function () use ($roleAssignments, $permissionAssignments): void {
+        $registrar = $this->permissionRegistrar();
+
+        foreach ($roleAssignments as $assignment) {
+            $registrar->ensureTeamIsSelectedForMutation($assignment['context']);
+        }
+
+        $this->ensureQueuedPermissionAssignmentTeamsSelected($permissionAssignments, $registrar);
+
+        $registrar->getPermissionConnection()->transaction(function () use ($roleAssignments, $permissionAssignments): void {
             foreach ($roleAssignments as $assignment) {
                 $relation = $this->roleAssignmentRelation($assignment['context']);
 
@@ -545,13 +591,11 @@ trait HasRoles
             $contexts[$assignment['context']->identity()] = $assignment['context'];
         }
 
-        $registrar = $this->permissionRegistrar();
-
         foreach ($contexts as $context) {
             if ($this instanceof Permission) {
-                $registrar->forgetCachedPermissionsFor($context->partition);
+                $registrar->invalidatePermissionCatalogAfterMutation($context->partition);
             } else {
-                $registrar->forgetModelAssignmentCacheFor(
+                $registrar->invalidateModelAssignmentCacheAfterMutation(
                     $this,
                     $context->partition,
                     $context->team,
@@ -593,6 +637,7 @@ trait HasRoles
     {
         $registrar = $this->permissionRegistrar();
         $context = $this->roleAssignmentContext($registrar);
+        $registrar->ensureTeamIsSelectedForMutation($context);
         $roles = $this->collectRoles($role, $context->partition);
 
         if ($roles === []) {
@@ -622,9 +667,9 @@ trait HasRoles
             $this->unsetRelation('roles');
 
             if ($this instanceof Permission) {
-                $registrar->forgetCachedPermissionsFor($context->partition);
+                $registrar->invalidatePermissionCatalogAfterMutation($context->partition);
             } else {
-                $registrar->forgetModelRoleCacheFor(
+                $registrar->invalidateModelRoleCacheAfterMutation(
                     $this,
                     $context->partition,
                     $context->team,
@@ -670,6 +715,7 @@ trait HasRoles
     {
         $registrar = $this->permissionRegistrar();
         $context = $this->roleAssignmentContext($registrar);
+        $registrar->ensureTeamIsSelectedForMutation($context);
         $roles = $this->collectRoles($roles, $context->partition);
 
         if (! $this->exists) {
@@ -704,7 +750,7 @@ trait HasRoles
         $detachedEventRoles = $this->roleDetachedEventIsListenedFor() ? $currentRoles : [];
 
         if ($rolesToDetach !== [] || $rolesToAttach !== []) {
-            $this->getConnection()->transaction(function () use ($context, $relation, $rolesToAttach, $rolesToDetach): void {
+            $registrar->getPermissionConnection()->transaction(function () use ($context, $relation, $rolesToAttach, $rolesToDetach): void {
                 if ($rolesToDetach !== []) {
                     $relation->detach($rolesToDetach, false);
                 }
@@ -719,9 +765,9 @@ trait HasRoles
             $this->unsetRelation('roles');
 
             if ($this instanceof Permission) {
-                $registrar->forgetCachedPermissionsFor($context->partition);
+                $registrar->invalidatePermissionCatalogAfterMutation($context->partition);
             } else {
-                $registrar->forgetModelRoleCacheFor(
+                $registrar->invalidateModelRoleCacheAfterMutation(
                     $this,
                     $context->partition,
                     $context->team,

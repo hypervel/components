@@ -25,6 +25,8 @@ use Symfony\Component\Process\Exception\ProcessSignaledException;
 use Symfony\Component\Process\Process;
 use Throwable;
 
+use function Hypervel\Filesystem\join_paths;
+
 abstract class TestCommandBase extends Command
 {
     public const string PROFILE_ENV = 'HYPERVEL_TEST_PROFILE';
@@ -472,7 +474,7 @@ abstract class TestCommandBase extends Command
      */
     protected function basePath(string ...$paths): string
     {
-        return $this->hypervel->basePath(...$paths);
+        return $this->hypervel->basePath(join_paths(null, ...$paths));
     }
 
     /**

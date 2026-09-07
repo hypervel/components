@@ -12,6 +12,7 @@ use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class PoolErrorReporterTest extends TestCase
 {
@@ -89,6 +90,37 @@ class PoolErrorReporterTest extends TestCase
         $contents = $this->errorLogContents();
         $this->assertStringContainsString('original cleanup failure', $contents);
         $this->assertStringNotContainsString('handler failed', $contents);
+    }
+
+    public function testCancellationIsNotReportedOrLogged(): void
+    {
+        $container = new Container;
+        Container::setInstance($container);
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldNotReceive('report');
+        $container->instance(ExceptionHandler::class, $handler);
+        $this->routeErrorsToTempFile();
+
+        PoolErrorReporter::report(new CanceledException('cleanup canceled'));
+
+        $this->assertFileDoesNotExist($this->errorLog);
+    }
+
+    public function testCancellationFromTheExceptionHandlerIsNotLogged(): void
+    {
+        $container = new Container;
+        Container::setInstance($container);
+        $exception = new RuntimeException('original cleanup failure');
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldReceive('report')->once()->with($exception)->andThrow(
+            new CanceledException('reporting canceled')
+        );
+        $container->instance(ExceptionHandler::class, $handler);
+        $this->routeErrorsToTempFile();
+
+        PoolErrorReporter::report($exception);
+
+        $this->assertFileDoesNotExist($this->errorLog);
     }
 
     private function errorLogContents(): string

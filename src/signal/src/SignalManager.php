@@ -4,16 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Signal;
 
+use Closure;
 use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Signal\SignalHandler;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Waiter;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Engine\Signal as EngineSignal;
 use Hypervel\Support\SafeCaller;
 use Hypervel\Support\SplPriorityQueue;
 use InvalidArgumentException;
-use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class SignalManager
@@ -66,34 +67,35 @@ class SignalManager
 
         try {
             foreach ($signalHandlers as $signal => $handlers) {
-                $coroutineIds[] = Coroutine::create(function () use ($signal, $handlers): void {
+                Coroutine::createOwned(function () use ($signal, $handlers): void {
                     $coroutineId = Coroutine::id();
 
-                    try {
-                        while (! $this->stopped) {
-                            $this->waiting[$coroutineId] = true;
+                    while (! $this->stopped) {
+                        $this->waiting[$coroutineId] = true;
 
-                            try {
-                                $received = EngineSignal::wait($signal);
-                            } finally {
-                                unset($this->waiting[$coroutineId]);
-                            }
+                        try {
+                            $received = EngineSignal::wait($signal);
+                        } finally {
+                            unset($this->waiting[$coroutineId]);
+                        }
 
-                            // An indefinite wait returns false only after an error or
-                            // non-exception cancellation; retrying could busy-spin.
-                            if (! $received) {
-                                break;
-                            }
+                        // An indefinite wait returns false only after an error or
+                        // non-exception cancellation; retrying could busy-spin.
+                        if (! $received) {
+                            break;
+                        }
 
+                        (new Waiter(-1))->wait(function () use ($handlers, $signal): void {
                             foreach ($handlers as $handler) {
                                 $this->safeCaller->call(
                                     fn () => $handler->handle($signal),
                                 );
                             }
-                        }
-                    } catch (CanceledException) {
-                        // Intentional cancellation; the manager owns watcher cleanup.
+                        });
                     }
+                }, function (Closure $run) use (&$coroutineIds): void {
+                    $coroutineIds[] = Coroutine::id();
+                    $run();
                 });
             }
         } catch (Throwable $exception) {
@@ -189,7 +191,7 @@ class SignalManager
      */
     protected function getQueue(): SplPriorityQueue
     {
-        $handlers = $this->config->array('signal.handlers', []);
+        $handlers = $this->config->array('signal.handlers');
 
         $queue = new SplPriorityQueue;
         foreach ($handlers as $handler => $priority) {

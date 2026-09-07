@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hypervel\Cache\TagMode;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\Facades\Cache;
 use Redis as PhpRedis;
 
@@ -136,17 +137,30 @@ class ConnectionPinningIntegrationTest extends RedisCacheIntegrationTestCase
         $this->setTagMode(TagMode::All);
 
         $redis = $this->redis();
-        $pipeline = $redis->multi(PhpRedis::PIPELINE);
         $prefix = $this->getCachePrefix();
         $tagKey = $this->allModeTagKey('bulk');
         $expiresAt = time() + 60;
 
-        for ($i = 1; $i <= 1001; ++$i) {
-            $pipeline->set($prefix . "bulk:{$i}", "value:{$i}", 60);
-            $pipeline->zAdd($tagKey, $expiresAt, "bulk:{$i}");
+        if ($this->usingRedisCluster()) {
+            $redis->withConnection(function (RedisConnection $connection) use ($prefix, $tagKey, $expiresAt): void {
+                for ($i = 1; $i <= 1001; ++$i) {
+                    $connection->set($prefix . "bulk:{$i}", "value:{$i}", 60);
+                    $connection->zAdd($tagKey, $expiresAt, "bulk:{$i}");
+                }
+            }, transform: false);
+        } else {
+            $pipeline = $redis->multi(PhpRedis::PIPELINE);
+
+            for ($i = 1; $i <= 1001; ++$i) {
+                $pipeline->set($prefix . "bulk:{$i}", "value:{$i}", 60);
+                $pipeline->zAdd($tagKey, $expiresAt, "bulk:{$i}");
+            }
+
+            $this->assertIsArray($pipeline->exec());
         }
 
-        $this->assertIsArray($pipeline->exec());
+        $this->assertSame(1001, $redis->zCard($tagKey));
+        $this->assertSame('value:1', $redis->get($prefix . 'bulk:1'));
 
         Cache::tags(['bulk'])->flush();
 

@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Container;
 
-use ArrayAccess;
 use Closure;
 use InvalidArgumentException;
 use LogicException;
 use Psr\Container\ContainerInterface;
 
-interface Container extends ArrayAccess, ContainerInterface
+interface Container extends ContainerInterface
 {
     /**
      * @template TClass of object
@@ -135,6 +134,20 @@ interface Container extends ArrayAccess, ContainerInterface
      * @throws BindingResolutionException
      */
     public function make(string $abstract, array $parameters = []): mixed;
+
+    /**
+     * Resolve the given type with a transient implicit lifetime.
+     *
+     * Explicit lifetimes remain authoritative.
+     *
+     * @template TClass of object
+     *
+     * @param class-string<TClass>|string $abstract
+     * @return ($abstract is class-string<TClass> ? TClass : mixed)
+     *
+     * @throws BindingResolutionException
+     */
+    public function makeTransient(string $abstract): mixed;
 
     /**
      * Instantiate a concrete instance of the given type.

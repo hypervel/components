@@ -8,6 +8,7 @@ use BadMethodCallException;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Redis\Connection as ConnectionContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Redis\Events\CommandExecuted;
@@ -20,6 +21,8 @@ use Hypervel\Redis\Subscriber\Subscriber;
 use Hypervel\Redis\Traits\MultiExec;
 use Hypervel\Support\Arr;
 use Redis;
+use RedisException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
@@ -40,19 +43,19 @@ class RedisProxy implements ConnectionContract
     /**
      * Context key prefix for per-connection pool state.
      */
-    public const CONNECTION_CONTEXT_PREFIX = '__redis.connection.';
+    public const string CONNECTION_CONTEXT_PREFIX = '__redis.connection.';
 
     /**
      * Context key prefix for the coroutine owning deferred pool cleanup.
      */
-    private const DEFERRED_RELEASE_OWNER_CONTEXT_KEY_PREFIX = '__redis.deferred_release_owner.';
+    private const string DEFERRED_RELEASE_OWNER_CONTEXT_KEY_PREFIX = '__redis.deferred_release_owner.';
 
     /**
      * Methods that must be called while explicitly holding a pool connection.
      *
      * These methods must remain excluded from Redis facade generation.
      */
-    private const CONNECTION_BOUND_METHODS = [
+    private const array CONNECTION_BOUND_METHODS = [
         'auth',
         'check',
         'client',
@@ -67,6 +70,7 @@ class RedisProxy implements ConnectionContract
         'getlastusetime',
         'getshouldtransform',
         'heartbeatcheck',
+        'invalidate',
         'isidleexpired',
         'islifetimeexpired',
         'masters',
@@ -74,9 +78,9 @@ class RedisProxy implements ConnectionContract
         'reconnect',
         'release',
         'safescan',
-        'setdatabase',
         'setoption',
         'shouldtransform',
+        'withoutscanprefix',
     ];
 
     /**
@@ -104,7 +108,7 @@ class RedisProxy implements ConnectionContract
     {
         $config = $this->factory->getPool($this->poolName)->getConfig();
 
-        return $config['cluster']['enable'] ?? false;
+        return $config['cluster']['enabled'] ?? false;
     }
 
     /**
@@ -228,26 +232,43 @@ class RedisProxy implements ConnectionContract
                 ? $connection->discardTransaction()
                 : $connection->{$name}(...$arguments);
         } catch (Throwable $throwable) {
-            $commandException = $throwable;
+            if ($cancellation = RedisCancellation::cancellationFrom(
+                $throwable,
+                "Executing Redis command [{$name}] was canceled.",
+            )) {
+                $commandException = $cancellation;
+            } else {
+                $commandException = $throwable;
 
-            try {
-                if ($connection->getEventDispatcher()?->hasListeners(CommandFailed::class)) {
-                    $time = round((hrtime(true) / 1e9 - $start) * 1000, 2);
-                    $connection->getEventDispatcher()->dispatch(
-                        new CommandFailed($name, $arguments, $throwable, $connection, $time)
-                    );
+                try {
+                    $dispatcher = $connection->getEventDispatcher();
+
+                    if ($dispatcher?->hasListeners(CommandFailed::class)) {
+                        $time = round((hrtime(true) / 1e9 - $start) * 1000, 2);
+                        $this->dispatchCommandEvent(
+                            $dispatcher,
+                            new CommandFailed($name, $arguments, $throwable, $connection, $time),
+                            $connection,
+                            $hasContextConnection,
+                        );
+                    }
+                } catch (Throwable $throwable) {
+                    $eventException = $throwable;
                 }
-            } catch (Throwable $throwable) {
-                $eventException = $throwable;
             }
         }
 
         if ($commandException === null) {
             try {
-                if ($connection->getEventDispatcher()?->hasListeners(CommandExecuted::class)) {
+                $dispatcher = $connection->getEventDispatcher();
+
+                if ($dispatcher?->hasListeners(CommandExecuted::class)) {
                     $time = round((hrtime(true) / 1e9 - $start) * 1000, 2);
-                    $connection->getEventDispatcher()->dispatch(
-                        new CommandExecuted($name, $arguments, $time, $connection)
+                    $this->dispatchCommandEvent(
+                        $dispatcher,
+                        new CommandExecuted($name, $arguments, $time, $connection),
+                        $connection,
+                        $hasContextConnection,
                     );
                 }
             } catch (Throwable $throwable) {
@@ -260,10 +281,6 @@ class RedisProxy implements ConnectionContract
                 // Connection is already in context, don't release
             } elseif ($commandException === null && $this->shouldUseSameConnection($command)) {
                 // On success with same-connection command: store in context for reuse
-                if ($command === 'select' && array_key_exists(0, $arguments)) {
-                    $connection->setDatabase((int) $arguments[0]);
-                }
-
                 CoroutineContext::set($this->getContextKey(), $connection);
 
                 $coroutineId = Coroutine::id();
@@ -287,6 +304,18 @@ class RedisProxy implements ConnectionContract
             $cleanupException = $throwable;
         }
 
+        if ($commandException instanceof CanceledException) {
+            throw $commandException;
+        }
+
+        if ($eventException instanceof CanceledException) {
+            throw $eventException;
+        }
+
+        if ($cleanupException instanceof CanceledException) {
+            throw $cleanupException;
+        }
+
         if ($eventException !== null) {
             throw $eventException;
         }
@@ -300,6 +329,34 @@ class RedisProxy implements ConnectionContract
         }
 
         return $result;
+    }
+
+    /**
+     * Dispatch a command event against its owning connection.
+     */
+    private function dispatchCommandEvent(
+        Dispatcher $dispatcher,
+        CommandExecuted|CommandFailed $event,
+        RedisConnection $connection,
+        bool $hasContextConnection,
+    ): void {
+        if ($hasContextConnection) {
+            $dispatcher->dispatch($event);
+
+            return;
+        }
+
+        $contextKey = $this->getContextKey();
+
+        // Synchronous listeners reuse the leased wrapper instead of deadlocking on a reentrant pool checkout.
+        // Nested commands retain Laravel's event semantics, including recursion from an unconditional same-command listener.
+        CoroutineContext::set($contextKey, $connection);
+
+        try {
+            $dispatcher->dispatch($event);
+        } finally {
+            CoroutineContext::forget($contextKey);
+        }
     }
 
     /**
@@ -348,6 +405,7 @@ class RedisProxy implements ConnectionContract
         $callback = $arguments[1];
 
         $subscriber = $this->subscriber();
+        $failure = null;
 
         try {
             if ($name === 'subscribe') {
@@ -357,13 +415,37 @@ class RedisProxy implements ConnectionContract
             }
 
             $channel = $subscriber->channel();
-            while ($message = $channel->pop()) {
+
+            while (true) {
+                $message = $channel->pop();
+
+                if ($message === false) {
+                    if ($channel->isCanceled()) {
+                        throw new CanceledException('The Redis subscriber message wait was canceled.');
+                    }
+
+                    break;
+                }
+
                 $callback($message->payload, $message->channel);
             }
+        } catch (Throwable $exception) {
+            $failure = $exception;
         } finally {
             if (! $subscriber->closed) {
-                $subscriber->close();
+                try {
+                    $subscriber->close();
+                } catch (Throwable $exception) {
+                    if (! $failure instanceof CanceledException) {
+                        // Required close failure is terminal unless cancellation is already primary.
+                        $failure = $exception;
+                    }
+                }
             }
+        }
+
+        if ($failure !== null) {
+            throw $failure;
         }
     }
 
@@ -437,16 +519,32 @@ class RedisProxy implements ConnectionContract
     {
         $hasContextConnection = CoroutineContext::has($this->getContextKey());
         $connection = $this->getConnection($hasContextConnection, $transform);
+        $result = null;
+        $operationFailure = null;
+        $cleanupFailure = null;
 
         try {
             $connection->getConnection();
 
-            return $callback($connection);
-        } finally {
-            if (! $hasContextConnection) {
+            $result = $callback($connection);
+        } catch (Throwable $exception) {
+            $operationFailure = RedisCancellation::cancellationFrom(
+                $exception,
+                'Using a Redis connection was canceled.',
+            ) ?? $exception;
+        }
+
+        if (! $hasContextConnection) {
+            try {
                 $connection->release();
+            } catch (Throwable $exception) {
+                $cleanupFailure = $exception;
             }
         }
+
+        RedisCancellation::throwOperationOrCleanupFailure($operationFailure, $cleanupFailure);
+
+        return $result;
     }
 
     /**
@@ -461,6 +559,9 @@ class RedisProxy implements ConnectionContract
         $contextKey = $this->getContextKey();
         $hadContextConnection = CoroutineContext::has($contextKey);
         $connection = $this->getConnection($hadContextConnection);
+        $result = null;
+        $operationFailure = null;
+        $cleanupFailure = null;
 
         if (! $hadContextConnection) {
             CoroutineContext::set($contextKey, $connection);
@@ -469,13 +570,27 @@ class RedisProxy implements ConnectionContract
         try {
             $connection->getConnection();
 
-            return $callback();
-        } finally {
-            if (! $hadContextConnection) {
-                CoroutineContext::forget($contextKey);
+            $result = $callback();
+        } catch (Throwable $exception) {
+            $operationFailure = RedisCancellation::cancellationFrom(
+                $exception,
+                'Using a pinned Redis connection was canceled.',
+            ) ?? $exception;
+        }
+
+        if (! $hadContextConnection) {
+            CoroutineContext::forget($contextKey);
+
+            try {
                 $connection->release();
+            } catch (Throwable $exception) {
+                $cleanupFailure = $exception;
             }
         }
+
+        RedisCancellation::throwOperationOrCleanupFailure($operationFailure, $cleanupFailure);
+
+        return $result;
     }
 
     /**
@@ -513,30 +628,31 @@ class RedisProxy implements ConnectionContract
         $pool = $this->factory->getPool($this->poolName);
         $config = $pool->getConfig();
 
-        if ($config['sentinel']['enable'] ?? false) {
+        if ($config['sentinel']['enabled'] ?? false) {
             [$host, $port] = $this->sentinelFactory->resolveMaster($config);
 
             return $this->createSubscriber(
                 $config,
                 $host,
                 $port,
-                $config['scheme'] ?? null,
-                $config['context'] ?? [],
+                $config['scheme'],
+                $config['context'],
             );
         }
 
-        if (! ($config['cluster']['enable'] ?? false)) {
+        if (! ($config['cluster']['enabled'] ?? false)) {
             return $this->createSubscriber(
                 $config,
                 $config['host'],
-                (int) $config['port'],
-                $config['scheme'] ?? null,
-                $config['context'] ?? [],
+                $config['port'],
+                $config['scheme'],
+                $config['context'],
             );
         }
 
         $connection = $pool->get();
         $discoveryException = null;
+        $releaseException = null;
         $masters = [];
 
         try {
@@ -549,22 +665,36 @@ class RedisProxy implements ConnectionContract
             $connection->getConnection();
             $masters = $connection->masters();
         } catch (Throwable $exception) {
-            $discoveryException = $exception;
+            $discoveryException = RedisCancellation::cancellationFrom(
+                $exception,
+                'Discovering Redis Cluster masters was canceled.',
+            ) ?? $exception;
         }
 
         try {
             $connection->release();
         } catch (Throwable $exception) {
-            if ($discoveryException === null) {
-                throw $exception;
-            }
+            $releaseException = $exception;
+        }
+
+        // Preserve discovery failures over ordinary release failures while
+        // still allowing cancellation from either boundary to take precedence.
+        if ($discoveryException instanceof CanceledException) {
+            throw $discoveryException;
+        }
+
+        if ($releaseException instanceof CanceledException) {
+            throw $releaseException;
         }
 
         if ($discoveryException !== null) {
             throw $discoveryException;
         }
 
-        $context = $config['cluster']['context'] ?? [];
+        if ($releaseException !== null) {
+            throw $releaseException;
+        }
+
         $failures = [];
 
         foreach ($masters as $master) {
@@ -582,9 +712,11 @@ class RedisProxy implements ConnectionContract
                     $config,
                     $master[0],
                     (int) $master[1],
-                    null,
-                    $context,
+                    $config['scheme'],
+                    $config['context'],
                 );
+            } catch (CanceledException $cancellation) {
+                throw $cancellation;
             } catch (Throwable $exception) {
                 $failures[] = sprintf(
                     '[%s:%d]: %s',
@@ -615,17 +747,17 @@ class RedisProxy implements ConnectionContract
         array $context,
     ): Subscriber {
         /** @var null|array|string $password */
-        $password = $config['password'] ?? null;
+        $password = $config['password'];
 
         /** @var null|string $username */
-        $username = $config['username'] ?? null;
+        $username = $config['username'];
 
         return new Subscriber(
             host: $host,
             port: $port,
             password: $password,
-            timeout: (float) ($config['timeout'] ?? 5.0),
-            prefix: (string) (($config['options'] ?? [])['prefix'] ?? ''),
+            timeout: $config['timeout'],
+            prefix: (string) ($config['options']['prefix'] ?? ''),
             username: $username,
             scheme: $scheme,
             context: $context,
@@ -716,9 +848,11 @@ class RedisProxy implements ConnectionContract
      * Uses SCAN to iterate keys efficiently and deletes them in batches.
      * Correctly handles OPT_PREFIX to avoid the double-prefixing bug.
      *
-     * @param string $pattern The pattern to match (e.g., "cache:test:*").
-     *                        Should NOT include OPT_PREFIX - it's handled automatically.
+     * @param string $pattern The logical key pattern (e.g., "cache:test:*"). OPT_PREFIX is added automatically;
+     *                        the pattern is preserved even when it starts with the same bytes as OPT_PREFIX.
      * @return int Number of keys deleted
+     *
+     * @throws RedisException
      */
     public function flushByPattern(string $pattern): int
     {

@@ -29,6 +29,8 @@ class PackageMetadataTest extends TestCase
             JSON_THROW_ON_ERROR,
         );
 
+        $this->assertArrayHasKey('nesbot/carbon', $rootComposer['require']);
+        $this->assertArrayHasKey('nesbot/carbon', $composer['require']);
         $this->assertSame($rootComposer['require']['nesbot/carbon'], $composer['require']['nesbot/carbon']);
     }
 }

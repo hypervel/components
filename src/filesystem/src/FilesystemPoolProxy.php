@@ -10,7 +10,6 @@ use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
 use Hypervel\Filesystem\Concerns\InteractsWithPooledFilesystem;
 use Hypervel\ObjectPool\Contracts\Factory;
 use Hypervel\ObjectPool\PoolDefinition;
-use Hypervel\ObjectPool\PoolErrorReporter;
 use Hypervel\ObjectPool\PoolProxy;
 use RuntimeException;
 use Throwable;
@@ -76,13 +75,7 @@ class FilesystemPoolProxy extends PoolProxy implements Cloud
             $filesystem = $lease->get();
             $stream = $operation($filesystem);
         } catch (Throwable $operationException) {
-            try {
-                $lease->release();
-            } catch (Throwable $finalizationException) {
-                PoolErrorReporter::report($finalizationException);
-            }
-
-            throw $operationException;
+            $lease->releaseAfterFailure($operationException);
         }
 
         if (! is_resource($stream)) {
@@ -112,13 +105,7 @@ class FilesystemPoolProxy extends PoolProxy implements Cloud
 
             $result = $callback($filesystem->{$accessor}());
         } catch (Throwable $operationException) {
-            try {
-                $lease->release();
-            } catch (Throwable $finalizationException) {
-                PoolErrorReporter::report($finalizationException);
-            }
-
-            throw $operationException;
+            $lease->releaseAfterFailure($operationException);
         }
 
         $lease->release();

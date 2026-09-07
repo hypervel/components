@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
@@ -45,17 +46,18 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
         }
     }
 
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
 
-        $connection = $app['config']->get('database.default');
+        $config = $app->make('config');
+        $connection = $config->string('database.default');
 
-        $app['config']->set("database.connections.{$connection}.prefix_indexes", true);
-        $app['config']->set('database.connections.pgsql.search_path', 'public,my_schema');
-        $app['config']->set('database.connections.without-prefix', $app['config']->get('database.connections.' . $connection));
-        $app['config']->set('database.connections.with-prefix', $app['config']->get('database.connections.without-prefix'));
-        $app['config']->set('database.connections.with-prefix.prefix', 'example_');
+        $config->set("database.connections.{$connection}.prefix_indexes", true);
+        $config->set('database.connections.pgsql.search_path', 'public,my_schema');
+        $config->set('database.connections.without-prefix', $config->array('database.connections.' . $connection));
+        $config->set('database.connections.with-prefix', $config->array('database.connections.without-prefix'));
+        $config->set('database.connections.with-prefix.prefix', 'example_');
     }
 
     #[DataProvider('connectionProvider')]

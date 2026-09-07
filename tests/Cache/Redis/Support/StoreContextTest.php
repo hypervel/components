@@ -9,6 +9,7 @@ use Hypervel\Cache\TagMode;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Redis;
@@ -67,6 +68,13 @@ class StoreContextTest extends TestCase
         $this->assertSame('myapp:_any:tag:registry', $context->registryKey());
     }
 
+    public function testExpirationScoreNeverPrecedesRequestedLifetime(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
+
+        $this->assertSame(1002, $this->createContext()->expirationScore(1));
+    }
+
     public function testWithConnectionExecutesCallbackAndReturnsResult(): void
     {
         $connection = m::mock(PhpRedisConnection::class);
@@ -80,6 +88,25 @@ class StoreContextTest extends TestCase
             return 'callback-result';
         });
 
+        $this->assertSame('callback-result', $result);
+    }
+
+    public function testWithConnectionCanEnableLaravelStyleTransforms(): void
+    {
+        $connection = m::mock(PhpRedisConnection::class);
+        $transform = null;
+        $context = $this->createContextWithRedisFactory(
+            'default',
+            function ($callback, bool $shouldTransform) use ($connection, &$transform) {
+                $transform = $shouldTransform;
+
+                return $callback($connection);
+            },
+        );
+
+        $result = $context->withConnection(fn () => 'callback-result', transform: true);
+
+        $this->assertTrue($transform);
         $this->assertSame('callback-result', $result);
     }
 

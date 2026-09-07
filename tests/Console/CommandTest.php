@@ -11,10 +11,12 @@ use Hypervel\Console\Attributes\Signature;
 use Hypervel\Console\Attributes\Usage;
 use Hypervel\Console\Command;
 use Hypervel\Console\CommandInput;
+use Hypervel\Console\Events\AfterExecute;
 use Hypervel\Console\ManuallyFailedException;
 use Hypervel\Console\OutputStyle;
 use Hypervel\Console\SignalRegistry;
 use Hypervel\Console\View\Components\Factory;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Testbench\TestCase;
@@ -139,6 +141,93 @@ class CommandTest extends TestCase
     public function testExitCodeFromExitExceptionAndNormalCommandInCoroutine()
     {
         $this->testExitCodeFromExitExceptionAndNormalCommand();
+    }
+
+    public function testAfterExecuteCarriesTheFinalExitCodeAndExecutionThrowable(): void
+    {
+        $events = [];
+        $this->app->make(Dispatcher::class)->listen(
+            AfterExecute::class,
+            static function (AfterExecute $event) use (&$events): void {
+                $events[] = $event;
+            },
+        );
+
+        $success = new class extends Command {
+            public function handle(): int
+            {
+                return self::SUCCESS;
+            }
+        };
+        $nonZero = new class extends Command {
+            public function handle(): int
+            {
+                return 11;
+            }
+        };
+        $manualFailure = new class extends Command {
+            public function handle(): never
+            {
+                $this->fail('command failed manually');
+            }
+        };
+        $outOfRange = new class extends Command {
+            public function handle(): int
+            {
+                return 300;
+            }
+        };
+        $failure = new RuntimeException('command failed');
+        $throwing = new class($failure) extends Command {
+            public function __construct(private readonly RuntimeException $failure)
+            {
+                parent::__construct();
+            }
+
+            public function handle(): never
+            {
+                throw $this->failure;
+            }
+        };
+
+        foreach ([$success, $nonZero, $manualFailure, $outOfRange, $throwing] as $command) {
+            $command->setHypervel($this->app);
+        }
+
+        $successInput = new ArrayInput([]);
+        $nonZeroInput = new ArrayInput([]);
+        $manualFailureInput = new ArrayInput([]);
+        $outOfRangeInput = new ArrayInput([]);
+        $throwingInput = new ArrayInput([]);
+
+        $this->assertSame(Command::SUCCESS, $success->run($successInput, new NullOutput));
+        $this->assertSame(11, $nonZero->run($nonZeroInput, new NullOutput));
+        $this->assertSame(Command::FAILURE, $manualFailure->run($manualFailureInput, new NullOutput));
+        $this->assertSame(Command::INVALID, $outOfRange->run($outOfRangeInput, new NullOutput));
+
+        try {
+            $throwing->run($throwingInput, new NullOutput);
+            $this->fail('Expected the command exception to propagate.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertCount(5, $events);
+        $this->assertSame(Command::SUCCESS, $events[0]->exitCode);
+        $this->assertNull($events[0]->throwable);
+        $this->assertSame($successInput, $events[0]->input);
+        $this->assertSame(11, $events[1]->exitCode);
+        $this->assertNull($events[1]->throwable);
+        $this->assertSame($nonZeroInput, $events[1]->input);
+        $this->assertSame(Command::FAILURE, $events[2]->exitCode);
+        $this->assertNull($events[2]->throwable);
+        $this->assertSame($manualFailureInput, $events[2]->input);
+        $this->assertSame(Command::INVALID, $events[3]->exitCode);
+        $this->assertNull($events[3]->throwable);
+        $this->assertSame($outOfRangeInput, $events[3]->input);
+        $this->assertSame(Command::FAILURE, $events[4]->exitCode);
+        $this->assertSame($failure, $events[4]->throwable);
+        $this->assertSame($throwingInput, $events[4]->input);
     }
 
     public function testProhibitableCommand()

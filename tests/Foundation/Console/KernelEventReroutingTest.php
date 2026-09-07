@@ -9,11 +9,21 @@ use Hypervel\Console\Events\CommandFinished;
 use Hypervel\Console\Events\CommandStarting;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Foundation\Console\Kernel;
 use Hypervel\Testbench\TestCase;
+use Mockery as m;
+use ReflectionProperty;
+use Symfony\Component\Console\Command\Command as SymfonyCommand;
+use Symfony\Component\Console\ConsoleEvents;
+use Symfony\Component\Console\Event\ConsoleCommandEvent;
+use Symfony\Component\Console\Event\ConsoleTerminateEvent;
+use Symfony\Component\Console\Input\StringInput;
+use Symfony\Component\Console\Output\BufferedOutput;
+use Symfony\Component\EventDispatcher\EventDispatcher;
 
 class KernelEventReroutingTest extends TestCase
 {
-    public function testRerouteSymfonyCommandEventsWiresDispatcherToExistingArtisan()
+    public function testRerouteSymfonyCommandEventsWiresDispatcherToExistingArtisan(): void
     {
         $kernel = $this->app->make(KernelContract::class);
 
@@ -42,7 +52,7 @@ class KernelEventReroutingTest extends TestCase
         ], $log);
     }
 
-    public function testRerouteSymfonyCommandEventsWiresDispatcherBeforeArtisanCreated()
+    public function testRerouteSymfonyCommandEventsWiresDispatcherBeforeArtisanCreated(): void
     {
         $kernel = $this->app->make(KernelContract::class);
 
@@ -68,13 +78,35 @@ class KernelEventReroutingTest extends TestCase
             'finished:kernel-event-rerouting-test',
         ], $log);
     }
+
+    public function testReroutedEventsAreNotDispatchedWithoutListeners(): void
+    {
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(CommandStarting::class)->andReturnFalse();
+        $events->shouldReceive('hasListeners')->once()->with(CommandFinished::class)->andReturnFalse();
+        $events->shouldNotReceive('dispatch');
+
+        $kernel = new Kernel($this->app, $events);
+        $kernel->rerouteSymfonyCommandEvents();
+
+        $reflection = new ReflectionProperty($kernel, 'symfonyDispatcher');
+        $dispatcher = $reflection->getValue($kernel);
+        $this->assertInstanceOf(EventDispatcher::class, $dispatcher);
+
+        $command = new SymfonyCommand('test');
+        $input = new StringInput('test');
+        $output = new BufferedOutput;
+
+        $dispatcher->dispatch(new ConsoleCommandEvent($command, $input, $output), ConsoleEvents::COMMAND);
+        $dispatcher->dispatch(new ConsoleTerminateEvent($command, $input, $output, 0), ConsoleEvents::TERMINATE);
+    }
 }
 
 class KernelEventReroutingTestCommand extends Command
 {
     protected ?string $signature = 'kernel-event-rerouting-test';
 
-    public function handle()
+    public function handle(): void
     {
         // noop
     }

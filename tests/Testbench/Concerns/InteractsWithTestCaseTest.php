@@ -7,15 +7,153 @@ namespace Hypervel\Tests\Testbench\Concerns;
 use Attribute;
 use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Foundation\Testing\DatabaseMigrations;
+use Hypervel\Support\Collection;
+use Hypervel\Testbench\Attributes\Define;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
+use Hypervel\Testbench\Attributes\WithConfig;
+use Hypervel\Testbench\Concerns\HandlesAttributes;
+use Hypervel\Testbench\Concerns\InteractsWithTestCase;
 use Hypervel\Testbench\Contracts\Attributes\AfterAll;
 use Hypervel\Testbench\Contracts\Attributes\AfterEach;
+use Hypervel\Testbench\PHPUnit\AttributeParser;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Testbench\Fixtures\BootstrapFileApplication;
+use Override;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Throwable;
 
+#[WithConfig('testing.class_level', 'class_value')]
 class InteractsWithTestCaseTest extends TestCase
 {
+    public function testUsesTestingConcernReturnsTrueForUsedTrait(): void
+    {
+        $this->assertTrue(static::usesTestingConcern(HandlesAttributes::class));
+        $this->assertTrue(static::usesTestingConcern(InteractsWithTestCase::class));
+    }
+
+    public function testUsesTestingConcernReturnsFalseForUnusedTrait(): void
+    {
+        $this->assertFalse(static::usesTestingConcern('NonExistentTrait'));
+    }
+
+    public function testCachedUsesForTestCaseReturnsTraits(): void
+    {
+        $uses = static::cachedUsesForTestCase();
+
+        $this->assertArrayHasKey(HandlesAttributes::class, $uses);
+        $this->assertArrayHasKey(InteractsWithTestCase::class, $uses);
+    }
+
+    public function testCachedUsesAreScopedToEachTestCaseClass(): void
+    {
+        $this->assertArrayNotHasKey(
+            DatabaseMigrations::class,
+            PlainTestCaseFixture::cachedUsesForTestCase(),
+        );
+        $this->assertArrayHasKey(
+            DatabaseMigrations::class,
+            MigratingTestCaseFixture::cachedUsesForTestCase(),
+        );
+    }
+
+    public function testNestedFixtureReadsItsOwnTestingConcerns(): void
+    {
+        $this->assertFalse(static::usesTestingConcern(DatabaseMigrations::class));
+
+        $testCase = new MigratingTestCaseFixture('testPlaceholder');
+
+        $this->assertTrue($testCase->usesDatabaseMigrations());
+        $this->assertFalse(static::usesTestingConcern(DatabaseMigrations::class));
+    }
+
+    public function testNestedFixtureScopesBootstrapFileSelectionToItsBasePath(): void
+    {
+        $testCase = new BootstrapFileTestCaseFixture('testPlaceholder');
+        $app = $testCase->resolveApplicationForTest();
+
+        try {
+            $this->assertInstanceOf(BootstrapFileApplication::class, $app);
+            $this->assertSame(
+                realpath(dirname(__DIR__) . '/Fixtures/ApplicationWithBootstrap/bootstrap/app.php'),
+                $app->bootstrapFile,
+            );
+        } finally {
+            $app->flush();
+        }
+    }
+
+    public function testResolvePhpUnitAttributesReturnsCollection(): void
+    {
+        $this->assertInstanceOf(Collection::class, $this->resolvePhpUnitAttributes());
+    }
+
+    #[WithConfig('testing.method_level', 'method_value')]
+    public function testResolvePhpUnitAttributesMergesClassAndMethodAttributes(): void
+    {
+        $withConfigInstances = $this->resolvePhpUnitAttributes()->get(WithConfig::class);
+
+        $this->assertCount(2, $withConfigInstances);
+    }
+
+    public function testClassLevelAttributeIsApplied(): void
+    {
+        $this->assertSame('class_value', config('testing.class_level'));
+    }
+
+    public function testUsesTestingFeatureAddsAttribute(): void
+    {
+        static::usesTestingFeature(
+            new WithConfig('testing.programmatic', 'added'),
+            Attribute::TARGET_METHOD,
+        );
+
+        $this->assertTrue($this->resolvePhpUnitAttributes()->has(WithConfig::class));
+    }
+
+    public function testDefineMetaAttributeIsResolvedByAttributeParser(): void
+    {
+        $attributes = AttributeParser::forMethod(
+            DefineMetaAttributeTestCaseFixture::class,
+            'testWithDefineAttribute',
+        );
+
+        $this->assertCount(1, $attributes);
+        $this->assertSame(DefineEnvironment::class, $attributes[0]['key']);
+        $this->assertInstanceOf(DefineEnvironment::class, $attributes[0]['instance']);
+        $this->assertSame('setupDefineEnv', $attributes[0]['instance']->method);
+    }
+
+    #[Define('env', 'setupDefineEnvForExecution')]
+    public function testDefineMetaAttributeIsExecutedThroughLifecycle(): void
+    {
+        $this->assertSame(
+            'define_env_executed',
+            config('testing.define_meta_attribute'),
+        );
+    }
+
+    protected function setupDefineEnvForExecution(ApplicationContract $app): void
+    {
+        $app->make('config')->set('testing.define_meta_attribute', 'define_env_executed');
+    }
+
+    public function testResolvePhpUnitAttributesReturnsCollectionOfCollections(): void
+    {
+        $attributes = $this->resolvePhpUnitAttributes();
+
+        $this->assertInstanceOf(Collection::class, $attributes);
+
+        $attributes->each(function ($value, $key): void {
+            $this->assertInstanceOf(
+                Collection::class,
+                $value,
+                "Value for key {$key} should be a Collection, not " . gettype($value),
+            );
+        });
+    }
+
     #[DataProvider('setupWrapperProvider')]
     public function testSetupWrapperRunsTheParentPhaseAtMostOnce(
         string $shape,
@@ -115,23 +253,6 @@ class InteractsWithTestCaseTest extends TestCase
         ];
     }
 
-    public function testPestEnvironmentResolversRunBeforeTheLifecycleWrappers(): void
-    {
-        TestbenchLifecycleTestCaseFixture::$usesPest = true;
-        $testCase = new TestbenchLifecycleTestCaseFixture('testPlaceholder');
-        $testCase->useApplication($this->app);
-
-        try {
-            $testCase->runSetUp();
-            $testCase->runTearDown();
-
-            $this->assertSame(1, $testCase->pestSetUpCalls);
-            $this->assertSame(1, $testCase->pestTearDownCalls);
-        } finally {
-            TestbenchLifecycleTestCaseFixture::$usesPest = false;
-        }
-    }
-
     public function testEveryAfterEachCallbackRunsAndMethodFeaturesAreCleared(): void
     {
         LifecycleAttributeFixture::$calls = [];
@@ -157,6 +278,26 @@ class InteractsWithTestCaseTest extends TestCase
             }
 
             $this->assertSame(['afterEach:first', 'afterEach:second'], LifecycleAttributeFixture::$calls);
+            $this->assertSame([], TestbenchLifecycleTestCaseFixture::methodTestingFeatures());
+        } finally {
+            TestbenchLifecycleTestCaseFixture::forceClearLifecycleState();
+        }
+    }
+
+    public function testAfterEachCallbacksAreSkippedWithoutAnApplicationAndMethodFeaturesAreCleared(): void
+    {
+        LifecycleAttributeFixture::$calls = [];
+        $testCase = new TestbenchLifecycleTestCaseFixture('testPlaceholder');
+
+        try {
+            TestbenchLifecycleTestCaseFixture::usesTestingFeature(
+                new LifecycleAttributeFixture('application-bound'),
+                Attribute::TARGET_METHOD,
+            );
+
+            $testCase->runAfterEachAttributes();
+
+            $this->assertSame([], LifecycleAttributeFixture::$calls);
             $this->assertSame([], TestbenchLifecycleTestCaseFixture::methodTestingFeatures());
         } finally {
             TestbenchLifecycleTestCaseFixture::forceClearLifecycleState();
@@ -189,7 +330,6 @@ class InteractsWithTestCaseTest extends TestCase
             $this->assertSame([
                 'classFeatures' => [],
                 'methodFeatures' => [],
-                'bootstrapFile' => null,
             ], TestbenchLifecycleTestCaseFixture::classLifecycleState());
         } finally {
             TestbenchLifecycleTestCaseFixture::forceClearLifecycleState();
@@ -197,35 +337,59 @@ class InteractsWithTestCaseTest extends TestCase
     }
 }
 
+class PlainTestCaseFixture extends TestCase
+{
+}
+
+class MigratingTestCaseFixture extends TestCase
+{
+    use DatabaseMigrations;
+
+    public function testPlaceholder(): void
+    {
+    }
+
+    public function usesDatabaseMigrations(): bool
+    {
+        return static::usesTestingConcern(DatabaseMigrations::class);
+    }
+}
+
+class BootstrapFileTestCaseFixture extends TestCase
+{
+    public function testPlaceholder(): void
+    {
+    }
+
+    /**
+     * Resolve the application without booting it.
+     */
+    public function resolveApplicationForTest(): ApplicationContract
+    {
+        return $this->resolveApplication();
+    }
+
+    #[Override]
+    protected function getApplicationBasePath(): string
+    {
+        return dirname(__DIR__) . '/Fixtures/ApplicationWithBootstrap';
+    }
+}
+
 class TestbenchLifecycleTestCaseFixture extends TestCase
 {
-    public static bool $usesPest = false;
-
     public int $foundationSetUpCalls = 0;
 
     public int $manifestSetupCalls = 0;
 
     public int $attributeSetUpCalls = 0;
 
-    public int $pestSetUpCalls = 0;
-
     public int $attributeTearDownCalls = 0;
 
     public int $foundationTearDownCalls = 0;
 
-    public int $pestTearDownCalls = 0;
-
     public function testPlaceholder(): void
     {
-    }
-
-    public static function usesTestingConcern(?string $trait = null): bool
-    {
-        if ($trait === \Hypervel\Testbench\Pest\WithPest::class) {
-            return static::$usesPest;
-        }
-
-        return parent::usesTestingConcern($trait);
     }
 
     public function runSetUp(): void
@@ -268,7 +432,6 @@ class TestbenchLifecycleTestCaseFixture extends TestCase
         return [
             'classFeatures' => static::$testCaseTestingFeatures,
             'methodFeatures' => static::$testCaseMethodTestingFeatures,
-            'bootstrapFile' => static::$cacheApplicationBootstrapFile,
         ];
     }
 
@@ -276,7 +439,6 @@ class TestbenchLifecycleTestCaseFixture extends TestCase
     {
         static::$testCaseTestingFeatures = [];
         static::$testCaseMethodTestingFeatures = [];
-        static::$cacheApplicationBootstrapFile = null;
     }
 
     protected function setUpTheTestEnvironment(): void
@@ -292,16 +454,6 @@ class TestbenchLifecycleTestCaseFixture extends TestCase
     protected function setUpTheTestEnvironmentUsingTestCase(): void
     {
         ++$this->attributeSetUpCalls;
-    }
-
-    protected function setUpTheEnvironmentUsingPest(): void
-    {
-        ++$this->pestSetUpCalls;
-    }
-
-    protected function tearDownTheEnvironmentUsingPest(): void
-    {
-        ++$this->pestTearDownCalls;
     }
 
     protected function tearDownTheTestEnvironmentUsingTestCase(): void
@@ -347,5 +499,17 @@ class LifecycleAttributeFixture implements AfterAll, AfterEach
         if ($this->exception !== null) {
             throw $this->exception;
         }
+    }
+}
+
+class DefineMetaAttributeTestCaseFixture extends TestCase
+{
+    #[Define('env', 'setupDefineEnv')]
+    public function testWithDefineAttribute(): void
+    {
+    }
+
+    protected function setupDefineEnv(ApplicationContract $app): void
+    {
     }
 }

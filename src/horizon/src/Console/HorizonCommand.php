@@ -34,7 +34,7 @@ class HorizonCommand extends Command
             return self::SUCCESS;
         }
 
-        $environment = $this->option('environment') ?? config('horizon.env') ?? config('app.env');
+        $environment = $this->option('environment') ?? config('horizon.env') ?? config()->string('app.env');
 
         $master = (new MasterSupervisor($environment))->handleOutputUsing(function ($type, $line) {
             $this->output->write($line);

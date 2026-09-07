@@ -17,7 +17,7 @@ class CookieSessionHandler implements SessionHandlerInterface
     /**
      * Context key prefix for the current request.
      */
-    protected const REQUEST_CONTEXT_KEY_PREFIX = '__session.cookie.request.';
+    protected const string REQUEST_CONTEXT_KEY_PREFIX = '__session.cookie.request.';
 
     /**
      * Create a new cookie driven handler instance.

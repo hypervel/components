@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Routing\RouteControllerCachingTest;
 
+use Attribute;
 use Hypervel\Container\Attributes\Scoped;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\ExecutionScopedAttribute;
 use Hypervel\Contracts\Routing\Registrar;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Request;
@@ -49,6 +51,24 @@ class RouteControllerCachingTest extends RoutingTestCase
 
         // The controller property on the route should be null — scoped
         // controllers are stored in Context, not on the Route instance.
+        $reflection = new ReflectionProperty($route, 'controller');
+        $this->assertNull($reflection->getValue($route));
+    }
+
+    public function testControllerWithExecutionScopedConstructorAttributeUsesContextNotRouteProperty(): void
+    {
+        $router = $this->getRouter();
+        $router->get('foo', ExecutionScopedController::class . '@index');
+
+        $request = Request::create('foo', 'GET');
+        $router->dispatch($request);
+
+        $route = $request->route();
+        $controller = $route->getController();
+
+        $this->assertInstanceOf(ExecutionScopedController::class, $controller);
+        $this->assertSame('execution-value', $controller->value);
+
         $reflection = new ReflectionProperty($route, 'controller');
         $this->assertNull($reflection->getValue($route));
     }
@@ -211,6 +231,34 @@ class ScopedController extends Controller
     public function index(): string
     {
         return 'scoped';
+    }
+}
+
+#[Attribute(Attribute::TARGET_PARAMETER)]
+class RouteExecutionScopedAttribute implements ExecutionScopedAttribute
+{
+    public function isExecutionScoped(): bool
+    {
+        return true;
+    }
+
+    public static function resolve(): string
+    {
+        return 'execution-value';
+    }
+}
+
+class ExecutionScopedController extends Controller
+{
+    public function __construct(
+        #[RouteExecutionScopedAttribute]
+        public readonly string $value,
+    ) {
+    }
+
+    public function index(): string
+    {
+        return $this->value;
     }
 }
 

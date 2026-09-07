@@ -11,6 +11,7 @@ use Hypervel\Support\Collection;
 use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\Engines\CompilerEngine;
 use Hypervel\View\ViewException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\ErrorHandler\Exception\FlattenException;
 use Throwable;
 
@@ -160,6 +161,8 @@ class BladeMapper
             $value = $this->bladeCompiler->compileString($value);
 
             return $this->trimEmptyLines($value);
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $e) {
             report($e);
 

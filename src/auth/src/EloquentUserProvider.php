@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Auth;
 
 use Closure;
+use Hypervel\Cache\ModelCacheCoordinator;
 use Hypervel\Cache\ModelCacheStoreValidator;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable as UserContract;
@@ -16,9 +17,14 @@ use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use InvalidArgumentException;
 use SensitiveParameter;
+use Throwable;
 
 class EloquentUserProvider implements UserProvider
 {
+    public const int DEFAULT_CACHE_TTL = 300;
+
+    public const string DEFAULT_CACHE_PREFIX = 'auth_user';
+
     /**
      * The callback used to build the identifier segment of cache keys.
      *
@@ -44,11 +50,10 @@ class EloquentUserProvider implements UserProvider
     /**
      * Registry of cache descriptors per model class.
      *
-     * Each entry is keyed by a deterministic descriptor hash, holding
+     * Each entry is keyed by its serialized store name and prefix, holding
      * enough information to rebuild the exact cache key on invalidation
-     * (storeName, prefix), combined with the model class it is registered
-     * under, without retaining a reference to any provider instance.
-     * Duplicate configs collapse on insert.
+     * without retaining a reference to any provider instance. Duplicate
+     * configurations collapse on insert.
      *
      * @var array<class-string, array<string, array{storeName: ?string, prefix: string}>>
      */
@@ -72,6 +77,11 @@ class EloquentUserProvider implements UserProvider
      * The cache store for user lookups.
      */
     protected ?CacheRepository $cache = null;
+
+    /**
+     * The coordinator for shared user cache entries.
+     */
+    protected ModelCacheCoordinator $cacheCoordinator;
 
     /**
      * The cache store name (null = default store).
@@ -119,10 +129,12 @@ class EloquentUserProvider implements UserProvider
             return $this->fetchUserById($identifier);
         }
 
-        return $this->resolveWriteCache()->rememberNullable(
+        return $this->cacheCoordinator->fill(
+            $this->cache,
             $this->buildCacheKey($identifier),
             $this->cacheTtl,
-            fn () => $this->fetchUserById($identifier),
+            fn () => $this->fetchUserByIdForCache($identifier),
+            writeCache: fn (): CacheRepository => $this->resolveWriteCache(),
         );
     }
 
@@ -131,11 +143,26 @@ class EloquentUserProvider implements UserProvider
      */
     protected function fetchUserById(mixed $identifier): ?UserContract
     {
+        return $this->newUserByIdQuery($identifier)->first(); // @phpstan-ignore return.type
+    }
+
+    /**
+     * Fetch a user by ID from the write connection for cache publication.
+     */
+    protected function fetchUserByIdForCache(mixed $identifier): ?UserContract
+    {
+        return $this->newUserByIdQuery($identifier)->useWritePdo()->first(); // @phpstan-ignore return.type
+    }
+
+    /**
+     * Get the query for retrieving a user by ID.
+     */
+    protected function newUserByIdQuery(mixed $identifier): Builder
+    {
         $model = $this->createModel();
 
-        return $this->newModelQuery($model) /* @phpstan-ignore return.type */
-            ->where($model->getAuthIdentifierName(), $identifier)
-            ->first();
+        return $this->newModelQuery($model)
+            ->where($model->getAuthIdentifierName(), $identifier);
     }
 
     /**
@@ -256,11 +283,11 @@ class EloquentUserProvider implements UserProvider
      * by name on invalidation and avoid holding strong references.
      *
      * A null or empty-string prefix is normalized to the feature default
-     * ('auth_users') so misconfiguration does not create hard-to-read keys
+     * ('auth_user') so misconfiguration does not create hard-to-read keys
      * with a leading colon.
      *
      * The store is validated before any instance state is mutated, so a
-     * rejected store leaves the provider in its prior uncached state and
+     * rejected store leaves the provider's existing cache configuration unchanged and
      * does not register a descriptor or model event listeners.
      *
      * Boot-only. User providers are held by cached guards; runtime use mutates
@@ -272,8 +299,8 @@ class EloquentUserProvider implements UserProvider
      */
     public function enableCache(
         ?string $storeName,
-        int $ttl = 300,
-        ?string $prefix = 'auth_users',
+        int $ttl = self::DEFAULT_CACHE_TTL,
+        ?string $prefix = self::DEFAULT_CACHE_PREFIX,
         ?array $tags = null,
     ): static {
         if ($ttl <= 0) {
@@ -286,6 +313,7 @@ class EloquentUserProvider implements UserProvider
 
         $container = Container::getInstance();
         $cache = $container->make('cache')->store($storeName);
+        $coordinator = $container->make(ModelCacheCoordinator::class);
 
         $validator = $container->make(ModelCacheStoreValidator::class);
         $feature = "Auth user cache for model [{$this->model}]";
@@ -302,9 +330,10 @@ class EloquentUserProvider implements UserProvider
         }
 
         $this->cache = $cache;
+        $this->cacheCoordinator = $coordinator;
         $this->cacheStoreName = $storeName;
         $this->cacheTtl = $ttl;
-        $this->cachePrefix = $prefix === null || $prefix === '' ? 'auth_users' : $prefix;
+        $this->cachePrefix = $prefix === null || $prefix === '' ? self::DEFAULT_CACHE_PREFIX : $prefix;
 
         $this->registerCacheInvalidationEvents();
 
@@ -327,7 +356,16 @@ class EloquentUserProvider implements UserProvider
      */
     public function clearUserCache(mixed $identifier): void
     {
-        $this->cache?->forget($this->buildCacheKey($identifier));
+        if ($this->cache === null) {
+            return;
+        }
+
+        $cache = $this->cache;
+        $key = $this->buildCacheKey($identifier);
+
+        $this->createModel()->getConnection()->afterCommitOrNow(
+            fn () => $this->cacheCoordinator->invalidate($cache, $key),
+        );
     }
 
     /**
@@ -438,7 +476,7 @@ class EloquentUserProvider implements UserProvider
         $effectiveTags = $this->effectiveCacheTags();
 
         if ($effectiveTags === []) {
-            return $this->cache; /* @phpstan-ignore return.type */
+            return $this->cache;
         }
 
         return $this->cache->tags($effectiveTags); /* @phpstan-ignore method.notFound (tags() is on Repository concrete, not the Repository contract) */
@@ -474,17 +512,17 @@ class EloquentUserProvider implements UserProvider
      * listeners for automatic cache invalidation.
      *
      * Uses a descriptor-based registry: each (storeName, prefix) pair is
-     * stored under a deterministic hash for its model class so duplicate
+     * stored under a serialized identity for its model class so duplicate
      * configs collapse. On save/delete, the listener resolves the cache-key
      * identifier while the model context is available. After commit, it reads
-     * the current descriptors, re-resolves each store by name, and calls
-     * forget(). Nothing holds a reference to a provider instance — safe
-     * against forgetGuards() + re-resolve cycles under Swoole.
+     * the current descriptors, re-resolves each store by name, and invalidates
+     * the exact key under its fill lock. Nothing holds a reference to a provider
+     * instance — safe against forgetGuards() + re-resolve cycles under Swoole.
      *
      * Event listener registration is guarded by the model's dispatcher
      * being non-null — HasEvents::registerModelEvent() silently no-ops
      * when the dispatcher isn't set, so we only mark the class as
-     * registered AFTER a successful attempt, leaving a retry window on
+     * registered after a successful attempt, leaving a retry window on
      * the next enableCache() call.
      */
     protected function registerCacheInvalidationEvents(): void
@@ -492,10 +530,7 @@ class EloquentUserProvider implements UserProvider
         $modelClass = $this->model;
 
         // Insert or replace the descriptor — duplicate configs collapse.
-        $descriptorKey = hash(
-            'xxh128',
-            ($this->cacheStoreName ?? '') . '|' . $this->cachePrefix . '|' . $modelClass
-        );
+        $descriptorKey = serialize([$this->cacheStoreName, $this->cachePrefix]);
 
         static::$cachedProviders[$modelClass][$descriptorKey] = [
             'storeName' => $this->cacheStoreName,
@@ -521,22 +556,29 @@ class EloquentUserProvider implements UserProvider
             $connection = $user->getConnection();
 
             $callback = static function () use ($identifierSegment, $modelClass): void {
-                $cacheManager = Container::getInstance()->make('cache');
+                $container = Container::getInstance();
+                $cacheManager = $container->make('cache');
+                $coordinator = $container->make(ModelCacheCoordinator::class);
+                $exception = null;
 
+                // Every configured store must be attempted even if another store is unavailable.
                 foreach (static::$cachedProviders[$modelClass] ?? [] as $descriptor) {
-                    $cacheManager
-                        ->store($descriptor['storeName'])
-                        ->forget($descriptor['prefix'] . ':' . $modelClass . ':' . $identifierSegment);
+                    try {
+                        $coordinator->invalidate(
+                            $cacheManager->store($descriptor['storeName']),
+                            $descriptor['prefix'] . ':' . $modelClass . ':' . $identifierSegment,
+                        );
+                    } catch (Throwable $throwable) {
+                        $exception ??= $throwable;
+                    }
+                }
+
+                if ($exception !== null) {
+                    throw $exception;
                 }
             };
 
-            if ($connection->getTransactionManager() === null && $connection->transactionLevel() === 0) {
-                $callback();
-
-                return;
-            }
-
-            $connection->afterCommit($callback);
+            $connection->afterCommitOrNow($callback);
         };
 
         $modelClass::saved($invalidate);

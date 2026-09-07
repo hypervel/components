@@ -25,6 +25,8 @@ class Blueprint
 {
     use Macroable;
 
+    private const array FOREIGN_KEY_TARGET_COMMANDS = ['primary', 'unique', 'index'];
+
     /**
      * The database connection instance.
      */
@@ -43,14 +45,14 @@ class Blueprint
     /**
      * The columns that should be added to the table.
      *
-     * @var \Hypervel\Database\Schema\ColumnDefinition[]
+     * @var list<\Hypervel\Database\Schema\ColumnDefinition>
      */
     protected array $columns = [];
 
     /**
      * The commands that should be run for the table.
      *
-     * @var \Hypervel\Support\Fluent[]
+     * @var list<\Hypervel\Support\Fluent>
      */
     protected array $commands = [];
 
@@ -103,9 +105,7 @@ class Blueprint
      */
     public function build(): void
     {
-        foreach ($this->toSql() as $statement) {
-            $this->connection->statement($statement);
-        }
+        $this->connection->getSchemaBuilder()->executeBlueprint($this);
     }
 
     /**
@@ -163,7 +163,9 @@ class Blueprint
         $this->addFluentIndexes();
         $this->addFluentCommands();
 
-        if (! $this->creating()) {
+        if ($this->creating()) {
+            $this->promoteCreateIndexesBeforeForeignKeys();
+        } else {
             $this->commands = array_map(
                 fn ($command) => $command instanceof ColumnDefinition
                     ? $this->createCommand($command->change ? 'change' : 'add', ['column' => $command])
@@ -180,6 +182,12 @@ class Blueprint
      */
     protected function addFluentIndexes(): void
     {
+        $generatedIndexes = [];
+
+        // CREATE columns are not commands and cannot receive moved indexes; SQLite ALTER
+        // compiles ordered state into rebuild groups instead of independent statements.
+        $placeGeneratedIndexes = ! $this->creating() && ! $this->grammar instanceof SQLiteGrammar;
+
         foreach ($this->columns as $column) {
             foreach (['primary', 'unique', 'index', 'fulltext', 'fullText', 'spatialIndex', 'vectorIndex'] as $index) {
                 // If the column is supposed to be changed to an auto increment column and
@@ -197,7 +205,13 @@ class Blueprint
                         ? 'vectorIndex'
                         : $index;
 
-                    $this->{$indexMethod}($column->name);
+                    /** @var IndexDefinition $command */
+                    $command = $this->{$indexMethod}($column->name);
+
+                    if ($placeGeneratedIndexes && in_array($command->name, self::FOREIGN_KEY_TARGET_COMMANDS, true)) {
+                        $generatedIndexes[] = ['column' => $column, 'command' => $command];
+                    }
+
                     $column->{$index} = null;
 
                     continue 2;
@@ -226,13 +240,92 @@ class Blueprint
                         ? 'vectorIndex'
                         : $index;
 
-                    $this->{$indexMethod}($column->name, $column->{$index});
+                    /** @var IndexDefinition $command */
+                    $command = $this->{$indexMethod}($column->name, $column->{$index});
+
+                    if ($placeGeneratedIndexes && in_array($command->name, self::FOREIGN_KEY_TARGET_COMMANDS, true)) {
+                        $generatedIndexes[] = ['column' => $column, 'command' => $command];
+                    }
+
                     $column->{$index} = null;
 
                     continue 2;
                 }
             }
         }
+
+        if ($generatedIndexes !== []) {
+            // Fluent indexes are created after the callback, so restore them beside their owning ALTER columns.
+            $this->placeGeneratedIndexesAfterColumns($generatedIndexes);
+        }
+    }
+
+    /**
+     * Place generated ALTER indexes after their owning columns.
+     *
+     * @param list<array{column: ColumnDefinition, command: Fluent}> $generatedIndexes
+     */
+    private function placeGeneratedIndexesAfterColumns(array $generatedIndexes): void
+    {
+        $indexesByColumn = [];
+        $generatedIndexIds = [];
+
+        foreach ($generatedIndexes as $generatedIndex) {
+            $indexesByColumn[spl_object_id($generatedIndex['column'])][] = $generatedIndex['command'];
+            $generatedIndexIds[spl_object_id($generatedIndex['command'])] = true;
+        }
+
+        $commands = [];
+
+        foreach ($this->commands as $command) {
+            if (isset($generatedIndexIds[spl_object_id($command)])) {
+                continue;
+            }
+
+            $commands[] = $command;
+
+            if ($command instanceof ColumnDefinition) {
+                foreach ($indexesByColumn[spl_object_id($command)] ?? [] as $generatedIndex) {
+                    $commands[] = $generatedIndex;
+                }
+            }
+        }
+
+        $this->commands = $commands;
+    }
+
+    /**
+     * Promote CREATE indexes before foreign keys.
+     *
+     * Target indexes must exist before referencing foreign keys on supported server databases.
+     * CREATE is declarative, so moving only targets preserves later non-target commands.
+     */
+    private function promoteCreateIndexesBeforeForeignKeys(): void
+    {
+        $foreignKeyOffset = array_find_key(
+            $this->commands,
+            static fn (Fluent $command): bool => $command->name === 'foreign',
+        );
+
+        if (is_null($foreignKeyOffset)) {
+            return;
+        }
+
+        $prefix = array_slice($this->commands, 0, $foreignKeyOffset);
+        $targets = [];
+        $remainder = [];
+
+        for ($offset = $foreignKeyOffset, $count = count($this->commands); $offset < $count; ++$offset) {
+            $command = $this->commands[$offset];
+
+            if (in_array($command->name, self::FOREIGN_KEY_TARGET_COMMANDS, true)) {
+                $targets[] = $command;
+            } else {
+                $remainder[] = $command;
+            }
+        }
+
+        $this->commands = [...$prefix, ...$targets, ...$remainder];
     }
 
     /**
@@ -263,7 +356,7 @@ class Blueprint
         ];
 
         foreach ($this->commands as $command) {
-            if (in_array($command->name, $alterCommands)) {
+            if (in_array($command->name, $alterCommands, true)) {
                 $hasAlterCommand = true;
                 $lastCommandWasAlter = true;
             } elseif ($lastCommandWasAlter) {
@@ -539,7 +632,7 @@ class Blueprint
     /**
      * Specify the primary key(s) for the table.
      */
-    public function primary(array|string $columns, ?string $name = null, ?string $algorithm = null): Fluent
+    public function primary(array|string $columns, ?string $name = null, ?string $algorithm = null): IndexDefinition
     {
         return $this->indexCommand('primary', $columns, $name, $algorithm);
     }
@@ -547,7 +640,7 @@ class Blueprint
     /**
      * Specify a unique index for the table.
      */
-    public function unique(array|string $columns, ?string $name = null, ?string $algorithm = null): Fluent
+    public function unique(array|string $columns, ?string $name = null, ?string $algorithm = null): IndexDefinition
     {
         return $this->indexCommand('unique', $columns, $name, $algorithm);
     }
@@ -555,7 +648,7 @@ class Blueprint
     /**
      * Specify an index for the table.
      */
-    public function index(array|string $columns, ?string $name = null, ?string $algorithm = null): Fluent
+    public function index(array|string $columns, ?string $name = null, ?string $algorithm = null): IndexDefinition
     {
         return $this->indexCommand('index', $columns, $name, $algorithm);
     }
@@ -563,7 +656,7 @@ class Blueprint
     /**
      * Specify a fulltext index for the table.
      */
-    public function fullText(array|string $columns, ?string $name = null, ?string $algorithm = null): Fluent
+    public function fullText(array|string $columns, ?string $name = null, ?string $algorithm = null): IndexDefinition
     {
         return $this->indexCommand('fulltext', $columns, $name, $algorithm);
     }
@@ -571,7 +664,7 @@ class Blueprint
     /**
      * Specify a spatial index for the table.
      */
-    public function spatialIndex(array|string $columns, ?string $name = null, ?string $operatorClass = null): Fluent
+    public function spatialIndex(array|string $columns, ?string $name = null, ?string $operatorClass = null): IndexDefinition
     {
         return $this->indexCommand('spatialIndex', $columns, $name, null, $operatorClass);
     }
@@ -579,7 +672,7 @@ class Blueprint
     /**
      * Specify a vector index for the table.
      */
-    public function vectorIndex(string $column, ?string $name = null): Fluent
+    public function vectorIndex(string $column, ?string $name = null): IndexDefinition
     {
         [$algorithm, $operatorClass] = $this->grammar instanceof MariaDbGrammar
             ? [null, 'M=6 DISTANCE=cosine']
@@ -591,7 +684,7 @@ class Blueprint
     /**
      * Specify a raw index for the table.
      */
-    public function rawIndex(string $expression, string $name): Fluent
+    public function rawIndex(string $expression, string $name): IndexDefinition
     {
         return $this->index([new Expression($expression)], $name);
     }
@@ -601,6 +694,8 @@ class Blueprint
      */
     public function foreign(array|string $columns, ?string $name = null): ForeignKeyDefinition
     {
+        // Reuse the index command to assemble the conventional name and attributes
+        // before replacing it with the foreign-key definition.
         $command = new ForeignKeyDefinition(
             $this->indexCommand('foreign', $columns, $name)->getAttributes()
         );
@@ -1339,7 +1434,7 @@ class Blueprint
     /**
      * Create a new index command on the blueprint.
      */
-    protected function indexCommand(string $type, array|string $columns, ?string $index, ?string $algorithm = null, ?string $operatorClass = null): Fluent
+    protected function indexCommand(string $type, array|string $columns, ?string $index, ?string $algorithm = null, ?string $operatorClass = null): IndexDefinition
     {
         $columns = (array) $columns;
 
@@ -1350,10 +1445,10 @@ class Blueprint
             ? $this->createIndexName($type, $columns)
             : $index;
 
-        return $this->addCommand(
-            $type,
-            compact('index', 'columns', 'algorithm', 'operatorClass')
-        );
+        return $this->addCommandDefinition(new IndexDefinition(array_merge(
+            ['name' => $type],
+            compact('index', 'columns', 'algorithm', 'operatorClass'),
+        )));
     }
 
     /**
@@ -1444,13 +1539,15 @@ class Blueprint
      */
     public function removeColumn(string $name): static
     {
-        $this->columns = array_values(array_filter($this->columns, function ($c) use ($name) {
-            return $c['name'] != $name;
-        }));
+        $this->columns = array_values(array_filter(
+            $this->columns,
+            fn (ColumnDefinition $column): bool => $column['name'] !== $name,
+        ));
 
-        $this->commands = array_values(array_filter($this->commands, function ($c) use ($name) {
-            return ! $c instanceof ColumnDefinition || $c['name'] != $name;
-        }));
+        $this->commands = array_values(array_filter(
+            $this->commands,
+            fn (Fluent $command): bool => ! $command instanceof ColumnDefinition || $command['name'] !== $name,
+        ));
 
         return $this;
     }
@@ -1460,9 +1557,22 @@ class Blueprint
      */
     protected function addCommand(string $name, array $parameters = []): Fluent
     {
-        $this->commands[] = $command = $this->createCommand($name, $parameters);
+        return $this->addCommandDefinition($this->createCommand($name, $parameters));
+    }
 
-        return $command;
+    /**
+     * Add a new command definition to the blueprint.
+     *
+     * @template TCommandDefinition of \Hypervel\Support\Fluent
+     *
+     * @param TCommandDefinition $definition
+     * @return TCommandDefinition
+     */
+    protected function addCommandDefinition(Fluent $definition): Fluent
+    {
+        $this->commands[] = $definition;
+
+        return $definition;
     }
 
     /**

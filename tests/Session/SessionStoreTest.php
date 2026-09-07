@@ -9,7 +9,10 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Http\Request;
 use Hypervel\Session\CookieSessionHandler;
+use Hypervel\Session\SessionId;
 use Hypervel\Session\Store;
+use Hypervel\Session\UserSessionIdentity;
+use Hypervel\Support\Json;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\Str;
 use Hypervel\Support\Uri;
@@ -65,7 +68,8 @@ class SessionStoreTest extends TestCase
         $oldId = $session->getId();
         $session->getHandler()->shouldReceive('destroy')->never();
         $this->assertTrue($session->regenerate());
-        $this->assertNotEquals($oldId, $session->getId());
+        $this->assertNotSame($oldId, $session->getId());
+        $this->assertFalse(UserSessionIdentity::resolve(null, $session->getId())->isUnowned());
     }
 
     public function testCantSetInvalidId(): void
@@ -170,8 +174,9 @@ class SessionStoreTest extends TestCase
         $this->assertTrue($session->invalidate());
 
         $this->assertFalse($session->has('name'));
-        $this->assertNotEquals($oldId, $session->getId());
+        $this->assertNotSame($oldId, $session->getId());
         $this->assertCount(0, $session->all());
+        $this->assertTrue(UserSessionIdentity::resolve(null, $session->getId())->isUnowned());
     }
 
     public function testBrandNewSessionIsProperlySaved(): void
@@ -566,6 +571,7 @@ class SessionStoreTest extends TestCase
         $token = $session->token();
         $session->regenerateToken();
         $this->assertNotEquals($token, $session->token());
+        $this->assertSame(40, strlen((string) $session->token()));
     }
 
     public function testName(): void
@@ -1015,6 +1021,60 @@ class SessionStoreTest extends TestCase
         $this->assertInstanceOf(ViewErrorBag::class, $session->get('errors'));
     }
 
+    public function testJsonSessionRoundTripsAtTheMaximumSupportedNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 1; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $storedPayload = null;
+        $writer = m::mock(SessionHandlerInterface::class);
+        $writer->shouldReceive('read')->once()->andReturn('{}');
+        $writer->shouldReceive('write')->once()->andReturnUsing(
+            function (string $sessionId, string $payload) use (&$storedPayload): bool {
+                $storedPayload = $payload;
+
+                return true;
+            }
+        );
+
+        $session = new Store('name', $writer, $this->getSessionId(), 'json');
+        $session->start();
+        $session->put('nested', $value);
+        $session->save();
+
+        $reader = m::mock(SessionHandlerInterface::class);
+        $reader->shouldReceive('read')->once()->andReturn($storedPayload);
+
+        $restored = new Store('name', $reader, $this->getSessionId(), 'json');
+        $restored->start();
+
+        $this->assertSame($value, $restored->get('nested'));
+    }
+
+    public function testJsonSessionRejectsOneLevelOverTheMaximumNestingDepth(): void
+    {
+        $value = 'leaf';
+
+        for ($index = 0; $index < Json::MAXIMUM_NESTING_DEPTH; ++$index) {
+            $value = ['value' => $value];
+        }
+
+        $handler = m::mock(SessionHandlerInterface::class);
+        $handler->shouldReceive('read')->once()->andReturn('{}');
+        $handler->shouldReceive('write')->never();
+
+        $session = new Store('name', $handler, $this->getSessionId(), 'json');
+        $session->start();
+        $session->put('nested', $value);
+
+        $this->expectException(JsonException::class);
+
+        $session->save();
+    }
+
     public function testStartingJsonSessionRetainsLiveErrorBagWhenStorageHasNone(): void
     {
         $handler = m::mock(SessionHandlerInterface::class);
@@ -1140,14 +1200,21 @@ class SessionStoreTest extends TestCase
         $this->assertFalse(Store::hasMacro('foo'));
     }
 
-    public function testSessionIdLengthConstant(): void
+    public function testSessionIdentifiersUseTheSharedFormat(): void
     {
         $session = $this->getSession();
         $id = $session->getId();
-        $this->assertSame(40, strlen($id));
+        $this->assertSame(SessionId::LENGTH, strlen($id));
         $this->assertTrue($session->isValidId($id));
+        $this->assertTrue(SessionId::isValid($id));
         $this->assertFalse($session->isValidId(str_repeat('a', 39)));
         $this->assertFalse($session->isValidId(str_repeat('a', 41)));
+        $this->assertFalse($session->isValidId(str_repeat('-', SessionId::LENGTH)));
+
+        $generatedId = SessionId::generate();
+
+        $this->assertSame(SessionId::LENGTH, strlen($generatedId));
+        $this->assertTrue($session->isValidId($generatedId));
     }
 
     public function testPreviousUri(): void

@@ -10,7 +10,7 @@ use Hypervel\Support\Arr;
 
 class Context
 {
-    public const FD = 'ws.fd';
+    public const string FD = 'ws.fd';
 
     protected static array $storage = [];
 

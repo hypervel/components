@@ -15,12 +15,12 @@ class PoolOption implements PoolOptionInterface
     /**
      * Lowest max_lifetime fraction assigned to a connection generation.
      */
-    public const MIN_LIFETIME_JITTER_BASIS = 9000;
+    public const int MIN_LIFETIME_JITTER_BASIS = 9000;
 
     /**
      * Scale used for jitter basis values.
      */
-    public const LIFETIME_JITTER_SCALE = 10000;
+    public const int LIFETIME_JITTER_SCALE = 10000;
 
     /**
      * @param int $minConnections Managed-connection floor when trimming excess idle connections

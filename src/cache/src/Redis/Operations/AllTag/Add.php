@@ -8,8 +8,6 @@ use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
 
-use function Hypervel\Support\now;
-
 /**
  * Store an item in the cache if it doesn't exist, with all tag tracking.
  *
@@ -19,11 +17,15 @@ use function Hypervel\Support\now;
  * Uses Redis SET with NX (only set if Not eXists) and EX (expiration) flags
  * for atomic "add if not exists" semantics without requiring Lua scripts.
  *
- * Note: Tag entries are always added, even if the key exists. This matches
- * the original behavior where addEntry() is called before checking existence.
+ * Tag entries are published after the value attempt even when the key already
+ * exists, preserving the existing membership behavior without exposing a
+ * metadata-before-value window to concurrent pruning.
  */
 class Add
 {
+    /**
+     * Create a new add operation instance.
+     */
     public function __construct(
         private readonly StoreContext $context,
         private readonly Serialization $serialization,
@@ -35,12 +37,14 @@ class Add
      *
      * @param string $key The cache key (already namespaced by caller)
      * @param mixed $value The value to store
-     * @param int $seconds TTL in seconds
+     * @param int $seconds TTL in seconds; values below one are stored for one second
      * @param array<string> $tagIds Array of tag identifiers
-     * @return bool True if the key was added (didn't exist), false if it already existed
+     * @return bool True if the key was added; false if it already existed or a write failed
      */
     public function execute(string $key, mixed $value, int $seconds, array $tagIds): bool
     {
+        $seconds = max(1, $seconds);
+
         if ($this->context->isCluster()) {
             return $this->executeCluster($key, $value, $seconds, $tagIds);
         }
@@ -51,61 +55,70 @@ class Add
     /**
      * Execute using pipeline for standard Redis (non-cluster).
      *
-     * Pipelines ZADD commands for all tags, then uses SET NX EX for atomic add.
+     * Pipelines SET NX EX before the ZADD commands for all tags.
      */
     private function executePipeline(string $key, mixed $value, int $seconds, array $tagIds): bool
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds) {
             $prefix = $this->context->prefix();
-            $score = now()->addSeconds($seconds)->getTimestamp();
+            $serialized = $this->serialization->serialize($connection, $value);
 
-            // Pipeline the ZADD operations for tag tracking
-            if (! empty($tagIds)) {
-                $pipeline = $connection->pipeline();
-
-                foreach ($tagIds as $tagId) {
-                    $pipeline->zadd($prefix . $tagId, $score, $key);
-                }
-
-                $pipeline->exec();
+            if ($tagIds === []) {
+                return (bool) $connection->set(
+                    $prefix . $key,
+                    $serialized,
+                    ['EX' => $seconds, 'NX']
+                );
             }
 
-            // SET key value EX seconds NX - atomic "add if not exists"
-            $result = $connection->set(
-                $prefix . $key,
-                $this->serialization->serialize($connection, $value),
-                ['EX' => max(1, $seconds), 'NX']
-            );
+            $score = $this->context->expirationScore($seconds);
+            $pipeline = $connection->pipeline();
 
-            return (bool) $result;
+            // Publish the value attempt before its memberships so concurrent
+            // pruning cannot mistake a newly written member for an orphan.
+            $pipeline->set($prefix . $key, $serialized, ['EX' => $seconds, 'NX']);
+
+            // Membership is unconditional to preserve existing-key behavior.
+            foreach ($tagIds as $tagId) {
+                $pipeline->zadd($prefix . $tagId, $score, $key);
+            }
+
+            $results = $pipeline->exec();
+
+            return $results !== false && ! in_array(false, $results, true);
         });
     }
 
     /**
      * Execute using sequential commands for Redis Cluster.
      *
-     * Sequential ZADD commands since tags may be in different slots,
-     * then SET NX EX for atomic add.
+     * Uses SET NX EX for atomic add, then sequential ZADD commands because
+     * tags may be in different slots.
      */
     private function executeCluster(string $key, mixed $value, int $seconds, array $tagIds): bool
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds) {
             $prefix = $this->context->prefix();
-            $score = now()->addSeconds($seconds)->getTimestamp();
+            $score = $this->context->expirationScore($seconds);
 
-            // ZADD to each tag's sorted set (sequential - cross-slot)
-            foreach ($tagIds as $tagId) {
-                $connection->zadd($prefix . $tagId, $score, $key);
-            }
-
-            // SET key value EX seconds NX - atomic "add if not exists"
+            // Publish the value attempt before its memberships so concurrent
+            // pruning can repair cross-slot races without losing fresh metadata.
             $result = $connection->set(
                 $prefix . $key,
                 $this->serialization->serialize($connection, $value),
-                ['EX' => max(1, $seconds), 'NX']
+                ['EX' => $seconds, 'NX']
             );
 
-            return (bool) $result;
+            $membershipsSucceeded = true;
+
+            // Membership is unconditional to preserve existing-key behavior.
+            foreach ($tagIds as $tagId) {
+                if ($connection->zadd($prefix . $tagId, $score, $key) === false) {
+                    $membershipsSucceeded = false;
+                }
+            }
+
+            return (bool) $result && $membershipsSucceeded;
         });
     }
 }

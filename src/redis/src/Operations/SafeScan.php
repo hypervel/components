@@ -9,6 +9,7 @@ use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
 use Hypervel\Redis\PhpRedis;
 use Hypervel\Redis\PhpRedisClusterConnection;
 use Hypervel\Redis\RedisConnection;
+use Redis;
 
 /**
  * Safely scan the Redis keyspace for keys matching a pattern.
@@ -21,8 +22,8 @@ use Hypervel\Redis\RedisConnection;
  * phpredis has an OPT_PREFIX option that automatically prepends a prefix to keys
  * for most commands (GET, SET, DEL, etc.). However, this creates complexity:
  *
- * 1. **SCAN does NOT auto-prefix the pattern** - You must manually include OPT_PREFIX
- *    in your SCAN pattern to match keys that were stored with auto-prefixing.
+ * 1. **SCAN prefixing is configurable** - SCAN_PREFIX adds OPT_PREFIX to the pattern.
+ *    Without it, the pattern must include OPT_PREFIX to match auto-prefixed keys.
  *
  * 2. **SCAN returns full keys** - Keys returned include the OPT_PREFIX as stored in Redis.
  *
@@ -30,6 +31,8 @@ use Hypervel\Redis\RedisConnection;
  *    adds OPT_PREFIX again, causing double-prefixing and failed deletions.
  *
  * ## Example of the Bug This Class Prevents
+ *
+ * With SCAN_PREFIX disabled:
  *
  * ```
  * OPT_PREFIX = "myapp:"
@@ -92,8 +95,8 @@ final class SafeScan
     /**
      * Execute the scan operation.
      *
-     * @param string $pattern The pattern to match (e.g., "cache:users:*").
-     *                        Should NOT include OPT_PREFIX - it will be added automatically.
+     * @param string $pattern The logical key pattern (e.g., "cache:users:*"). OPT_PREFIX is added automatically;
+     *                        the pattern is preserved even when it starts with the same bytes as OPT_PREFIX.
      * @param int $count The COUNT hint for SCAN (not a limit, just a hint to Redis)
      * @return Generator<string> yields keys with OPT_PREFIX stripped, safe for use with
      *                           other phpredis commands that auto-add the prefix
@@ -102,10 +105,11 @@ final class SafeScan
     {
         $prefixLen = strlen($this->optPrefix);
 
-        // SCAN does not automatically apply OPT_PREFIX to the pattern,
-        // so we must prepend it manually to match keys stored with auto-prefixing.
+        // Patterns are logical keys, even when they start with OPT_PREFIX.
+        // Prepend the connection prefix only when phpredis will not add it.
         $scanPattern = $pattern;
-        if ($prefixLen > 0 && ! str_starts_with($pattern, $this->optPrefix)) {
+        if ($prefixLen > 0
+            && ($this->connection->getOption(Redis::OPT_SCAN) & Redis::SCAN_PREFIX) === 0) {
             $scanPattern = $this->optPrefix . $pattern;
         }
 

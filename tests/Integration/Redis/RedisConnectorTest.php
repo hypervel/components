@@ -10,6 +10,9 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
+use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Redis as PhpRedis;
 
 /**
  * Tests that Redis connection configuration is correctly applied to the
@@ -19,6 +22,18 @@ use Hypervel\Testbench\TestCase;
 class RedisConnectorTest extends TestCase
 {
     use InteractsWithRedis;
+
+    /**
+     * Set up the standalone Redis configuration tests.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        if ($this->usingRedisCluster()) {
+            $this->markTestSkipped('These connection options require standalone phpredis.');
+        }
+    }
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
@@ -33,7 +48,7 @@ class RedisConnectorTest extends TestCase
         $host = $this->app->make('config')->get('database.redis.default.host');
         $port = $this->app->make('config')->get('database.redis.default.port');
 
-        $this->withClient('default', function (\Redis $client) use ($host, $port): void {
+        $this->withClient('default', function (PhpRedis $client) use ($host, $port): void {
             $this->assertSame($host, $client->getHost());
             $this->assertSame($port, $client->getPort());
         });
@@ -50,7 +65,7 @@ class RedisConnectorTest extends TestCase
             'database' => $this->getParallelRedisDb(),
         ]);
 
-        $this->withClient($name, function (\Redis $client) use ($host, $port): void {
+        $this->withClient($name, function (PhpRedis $client) use ($host, $port): void {
             // redis:// URL maps to tcp:// scheme via ConfigurationUrlParser driver aliases
             $this->assertSame("tcp://{$host}", $client->getHost());
             $this->assertEquals($port, $client->getPort());
@@ -68,7 +83,7 @@ class RedisConnectorTest extends TestCase
             'database' => $this->getParallelRedisDb(),
         ]);
 
-        $this->withClient($name, function (\Redis $client) use ($host, $port): void {
+        $this->withClient($name, function (PhpRedis $client) use ($host, $port): void {
             $this->assertSame("tcp://{$host}", $client->getHost());
             $this->assertEquals($port, $client->getPort());
         });
@@ -87,7 +102,7 @@ class RedisConnectorTest extends TestCase
             'database' => $this->getParallelRedisDb(),
         ]);
 
-        $this->withClient($name, function (\Redis $client) use ($host, $port): void {
+        $this->withClient($name, function (PhpRedis $client) use ($host, $port): void {
             $this->assertSame("tcp://{$host}", $client->getHost());
             $this->assertEquals($port, $client->getPort());
         });
@@ -111,8 +126,8 @@ class RedisConnectorTest extends TestCase
         // Must purge + re-resolve since config changed after initial resolution
         $this->app->make('redis')->purge($name);
 
-        $this->withClient($name, function (\Redis $client): void {
-            $this->assertSame('per_connection_', $client->getOption(\Redis::OPT_PREFIX));
+        $this->withClient($name, function (PhpRedis $client): void {
+            $this->assertSame('per_connection_', $client->getOption(PhpRedis::OPT_PREFIX));
         });
     }
 
@@ -132,8 +147,8 @@ class RedisConnectorTest extends TestCase
         $this->app->make('config')->set('database.redis.options.prefix', 'global_');
         $this->app->make('redis')->purge($name);
 
-        $this->withClient($name, function (\Redis $client): void {
-            $this->assertSame('top_level_', $client->getOption(\Redis::OPT_PREFIX));
+        $this->withClient($name, function (PhpRedis $client): void {
+            $this->assertSame('top_level_', $client->getOption(PhpRedis::OPT_PREFIX));
         });
     }
 
@@ -147,7 +162,7 @@ class RedisConnectorTest extends TestCase
             'name' => 'hypervel-connector-test',
         ]);
 
-        $this->withClient($name, function (\Redis $client): void {
+        $this->withClient($name, function (PhpRedis $client): void {
             $this->assertSame('hypervel-connector-test', $client->client('GETNAME'));
         });
     }
@@ -164,22 +179,77 @@ class RedisConnectorTest extends TestCase
             ],
         ]);
 
-        $this->withClient($name, function (\Redis $client): void {
-            $this->assertSame(1, $client->getOption(\Redis::OPT_TCP_KEEPALIVE));
+        $this->withClient($name, function (PhpRedis $client): void {
+            $this->assertSame(1, $client->getOption(PhpRedis::OPT_TCP_KEEPALIVE));
+        });
+    }
+
+    #[DataProvider('phpRedisBackoffAlgorithmsProvider')]
+    public function testPhpRedisBackoffAlgorithmParsing(string $friendlyAlgorithmName, int $expectedAlgorithm): void
+    {
+        $name = $this->addTestConnection(['backoff_algorithm' => $friendlyAlgorithmName]);
+
+        $this->withClient($name, function (PhpRedis $client) use ($expectedAlgorithm): void {
+            $this->assertSame($expectedAlgorithm, $client->getOption(PhpRedis::OPT_BACKOFF_ALGORITHM));
+        });
+    }
+
+    #[DataProvider('phpRedisBackoffAlgorithmsProvider')]
+    public function testPhpRedisBackoffAlgorithm(string $friendlyAlgorithm, int $expectedAlgorithm): void
+    {
+        $name = $this->addTestConnection(['backoff_algorithm' => $expectedAlgorithm]);
+
+        $this->withClient($name, function (PhpRedis $client) use ($expectedAlgorithm): void {
+            $this->assertSame($expectedAlgorithm, $client->getOption(PhpRedis::OPT_BACKOFF_ALGORITHM));
+        });
+    }
+
+    /**
+     * Provide friendly backoff names and their native algorithms.
+     */
+    public static function phpRedisBackoffAlgorithmsProvider(): array
+    {
+        return [
+            ['default', PhpRedis::BACKOFF_ALGORITHM_DEFAULT],
+            ['decorrelated_jitter', PhpRedis::BACKOFF_ALGORITHM_DECORRELATED_JITTER],
+            ['equal_jitter', PhpRedis::BACKOFF_ALGORITHM_EQUAL_JITTER],
+            ['exponential', PhpRedis::BACKOFF_ALGORITHM_EXPONENTIAL],
+            ['uniform', PhpRedis::BACKOFF_ALGORITHM_UNIFORM],
+            ['constant', PhpRedis::BACKOFF_ALGORITHM_CONSTANT],
+        ];
+    }
+
+    public function testAnInvalidPhpRedisBackoffAlgorithmIsConvertedToDefault(): void
+    {
+        $name = $this->addTestConnection(['backoff_algorithm' => 7]);
+
+        $this->withClient($name, function (PhpRedis $client): void {
+            $this->assertSame(PhpRedis::BACKOFF_ALGORITHM_DEFAULT, $client->getOption(PhpRedis::OPT_BACKOFF_ALGORITHM));
+        });
+    }
+
+    public function testItFailsWithAnInvalidPhpRedisAlgorithm(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException('Algorithm [foo] is not a valid PhpRedis backoff algorithm'));
+
+        $name = $this->addTestConnection(['backoff_algorithm' => 'foo']);
+
+        // Acquiring the pooled connection builds the native client and applies its options.
+        Redis::connection($name)->withConnection(static function (RedisConnection $connection): void {
         });
     }
 
     /**
      * Execute a callback with the underlying phpredis client for a named connection.
      *
-     * @param Closure(\Redis): void $callback
+     * @param Closure(PhpRedis): void $callback
      */
     private function withClient(string $name, Closure $callback): void
     {
         Redis::connection($name)->withConnection(
             function (RedisConnection $connection) use ($callback): void {
                 $client = $connection->client();
-                $this->assertInstanceOf(\Redis::class, $client);
+                $this->assertInstanceOf(PhpRedis::class, $client);
 
                 $callback($client);
             },
@@ -194,17 +264,10 @@ class RedisConnectorTest extends TestCase
     {
         static $counter = 0;
         $name = 'connector_test_' . ++$counter;
+        $connection = $this->app->make('config')->array('database.redis.default');
+        $connection['pool']['max_connections'] = 2;
 
-        $config = array_merge([
-            'pool' => [
-                'min_connections' => 1,
-                'max_connections' => 2,
-                'connect_timeout' => 10.0,
-                'wait_timeout' => 3.0,
-                'heartbeat' => -1,
-                'max_idle_time' => 60.0,
-            ],
-        ], $config);
+        $config = array_replace($connection, $config);
 
         $this->app->make('config')->set("database.redis.{$name}", $config);
 

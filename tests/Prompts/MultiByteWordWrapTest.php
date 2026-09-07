@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Prompts;
 
+use Hypervel\Prompts\Support\Utils;
 use Hypervel\Prompts\Themes\Default\Concerns\InteractsWithStrings;
 use Hypervel\Tests\TestCase;
 
@@ -193,7 +194,8 @@ class MultiByteWordWrapTest extends TestCase
         I'll tell you
         how I became
         the prince of
-        a 👨‍👩‍👧‍👦 called
+        a 👨‍👩‍👧‍👦
+        called
         Bel-Air
         RESULT;
 
@@ -228,6 +230,59 @@ class MultiByteWordWrapTest extends TestCase
         RESULT;
 
         $this->assertSame($mbResult, $expectedResult);
+    }
+
+    public function testCutsLongWordsAtGraphemeBoundaries(): void
+    {
+        $instance = $this->getInstance();
+
+        foreach (["e\u{0301}", '👨‍👩‍👧', '👍🏽', '🇺🇸', '1️⃣', '가', 'का'] as $grapheme) {
+            $this->assertSame($grapheme, $instance->wordwrap($grapheme, 1, "\n", true));
+        }
+
+        $this->assertSame("é\n€\n😀", $instance->wordwrap('é € 😀', 1, "\n", true));
+    }
+
+    public function testSplitsOversizedGraphemesLosslesslyAtTheSharedCeiling(): void
+    {
+        $instance = $this->getInstance();
+        $grapheme = 'a' . str_repeat("\u{0301}", 3000);
+        $lines = explode("\n", $instance->wordwrap($grapheme, 1, "\n", true));
+
+        $this->assertGreaterThan(1, count($lines));
+        $this->assertSame($grapheme, implode('', $lines));
+
+        foreach ($lines as $line) {
+            $this->assertLessThanOrEqual(Utils::MAX_UNBREAKABLE_BYTES, strlen($line));
+        }
+    }
+
+    public function testDoesNotEmitLeadingOrOverflowBlankLines(): void
+    {
+        $instance = $this->getInstance();
+
+        $this->assertSame('abcdefgh', $instance->wordwrap('abcdefgh', 3, "\n", false));
+        $this->assertSame('😀', $instance->wordwrap('😀', 1, "\n", false));
+        $this->assertSame('😀', $instance->wordwrap('😀', 1, "\n", true));
+        $this->assertSame("aa\naa\nbb\nbb", $instance->wordwrap('aaaa  bbbb', 2, "\n", true));
+        $this->assertSame("aaaa\nbbbb", $instance->wordwrap('aaaa  bbbb', 2, "\n", false));
+        $this->assertSame('abcdef', $instance->wordwrap(' abcdef', 4, "\n", false));
+    }
+
+    public function testNormalizesNonPositiveWidthsAndPreservesWhitespaceLines(): void
+    {
+        $instance = $this->getInstance();
+
+        $this->assertSame("a\nb\nc", $instance->wordwrap('abc', 0, "\n", true));
+        $this->assertSame("a\nb\nc", $instance->wordwrap('abc', -1, "\n", true));
+        $this->assertSame("  \n  ", $instance->wordwrap('     ', 2, "\n", true));
+    }
+
+    public function testRetainsMalformedUtf8FallbackWhenCuttingLongWords(): void
+    {
+        $instance = $this->getInstance();
+
+        $this->assertSame("a\n\xFF\nb", $instance->wordwrap("a\xFFb", 1, "\n", true));
     }
 
     protected function getInstance()

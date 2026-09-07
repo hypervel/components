@@ -8,21 +8,21 @@ use RuntimeException;
 use SensitiveParameter;
 
 /**
- * @method static \Hypervel\Hashing\BcryptHasher createBcryptDriver()
- * @method static \Hypervel\Hashing\ArgonHasher createArgonDriver()
- * @method static \Hypervel\Hashing\Argon2IdHasher createArgon2idDriver()
- * @method static array info(string $hashedValue)
- * @method static string make(string $value, array $options = [])
  * @method static bool check(string $value, string|null $hashedValue, array $options = [])
- * @method static bool needsRehash(string|null $hashedValue, array $options = [])
- * @method static bool isHashed(string $value)
- * @method static string getDefaultDriver()
+ * @method static \Hypervel\Hashing\Argon2IdHasher createArgon2idDriver()
+ * @method static \Hypervel\Hashing\ArgonHasher createArgonDriver()
+ * @method static \Hypervel\Hashing\BcryptHasher createBcryptDriver()
  * @method static mixed driver(\UnitEnum|string|null $driver = null)
  * @method static \Hypervel\Hashing\HashManager extend(string $driver, \Closure $callback)
- * @method static array getDrivers()
- * @method static \Hypervel\Contracts\Container\Container getContainer()
- * @method static \Hypervel\Hashing\HashManager setContainer(\Hypervel\Contracts\Container\Container $container)
  * @method static \Hypervel\Hashing\HashManager forgetDrivers()
+ * @method static \Hypervel\Contracts\Container\Container getContainer()
+ * @method static string getDefaultDriver()
+ * @method static array getDrivers()
+ * @method static array info(string $hashedValue)
+ * @method static bool isHashed(string $value)
+ * @method static string make(string $value, array $options = [])
+ * @method static bool needsRehash(string|null $hashedValue, array $options = [])
+ * @method static \Hypervel\Hashing\HashManager setContainer(\Hypervel\Contracts\Container\Container $container)
  *
  * @see \Hypervel\Hashing\HashManager
  */

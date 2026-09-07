@@ -4,9 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Coroutine;
 
+use Closure;
+use Hypervel\Coroutine\Exceptions\ChannelClosedException;
+use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Coroutine\Exceptions\ParallelExecutionException;
 use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Engine\Exceptions\RunningInNonCoroutineException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 use function sprintf;
@@ -20,6 +25,9 @@ class Parallel
 
     protected ?Channel $concurrentChannel = null;
 
+    /**
+     * @var array<array-key, mixed>
+     */
     protected array $results = [];
 
     /**
@@ -33,8 +41,9 @@ class Parallel
      * @param int $concurrent Maximum concurrent coroutines (0 = unlimited)
      * @param array<string>|bool $copyContext When set, parent coroutine context is copied to each child.
      *                                        false = fresh context (default), true or empty array = copy all keys, non-empty array = copy listed keys only.
-     *                                        Object values from the parent context are shared by reference; values implementing
-     *                                        Hypervel\Context\ReplicableContext are deep-copied via replicate().
+     *                                        Objects stored directly in context are shared by reference by default. Values implementing
+     *                                        Hypervel\Context\ReplicableContext are copied via replicate(), while values implementing
+     *                                        Hypervel\Context\NonCopyableContext are omitted.
      */
     public function __construct(
         int $concurrent = 0,
@@ -71,49 +80,119 @@ class Parallel
             throw new RunningInNonCoroutineException('Parallel execution requires an active coroutine.');
         }
 
-        // Reset per-run state so previous runs cannot leak into this one. Without this, a
-        // failure from an earlier wait() would remain in $throwables and surface through
-        // getThrowables() on subsequent runs, regardless of the current run's outcome.
+        // Inspection reflects only a run that completed normally. Children from a canceled
+        // run retain their local arrays and cannot publish into a later run.
         $this->results = [];
         $this->throwables = [];
 
-        $wg = new WaitGroup;
+        $results = [];
+        $throwables = [];
+
+        $waitGroup = new WaitGroup;
         $coroutineIds = [];
-        $wg->add(count($this->callbacks));
-        foreach ($this->callbacks as $key => $callback) {
-            $this->concurrentChannel && $this->concurrentChannel->push(true);
-            $this->results[$key] = null;
-            $childCallable = function () use ($callback, $key, $wg) {
+        /** @var array<int, true> $children */
+        $children = [];
+        $waitGroup->add(count($this->callbacks));
+
+        try {
+            foreach ($this->callbacks as $key => $callback) {
+                $slotAcquired = false;
+                $started = false;
+
                 try {
-                    $this->results[$key] = $callback();
+                    if ($this->concurrentChannel) {
+                        if (! $this->concurrentChannel->push(true)) {
+                            if ($this->concurrentChannel->isCanceled()) {
+                                throw new CanceledException('Waiting to start parallel work was canceled.');
+                            }
+
+                            throw new ChannelClosedException('The parallel concurrency channel is closed.');
+                        }
+
+                        $slotAcquired = true;
+                    }
+
+                    $results[$key] = null;
+                    // Keep child exception traces from retaining this Parallel instance.
+                    $childCallable = static function () use ($callback, $key, &$results, &$throwables): void {
+                        try {
+                            $results[$key] = $callback();
+                        } catch (CanceledException $exception) {
+                            $throwables[$key] = new ChildCancellationException(
+                                'A child coroutine managed by Parallel was canceled while its owner remained active.',
+                                previous: $exception,
+                            );
+                            unset($results[$key]);
+                        } catch (Throwable $throwable) {
+                            $throwables[$key] = $throwable;
+                            unset($results[$key]);
+                        }
+                    };
+                    $wrapper = function (Closure $run) use ($waitGroup, &$children, &$started): void {
+                        $coroutineId = Coroutine::id();
+
+                        try {
+                            $started = true;
+                            $children[$coroutineId] = true;
+                            $run();
+                        } finally {
+                            unset($children[$coroutineId]);
+                            $this->concurrentChannel?->pop();
+                            $waitGroup->done();
+                        }
+                    };
+
+                    if ($this->copyContext === false) {
+                        $coroutineIds[] = Coroutine::createOwned($childCallable, $wrapper);
+                    } else {
+                        $coroutineIds[] = Coroutine::forkOwned($childCallable, $wrapper, is_array($this->copyContext) ? $this->copyContext : []);
+                    }
+                } catch (CanceledException $exception) {
+                    if (! $started) {
+                        if ($slotAcquired) {
+                            $this->concurrentChannel?->pop();
+                        }
+
+                        $waitGroup->done();
+                    }
+
+                    throw $exception;
                 } catch (Throwable $throwable) {
-                    $this->throwables[$key] = $throwable;
-                    unset($this->results[$key]);
-                } finally {
-                    $this->concurrentChannel && $this->concurrentChannel->pop();
-                    $wg->done();
-                }
-            };
+                    $throwables[$key] = $throwable;
+                    unset($results[$key]);
 
-            try {
-                if ($this->copyContext === false) {
-                    $coroutineIds[] = Coroutine::create($childCallable);
-                } else {
-                    $coroutineIds[] = Coroutine::fork($childCallable, is_array($this->copyContext) ? $this->copyContext : []);
+                    // Once the child starts, its finally block exclusively owns both releases.
+                    if (! $started) {
+                        if ($slotAcquired) {
+                            $this->concurrentChannel?->pop();
+                        }
+
+                        $waitGroup->done();
+                    }
                 }
-            } catch (Throwable $throwable) {
-                $this->throwables[$key] = $throwable;
-                unset($this->results[$key]);
-                $this->concurrentChannel?->pop();
-                $wg->done();
             }
-        }
-        $wg->wait();
 
-        // WaitGroup completion precedes the last child's physical teardown.
-        if ($coroutineIds !== []) {
-            Coroutine::join($coroutineIds);
+            $waitGroup->wait();
+
+            // WaitGroup completion precedes the last child's physical teardown.
+            if ($coroutineIds !== []) {
+                $joined = Coroutine::join($coroutineIds);
+
+                if (! $joined && EngineCoroutine::isCanceled()) {
+                    throw new CanceledException('Waiting for parallel child coroutines was canceled.');
+                }
+            }
+        } catch (CanceledException $exception) {
+            $this->cancelChildren($children);
+            throw $exception;
         }
+
+        $this->results = $results;
+        $this->throwables = $throwables;
+
+        // Detach child exception traces from the published run aggregates.
+        $results = [];
+        $throwables = [];
 
         if ($throw && ($throwableCount = count($this->throwables)) > 0) {
             $message = 'Detecting ' . $throwableCount . ' throwable occurred during parallel execution:' . PHP_EOL . $this->formatThrowables($this->throwables);
@@ -183,5 +262,21 @@ class Parallel
             $output .= sprintf('(%s) %s: %s' . PHP_EOL . '%s' . PHP_EOL, $key, get_class($value), $value->getMessage(), $value->getTraceAsString());
         }
         return $output;
+    }
+
+    /**
+     * Cancel every child that remains active.
+     *
+     * @param array<int, true> $children
+     */
+    private function cancelChildren(array &$children): void
+    {
+        // Throwing cancellation resumes a child synchronously, so each prior
+        // cancellation may remove entries before the next child is inspected.
+        foreach (array_keys($children) as $coroutineId) {
+            if (isset($children[$coroutineId])) {
+                EngineCoroutine::cancelById($coroutineId, throwException: true);
+            }
+        }
     }
 }

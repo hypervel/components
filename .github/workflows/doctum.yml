@@ -10,17 +10,12 @@ jobs:
     runs-on: ubuntu-latest
 
     container:
-      image: phpswoole/swoole:6.2.0-php8.4
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.2.2
 
     permissions:
       contents: read
 
     steps:
-      - name: Install Git
-        run: |
-          apt-get update -qq
-          apt-get install -y -qq git > /dev/null
-
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
@@ -31,9 +26,6 @@ jobs:
 
       - name: Verify checkout
         run: git rev-parse --is-inside-work-tree
-
-      - name: Setup PHP extensions
-        uses: ./.github/actions/setup-php
 
       - name: Cache Composer dependencies
         uses: actions/cache@v5
@@ -58,7 +50,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Install pnpm
         run: |

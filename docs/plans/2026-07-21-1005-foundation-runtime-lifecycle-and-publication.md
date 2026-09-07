@@ -218,9 +218,9 @@ Do not add stable callback slots, handler identity comparisons, a register-once 
 - `src/testbench/src/TestCase.php`
 - `src/testbench/src/Concerns/InteractsWithTestCase.php`
 - `src/testbench/src/Concerns/InteractsWithPHPUnit.php`
-- `tests/Foundation/Testing/Concerns/InteractsWithTestCaseTest.php`
+- `tests/Foundation/Testing/Concerns/InteractsWithTestCaseLifecycleTest.php`
 - `tests/Testbench/TestCaseTest.php`
-- new `tests/Testbench/Concerns/InteractsWithTestCaseTest.php`
+- `tests/Testbench/Concerns/InteractsWithTestCaseTest.php`
 - `tests/Testbench/Concerns/InteractsWithPHPUnitTest.php`
 - focused fixtures local to those Testbench test files for attribute, Pest-wrapper, and class-teardown failure order
 
