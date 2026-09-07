@@ -640,6 +640,8 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
 
     /**
      * Parse a friendly phpredis backoff algorithm name.
+     *
+     * @throws InvalidRedisOptionException
      */
     protected function parseBackoffAlgorithm(mixed $algorithm): int
     {
