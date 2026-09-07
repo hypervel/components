@@ -2,11 +2,11 @@
 
 ## Status
 
-The implementation and focused validation are complete against the branch's original base. Merge current `0.4`, preserve its newer Tinker behavior, consume PsySH `dev-main`, remove the obsolete local shell subclass, and repeat the full validation and review workflow. Replace `dev-main` with the first compatible stable PsySH release containing the required behavior before Hypervel 0.4 is released.
+Complete. The implementation, current `0.4` merge, PsySH `dev-main` update, focused validation, load-bearing counterfactuals, final self-review, and independent code review are complete. Replace `dev-main` with the first compatible stable PsySH release containing the required behavior before Hypervel 0.4 is released.
 
 ## Scope
 
-Correct the verified Tinker findings without turning this targeted maintenance unit into a second package-wide audit. Preserve Hypervel's coroutine-aware Console execution, prohibition on PsySH process forking, upstream Tinker APIs and configuration, optional Database/Process presentation, and operation-local shell/alias-loader ownership.
+Correct the verified Tinker findings without turning this targeted maintenance unit into a second package-wide audit. Preserve Hypervel's coroutine-aware Console execution, prohibition on PsySH process forking, upstream Tinker APIs and configuration, Database/Process presentation, and operation-local shell/alias-loader ownership.
 
 References checked:
 
@@ -73,7 +73,7 @@ Record low-confidence concerns under rejected or unresolved analysis. Do not imp
 - Keep PsySH process forking disabled before shell construction. Local `.psysh.php` configuration cannot re-enable `ProcessForker`: listeners are constructed before local config is loaded and are never rebuilt.
 - Use PsySH's normal `Shell`; current `dev-main` owns include loading and direct-execution signal cleanup without a Hypervel subclass.
 - Interactive Tinker retains Ctrl-C handling. One-shot execution must not leave process-global signal or error-handler state behind.
-- User casters keep overriding defaults. Database model and Process result casters remain optional; Foundation Application is a hard package dependency.
+- User casters keep overriding defaults. Database model, Process result, and Foundation Application casters remain built in; Foundation brings Database and Process as hard transitive dependencies.
 - No HTTP/request path changes. All added comparisons, filtering, and loading occur only while starting or running the developer command. There is no lock, yield, retry, cache, static registry, coroutine context, retained worker allocation, or repeated filesystem I/O beyond includes explicitly requested by the caller.
 
 ## Final findings
@@ -88,7 +88,7 @@ Record low-confidence concerns under rejected or unresolved analysis. Do not imp
 | `tinker-06` | Raw prefixes make `App\Nova` also match `App\NovaThing` and make `/app/vendor-local/...` look like `/app/vendor/...`. | Match normalized aliases and vendor directories on semantic boundaries. |
 | `tinker-07` | One Application presentation getter throwing `Error` or `TypeError` escapes the per-property `Exception` boundary and aborts the dump. | Contain `Throwable` from each getter. |
 | `tinker-08` | Symfony returns `null` for a disabled configured command, which PsySH forwards to its `callable|Command` parameter and rejects with `TypeError`. | Omit disabled command results. |
-| `tinker-09` | Split metadata declares unused Contracts, lacks durable dependency coverage, and omits upstream provenance. | Correct dependencies/provenance and add focused metadata coverage. |
+| `tinker-09` | Split metadata declares unused Contracts and a misleading Database suggestion, lacks durable dependency coverage, and omits upstream provenance. | Correct dependencies/provenance and add focused metadata coverage. |
 | `tinker-10` | Public guidance omits execute/alias/caster/trust behavior and incorrectly says all PCNTL support is disabled. | Complete the concise Tinker guide in Laravel-docs prose. |
 | `tinker-11` | Tinker redundantly writes the Kernel-cached Console application's exception policy and can leave a caller's explicit setting changed. | Remove the mutation. |
 
@@ -121,7 +121,7 @@ if ($code !== null) {
 $shell = new Shell($config);
 ```
 
-Delete `ExecuteShell` and use the same PsySH `Shell` for direct and interactive execution. Current PsySH `main` owns direct-execution signal cleanup. Keep `setUsePcntl(false)` before shell construction because `ProcessForker` remains incompatible with Swoole; do not add another listener filter.
+Use the same PsySH `Shell` for direct and interactive execution. Current PsySH `main` owns direct-execution signal cleanup. Keep `setUsePcntl(false)` before shell construction because `ProcessForker` remains incompatible with Swoole; do not add a local shell subclass or listener filter.
 
 The direct branch becomes:
 
@@ -226,7 +226,7 @@ foreach (self::$appProperties as $property) {
 }
 ```
 
-Register the Foundation Application caster unconditionally because `hypervel/foundation` is a direct hard dependency. Keep Database and Process class guards.
+Register the Foundation Application, Database model, and Process result casters unconditionally. `hypervel/foundation` is a direct hard dependency, Foundation directly requires Database, and Foundation's Concurrency dependency requires Process. Symfony stores caster class-string keys without resolving them, so conditional registration would not protect a runtime boundary even if a class were absent.
 
 ### 5. Correct metadata, provenance, and documentation
 
@@ -235,9 +235,9 @@ In `src/tinker/composer.json`:
 - remove unused `hypervel/contracts`;
 - keep root-consistent `symfony/console:^8.1` and `symfony/var-dumper:^8.1`;
 - require PsySH `dev-main` as described in section 1;
-- retain only the Database suggestion. Do not add a Process suggestion solely for symmetry.
+- omit `suggest`: Database and Process are already hard transitive dependencies.
 
-Add `tests/Tinker/PackageMetadataTest.php` to pin direct dependency/root-constraint agreement, the absent Contracts dependency, the Database suggestion, and provider discovery. Add `Ported from: https://github.com/laravel/tinker` to the README.
+Add `tests/Tinker/PackageMetadataTest.php` to pin direct dependency/root-constraint agreement, the absent Contracts dependency and `suggest` section, and provider discovery. Add upstream provenance and a one-line `Differences From Laravel` note about the user-visible no-fork behavior to the README.
 
 Update only the Tinker section of `src/docs/artisan.md`, following the surrounding Laravel-docs prose. Document:
 
@@ -262,20 +262,21 @@ Required Hypervel regressions:
 
 1. Successful and failing direct execution preserve a sentinel SIGINT handler; test cleanup restores the sentinel even after assertion failure. Do not assert async-signal mode at the Hypervel boundary because Symfony Console owns additional signal state.
 2. A bounded subprocess runs the disposable runtime clone's own `artisan` at `BASE_PATH` to prove `--execute=0` and `--execute=''` select direct execution. The clone does not discover the root package, so temporarily add `TinkerServiceProvider` to its `bootstrap/providers.php` through the existing provider-file API and restore the original file in `finally`. Pass `COMPOSER_VENDOR_DIR` and `HYPERVEL_AUTOLOAD_PATH` to the child; `TESTBENCH_BASE_PATH` is not involved because the clone's entry point already owns `BASE_PATH`. Give the child an open stdin pipe that is deliberately not closed while awaiting it: the wrong REPL branch sees piped input and blocks in `getInput(false)`, while the direct branch returns immediately. Use a ten-second failure budget, treat timeout as test failure, and close every pipe in `finally`; do not require a PTY, invent another bootstrap, or add a production shell factory.
-3. Positional and project-configured default includes share variables with evaluated code; malformed includes are reported, later includes still load, the prior error handler remains installed, and a successful executed expression still returns 0 after the reported include failure.
+3. One integration test changes into an isolated temporary project and proves that a positional include and the shipped trusted-by-default local `.psysh.php` include both share variables with directly executed code. A second uses unique include paths, disables mocked console output, and proves that a malformed positional include reports `ParseError`, a later include still loads, the prior error handler remains installed, and successful executed code still returns 0. Inspect and rebalance the handler stack before any assertion so a regression cannot contaminate later tests.
 4. `exit(3)` returns 3 without evaluation-error output; ordinary throwables still return 1.
-5. A disabled configured command is omitted while enabled commands retain order.
-6. The public `isAliasable()` matrix covers exact class, namespace child, common-prefix sibling, trailing separator, exclusion, real vendor child, and vendor-prefix sibling without creating irreversible class aliases.
+5. Direct `getCommands()` coverage proves that an enabled configured command is retained after the whitelist while a disabled configured command is omitted.
+6. The public `isAliasable()` matrix covers exact class, namespace child, common-prefix sibling, trailing separator, exclusion, real vendor child, and vendor-prefix sibling. The loader exclusion test invokes `aliasClass()` directly and relies on its shell mock because PHP class aliases are permanent and make `class_exists()` order-dependent.
 7. An Application getter throwing `Error` is omitted while later virtual properties remain.
-8. Metadata/provenance and existing coroutine execution remain correct.
+8. Metadata/provenance, nullable project-trust configuration, and existing coroutine execution remain correct.
 
 Validation order:
 
-1. Run each changed Tinker test file, then the complete `tests/Tinker` group.
+1. Run each changed Tinker test file, the alias-loader file in reverse order, then the complete `tests/Tinker` group.
 2. Validate both Composer manifests and confirm the installed PsySH source is current `dev-main`.
-3. Run `composer fix` once after implementation.
-4. Perform a fresh caller/callee, process-global state, terminal/signal, public API, cold-path performance, retained-memory, stale-code, and overengineering review.
-5. Apply review corrections, rerun affected focused tests, and repeat the complete gate when changes warrant it.
+3. Confirm the include tests are load-bearing by temporarily removing the positional `setIncludes()` call and moving direct-execution `setOutput()` after `execute()`, running the matching test after each change, and reverting immediately.
+4. Run `composer lint:fix`, `composer analyse`, and the complete `tests/Tinker` group in that order.
+5. Perform a fresh caller/callee, process-global state, terminal/signal, public API, cold-path performance, retained-memory, stale-code, and overengineering review.
+6. Apply review corrections, rerun affected focused tests, and repeat the complete gate when changes warrant it.
 
 ## Rejected designs and non-findings
 
@@ -284,9 +285,9 @@ Validation order:
 - No removal of interactive signal handling. Keep the existing `setUsePcntl(false)` invariant; do not add a `ProcessForker` listener filter.
 - No class-alias registry, unalias attempt, path canonicalization, classmap cache, or concurrency machinery. PHP has no coroutine-local class table, and concurrent REPLs in one worker are unsupported.
 - Keep `ClassAliasAutoloader::__destruct()`: while registered, the autoload callback retains the object; normal `finally` cleanup unregisters it first, and destruction remains an idempotent fallback.
-- Keep configured commands on the invocation-local shell and existing caster precedence. No mutable worker state is introduced.
+- Keep the shell's command set invocation-local and preserve existing caster precedence. Configured command registration on the Kernel-cached Console application follows upstream Tinker behavior.
 - Keep the null guard around dynamic Application getter results; only its failure boundary widens.
-- Do not add default caster config, exhaustive docs, Process metadata for symmetry, or tests that merely mirror trivial mappings.
+- Do not add default caster config, exhaustive docs, suggestions for packages already required transitively, or tests that merely mirror trivial mappings.
 
 ## Expected result
 

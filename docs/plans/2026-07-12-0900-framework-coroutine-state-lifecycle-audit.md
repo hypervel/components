@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `tinker`; the in-progress correctness and PsySH lifecycle audit is recorded under `Advance Tinker correctness and PsySH lifecycles`; detail plan `2026-08-09-0219-tinker-correctness-psysh-lifecycles-and-current-parity.md`.
-- **Ledger entries required for the active work:** `Advance Tinker correctness and PsySH lifecycles` and `Complete Console command, scheduling, and generator lifecycles`.
-- **Pending revalidation carried into the active work:** None. The remaining Tinker work is package-local: merge current `0.4`, consume PsySH `dev-main`, remove the obsolete shell subclass, and run the final gate.
+- **Active package or work unit:** None; Tinker is complete under `Complete Tinker correctness and PsySH lifecycles`; detail plan `2026-08-09-0219-tinker-correctness-psysh-lifecycles-and-current-parity.md`.
+- **Ledger entries required for the active work:** None.
+- **Pending revalidation carried into the active work:** None.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
