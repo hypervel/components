@@ -12,8 +12,8 @@ use Hypervel\Validation\Enums\CheckType;
 use Hypervel\Validation\InlineCheck;
 use Hypervel\Validation\RulePlan\ExposedExecutorValidator;
 use PHPUnit\Framework\Attributes\DataProvider;
-use SplFileInfo;
 use Stringable;
+use Symfony\Component\HttpFoundation\File\File;
 
 class ValidationPlanExecutorTest extends TestCase
 {
@@ -182,9 +182,12 @@ class ValidationPlanExecutorTest extends TestCase
                 return 'value';
             }
         };
-        $file = new class(__FILE__) extends SplFileInfo {
+        $file = new class(__FILE__, false) extends File {
             public int $reads = 0;
 
+            /**
+             * Get the file size and record the read.
+             */
             public function getSize(): int|false
             {
                 ++$this->reads;

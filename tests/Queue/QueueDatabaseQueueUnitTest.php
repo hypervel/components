@@ -365,8 +365,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $connection->shouldReceive('table')->once()->with('table')->andReturn($query = m::mock(Builder::class));
         $query->shouldReceive('insert')->once()->andReturnFalse();
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to insert queued jobs into the database.');
+        $this->expectExceptionObject(new RuntimeException('Unable to insert queued jobs into the database.'));
 
         $queue->bulk(['job']);
     }
@@ -865,6 +864,71 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
         $this->assertInspectedJob($jobs->first(), 'FirstReservedJob', 'default', 1, 41);
         $this->assertInspectedJob($jobs->last(), 'SecondReservedJob', 'emails', 2, 42);
+    }
+
+    public function testTotalSize(): void
+    {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $database = m::mock(ConnectionInterface::class);
+        $resolver->expects('connection')->with(null)->andReturn($database);
+        $queue = new TestDatabaseQueue($resolver, null, 'table', 'default', 1732502704);
+        $queue->setContainer(m::spy(Container::class));
+
+        $query = m::mock(Builder::class);
+        $database->expects('table')->with('table')->andReturn($query);
+        $query->expects('count')->andReturn(9);
+
+        $this->assertSame(9, $queue->totalSize());
+    }
+
+    public function testTotalPendingSize(): void
+    {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $database = m::mock(ConnectionInterface::class);
+        $resolver->expects('connection')->with(null)->andReturn($database);
+        $queue = new TestDatabaseQueue($resolver, null, 'table', 'default', 1732502704);
+        $queue->setContainer(m::spy(Container::class));
+
+        $query = m::mock(Builder::class);
+        $database->expects('table')->with('table')->andReturn($query);
+        $query->expects('whereNull')->with('reserved_at')->andReturnSelf();
+        $query->expects('where')->with('available_at', '<=', 1732502704)->andReturnSelf();
+        $query->expects('count')->andReturn(2);
+
+        $this->assertSame(2, $queue->totalPendingSize());
+    }
+
+    public function testTotalDelayedSize(): void
+    {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $database = m::mock(ConnectionInterface::class);
+        $resolver->expects('connection')->with(null)->andReturn($database);
+        $queue = new TestDatabaseQueue($resolver, null, 'table', 'default', 1732502704);
+        $queue->setContainer(m::spy(Container::class));
+
+        $query = m::mock(Builder::class);
+        $database->expects('table')->with('table')->andReturn($query);
+        $query->expects('whereNull')->with('reserved_at')->andReturnSelf();
+        $query->expects('where')->with('available_at', '>', 1732502704)->andReturnSelf();
+        $query->expects('count')->andReturn(3);
+
+        $this->assertSame(3, $queue->totalDelayedSize());
+    }
+
+    public function testTotalReservedSize(): void
+    {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $database = m::mock(ConnectionInterface::class);
+        $resolver->expects('connection')->with(null)->andReturn($database);
+        $queue = new TestDatabaseQueue($resolver, null, 'table', 'default', 1732502704);
+        $queue->setContainer(m::spy(Container::class));
+
+        $query = m::mock(Builder::class);
+        $database->expects('table')->with('table')->andReturn($query);
+        $query->expects('whereNotNull')->with('reserved_at')->andReturnSelf();
+        $query->expects('count')->andReturn(4);
+
+        $this->assertSame(4, $queue->totalReservedSize());
     }
 
     public function testInvalidInspectedPayloadIdentifiesItsQueueAndRecord(): void

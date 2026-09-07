@@ -11,6 +11,7 @@ use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Foundation\Queue\Queueable;
@@ -253,6 +254,24 @@ class ContextQueueTest extends TestCase
         $this->assertTrue($called);
         // The dehydrating callback's addition should be in the payload
         $this->assertArrayHasKey('dehydrated_at', $payload['illuminate:log:context']['data']);
+    }
+
+    public function testDehydratingHookContributesContextInAFreshCoroutine(): void
+    {
+        Repository::getInstance()->dehydrating(static function (Repository $context): void {
+            $context->addHidden('locale', 'en');
+        });
+
+        $queue = $this->createSyncQueue();
+        $result = new Channel(1);
+
+        Coroutine::create(static function () use ($queue, $result): void {
+            $result->push($queue->testCreatePayload('SomeJob', null));
+        });
+
+        $payload = $result->pop(1);
+
+        $this->assertSame(serialize('en'), $payload['illuminate:log:context']['hidden']['locale']);
     }
 
     public function testHydratedHookFiresWhenJobProcesses(): void

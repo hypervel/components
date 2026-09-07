@@ -2,6 +2,7 @@
 
 - [Introduction](#introduction)
 - [Choosing a Base Class](#choosing-a-base-class)
+- [Lightweight Data Objects](#lightweight-data-objects)
 - [Creating Data Objects](#creating-data-objects)
     - [Creating Instances](#creating-instances)
     - [Associating a Data Class](#associating-a-data-class)
@@ -49,6 +50,81 @@ The package provides three base classes:
 - `Resource` supports creation, transformation, HTTP responses, collections, and Eloquent casting without the public validation methods.
 
 Choose the base class that provides the behavior your object needs. Since `Dto` does not transform values, nested or collected DTOs remain objects when a surrounding `Data` object is transformed. Use `Data` or `Resource` when nested values should also be transformed.
+
+For trusted internal values that only need typed construction and array or JSON output, consider a [lightweight data object](#lightweight-data-objects).
+
+<a name="lightweight-data-objects"></a>
+## Lightweight Data Objects
+
+The `Hypervel\Support\DataObject` class provides a small mapper for internal message envelopes, per-item value objects, and other trusted values used in performance-sensitive code. It does not provide validation, property mapping, lazy properties, partials, resources, or persistence. Use `Data`, `Dto`, or `Resource` when you need those features.
+
+To define a lightweight data object, extend `DataObject` and promote every constructor parameter as a public property:
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Messages;
+
+use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\DataObject;
+
+final class MessageEnvelope extends DataObject
+{
+    public function __construct(
+        public readonly string $id,
+        public readonly MessageType $type,
+        public readonly MessagePayload $payload,
+        public readonly CarbonImmutable $receivedAt,
+        public readonly ?string $traceId = null,
+    ) {
+    }
+}
+```
+
+Create the object using `from`:
+
+```php
+$message = MessageEnvelope::from([
+    'id' => 'msg_01',
+    'type' => 'created',
+    'payload' => ['name' => 'Taylor'],
+    'receivedAt' => '2026-09-05 12:34:56',
+]);
+```
+
+In this example, `MessageType` is a string-backed enum and `MessagePayload` is another lightweight data object.
+
+Constructor property names are the exact input and output keys. Unknown input keys are ignored, but names are not converted between camel case and snake case. Omitted parameters use their declared defaults, while omitted nullable parameters without a default receive `null`.
+
+Common integer, float, boolean, and string representations are converted strictly. Backed enums, dates, and properties typed as a concrete `DataObject` are also converted. Invalid scalar values throw an `InvalidArgumentException` instead of being silently coerced. Use an application named factory when an external payload needs different names or custom conversion.
+
+Integer-backed enums accept integral numeric values such as `1`, `"1.0"`, and `"1e0"`. Fractional values are rejected instead of being truncated to an enum case.
+
+When a form request owns validation, you may declare a lightweight data object directly in its `casts` method. Use a wildcard to convert each member of a validated list:
+
+```php
+protected function casts(): array
+{
+    return [
+        'contact' => Contact::class,
+        'contacts.*' => Contact::class,
+    ];
+}
+```
+
+The request returns a `Contact` from `validated('contact')` and an array of `Contact` objects from `validated('contacts')`. The DataObject does not run another validation step.
+
+The `toArray` and `toJson` methods recursively normalize nested data objects, backed enums, dates, and `Arrayable` values. Public properties remain ordinary PHP properties and may be read or changed directly unless they are declared `readonly`.
+
+An `array` property retains its input items as-is during construction. Convert a one-off list explicitly:
+
+```php
+$items = array_map(ItemData::from(...), $payload['items']);
+```
+
+Use Hypervel Data and `DataCollection` when a reusable typed collection needs validation, mapping, transformation controls, or response behavior.
 
 <a name="creating-data-objects"></a>
 ## Creating Data Objects
@@ -475,6 +551,8 @@ $order->status === OrderStatus::Paid;
 // true
 ```
 
+Integer-backed enums accept integral numeric values, including decimal and exponent strings such as `"1.0"` and `"1e0"`. Fractional values are rejected instead of being truncated to an enum case.
+
 <a name="casts-and-transformers"></a>
 ## Casts and Transformers
 
@@ -569,7 +647,7 @@ Use `withValidator(Validator $validator)` and `after(): array` like a FormReques
 <a name="creation-factories"></a>
 ### Creation Factories
 
-The `factory` method returns a fluent factory for a single creation:
+The `factory` method returns a fluent factory for creating data objects:
 
 ```php
 $user = UserData::factory()
@@ -581,6 +659,19 @@ $user = UserData::factory()
     ->withValidator(fn (Validator $validator) => $validator->after($check))
     ->from($payload);
 ```
+
+Within one operation, you may reuse a factory to avoid repeating creation setup for every payload:
+
+```php
+$factory = UserData::factory();
+
+$users = array_map(
+    fn (array $payload): UserData => $factory->from($payload),
+    $payloads,
+);
+```
+
+Use `collect()` instead when the payloads form one collection. In addition to preserving supported collection shapes and keys, `collect()` allows collection validation rules and hooks to inspect the complete payload.
 
 Factories may change the validation strategy, enable or disable name mapping and named factories, ignore selected named methods, and add casts or normalizers. They also provide the following hooks, which run in this order:
 
@@ -595,7 +686,7 @@ Factories may change the validation strategy, enable or disable name mapping and
 
 The `prepareData`, `beforeCreation`, and `afterCreation` hooks run even when validation is skipped. The other hooks run while generating rules or validating, as appropriate. Call `alwaysValidate()` when validation hooks should also apply to an array, model, JSON value, or another non-request source.
 
-Each call to `factory()` returns a new factory. Configure and use the factory where it is created instead of storing one and reusing it across requests.
+Each call to `factory()` returns a new factory. Keep a reused factory scoped to the current operation instead of storing it across requests.
 
 <a name="transformation"></a>
 ## Transformation
@@ -753,6 +844,8 @@ class StoreUserRequest extends FormRequest
 ```
 
 The object is built through its normal `from()` pipeline. A present `null` remains `null`, and a missing input is not added to the validated result. Direct `Data`, `Dto`, and `Resource` request casts do not accept cast arguments; Eloquent-only options such as `default` and `encrypted` do not apply here.
+
+A [lightweight data object](#lightweight-data-objects) may also be declared directly when the form request owns validation and you only need typed construction and array or JSON output.
 
 Use `AsDataCollection::of()` when the input contains several objects. It returns a `DataCollection` by default and accepts the same explicit targets as `collect()`, including `'array'` and `Hypervel\Support\Collection::class`:
 

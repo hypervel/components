@@ -14,6 +14,7 @@ use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Events\JobReleasedAfterException;
+use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\Worker;
@@ -197,6 +198,15 @@ class WorkCommand extends Command
             $command?->writeOutput($event->job, 'failed', $event->exception);
         });
 
+        $events->listen(WorkerStopping::class, static function (WorkerStopping $event): void {
+            // Graceful stopping runs outside the configured job coroutine context.
+            $command = $event->workerOptions?->coroutineContext[self::CURRENT_COMMAND_CONTEXT_KEY] ?? null;
+
+            if ($command instanceof self) {
+                $command->writeStopReason($event);
+            }
+        });
+
         static::$hasRegisteredListeners = true;
     }
 
@@ -212,6 +222,36 @@ class WorkCommand extends Command
         $this->outputUsingJson()
             ? $this->writeOutputAsJson($job, $status, $exception)
             : $this->writeOutputForCli($job, $status);
+    }
+
+    /**
+     * Write the status output for a queue worker that is stopping.
+     */
+    protected function writeStopReason(WorkerStopping $event): void
+    {
+        if ($this->output->isQuiet() || $this->output->isSilent() || is_null($event->reason)) {
+            return;
+        }
+
+        if ($this->outputUsingJson()) {
+            $this->output->writeln(json_encode([
+                'level' => $event->status === 0 ? 'info' : 'warning',
+                'status' => 'stopped',
+                'reason' => $event->reason->value,
+                'exit_code' => $event->status,
+                'jobs_processed' => $event->jobsProcessed,
+                'memory' => is_null($event->memoryUsage) ? null : round($event->memoryUsage, 1),
+                'timestamp' => $this->now()->format('Y-m-d\TH:i:s.uP'),
+            ]));
+
+            return;
+        }
+
+        $this->output->writeln(sprintf(
+            '  <fg=gray>%s</> Worker <fg=yellow;options=bold>STOPPED</> <fg=gray>%s</>',
+            $this->now()->format('Y-m-d H:i:s'),
+            $event->reason->description(),
+        ));
     }
 
     /**

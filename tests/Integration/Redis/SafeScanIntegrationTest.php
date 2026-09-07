@@ -8,6 +8,8 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Redis as PhpRedis;
 
 /**
  * Integration tests for SafeScan and FlushByPattern operations.
@@ -20,7 +22,8 @@ class SafeScanIntegrationTest extends TestCase
 {
     use InteractsWithRedis;
 
-    public function testSafeScanYieldsKeysWithoutPrefix()
+    #[DataProvider('scanPrefixOptions')]
+    public function testSafeScanYieldsKeysWithoutPrefix(bool $prefixScan, bool $retryScan): void
     {
         $prefix = 'safescan_test:';
         $connectionName = $this->createRedisConnectionWithPrefix($prefix);
@@ -31,10 +34,19 @@ class SafeScanIntegrationTest extends TestCase
         $redis->set('key1', 'val1');
         $redis->set('key2', 'val2');
         $redis->set('key3', 'val3');
+        $redis->set($prefix . 'key4', 'val4');
 
         // safeScan should yield keys WITHOUT the prefix
-        $keys = $redis->withConnection(function (RedisConnection $connection) {
-            return iterator_to_array($connection->safeScan('key*'));
+        $keys = $redis->withConnection(function (RedisConnection $connection) use ($prefix, $prefixScan, $retryScan): array {
+            $connection->setOption(PhpRedis::OPT_SCAN, $retryScan ? PhpRedis::SCAN_RETRY : PhpRedis::SCAN_NORETRY);
+            $connection->setOption(PhpRedis::OPT_SCAN, $prefixScan ? PhpRedis::SCAN_PREFIX : PhpRedis::SCAN_NOPREFIX);
+            $options = $connection->getOption(PhpRedis::OPT_SCAN);
+            $keys = iterator_to_array($connection->safeScan('key*'));
+
+            $this->assertSame([$prefix . 'key4'], iterator_to_array($connection->safeScan($prefix . 'key*')));
+            $this->assertSame($options, $connection->getOption(PhpRedis::OPT_SCAN));
+
+            return $keys;
         }, transform: false);
 
         sort($keys);
@@ -43,6 +55,18 @@ class SafeScanIntegrationTest extends TestCase
 
         // Verify these keys work with get() (which auto-adds prefix)
         $this->assertSame('val1', $redis->get('key1'));
+    }
+
+    /**
+     * Provide native scan prefix and retry settings.
+     */
+    public static function scanPrefixOptions(): array
+    {
+        return [
+            'no prefixing' => [false, false],
+            'prefixing' => [true, false],
+            'prefixing and retry' => [true, true],
+        ];
     }
 
     public function testSafeScanWithoutPrefix()
@@ -144,20 +168,23 @@ class SafeScanIntegrationTest extends TestCase
         $this->assertSame(0, $deleted);
     }
 
-    public function testFlushByPatternWithPrefixHandlesDoublePrefix()
+    #[DataProvider('scanPrefixOptions')]
+    public function testFlushByPatternPreservesOverlappingLogicalPrefixes(bool $prefixScan, bool $retryScan): void
     {
-        $prefix = 'flushprefix:';
+        $prefix = 'cache:';
         $connectionName = $this->createRedisConnectionWithPrefix($prefix);
         $redis = Redis::connection($connectionName);
         $redis->flushdb();
 
-        // Create keys via prefixed connection (stored as "flushprefix:cache:1" in Redis)
+        // The logical cache prefix and the connection prefix both belong in the stored keys.
         $redis->set('cache:1', 'a');
         $redis->set('cache:2', 'b');
         $redis->set('other:1', 'c');
 
-        // flushByPattern should handle OPT_PREFIX correctly — no double prefix
-        $deleted = $redis->withConnection(function (RedisConnection $connection) {
+        $deleted = $redis->withConnection(function (RedisConnection $connection) use ($prefixScan, $retryScan): int {
+            $connection->setOption(PhpRedis::OPT_SCAN, $retryScan ? PhpRedis::SCAN_RETRY : PhpRedis::SCAN_NORETRY);
+            $connection->setOption(PhpRedis::OPT_SCAN, $prefixScan ? PhpRedis::SCAN_PREFIX : PhpRedis::SCAN_NOPREFIX);
+
             return $connection->flushByPattern('cache:*');
         }, transform: false);
 

@@ -302,6 +302,14 @@ $user = User::factory()->create([
 ]);
 ```
 
+To insert multiple models in a single query, you may use the `insert` method:
+
+```php
+User::factory()->count(100)->insert();
+```
+
+The `insert` method applies attribute casts, generates unique IDs, and adds timestamps. It does not return model instances, dispatch model events, run `afterCreating` callbacks, or create child relationships.
+
 <a name="sequences"></a>
 ### Sequences
 

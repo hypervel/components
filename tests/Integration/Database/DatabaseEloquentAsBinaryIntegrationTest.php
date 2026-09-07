@@ -6,12 +6,16 @@ namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Eloquent\Casts\AsBinary;
+use Hypervel\Database\Eloquent\Concerns\HasUuids;
+use Hypervel\Database\Eloquent\Factories\Factory;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Uid\Ulid;
 use Symfony\Component\Uid\Uuid;
 
@@ -146,6 +150,60 @@ class DatabaseEloquentAsBinaryIntegrationTest extends TestCase
 
         $this->assertSame($upsertUuid, $upserted->uuid);
         $this->assertSame($upsertUlid, $upserted->ulid);
+    }
+
+    #[DataProvider('fillAndInsertMethods')]
+    public function testBinaryIdentifiersRoundTripThroughFillAndInsert(string $method): void
+    {
+        $uuid = '00ff7f80-4048-43c2-b80b-40491d165946';
+        $ulid = '2WBHE5RQ2WBHE5RQ2WBHE5RQ2W';
+        $attributes = ['uuid' => $uuid, 'ulid' => $ulid];
+
+        AsBinaryIdentifierModel::query()->{$method}(
+            $method === 'fillAndInsertGetId' ? $attributes : [$attributes]
+        );
+
+        $model = AsBinaryIdentifierModel::query()
+            ->where('uuid', new BinaryParameter(Uuid::fromString($uuid)->toBinary()))
+            ->where('ulid', new BinaryParameter(Ulid::fromString($ulid)->toBinary()))
+            ->sole();
+
+        $this->assertSame($uuid, $model->uuid);
+        $this->assertSame($ulid, $model->ulid);
+    }
+
+    /**
+     * Provide the insert methods that prepare model attributes.
+     */
+    public static function fillAndInsertMethods(): array
+    {
+        return [
+            'insert' => ['fillAndInsert'],
+            'insert or ignore' => ['fillAndInsertOrIgnore'],
+            'insert and get ID' => ['fillAndInsertGetId'],
+        ];
+    }
+
+    public function testFactoryInsertPreparesGeneratedAndSuppliedBinaryPrimaryKeys(): void
+    {
+        $suppliedId = '00ff7f80-4048-43c2-b80b-40491d165946';
+
+        (new AsBinaryPrimaryKeyFactory)->forEachSequence(
+            ['name' => 'generated'],
+            ['name' => 'supplied', 'id' => $suppliedId],
+        )->insert();
+
+        $models = AsBinaryFactoryPrimaryKeyModel::query()->get()->keyBy('name');
+
+        $this->assertCount(2, $models);
+        $this->assertTrue(Str::isUuid($models['generated']->id));
+        $this->assertSame($suppliedId, $models['supplied']->id);
+
+        foreach ($models as $name => $model) {
+            $key = new BinaryParameter(Uuid::fromString($model->id)->toBinary());
+
+            $this->assertSame($name, AsBinaryFactoryPrimaryKeyModel::query()->whereKey($key)->sole()->name);
+        }
     }
 
     public function testBinaryPrimaryKeysPreserveBindingIntentAcrossModelOperations(): void
@@ -294,6 +352,24 @@ class AsBinaryPrimaryKeyModel extends Model
         return [
             'id' => AsBinary::uuid(),
         ];
+    }
+}
+
+class AsBinaryFactoryPrimaryKeyModel extends AsBinaryPrimaryKeyModel
+{
+    use HasUuids;
+}
+
+class AsBinaryPrimaryKeyFactory extends Factory
+{
+    protected ?string $model = AsBinaryFactoryPrimaryKeyModel::class;
+
+    /**
+     * Define the model's default state.
+     */
+    public function definition(): array
+    {
+        return [];
     }
 }
 

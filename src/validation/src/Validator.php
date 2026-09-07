@@ -14,7 +14,6 @@ use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
-use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
@@ -26,6 +25,7 @@ use InvalidArgumentException;
 use LogicException;
 use RuntimeException;
 use stdClass;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Throwable;
 use ValueError;
 

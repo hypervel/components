@@ -188,7 +188,7 @@ class Middleware
         $this->transaction = $transaction;
 
         if ($this->continueAfterResponse) {
-            // This runs before the earlier outer flush defer and after later
+            // This runs before the outer runtime context ends and after later
             // after-response work because coroutine defers are LIFO.
             Coroutine::defer(function (): void {
                 $this->finishTransaction();

@@ -23,6 +23,7 @@ use Hypervel\Sentry\Features\RedisFeature;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use Mockery as m;
 use Sentry\SentrySdk;
+use Sentry\State\Hub;
 use Sentry\State\HubInterface;
 
 class RedisIntegrationTest extends SentryTestCase
@@ -337,7 +338,7 @@ class RedisIntegrationTest extends SentryTestCase
 
     public function testRedisFeatureWorksAfterReplacingStaleGlobalHub(): void
     {
-        $staleHub = m::mock(HubInterface::class);
+        $staleHub = new Hub;
         SentrySdk::setCurrentHub($staleHub);
 
         $this->reloadApplication();

@@ -102,6 +102,46 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     }
 
     /**
+     * Get the number of jobs across every queue.
+     */
+    public function totalSize(): int
+    {
+        return $this->getConnection()->withPinnedConnection(
+            fn (): int => $this->allQueueNames()->sum(fn (string $name): int => $this->size($name)),
+        );
+    }
+
+    /**
+     * Get the number of pending jobs across every queue.
+     */
+    public function totalPendingSize(): int
+    {
+        return $this->getConnection()->withPinnedConnection(
+            fn (): int => $this->allQueueNames()->sum(fn (string $name): int => $this->pendingSize($name)),
+        );
+    }
+
+    /**
+     * Get the number of delayed jobs across every queue.
+     */
+    public function totalDelayedSize(): int
+    {
+        return $this->getConnection()->withPinnedConnection(
+            fn (): int => $this->allQueueNames()->sum(fn (string $name): int => $this->delayedSize($name)),
+        );
+    }
+
+    /**
+     * Get the number of reserved jobs across every queue.
+     */
+    public function totalReservedSize(): int
+    {
+        return $this->getConnection()->withPinnedConnection(
+            fn (): int => $this->allQueueNames()->sum(fn (string $name): int => $this->reservedSize($name)),
+        );
+    }
+
+    /**
      * Get the pending jobs for the given queue.
      *
      * @return Collection<int, InspectedJob>
@@ -162,6 +202,55 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     }
 
     /**
+     * Get the unique queue names.
+     *
+     * @return Collection<int, string>
+     */
+    protected function allQueueNames(): Collection
+    {
+        return $this->getConnection()->withConnection(
+            fn (RedisConnection $connection): Collection => $this->allQueueNamesUsing($connection),
+            transform: false,
+        );
+    }
+
+    // REMOVED: Laravel's scanQueueKeys(). allQueueNamesUsing() streams keys on
+    // a held connection instead of materializing a physical-key array.
+
+    /**
+     * Get the unique queue names using an already-held raw connection.
+     *
+     * @return Collection<int, string>
+     */
+    protected function allQueueNamesUsing(RedisConnection $connection): Collection
+    {
+        $this->isCluster ??= $connection->isCluster();
+        $names = [];
+
+        foreach ($connection->safeScan('queues:*') as $key) {
+            $name = substr($key, strlen('queues:'));
+
+            foreach ([':delayed', ':reserved', ':notify'] as $storageSuffix) {
+                if (str_ends_with($name, $storageSuffix)) {
+                    $name = substr($name, 0, -strlen($storageSuffix));
+                    break;
+                }
+            }
+
+            // Cluster hash tags are routing syntax, so discovery reports the
+            // canonical queue name. On standalone Redis, braces remain identity.
+            if ($this->isCluster && preg_match('/^\{([^{}]+)\}$/', $name, $matches) === 1) {
+                $name = $matches[1];
+            }
+
+            // Keep the string value because PHP converts numeric array keys to integers.
+            $names[$name] = $name;
+        }
+
+        return Collection::make(array_values($names));
+    }
+
+    /**
      * Inspect jobs from one queue while holding one Redis connection.
      *
      * @return Collection<int, InspectedJob>
@@ -188,32 +277,8 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     protected function inspectAllQueues(string $suffix = ''): Collection
     {
         return $this->getConnection()->withConnection(
-            function (RedisConnection $connection) use ($suffix): Collection {
-                $this->isCluster ??= $connection->isCluster();
-                $names = [];
-
-                foreach ($connection->safeScan('queues:*') as $key) {
-                    $name = substr($key, strlen('queues:'));
-
-                    foreach ([':delayed', ':reserved', ':notify'] as $storageSuffix) {
-                        if (str_ends_with($name, $storageSuffix)) {
-                            $name = substr($name, 0, -strlen($storageSuffix));
-                            break;
-                        }
-                    }
-
-                    // Cluster hash tags are routing syntax, so discovery reports the
-                    // canonical queue name. On standalone Redis, braces remain identity.
-                    if ($this->isCluster && preg_match('/^\{([^{}]+)\}$/', $name, $matches) === 1) {
-                        $name = $matches[1];
-                    }
-
-                    $names[$name] = true;
-                }
-
-                return Collection::make(array_keys($names))
-                    ->flatMap(fn (string $name): Collection => $this->inspectJobsUsing($connection, $name, $suffix));
-            },
+            fn (RedisConnection $connection): Collection => $this->allQueueNamesUsing($connection)
+                ->flatMap(fn (string $name): Collection => $this->inspectJobsUsing($connection, $name, $suffix)),
             transform: false,
         );
     }
@@ -291,6 +356,9 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
 
         return null;
     }
+
+    // REMOVED: Laravel's bulkOnClusterConnection(). enqueueBatch() owns Lua
+    // bulk dispatch for both standalone Redis and Cluster.
 
     /**
      * Prepare the payload and delay for each of the given jobs.

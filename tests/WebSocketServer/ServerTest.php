@@ -18,6 +18,7 @@ use Hypervel\Tests\WebSocketServer\Fixtures\WebSocketThrowingStub;
 use Hypervel\WebSocketServer\Collector\FdCollector;
 use Hypervel\WebSocketServer\Context as WebSocketContext;
 use Hypervel\WebSocketServer\Events\ConnectionClosed;
+use Hypervel\WebSocketServer\Events\ConnectionClosing;
 use Hypervel\WebSocketServer\Events\ConnectionOpened;
 use Hypervel\WebSocketServer\Events\MessageHandled;
 use Hypervel\WebSocketServer\Events\MessageReceived;
@@ -437,13 +438,23 @@ class ServerTest extends TestCase
         $this->assertTrue(WebSocketMessageStub::$messageHandled);
     }
 
-    public function testConnectionClosedEventIsDispatched(): void
+    public function testConnectionLifecycleEventsAreDispatchedAroundTheCloseHandler(): void
     {
         $dispatcher = m::mock(EventDispatcherContract::class);
+        $dispatcher->shouldReceive('hasListeners')->with(ConnectionClosing::class)->andReturnTrue();
+        $dispatcher->shouldReceive('dispatch')->once()->with(m::on(
+            fn (ConnectionClosing $event) => ! WebSocketMessageStub::$closeHandled
+                && $event->fd === 1
+                && $event->reactorId === 0
+                && $event->server === 'websocket'
+        ))->ordered();
         $dispatcher->shouldReceive('hasListeners')->with(ConnectionClosed::class)->andReturnTrue();
         $dispatcher->shouldReceive('dispatch')->once()->with(m::on(
-            fn (ConnectionClosed $event) => $event->fd === 1 && $event->reactorId === 0 && $event->server === 'websocket'
-        ));
+            fn (ConnectionClosed $event) => WebSocketMessageStub::$closeHandled
+                && $event->fd === 1
+                && $event->reactorId === 0
+                && $event->server === 'websocket'
+        ))->ordered();
 
         $container = $this->createContainer(dispatcher: $dispatcher);
         $container->shouldReceive('make')->with(WebSocketMessageStub::class)->andReturn(new WebSocketMessageStub);
@@ -461,6 +472,7 @@ class ServerTest extends TestCase
     public function testConnectionClosedEventNotDispatchedWithoutListeners(): void
     {
         $dispatcher = m::mock(EventDispatcherContract::class);
+        $dispatcher->shouldReceive('hasListeners')->with(ConnectionClosing::class)->andReturnFalse();
         $dispatcher->shouldReceive('hasListeners')->with(ConnectionClosed::class)->andReturnFalse();
         $dispatcher->shouldNotReceive('dispatch');
 
@@ -475,6 +487,57 @@ class ServerTest extends TestCase
         $server->onClose($swooleServer, 1, 0);
 
         $this->assertTrue(WebSocketMessageStub::$closeHandled);
+    }
+
+    public function testConnectionClosingFailureDoesNotSkipCloseCallbacksOrCleanup(): void
+    {
+        $exception = new RuntimeException('closing event failed');
+        $exceptionHandler = m::mock(ExceptionHandlerContract::class);
+        $exceptionHandler->shouldReceive('report')->once()->with($exception);
+        $dispatcher = m::mock(EventDispatcherContract::class);
+        $dispatcher->shouldReceive('hasListeners')->with(ConnectionClosing::class)->andReturnTrue();
+        $dispatcher->shouldReceive('dispatch')
+            ->once()
+            ->with(m::type(ConnectionClosing::class))
+            ->andThrow($exception);
+        $dispatcher->shouldReceive('hasListeners')->with(ConnectionClosed::class)->andReturnTrue();
+        $dispatcher->shouldReceive('dispatch')->once()->with(m::type(ConnectionClosed::class));
+        $container = $this->createContainer(
+            dispatcher: $dispatcher,
+            exceptionHandler: $exceptionHandler,
+        );
+        $container->shouldReceive('make')->with(WebSocketMessageStub::class)->andReturn(new WebSocketMessageStub);
+        CoroutineContext::set(WebSocketContext::FD, 1);
+        WebSocketContext::set('connection.id', 'one');
+        FdCollector::set(1, WebSocketMessageStub::class);
+
+        (new Server($container))->onClose(m::mock(SwooleServer::class), 1, 0);
+
+        $this->assertTrue(WebSocketMessageStub::$closeHandled);
+        $this->assertNull(FdCollector::get(1));
+        $this->assertArrayNotHasKey(1, WebSocketContext::getStorage());
+    }
+
+    public function testConnectionClosingCancellationSkipsCloseCallbacksAndStillCleansUp(): void
+    {
+        $dispatcher = m::mock(EventDispatcherContract::class);
+        $dispatcher->shouldReceive('hasListeners')->with(ConnectionClosing::class)->andReturnTrue();
+        $dispatcher->shouldReceive('dispatch')
+            ->once()
+            ->with(m::type(ConnectionClosing::class))
+            ->andThrow(new CanceledException);
+        $dispatcher->shouldNotReceive('hasListeners')->with(ConnectionClosed::class);
+        $container = $this->createContainer(dispatcher: $dispatcher);
+        $container->shouldNotReceive('make')->with(WebSocketMessageStub::class);
+        CoroutineContext::set(WebSocketContext::FD, 1);
+        WebSocketContext::set('connection.id', 'one');
+        FdCollector::set(1, WebSocketMessageStub::class);
+
+        (new Server($container))->onClose(m::mock(SwooleServer::class), 1, 0);
+
+        $this->assertFalse(WebSocketMessageStub::$closeHandled);
+        $this->assertNull(FdCollector::get(1));
+        $this->assertArrayNotHasKey(1, WebSocketContext::getStorage());
     }
 
     public function testCloseWithoutCollectorStillReleasesConnectionContext(): void
@@ -639,6 +702,10 @@ class ServerTest extends TestCase
         }
 
         if ($dispatcher) {
+            $dispatcher->shouldReceive('hasListeners')
+                ->with(ConnectionClosing::class)
+                ->andReturnFalse()
+                ->byDefault();
             $container->shouldReceive('bound')->with('events')->andReturnTrue();
             $container->shouldReceive('make')->with('events')->andReturn($dispatcher);
         } else {

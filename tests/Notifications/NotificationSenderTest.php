@@ -19,6 +19,7 @@ use Hypervel\Notifications\Events\NotificationSkipped;
 use Hypervel\Notifications\Notifiable;
 use Hypervel\Notifications\Notification;
 use Hypervel\Notifications\NotificationSender;
+use Hypervel\Notifications\SendQueuedNotifications;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\Queue;
 use Hypervel\Tests\TestCase;
@@ -230,16 +231,16 @@ class NotificationSenderTest extends TestCase
     {
         $notifiable = m::mock(Notifiable::class);
         $manager = m::mock(ChannelManager::class);
-        $manager->shouldReceive('getContainer')->andReturn(app());
+        $manager->shouldReceive('getContainer')->twice()->andReturn(app());
         $bus = m::mock(BusDispatcherContract::class);
         $bus->shouldReceive('dispatch')
             ->once()
-            ->withArgs(function ($job) {
+            ->withArgs(function (SendQueuedNotifications $job): bool {
                 return $job->queue === 'dummy' && $job->channels === ['database'] && $job->connection === 'redis';
             });
         $bus->shouldReceive('dispatch')
             ->once()
-            ->withArgs(function ($job) {
+            ->withArgs(function (SendQueuedNotifications $job): bool {
                 return $job->queue === 'dummy' && $job->channels === ['mail'] && $job->connection === 'redis';
             });
 
@@ -331,16 +332,16 @@ class NotificationSenderTest extends TestCase
     {
         $notifiable = new AnonymousNotifiable;
         $manager = m::mock(ChannelManager::class);
-        $manager->shouldReceive('getContainer')->andReturn(app());
+        $manager->shouldReceive('getContainer')->twice()->andReturn(app());
         $bus = m::mock(BusDispatcherContract::class);
         $bus->shouldReceive('dispatch')
             ->once()
-            ->withArgs(function ($job) {
+            ->withArgs(function (SendQueuedNotifications $job): bool {
                 return $job->connection === 'sync' && $job->channels === ['database'] && $job->queue === 'dummy';
             });
         $bus->shouldReceive('dispatch')
             ->once()
-            ->withArgs(function ($job) {
+            ->withArgs(function (SendQueuedNotifications $job): bool {
                 return $job->connection === 'redis' && $job->channels === ['mail'] && $job->queue === 'dummy';
             });
 
@@ -355,16 +356,16 @@ class NotificationSenderTest extends TestCase
     {
         $notifiable = new AnonymousNotifiable;
         $manager = m::mock(ChannelManager::class);
-        $manager->shouldReceive('getContainer')->andReturn(app());
+        $manager->shouldReceive('getContainer')->twice()->andReturn(app());
         $bus = m::mock(BusDispatcherContract::class);
         $bus->shouldReceive('dispatch')
             ->once()
-            ->withArgs(function ($job) {
+            ->withArgs(function (SendQueuedNotifications $job): bool {
                 return $job->queue === 'dummy' && $job->channels === ['database'] && $job->connection === 'redis';
             });
         $bus->shouldReceive('dispatch')
             ->once()
-            ->withArgs(function ($job) {
+            ->withArgs(function (SendQueuedNotifications $job): bool {
                 return $job->queue === 'admin_notifications' && $job->channels === ['mail'] && $job->connection === 'redis';
             });
 
@@ -709,6 +710,9 @@ class DummyQueuedNotificationWithArrayVia extends Notification implements Should
 {
     use Queueable;
 
+    /**
+     * Create a new notification instance.
+     */
     public function __construct()
     {
         $this->connection = 'redis';
@@ -717,9 +721,8 @@ class DummyQueuedNotificationWithArrayVia extends Notification implements Should
 
     /**
      * Get the notification channels.
-     * @param mixed $notifiable
      */
-    public function via($notifiable)
+    public function via(mixed $notifiable): array
     {
         return ['mail', 'database'];
     }
@@ -777,18 +780,27 @@ class DummyNotificationWithViaConnections extends Notification implements Should
 {
     use Queueable;
 
+    /**
+     * Create a new notification instance.
+     */
     public function __construct()
     {
         $this->connection = 'redis';
         $this->queue = 'dummy';
     }
 
-    public function via($notifiable)
+    /**
+     * Get the notification channels.
+     */
+    public function via(mixed $notifiable): array
     {
         return ['mail', 'database'];
     }
 
-    public function viaConnections()
+    /**
+     * Determine which connections should be used for each notification channel.
+     */
+    public function viaConnections(): array
     {
         return [
             'database' => 'sync',
@@ -800,18 +812,27 @@ class DummyNotificationWithViaQueues extends Notification implements ShouldQueue
 {
     use Queueable;
 
+    /**
+     * Create a new notification instance.
+     */
     public function __construct()
     {
         $this->connection = 'redis';
         $this->queue = 'dummy';
     }
 
-    public function via($notifiable)
+    /**
+     * Get the notification channels.
+     */
+    public function via(mixed $notifiable): array
     {
         return ['mail', 'database'];
     }
 
-    public function viaQueues()
+    /**
+     * Determine which queues should be used for each notification channel.
+     */
+    public function viaQueues(): array
     {
         return [
             'mail' => 'admin_notifications',

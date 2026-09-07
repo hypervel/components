@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Foundation\Console;
 
+use Composer\Config as ComposerConfig;
+use Composer\Util\ProcessExecutor;
 use Hypervel\Console\OutputStyle;
 use Hypervel\Console\View\Components\Factory;
 use Hypervel\Contracts\Config\Repository;
@@ -30,10 +32,16 @@ class ServeCommandTest extends TestCase
     /** @var array{process: false|string, environment_exists: bool, environment: mixed, server_exists: bool, server: mixed} */
     private array $workingPathState;
 
+    private int $processTimeout;
+
+    /**
+     * Capture the working environment and Composer timeout.
+     */
     protected function setUp(): void
     {
         parent::setUp();
 
+        $this->processTimeout = ProcessExecutor::getTimeout();
         $this->workingPathState = [
             'process' => getenv(self::WORKING_PATH_ENV),
             'environment_exists' => array_key_exists(self::WORKING_PATH_ENV, $_ENV),
@@ -43,6 +51,9 @@ class ServeCommandTest extends TestCase
         ];
     }
 
+    /**
+     * Restore the working environment and Composer timeout.
+     */
     protected function tearDown(): void
     {
         try {
@@ -63,6 +74,8 @@ class ServeCommandTest extends TestCase
                 unset($_SERVER[self::WORKING_PATH_ENV]);
             }
         } finally {
+            ProcessExecutor::setTimeout($this->processTimeout);
+
             parent::tearDown();
         }
     }
@@ -100,9 +113,13 @@ class ServeCommandTest extends TestCase
 
         Application::getInstance()->setRunningInConsole(false);
 
+        class_exists(ComposerConfig::class);
+        ProcessExecutor::setTimeout(300);
+
         $result = $command->run(new ArrayInput([]), new NullOutput);
 
         $this->assertSame(0, $result);
+        $this->assertSame(0, ProcessExecutor::getTimeout());
         $this->assertCount(1, $startedEvents);
         $this->assertCount(1, $endedEvents);
         $this->assertSame(0, $endedEvents[0]->exitCode);

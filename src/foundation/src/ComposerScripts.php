@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation;
 
+use Composer\DependencyResolver\Operation\UninstallOperation;
 use Composer\Installer\PackageEvent;
 use Composer\IO\IOInterface;
 use Composer\Script\Event;
@@ -70,16 +71,18 @@ class ComposerScripts
             // Ensure we can encrypt our serializable closure...
             (new EncryptionServiceProvider($hypervel))->register();
 
-            $name = $event->getOperation()->getPackage()->getName();
+            /** @var UninstallOperation $operation */
+            $operation = $event->getOperation();
+            $name = $operation->getPackage()->getName();
             $eventName = "composer_package.{$name}:pre_uninstall";
 
             $hypervel->make(ProcessDriver::class)->run(
-                static fn () => app()['events']->dispatch($eventName)
+                static fn (): mixed => app()->make('events')->dispatch($eventName)
             );
         } catch (Throwable $e) {
             // Ignore any errors to allow the package removal to complete...
             $event->getIO()->write('There was an error dispatching or handling the [' . ($eventName ?? 'unknown') . '] event. Continuing with package removal...');
-            $event->getIO()->writeError('Exception message: ' . $e->getMessage(), verbosity: IOInterface::VERBOSE); // @phpstan-ignore class.notFound (Composer exists if this is running)
+            $event->getIO()->writeError('Exception message: ' . $e->getMessage(), verbosity: IOInterface::VERBOSE);
         }
     }
 

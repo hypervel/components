@@ -66,7 +66,11 @@ class SupportEnumFunctionsTest extends TestCase
         yield 'integer' => [TestBackedEnum::class, 1, TestBackedEnum::A];
         yield 'numeric string' => [TestBackedEnum::class, '1', TestBackedEnum::A];
         yield 'trimmed numeric string' => [TestBackedEnum::class, ' 2 ', TestBackedEnum::B];
-        yield 'float' => [TestBackedEnum::class, 1.5, TestBackedEnum::A];
+        yield 'integral float' => [TestBackedEnum::class, 1.0, TestBackedEnum::A];
+        yield 'integral decimal string' => [TestBackedEnum::class, '1.0', TestBackedEnum::A];
+        yield 'integral exponent string' => [TestBackedEnum::class, '1e0', TestBackedEnum::A];
+        yield 'fractional float' => [TestBackedEnum::class, 1.5, null];
+        yield 'fractional numeric string' => [TestBackedEnum::class, '1.5', null];
         yield 'boolean' => [TestBackedEnum::class, true, TestBackedEnum::A];
         yield 'matching instance' => [TestBackedEnum::class, TestBackedEnum::B, TestBackedEnum::B];
         yield 'maximum integer string' => [SupportIntegerDomainEnum::class, '9223372036854775807', SupportIntegerDomainEnum::Max];

@@ -6,6 +6,7 @@ namespace Hypervel\Data\Casts;
 
 use Hypervel\Data\Support\Creation\ConstructionState;
 use Hypervel\Data\Support\Creation\CreationContext;
+use Hypervel\Data\Support\Creation\ValueCaster;
 use Hypervel\Data\Support\DataProperty;
 
 class BuiltinTypeCast implements Cast, IterableItemCast
@@ -49,28 +50,6 @@ class BuiltinTypeCast implements Cast, IterableItemCast
      */
     protected function runCast(mixed $value): mixed
     {
-        return match ($this->type) {
-            'bool' => $this->castToBool($value),
-            'int' => (int) $value,
-            'float' => (float) $value,
-            'array' => (array) $value,
-            'string' => (string) $value,
-        };
-    }
-
-    /**
-     * Cast one value to a boolean.
-     */
-    protected function castToBool(mixed $value): bool
-    {
-        if (! is_string($value)) {
-            return (bool) $value;
-        }
-
-        return match (strtolower($value)) {
-            'true' => true,
-            'false' => false,
-            default => (bool) $value,
-        };
+        return ValueCaster::castBuiltin($this->type, $value);
     }
 }

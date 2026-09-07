@@ -49,10 +49,9 @@ class PruneCommandTest extends TestCase
         $container->instance('env', 'development');
     }
 
-    public function testPrunableModelAndExceptWithEachOther()
+    public function testPrunableModelAndExceptWithEachOther(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The --model and --except options cannot be combined.');
+        $this->expectExceptionObject(new InvalidArgumentException('The --model and --except options cannot be combined.'));
 
         $this->artisan([
             '--model' => Pruning\Models\PrunableTestModelWithPrunableRecords::class,
@@ -159,11 +158,22 @@ class PruneCommandTest extends TestCase
         );
     }
 
-    public function testNonModelFilesAreIgnoredTest()
+    public function testNonModelFilesAreIgnoredTest(): void
     {
-        $output = $this->artisan(['--path' => 'Models']);
+        $output = $this->artisan([
+            '--path' => 'Models',
+            // The soft-delete fixture needs a database; its dedicated tests set one up.
+            '--except' => [Pruning\Models\PrunableTestSoftDeletedModelWithPrunableRecords::class],
+        ]);
 
         $output = $output->fetch();
+
+        $this->assertStringContainsString(
+            'Hypervel\Tests\Database\Pruning\Models\PrunableTestModelWithPrunableRecords',
+            $output,
+        );
+
+        $this->assertStringContainsString('20 records', $output);
 
         $this->assertStringNotContainsString(
             'No prunable [Hypervel\Tests\Database\Pruning\Models\AbstractPrunableModel] records found.',

@@ -145,6 +145,8 @@ use Hypervel\Support\Facades\Schedule;
 Schedule::exec('node /path/to/script.js')->daily();
 ```
 
+If the shell command launches a Hypervel Artisan command, the child command receives the task's visible and hidden [context](/docs/{{version}}/context).
+
 <a name="schedule-frequency-options"></a>
 ### Schedule Frequency Options
 

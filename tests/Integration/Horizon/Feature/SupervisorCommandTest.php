@@ -9,6 +9,7 @@ use Hypervel\Horizon\Console\SupervisorCommand;
 use Hypervel\Horizon\SupervisorFactory;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\FakeSupervisorFactory;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 
 class SupervisorCommandTest extends IntegrationTestCase
 {
@@ -69,12 +70,14 @@ class SupervisorCommandTest extends IntegrationTestCase
         $this->assertFalse($factory->supervisor->working);
     }
 
+    #[RunInSeparateProcess]
     public function testSupervisorCommandCanSetProcessNiceness(): void
     {
+        $initialPriority = pcntl_getpriority();
         $this->app->instance(SupervisorFactory::class, new FakeSupervisorFactory);
         $this->artisan('horizon:supervisor', ['--nice' => 10] + static::OPTIONS);
 
-        $this->assertSame(10, pcntl_getpriority());
+        $this->assertSame($initialPriority + 10, pcntl_getpriority());
     }
 
     public function testSupervisorCommandPreservesZeroQueue(): void

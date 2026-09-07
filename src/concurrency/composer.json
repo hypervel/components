@@ -37,6 +37,7 @@
         "hypervel/context": "^0.4",
         "hypervel/contracts": "^0.4",
         "hypervel/coroutine": "^0.4",
+        "hypervel/log": "^0.4",
         "hypervel/process": "^0.4",
         "hypervel/support": "^0.4",
         "nesbot/carbon": "^3.13.1",

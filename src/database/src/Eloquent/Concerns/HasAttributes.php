@@ -1920,7 +1920,7 @@ trait HasAttributes
      * @param array<string, mixed> $attributes
      * @return array<string, mixed>
      */
-    protected function prepareBinaryAttributesForDatabase(array $attributes): array
+    public function prepareBinaryAttributesForDatabase(array $attributes): array
     {
         $casts = $this->getCasts();
 

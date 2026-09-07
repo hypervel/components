@@ -20,6 +20,7 @@ use Hypervel\Data\Contracts\TransformableData;
 use Hypervel\Data\Contracts\WrappableData;
 use Hypervel\Data\CursorPaginatedDataCollection;
 use Hypervel\Data\DataCollection;
+use Hypervel\Data\Enums\DataPropertyOperation;
 use Hypervel\Data\Exceptions\CannotTransformData;
 use Hypervel\Data\Exceptions\MaxTransformationDepthReached;
 use Hypervel\Data\Lazy;
@@ -30,6 +31,7 @@ use Hypervel\Data\Support\DataClassRepository;
 use Hypervel\Data\Support\DataConfig;
 use Hypervel\Data\Support\DataProperty;
 use Hypervel\Data\Support\Lazy\DefaultLazy;
+use Hypervel\Data\Support\Partials\PartialDefinition;
 use Hypervel\Data\Support\Types\Type;
 use Hypervel\Data\Support\Wrapping\WrapExecutionType;
 use Hypervel\Data\Transformers\Transformer;
@@ -77,7 +79,7 @@ class DataTransformer
      */
     public function defaultContext(object $data): TransformationContext
     {
-        if (! $data instanceof IncludeableData || $data->getPartialsDefinition()->isEmpty()) {
+        if (! $data instanceof IncludeableData || ! $data->hasPartialsDefinition()) {
             return $this->defaultContext;
         }
 
@@ -91,7 +93,7 @@ class DataTransformer
      */
     public function allContext(object $data): TransformationContext
     {
-        if (! $data instanceof IncludeableData || $data->getPartialsDefinition()->isEmpty()) {
+        if (! $data instanceof IncludeableData || ! $data->hasPartialsDefinition()) {
             return $this->allContext;
         }
 
@@ -147,6 +149,7 @@ class DataTransformer
      * Transform a nested data object within the current root operation.
      *
      * @param array<string, object> $extensions
+     * @param-out array<string, object> $extensions
      */
     protected function transformData(
         BaseData&TransformableData $data,
@@ -160,22 +163,36 @@ class DataTransformer
 
         $dataClass = $this->dataClasses->get($data::class);
 
-        // The plain path includes computed output, which cannot reconstruct the object.
-        if (! $context->constructable
-            && $dataClass->plainTransform
-            && ! $context->hasPartials()
-            && $context->transformers === []
-        ) {
-            return $this->finalizeTransformation(
-                $data,
-                $context,
-                $this->transformPlain($data, $dataClass),
-                $includeAdditionalData,
-            );
+        if ($dataClass->bulkCopyTransformation) {
+            // Bulk copy preserves values and includes computed output, so it cannot reconstruct the object.
+            if (! $context->constructable
+                && $context->transformers === []
+                && ! $context->hasPartials()
+            ) {
+                return $this->finalizeTransformation(
+                    $data,
+                    $context,
+                    $this->transformBulkCopy($data, $dataClass),
+                    $includeAdditionalData,
+                );
+            }
+        } elseif (($recipe = $dataClass->transformationRecipe) !== null) {
+            if ($context->transformValues
+                && ! $context->constructable
+                && $context->transformers === []
+                && ! $context->hasPartials()
+            ) {
+                return $this->finalizeTransformation(
+                    $data,
+                    $context,
+                    $this->transformUsingRecipe($data, $recipe, $context, $extensions),
+                    $includeAdditionalData,
+                );
+            }
         }
 
         // Raw storage keeps excluded property hooks from running as a side effect.
-        $values = get_mangled_object_vars($data);
+        $values = (array) $data;
         $transformed = [];
 
         foreach ($dataClass->properties as $property) {
@@ -252,6 +269,7 @@ class DataTransformer
         foreach ($rootItems ?? $this->collectableItems($data) as $key => $item) {
             if (! $context->transformValues) {
                 if ($context->hasPartials() && $item instanceof IncludeableData) {
+                    // Non-transforming root contexts compile their selections from these same definitions.
                     $item->getPartialsDefinition()->addResolved($context->partialDefinitions);
                 }
 
@@ -387,7 +405,7 @@ class DataTransformer
      *
      * @return array<array-key, mixed>
      */
-    protected function transformPlain(BaseData $data, DataClass $dataClass): array
+    protected function transformBulkCopy(BaseData $data, DataClass $dataClass): array
     {
         // Every property is emitted, so public get hooks own the logical values.
         $values = get_object_vars($data);
@@ -398,6 +416,59 @@ class DataTransformer
         }
 
         return array_replace($transformed, $values);
+    }
+
+    /**
+     * Transform values through immutable class metadata.
+     *
+     * @param array<string, object> $extensions
+     * @param-out array<string, object> $extensions
+     * @return array<array-key, mixed>
+     */
+    protected function transformUsingRecipe(
+        BaseData $data,
+        DataTransformationRecipe $recipe,
+        TransformationContext $context,
+        array &$extensions,
+    ): array {
+        // Raw storage keeps uninitialized properties from invoking public access.
+        $values = (array) $data;
+        $transformed = [];
+
+        foreach ($recipe->properties as $property) {
+            if ($property->hasGetHook) {
+                $value = $data->{$property->name};
+            } elseif (array_key_exists($property->name, $values)) {
+                $value = $values[$property->name];
+            } else {
+                continue;
+            }
+
+            if ($value !== null) {
+                $value = match ($property->transformationOperation) {
+                    DataPropertyOperation::Date,
+                    DataPropertyOperation::Enum => $this->transformBuiltIn($value),
+                    DataPropertyOperation::Data => $value instanceof BaseData
+                        ? $this->transformNested(
+                            $value,
+                            $context->child(
+                                $property->name,
+                                $this->resolveWrapExecutionType($value, $context),
+                            ),
+                            $extensions,
+                        )
+                        : $value,
+                    default => $value,
+                };
+            }
+
+            $name = $context->mapPropertyNames && $property->outputMappedName !== null
+                ? $property->outputMappedName
+                : $property->name;
+            $transformed[$name] = $value;
+        }
+
+        return $transformed;
     }
 
     /**
@@ -536,17 +607,14 @@ class DataTransformer
         BaseData|BaseDataCollectable $value,
         TransformationContext $context,
     ): TransformationContext {
-        if ($context->constructable || ! $value instanceof IncludeableData) {
+        if ($context->constructable
+            || ! $value instanceof IncludeableData
+            || ! $value->hasPartialsDefinition()
+        ) {
             return $context;
         }
 
-        $partialDefinitions = $value->getPartialsDefinition();
-
-        if ($partialDefinitions->isEmpty()) {
-            return $context;
-        }
-
-        return $context->withMergedPartials($partialDefinitions->resolve(
+        return $context->withMergedPartials($value->getPartialsDefinition()->resolve(
             $value,
             consumeTemporary: true,
         ));
@@ -765,9 +833,13 @@ class DataTransformer
             return;
         }
 
-        $value->getPartialsDefinition()->addResolved(
-            $context->partialsForNestedProperty($property),
-        );
+        $definitions = $context->partialsForNestedProperty($property);
+
+        if (! self::hasResolvedPartials($definitions)) {
+            return;
+        }
+
+        $value->getPartialsDefinition()->addResolved($definitions);
     }
 
     /**
@@ -784,11 +856,28 @@ class DataTransformer
 
         $definitions = $context->partialsForNestedProperty($property);
 
+        if (! self::hasResolvedPartials($definitions)) {
+            return;
+        }
+
         foreach ($items as $item) {
             if ($item instanceof IncludeableData) {
                 $item->getPartialsDefinition()->addResolved($definitions);
             }
         }
+    }
+
+    /**
+     * Determine whether a resolved partial set contains any definitions.
+     *
+     * @param array{include: list<PartialDefinition>, exclude: list<PartialDefinition>, only: list<PartialDefinition>, except: list<PartialDefinition>} $definitions
+     */
+    private static function hasResolvedPartials(array $definitions): bool
+    {
+        return $definitions['include'] !== []
+            || $definitions['exclude'] !== []
+            || $definitions['only'] !== []
+            || $definitions['except'] !== [];
     }
 
     /**

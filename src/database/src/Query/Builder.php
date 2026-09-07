@@ -858,6 +858,11 @@ class Builder implements BuilderContract
             $type = 'Bitwise';
         }
 
+        // JSON booleans need their driver's casts before applying null-safe equality.
+        if ($operator === '<=>' && $type !== 'JsonBoolean') {
+            $type = 'NullSafeEquals';
+        }
+
         // Now that we are working with just a simple query we can put the elements
         // in our array and add the query binding to our array of bindings that
         // will be bound to each SQL statements when it is finally executed.
@@ -1143,6 +1148,10 @@ class Builder implements BuilderContract
      */
     public function whereNullSafeEquals(ExpressionContract|string $column, mixed $value, string $boolean = 'and'): static
     {
+        if (is_bool($value) && is_string($column) && str_contains($column, '->')) {
+            return $this->where($column, '<=>', $value, $boolean);
+        }
+
         $type = 'NullSafeEquals';
 
         $this->wheres[] = compact('type', 'column', 'value', 'boolean');

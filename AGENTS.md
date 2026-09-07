@@ -109,11 +109,9 @@ Anything found follows When to Stop and Report — "the task didn't ask me to fi
 
 During implementation, run new or changed test files immediately. After completing a coherent implementation slice, run the affected package or focused test suite.
 
-At a meaningful checkpoint—such as before code review or after completing a substantial slice—run `composer fix` once. It runs `lint:fix`, both PHPStan configurations, the full parallel suite, the Testbench suite, and dogfood tests, so do not run those full checks separately at the same checkpoint.
+Use checks that match the change. For isolated changes, run `composer lint:fix`, `composer analyse`, and the affected tests. Run a single affected test file with PHPUnit. Use ParaTest when the affected tests span multiple files. Only run `composer fix` when changes could affect code beyond the affected tests; it already runs formatting, analysis, and all test suites, so do not run those checks separately first.
 
-After review fixes, run the relevant targeted tests. Repeat `composer fix` only when the changes warrant another full-repository check.
-
-If `composer fix` fails, use targeted checks while correcting the issue. Afterwards, inspect the `fix` script in `composer.json` and run the failed check plus each remaining entry. Rerun an earlier check only if the correction could affect it.
+If a check fails, use targeted checks while correcting the issue, then run the failed check and each remaining check. Rerun an earlier check only if the correction could affect it.
 
 ## Development Conventions
 
@@ -139,7 +137,7 @@ The Working rules and the Avoid overengineering rules apply to all work in this 
 
 - **Use one source of truth** — Put all user documentation in `src/docs/`. Package READMEs are intentionally minimal, not a second documentation surface, and must not duplicate user documentation.
 - **Write user documentation in Laravel-docs prose** — Use the simple, direct, human-friendly style of first-party Laravel documentation. Prefer natural explanations and examples over implementation language; avoid internal jargon, stiff wording, and needless detail.
-- **Keep the Laravel porting guide current and focused** — Whenever a framework change introduces, changes, or removes a public API, feature, behavior, configuration surface, or supported integration in a way that a Laravel application or package porter genuinely must account for, update `src/docs/porting-from-laravel.md` in the same change. Do not add entries for things like bug fixes, internal implementation differences, performance work that preserves the public contract, incidental source drift, or narrow edge cases unless they change what a porter needs to do. The guide is a high-signal starting context for humans and LLMs, not an exhaustive framework diff or dumping ground. Treat its context size as a design constraint: keep additions concise and action-oriented, link to the canonical feature documentation instead of duplicating its detail, and remove stale or duplicated guidance whenever editing the guide.
+- **Keep the Laravel porting guide current and focused** — Whenever a framework change means existing Laravel application or package code, configuration, integrations, or data require adaptation or a compatibility check, update `src/docs/porting-from-laravel.md` in the same change. Before adding an entry, ask: “What existing Laravel usage would someone port incorrectly without this entry?” Purely additive, opt-in enhancements belong in feature documentation, not this guide. An enhancement that also changes compatibility qualifies because of that difference, not because it adds functionality. Do not document bug fixes, internal implementation differences, performance work, incidental source drift, or narrow edge cases unless they change what a porter needs to do. Briefly identify the affected usage and required action or risk, then link to the relevant canonical documentation instead of repeating its detail. The guide is a high-signal starting context for humans and LLMs, not an exhaustive framework diff or feature catalogue. Treat its context size as a design constraint, and remove stale or duplicated guidance whenever editing it.
 
 #### Package READMEs
 
@@ -177,11 +175,11 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 - **Contract signature dependencies are lazy** — contract signatures may natively reference types from optional split packages without a reverse Composer dependency. Do not remove these types or add cyclic dependencies solely for split-package isolation.
 - **Newly written classes use dependency injection** — inject contracts (e.g. `Repository $config`, `CacheRepository $cache`) via constructor or method injection rather than helpers, facades, or `new` for framework services. Dependencies become explicit in signatures and tests swap them in directly, without facade-mocking machinery. Fall back to `Container::getInstance()->make(...)` only where injection isn't possible — static contexts and traits, like the testing package's Concerns. Helpers (`config()`, `cache()`) are fine in non-class contexts such as route and config files.
 - **Never convert ported code to dependency injection** — ported code keeps its upstream facade, helper, and instantiation style. Converting it restructures classes and breaks 1:1 upstream mergeability.
-- **Import classes, don't use FQCNs** — always add a `use` statement and reference the short name. The only exceptions are places where FQCNs genuinely make more sense, such as middleware arrays and similar config-style identifier lists.
+- **Use imported short class names** — applies to new and ported code. Replace fully or partially qualified class references with imported short names; use aliases for naming collisions. Classes in the current namespace need no import. Keep fully qualified names where genuinely clearer, such as middleware arrays and similar config-style identifier lists.
 - **Group traits in `Concerns/`** — follow the package's existing convention if it already has a `Concerns/` or `Traits/` directory; never mix both in one package. New Hypervel-original packages always use `Concerns/`; a newly ported package keeps its upstream directory name.
 - **Use Laravel observer conventions** — place Eloquent observers in a top-level `Observers/` directory. Register model-specific observers with `#[ObservedBy(...)]`; use `observe()` only for dynamic registration or observers supplied automatically by a reusable concern.
 - **Use attributed local scopes** — define local Eloquent query scopes as protected methods marked with `#[Scope]`, rather than legacy public `scopeFoo()` methods. Use separate scope classes only for genuine global scopes.
-- **No class docblocks unless warranted** — only add a class-level docblock if something unusual or complex needs explanation: purpose, architectural role, usage patterns. Never write one that inventories the class — trait lists, method summaries, "registers X, configures Y" — that duplicates the members' own docblocks and goes stale. Method docblocks (title only, Laravel-style, imperative mood: "Return", not "Returns") are always added. A body can accompany the title for complex methods that need further explanation.
+- **No class docblocks unless warranted** — only add a class-level docblock if something unusual or complex needs explanation: purpose, architectural role, usage patterns. Never write one that inventories the class — trait lists, method summaries, "registers X, configures Y" — that duplicates the members' own docblocks and goes stale. Method docblocks (title only, Laravel-style, imperative mood: "Return", not "Returns") are always added, except on `test*` methods in test classes. A body can accompany the title for complex methods that need further explanation.
 - **Add comments only where they're genuinely useful** — a short WHY for logic that isn't obvious from reading the code, the reason behind a bug fix, or logic that's coupled to code in other files and hard to understand in isolation. Avoid unnecessary code comments; don't comment what the code does, and don't annotate framework divergences, routine casts, or type normalizations.
 - **Don't make classes final by default** — keep classes open; add `final` only when it protects a real invariant or avoids a concrete framework/API problem, e.g. immutability, coroutine-safety, or a security guarantee.
 - **Place methods logically, not at the end** — group new methods with related ones (getters with getters, setters with setters). Two exceptions: preserve upstream order when merging ported code (see Porting rules), and `flushState()` has its own placement rule (see Static state and test cleanup).
@@ -677,7 +675,7 @@ If a test fails with a type error, the source code type may be wrong — not the
 
 ### Integration tests
 
-Tests that require external services (databases, Redis, HTTP servers, search engines) that can't run in every environment go in `tests/Integration/{PackageName}/`. The exception is tests that call freely-available external APIs (e.g., the Guzzle tests hitting the public Pokemon API) — those can stay in regular `tests/` since they need no local service configuration.
+Tests requiring separately configured services or public APIs go in `tests/Integration/{PackageName}/`. Self-contained loopback server fixtures may stay in `tests/{PackageName}/` if they need no external setup and use automatically assigned ports, bounded waits, unconditional cleanup, and parallel isolation.
 
 **Optimize integration tests for parallel testing** — ParaTest runs tests concurrently. Use `RefreshDatabase` by default and `DatabaseTruncation` when transaction depth zero is required; reserve `DatabaseMigrations` for migration behavior or a genuinely fresh migrated schema/baseline. Set up only the tables and services each test needs. Keep database cases in one data-provider test when splitting them would make schema setup compete. Load the full schema only when testing migrations or schema parity; do not hide avoidable slowness with longer timeouts.
 
@@ -735,7 +733,7 @@ See the existing entries for database, Redis, Meilisearch, and Typesense as exam
 
 The `tests/` directory is excluded from phpstan. Do not run phpstan on tests.
 
-Full PHPStan runs through `composer fix` at checkpoints. During implementation, use targeted PHPStan only when investigating or validating a specific type issue.
+Run full PHPStan checks with `composer analyse`. During implementation, use targeted PHPStan only when investigating or validating a specific type issue.
 
 `phpstan.types.neon.dist` validates only the committed `types/` fixtures. Never pass source or test paths to it.
 
@@ -758,6 +756,7 @@ Full PHPStan runs through `composer fix` at checkpoints. During implementation, 
 
 When porting Laravel packages, whether first-party or third-party, keep them as close to 1:1 with upstream as possible so future changes are easy to merge. The exceptions are:
 - Modernizing PHP types, including native parameter, return, property, and class-constant types, plus other appropriate PHP 8.4+ features, strict types, and strict comparisons
+- Applying the class-import convention, including its exceptions
 - Converting mutable Laravel date construction to Hypervel's immutable date conventions, typing configurable factory output as `CarbonInterface`, and capturing date-modifier return values
 - Converting container array access (`$app['events']`) and dynamic service-property access (`$app->events`) in ported code to named container methods, and applying the Configuration rules to ported config and its consumers
 - Adding Laravel-style title docblocks to methods (not classes — see Development Conventions)

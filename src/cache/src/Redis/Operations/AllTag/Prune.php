@@ -100,8 +100,10 @@ class Prune
         $iterator = PhpRedis::initialScanCursor();
 
         do {
-            // ZSCAN returns [member => score, ...] array
-            $members = $connection->zScan($tagKey, $iterator, '*', $scanCount);
+            // Tag members omit OPT_PREFIX, so scan every member without prefixing the pattern.
+            $members = $connection->withoutScanPrefix(function () use ($connection, $tagKey, &$iterator, $scanCount): mixed {
+                return $connection->zScan($tagKey, $iterator, '*', $scanCount);
+            });
 
             if ($members === false || ! is_array($members)) {
                 break;

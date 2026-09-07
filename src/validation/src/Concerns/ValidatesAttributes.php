@@ -19,7 +19,6 @@ use Egulias\EmailValidator\Validation\RFCValidation;
 use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Exceptions\MathException;
@@ -32,9 +31,9 @@ use Hypervel\Validation\Rules\Unique;
 use Hypervel\Validation\ValidationData;
 use Hypervel\Validation\ValidationRuleParser;
 use InvalidArgumentException;
-use SplFileInfo;
 use Stringable;
 use Symfony\Component\HttpFoundation\File\File;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use ValueError;
 
 use function with;
@@ -2013,7 +2012,7 @@ trait ValidatesAttributes
         if (is_countable($value) && count($value) < 1) {
             return false;
         }
-        if ($value instanceof SplFileInfo) {
+        if ($value instanceof File) {
             return (string) $value->getPath() !== '';
         }
 
@@ -2565,7 +2564,7 @@ trait ValidatesAttributes
             return count($value);
         }
 
-        if ($value instanceof SplFileInfo) {
+        if ($value instanceof File) {
             return $value->getSize() / 1024;
         }
 
@@ -2581,7 +2580,7 @@ trait ValidatesAttributes
             return false;
         }
 
-        return $value instanceof SplFileInfo;
+        return $value instanceof File;
     }
 
     /**

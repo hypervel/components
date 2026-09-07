@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Transport;
 
 use Closure;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\WaitGroup;
 use RuntimeException;
@@ -21,6 +22,8 @@ use function Hypervel\Coroutine\run;
 
 class HttpPoolTransport implements TransportInterface
 {
+    public const string DELIVERY_CONTEXT_KEY = '__sentry.delivery';
+
     protected WaitGroup $group;
 
     public function __construct(protected Pool $pool)
@@ -60,6 +63,7 @@ class HttpPoolTransport implements TransportInterface
         $wrapper = function (Closure $run) use ($group, $transport, &$started, &$discard): void {
             try {
                 $started = true;
+                CoroutineContext::set(self::DELIVERY_CONTEXT_KEY, true);
                 $run();
             } finally {
                 try {

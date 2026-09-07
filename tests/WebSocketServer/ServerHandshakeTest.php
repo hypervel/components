@@ -16,10 +16,12 @@ use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\ResponseSent;
 use Hypervel\Routing\Route;
 use Hypervel\Routing\Router;
+use Hypervel\Support\SafeCaller;
 use Hypervel\Tests\TestCase;
 use Hypervel\Tests\WebSocketServer\Fixtures\WebSocketStub;
 use Hypervel\WebSocketServer\Collector\FdCollector;
 use Hypervel\WebSocketServer\Context as WebSocketContext;
+use Hypervel\WebSocketServer\Events\ConnectionOpening;
 use Hypervel\WebSocketServer\Security;
 use Hypervel\WebSocketServer\Server;
 use Mockery as m;
@@ -29,6 +31,7 @@ use Swoole\Http\Request as SwooleRequest;
 use Swoole\Http\Response as SwooleResponse;
 use Swoole\WebSocket\Server as SwooleWebSocketServer;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 class ServerHandshakeTest extends TestCase
 {
@@ -38,7 +41,7 @@ class ServerHandshakeTest extends TestCase
         $observedEvents = [];
         $events = new Dispatcher;
 
-        foreach ([RequestReceived::class, RequestHandled::class, ResponseSent::class] as $eventClass) {
+        foreach ([ConnectionOpening::class, RequestReceived::class, RequestHandled::class, ResponseSent::class] as $eventClass) {
             $events->listen($eventClass, function (object $event) use (&$order, &$observedEvents): void {
                 $order[] = $event::class;
                 $observedEvents[$event::class] = $event;
@@ -66,11 +69,15 @@ class ServerHandshakeTest extends TestCase
         ))->onHandshake($this->request(), $response);
 
         $this->assertSame([
+            ConnectionOpening::class,
             RequestReceived::class,
             RequestHandled::class,
             'send',
             ResponseSent::class,
         ], $order);
+        $this->assertSame(42, $observedEvents[ConnectionOpening::class]->fd);
+        $this->assertInstanceOf(HttpRequest::class, $observedEvents[ConnectionOpening::class]->request);
+        $this->assertSame('websocket', $observedEvents[ConnectionOpening::class]->server);
         $this->assertNull($observedEvents[RequestReceived::class]->response);
         $this->assertSame(Response::HTTP_SWITCHING_PROTOCOLS, $observedEvents[RequestHandled::class]->response->getStatusCode());
         $this->assertSame($observedEvents[RequestHandled::class]->response, $observedEvents[ResponseSent::class]->response);
@@ -213,6 +220,66 @@ class ServerHandshakeTest extends TestCase
         }
     }
 
+    public function testConnectionOpeningFailureIsRenderedAndReleasesContext(): void
+    {
+        $exception = new RuntimeException('Opening listener failed.');
+        $handledEvent = null;
+        $events = new Dispatcher;
+        $events->listen(ConnectionOpening::class, static function () use ($exception): never {
+            throw $exception;
+        });
+        $events->listen(RequestHandled::class, static function (RequestHandled $event) use (&$handledEvent): void {
+            $handledEvent = $event;
+        });
+        $container = $this->container($events);
+        $container->shouldNotReceive('make')->with(Security::class);
+        $container->shouldReceive('make')->once()->with(SafeCaller::class)
+            ->andReturn(new SafeCaller($container));
+        $router = m::mock(Router::class);
+        $router->shouldNotReceive('dispatchToCallback');
+        $nativeServer = m::mock(SwooleWebSocketServer::class);
+        $nativeServer->shouldNotReceive('isEstablished');
+
+        (new RenderingHandshakeLifecycleServer(
+            $container,
+            $router,
+            $nativeServer,
+        ))->onHandshake($this->request(), $this->response(
+            Response::HTTP_INTERNAL_SERVER_ERROR,
+            'Handled',
+        ));
+
+        $this->assertInstanceOf(RequestHandled::class, $handledEvent);
+        $this->assertSame($exception, $handledEvent->exception);
+        $this->assertNull(FdCollector::get(42));
+        $this->assertArrayNotHasKey(42, WebSocketContext::getStorage());
+    }
+
+    public function testConnectionOpeningCancellationSkipsFallbackEmissionAndReleasesContext(): void
+    {
+        $events = new Dispatcher;
+        $events->listen(ConnectionOpening::class, static function (): never {
+            throw new CanceledException;
+        });
+        $container = $this->container($events);
+        $container->shouldNotReceive('make')->with(Security::class);
+        $router = m::mock(Router::class);
+        $router->shouldNotReceive('dispatchToCallback');
+        $nativeServer = m::mock(SwooleWebSocketServer::class);
+        $nativeServer->shouldNotReceive('isEstablished');
+        $response = m::mock(SwooleResponse::class);
+        $response->shouldReceive('status', 'header', 'end')->never();
+
+        try {
+            (new HandshakeLifecycleServer($container, $router, $nativeServer))
+                ->onHandshake($this->request(), $response);
+            $this->fail('Expected connection opening cancellation to be rethrown.');
+        } catch (CanceledException) {
+            $this->assertNull(FdCollector::get(42));
+            $this->assertArrayNotHasKey(42, WebSocketContext::getStorage());
+        }
+    }
+
     /**
      * Create the package container mock.
      */
@@ -336,5 +403,16 @@ class HandshakeLifecycleServer extends Server
     protected function getFd(SwooleResponse $response): int
     {
         return 42;
+    }
+}
+
+class RenderingHandshakeLifecycleServer extends HandshakeLifecycleServer
+{
+    /**
+     * Render the opening-listener failure.
+     */
+    protected function handleException(Throwable $throwable): Response
+    {
+        return new Response('Handled', Response::HTTP_INTERNAL_SERVER_ERROR);
     }
 }

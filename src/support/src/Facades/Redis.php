@@ -344,6 +344,7 @@ class Redis extends Facade
             'setOption',
             'shouldTransform',
             'ssubscribe',
+            'withoutScanPrefix',
         ];
     }
 

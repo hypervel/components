@@ -31,7 +31,6 @@ parameters:
     - %currentWorkingDirectory%/src/*/node_modules/*
     - %currentWorkingDirectory%/src/*/resources/views/*
     - %currentWorkingDirectory%/src/*/publish/*
-    - %currentWorkingDirectory%/src/foundation/src/ComposerScripts.php
   ignoreErrors:
     # CreatesApplication is an open trait consumed by both PHPUnit test cases and the
     # standalone Testbench application. PHPStan reports this shared capability guard

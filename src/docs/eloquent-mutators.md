@@ -626,7 +626,7 @@ return $user->uuid;
 // "6e8cdeed-2f32-40bd-b109-1e4405be2140"
 ```
 
-Normal model saves apply the cast automatically. Direct query builder operations, including `where`, bulk `update`, and `upsert` calls, do not apply model casts. When those operations receive already-encoded binary strings, wrap them in a [binary parameter](/docs/{{version}}/database#binding-binary-values).
+Model saves, `fillAndInsert`, `fillAndInsertOrIgnore`, `fillAndInsertGetId`, and [factory inserts](/docs/{{version}}/eloquent-factories#persisting-models) apply the cast automatically. Direct query builder operations, including `where`, bulk `update`, and `upsert` calls, do not apply model casts. When those operations receive already-encoded binary strings, wrap them in a [binary parameter](/docs/{{version}}/database#binding-binary-values).
 
 A non-incrementing primary key may also use `AsBinary` for model-instance writes and reloads. Lookups from already-encoded key bytes must use a binary parameter with `find`, `whereKey`, or `whereKeyNot`. Canonical UUID / ULID text passed directly to `find`, route or queue model binding, and relationship queries is not encoded automatically.
 

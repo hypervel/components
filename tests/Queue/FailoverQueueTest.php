@@ -537,7 +537,11 @@ class FailoverQueueTest extends TestCase
         $redis = m::mock(RedisQueue::class);
         $queue = new FailoverQueue($manager, $events, ['redis', 'sync']);
 
-        $manager->shouldReceive('connection')->times(6)->with('redis')->andReturn($redis);
+        $manager->shouldReceive('connection')->times(10)->with('redis')->andReturn($redis);
+        $redis->shouldReceive('totalSize')->once()->withNoArgs()->andReturn(9);
+        $redis->shouldReceive('totalPendingSize')->once()->withNoArgs()->andReturn(2);
+        $redis->shouldReceive('totalDelayedSize')->once()->withNoArgs()->andReturn(3);
+        $redis->shouldReceive('totalReservedSize')->once()->withNoArgs()->andReturn(4);
         $redis->shouldReceive('pendingJobs')->once()->with('emails')->andReturn($pending = new Collection(['pending']));
         $redis->shouldReceive('delayedJobs')->once()->with('emails')->andReturn($delayed = new Collection(['delayed']));
         $redis->shouldReceive('reservedJobs')->once()->with('emails')->andReturn($reserved = new Collection(['reserved']));
@@ -545,6 +549,10 @@ class FailoverQueueTest extends TestCase
         $redis->shouldReceive('allDelayedJobs')->once()->andReturn($allDelayed = new Collection(['all-delayed']));
         $redis->shouldReceive('allReservedJobs')->once()->andReturn($allReserved = new Collection(['all-reserved']));
 
+        $this->assertSame(9, $queue->totalSize());
+        $this->assertSame(2, $queue->totalPendingSize());
+        $this->assertSame(3, $queue->totalDelayedSize());
+        $this->assertSame(4, $queue->totalReservedSize());
         $this->assertSame($pending, $queue->pendingJobs('emails'));
         $this->assertSame($delayed, $queue->delayedJobs('emails'));
         $this->assertSame($reserved, $queue->reservedJobs('emails'));

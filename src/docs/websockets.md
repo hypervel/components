@@ -222,9 +222,12 @@ Route::get('/ws/chat', ChatSocket::class)
 
 Hypervel dispatches the following events for custom WebSocket connections:
 
-- `Hypervel\WebSocketServer\Events\ConnectionOpened` provides the file descriptor, native request, and server name.
-- `Hypervel\WebSocketServer\Events\MessageReceived` provides the file descriptor, native frame, and server name.
-- `Hypervel\WebSocketServer\Events\ConnectionClosed` provides the file descriptor, reactor ID, and server name.
+- `Hypervel\WebSocketServer\Events\ConnectionOpening` is dispatched before handshake validation and routing. It provides the file descriptor, bridged HTTP request, and server name.
+- `Hypervel\WebSocketServer\Events\ConnectionOpened` is dispatched after a successful handshake and before the handler's `onOpen` method. It provides the file descriptor, native request, and server name.
+- `Hypervel\WebSocketServer\Events\MessageReceived` is dispatched before the handler's `onMessage` method. It provides the file descriptor, native frame, and server name.
+- `Hypervel\WebSocketServer\Events\MessageHandled` is dispatched after the handler's `onMessage` method. It provides the file descriptor, native frame, server name, and any exception raised while handling the message.
+- `Hypervel\WebSocketServer\Events\ConnectionClosing` is dispatched before the handler's `onClose` method. It provides the file descriptor, reactor ID, and server name.
+- `Hypervel\WebSocketServer\Events\ConnectionClosed` is dispatched after the handler's `onClose` method. It provides the file descriptor, reactor ID, and server name.
 
 You may listen for these events using Hypervel's normal [event listeners](/docs/{{version}}/events#registering-events-and-listeners).
 

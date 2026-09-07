@@ -17,6 +17,8 @@ use Hypervel\Data\Attributes\Computed;
 use Hypervel\Data\Attributes\DataCollectionOf;
 use Hypervel\Data\Attributes\Hidden;
 use Hypervel\Data\Attributes\MapOutputName;
+use Hypervel\Data\Attributes\WithTransformer;
+use Hypervel\Data\Contracts\BaseData;
 use Hypervel\Data\Contracts\BaseDataCollectable;
 use Hypervel\Data\Data;
 use Hypervel\Data\DataCollection;
@@ -26,7 +28,9 @@ use Hypervel\Data\Exceptions\CannotTransformData;
 use Hypervel\Data\Lazy;
 use Hypervel\Data\Normalizers\Normalized\Normalized;
 use Hypervel\Data\Normalizers\Normalizer;
+use Hypervel\Data\Support\DataClass;
 use Hypervel\Data\Support\DataProperty;
+use Hypervel\Data\Support\Partials\PartialsDefinition;
 use Hypervel\Data\Support\Transformation\DataTransformer;
 use Hypervel\Data\Support\Transformation\TransformationContext;
 use Hypervel\Data\Support\Transformation\TransformationContextFactory;
@@ -37,6 +41,7 @@ use Hypervel\Inertia\OptionalProp;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Testbench\TestCase;
+use ReflectionProperty;
 use RuntimeException;
 use Traversable;
 
@@ -77,6 +82,94 @@ class DataTransformerTest extends TestCase
             'status' => Status::Ready,
             'nested' => $nested,
         ], $data->all());
+    }
+
+    /**
+     * Test fixed output recipes match the general transformation path.
+     */
+    public function testFixedOutputRecipeMatchesGeneralTransformation(): void
+    {
+        $date = new DateTimeImmutable('2026-08-31T10:30:00+00:00');
+        $data = new RecipeOutputData(
+            'Taylor',
+            $date,
+            Status::Ready,
+            new SimpleData('nested'),
+        );
+        $irrelevantTransformer = new class implements Transformer {
+            public function transform(
+                DataProperty $property,
+                mixed $value,
+                TransformationContext $context,
+            ): mixed {
+                return $value;
+            }
+        };
+        $general = TransformationContextFactory::create()
+            ->withTransformer(RuntimeException::class, $irrelevantTransformer);
+
+        $this->assertSame([
+            'computed' => 'computed',
+            'display_name' => 'Taylor',
+            'createdAt' => '2026-08-31T10:30:00+00:00',
+            'status' => 'ready',
+            'nested' => ['value' => 'nested'],
+        ], $data->toArray());
+        $this->assertSame($data->toArray(), $data->transform($general));
+
+        $unmapped = TransformationContextFactory::create()->withoutPropertyNameMapping();
+        $generalUnmapped = TransformationContextFactory::create()
+            ->withoutPropertyNameMapping()
+            ->withTransformer(RuntimeException::class, $irrelevantTransformer);
+
+        $this->assertSame($data->transform($generalUnmapped), $data->transform($unmapped));
+        $this->assertArrayHasKey('name', $data->transform($unmapped));
+        $this->assertArrayNotHasKey('display_name', $data->transform($unmapped));
+    }
+
+    /**
+     * Test plain values retain bulk-copy transformation without value conversion.
+     */
+    public function testAllUsesBulkCopyForPlainData(): void
+    {
+        $transformer = $this->app->make(BulkCopyRecordingDataTransformer::class);
+        $this->app->instance(DataTransformer::class, $transformer);
+        $data = new ArrayData(['nested' => ['value' => 'value']]);
+        $transformed = $data->toArray();
+
+        $this->assertSame(1, $transformer->bulkCopyCalls);
+        $this->assertSame($transformed, $data->all());
+        $this->assertSame(2, $transformer->bulkCopyCalls);
+    }
+
+    /**
+     * Test property transformers prevent bulk-copy transformation.
+     */
+    public function testPropertyTransformersPreventBulkCopy(): void
+    {
+        $transformer = $this->app->make(BulkCopyRecordingDataTransformer::class);
+        $this->app->instance(DataTransformer::class, $transformer);
+
+        $this->assertSame(
+            ['value' => 'TRANSFORMED'],
+            (new PropertyTransformedData('transformed'))->toArray(),
+        );
+        $this->assertSame(0, $transformer->bulkCopyCalls);
+    }
+
+    /**
+     * Test data-annotated arrays prevent bulk-copy transformation.
+     */
+    public function testDataAnnotatedArraysPreventBulkCopy(): void
+    {
+        $transformer = $this->app->make(BulkCopyRecordingDataTransformer::class);
+        $this->app->instance(DataTransformer::class, $transformer);
+
+        $this->assertSame(
+            ['items' => [['value' => 'nested']]],
+            (new AnnotatedArrayOwnerData([new SimpleData('nested')]))->toArray(),
+        );
+        $this->assertNotContains(AnnotatedArrayOwnerData::class, $transformer->bulkCopiedClasses);
     }
 
     /**
@@ -126,7 +219,7 @@ class DataTransformerTest extends TestCase
     /**
      * Test plain transformation follows metadata order and declared properties.
      */
-    public function testPlainTransformPreservesMetadataOrderAndFiltersRuntimeKeys(): void
+    public function testBulkCopyPreservesMetadataOrderAndFiltersRuntimeKeys(): void
     {
         $data = new PlainOrderData;
         $data->runtime = 'ignored';
@@ -141,7 +234,7 @@ class DataTransformerTest extends TestCase
     /**
      * Test plain transformation reads public property hooks exactly once.
      */
-    public function testPlainTransformReadsBackedAndVirtualHooksOnce(): void
+    public function testBulkCopyReadsBackedAndVirtualHooksOnce(): void
     {
         PlainHookData::$backedReads = 0;
         PlainHookData::$virtualReads = 0;
@@ -292,6 +385,121 @@ class DataTransformerTest extends TestCase
         $this->assertSame($closure, $transformed['closure']);
         $this->assertArrayNotHasKey('default', $transformed);
         $this->assertArrayNotHasKey('excluded', $transformed);
+    }
+
+    /**
+     * Test plain transformations do not retain an empty partial definition store.
+     */
+    public function testPlainTransformationsDoNotRetainEmptyPartials(): void
+    {
+        $data = new SimpleData('value');
+
+        $this->assertNull($this->partialDefinitionsState($data));
+        $this->assertSame(['value' => 'value'], $data->toArray());
+        $this->assertFalse($this->partialDefinitionsState($data));
+        $this->assertSame(['value' => 'value'], $data->all());
+        $this->assertFalse($this->partialDefinitionsState($data));
+
+        TransformationContextFactory::create()->get($data);
+
+        $this->assertFalse($this->partialDefinitionsState($data));
+
+        $data->only('value');
+
+        $this->assertInstanceOf(PartialsDefinition::class, $this->partialDefinitionsState($data));
+        $this->assertSame(['value' => 'value'], $data->toArray());
+        $this->assertFalse($data->hasPartialsDefinition());
+    }
+
+    /**
+     * Test class-owned partial defaults still initialize once and remain active.
+     */
+    public function testClassOwnedPartialDefaultsStillInitialize(): void
+    {
+        $data = new DefaultPartialsData('first', 'second');
+
+        $this->assertNull($this->partialDefinitionsState($data));
+        $this->assertTrue($data->hasPartialsDefinition());
+        $this->assertInstanceOf(PartialsDefinition::class, $this->partialDefinitionsState($data));
+        $this->assertSame(['first' => 'first'], $data->toArray());
+        $this->assertTrue($data->hasPartialsDefinition());
+    }
+
+    /**
+     * Test disabled class-owned defaults retain the empty sentinel.
+     */
+    public function testDisabledClassOwnedPartialDefaultsRemainEmpty(): void
+    {
+        $data = new DisabledDefaultPartialsData('first', 'second');
+
+        $this->assertFalse($data->hasPartialsDefinition());
+        $this->assertFalse($this->partialDefinitionsState($data));
+        $this->assertSame([
+            'first' => 'first',
+            'second' => 'second',
+        ], $data->toArray());
+        $this->assertFalse($this->partialDefinitionsState($data));
+    }
+
+    /**
+     * Test plain collections and their items do not retain empty partial stores.
+     */
+    public function testPlainCollectionsDoNotRetainEmptyPartials(): void
+    {
+        $first = new SimpleData('first');
+        $second = new SimpleData('second');
+        $collection = new DataCollection(SimpleData::class, [$first, $second]);
+
+        $this->assertSame([
+            ['value' => 'first'],
+            ['value' => 'second'],
+        ], $collection->toArray());
+        $this->assertFalse($this->partialDefinitionsState($collection));
+        $this->assertFalse($this->partialDefinitionsState($first));
+        $this->assertFalse($this->partialDefinitionsState($second));
+    }
+
+    /**
+     * Test unrelated parent partials do not allocate stores on nested values or iterable items.
+     */
+    public function testUnrelatedParentPartialsDoNotAllocateNestedStores(): void
+    {
+        $nested = new NestedLazyData(
+            Lazy::create(static fn (): string => 'temporary'),
+            Lazy::create(static fn (): string => 'permanent'),
+        );
+        $first = new NestedLazyData(
+            Lazy::create(static fn (): string => 'first'),
+            Lazy::create(static fn (): string => 'ignored'),
+        );
+        $second = new NestedLazyData(
+            Lazy::create(static fn (): string => 'second'),
+            Lazy::create(static fn (): string => 'ignored'),
+        );
+
+        (new PartialOwnerData($nested))->include('enabled')->all();
+        (new DataArrayOwner([$first, $second]))->include('items')->all();
+
+        $this->assertNull($this->partialDefinitionsState($nested));
+        $this->assertNull($this->partialDefinitionsState($first));
+        $this->assertNull($this->partialDefinitionsState($second));
+    }
+
+    /**
+     * Test root collection partials still propagate to unchanged items.
+     */
+    public function testRootCollectionPartialsPropagateToUnchangedItems(): void
+    {
+        $item = new NestedLazyData(
+            Lazy::create(static fn (): string => 'temporary'),
+            Lazy::create(static fn (): string => 'ignored'),
+        );
+        $collection = (new DataCollection(NestedLazyData::class, [$item]))
+            ->include('temporary');
+
+        $this->assertSame([$item], $collection->all());
+        $this->assertInstanceOf(PartialsDefinition::class, $this->partialDefinitionsState($item));
+        $this->assertSame(['temporary' => 'temporary'], $item->toArray());
     }
 
     /**
@@ -846,6 +1054,36 @@ class DataTransformerTest extends TestCase
         ], $data->transform(TransformationContextFactory::forPersistence()));
         $this->assertSame(1, $model->relationReads);
     }
+
+    /**
+     * Get the internal partial definition state without initializing it.
+     */
+    private function partialDefinitionsState(object $data): PartialsDefinition|false|null
+    {
+        /** @var null|false|PartialsDefinition $state */
+        $state = (new ReflectionProperty($data, 'partialDefinitions'))->getValue($data);
+
+        return $state;
+    }
+}
+
+class BulkCopyRecordingDataTransformer extends DataTransformer
+{
+    public int $bulkCopyCalls = 0;
+
+    /** @var list<class-string<BaseData>> */
+    public array $bulkCopiedClasses = [];
+
+    /**
+     * Record and perform one bulk-copy transformation.
+     */
+    protected function transformBulkCopy(BaseData $data, DataClass $dataClass): array
+    {
+        ++$this->bulkCopyCalls;
+        $this->bulkCopiedClasses[] = $data::class;
+
+        return parent::transformBulkCopy($data, $dataClass);
+    }
 }
 
 enum Status: string
@@ -856,6 +1094,73 @@ enum Status: string
 class SimpleData extends Data
 {
     public function __construct(public string $value)
+    {
+    }
+}
+
+class DefaultPartialsData extends Data
+{
+    public function __construct(
+        public string $first,
+        public string $second,
+    ) {
+    }
+
+    /**
+     * Keep the first property by default.
+     */
+    protected function onlyProperties(): array
+    {
+        return ['first'];
+    }
+}
+
+class DisabledDefaultPartialsData extends Data
+{
+    public function __construct(
+        public string $first,
+        public string $second,
+    ) {
+    }
+
+    /**
+     * Disable the conditional default selection.
+     */
+    protected function onlyProperties(): array
+    {
+        return ['first' => false];
+    }
+}
+
+class PropertyTransformedData extends Data
+{
+    public function __construct(
+        #[WithTransformer(UppercasePropertyTransformer::class)]
+        public string $value,
+    ) {
+    }
+}
+
+class UppercasePropertyTransformer implements Transformer
+{
+    /**
+     * Transform the fixture value to uppercase.
+     */
+    public function transform(
+        DataProperty $property,
+        mixed $value,
+        TransformationContext $context,
+    ): string {
+        return strtoupper((string) $value);
+    }
+}
+
+class AnnotatedArrayOwnerData extends Data
+{
+    /**
+     * @param list<SimpleData> $items
+     */
+    public function __construct(public array $items)
     {
     }
 }
@@ -1027,6 +1332,26 @@ class TransformingData extends Data
         public string $name,
         public DateTimeImmutable $createdAt,
         public BackedEnum $status,
+        public SimpleData $nested,
+    ) {
+    }
+}
+
+class RecipeOutputData extends Data
+{
+    #[Computed]
+    public string $computed = 'computed';
+
+    #[Hidden]
+    public string $hidden = 'hidden';
+
+    public string $uninitialized;
+
+    public function __construct(
+        #[MapOutputName('display_name')]
+        public string $name,
+        public DateTimeImmutable $createdAt,
+        public Status $status,
         public SimpleData $nested,
     ) {
     }

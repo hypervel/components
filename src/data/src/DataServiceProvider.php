@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Data;
 
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Data\Console\DataMakeCommand;
 use Hypervel\Data\Contracts\TransformableData;
+use Hypervel\Data\Support\Creation\DataCreator;
 use Hypervel\Data\Support\DataConfig;
+use Hypervel\Data\Support\Transformation\DataTransformer;
 use Hypervel\Data\Support\VarDumper\DataVarDumperCaster;
 use Hypervel\Support\ServiceProvider;
 use Symfony\Component\VarDumper\Cloner\AbstractCloner;
@@ -34,6 +37,13 @@ class DataServiceProvider extends ServiceProvider
     {
         // Build the typed configuration once during worker boot.
         $this->app->make(DataConfig::class);
+
+        if (! $this->app->runningUnitTests()) {
+            $this->app->booted(static function (Application $app): void {
+                $app->make(DataCreator::class);
+                $app->make(DataTransformer::class);
+            });
+        }
 
         AbstractCloner::$defaultCasters[TransformableData::class]
             ??= [DataVarDumperCaster::class, 'cast'];

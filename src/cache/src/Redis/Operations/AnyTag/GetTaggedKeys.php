@@ -90,8 +90,10 @@ class GetTaggedKeys
         do {
             // Acquire connection just for this HSCAN batch
             $fields = $this->context->withConnection(
-                function (RedisConnection $connection) use ($tagKey, &$iterator, $count) {
-                    return $connection->hscan($tagKey, $iterator, null, $count);
+                function (RedisConnection $connection) use ($tagKey, &$iterator, $count): mixed {
+                    return $connection->withoutScanPrefix(function () use ($connection, $tagKey, &$iterator, $count): mixed {
+                        return $connection->hscan($tagKey, $iterator, null, $count);
+                    });
                 }
             );
 

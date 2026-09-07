@@ -14,9 +14,12 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
 use Hypervel\Process\Factory as ProcessFactory;
+use Hypervel\Process\PendingProcess;
 use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\Concurrency as ConcurrencyFacade;
+use Hypervel\Support\Facades\Context;
+use Hypervel\Testbench\Attributes\UsesVendor;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Concurrency\Fixtures\ConcurrentProcessExceptionFixtures;
 use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
@@ -506,6 +509,48 @@ class ConcurrencyTest extends TestCase
         $this->expectExceptionMessage('Concurrent process failed with exit code [5]. Message: child failed');
 
         $driver->run(static fn () => null);
+    }
+
+    #[UsesVendor]
+    public function testContextIsPropagatedToConcurrentProcesses(): void
+    {
+        Context::add('task', 'concurrency');
+        Context::addHidden('token', 'secret');
+
+        [$task, $token] = ConcurrencyFacade::driver('process')->run([
+            static fn (): mixed => Context::get('task'),
+            static fn (): mixed => Context::getHidden('token'),
+        ]);
+
+        $this->assertSame('concurrency', $task);
+        $this->assertSame('secret', $token);
+    }
+
+    public function testContextIsPropagatedToDeferredConcurrentProcesses(): void
+    {
+        $this->withoutDefer();
+
+        Context::add('task', 'concurrency');
+
+        $factory = $this->app->make(ProcessFactory::class);
+        $factory->fake();
+
+        (new ProcessDriver($factory))->defer([static fn (): string => 'result']);
+
+        $factory->assertRan(static fn (PendingProcess $process): bool => ($process->environment['__HYPERVEL_CONTEXT'] ?? null) === base64_encode(serialize(Context::dehydrate())));
+    }
+
+    #[UsesVendor]
+    public function testBinaryContextIsPropagatedToConcurrentProcesses(): void
+    {
+        Context::add('task', 'concurrency');
+        Context::addHidden('token', "binary-\xFF\x00\x8B");
+
+        [$context] = ConcurrencyFacade::driver('process')->run([
+            static fn (): array => [Context::get('task'), Context::getHidden('token')],
+        ]);
+
+        $this->assertSame(['concurrency', "binary-\xFF\x00\x8B"], $context);
     }
 
     public function testProcessDriverAppliesCustomTimeouts(): void

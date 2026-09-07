@@ -42,29 +42,6 @@ class SQLiteGrammar extends Grammar
     }
 
     /**
-     * Compile a basic where clause.
-     */
-    protected function whereBasic(Builder $query, array $where): string
-    {
-        if ($where['operator'] === '<=>') {
-            $column = $this->wrap($where['column']);
-            $value = $this->parameter($where['value']);
-
-            return "{$column} IS {$value}";
-        }
-
-        return parent::whereBasic($query, $where);
-    }
-
-    /**
-     * Compile a "where null safe equals" clause.
-     */
-    protected function whereNullSafeEquals(Builder $query, array $where): string
-    {
-        return $this->wrap($where['column']) . ' is ' . $this->parameter($where['value']);
-    }
-
-    /**
      * Compile a "where like" clause.
      */
     protected function whereLike(Builder $query, array $where): string
@@ -87,6 +64,23 @@ class SQLiteGrammar extends Grammar
             ['[*]', '[?]', '*', '?'],
             $value
         );
+    }
+
+    /**
+     * Compile a "where null safe equals" clause.
+     */
+    protected function whereNullSafeEquals(Builder $query, array $where): string
+    {
+        $value = $this->parameter($where['value']);
+
+        // SQLite's IS TRUE and IS FALSE test truthiness instead of equality.
+        $value = match ($value) {
+            'true' => '1',
+            'false' => '0',
+            default => $value,
+        };
+
+        return $this->wrap($where['column']) . ' is ' . $value;
     }
 
     /**

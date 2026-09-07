@@ -16,10 +16,12 @@ use Hypervel\Validation\PresenceVerifierInterface;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\Validator;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
-use SplFileInfo;
 use stdClass;
 use Stringable;
+use Symfony\Component\HttpFoundation\File\File;
+use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
 
 class ValidationCompiledExecutionTest extends TestCase
 {
@@ -73,7 +75,7 @@ class ValidationCompiledExecutionTest extends TestCase
             [['value' => '2.00'], ['value' => 'max:3|decimal:2'], true],
             [['value' => '2.00'], ['value' => 'string|numeric|max:3'], true],
             [['value' => [1, 2, 3]], ['value' => 'between:2,3'], true],
-            [['value' => new SplFileInfo(__FILE__)], ['value' => 'file|min:0|max:1000'], true],
+            [['value' => new File(__FILE__)], ['value' => 'file|min:0|max:1000'], true],
             [['value' => 'abc'], ['value' => 'size:3.0000000000000000001'], false],
         ];
 
@@ -691,20 +693,28 @@ class ValidationCompiledExecutionTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testInvalidUploadedFileProducesUploadedError()
+    #[TestWith([UploadedFile::class, UPLOAD_ERR_INI_SIZE, ''])]
+    #[TestWith([SymfonyUploadedFile::class, UPLOAD_ERR_INI_SIZE, ''])]
+    #[TestWith([UploadedFile::class, UPLOAD_ERR_PARTIAL, __DIR__ . '/Fixtures/image.png'])]
+    #[TestWith([SymfonyUploadedFile::class, UPLOAD_ERR_PARTIAL, __DIR__ . '/Fixtures/image.png'])]
+    public function testInvalidUploadedFileProducesUploadedError(string $fileClass, int $error, string $path): void
     {
-        $file = new UploadedFile(
-            path: '',
+        $file = new $fileClass(
+            path: $path,
             originalName: 'test.jpg',
             mimeType: 'image/jpeg',
-            error: UPLOAD_ERR_INI_SIZE,
+            error: $error,
             test: true,
         );
 
-        $v = $this->makeValidator(['file' => $file], ['file' => 'required|image']);
-        $v->passes();
+        foreach ([Validator::class, DelegatedValidationValidator::class] as $validatorClass) {
+            foreach (['required|image', 'max:1000'] as $rules) {
+                $v = $this->makeValidator(['file' => $file], ['file' => $rules], validatorClass: $validatorClass);
 
-        $this->assertTrue($v->errors()->has('file'));
+                $this->assertFalse($v->passes());
+                $this->assertSame(['validation.uploaded'], $v->errors()->get('file'));
+            }
+        }
     }
 
     public function testExcludeAttributesResetAcrossValidatorReuse()

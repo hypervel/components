@@ -1248,16 +1248,20 @@ class Str
                 $hyphenatedWords = explode('-', $lowercaseWord);
 
                 $hyphenatedWords = array_map(function ($part) use ($minorWords) {
-                    return (in_array($part, $minorWords) && mb_strlen($part) <= 3)
+                    return (in_array($part, $minorWords, true) && mb_strlen($part) <= 3)
                         ? $part
                         : mb_strtoupper(mb_substr($part, 0, 1)) . mb_substr($part, 1);
                 }, $hyphenatedWords);
 
                 $words[$i] = implode('-', $hyphenatedWords);
+
+                if ($i === 0 || in_array(mb_substr($words[$i - 1], -1), $endPunctuation, true)) {
+                    $words[$i] = static::ucfirst($words[$i]);
+                }
             } else {
-                if (in_array($lowercaseWord, $minorWords)
+                if (in_array($lowercaseWord, $minorWords, true)
                     && mb_strlen($lowercaseWord) <= 3
-                    && ! ($i === 0 || in_array(mb_substr($words[$i - 1], -1), $endPunctuation))) {
+                    && ! ($i === 0 || in_array(mb_substr($words[$i - 1], -1), $endPunctuation, true))) {
                     $words[$i] = $lowercaseWord;
                 } else {
                     $words[$i] = mb_strtoupper(mb_substr($lowercaseWord, 0, 1)) . mb_substr($lowercaseWord, 1);
@@ -1588,7 +1592,7 @@ class Str
      */
     public static function lcfirst(string $string): string
     {
-        return static::lower(static::substr($string, 0, 1)) . static::substr($string, 1);
+        return mb_lcfirst($string, 'UTF-8');
     }
 
     /**
@@ -1598,7 +1602,7 @@ class Str
      */
     public static function ucfirst(string $string): string
     {
-        return static::upper(static::substr($string, 0, 1)) . static::substr($string, 1);
+        return mb_ucfirst($string, 'UTF-8');
     }
 
     /**
@@ -1608,6 +1612,10 @@ class Str
      */
     public static function ucwords(string $string, string $separators = " \t\r\n\f\v"): string
     {
+        if ($separators === '') {
+            return static::ucfirst($string);
+        }
+
         $pattern = '/(^|[' . preg_quote($separators, '/') . '])(\p{Ll})/u';
 
         return preg_replace_callback($pattern, function ($matches) {
@@ -1640,7 +1648,33 @@ class Str
      */
     public static function wordWrap(string $string, int $characters = 75, string $break = "\n", bool $cutLongWords = false): string
     {
-        return wordwrap($string, $characters, $break, $cutLongWords);
+        if (static::isAscii($string)) {
+            return wordwrap($string, $characters, $break, $cutLongWords);
+        }
+
+        if ($break === '') {
+            return wordwrap($string, $characters, $break, $cutLongWords);
+        }
+
+        $replaced = [];
+        $breakToken = "\0";
+
+        // Encode existing breaks so the native wrapper resets its line width.
+        $skeleton = implode($breakToken, array_map(function ($segment) use (&$replaced) {
+            return preg_replace_callback('/[\x80-\xFF][\x80-\xBF]*|[\x00\x1A]/', function ($match) use (&$replaced) {
+                $replaced[] = $match[0];
+
+                return "\x1A";
+            }, $segment);
+        }, explode($break, $string)));
+
+        $index = 0;
+
+        return implode($break, array_map(function ($segment) use (&$replaced, &$index) {
+            return preg_replace_callback('/\x1A/', function () use (&$replaced, &$index) {
+                return $replaced[$index++];
+            }, $segment);
+        }, explode($breakToken, wordwrap($skeleton, $characters, $breakToken, $cutLongWords))));
     }
 
     /**
@@ -1886,15 +1920,24 @@ class Str
     }
 
     /**
+     * Return all factory functions to their default state.
+     *
+     * Tests only. Clears the worker-wide random string, UUID, and ULID
+     * factories, affecting generation in every coroutine.
+     */
+    public static function resetFactoryState(): void
+    {
+        static::createRandomStringsNormally();
+        static::createUlidsNormally();
+        static::createUuidsNormally();
+    }
+
+    /**
      * Flush all static state.
      */
     public static function flushState(): void
     {
-        // Return all factory functions to their default state.
-        static::createRandomStringsNormally();
-        static::createUlidsNormally();
-        static::createUuidsNormally();
-
+        static::resetFactoryState();
         static::flushMacros();
     }
 }

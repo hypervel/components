@@ -204,6 +204,8 @@ If your Redis queue connection uses a [Redis Cluster](https://redis.io/docs/late
 
 You may still include your own hash tag, such as `{mail}:high`, when you need several queue names to share a specific Redis Cluster slot. Hypervel leaves explicit hash tags unchanged.
 
+On standalone Redis, or when supplying an explicit Cluster hash tag, avoid queue names ending in `:delayed`, `:reserved`, or `:notify`, which overlap with the queue driver's storage keys. Automatically tagged Cluster queue names do not have this restriction.
+
 <a name="blocking"></a>
 ##### Blocking
 
@@ -2607,6 +2609,12 @@ You may include the `-v` flag when invoking the `queue:work` command if you woul
 php artisan queue:work -v
 ```
 
+The command also reports worker stop reasons, such as reaching the memory limit. To output job updates and stop information as JSON, use the `--json` option:
+
+```shell
+php artisan queue:work --json
+```
+
 Remember, queue workers are long-lived processes and store the booted application state in memory. As a result, they will not notice changes in your code base after they have been started. So, during your deployment process, be sure to [restart your queue workers](#queue-workers-and-deployment). In addition, remember that any static state created or modified by your application will not be automatically reset between jobs. Request or job specific state should be stored in `CoroutineContext` instead of static properties or mutable singletons.
 
 Alternatively, you may run the `queue:listen` command. When using the `queue:listen` command, you don't have to manually restart the worker when you want to reload your updated code or reset the application state; however, this command is significantly less efficient than the `queue:work` command:
@@ -3297,6 +3305,17 @@ $reserved = $queue->allReservedJobs();
 ```
 
 These methods load every matching job into memory. Avoid using them against very large backlogs in latency-sensitive code.
+
+To count jobs across every queue on a database, Redis, or Beanstalkd connection, use the `totalSize`, `totalPendingSize`, `totalDelayedSize`, and `totalReservedSize` methods:
+
+```php
+$total = $queue->totalSize();
+$pending = $queue->totalPendingSize();
+$delayed = $queue->totalDelayedSize();
+$reserved = $queue->totalReservedSize();
+```
+
+The total includes pending, delayed, and reserved jobs. Beanstalkd's buried jobs are excluded.
 
 <a name="monitoring-your-queues"></a>
 ## Monitoring Your Queues

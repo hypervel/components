@@ -777,7 +777,7 @@ protected function casts(): array
 }
 ```
 
-Integer-backed enums accept the numeric strings normally submitted by forms and JSON clients. Existing matching enum cases are preserved.
+Integer-backed enums accept integral numeric values, including decimal and exponent strings such as `"1.0"` and `"1e0"`. Fractional values are rejected instead of being truncated to an enum case. Existing matching enum cases are preserved.
 
 Use a wildcard cast for an ordinary enum array. Use `AsEnumCollection::of()` when you want a Support collection instead:
 
@@ -835,6 +835,22 @@ protected function casts(): array
 `AsDataCollection` returns a `Hypervel\Data\DataCollection` by default and accepts the same explicit targets as `Data::collect()`, including `'array'` and `Hypervel\Support\Collection::class`.
 
 Direct `Data`, `Dto`, and `Resource` request casts do not accept cast arguments. Eloquent-only options such as `default` and `encrypted` do not apply to validated request input.
+
+You may also declare a `Hypervel\Support\DataObject` subclass when the form request owns validation and you only need lightweight typed construction:
+
+```php
+use App\Values\Contact;
+
+protected function casts(): array
+{
+    return [
+        'contact' => Contact::class,
+        'contacts.*' => Contact::class,
+    ];
+}
+```
+
+The wildcard applies the cast to each validated list member, so `validated('contacts')` returns an array of `Contact` objects. Lightweight data objects do not accept cast arguments or run another validation step. See the [data object documentation](/docs/{{version}}/data-objects#lightweight-data-objects) for guidance on choosing between these objects and Hypervel Data.
 
 #### Custom Casts
 
@@ -2005,6 +2021,8 @@ $request->validate([
 ]);
 ```
 
+For integer-backed enums, integral numeric values are valid while fractional values are rejected instead of being truncated to an enum case.
+
 The `Enum` rule's `only` and `except` methods may be used to limit which enum cases should be considered valid:
 
 ```php
@@ -3138,7 +3156,7 @@ Validator::validate($input, [
 <a name="validating-files-image-dimensions"></a>
 #### Validating Image Dimensions
 
-You may also validate the dimensions of an image. For example, to validate that an uploaded image is at least 1000 pixels wide and 500 pixels tall, you may use the `dimensions` rule:
+You may also validate the dimensions of an image. For example, to validate that an uploaded image is at most 1000 pixels wide and 500 pixels tall, you may use the `dimensions` rule:
 
 ```php
 use Hypervel\Validation\Rule;

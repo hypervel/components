@@ -169,8 +169,10 @@ class Prune
         $iterator = PhpRedis::initialScanCursor();
 
         do {
-            // HSCAN returns [field => value, ...] array
-            $fields = $connection->hScan($tagHash, $iterator, '*', $scanCount);
+            // Tag fields omit OPT_PREFIX, so scan every field without prefixing the pattern.
+            $fields = $connection->withoutScanPrefix(function () use ($connection, $tagHash, &$iterator, $scanCount): mixed {
+                return $connection->hScan($tagHash, $iterator, '*', $scanCount);
+            });
 
             if ($fields === false || ! is_array($fields)) {
                 break;
@@ -230,8 +232,10 @@ class Prune
         $iterator = PhpRedis::initialScanCursor();
 
         do {
-            // HSCAN returns [field => value, ...] array
-            $fields = $connection->hScan($tagHash, $iterator, '*', $scanCount);
+            // Tag fields omit OPT_PREFIX, so scan every field without prefixing the pattern.
+            $fields = $connection->withoutScanPrefix(function () use ($connection, $tagHash, &$iterator, $scanCount): mixed {
+                return $connection->hScan($tagHash, $iterator, '*', $scanCount);
+            });
 
             if ($fields === false || ! is_array($fields)) {
                 break;

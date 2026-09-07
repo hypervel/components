@@ -361,13 +361,10 @@ class ConsoleSchedulingIntegrationTest extends SentryTestCase
      */
     protected function getCapturedTransactions(): array
     {
-        return array_values(array_map(
+        return array_map(
             static fn (array $captured): SentryEvent => $captured[0],
-            array_filter(
-                $this->getCapturedSentryEvents(),
-                static fn (array $captured): bool => $captured[0]->getType() === EventType::transaction(),
-            ),
-        ));
+            $this->getCapturedSentryEventsOfType(EventType::transaction()),
+        );
     }
 
     protected function getScheduler(): Schedule

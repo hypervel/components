@@ -482,10 +482,10 @@ class Builder implements BuilderContract
 
         $this->model->unguarded(function () use (&$values) {
             foreach ($values as $key => $rowValues) {
-                $values[$key] = tap(
-                    $this->newModelInstance($rowValues),
-                    fn ($model) => $model->setUniqueIds()
-                )->getAttributes();
+                $model = $this->newModelInstance($rowValues);
+                $model->setUniqueIds();
+
+                $values[$key] = $model->prepareBinaryAttributesForDatabase($model->getAttributes());
             }
         });
 

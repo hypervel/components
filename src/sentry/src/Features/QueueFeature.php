@@ -256,8 +256,6 @@ class QueueFeature extends Feature
     public function handleJobExceptionOccurredQueueEvent(JobExceptionOccurred $event): void
     {
         $this->maybeFinishSpan(SpanStatus::internalError());
-
-        Integration::flushEvents();
     }
 
     private function normalizeQueueName(?string $queue): string

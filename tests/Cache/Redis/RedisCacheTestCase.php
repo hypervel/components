@@ -89,6 +89,9 @@ abstract class RedisCacheTestCase extends TestCase
 
         $connection = m::mock(PhpRedisConnection::class);
         $connection->shouldReceive('release')->zeroOrMoreTimes();
+        $connection->shouldReceive('withoutScanPrefix')
+            ->andReturnUsing(fn (callable $callback): mixed => $callback())
+            ->byDefault();
         $connection->shouldReceive('serialized')->andReturn(false)->byDefault();
         $connection->shouldReceive('client')->andReturn($client)->byDefault();
         $connection->shouldReceive('getOption')
@@ -104,7 +107,7 @@ abstract class RedisCacheTestCase extends TestCase
         $connection->shouldReceive('pipeline')->andReturn($connection)->byDefault();
         $connection->shouldReceive('exec')->andReturn([])->byDefault();
 
-        // Store client reference for backward compatibility during migration
+        // Expose the client for expectation setup.
         $connection->_mockClient = $client;
 
         return $connection;
@@ -134,6 +137,9 @@ abstract class RedisCacheTestCase extends TestCase
 
         $connection = m::mock(PhpRedisClusterConnection::class);
         $connection->shouldReceive('release')->zeroOrMoreTimes();
+        $connection->shouldReceive('withoutScanPrefix')
+            ->andReturnUsing(fn (callable $callback): mixed => $callback())
+            ->byDefault();
         $connection->shouldReceive('serialized')->andReturn(false)->byDefault();
         $connection->shouldReceive('client')->andReturn($client)->byDefault();
         $connection->shouldReceive('getOption')
@@ -145,7 +151,7 @@ abstract class RedisCacheTestCase extends TestCase
             ->andReturn('')
             ->byDefault();
 
-        // Store client reference for backward compatibility during migration
+        // Expose the client for expectation setup.
         $connection->_mockClient = $client;
 
         return $connection;

@@ -2567,6 +2567,8 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame([ModelCloseRelatedStub::class], $builder->getBindings());
     }
 
+    // REMOVED: SQL Server whereNotMorphedTo tests; SQL Server is not supported.
+
     public function testWhereMorphedToAlias(): void
     {
         $model = new ModelParentStub;

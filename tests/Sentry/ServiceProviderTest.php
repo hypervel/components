@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Http\Kernel;
 use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Http\Request;
@@ -12,6 +13,7 @@ use Hypervel\Sentry\Facade;
 use Hypervel\Sentry\Features\Feature;
 use Hypervel\Sentry\Http\FlushEventsMiddleware;
 use Hypervel\Sentry\Http\SetRequestIpMiddleware;
+use Hypervel\Sentry\Hub;
 use Hypervel\Sentry\SentryConfig;
 use Hypervel\Sentry\SentryServiceProvider;
 use Hypervel\Sentry\Tracing\Middleware as TracingMiddleware;
@@ -20,7 +22,15 @@ use LogicException;
 use Mockery as m;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
+use Sentry\ClientInterface;
+use Sentry\Event;
+use Sentry\Options;
+use Sentry\SentrySdk;
+use Sentry\State\Hub as SdkHub;
 use Sentry\State\HubInterface;
+use Sentry\State\Scope;
+use Sentry\Transport\Result;
+use Sentry\Transport\ResultStatus;
 use Symfony\Component\HttpFoundation\Response;
 
 class ServiceProviderTest extends SentryTestCase
@@ -60,6 +70,25 @@ class ServiceProviderTest extends SentryTestCase
         $this->assertEquals('publickey', $options->getDsn()->getPublicKey());
     }
 
+    public function testScopeConfiguredBeforeClientResolutionIsPreserved(): void
+    {
+        SentrySdk::init();
+        SentrySdk::getCurrentHub()->configureScope(static function (Scope $scope): void {
+            $scope->setTag('configured_before_client', 'preserved');
+        });
+        $this->app->forgetInstance(HubInterface::class);
+        CoroutineContext::forget(Hub::CONTEXT_STACK_KEY);
+
+        $event = Event::createEvent();
+        $this->getSentryHubFromContainer()->configureScope(
+            static function (Scope $scope) use (&$event): void {
+                $event = $scope->applyToEvent($event);
+            },
+        );
+
+        $this->assertSame('preserved', $event->getTags()['configured_before_client'] ?? null);
+    }
+
     public function testErrorTypesWasSetFromConfig(): void
     {
         $this->assertEquals(
@@ -72,6 +101,59 @@ class ServiceProviderTest extends SentryTestCase
     {
         $this->assertArrayHasKey('sentry:test', Artisan::all());
         $this->assertArrayHasKey('sentry:publish', Artisan::all());
+    }
+
+    public function testRootTelemetryFlushesAtApplicationTermination(): void
+    {
+        $client = m::mock(ClientInterface::class);
+        $client->shouldReceive('flush')
+            ->once()
+            ->withNoArgs()
+            ->andReturn(new Result(ResultStatus::success()));
+        $previousHub = SentrySdk::getCurrentHub();
+
+        try {
+            SentrySdk::setCurrentHub(new SdkHub($client));
+
+            $this->app->terminate();
+        } finally {
+            SentrySdk::setCurrentHub($previousHub);
+        }
+    }
+
+    public function testApplicationTerminationDoesNotFlushAnActiveExecutionContext(): void
+    {
+        $flushed = false;
+        $client = m::mock(ClientInterface::class);
+        $client->shouldReceive('getOptions')
+            ->once()
+            ->andReturn(new Options);
+        $client->shouldReceive('flush')
+            ->once()
+            ->with(null)
+            ->andReturnUsing(static function () use (&$flushed): Result {
+                $flushed = true;
+
+                return new Result(ResultStatus::success());
+            });
+        $previousHub = SentrySdk::getCurrentHub();
+        $hub = new SdkHub($client);
+
+        try {
+            SentrySdk::setCurrentHub($hub);
+            SentrySdk::startContext($hub);
+
+            $this->app->terminate();
+
+            $this->assertFalse($flushed);
+
+            SentrySdk::endContext();
+
+            $this->assertTrue($flushed);
+        } finally {
+            SentrySdk::endContext();
+            SentrySdk::setCurrentHub($previousHub);
+        }
     }
 
     public function testMiddlewareRegistersThroughTheKernelContract(): void
@@ -273,7 +355,7 @@ class InspectableSentryServiceProvider extends SentryServiceProvider
      */
     public function bootFeaturesForTest(): void
     {
-        $this->bootFeatures();
+        $this->bootFeatures($this->isActive());
     }
 }
 

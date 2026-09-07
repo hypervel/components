@@ -659,7 +659,11 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function configurationIsCached(): bool
     {
-        return is_file($this->getCachedConfigPath());
+        if ($this->bound('config_loaded_from_cache')) {
+            return (bool) $this->make('config_loaded_from_cache');
+        }
+
+        return $this->instance('config_loaded_from_cache', is_file($this->getCachedConfigPath()));
     }
 
     /**
@@ -687,7 +691,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
             return (bool) $this->make('routes.cached');
         }
 
-        return is_file($this->getCachedRoutesPath());
+        return $this->instance('routes.cached', is_file($this->getCachedRoutesPath()));
     }
 
     /**
