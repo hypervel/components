@@ -14,6 +14,7 @@ use JsonSerializable;
 use LogicException;
 use OutOfBoundsException;
 use ReflectionClass;
+use ReflectionMethod;
 use ReflectionNamedType;
 use ReflectionParameter;
 use ReflectionProperty;
@@ -22,6 +23,23 @@ use RuntimeException;
 
 abstract class DataObject implements ArrayAccess, JsonSerializable
 {
+    /**
+     * The default date format for DateTime properties.
+     */
+    protected const DEFAULT_DATE_FORMAT = 'Y-m-d H:i:s';
+
+    private const KIND_PASSTHROUGH = 0;
+
+    private const KIND_INT = 1;
+
+    private const KIND_FLOAT = 2;
+
+    private const KIND_STRING = 3;
+
+    private const KIND_BOOL = 4;
+
+    private const KIND_ARRAY = 5;
+
     /**
      * Reflection parameters cache (class name => [ReflectionParameter]).
      */
@@ -48,9 +66,24 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
     protected static array $dependenciesMapCache = [];
 
     /**
+     * Construction recipe cache (class name => precompiled constructor descriptors).
+     */
+    private static array $constructionRecipeCache = [];
+
+    /**
+     * Serializer map cache (class name => [type => callable], or null when the hook is overridden).
+     */
+    private static array $serializerCache = [];
+
+    /**
+     * Whether empty dependency maps can be reused without skipping custom hooks.
+     */
+    private static array $emptyDependencyCacheEligibility = [];
+
+    /**
      * The date format for DateTime properties.
      */
-    protected static string $dateFormat = 'Y-m-d H:i:s';
+    protected static string $dateFormat = self::DEFAULT_DATE_FORMAT;
 
     /**
      * Cache for the array representation of the object.
@@ -62,29 +95,63 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
      */
     public static function make(array $data, bool $autoResolve = false): static
     {
-        $properties = static::getReversedPropertyMap();
-        if ($autoResolve) {
-            $data = static::getConvertedData($data);
+        $cached = self::$constructionRecipeCache[static::class] ?? null;
+        if (
+            ! $autoResolve
+            && $cached !== null
+            && $cached['directReads']
+            && $cached['properties'] === (static::$reversedPropertyMapCache[static::class] ?? null)
+            && $cached['reflectionParameters'] === (static::$reflectionParametersCache[static::class] ?? null)
+        ) {
+            $recipe = $cached['recipe'];
+        } else {
+            $properties = static::getReversedPropertyMap();
+            if ($autoResolve) {
+                $data = static::getConvertedData($data);
+            }
+
+            $recipe = static::getConstructionRecipe($properties, static::getReflectionParameters());
         }
 
+        $inlineCasts = $recipe['inlineCasts'];
+        $inlineDefaults = $recipe['inlineDefaults'];
         $constructorArgs = [];
-        foreach (static::getReflectionParameters() as $parameter) {
-            $paramName = $parameter->getName();
-            $dataKey = $properties[$paramName];
-            $dataValue = null;
+
+        foreach ($recipe['parameters'] as $entry) {
+            $paramName = $entry['name'];
+            $dataKey = $entry['dataKey'];
 
             // check if the data key exists in the array
-            // and convert the value to the correct type automatically
-            if (array_key_exists($dataKey, $data)) {
+            if ($dataKey !== null && isset($data[$dataKey])) {
                 $dataValue = $data[$dataKey];
-                if (static::$autoCasting) {
-                    $dataValue = static::convertValueToType($dataValue, $parameter);
-                }
-            // use the default value if available
-            } elseif ($parameter->isDefaultValueAvailable()) {
-                $dataValue = $parameter->getDefaultValue();
+            } elseif ($dataKey !== null && array_key_exists($dataKey, $data)) {
+                $dataValue = null;
+                // use the default value if available
+            } elseif ($entry['hasDefault']) {
+                $constructorArgs[$paramName] = $entry['parameter']->getDefaultValue();
+                continue;
             } else {
-                $dataValue = static::getDefaultValueForType($parameter);
+                $constructorArgs[$paramName] = $inlineDefaults
+                    ? ($entry['nullOnMissing'] ? null : static::throwMissingProperty($paramName))
+                    : static::getDefaultValueForType($entry['parameter']);
+
+                continue;
+            }
+
+            // convert the value to the correct type automatically
+            if (static::$autoCasting) {
+                if (! $inlineCasts) {
+                    $dataValue = static::convertValueToType($dataValue, $entry['parameter']);
+                } elseif (! ($entry['allowsNull'] && $dataValue === null)) {
+                    $dataValue = match ($entry['kind']) {
+                        self::KIND_INT => (int) $dataValue,
+                        self::KIND_FLOAT => (float) $dataValue,
+                        self::KIND_STRING => (string) $dataValue,
+                        self::KIND_BOOL => (bool) $dataValue,
+                        self::KIND_ARRAY => is_array($dataValue) ? $dataValue : [$dataValue],
+                        default => $dataValue,
+                    };
+                }
             }
 
             $constructorArgs[$paramName] = $dataValue;
@@ -174,7 +241,7 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
         // the database connection and use that format to create the Carbon object
         // that is returned back out to the developers after we convert it here.
         if (Carbon::hasFormat($value, static::$dateFormat)) {
-            return Carbon::createFromFormat(static::$dateFormat, $value);
+            return Carbon::createFromFormat(static::$dateFormat, $value) ?: Carbon::parse($value);
         }
 
         return Carbon::parse($value);
@@ -214,22 +281,55 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
             return $dependencies;
         }
 
+        if ($dependencies === [] && static::canCacheEmptyDependencies()) {
+            return [];
+        }
+
         return static::$dependenciesMapCache[static::class] = static::resolveDependenciesMap(static::class);
     }
 
-    protected static function getDependencyFromUnionType(ReflectionUnionType $type): ReflectionNamedType
+    /**
+     * Custom dependency hooks may start returning dependencies after configuration changes.
+     */
+    private static function canCacheEmptyDependencies(): bool
+    {
+        if (isset(self::$emptyDependencyCacheEligibility[static::class])) {
+            return self::$emptyDependencyCacheEligibility[static::class];
+        }
+
+        foreach ([
+            'resolveDependenciesMap',
+            'getCustomizedDependencies',
+            'getDependencyFromUnionType',
+            'hasNullableUnionType',
+            'isAutoCasting',
+            'convertPropertyToDataKey',
+        ] as $hook) {
+            if (static::overridesHook($hook)) {
+                return self::$emptyDependencyCacheEligibility[static::class] = false;
+            }
+        }
+
+        return self::$emptyDependencyCacheEligibility[static::class] = true;
+    }
+
+    protected static function getDependencyFromUnionType(ReflectionUnionType $type): ?ReflectionNamedType
     {
         foreach ($type->getTypes() as $namedType) {
+            if (! $namedType instanceof ReflectionNamedType) {
+                continue;
+            }
+
             $className = $namedType->getName();
             if (
                 is_subclass_of($className, DataObject::class)
-                || is_subclass_of($className, DateTimeInterface::class)
+                || is_a($className, DateTimeInterface::class, true)
             ) {
                 return $namedType;
             }
         }
 
-        throw new RuntimeException('No valid dependency found in union type.');
+        return null;
     }
 
     /**
@@ -269,19 +369,28 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
                 continue;
             }
             $propertyType = $property->getType();
+
+            if (! $propertyType instanceof ReflectionNamedType && ! $propertyType instanceof ReflectionUnionType) {
+                continue;
+            }
+
             $allowsNull = $propertyType->allowsNull();
             if ($propertyType instanceof ReflectionUnionType) {
                 $allowsNull = static::hasNullableUnionType($propertyType);
                 $propertyType = static::getDependencyFromUnionType($propertyType);
+
+                if ($propertyType === null) {
+                    continue;
+                }
             }
-            /** @var ReflectionNamedType $propertyType */
+
             $typeName = $propertyType->getName();
             if (is_subclass_of($typeName, DataObject::class)) {
                 $dataKey = $typeName::isAutoCasting()
                     ? $typeName::convertPropertyToDataKey($property->getName())
                     : $property->getName();
                 $result[$dataKey] = [
-                    'handler' => [$typeName, 'make'],
+                    'handler' => fn ($value) => $value instanceof $typeName ? $value : $typeName::make($value),
                     'nullable' => $allowsNull,
                     'children' => static::resolveDependenciesMap($typeName, $visited),
                 ];
@@ -324,14 +433,14 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
             $nullable = $dependency['nullable'] ?? false;
             $matched = $data[$key] ?? null;
 
-            if ($nullable && is_null($matched)) {
+            if ($nullable && $matched === null) {
                 $data[$key] = null;
                 continue;
             }
             if (! is_array($matched)) {
                 $data[$key] = call_user_func_array(
                     $handler,
-                    [is_null($matched) ? [] : $matched]
+                    [$matched === null ? [] : $matched]
                 );
                 continue;
             }
@@ -348,6 +457,9 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
 
     /**
      * Enable or disable auto-casting of data values.
+     *
+     * Boot-only. The auto-casting flag persists in a static property for the
+     * worker lifetime and affects every subsequent data object hydration.
      */
     public static function enableAutoCasting(): void
     {
@@ -364,6 +476,9 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
 
     /**
      * Disable auto-casting of data values.
+     *
+     * Boot-only. The auto-casting flag persists in a static property for the
+     * worker lifetime and affects every subsequent data object hydration.
      */
     public static function disableAutoCasting(): void
     {
@@ -386,6 +501,137 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
     public static function convertDataKeyToProperty(string $input): string
     {
         return Str::camel($input);
+    }
+
+    /**
+     * Get the precompiled construction recipe for the current class.
+     *
+     * @return array{
+     *     parameters: list<array{
+     *         name: string,
+     *         dataKey: null|string,
+     *         kind: int,
+     *         allowsNull: bool,
+     *         hasDefault: bool,
+     *         nullOnMissing: bool,
+     *         parameter: ReflectionParameter
+     *     }>,
+     *     inlineCasts: bool,
+     *     inlineDefaults: bool
+     * }
+     */
+    private static function getConstructionRecipe(array $properties, array $reflectionParameters): array
+    {
+        $cached = self::$constructionRecipeCache[static::class] ?? null;
+        if ($cached !== null && $cached['properties'] === $properties && $cached['reflectionParameters'] === $reflectionParameters) {
+            return $cached['recipe'];
+        }
+
+        $recipe = static::compileConstructionRecipe($properties, $reflectionParameters);
+        self::$constructionRecipeCache[static::class] = [
+            'directReads' => ! static::overridesHook('getReversedPropertyMap')
+                && ! static::overridesHook('getPropertyMap')
+                && ! static::overridesHook('getReflectionParameters'),
+            'properties' => $properties,
+            'reflectionParameters' => $reflectionParameters,
+            'recipe' => $recipe,
+        ];
+
+        return $recipe;
+    }
+
+    /**
+     * Compile the construction recipe for the current class.
+     *
+     * The recipe stores only declaration facts derived from reflection, so `make()`
+     * never repeats per-parameter reflection calls. It never retains evaluated
+     * default values, which would otherwise be shared between instances.
+     *
+     * The source maps are checked on each construction so changes to maps returned
+     * by overridden hooks and invalidation of public reflection caches remain effective.
+     */
+    private static function compileConstructionRecipe(array $properties, array $reflectionParameters): array
+    {
+        $parameters = [];
+
+        foreach ($reflectionParameters as $parameter) {
+            $paramName = $parameter->getName();
+            $type = $parameter->getType();
+            $kind = self::KIND_PASSTHROUGH;
+
+            if ($type instanceof ReflectionNamedType) {
+                $kind = match ($type->getName()) {
+                    'int' => self::KIND_INT,
+                    'float' => self::KIND_FLOAT,
+                    'string' => self::KIND_STRING,
+                    'bool' => self::KIND_BOOL,
+                    'array' => self::KIND_ARRAY,
+                    default => self::KIND_PASSTHROUGH,
+                };
+            }
+
+            $hasDefault = $parameter->isDefaultValueAvailable();
+            $nullOnMissing = $type === null || $type->allowsNull();
+            $dataKey = $properties[$paramName] ?? null;
+
+            $parameters[] = [
+                'name' => $paramName,
+                'dataKey' => $dataKey,
+                'kind' => $kind,
+                'allowsNull' => $type !== null && $type->allowsNull(),
+                'hasDefault' => $hasDefault,
+                'nullOnMissing' => $nullOnMissing,
+                'parameter' => $parameter,
+            ];
+        }
+
+        return [
+            'parameters' => $parameters,
+            // Subclasses may override these hooks. When they do, keep dispatching
+            // through them so their behavior is preserved.
+            'inlineCasts' => ! static::overridesHook('convertValueToType'),
+            'inlineDefaults' => ! static::overridesHook('getDefaultValueForType'),
+        ];
+    }
+
+    /**
+     * Resolve the serializer map for the current class.
+     *
+     * Only the base implementation is known to be stateless, so it is the only one
+     * memoized. An overriding hook may capture runtime configuration when it is built,
+     * so it keeps being invoked on every call to preserve that behavior.
+     *
+     * @return array<string, callable>
+     */
+    private static function resolveSerializers(): array
+    {
+        if (! array_key_exists(static::class, self::$serializerCache)) {
+            self::$serializerCache[static::class] = static::overridesHook('getSerializers')
+                ? null
+                : static::getSerializers();
+        }
+
+        return self::$serializerCache[static::class] ?? static::getSerializers();
+    }
+
+    /**
+     * Determine whether the current class overrides the given base hook.
+     */
+    private static function overridesHook(string $method): bool
+    {
+        return (new ReflectionMethod(static::class, $method))
+            ->getDeclaringClass()
+            ->getName() !== self::class;
+    }
+
+    /**
+     * Throw the missing required property error for the given parameter name.
+     */
+    private static function throwMissingProperty(string $property): never
+    {
+        throw new RuntimeException(
+            "Missing required property `{$property}` in `" . static::class . '`'
+        );
     }
 
     /**
@@ -454,12 +700,13 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
      */
     protected static function getPropertyMap(): array
     {
-        if (! is_null($cache = static::$propertyMapCache[static::class] ?? null)) {
-            return $cache;
+        if (isset(static::$propertyMapCache[static::class])) {
+            return static::$propertyMapCache[static::class];
         }
 
         $reflection = new ReflectionClass(static::class);
         $properties = $reflection->getProperties(ReflectionProperty::IS_PUBLIC);
+        $map = [];
 
         foreach ($properties as $property) {
             if ($property->isStatic()) {
@@ -467,10 +714,10 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
             }
             $propName = $property->getName();
             $snakeKey = static::convertPropertyToDataKey($propName);
-            static::$propertyMapCache[static::class][$snakeKey] = $propName;
+            $map[$snakeKey] = $propName;
         }
 
-        return static::$propertyMapCache[static::class];
+        return static::$propertyMapCache[static::class] = $map;
     }
 
     /**
@@ -480,8 +727,8 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
      */
     protected static function getReversedPropertyMap(): array
     {
-        if (! is_null($cache = static::$reversedPropertyMapCache[static::class] ?? null)) {
-            return $cache;
+        if (isset(static::$reversedPropertyMapCache[static::class])) {
+            return static::$reversedPropertyMapCache[static::class];
         }
 
         return static::$reversedPropertyMapCache[static::class] = array_flip(
@@ -552,13 +799,13 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
         $result = [];
         $map = static::getPropertyMap();
 
-        $serializers = static::getSerializers();
+        $serializers = static::resolveSerializers();
         foreach ($map as $snakeKey => $propName) {
             $value = $this->{$propName};
             // recursively convert nested objects to arrays
             if ($value instanceof self) {
                 $value = $value->toArray();
-            } elseif (is_object($value) && $serializer = $serializers[get_class($value)] ?? null) {
+            } elseif (is_object($value) && $serializer = $serializers[$value::class] ?? null) {
                 $value = $serializer($value);
             } elseif (is_object($value) && method_exists($value, 'toArray')) {
                 $value = $value->toArray();
@@ -585,5 +832,21 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
         $this->arrayCache = [];
 
         return $this;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$reflectionParametersCache = [];
+        static::$propertyMapCache = [];
+        static::$reversedPropertyMapCache = [];
+        static::$autoCasting = true;
+        static::$dependenciesMapCache = [];
+        static::$dateFormat = self::DEFAULT_DATE_FORMAT;
+        self::$constructionRecipeCache = [];
+        self::$serializerCache = [];
+        self::$emptyDependencyCacheEligibility = [];
     }
 }
