@@ -12,6 +12,8 @@ use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
 use Hypervel\Queue\WorkerStopReason;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Facades\Artisan;
+use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -29,6 +31,82 @@ class WorkCommandTest extends TestCase
         $config = $app->make('config');
         $config->set('queue.default', 'sync');
         $config->set('cache.default', 'array');
+    }
+
+    #[DataProvider('queueStatusOutputProvider')]
+    public function testQueueStatusOutputUsesTheCurrentCommand(bool $json): void
+    {
+        $this->travelTo(CarbonImmutable::create(2023, 1, 18, 10, 10, 11));
+        $arguments = ['--once' => true, '--sleep' => 0, '--json' => $json];
+
+        Queue::pause('sync', 'default');
+        $firstOutput = new BufferedOutput;
+        $this->assertSame(0, Artisan::call('queue:work', $arguments, $firstOutput));
+
+        if ($json) {
+            $this->assertSame([
+                'level' => 'warning',
+                'queue' => 'default',
+                'status' => 'paused',
+                'timestamp' => '2023-01-18T10:10:11.000000+00:00',
+            ], json_decode($firstOutput->fetch(), true, 512, JSON_THROW_ON_ERROR));
+        } else {
+            $this->assertSame("  2023-01-18 10:10:11 Queue default PAUSED\n", $firstOutput->fetch());
+        }
+
+        Queue::resume('sync', 'default');
+        $secondOutput = new BufferedOutput;
+        $this->assertSame(0, Artisan::call('queue:work', $arguments, $secondOutput));
+
+        $this->assertSame('', $firstOutput->fetch());
+
+        if ($json) {
+            $this->assertSame([
+                'level' => 'warning',
+                'queue' => 'default',
+                'status' => 'resumed',
+                'timestamp' => '2023-01-18T10:10:11.000000+00:00',
+            ], json_decode($secondOutput->fetch(), true, 512, JSON_THROW_ON_ERROR));
+        } else {
+            $this->assertSame("  2023-01-18 10:10:11 Queue default RESUMED\n", $secondOutput->fetch());
+        }
+    }
+
+    /**
+     * Provide the queue status output formats.
+     */
+    public static function queueStatusOutputProvider(): array
+    {
+        return [
+            'CLI' => [false],
+            'JSON' => [true],
+        ];
+    }
+
+    #[DataProvider('suppressedQueueStatusOutputProvider')]
+    public function testQueueStatusOutputIsSuppressed(string $option): void
+    {
+        $output = new BufferedOutput;
+        $arguments = ['--once' => true, '--sleep' => 0, '--json' => true, $option => true];
+
+        Queue::pause('sync', 'default');
+        $this->assertSame(0, Artisan::call('queue:work', $arguments, $output));
+
+        Queue::resume('sync', 'default');
+        $this->assertSame(0, Artisan::call('queue:work', $arguments, $output));
+
+        $this->assertSame('', $output->fetch());
+    }
+
+    /**
+     * Provide verbosity options that suppress queue status output.
+     */
+    public static function suppressedQueueStatusOutputProvider(): array
+    {
+        return [
+            'quiet' => ['--quiet'],
+            'silent' => ['--silent'],
+        ];
     }
 
     public function testStopOutputUsesTheCurrentCommand(): void

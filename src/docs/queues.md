@@ -2875,6 +2875,8 @@ php artisan queue:resume --all
 
 After resuming a queue, workers will begin processing new jobs from that queue immediately. Resuming all queues does not resume queues that were paused individually. The `queue:continue` command is available as an alias for `queue:resume`. Note that pausing a queue does not stop the worker process itself - it only prevents the worker from processing new jobs from the specified queue.
 
+Queue workers report paused and resumed queues in their console output.
+
 <a name="worker-restart-and-pause-signals"></a>
 #### Worker Restart and Pause Signals
 
