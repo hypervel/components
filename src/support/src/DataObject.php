@@ -110,7 +110,7 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
                 $data = static::getConvertedData($data);
             }
 
-            $recipe = static::getConstructionRecipe($properties, static::getReflectionParameters());
+            $recipe = self::getConstructionRecipe($properties, static::getReflectionParameters());
         }
 
         $inlineCasts = $recipe['inlineCasts'];
@@ -126,13 +126,13 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
                 $dataValue = $data[$dataKey];
             } elseif ($dataKey !== null && array_key_exists($dataKey, $data)) {
                 $dataValue = null;
-                // use the default value if available
+            // use the default value if available
             } elseif ($entry['hasDefault']) {
                 $constructorArgs[$paramName] = $entry['parameter']->getDefaultValue();
                 continue;
             } else {
                 $constructorArgs[$paramName] = $inlineDefaults
-                    ? ($entry['nullOnMissing'] ? null : static::throwMissingProperty($paramName))
+                    ? ($entry['nullOnMissing'] ? null : self::throwMissingProperty($paramName))
                     : static::getDefaultValueForType($entry['parameter']);
 
                 continue;
@@ -281,7 +281,7 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
             return $dependencies;
         }
 
-        if ($dependencies === [] && static::canCacheEmptyDependencies()) {
+        if ($dependencies === [] && self::canCacheEmptyDependencies()) {
             return [];
         }
 
@@ -305,7 +305,7 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
             'isAutoCasting',
             'convertPropertyToDataKey',
         ] as $hook) {
-            if (static::overridesHook($hook)) {
+            if (self::overridesHook($hook)) {
                 return self::$emptyDependencyCacheEligibility[static::class] = false;
             }
         }
@@ -527,11 +527,11 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
             return $cached['recipe'];
         }
 
-        $recipe = static::compileConstructionRecipe($properties, $reflectionParameters);
+        $recipe = self::compileConstructionRecipe($properties, $reflectionParameters);
         self::$constructionRecipeCache[static::class] = [
-            'directReads' => ! static::overridesHook('getReversedPropertyMap')
-                && ! static::overridesHook('getPropertyMap')
-                && ! static::overridesHook('getReflectionParameters'),
+            'directReads' => ! self::overridesHook('getReversedPropertyMap')
+                && ! self::overridesHook('getPropertyMap')
+                && ! self::overridesHook('getReflectionParameters'),
             'properties' => $properties,
             'reflectionParameters' => $reflectionParameters,
             'recipe' => $recipe,
@@ -589,8 +589,8 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
             'parameters' => $parameters,
             // Subclasses may override these hooks. When they do, keep dispatching
             // through them so their behavior is preserved.
-            'inlineCasts' => ! static::overridesHook('convertValueToType'),
-            'inlineDefaults' => ! static::overridesHook('getDefaultValueForType'),
+            'inlineCasts' => ! self::overridesHook('convertValueToType'),
+            'inlineDefaults' => ! self::overridesHook('getDefaultValueForType'),
         ];
     }
 
@@ -606,7 +606,7 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
     private static function resolveSerializers(): array
     {
         if (! array_key_exists(static::class, self::$serializerCache)) {
-            self::$serializerCache[static::class] = static::overridesHook('getSerializers')
+            self::$serializerCache[static::class] = self::overridesHook('getSerializers')
                 ? null
                 : static::getSerializers();
         }
@@ -799,7 +799,7 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
         $result = [];
         $map = static::getPropertyMap();
 
-        $serializers = static::resolveSerializers();
+        $serializers = self::resolveSerializers();
         foreach ($map as $snakeKey => $propName) {
             $value = $this->{$propName};
             // recursively convert nested objects to arrays
