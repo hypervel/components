@@ -64,14 +64,16 @@ class ClassAliasAutoloaderTest extends TestCase
 
     public function testVendorClassesAreExcluded(): void
     {
-        $this->loader = ClassAliasAutoloader::register(
+        $loader = new ClassAliasAutoloader(
             $shell = m::mock(Shell::class),
             $this->classmapPath
         );
 
         $shell->shouldNotReceive('writeStdout');
 
-        $this->assertFalse(class_exists('TinkerThree'));
+        // PHP class aliases are permanent, so call the loader directly and let the
+        // Mockery expectation prove this vendor class was excluded.
+        $loader->aliasClass('TinkerThree');
     }
 
     public function testVendorClassesCanBeWhitelisted(): void
