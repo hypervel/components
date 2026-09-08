@@ -108,12 +108,13 @@ class EloquentWhereHasMorphTest extends DatabaseTestCase
             ->orderBy('id')->pluck('id')->all());
 
         $count = m::mock(ExpressionContract::class);
-        $count->shouldReceive('getValue')->andReturn('comments.id - 7');
+        // Decimal subtraction avoids unsigned integer underflow on MySQL and MariaDB.
+        $count->shouldReceive('getValue')->andReturn('comments.id - 7.0');
 
         $query = Comment::whereHasMorph('commentable', '*', null, $operator, $count)->orderBy('id');
 
         $this->assertSame($columnIds, $query->pluck('id')->all());
-        $this->assertSame([Post::class, Video::class], $query->getBindings());
+        $this->assertEqualsCanonicalizing([Post::class, Video::class], $query->getBindings());
     }
 
     /**
@@ -137,7 +138,7 @@ class EloquentWhereHasMorphTest extends DatabaseTestCase
     {
         Comment::whereNotNull('commentable_type')->forceDelete();
 
-        $this->assertSame([7], Comment::whereHasMorph('commentable', '*', null, '=', new Expression('comments.id - 7'))
+        $this->assertSame([7], Comment::whereHasMorph('commentable', '*', null, '=', new Expression('comments.id - 7.0'))
             ->orderBy('id')->pluck('id')->all());
     }
 

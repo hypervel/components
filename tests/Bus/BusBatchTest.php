@@ -132,7 +132,8 @@ class BusBatchTest extends TestCase
 
         $connection->shouldReceive('bulk')->once()->with(m::on(function (array $args) use ($job, $secondJob, $thirdJob): bool {
             return
-                $args[0] === $job
+                count($args) === 3
+                && $args[0] === $job
                 && $args[1] === $secondJob
                 && $args[2] instanceof CallQueuedClosure
                 && $args[2]->closure->getClosure() === $thirdJob
