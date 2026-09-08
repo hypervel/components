@@ -232,7 +232,7 @@ class WorkCommandTest extends QueueTestCase
         $this->assertFalse(SecondJob::$ran);
     }
 
-    public function testMaxJobsExceeded()
+    public function testMaxJobsExceeded(): void
     {
         $this->markTestSkippedWhenUsingQueueDrivers(['redis', 'beanstalkd']);
 
@@ -243,15 +243,15 @@ class WorkCommandTest extends QueueTestCase
             '--daemon' => true,
             '--stop-when-empty' => true,
             '--max-jobs' => 1,
-        ]);
+            '--memory' => 1024,
+        ])->assertExitCode(0);
 
-        // Memory limit isn't checked until after the first job is attempted.
         $this->assertSame(1, Queue::size());
         $this->assertTrue(FirstJob::$ran);
         $this->assertFalse(SecondJob::$ran);
     }
 
-    public function testMaxTimeExceeded()
+    public function testMaxTimeExceeded(): void
     {
         $this->markTestSkippedWhenUsingQueueDrivers(['redis', 'beanstalkd']);
 
@@ -263,9 +263,9 @@ class WorkCommandTest extends QueueTestCase
             '--daemon' => true,
             '--stop-when-empty' => true,
             '--max-time' => 1,
-        ]);
+            '--memory' => 1024,
+        ])->assertExitCode(0);
 
-        // Memory limit isn't checked until after the first job is attempted.
         $this->assertSame(2, Queue::size());
         $this->assertTrue(ThirdJob::$ran);
         $this->assertFalse(FirstJob::$ran);
@@ -314,7 +314,8 @@ class WorkCommandTest extends QueueTestCase
         $this->artisan('queue:work', [
             '--max-jobs' => 1,
             '--stop-when-empty' => true,
-        ]);
+            '--memory' => 1024,
+        ])->assertExitCode(0);
 
         $this->assertSame(0, Queue::size());
         $this->assertTrue(FirstJob::$ran);
@@ -341,7 +342,8 @@ class WorkCommandTest extends QueueTestCase
         $this->artisan('queue:work', [
             '--max-jobs' => 1,
             '--stop-when-empty' => true,
-        ]);
+            '--memory' => 1024,
+        ])->assertExitCode(0);
 
         $this->assertSame(0, Queue::size());
         $this->assertTrue(FirstJob::$ran);
