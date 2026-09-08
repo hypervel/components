@@ -64,6 +64,19 @@ class SendingMarkdownMailTest extends TestCase
         $this->assertMatchesRegularExpression('/Example App:\s*(?:\r?\n|$)/', $text);
     }
 
+    public function testMarkdownLayoutRendersHeadSlotLocaleAndStyles(): void
+    {
+        $html = (new Mailable)->markdown('layout-with-head')->locale('pt_BR')->render();
+
+        $this->assertStringContainsString('lang="pt-BR"', $html);
+        $this->assertMatchesRegularExpression(
+            '~<head>.*<meta name="custom-head" content="present"\s*/?>.*</head>~s',
+            $html
+        );
+        $this->assertMatchesRegularExpression('~<h3[^>]*style="[^"]*text-align: start;~', $html);
+        $this->assertMatchesRegularExpression('~<p[^>]*style="[^"]*text-align: start;~', $html);
+    }
+
     public function testMailMayHaveSpecificTextView(): void
     {
         $mailable = new MarkdownBasicMailableWithTextView;
