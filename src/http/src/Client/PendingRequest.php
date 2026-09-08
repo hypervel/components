@@ -690,7 +690,7 @@ class PendingRequest implements Transient
     /**
      * Add a new callback to execute after the response is built.
      *
-     * @param callable(Response, Request): (null|Response) $callback
+     * @param callable(Response, null|Request): (null|Response) $callback
      */
     public function afterResponse(callable $callback): static
     {
@@ -1135,7 +1135,7 @@ class PendingRequest implements Transient
                 $this->retryWhenCallback,
                 $response instanceof Response ? $response->toException() : $response,
                 $this,
-                $method
+                $this->request?->toPsrRequest()->getMethod()
             ) : true;
         } catch (CanceledException $exception) {
             throw $exception;
@@ -1197,6 +1197,9 @@ class PendingRequest implements Transient
      */
     protected function sendRequest(string $method, string $url, array $options = []): PromiseInterface|ResponseInterface
     {
+        // Custom clients bypass the capture middleware, including when swapped between attempts.
+        $this->request = null;
+
         $clientMethod = $this->async ? 'requestAsync' : 'request';
 
         $onStats = function (TransferStats $transferStats) {
@@ -1799,6 +1802,14 @@ class PendingRequest implements Transient
 
                 $data = $request->getBody() === $preparedBody ? $originalData : [];
             });
+
+            // RequestSending observes the initial request; response callbacks and
+            // retry policies need any replacement returned by later callbacks.
+            if ($this->request?->toPsrRequest() !== $request) {
+                $this->request = (new Request($request))
+                    ->withData($data)
+                    ->setRequestAttributes($this->attributes);
+            }
         });
     }
 

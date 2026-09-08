@@ -3569,7 +3569,8 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentCount(2);
     }
 
-    public function testAsyncRetryCallbackReceivesHttpMethod(): void
+    #[DataProvider('requestRewritingModes')]
+    public function testAsyncRetryCallbackReceivesHttpMethod(bool $rewriteMethod): void
     {
         $method = null;
 
@@ -3579,8 +3580,13 @@ class HttpClientTest extends TestCase
                 ->push(['ok'], 200),
         ]);
 
-        $response = $this->factory
-            ->async()
+        $pendingRequest = $this->factory->async();
+
+        if ($rewriteMethod) {
+            $pendingRequest->withRequestMiddleware(static fn (RequestInterface $request): RequestInterface => $request->withMethod('PATCH'));
+        }
+
+        $response = $pendingRequest
             ->retry(2, 0, function (Throwable $exception, PendingRequest $request, string $requestMethod) use (&$method): bool {
                 $method = $requestMethod;
 
@@ -3589,8 +3595,16 @@ class HttpClientTest extends TestCase
             ->get('http://foo.com/get')
             ->wait();
 
-        $this->assertSame('GET', $method);
+        $this->assertSame($rewriteMethod ? 'PATCH' : 'GET', $method);
         $this->assertTrue($response->successful());
+    }
+
+    /**
+     * Provide original and middleware-rewritten request methods.
+     */
+    public static function requestRewritingModes(): array
+    {
+        return ['original' => [false], 'middleware' => [true]];
     }
 
     public function testRetryCallbackReceivesHttpMethod(): void
@@ -3620,7 +3634,11 @@ class HttpClientTest extends TestCase
     {
         $callbackCalled = false;
 
-        $response = $this->factory
+        $this->factory->fake();
+        $pendingRequest = $this->factory->withHeaders([]);
+        $pendingRequest->get('http://foo.com/get');
+
+        $response = $pendingRequest
             ->setClient(new GuzzleClient([
                 'handler' => static fn (): PromiseInterface => Factory::response('Failed', 500),
             ]))
@@ -3631,10 +3649,51 @@ class HttpClientTest extends TestCase
 
                 return false;
             }, throw: false)
-            ->get('http://foo.com/get');
+            ->post('http://foo.com/post');
 
         $this->assertTrue($callbackCalled);
         $this->assertSame(500, $response->status());
+    }
+
+    #[DataProvider('requestExecutionModes')]
+    public function testBeforeSendingReplacementIsUsedByRetryAndResponseCallbacks(bool $async): void
+    {
+        $method = null;
+        $responseMethods = [];
+
+        $this->factory->fake([
+            '*' => $this->factory->sequence()->pushStatus(500)->pushStatus(200),
+        ]);
+
+        $response = $this->factory->async($async)
+            ->beforeSending(static fn (Request $request): RequestInterface => $request->toPsrRequest()->withMethod('PATCH'))
+            ->afterResponse(function (Response $response, Request $request) use (&$responseMethods): void {
+                $responseMethods[] = $request->method();
+            })
+            ->retry(2, 0, function (Throwable $exception, PendingRequest $request, ?string $requestMethod) use (&$method): bool {
+                $method = $requestMethod;
+
+                return true;
+            }, false)
+            ->get('http://foo.com/get');
+
+        if ($async) {
+            $response = $response->wait();
+        }
+
+        $this->assertTrue($response->successful());
+        $this->assertSame('PATCH', $method);
+        $this->assertSame(['PATCH', 'PATCH'], $responseMethods);
+        $this->factory->assertSentCount(2);
+        $this->factory->assertSent(fn (Request $request): bool => $request->method() === 'PATCH');
+    }
+
+    /**
+     * Provide synchronous and asynchronous request execution.
+     */
+    public static function requestExecutionModes(): array
+    {
+        return ['sync' => [false], 'async' => [true]];
     }
 
     public function testClientCanBeSet(): void
