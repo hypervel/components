@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Queue\WorkCommandTest;
 
 use Hypervel\Bus\Queueable;
-use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
@@ -15,6 +14,7 @@ use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Queue\Worker;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Artisan;
+use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\Attributes\WithMigration;
@@ -301,16 +301,13 @@ class WorkCommandTest extends QueueTestCase
 
         $cache = m::mock(Repository::class);
         $cache->shouldNotReceive('get')->with(Worker::RESTART_SIGNAL_CACHE_KEY);
-        $cache->shouldReceive('get')->with('illuminate:queues:paused', false)->andReturn(false);
-        $cache->shouldReceive('many')
+        $cache->expects('get')->with('illuminate:queues:paused', false)->andReturn(false);
+        $cache->expects('many')
             ->with(['illuminate:queue:paused:database:default'])
             ->andReturn(['illuminate:queue:paused:database:default' => false]);
 
-        $cacheManager = m::mock(CacheManager::class);
-        $cacheManager->shouldReceive('driver')->andReturn($cache);
-        $cacheManager->shouldReceive('store')->andReturn($cache);
-
-        $this->app->instance('cache', $cacheManager);
+        Cache::expects('store')->twice()->andReturn($cache);
+        Cache::shouldNotReceive('driver');
 
         Queue::push(new FirstJob);
 
@@ -325,7 +322,7 @@ class WorkCommandTest extends QueueTestCase
         Worker::$restartable = true;
     }
 
-    public function testDisablePauseQueueCheck()
+    public function testDisablePauseQueueCheck(): void
     {
         $this->markTestSkippedWhenUsingQueueDrivers(['redis', 'beanstalkd']);
 
@@ -333,14 +330,11 @@ class WorkCommandTest extends QueueTestCase
 
         $cache = m::mock(Repository::class);
 
-        $cache->shouldReceive('get')->with(Worker::RESTART_SIGNAL_CACHE_KEY)->andReturn(null);
+        $cache->expects('get')->twice()->with(Worker::RESTART_SIGNAL_CACHE_KEY)->andReturn(null);
         $cache->shouldNotReceive('many');
 
-        $cacheManager = m::mock(CacheManager::class);
-        $cacheManager->shouldReceive('driver')->andReturn($cache);
-        $cacheManager->shouldReceive('store')->andReturn($cache);
-
-        $this->app->instance('cache', $cacheManager);
+        Cache::expects('store')->andReturn($cache);
+        Cache::shouldNotReceive('driver');
 
         Queue::push(new FirstJob);
 
