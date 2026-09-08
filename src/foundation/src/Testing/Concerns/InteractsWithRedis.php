@@ -6,7 +6,7 @@ namespace Hypervel\Foundation\Testing\Concerns;
 
 use Hypervel\Container\Container;
 use Hypervel\Foundation\Testing\RedisTestConfiguration;
-use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testing\ParallelTesting;
@@ -78,13 +78,10 @@ trait InteractsWithRedis
             // Ignore cleanup errors
         }
 
-        // Flush the Redis connection pool so phpredis sockets are closed
-        // before $this->app->flush() drops the pool factory. Without this,
-        // the Pool/Connection reference cycle keeps sockets open until PHP's
-        // cycle collector eventually fires, which trips the FD limit under
-        // long ParaTest runs.
-        if ($this->app->resolved(PoolFactory::class)) {
-            $this->app->make(PoolFactory::class)->flushAll();
+        // Close sockets before dropping the manager: pool reference cycles can
+        // otherwise retain enough sockets to exhaust file descriptors in long runs.
+        if ($this->app->resolved(PoolManager::class)) {
+            $this->app->make(PoolManager::class)->purgeAll();
         }
     }
 

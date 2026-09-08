@@ -99,7 +99,7 @@ return [
             'driver' => 'sqlite',
             'database' => ':memory:',
             'pool' => [
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 1,
                 'wait_timeout' => 0.05,
             ],

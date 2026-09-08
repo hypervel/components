@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
+use Hypervel\Contracts\ConnectionPool\Connection as PoolConnection;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Contracts\Pool\ConnectionInterface as PoolConnectionInterface;
-use Hypervel\Database\Pool\PoolFactory;
+use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Foundation\Testing\LazilyRefreshDatabase;
 use Hypervel\Foundation\Testing\TestCase as FoundationTestCase;
@@ -47,7 +47,7 @@ class InteractsWithTestCaseLifecycleTest extends TestCase
         $parallelTesting = $this->app->make(ParallelTestingService::class);
 
         try {
-            $pooledConnection = m::mock(PoolConnectionInterface::class);
+            $pooledConnection = m::mock(PoolConnection::class);
             $pooledConnection->shouldReceive('discard')->once()->andReturnUsing(
                 function () use (&$steps, $databaseException): never {
                     $steps[] = 'database';
@@ -59,8 +59,8 @@ class InteractsWithTestCaseLifecycleTest extends TestCase
             (new ReflectionProperty(DatabaseConnectionResolver::class, 'pooledConnections'))
                 ->setValue(null, ['default' => $pooledConnection]);
 
-            $poolFactory = m::mock(PoolFactory::class);
-            $poolFactory->shouldReceive('flushAll')->once()->andReturnUsing(
+            $poolManager = m::mock(PoolManager::class);
+            $poolManager->shouldReceive('purgeAll')->once()->andReturnUsing(
                 function () use (&$steps, $poolException): never {
                     $steps[] = 'pool';
 
@@ -69,8 +69,8 @@ class InteractsWithTestCaseLifecycleTest extends TestCase
             );
 
             $app = m::mock(ApplicationContract::class);
-            $app->shouldReceive('resolved')->once()->with(PoolFactory::class)->andReturnTrue();
-            $app->shouldReceive('make')->once()->with(PoolFactory::class)->andReturn($poolFactory);
+            $app->shouldReceive('resolved')->once()->with(PoolManager::class)->andReturnTrue();
+            $app->shouldReceive('make')->once()->with(PoolManager::class)->andReturn($poolManager);
             $app->shouldReceive('flush')->once()->andReturnUsing(
                 function () use (&$steps, $applicationException): never {
                     $steps[] = 'application';
