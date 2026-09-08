@@ -810,6 +810,17 @@ use Hypervel\Http\Request;
 })
 ```
 
+You may also exclude individual attributes from trimming by passing their names to the `trimStrings` method. Use `*` to match nested attributes:
+
+```php
+->withMiddleware(function (Middleware $middleware): void {
+    $middleware->trimStrings(except: [
+        'title',
+        'users.*.name',
+    ]);
+})
+```
+
 <a name="files"></a>
 ## Files
 
