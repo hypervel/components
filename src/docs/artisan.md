@@ -145,7 +145,15 @@ Application casters take precedence over Tinker's default casters.
 <a name="trusting-project-configuration"></a>
 #### Trusting Project Configuration
 
-PsySH may load project-specific configuration from a local `.psysh.php` file. Hypervel trusts this configuration by default. To ask before loading it or to reject it, change the `trust_project` option in your `tinker.php` configuration file or set the `TINKER_TRUST_PROJECT` environment variable to `prompt` or `never`.
+PsySH may load project-specific configuration from a local `.psysh.php` file. By default, Tinker asks you to trust an unfamiliar project before loading this file. During non-interactive execution, untrusted project configuration is skipped. If PsySH suggests the `--trust-project` option, use the environment variable below instead; Artisan does not expose this option.
+
+If Tinker only runs from a trusted working directory, you may set the `trust_project` option in your `tinker.php` configuration file to `always`. You may also trust the project for a single command using the `TINKER_TRUST_PROJECT` environment variable:
+
+```shell
+TINKER_TRUST_PROJECT=always php artisan tinker --execute='echo App\Models\User::count();'
+```
+
+To prevent Tinker from loading local project configuration, set `trust_project` to `never`.
 
 <a name="writing-commands"></a>
 ## Writing Commands

@@ -32,6 +32,7 @@
     - [Dates](#dates)
     - [UUIDs](#uuids)
     - [Filesystem](#filesystem)
+    - [Tinker](#tinker)
 - [Database, Cache, Sessions, and Queues](#database-cache-sessions-and-queues)
     - [Database](#database)
     - [Redis](#redis)
@@ -553,6 +554,11 @@ Hypervel's `Str::orderedUuid()` returns a UUIDv7, while Laravel returns a timest
 Hypervel's `Filesystem::hash()` method uses `xxh128` by default. Pass `md5` explicitly when a port requires Laravel-compatible digests.
 
 Unlike Laravel, Hypervel honors `read-only` on scoped disk records. Remove that option from any scoped disk that must accept writes.
+
+<a name="tinker"></a>
+### Tinker
+
+Hypervel uses PsySH's prompt project-trust mode by default, while Laravel Tinker trusts `.psysh.php` configuration automatically. Interactive sessions ask before loading an unfamiliar project, and non-interactive sessions skip its configuration. Applications that rely on loading this file without confirmation should set `trust_project` or `TINKER_TRUST_PROJECT` to `always` when Tinker runs from a trusted working directory. See the [Tinker documentation](/docs/{{version}}/artisan#trusting-project-configuration) for more information.
 
 <a name="database-cache-sessions-and-queues"></a>
 ## Database, Cache, Sessions, and Queues
