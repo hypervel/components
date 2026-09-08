@@ -44,14 +44,14 @@ class RedisWatcherTest extends FeatureTestCase
         'backoff_base' => 100,
         'backoff_cap' => 1000,
         'pool' => [
-            'min_connections' => 1,
+            'min_retained_connections' => 1,
             'max_connections' => 10,
             'connect_timeout' => 10.0,
             'wait_timeout' => 3.0,
-            'heartbeat' => -1.0,
+            'heartbeat_interval' => null,
             'heartbeat_timeout' => 1.0,
             'max_idle_time' => 60.0,
-            'max_lifetime' => -1.0,
+            'max_lifetime' => null,
         ],
     ];
 
