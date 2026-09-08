@@ -653,7 +653,7 @@ class Collection extends BaseCollection implements QueueableCollection
     public function mergeHidden(array|string $attributes): static
     {
         // @phpstan-ignore return.type (HigherOrderProxy returns $this, not TModel)
-        return $this->each->mergeHidden($attributes);
+        return $this->each->mergeHidden((array) $attributes);
     }
 
     /**
@@ -686,7 +686,7 @@ class Collection extends BaseCollection implements QueueableCollection
     public function mergeVisible(array|string $attributes): static
     {
         // @phpstan-ignore return.type (HigherOrderProxy returns $this, not TModel)
-        return $this->each->mergeVisible($attributes);
+        return $this->each->mergeVisible((array) $attributes);
     }
 
     /**
