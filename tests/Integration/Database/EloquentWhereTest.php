@@ -10,6 +10,7 @@ use Hypervel\Database\MultipleRecordsFoundException;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 
@@ -322,6 +323,12 @@ class EloquentWhereTest extends DatabaseTestCase
         }
 
         $this->assertSame(2.0, UserWhereTest::query()->withCasts(['total' => 'float'])->value(new Expression('id + 1 as total')));
+        $this->assertSame([2.0], UserWhereTest::query()->withCasts(['total' => 'float'])->pluck(new Expression('id + 1 as total'))->all());
+        $this->assertSame(['Taylor' => 2.0], UserWhereTest::query()->withCasts(['total' => 'float'])->pluck(
+            new Expression('id + 1 AS ' . DB::connection()->getQueryGrammar()->wrap('total')),
+            'name'
+        )->all());
+        $this->assertSame([], UserWhereTest::query()->where('id', 0)->pluck(new Expression('id + 1 as total'))->all());
         $this->assertSame('Taylor', UserWhereTest::query()->select('name')->value(new Expression(1)));
 
         $model = new class extends UserWhereTest {
@@ -332,6 +339,27 @@ class EloquentWhereTest extends DatabaseTestCase
         };
 
         $this->assertSame('Total: 2', $model->newQuery()->value(new Expression('id + 1 as total')));
+    }
+
+    public function testExpressionPluckAppliesAccessorsAndBothQueryCallbackLayers(): void
+    {
+        UserWhereTest::create(['name' => 'Taylor', 'email' => 'taylor@example.com', 'address' => 'Main Street']);
+
+        $model = new class extends UserWhereTest {
+            /**
+             * Format the computed total.
+             */
+            public function getTotalAttribute(int $value): string
+            {
+                return 'Total: ' . $value;
+            }
+        };
+
+        $query = $model->newQuery();
+        $query->getQuery()->afterQuery(fn (Collection $values): Collection => $values->map(fn (int $value): int => $value + 1));
+        $query->afterQuery(fn (Collection $values): Collection => $values->map(fn (string $value): string => $value . '!'));
+
+        $this->assertSame(['Taylor' => 'Total: 3!'], $query->pluck(new Expression('id + 1 as total'), 'name')->all());
     }
 
     public function testChunkMap()

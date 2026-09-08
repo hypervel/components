@@ -3284,6 +3284,16 @@ class Builder implements BuilderContract
      */
     public function pluck(ExpressionContract|string $column, ?string $key = null): Collection
     {
+        return $this->pluckWithColumn($column, $key)[0];
+    }
+
+    /**
+     * Get column values and the returned field name for Eloquent attribute conversion.
+     *
+     * @return array{Collection<array-key, mixed>, null|string}
+     */
+    public function pluckWithColumn(ExpressionContract|string $column, ?string $key = null): array
+    {
         return $this->withoutFetchUsing(function () use ($column, $key) {
             // First, we will need to select the results of the query accounting for the
             // given columns / key. Once we have the results, we will be able to take
@@ -3299,7 +3309,7 @@ class Builder implements BuilderContract
             );
 
             if (empty($queryResult)) {
-                return new Collection;
+                return [new Collection, null];
             }
 
             // If the columns are qualified with a table or have an alias, we cannot use
@@ -3313,11 +3323,11 @@ class Builder implements BuilderContract
 
             $key = $this->stripTableForPluck($key);
 
-            return $this->applyAfterQueryCallbacks(
+            return [$this->applyAfterQueryCallbacks(
                 is_array($queryResult[0])
                     ? $this->pluckFromArrayColumn($queryResult, $column, $key)
                     : $this->pluckFromObjectColumn($queryResult, $column, $key)
-            );
+            ), $column];
         });
     }
 
