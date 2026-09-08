@@ -24,7 +24,7 @@ use Hypervel\Support\Testing\Fakes\EventFake;
  * @method static bool hasWildcardListeners(string $eventName)
  * @method static void listen(\Closure|\Hypervel\Events\QueuedClosure|array|string $events, object|array|string|null $listener = null)
  * @method static void macro(string $name, callable|object $macro)
- * @method static \Closure makeListener(object|array|string $listener, bool $wildcard = false)
+ * @method static \Closure makeListener(array|object|string $listener, bool $wildcard = false)
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static void observe(array|string $events, object|array|string $observer)
  * @method static void push(string $event, mixed $payload = [])
