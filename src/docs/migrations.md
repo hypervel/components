@@ -374,6 +374,20 @@ if (Schema::hasForeignKey('posts', ['user_id'])) {
 
 The `hasForeignKey` method accepts either the foreign key name or its column list.
 
+To modify a table only when a column or index exists, use `whenTableHasColumn` or `whenTableHasIndex`. Their `whenTableDoesntHaveColumn` and `whenTableDoesntHaveIndex` counterparts run the callback only when the column or index is absent:
+
+```php
+Schema::whenTableDoesntHaveColumn('users', 'email', function (Blueprint $table) {
+    $table->string('email');
+});
+
+Schema::whenTableDoesntHaveIndex('users', ['email'], function (Blueprint $table) {
+    $table->unique('email');
+}, 'unique');
+```
+
+The index methods accept an index name or an array of column names as their second argument. You may pass an index type, such as `unique`, as the fourth argument.
+
 <a name="database-connection-table-options"></a>
 #### Database Connection and Table Options
 
