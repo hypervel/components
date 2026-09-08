@@ -1080,6 +1080,24 @@ Http::fake(function (Request $request) {
 });
 ```
 
+<a name="request-attributes"></a>
+#### Request Attributes
+
+To distinguish requests sent to the same URL, you may attach attributes using the `withAttributes` method. These attributes are available to fake callbacks and request assertions through the request's `attributes` method and are not sent to the remote server:
+
+```php
+use Hypervel\Http\Client\Request;
+use Hypervel\Support\Facades\Http;
+
+Http::fake(fn (Request $request) => match ($request->attributes()['name'] ?? null) {
+    'products' => Http::response(['products' => []]),
+    default => Http::response(),
+});
+
+$response = Http::withAttributes(['name' => 'products'])
+    ->get('https://example.com/graphql');
+```
+
 <a name="inspecting-requests"></a>
 ### Inspecting Requests
 
