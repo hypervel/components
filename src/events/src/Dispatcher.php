@@ -395,6 +395,8 @@ class Dispatcher implements DispatcherContract
 
     /**
      * Resolve the subscriber instance.
+     *
+     * @return ($subscriber is object ? object : mixed)
      */
     protected function resolveSubscriber(object|string $subscriber): mixed
     {
@@ -747,6 +749,8 @@ class Dispatcher implements DispatcherContract
 
     /**
      * Register an event listener with the dispatcher.
+     *
+     * @param array{class-string|object, string}|object|string $listener
      */
     public function makeListener(array|object|string $listener, bool $wildcard = false): Closure
     {
@@ -852,6 +856,10 @@ class Dispatcher implements DispatcherContract
 
     /**
      * Determine if the event handler class should be queued.
+     *
+     * @param class-string $class
+     *
+     * @phpstan-assert-if-true class-string<ShouldQueue> $class
      */
     protected function handlerShouldBeQueued(string $class): bool
     {
@@ -868,10 +876,11 @@ class Dispatcher implements DispatcherContract
      * Create a callable for putting an event handler on the queue.
      *
      * @param class-string $class
+     * @return Closure(): void
      */
     protected function createQueuedHandlerCallable(string $class, string $method): Closure
     {
-        return function () use ($class, $method) {
+        return function () use ($class, $method): void {
             $arguments = array_map(function ($a) {
                 return is_object($a) && ! $a instanceof UnitEnum ? clone $a : $a;
             }, func_get_args());
