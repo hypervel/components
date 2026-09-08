@@ -543,6 +543,8 @@ class Factory
 
     /**
      * Create a new pending request instance for this factory.
+     *
+     * @return PendingRequest<false>
      */
     public function createPendingRequest(): PendingRequest
     {
@@ -556,6 +558,8 @@ class Factory
 
     /**
      * Instantiate a new pending request instance for this factory.
+     *
+     * @return PendingRequest<false>
      */
     protected function newPendingRequest(): PendingRequest
     {
@@ -565,7 +569,10 @@ class Factory
             throw new InvalidArgumentException('The global HTTP client options callback must return an array.');
         }
 
-        return new PendingRequest($this, $this->globalMiddleware, $options);
+        /** @var PendingRequest<false> $request */
+        $request = new PendingRequest($this, $this->globalMiddleware, $options);
+
+        return $request;
     }
 
     /**

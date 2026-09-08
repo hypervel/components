@@ -41,6 +41,9 @@ use Symfony\Component\VarDumper\VarDumper;
 use Throwable;
 use UnitEnum;
 
+/**
+ * @template TAsync of bool = bool
+ */
 class PendingRequest implements Transient
 {
     use Conditionable;
@@ -180,6 +183,8 @@ class PendingRequest implements Transient
 
     /**
      * Whether the requests should be asynchronous.
+     *
+     * @var TAsync
      */
     protected bool $async = false;
 
@@ -772,6 +777,8 @@ class PendingRequest implements Transient
     /**
      * Issue a GET request to the given URL.
      *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
+     *
      * @throws ConnectionException
      * @throws InvalidArgumentException
      */
@@ -788,6 +795,8 @@ class PendingRequest implements Transient
 
     /**
      * Issue a HEAD request to the given URL.
+     *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
      *
      * @throws ConnectionException
      * @throws InvalidArgumentException
@@ -806,6 +815,8 @@ class PendingRequest implements Transient
     /**
      * Issue a QUERY request to the given URL.
      *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
+     *
      * @throws ConnectionException
      * @throws InvalidArgumentException
      */
@@ -818,6 +829,8 @@ class PendingRequest implements Transient
 
     /**
      * Issue a POST request to the given URL.
+     *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
      *
      * @throws ConnectionException
      * @throws InvalidArgumentException
@@ -832,6 +845,8 @@ class PendingRequest implements Transient
     /**
      * Issue a PATCH request to the given URL.
      *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
+     *
      * @throws ConnectionException
      * @throws InvalidArgumentException
      */
@@ -845,6 +860,8 @@ class PendingRequest implements Transient
     /**
      * Issue a PUT request to the given URL.
      *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
+     *
      * @throws ConnectionException
      * @throws InvalidArgumentException
      */
@@ -857,6 +874,8 @@ class PendingRequest implements Transient
 
     /**
      * Issue a DELETE request to the given URL.
+     *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
      *
      * @throws ConnectionException
      * @throws InvalidArgumentException
@@ -879,6 +898,8 @@ class PendingRequest implements Transient
 
     /**
      * Send the request to the given URL.
+     *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
      *
      * @throws Exception
      * @throws ConnectionException|Throwable
@@ -1918,11 +1939,19 @@ class PendingRequest implements Transient
 
     /**
      * Toggle asynchronicity in requests.
+     *
+     * @template T of bool = true
+     *
+     * @param T $async
+     * @return static<T>
+     *
+     * @phpstan-self-out static<T>
      */
     public function async(bool $async = true): static
     {
         $this->async = $async;
 
+        // @phpstan-ignore return.type (The fluent setter returns the same receiver with its new generic state.)
         return $this;
     }
 
