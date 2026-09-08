@@ -130,6 +130,20 @@ class RedisStoreTest extends TestCase
         $this->assertEquals(0, Cache::store('redis')->tags(['votes'])->get('person-1'));
     }
 
+    public function testTagEntriesCanBeDecrementedUsingEnumKeys(): void
+    {
+        Cache::store('redis')->clear();
+
+        Cache::store('redis')->tags(['votes'])->put(RedisTaggedCacheTestKey::Person1, 2, 5);
+        Cache::store('redis')->tags(['votes'])->decrement(RedisTaggedCacheTestKey::Person1);
+
+        $this->assertEquals(1, Cache::store('redis')->tags(['votes'])->get(RedisTaggedCacheTestKey::Person1));
+
+        Cache::store('redis')->tags(['votes'])->flush();
+
+        $this->assertNull(Cache::store('redis')->tags(['votes'])->get(RedisTaggedCacheTestKey::Person1));
+    }
+
     public function testIncrementedTagEntriesProperlyTurnStale()
     {
         Cache::store('redis')->clear();
@@ -228,9 +242,25 @@ class RedisStoreTest extends TestCase
     // PutMany operation class which has its own cluster fallback. This behavior is tested in
     // tests/Cache/Redis/Operations/PutManyTest.php (cluster mode tests).
 
-    public function testIncrementWithSerializationEnabled()
+    public function testIncrementWithSerializationEnabled(): void
     {
-        $this->markTestSkipped('Test makes no sense anymore. Application must explicitly wrap such code in runClean() when used with serialization/compression enabled.');
+        if (! defined('Redis::OPT_PACK_IGNORE_NUMBERS')) {
+            $this->markTestSkipped('PhpRedis does not support OPT_PACK_IGNORE_NUMBERS.');
+        }
+
+        $connection = $this->createRedisConnectionWithOptions('cache_serialized', [
+            'serializer' => Redis::SERIALIZER_PHP,
+            'pack_ignore_numbers' => true,
+        ]);
+        config(['cache.stores.redis.connection' => $connection]);
+
+        $store = Cache::store('redis');
+        $store->flush();
+        $store->add('foo', 1, 10);
+        $this->assertSame(1, $store->get('foo'));
+
+        $store->increment('foo');
+        $this->assertSame(2, $store->get('foo'));
     }
 
     public function testTagsCanBeFlushedWithLargeNumberOfKeys()
@@ -339,4 +369,9 @@ class RedisStoreTest extends TestCase
 
         $store->flushLocks();
     }
+}
+
+enum RedisTaggedCacheTestKey: string
+{
+    case Person1 = 'person-1';
 }

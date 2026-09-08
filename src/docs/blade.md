@@ -1895,7 +1895,7 @@ If you would like to prepend content onto the beginning of a stack, you should u
 @endprepend
 ```
 
-The `@hasStack` directive may be used to determine if a stack is empty:
+The `@hasStack` directive may be used to render markup when a stack has content:
 
 ```blade
 @hasStack('list')

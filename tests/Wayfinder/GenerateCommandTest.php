@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Wayfinder;
 
 use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Http\Kernel as HttpKernel;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Routing\RouteCollection;
 use Hypervel\Routing\Router;
@@ -202,8 +203,16 @@ class GenerateCommandTest extends TestCase
 
     public function testParameterizedMiddlewareUsesItsResolvedClassForUrlDefaults(): void
     {
-        $router = $this->app->make(Router::class);
-        $router->aliasMiddleware('wayfinder.defaults', ParameterizedWayfinderDefaultsMiddleware::class);
+        $this->app->afterResolving(HttpKernel::class, static function (HttpKernel $kernel): void {
+            $kernel->setMiddlewareAliases([
+                ...$kernel->getMiddlewareAliases(),
+                'wayfinder.defaults' => ParameterizedWayfinderDefaultsMiddleware::class,
+            ]);
+            $kernel->setMiddlewareGroups([
+                ...$kernel->getMiddlewareGroups(),
+                'wayfinder' => ['wayfinder.defaults:tenant'],
+            ]);
+        });
 
         Route::get('/direct/{tenant}', [ParameterizedWayfinderDefaultsController::class, 'direct'])
             ->middleware(ParameterizedWayfinderDefaultsMiddleware::class . ':tenant');
@@ -211,6 +220,8 @@ class GenerateCommandTest extends TestCase
             ->middleware('wayfinder.defaults:tenant');
         Route::get('/plain/{tenant}', [ParameterizedWayfinderDefaultsController::class, 'plain'])
             ->middleware(ParameterizedWayfinderDefaultsMiddleware::class);
+        Route::get('/group/{tenant}', [ParameterizedWayfinderDefaultsController::class, 'group'])
+            ->middleware('wayfinder');
         // This class is intentionally undefined to exercise the absent-middleware guard.
         Route::get('/missing/{tenant}', [ParameterizedWayfinderDefaultsController::class, 'missing'])
             ->middleware(MissingWayfinderDefaultsMiddleware::class . ':tenant');
@@ -232,6 +243,7 @@ class GenerateCommandTest extends TestCase
         $this->assertStringContainsString("url: '/direct/{tenant?}'", $content);
         $this->assertStringContainsString("url: '/alias/{tenant?}'", $content);
         $this->assertStringContainsString("url: '/plain/{tenant?}'", $content);
+        $this->assertStringContainsString("url: '/group/{tenant?}'", $content);
         $this->assertStringContainsString("url: '/missing/{tenant}'", $content);
     }
 
@@ -306,18 +318,37 @@ class SecondWayfinderDefaultsMiddleware
 
 class ParameterizedWayfinderDefaultsController
 {
+    /**
+     * Handle the route with parameterized middleware defaults.
+     */
     public function direct(): void
     {
     }
 
+    /**
+     * Handle the route with aliased middleware defaults.
+     */
     public function alias(): void
     {
     }
 
+    /**
+     * Handle the route with unparameterized middleware defaults.
+     */
     public function plain(): void
     {
     }
 
+    /**
+     * Handle the route with grouped middleware defaults.
+     */
+    public function group(): void
+    {
+    }
+
+    /**
+     * Handle the route with an undefined middleware class.
+     */
     public function missing(): void
     {
     }

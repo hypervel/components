@@ -7,6 +7,7 @@ namespace Hypervel\Wayfinder;
 use BackedEnum;
 use Closure;
 use Hypervel\Console\Command;
+use Hypervel\Contracts\Http\Kernel as HttpKernel;
 use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Routing\Route as BaseRoute;
@@ -82,6 +83,10 @@ class GenerateCommand extends Command
         if ($this->option('path') === '') {
             throw new InvalidArgumentException('The --path option may not be empty.');
         }
+
+        // Console bootstrap leaves the HTTP kernel unresolved. Resolving it installs
+        // the application's middleware groups, aliases, and priority on the router.
+        $this->hypervel->make(HttpKernel::class);
 
         $this->view->replaceNamespace('wayfinder', __DIR__ . '/../resources');
         $this->view->addExtension('blade.ts', 'blade');

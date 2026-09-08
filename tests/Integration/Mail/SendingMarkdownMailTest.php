@@ -85,9 +85,9 @@ class SendingMarkdownMailTest extends TestCase
 
         $email = $this->app->make('mailer')->getSymfonyTransport()->messages()[0]->getOriginalMessage()->toString();
 
-        $cid = explode(' cid:', (new Stringable($email))->explode("\r\n")
+        $cid = rtrim(explode(' cid:', (new Stringable($email))->explode("\r\n")
             ->filter(fn (string $line): bool => str_contains($line, ' content: cid:'))
-            ->first())[1];
+            ->first())[1], '=');
 
         $filename = explode('Embed file: ', (new Stringable($email))->explode("\r\n")
             ->filter(fn (string $line): bool => str_contains($line, ' file:'))

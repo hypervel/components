@@ -14,6 +14,7 @@ use Hypervel\Data\Attributes\Validation\Rule;
 use Hypervel\Data\Attributes\Validation\StringValidationAttribute;
 use Hypervel\Data\Support\Validation\References\ExternalReference;
 use Hypervel\Data\Support\Validation\References\FieldReference;
+use Hypervel\Support\Arr;
 
 class RuleDenormalizer
 {
@@ -73,6 +74,7 @@ class RuleDenormalizer
         ValidationPath $path,
     ): array {
         $parameters = [];
+        $quoteParameters = ! in_array($rule->keyword(), ['regex', 'not_regex'], true);
 
         foreach ($rule->parameters() as $key => $value) {
             $parameter = $this->normalizeRuleParameter($value, $path);
@@ -81,7 +83,16 @@ class RuleDenormalizer
                 continue;
             }
 
-            $parameters[] = is_string($key) ? "{$key}={$parameter}" : $parameter;
+            foreach (Arr::wrap($parameter) as $index => $field) {
+                if (is_string($key) && $index === 0) {
+                    $field = "{$key}={$field}";
+                }
+
+                // Quote after adding the name so the entire parameter remains one CSV field.
+                $parameters[] = $quoteParameters && strpbrk($field, ',"') !== false
+                    ? '"' . str_replace('"', '""', $field) . '"'
+                    : $field;
+            }
         }
 
         if ($parameters === []) {
@@ -92,12 +103,14 @@ class RuleDenormalizer
     }
 
     /**
-     * Convert one rule parameter into Validator string form.
+     * Normalize one rule parameter while preserving its field boundaries.
+     *
+     * @return null|list<string>|string
      */
     protected function normalizeRuleParameter(
         mixed $parameter,
         ValidationPath $path,
-    ): ?string {
+    ): array|string|null {
         if ($parameter === null) {
             return null;
         }
@@ -117,11 +130,11 @@ class RuleDenormalizer
         if (is_array($parameter)) {
             // ValidatesAttributes::convertValuesToNull() decodes list values from this literal token.
             $subParameters = array_map(
-                fn (mixed $subParameter): string => $this->normalizeRuleParameter($subParameter, $path) ?? 'null',
+                fn (mixed $subParameter): array|string => $this->normalizeRuleParameter($subParameter, $path) ?? 'null',
                 $parameter
             );
 
-            return implode(',', $subParameters);
+            return Arr::flatten($subParameters);
         }
 
         if ($parameter instanceof DateTimeInterface) {

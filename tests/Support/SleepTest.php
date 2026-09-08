@@ -68,13 +68,15 @@ class SleepTest extends TestCase
         $this->assertEqualsWithDelta(0, $end - $start, 0.03);
     }
 
-    public function testItCanSpecifyMinutes()
+    #[TestWith([1.5, 90_000_000.0])]
+    #[TestWith([0.000001, 60.0])]
+    public function testItCanSpecifyMinutes(float $duration, float $microseconds): void
     {
         Sleep::fake();
 
-        $sleep = Sleep::for(1.5)->minutes();
+        $sleep = Sleep::for($duration)->minutes();
 
-        $this->assertSame((float) $sleep->duration->totalMicroseconds, 90_000_000.0);
+        $this->assertSame($microseconds, $sleep->duration->totalMicroseconds);
     }
 
     public function testItCanSpecifyMinute()
@@ -86,13 +88,15 @@ class SleepTest extends TestCase
         $this->assertSame((float) $sleep->duration->totalMicroseconds, 60_000_000.0);
     }
 
-    public function testItCanSpecifySeconds()
+    #[TestWith([1.5, 1_500_000.0])]
+    #[TestWith([0.000001, 1.0])]
+    public function testItCanSpecifySeconds(float $duration, float $microseconds): void
     {
         Sleep::fake();
 
-        $sleep = Sleep::for(1.5)->seconds();
+        $sleep = Sleep::for($duration)->seconds();
 
-        $this->assertSame((float) $sleep->duration->totalMicroseconds, 1_500_000.0);
+        $this->assertSame($microseconds, $sleep->duration->totalMicroseconds);
     }
 
     public function testItCanSpecifySecond()
@@ -104,13 +108,16 @@ class SleepTest extends TestCase
         $this->assertSame((float) $sleep->duration->totalMicroseconds, 1_000_000.0);
     }
 
-    public function testItCanSpecifyMilliseconds()
+    #[TestWith([1.5, 1_500.0])]
+    #[TestWith([0.0015, 2.0])]
+    #[TestWith([0.000001, 0.0])]
+    public function testItCanSpecifyMilliseconds(float $duration, float $microseconds): void
     {
         Sleep::fake();
 
-        $sleep = Sleep::for(1.5)->milliseconds();
+        $sleep = Sleep::for($duration)->milliseconds();
 
-        $this->assertSame((float) $sleep->duration->totalMicroseconds, 1_500.0);
+        $this->assertSame($microseconds, $sleep->duration->totalMicroseconds);
     }
 
     public function testItCanSpecifyMillisecond()
@@ -122,14 +129,16 @@ class SleepTest extends TestCase
         $this->assertSame((float) $sleep->duration->totalMicroseconds, 1_000.0);
     }
 
-    public function testItCanSpecifyMicroseconds()
+    #[TestWith([1.5, 1.0])]
+    #[TestWith([0.000001, 0.0])]
+    public function testItCanSpecifyMicroseconds(float $duration, float $microseconds): void
     {
         Sleep::fake();
 
-        $sleep = Sleep::for(1.5)->microseconds();
+        $sleep = Sleep::for($duration)->microseconds();
 
-        // rounded as microseconds is the smallest unit supported...
-        $this->assertSame((float) $sleep->duration->totalMicroseconds, 1.0);
+        // Truncated as microseconds is the smallest unit supported...
+        $this->assertSame($microseconds, $sleep->duration->totalMicroseconds);
     }
 
     public function testItCanSpecifyMicrosecond()

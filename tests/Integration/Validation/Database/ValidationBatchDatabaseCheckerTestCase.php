@@ -23,6 +23,7 @@ use Hypervel\Validation\PrecomputedPresenceVerifier;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\Unique;
 use Hypervel\Validation\Validator;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Stringable;
 
@@ -997,10 +998,11 @@ abstract class ValidationBatchDatabaseCheckerTestCase extends DatabaseTestCase
         $this->assertSame(2, $uniqueCallbackCalls);
     }
 
-    public function testStringFormUniqueRuleUnescapesIgnoredValueBeforeBatching(): void
+    #[TestWith(['slash\id@example.com', false])]
+    #[TestWith(['quote"\id,@example.com\\', false])]
+    #[TestWith(['quote"\id,@example.com\\', true])]
+    public function testStringFormUniqueRulePreservesIgnoredValue(string $email, bool $stopOnFirstFailure): void
     {
-        $email = 'slash\id@example.com';
-
         $this->app->make('db')->table('batch_test_users')->insert([
             'external_id' => 3,
             'email' => $email,
@@ -1017,6 +1019,7 @@ abstract class ValidationBatchDatabaseCheckerTestCase extends DatabaseTestCase
             ]],
             ['items.*.email' => ['required', $rule]],
         );
+        $validator->stopOnFirstFailure($stopOnFirstFailure);
 
         DB::enableQueryLog();
 
@@ -1033,7 +1036,35 @@ abstract class ValidationBatchDatabaseCheckerTestCase extends DatabaseTestCase
             return str_contains($entry['query'], 'batch_test_users');
         });
 
-        $this->assertCount(1, $uniqueQueries);
+        $this->assertCount($stopOnFirstFailure ? 2 : 1, $uniqueQueries);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testPresenceFiltersPreserveLiteralValues(bool $stopOnFirstFailure): void
+    {
+        $status = 'active,"quoted"\\';
+        DB::table('batch_test_users')->where('email', 'user1@example.com')->update(['status' => $status]);
+
+        $data = ['items' => [
+            ['email' => 'user1@example.com'],
+            ['email' => 'user2@example.com'],
+        ]];
+        $exists = $this->makeValidator($data, [
+            'items.*.email' => [(new Exists('batch_test_users', 'email'))->where('status', $status)],
+        ]);
+        $exists->stopOnFirstFailure($stopOnFirstFailure);
+
+        $this->assertFalse($exists->passes());
+        $this->assertSame(['items.1.email'], $exists->errors()->keys());
+
+        $unique = $this->makeValidator($data, [
+            'items.*.email' => [(new Unique('batch_test_users', 'email'))->where('status', $status)],
+        ]);
+        $unique->stopOnFirstFailure($stopOnFirstFailure);
+
+        $this->assertFalse($unique->passes());
+        $this->assertSame(['items.0.email'], $unique->errors()->keys());
     }
 
     public function testArrayFormExistsRuleCanConsumeFactsFromIdenticalWildcardShape(): void

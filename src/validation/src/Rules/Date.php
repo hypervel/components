@@ -162,9 +162,11 @@ class Date implements Stringable
      */
     protected function formatDate(DateTimeInterface|string $date): string
     {
-        return $date instanceof DateTimeInterface
+        $date = $date instanceof DateTimeInterface
             ? $date->format($this->format ?? 'Y-m-d')
             : $date;
+
+        return '"' . str_replace('"', '""', $date) . '"';
     }
 
     /**
@@ -172,10 +174,20 @@ class Date implements Stringable
      */
     public function __toString(): string
     {
-        return implode('|', [
-            $this->format === null ? 'date' : 'date_format:' . $this->format,
+        return implode('|', $this->toArray());
+    }
+
+    /**
+     * Convert the rule to an array of validation rules.
+     *
+     * @return list<string>
+     */
+    public function toArray(): array
+    {
+        return [
+            $this->format === null ? 'date' : 'date_format:"' . str_replace('"', '""', $this->format) . '"',
             ...$this->constraints,
-        ]);
+        ];
     }
 
     /**

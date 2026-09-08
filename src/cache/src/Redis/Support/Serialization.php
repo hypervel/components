@@ -59,7 +59,7 @@ class Serialization
      * serialize Lua ARGV parameters.
      *
      * This method handles three scenarios:
-     * 1. Serializer configured (igbinary/json/php): Use pack() which calls _serialize()
+     * 1. Serializer configured (igbinary/json/php): Pack with native serialization and compression
      * 2. No serializer, but compression enabled: PHP serialize, then compress
      * 3. No serializer, no compression: Just PHP serialize
      *
@@ -69,24 +69,17 @@ class Serialization
      */
     public function serializeForLua(RedisConnection $connection, mixed $value): string
     {
-        // Case 1: Serializer configured (e.g. igbinary/json)
-        // pack() calls _serialize() which handles serialization and compression
         if ($connection->serialized()) {
             return $connection->pack([$value])[0];
         }
 
-        // No serializer - must PHP-serialize first
         $serialized = $this->phpSerialize($value);
 
-        // Case 2: Check if compression is enabled (even without serializer)
         if ($connection->getOption(Redis::OPT_COMPRESSION) !== Redis::COMPRESSION_NONE) {
-            // _serialize() applies compression even with SERIALIZER_NONE
-            // Cast to string in case serialize() returned a numeric value
-            return $connection->_serialize(is_numeric($serialized) ? (string) $serialized : $serialized);
+            // Lua arguments need native packing for compression. Preserve numeric types for pack_ignore_numbers.
+            return $connection->pack([$serialized])[0];
         }
 
-        // Case 3: No serializer, no compression
-        // Cast to string in case serialize() returned a numeric value
         return is_numeric($serialized) ? (string) $serialized : $serialized;
     }
 

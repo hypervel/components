@@ -112,6 +112,41 @@ class SupportCarbonImmutableTest extends TestCase
         ];
     }
 
+    #[DataProvider('overflowProvider')]
+    public function testPlusAndMinusRespectOverflowSettings(
+        string $method,
+        string $unit,
+        string $original,
+        string $clamped,
+        string $overflowed,
+    ): void {
+        $date = CarbonImmutable::parse($original)->settings(['monthOverflow' => false, 'yearOverflow' => false]);
+
+        $this->assertSame($clamped, $date->{$method}(...[$unit => 1])->toDateString());
+        $this->assertSame($overflowed, $date->{$method}(...[$unit => 1], overflow: true)->toDateString());
+        $this->assertSame($original, $date->toDateString());
+    }
+
+    /**
+     * Provide month and year overflow boundaries for both operations.
+     */
+    public static function overflowProvider(): array
+    {
+        return [
+            'add month' => ['plus', 'months', '2026-01-31', '2026-02-28', '2026-03-03'],
+            'subtract month' => ['minus', 'months', '2026-05-31', '2026-04-30', '2026-05-01'],
+            'add year' => ['plus', 'years', '2024-02-29', '2025-02-28', '2025-03-01'],
+            'subtract year' => ['minus', 'years', '2024-02-29', '2023-02-28', '2023-03-01'],
+        ];
+    }
+
+    public function testPlusAppliesYearsBeforeMonths(): void
+    {
+        $date = CarbonImmutable::parse('2024-02-29');
+
+        $this->assertSame('2025-03-28', $date->plus(years: 1, months: 1, overflow: false)->toDateString());
+    }
+
     public function testConversionsPreserveHypervelClassesAndDateState(): void
     {
         $immutable = CarbonImmutable::parse('2026-07-22 12:34:56.123456', 'Pacific/Auckland')

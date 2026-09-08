@@ -68,7 +68,7 @@ function now(DateTimeZone|UnitEnum|string|null $tz = null): CarbonInterface
 }
 
 /**
- * Get the current date / time plus the given number of microseconds.
+ * Create an interval of the given number of microseconds.
  */
 function microseconds(int|float $microseconds): CarbonInterval
 {
@@ -76,7 +76,7 @@ function microseconds(int|float $microseconds): CarbonInterval
 }
 
 /**
- * Get the current date / time plus the given number of milliseconds.
+ * Create an interval of the given number of milliseconds.
  */
 function milliseconds(int|float $milliseconds): CarbonInterval
 {
@@ -84,39 +84,88 @@ function milliseconds(int|float $milliseconds): CarbonInterval
 }
 
 /**
- * Get the current date / time plus the given number of seconds.
+ * Create an interval of the given number of seconds.
  */
 function seconds(int|float $seconds): CarbonInterval
 {
-    return CarbonInterval::seconds($seconds);
+    if (is_int($seconds)) {
+        return CarbonInterval::seconds($seconds);
+    }
+
+    $whole = $seconds < 0 ? ceil($seconds) : floor($seconds);
+    $microseconds = (int) round(($seconds - $whole) * CarbonInterface::MICROSECONDS_PER_SECOND);
+
+    // A rounded fraction can reach a full second, which must not stay in the microsecond field.
+    return CarbonInterval::seconds($whole + intdiv($microseconds, CarbonInterface::MICROSECONDS_PER_SECOND))
+        ->microseconds($microseconds % CarbonInterface::MICROSECONDS_PER_SECOND);
 }
 
 /**
- * Get the current date / time plus the given number of minutes.
+ * Create an interval of the given number of minutes.
  */
 function minutes(int|float $minutes): CarbonInterval
 {
-    return CarbonInterval::minutes($minutes);
+    if (is_int($minutes)) {
+        return CarbonInterval::minutes($minutes);
+    }
+
+    $microsecondsPerMinute = CarbonInterface::MICROSECONDS_PER_SECOND * CarbonInterface::SECONDS_PER_MINUTE;
+    $whole = $minutes < 0 ? ceil($minutes) : floor($minutes);
+    $microseconds = (int) round(($minutes - $whole) * $microsecondsPerMinute);
+    $remainder = $microseconds % $microsecondsPerMinute;
+
+    return CarbonInterval::minutes($whole + intdiv($microseconds, $microsecondsPerMinute))
+        ->seconds(intdiv($remainder, CarbonInterface::MICROSECONDS_PER_SECOND))
+        ->microseconds($remainder % CarbonInterface::MICROSECONDS_PER_SECOND);
 }
 
 /**
- * Get the current date / time plus the given number of hours.
+ * Create an interval of the given number of hours.
  */
 function hours(int|float $hours): CarbonInterval
 {
-    return CarbonInterval::hours($hours);
+    if (is_int($hours)) {
+        return CarbonInterval::hours($hours);
+    }
+
+    $microsecondsPerMinute = CarbonInterface::MICROSECONDS_PER_SECOND * CarbonInterface::SECONDS_PER_MINUTE;
+    $microsecondsPerHour = $microsecondsPerMinute * CarbonInterface::MINUTES_PER_HOUR;
+    $whole = $hours < 0 ? ceil($hours) : floor($hours);
+    $microseconds = (int) round(($hours - $whole) * $microsecondsPerHour);
+    $remainder = $microseconds % $microsecondsPerHour;
+
+    return CarbonInterval::hours($whole + intdiv($microseconds, $microsecondsPerHour))
+        ->minutes(intdiv($remainder, $microsecondsPerMinute))
+        ->seconds(intdiv($remainder % $microsecondsPerMinute, CarbonInterface::MICROSECONDS_PER_SECOND))
+        ->microseconds($remainder % CarbonInterface::MICROSECONDS_PER_SECOND);
 }
 
 /**
- * Get the current date / time plus the given number of days.
+ * Create an interval of the given number of days.
  */
 function days(int|float $days): CarbonInterval
 {
-    return CarbonInterval::days($days);
+    if (is_int($days)) {
+        return CarbonInterval::days($days);
+    }
+
+    $microsecondsPerMinute = CarbonInterface::MICROSECONDS_PER_SECOND * CarbonInterface::SECONDS_PER_MINUTE;
+    $microsecondsPerHour = $microsecondsPerMinute * CarbonInterface::MINUTES_PER_HOUR;
+    $microsecondsPerDay = $microsecondsPerHour * CarbonInterface::HOURS_PER_DAY;
+    $whole = $days < 0 ? ceil($days) : floor($days);
+    $microseconds = (int) round(($days - $whole) * $microsecondsPerDay);
+    $remainder = $microseconds % $microsecondsPerDay;
+
+    // Keep whole calendar days intact; cascading can turn them into months.
+    return CarbonInterval::days($whole + intdiv($microseconds, $microsecondsPerDay))
+        ->hours(intdiv($remainder, $microsecondsPerHour))
+        ->minutes(intdiv($remainder % $microsecondsPerHour, $microsecondsPerMinute))
+        ->seconds(intdiv($remainder % $microsecondsPerMinute, CarbonInterface::MICROSECONDS_PER_SECOND))
+        ->microseconds($remainder % CarbonInterface::MICROSECONDS_PER_SECOND);
 }
 
 /**
- * Get the current date / time plus the given number of weeks.
+ * Create an interval of the given number of weeks.
  */
 function weeks(int $weeks): CarbonInterval
 {
@@ -124,7 +173,7 @@ function weeks(int $weeks): CarbonInterval
 }
 
 /**
- * Get the current date / time plus the given number of months.
+ * Create an interval of the given number of months.
  */
 function months(int $months): CarbonInterval
 {
@@ -132,7 +181,7 @@ function months(int $months): CarbonInterval
 }
 
 /**
- * Get the current date / time plus the given number of years.
+ * Create an interval of the given number of years.
  */
 function years(int $years): CarbonInterval
 {

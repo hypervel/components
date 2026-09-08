@@ -10,6 +10,7 @@ use Hypervel\Tests\TestCase;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\ValidationRuleParser;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class ValidationRuleParserTest extends TestCase
 {
@@ -410,7 +411,7 @@ class ValidationRuleParserTest extends TestCase
         $this->assertEquals([
             'date' => [
                 'date',
-                'after:today',
+                'after:"today"',
             ],
         ], $results->rules);
     }
@@ -553,6 +554,53 @@ class ValidationRuleParserTest extends TestCase
             'exists:users,email',
             'unique:users,email,"0",id',
         ], $results->rules['value']);
+    }
+
+    #[TestWith(['a,b'])]
+    #[TestWith(['a"b'])]
+    #[TestWith(['directory\\'])]
+    #[TestWith(['a\"b'])]
+    public function testLiteralRuleParametersRoundTripThroughCsv(string $value): void
+    {
+        foreach ([Rule::in([$value]), Rule::notIn([$value]), Rule::contains([$value]), Rule::doesntContain([$value])] as $rule) {
+            $this->assertSame([$value], ValidationRuleParser::parse((string) $rule)[1]);
+        }
+    }
+
+    public function testStringifiedEnumValuesRoundTripThroughCsv(): void
+    {
+        $this->assertSame(
+            ['In', [CsvRuleValue::Literal->value]],
+            ValidationRuleParser::parse((string) Rule::enum(CsvRuleValue::class)),
+        );
+    }
+
+    #[TestWith(['direct'])]
+    #[TestWith(['array'])]
+    #[TestWith(['wildcard'])]
+    public function testCompositeRulesPreserveLiteralPipesDuringExpansion(string $form): void
+    {
+        $rules = [
+            [Rule::date()->format('Y-m-d\|H:i:s'), ['date_format:"Y-m-d\|H:i:s"']],
+            [Rule::numeric()->same('other|value'), ['numeric', 'same:"other|value"']],
+            [Rule::string()->startsWith('INFO|'), ['string', 'starts_with:"INFO|"']],
+        ];
+
+        foreach ($rules as [$rule, $expected]) {
+            $parser = new ValidationRuleParser(['items' => [['value' => 'value']]]);
+            $attribute = $form === 'wildcard' ? 'items.*.value' : 'items.0.value';
+            $result = $parser->explode([$attribute => $form === 'direct' ? $rule : [$rule]]);
+
+            $this->assertSame($expected, $result->rules['items.0.value']);
+        }
+    }
+
+    public function testCsvParsingDoesNotAlterRegexParameters(): void
+    {
+        $pattern = '/^[a,b"\\\|]+$/';
+
+        $this->assertSame(['Regex', [$pattern]], ValidationRuleParser::parse('regex:' . $pattern));
+        $this->assertSame(['NotRegex', [$pattern]], ValidationRuleParser::parse('not_regex:' . $pattern));
     }
 
     public function testExplodePreservesCallbackBearingPresenceRules(): void
@@ -771,4 +819,9 @@ class ValidationRuleParserTest extends TestCase
             'non-string' => [123, false],
         ];
     }
+}
+
+enum CsvRuleValue: string
+{
+    case Literal = 'a,"b"\\';
 }

@@ -660,6 +660,56 @@ class PhpRedisClusterConnectionTest extends TestCase
         $connection->scan($cursor, ['match' => '*']);
     }
 
+    public function testConnectionRebuildsItsClientOnNextAcquisitionWithoutReplayingCommand(): void
+    {
+        $exception = new RedisException('Connection lost');
+        $failedClient = m::mock(RedisCluster::class);
+        $healthyClient = m::mock(RedisCluster::class);
+        $this->expectDefaultConnectionOptions($failedClient);
+        $this->expectDefaultConnectionOptions($healthyClient);
+        $failedClient->expects('get')->once()->with('foo')->andThrow($exception);
+        $failedClient->expects('getLastError')->andReturnNull();
+        $healthyClient->expects('get')->once()->with('foo')->andReturn('bar');
+
+        $connection = new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig(), [$failedClient, $healthyClient]) extends PhpRedisClusterConnection {
+            /**
+             * Create a connection with replacement native clients.
+             *
+             * @param RedisCluster[] $clients
+             */
+            public function __construct(
+                ContainerContract $container,
+                PoolInterface $pool,
+                array $config,
+                private array $clients,
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            /**
+             * Return the next native client.
+             */
+            protected function createRedisCluster(): RedisCluster
+            {
+                return array_shift($this->clients);
+            }
+        };
+
+        try {
+            $connection->__call('get', ['foo']);
+            $this->fail('Expected the command failure to propagate.');
+        } catch (RedisException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
+
+        $this->assertFalse($connection->check());
+        $this->assertSame($failedClient, $connection->client());
+        $this->assertSame($connection, $connection->getActiveConnection());
+        $this->assertSame($healthyClient, $connection->client());
+        $this->assertTrue($connection->check());
+        $this->assertSame('bar', $connection->__call('get', ['foo']));
+    }
+
     public function testReconnectClearsCachedDefaultNode(): void
     {
         $pool = m::mock(PoolInterface::class);

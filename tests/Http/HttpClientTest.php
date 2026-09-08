@@ -67,6 +67,7 @@ use stdClass;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\VarDumper\VarDumper;
 use Throwable;
+use WeakReference;
 
 use function Hypervel\Coroutine\parallel;
 use function Hypervel\Coroutine\run;
@@ -4954,6 +4955,31 @@ class HttpClientTest extends TestCase
         $this->expectException(ConnectionException::class);
 
         $this->factory->maxRedirects(1)->get('https://1.example.com');
+    }
+
+    public function testPendingRequestsAreFreedOnceUnset(): void
+    {
+        $garbageCollectionEnabled = gc_enabled();
+        gc_disable();
+
+        try {
+            $request = (new PendingRequest)
+                ->throwUnless(static fn (Response $response): bool => false)
+                ->stub(static fn (): PromiseInterface => Factory::response('ok'));
+
+            $reference = WeakReference::create($request);
+            $response = $request->post('http://localhost/memory-test');
+
+            $this->assertSame('ok', $response->body());
+
+            unset($request, $response);
+
+            $this->assertNull($reference->get());
+        } finally {
+            if ($garbageCollectionEnabled) {
+                gc_enable();
+            }
+        }
     }
 
     public function testRequestExceptionIsNotThrownIfThePendingRequestIsSetToThrowOnFailureButTheResponseIsSuccessful(): void

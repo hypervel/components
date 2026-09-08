@@ -786,16 +786,36 @@ class Router implements BindingRegistrar, RegistrarContract
      */
     public function resolveMiddleware(array $middleware, array $excluded = []): array
     {
+        return $this->resolveMiddlewareUsingGroups($middleware, $excluded, $this->middlewareGroups);
+    }
+
+    /**
+     * Resolve middleware aliases without expanding middleware groups.
+     *
+     * @return array<int, mixed>
+     */
+    public function resolveMiddlewareWithoutGroups(array $middleware, array $excluded = []): array
+    {
+        return $this->resolveMiddlewareUsingGroups($middleware, $excluded, []);
+    }
+
+    /**
+     * Resolve middleware using the given middleware groups.
+     *
+     * @return array<int, mixed>
+     */
+    protected function resolveMiddlewareUsingGroups(array $middleware, array $excluded, array $middlewareGroups): array
+    {
         $excluded = $excluded === []
             ? $excluded
             : (new Collection($excluded))
-                ->map(fn (string|Closure $name): string|Closure|array => MiddlewareNameResolver::resolve($name, $this->middleware, $this->middlewareGroups))
+                ->map(fn (string|Closure $name): string|Closure|array => MiddlewareNameResolver::resolve($name, $this->middleware, $middlewareGroups))
                 ->flatten()
                 ->values()
                 ->all();
 
         $middleware = (new Collection($middleware))
-            ->map(fn (string|Closure $name): string|Closure|array => MiddlewareNameResolver::resolve($name, $this->middleware, $this->middlewareGroups))
+            ->map(fn (string|Closure $name): string|Closure|array => MiddlewareNameResolver::resolve($name, $this->middleware, $middlewareGroups))
             ->flatten()
             ->when(
                 ! empty($excluded),

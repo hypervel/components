@@ -319,6 +319,15 @@ class SupportStrTest extends TestCase
         $this->assertTrue(Str::endsWith(0.27, '0.27'));
         $this->assertFalse(Str::endsWith(0.27, '8'));
         $this->assertFalse(Str::endsWith(null, 'Marc'));
+        $this->assertTrue(Str::endsWith('foobar', new class {
+            /**
+             * Return the suffix.
+             */
+            public function __toString(): string
+            {
+                return 'bar';
+            }
+        }));
         // Test for multibyte string support
         $this->assertTrue(Str::endsWith('Jönköping', 'öping'));
         $this->assertTrue(Str::endsWith('Malmö', 'mö'));
@@ -352,6 +361,15 @@ class SupportStrTest extends TestCase
         $this->assertFalse(Str::doesntEndWith(0.27, '0.27'));
         $this->assertTrue(Str::doesntEndWith(0.27, '8'));
         $this->assertTrue(Str::doesntEndWith(null, 'Marc'));
+        $this->assertFalse(Str::doesntEndWith('foobar', new class {
+            /**
+             * Return the suffix.
+             */
+            public function __toString(): string
+            {
+                return 'bar';
+            }
+        }));
         // Test for multibyte string support
         $this->assertFalse(Str::doesntEndWith('Jönköping', 'öping'));
         $this->assertFalse(Str::doesntEndWith('Malmö', 'mö'));
@@ -547,6 +565,9 @@ class SupportStrTest extends TestCase
         $this->assertEquals($expected, Str::containsAll($haystack, $needles, $ignoreCase));
     }
 
+    /**
+     * Provide strings and needles for complete substring matching.
+     */
     public static function strContainsAllProvider(): array
     {
         return [
@@ -556,6 +577,7 @@ class SupportStrTest extends TestCase
             ['Taylor Otwell', ['taylor'], true, true],
             ['Taylor Otwell', ['taylor', 'xxx'], false, false],
             ['Taylor Otwell', ['taylor', 'xxx'], false, true],
+            ['Taylor Otwell', [], false, false],
         ];
     }
 
@@ -1120,6 +1142,25 @@ class SupportStrTest extends TestCase
         $this->assertSame('foo/bar/baz', Str::replace(' ', '/', 'foo bar baz'));
         $this->assertSame('foo bar baz', Str::replace(['?1', '?2', '?3'], ['foo', 'bar', 'baz'], '?1 ?2 ?3'));
         $this->assertSame(['foo', 'bar', 'baz'], Str::replace(collect(['?1', '?2', '?3']), collect(['foo', 'bar', 'baz']), collect(['?1', '?2', '?3'])));
+
+        $this->assertSame('Xltý kôň', Str::replace('ž', 'X', 'Žltý kôň', false));
+        $this->assertSame('žltý pes', Str::replace('KÔŇ', 'pes', 'žltý kôň', false));
+        $this->assertSame('Xltý pes', Str::replace(['ž', 'KÔŇ'], ['X', 'pes'], 'Žltý kôň', false));
+        $this->assertSame(['Xltý', 'kôň'], Str::replace('ž', 'X', ['Žltý', 'kôň'], false));
+        $this->assertSame('ſ Yito X', Str::replace(['s', 'ž'], ['X', 'Y'], 'ſ žito s', false));
+        $this->assertSame("caf\xC3 X", Str::replace('ž', 'X', "caf\xC3 ž", false));
+        $this->assertSame('É', Str::replace(["\xFF", 'é'], ['X', 'Y'], 'É', false));
+        $this->assertSame("\xFFÉ", Str::replace(['ž', 'é'], ["\xFF", 'x'], 'žÉ', false));
+        $this->assertSame('$1\X', Str::replace('ž.+?', '$1\X', 'Ž.+?', false));
+        $this->assertSame(['label' => 'Xltý pes'], Str::replace(['first' => 'ž', 'second' => 'KÔŇ'], [10 => 'X', 20 => 'pes'], ['label' => 'Žltý kôň'], false));
+        $this->assertSame('Xltý kň', Str::replace(['ž', 'ô'], ['X'], 'Žltý kôň', false));
+    }
+
+    public function testReplaceThrowsForScalarSearchAndArrayReplacement(): void
+    {
+        $this->expectException(TypeError::class);
+
+        Str::replace('ž', ['X'], 'Ž', false);
     }
 
     public function testReplaceArray(): void
@@ -1224,6 +1265,9 @@ class SupportStrTest extends TestCase
         $this->assertSame('Fooar', Str::remove(['f', 'b'], 'Foobar'));
         $this->assertSame('ooar', Str::remove(['f', 'b'], 'Foobar', false));
         $this->assertSame('Foobar', Str::remove(['f', '|'], 'Foo|bar'));
+
+        $this->assertSame('ltý', Str::remove('ž', 'Žltý', false));
+        $this->assertSame('žltý ', Str::remove('KÔŇ', 'žltý kôň', false));
     }
 
     public function testReverse(): void
@@ -1552,6 +1596,9 @@ class SupportStrTest extends TestCase
         $this->assertFalse(Str::position('Hello, World!', 'X', 0, 'UTF-8'));
         $this->assertFalse(Str::position('', 'test'));
         $this->assertFalse(Str::position('Hello, World!', 'X'));
+        $this->assertSame(0, Str::position('Taylor', ''));
+        $this->assertSame(3, Str::position('Taylor', '', 3));
+        $this->assertSame(0, Str::position('', ''));
     }
 
     public function testSubstrReplace(): void
@@ -1770,8 +1817,11 @@ class SupportStrTest extends TestCase
         $this->assertEquals(2, Str::wordCount('Hello, world!'));
         $this->assertEquals(10, Str::wordCount('Hi, this is my first contribution to the Hypervel framework.'));
 
-        $this->assertEquals(0, Str::wordCount('мама'));
-        $this->assertEquals(0, Str::wordCount('мама мыла раму'));
+        // str_word_count() without $characters does not reliably handle multibyte
+        // strings — results depend on the system locale's isalpha() behavior
+        // (e.g. macOS 15+ changed LC_CTYPE defaults). See php/php-src#19828.
+        $this->assertEquals(str_word_count('мама'), Str::wordCount('мама'));
+        $this->assertEquals(str_word_count('мама мыла раму'), Str::wordCount('мама мыла раму'));
 
         $this->assertEquals(1, Str::wordCount('мама', 'абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ'));
         $this->assertEquals(3, Str::wordCount('мама мыла раму', 'абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ'));

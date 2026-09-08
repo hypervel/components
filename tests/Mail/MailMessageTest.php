@@ -11,6 +11,8 @@ use Hypervel\Mail\Message;
 use Hypervel\Support\Str;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
 
@@ -55,6 +57,11 @@ class MailMessageTest extends TestCase
     {
         $this->assertInstanceOf(Message::class, $message = $this->message->returnPath('foo@bar.baz'));
         $this->assertEquals(new Address('foo@bar.baz'), $message->getSymfonyMessage()->getReturnPath());
+
+        $address = new Address('person@example.test');
+        $this->message->returnPath($address);
+
+        $this->assertSame($address, $this->message->getSymfonyMessage()->getReturnPath());
     }
 
     public function testToMethod(): void
@@ -64,6 +71,12 @@ class MailMessageTest extends TestCase
 
         $this->assertInstanceOf(Message::class, $message = $this->message->to(['bar@bar.baz' => 'Bar']));
         $this->assertEquals(new Address('bar@bar.baz', 'Bar'), $message->getSymfonyMessage()->getTo()[0]);
+
+        $this->message->to([['email' => 'person@example.test']]);
+        $this->assertEquals(new Address('person@example.test'), $this->message->getSymfonyMessage()->getTo()[0]);
+
+        $this->message->to([['address' => 'another@example.test', 'name' => null]]);
+        $this->assertEquals(new Address('another@example.test'), $this->message->getSymfonyMessage()->getTo()[0]);
     }
 
     public function testToMethodWithOverride(): void
@@ -88,6 +101,33 @@ class MailMessageTest extends TestCase
     {
         $this->assertInstanceOf(Message::class, $message = $this->message->replyTo('foo@bar.baz', 'Foo'));
         $this->assertEquals(new Address('foo@bar.baz', 'Foo'), $message->getSymfonyMessage()->getReplyTo()[0]);
+    }
+
+    #[DataProvider('addressesContainingLineBreaks')]
+    public function testAddressEntryPointsRejectLineBreaks(string $method, array $arguments): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException('Email addresses may not contain line break characters.'));
+
+        $this->message->{$method}(...$arguments);
+    }
+
+    /**
+     * Provide the independently normalized address forms.
+     */
+    public static function addressesContainingLineBreaks(): iterable
+    {
+        $address = "person@example.test\n";
+
+        yield 'from list' => ['from', [[$address]]];
+        yield 'sender list' => ['sender', [[$address]]];
+        yield 'to override' => ['to', [[$address], null, true]];
+        yield 'cc override' => ['cc', [[$address], null, true]];
+        yield 'bcc override' => ['bcc', [[$address], null, true]];
+        yield 'mapped name' => ['to', [[$address => 'Person']]];
+        yield 'nested address' => ['to', [[['email' => $address]]]];
+        yield 'mapped null name' => ['to', [[$address => null]]];
+        yield 'reply-to list' => ['replyTo', [[$address]]];
+        yield 'return path' => ['returnPath', [$address]];
     }
 
     public function testSubjectMethod(): void

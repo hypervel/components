@@ -205,6 +205,14 @@ php artisan route:list -v
 php artisan route:list -vv
 ```
 
+You may use the `--middleware` option to only show routes whose listed middleware contains a given string:
+
+```shell
+php artisan route:list -v --middleware=auth
+```
+
+Use `-vv` to match middleware within middleware groups.
+
 You may also instruct Hypervel to only show routes that begin with a given URI:
 
 ```shell

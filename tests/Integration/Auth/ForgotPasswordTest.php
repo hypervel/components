@@ -9,6 +9,8 @@ use Hypervel\Auth\Notifications\ResetPassword;
 use Hypervel\Contracts\Auth\PasswordBroker as PasswordBrokerContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Notifications\Messages\MailMessage;
+use Hypervel\Routing\Router;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Notification;
 use Hypervel\Support\Facades\Password;
@@ -33,6 +35,112 @@ class ForgotPasswordTest extends TestCase
             'auth.timebox_duration' => 0,
             'hashing.bcrypt.rounds' => 4,
         ]);
+    }
+
+    /**
+     * Define the password reset routes.
+     */
+    protected function defineRoutes(Router $router): void
+    {
+        $router->get('password/reset/{token}', function (string $token): string {
+            return 'Reset password!';
+        })->name('password.reset');
+
+        $router->get('custom/password/reset/{token}', function (string $token): string {
+            return 'Custom reset password!';
+        })->name('custom.password.reset');
+    }
+
+    public function testItCanSendForgotPasswordEmail(): void
+    {
+        Notification::fake();
+
+        $user = $this->createUser();
+
+        Password::broker()->sendResetLink([
+            'email' => $user->email,
+        ]);
+
+        Notification::assertSentTo(
+            $user,
+            function (ResetPassword $notification, array $channels) use ($user): bool {
+                $message = $notification->toMail($user);
+
+                return $notification->token !== ''
+                    && $message->actionUrl === route('password.reset', ['token' => $notification->token, 'email' => $user->email]);
+            }
+        );
+    }
+
+    public function testItCanTriggerPasswordResetSentEvent(): void
+    {
+        Event::fake([PasswordResetLinkSent::class]);
+
+        $user = $this->createUser();
+
+        Password::broker()->sendResetLink([
+            'email' => $user->email,
+        ]);
+
+        Event::assertDispatched(PasswordResetLinkSent::class, function (PasswordResetLinkSent $event) use ($user): bool {
+            $this->assertSame($user->getAuthIdentifier(), $event->user->getAuthIdentifier());
+
+            return true;
+        });
+    }
+
+    public function testItCanSendForgotPasswordEmailViaCreateUrlUsing(): void
+    {
+        Notification::fake();
+
+        ResetPassword::createUrlUsing(function (mixed $user, string $token): string {
+            return route('custom.password.reset', $token);
+        });
+
+        $user = $this->createUser();
+
+        Password::broker()->sendResetLink([
+            'email' => $user->email,
+        ]);
+
+        Notification::assertSentTo(
+            $user,
+            function (ResetPassword $notification, array $channels) use ($user): bool {
+                $message = $notification->toMail($user);
+
+                return $notification->token !== ''
+                    && $message->actionUrl === route('custom.password.reset', ['token' => $notification->token]);
+            }
+        );
+    }
+
+    public function testItCanSendForgotPasswordEmailViaToMailUsing(): void
+    {
+        Notification::fake();
+
+        ResetPassword::toMailUsing(function (mixed $notifiable, string $token): MailMessage {
+            return (new MailMessage)
+                ->subject(__('Reset your password'))
+                ->line(__('You are receiving this email because we received a password reset request for your account.'))
+                ->action(__('Reset Password'), route('custom.password.reset', $token))
+                ->line(__('If you did not request a password reset, no further action is required.'));
+        });
+
+        $user = $this->createUser();
+
+        Password::broker()->sendResetLink([
+            'email' => $user->email,
+        ]);
+
+        Notification::assertSentTo(
+            $user,
+            function (ResetPassword $notification, array $channels) use ($user): bool {
+                $message = $notification->toMail($user);
+
+                return $notification->token !== ''
+                    && $message->actionUrl === route('custom.password.reset', ['token' => $notification->token]);
+            }
+        );
     }
 
     public function testResolvedBrokerFollowsEventFakesAndTheirRestoration(): void

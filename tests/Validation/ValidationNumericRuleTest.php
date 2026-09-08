@@ -10,6 +10,7 @@ use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\Rules\Numeric;
 use Hypervel\Validation\Validator;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class ValidationNumericRuleTest extends TestCase
 {
@@ -40,10 +41,10 @@ class ValidationNumericRuleTest extends TestCase
         $this->assertEquals('numeric|decimal:2', (string) $rule);
     }
 
-    public function testDifferentRule()
+    public function testDifferentRule(): void
     {
         $rule = Rule::numeric()->different('some_field');
-        $this->assertEquals('numeric|different:some_field', (string) $rule);
+        $this->assertEquals('numeric|different:"some_field"', (string) $rule);
     }
 
     public function testDigitsRule()
@@ -58,16 +59,16 @@ class ValidationNumericRuleTest extends TestCase
         $this->assertEquals('numeric|integer|digits_between:2,10', (string) $rule);
     }
 
-    public function testGreaterThanRule()
+    public function testGreaterThanRule(): void
     {
         $rule = Rule::numeric()->greaterThan('some_field');
-        $this->assertEquals('numeric|gt:some_field', (string) $rule);
+        $this->assertEquals('numeric|gt:"some_field"', (string) $rule);
     }
 
-    public function testGreaterThanOrEqualRule()
+    public function testGreaterThanOrEqualRule(): void
     {
         $rule = Rule::numeric()->greaterThanOrEqualTo('some_field');
-        $this->assertEquals('numeric|gte:some_field', (string) $rule);
+        $this->assertEquals('numeric|gte:"some_field"', (string) $rule);
     }
 
     public function testIntegerRule()
@@ -76,16 +77,16 @@ class ValidationNumericRuleTest extends TestCase
         $this->assertEquals('numeric|integer', (string) $rule);
     }
 
-    public function testLessThanRule()
+    public function testLessThanRule(): void
     {
         $rule = Rule::numeric()->lessThan('some_field');
-        $this->assertEquals('numeric|lt:some_field', (string) $rule);
+        $this->assertEquals('numeric|lt:"some_field"', (string) $rule);
     }
 
-    public function testLessThanOrEqualRule()
+    public function testLessThanOrEqualRule(): void
     {
         $rule = Rule::numeric()->lessThanOrEqualTo('some_field');
-        $this->assertEquals('numeric|lte:some_field', (string) $rule);
+        $this->assertEquals('numeric|lte:"some_field"', (string) $rule);
     }
 
     public function testMaxRule()
@@ -124,10 +125,10 @@ class ValidationNumericRuleTest extends TestCase
         $this->assertEquals('numeric|multiple_of:10', (string) $rule);
     }
 
-    public function testSameRule()
+    public function testSameRule(): void
     {
         $rule = Rule::numeric()->same('some_field');
-        $this->assertEquals('numeric|same:some_field', (string) $rule);
+        $this->assertEquals('numeric|same:"some_field"', (string) $rule);
     }
 
     public function testSizeRule()
@@ -136,14 +137,14 @@ class ValidationNumericRuleTest extends TestCase
         $this->assertEquals('numeric|integer|size:10', (string) $rule);
     }
 
-    public function testChainedRules()
+    public function testChainedRules(): void
     {
         $rule = Rule::numeric()
             ->integer()
             ->multipleOf(10)
             ->lessThanOrEqualTo('some_field')
             ->max(100);
-        $this->assertEquals('numeric|integer|multiple_of:10|lte:some_field|max:100', (string) $rule);
+        $this->assertEquals('numeric|integer|multiple_of:10|lte:"some_field"|max:100', (string) $rule);
 
         $rule = Rule::numeric()
             ->decimal(2)
@@ -153,7 +154,29 @@ class ValidationNumericRuleTest extends TestCase
             ->unless(true, function ($rule) {
                 $rule->different('some_field_2');
             });
-        $this->assertSame('numeric|decimal:2|same:some_field', (string) $rule);
+        $this->assertSame('numeric|decimal:2|same:"some_field"', (string) $rule);
+    }
+
+    #[TestWith(['different', 4, 5, 4])]
+    #[TestWith(['greaterThan', 6, 5, 7])]
+    #[TestWith(['greaterThanOrEqualTo', 5, 5, 6])]
+    #[TestWith(['lessThan', 4, 5, 3])]
+    #[TestWith(['lessThanOrEqualTo', 5, 5, 4])]
+    #[TestWith(['same', 5, 5, 6])]
+    public function testFieldReferencesPreserveLiteralSeparators(string $method, int $value, int $other, int $invalidOther): void
+    {
+        $field = 'other,value|"quoted"\\';
+        $validator = new Validator(
+            new Translator(new ArrayLoader, 'en'),
+            ['value' => $value, $field => $other],
+            ['value' => [Rule::numeric()->{$method}($field)]],
+        );
+
+        $this->assertTrue($validator->passes());
+
+        $validator->setData(['value' => $value, $field => $invalidOther, 'other' => $other]);
+
+        $this->assertTrue($validator->fails());
     }
 
     public function testNumericValidation()

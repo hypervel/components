@@ -19,7 +19,10 @@ use Hypervel\Mail\Transport\ArrayTransport;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
+use Symfony\Component\Mime\Address;
+use Symfony\Component\Mime\Exception\InvalidArgumentException as MimeInvalidArgumentException;
 
 class MailMailerTest extends TestCase
 {
@@ -233,6 +236,36 @@ class MailMailerTest extends TestCase
         $this->assertCount(1, $recipients);
         $this->assertSame('taylor@hypervel.org', $recipients[0]->getAddress());
         $this->assertSame('Taylor Otwell', $recipients[0]->getName());
+    }
+
+    public function testMailerRejectsAddressesContainingLineBreaks(): void
+    {
+        $renderedView = m::mock(ViewContract::class);
+        $renderedView->expects('render')->andReturn('rendered.view');
+        $view = m::mock(ViewFactory::class);
+        $view->expects('make')->andReturn($renderedView);
+        $mailer = new Mailer('array', $view, new ArrayTransport);
+
+        $this->expectExceptionObject(new InvalidArgumentException('Email addresses may not contain line break characters.'));
+
+        $mailer->send('foo', ['data'], function (Message $message): void {
+            $message->to("\"foo\r\nBcc: victim@example.com\"@example.com")->from('hello@hypervel.org');
+        });
+    }
+
+    public function testMailerRejectsSymfonyAddressesContainingLineBreaks(): void
+    {
+        $renderedView = m::mock(ViewContract::class);
+        $renderedView->expects('render')->andReturn('rendered.view');
+        $view = m::mock(ViewFactory::class);
+        $view->expects('make')->andReturn($renderedView);
+        $mailer = new Mailer('array', $view, new ArrayTransport);
+
+        $this->expectExceptionObject(new MimeInvalidArgumentException('Email address contains control characters.'));
+
+        $mailer->send('foo', ['data'], function (Message $message): void {
+            $message->to(new Address("\"foo\r\nBcc: victim@example.com\"@example.com"))->from('hello@hypervel.org');
+        });
     }
 
     public function testGlobalFromIsRespectedOnAllMessages(): void

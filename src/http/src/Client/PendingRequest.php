@@ -245,8 +245,9 @@ class PendingRequest implements Transient
             'timeout' => 30,
         ], $options);
 
+        // A bound callback would keep the request alive until cyclic garbage collection runs.
         $this->beforeSendingCallbacks = new Collection([
-            function (Request $request, array $options, PendingRequest $pendingRequest) {
+            static function (Request $request, array $options, PendingRequest $pendingRequest): void {
                 $pendingRequest->request = $request;
                 $pendingRequest->cookies = $options['cookies'];
 
@@ -700,7 +701,7 @@ class PendingRequest implements Transient
      */
     public function throw(?callable $callback = null): static
     {
-        $this->throwCallback = $callback === null ? fn () => null : $callback(...);
+        $this->throwCallback = $callback === null ? static fn (): null => null : $callback(...);
 
         return $this;
     }
@@ -727,7 +728,7 @@ class PendingRequest implements Transient
     public function throwUnless(bool|callable $condition, ?callable $callback = null): static
     {
         if (is_callable($condition)) {
-            return $this->throwIf(fn (Response $response) => ! $condition($response), $callback);
+            return $this->throwIf(static fn (Response $response): bool => ! $condition($response), $callback);
         }
 
         return $this->throwIf(! $condition, $callback);
@@ -740,7 +741,7 @@ class PendingRequest implements Transient
     {
         $values = func_get_args();
 
-        return $this->beforeSending(function (Request $request, array $options) use ($values) {
+        return $this->beforeSending(static function (Request $request, array $options) use ($values): void {
             foreach (array_merge($values, [$request, $options]) as $value) {
                 VarDumper::dump($value);
             }
@@ -754,7 +755,7 @@ class PendingRequest implements Transient
     {
         $values = func_get_args();
 
-        return $this->beforeSending(function (Request $request, array $options) use ($values) {
+        return $this->beforeSending(static function (Request $request, array $options) use ($values): never {
             foreach (array_merge($values, [$request, $options]) as $value) {
                 VarDumper::dump($value);
             }

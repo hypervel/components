@@ -168,7 +168,7 @@ The PhpRedis extension may also be configured to use a variety of serializers an
 
 Currently supported serializers include: `Redis::SERIALIZER_NONE` (default), `Redis::SERIALIZER_PHP`, `Redis::SERIALIZER_JSON`, `Redis::SERIALIZER_IGBINARY`, and `Redis::SERIALIZER_MSGPACK`.
 
-Redis atomic counters must remain unencoded. Connections used for atomic increments or decrements should either use `Redis::SERIALIZER_NONE` or enable `pack_ignore_numbers` with PhpRedis 6.2 or later. This applies to standalone and Cluster connections.
+Redis atomic counters must remain unencoded. Connections used to store atomic counters must disable both serialization and compression, or enable `pack_ignore_numbers` with PhpRedis 6.2 or later. This applies to standalone and Cluster connections.
 
 When relying on Cache's [serializable class allowlist](/docs/{{version}}/cache#serializable-cached-objects), configure the connection used by the Redis cache store with `Redis::SERIALIZER_NONE`. Options in the shared `options` array also apply to that connection.
 

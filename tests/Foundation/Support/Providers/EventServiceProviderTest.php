@@ -46,7 +46,7 @@ class EventServiceProviderTest extends TestCase
         $this->assertContains('App\Listeners\CustomListener', $events['App\Events\CustomEvent']);
     }
 
-    public function testGetEventsReadsFromCacheWhenCached()
+    public function testGetEventsReadsFromCacheWhenCached(): void
     {
         $cachePath = $this->app->getCachedEventsPath();
         $cacheDir = dirname($cachePath);
@@ -64,6 +64,8 @@ class EventServiceProviderTest extends TestCase
         file_put_contents($cachePath, '<?php return ' . var_export($cachedData, true) . ';');
 
         try {
+            $this->app->instance('events.cached', true);
+
             $provider = new EventServiceProvider($this->app);
             $events = $provider->getEvents();
 
@@ -76,7 +78,7 @@ class EventServiceProviderTest extends TestCase
         }
     }
 
-    public function testGetEventsReturnsEmptyWhenCachedButProviderNotInCache()
+    public function testGetEventsReturnsEmptyWhenCachedButProviderNotInCache(): void
     {
         $cachePath = $this->app->getCachedEventsPath();
         $cacheDir = dirname($cachePath);
@@ -88,6 +90,8 @@ class EventServiceProviderTest extends TestCase
         file_put_contents($cachePath, '<?php return [];');
 
         try {
+            $this->app->instance('events.cached', true);
+
             $provider = new EventServiceProvider($this->app);
             $events = $provider->getEvents();
 

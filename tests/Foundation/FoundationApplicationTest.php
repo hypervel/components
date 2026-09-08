@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\FoundationApplicationTest;
 
 use Hypervel\Config\Repository;
+use Hypervel\Contracts\Auth\PasswordBroker;
+use Hypervel\Contracts\Auth\PasswordBrokerFactory;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Events\Dispatcher as EventDispatcher;
@@ -953,42 +955,68 @@ class FoundationApplicationTest extends TestCase
         $this->assertTrue($freshApp->routesAreCached());
     }
 
-    public function testEventsAreCachedReturnsFalseWhenNoCacheFile()
+    public function testEventsAreCachedReturnsFalseWhenNoCacheFile(): void
     {
-        $app = new Application(sys_get_temp_dir() . '/hypervel-test-app-' . uniqid());
+        $app = $this->makeCacheApplication();
 
         $this->assertFalse($app->eventsAreCached());
     }
 
-    public function testEventsAreCachedReturnsTrueWhenCacheFileExists()
+    public function testEventsAreCachedReturnsTrueWhenCacheFileExists(): void
     {
-        $basePath = sys_get_temp_dir() . '/hypervel-test-app-' . uniqid();
-        $cachePath = $basePath . '/bootstrap/cache/events.php';
+        $app = $this->makeCacheApplication();
+        file_put_contents($app->getCachedEventsPath(), '<?php return [];');
 
-        mkdir(dirname($cachePath), 0755, true);
-        file_put_contents($cachePath, '<?php return [];');
-
-        try {
-            $app = new Application($basePath);
-            $this->assertTrue($app->eventsAreCached());
-        } finally {
-            unlink($cachePath);
-            rmdir(dirname($cachePath));
-            rmdir(dirname($cachePath, 2));
-            rmdir($basePath);
-        }
+        $this->assertTrue($app->eventsAreCached());
     }
 
-    public function testCoreContainerAliasesAreRegisteredByDefault()
+    public function testEventsAreCachedUsesContainerInstance(): void
+    {
+        $app = $this->makeCacheApplication();
+        $app->instance('events.cached', true);
+
+        $this->assertTrue($app->eventsAreCached());
+        $this->assertFileDoesNotExist($app->getCachedEventsPath());
+
+        file_put_contents($app->getCachedEventsPath(), '<?php return [];');
+        $app->instance('events.cached', false);
+
+        $this->assertFalse($app->eventsAreCached());
+    }
+
+    public function testEventsAreCachedChecksFilesystemIfNotSet(): void
+    {
+        $app = $this->makeCacheApplication();
+        $cachePath = $app->getCachedEventsPath();
+
+        $this->assertFalse($app->eventsAreCached());
+        $this->assertStringContainsString('events.php', $cachePath);
+        $this->assertTrue($app->bound('events.cached'));
+        $this->assertFalse($app->make('events.cached'));
+
+        file_put_contents($cachePath, '<?php return [];');
+
+        $this->assertFalse($app->eventsAreCached());
+
+        $freshApp = new Application($this->cacheApplicationPath);
+
+        $this->assertTrue($freshApp->eventsAreCached());
+
+        unlink($cachePath);
+
+        $this->assertTrue($freshApp->eventsAreCached());
+    }
+
+    public function testCoreContainerAliasesAreRegisteredByDefault(): void
     {
         $app = new Application;
 
-        $this->assertTrue($app->isAlias(\Hypervel\Contracts\Translation\Translator::class));
-        $this->assertSame('translator', $app->getAlias(\Hypervel\Contracts\Translation\Translator::class));
-        $this->assertTrue($app->isAlias(\Hypervel\Contracts\Auth\PasswordBrokerFactory::class));
-        $this->assertSame('auth.password', $app->getAlias(\Hypervel\Contracts\Auth\PasswordBrokerFactory::class));
-        $this->assertTrue($app->isAlias(\Hypervel\Contracts\Auth\PasswordBroker::class));
-        $this->assertSame('auth.password.broker', $app->getAlias(\Hypervel\Contracts\Auth\PasswordBroker::class));
+        $this->assertTrue($app->isAlias(TranslatorContract::class));
+        $this->assertSame('translator', $app->getAlias(TranslatorContract::class));
+        $this->assertTrue($app->isAlias(PasswordBrokerFactory::class));
+        $this->assertSame('auth.password', $app->getAlias(PasswordBrokerFactory::class));
+        $this->assertTrue($app->isAlias(PasswordBroker::class));
+        $this->assertSame('auth.password.broker', $app->getAlias(PasswordBroker::class));
     }
 
     public function testAddAbsoluteCachePathPrefixReturnsSelf()

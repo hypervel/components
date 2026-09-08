@@ -9,12 +9,13 @@ use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\Validator;
+use PHPUnit\Framework\Attributes\TestWith;
 
 include_once 'Enums.php';
 
 class ValidationArrayRuleTest extends TestCase
 {
-    public function testItCorrectlyFormatsAStringVersionOfTheRule()
+    public function testItCorrectlyFormatsAStringVersionOfTheRule(): void
     {
         $rule = Rule::array();
 
@@ -25,29 +26,48 @@ class ValidationArrayRuleTest extends TestCase
 
         $rule = Rule::array('key_1', 'key_2', 'key_3');
 
-        $this->assertSame('array:key_1,key_2,key_3', (string) $rule);
+        $this->assertSame('array:"key_1","key_2","key_3"', (string) $rule);
 
         $rule = Rule::array(['key_1', 'key_2', 'key_3']);
 
-        $this->assertSame('array:key_1,key_2,key_3', (string) $rule);
+        $this->assertSame('array:"key_1","key_2","key_3"', (string) $rule);
 
         $rule = Rule::array(collect(['key_1', 'key_2', 'key_3']));
 
-        $this->assertSame('array:key_1,key_2,key_3', (string) $rule);
+        $this->assertSame('array:"key_1","key_2","key_3"', (string) $rule);
 
         $rule = Rule::array([ArrayKeys::key_1, ArrayKeys::key_2, ArrayKeys::key_3]);
 
-        $this->assertSame('array:key_1,key_2,key_3', (string) $rule);
+        $this->assertSame('array:"key_1","key_2","key_3"', (string) $rule);
 
         $rule = Rule::array([ArrayKeysBacked::Key1, ArrayKeysBacked::Key2, ArrayKeysBacked::Key3]);
 
-        $this->assertSame('array:key_1,key_2,key_3', (string) $rule);
+        $this->assertSame('array:"key_1","key_2","key_3"', (string) $rule);
 
         $rule = Rule::array(['key_1', 'key_1']);
-        $this->assertSame('array:key_1,key_1', (string) $rule);
+        $this->assertSame('array:"key_1","key_1"', (string) $rule);
 
         $rule = Rule::array([1, 2, 3]);
-        $this->assertSame('array:1,2,3', (string) $rule);
+        $this->assertSame('array:"1","2","3"', (string) $rule);
+    }
+
+    #[TestWith(['a,b'])]
+    #[TestWith(['a"b'])]
+    #[TestWith(['a\\'])]
+    #[TestWith(['a\"b'])]
+    public function testArrayRulePreservesLiteralKeys(string $key): void
+    {
+        $validator = new Validator(
+            new Translator(new ArrayLoader, 'en'),
+            ['options' => [$key => 'value']],
+            ['options' => Rule::array($key)],
+        );
+
+        $this->assertTrue($validator->passes());
+
+        $validator->setData(['options' => ['a' => 'value']]);
+
+        $this->assertTrue($validator->fails());
     }
 
     public function testArrayValidation()

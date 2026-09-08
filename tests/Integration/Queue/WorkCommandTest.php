@@ -293,7 +293,7 @@ class WorkCommandTest extends QueueTestCase
         Worker::$memoryExceededExitCode = null;
     }
 
-    public function testDisableLastRestartCheck()
+    public function testDisableLastRestartCheck(): void
     {
         $this->markTestSkippedWhenUsingQueueDrivers(['redis', 'beanstalkd']);
 
@@ -301,6 +301,7 @@ class WorkCommandTest extends QueueTestCase
 
         $cache = m::mock(Repository::class);
         $cache->shouldNotReceive('get')->with(Worker::RESTART_SIGNAL_CACHE_KEY);
+        $cache->shouldReceive('get')->with('illuminate:queues:paused', false)->andReturn(false);
         $cache->shouldReceive('many')
             ->with(['illuminate:queue:paused:database:default'])
             ->andReturn(['illuminate:queue:paused:database:default' => false]);

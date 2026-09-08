@@ -14,6 +14,8 @@ use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Events\JobReleasedAfterException;
+use Hypervel\Queue\Events\WorkerQueuePaused;
+use Hypervel\Queue\Events\WorkerQueueResumed;
 use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Queue\InvalidPayloadException;
@@ -198,6 +200,14 @@ class WorkCommand extends Command
             $command?->writeOutput($event->job, 'failed', $event->exception);
         });
 
+        $events->listen(WorkerQueuePaused::class, static function (WorkerQueuePaused $event): void {
+            static::currentCommand()?->writeQueueStatus($event->queue, 'paused');
+        });
+
+        $events->listen(WorkerQueueResumed::class, static function (WorkerQueueResumed $event): void {
+            static::currentCommand()?->writeQueueStatus($event->queue, 'resumed');
+        });
+
         $events->listen(WorkerStopping::class, static function (WorkerStopping $event): void {
             // Graceful stopping runs outside the configured job coroutine context.
             $command = $event->workerOptions?->coroutineContext[self::CURRENT_COMMAND_CONTEXT_KEY] ?? null;
@@ -222,6 +232,36 @@ class WorkCommand extends Command
         $this->outputUsingJson()
             ? $this->writeOutputAsJson($job, $status, $exception)
             : $this->writeOutputForCli($job, $status);
+    }
+
+    /**
+     * Write the status output for a paused or resumed queue.
+     */
+    protected function writeQueueStatus(string $queue, string $status): void
+    {
+        if ($this->output->isQuiet() || $this->output->isSilent()) {
+            return;
+        }
+
+        if ($this->outputUsingJson()) {
+            $this->output->writeln(json_encode([
+                'level' => 'warning',
+                'queue' => $queue,
+                'status' => $status,
+                'timestamp' => $this->now()->format('Y-m-d\TH:i:s.uP'),
+            ]));
+
+            return;
+        }
+
+        $this->output->writeln(sprintf(
+            '  <fg=gray>%s</> Queue <fg=blue>%s</> %s',
+            $this->now()->format('Y-m-d H:i:s'),
+            $queue,
+            $status === 'paused'
+                ? '<fg=yellow;options=bold>PAUSED</>'
+                : '<fg=green;options=bold>RESUMED</>',
+        ));
     }
 
     /**
@@ -425,7 +465,7 @@ class WorkCommand extends Command
     }
 
     /**
-     * Get the queue work command for the currently running job coroutine.
+     * Get the queue work command for the current coroutine.
      */
     protected static function currentCommand(): ?self
     {

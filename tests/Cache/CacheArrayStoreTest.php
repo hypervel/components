@@ -143,13 +143,15 @@ class CacheArrayStoreTest extends TestCase
 
     public function testNonExistingKeysCanBeIncremented(): void
     {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
+
         $store = new ArrayStore;
         $result = $store->increment('foo');
         $this->assertEquals(1, $result);
         $this->assertEquals(1, $store->get('foo'));
 
         // Will be there forever
-        CarbonImmutable::setTestNow(CarbonImmutable::now()->addYears(10));
+        CarbonImmutable::setTestNow($now->addYears(10));
         $this->assertEquals(1, $store->get('foo'));
     }
 
