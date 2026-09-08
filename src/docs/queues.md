@@ -2680,7 +2680,7 @@ The `--stop-when-empty` option may be used to instruct the worker to process all
 php artisan queue:work --stop-when-empty
 ```
 
-The `--stop-when-empty-for` option may be used to keep the worker alive until the queue has remained empty for a given number of seconds. The timer begins when the worker starts and resets whenever a job finishes:
+The `--stop-when-empty-for` option may be used to stop the worker when no jobs have been processed for a given number of seconds. The timer begins when the worker starts and resets whenever a job finishes:
 
 ```shell
 php artisan queue:work --stop-when-empty-for=30
