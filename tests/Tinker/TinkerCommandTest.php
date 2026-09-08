@@ -124,6 +124,9 @@ class TinkerCommandTest extends TestCase
 
     public function testExecuteLoadsPositionalAndProjectIncludes(): void
     {
+        // This test covers include scope, so trust its isolated project explicitly.
+        config()->set('tinker.trust_project', 'always');
+
         $workingDirectory = getcwd();
         $positionalInclude = $this->temporaryDirectory . '/scope-positional.php';
         $projectInclude = $this->temporaryDirectory . '/scope-project.php';
@@ -151,6 +154,28 @@ class TinkerCommandTest extends TestCase
         }
 
         $this->assertSame('positional:project', file_get_contents($result));
+    }
+
+    public function testExecuteDoesNotLoadUntrustedProjectConfigurationByDefault(): void
+    {
+        $workingDirectory = getcwd();
+        $sentinel = $this->temporaryDirectory . '/untrusted-project.txt';
+
+        file_put_contents(
+            $this->temporaryDirectory . '/.psysh.php',
+            '<?php file_put_contents(' . var_export($sentinel, true) . ', "loaded"); return [];',
+        );
+
+        $this->assertTrue(chdir($this->temporaryDirectory));
+
+        try {
+            $this->artisan('tinker', ['--execute' => 'echo "hello";'])
+                ->assertExitCode(0);
+        } finally {
+            chdir($workingDirectory);
+        }
+
+        $this->assertFileDoesNotExist($sentinel);
     }
 
     public function testExecuteContinuesAfterMalformedIncludeAndRestoresErrorHandler(): void

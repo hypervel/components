@@ -63,11 +63,12 @@ return [
     | Project Trust Mode
     |--------------------------------------------------------------------------
     |
-    | PsySH restricts local project features unless your project is trusted.
-    | Set this to "always" to avoid untrusted project warnings in Tinker.
+    | PsySH asks before loading local features from an unfamiliar project.
+    | Non-interactive runs skip untrusted project configuration instead.
+    | You may use "always" when Tinker only runs from trusted directories.
     | Accepted values: "prompt", "always", "never", true, false, null.
     |
     */
 
-    'trust_project' => env('TINKER_TRUST_PROJECT', 'always'),
+    'trust_project' => env('TINKER_TRUST_PROJECT', 'prompt'),
 ];
