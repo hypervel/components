@@ -706,7 +706,7 @@ class Blueprint
     }
 
     /**
-     * Create a new auto-incrementing big integer column on the table (8-byte, 0 to 18,446,744,073,709,551,615).
+     * Create a new auto-incrementing big integer column on the table (MySQL/MariaDB: 8-byte, 0 to 18,446,744,073,709,551,615).
      */
     public function id(string $column = 'id'): ColumnDefinition
     {
@@ -714,7 +714,7 @@ class Blueprint
     }
 
     /**
-     * Create a new auto-incrementing integer column on the table (4-byte, 0 to 4,294,967,295).
+     * Create a new auto-incrementing integer column on the table (MySQL/MariaDB: 4-byte, 0 to 4,294,967,295).
      */
     public function increments(string $column): ColumnDefinition
     {
@@ -722,7 +722,7 @@ class Blueprint
     }
 
     /**
-     * Create a new auto-incrementing integer column on the table (4-byte, 0 to 4,294,967,295).
+     * Create a new auto-incrementing integer column on the table (MySQL/MariaDB: 4-byte, 0 to 4,294,967,295).
      */
     public function integerIncrements(string $column): ColumnDefinition
     {
@@ -730,7 +730,7 @@ class Blueprint
     }
 
     /**
-     * Create a new auto-incrementing tiny integer column on the table (1-byte, 0 to 255).
+     * Create a new auto-incrementing tiny integer column on the table (MySQL/MariaDB: 1-byte, 0 to 255).
      */
     public function tinyIncrements(string $column): ColumnDefinition
     {
@@ -738,7 +738,7 @@ class Blueprint
     }
 
     /**
-     * Create a new auto-incrementing small integer column on the table (2-byte, 0 to 65,535).
+     * Create a new auto-incrementing small integer column on the table (MySQL/MariaDB: 2-byte, 0 to 65,535).
      */
     public function smallIncrements(string $column): ColumnDefinition
     {
@@ -746,7 +746,7 @@ class Blueprint
     }
 
     /**
-     * Create a new auto-incrementing medium integer column on the table (3-byte, 0 to 16,777,215).
+     * Create a new auto-incrementing medium integer column on the table (MySQL/MariaDB: 3-byte, 0 to 16,777,215).
      */
     public function mediumIncrements(string $column): ColumnDefinition
     {
@@ -754,7 +754,7 @@ class Blueprint
     }
 
     /**
-     * Create a new auto-incrementing big integer column on the table (8-byte, 0 to 18,446,744,073,709,551,615).
+     * Create a new auto-incrementing big integer column on the table (MySQL/MariaDB: 8-byte, 0 to 18,446,744,073,709,551,615).
      */
     public function bigIncrements(string $column): ColumnDefinition
     {
@@ -782,7 +782,7 @@ class Blueprint
     }
 
     /**
-     * Create a new tiny text column on the table (up to 255 characters).
+     * Create a new tiny text column on the table (up to 255 bytes on MySQL/MariaDB).
      */
     public function tinyText(string $column): ColumnDefinition
     {
@@ -790,7 +790,7 @@ class Blueprint
     }
 
     /**
-     * Create a new text column on the table (up to 65,535 characters / ~64 KB).
+     * Create a new text column on the table (up to 65,535 bytes on MySQL/MariaDB).
      */
     public function text(string $column): ColumnDefinition
     {
@@ -798,7 +798,7 @@ class Blueprint
     }
 
     /**
-     * Create a new medium text column on the table (up to 16,777,215 characters / ~16 MB).
+     * Create a new medium text column on the table (up to 16,777,215 bytes on MySQL/MariaDB).
      */
     public function mediumText(string $column): ColumnDefinition
     {
@@ -806,7 +806,7 @@ class Blueprint
     }
 
     /**
-     * Create a new long text column on the table (up to 4,294,967,295 characters / ~4 GB).
+     * Create a new long text column on the table (up to 4,294,967,295 bytes on MySQL/MariaDB).
      */
     public function longText(string $column): ColumnDefinition
     {
@@ -814,8 +814,8 @@ class Blueprint
     }
 
     /**
-     * Create a new integer (4-byte) column on the table.
-     * Range: -2,147,483,648 to 2,147,483,647 (signed) or 0 to 4,294,967,295 (unsigned).
+     * Create a new integer column on the table.
+     * MySQL/MariaDB (4-byte): -2,147,483,648 to 2,147,483,647 (signed) or 0 to 4,294,967,295 (unsigned).
      */
     public function integer(string $column, bool $autoIncrement = false, bool $unsigned = false): ColumnDefinition
     {
@@ -823,8 +823,8 @@ class Blueprint
     }
 
     /**
-     * Create a new tiny integer (1-byte) column on the table.
-     * Range: -128 to 127 (signed) or 0 to 255 (unsigned).
+     * Create a new tiny integer column on the table.
+     * MySQL/MariaDB (1-byte): -128 to 127 (signed) or 0 to 255 (unsigned).
      */
     public function tinyInteger(string $column, bool $autoIncrement = false, bool $unsigned = false): ColumnDefinition
     {
@@ -832,8 +832,8 @@ class Blueprint
     }
 
     /**
-     * Create a new small integer (2-byte) column on the table.
-     * Range: -32,768 to 32,767 (signed) or 0 to 65,535 (unsigned).
+     * Create a new small integer column on the table.
+     * MySQL/MariaDB (2-byte): -32,768 to 32,767 (signed) or 0 to 65,535 (unsigned).
      */
     public function smallInteger(string $column, bool $autoIncrement = false, bool $unsigned = false): ColumnDefinition
     {
@@ -841,8 +841,8 @@ class Blueprint
     }
 
     /**
-     * Create a new medium integer (3-byte) column on the table.
-     * Range: -8,388,608 to 8,388,607 (signed) or 0 to 16,777,215 (unsigned).
+     * Create a new medium integer column on the table.
+     * MySQL/MariaDB (3-byte): -8,388,608 to 8,388,607 (signed) or 0 to 16,777,215 (unsigned).
      */
     public function mediumInteger(string $column, bool $autoIncrement = false, bool $unsigned = false): ColumnDefinition
     {
@@ -850,8 +850,8 @@ class Blueprint
     }
 
     /**
-     * Create a new big integer (8-byte) column on the table.
-     * Range: -9,223,372,036,854,775,808 to 9,223,372,036,854,775,807 (signed) or 0 to 18,446,744,073,709,551,615 (unsigned).
+     * Create a new big integer column on the table.
+     * MySQL/MariaDB (8-byte): -9,223,372,036,854,775,808 to 9,223,372,036,854,775,807 (signed) or 0 to 18,446,744,073,709,551,615 (unsigned).
      */
     public function bigInteger(string $column, bool $autoIncrement = false, bool $unsigned = false): ColumnDefinition
     {
@@ -859,7 +859,7 @@ class Blueprint
     }
 
     /**
-     * Create a new unsigned integer column on the table (4-byte, 0 to 4,294,967,295).
+     * Create a new unsigned integer column on the table (MySQL/MariaDB: 4-byte, 0 to 4,294,967,295).
      */
     public function unsignedInteger(string $column, bool $autoIncrement = false): ColumnDefinition
     {
@@ -867,7 +867,7 @@ class Blueprint
     }
 
     /**
-     * Create a new unsigned tiny integer column on the table (1-byte, 0 to 255).
+     * Create a new unsigned tiny integer column on the table (MySQL/MariaDB: 1-byte, 0 to 255).
      */
     public function unsignedTinyInteger(string $column, bool $autoIncrement = false): ColumnDefinition
     {
@@ -875,7 +875,7 @@ class Blueprint
     }
 
     /**
-     * Create a new unsigned small integer column on the table (2-byte, 0 to 65,535).
+     * Create a new unsigned small integer column on the table (MySQL/MariaDB: 2-byte, 0 to 65,535).
      */
     public function unsignedSmallInteger(string $column, bool $autoIncrement = false): ColumnDefinition
     {
@@ -883,7 +883,7 @@ class Blueprint
     }
 
     /**
-     * Create a new unsigned medium integer column on the table (3-byte, 0 to 16,777,215).
+     * Create a new unsigned medium integer column on the table (MySQL/MariaDB: 3-byte, 0 to 16,777,215).
      */
     public function unsignedMediumInteger(string $column, bool $autoIncrement = false): ColumnDefinition
     {
@@ -891,7 +891,7 @@ class Blueprint
     }
 
     /**
-     * Create a new unsigned big integer column on the table (8-byte, 0 to 18,446,744,073,709,551,615).
+     * Create a new unsigned big integer column on the table (MySQL/MariaDB: 8-byte, 0 to 18,446,744,073,709,551,615).
      */
     public function unsignedBigInteger(string $column, bool $autoIncrement = false): ColumnDefinition
     {
@@ -899,7 +899,7 @@ class Blueprint
     }
 
     /**
-     * Create a new unsigned big integer column on the table (8-byte, 0 to 18,446,744,073,709,551,615).
+     * Create a new unsigned big integer column on the table (MySQL/MariaDB: 8-byte, 0 to 18,446,744,073,709,551,615).
      */
     public function foreignId(string $column): ForeignIdColumnDefinition
     {
