@@ -1272,6 +1272,14 @@ $users = DB::table('users')
     ->get();
 ```
 
+On PostgreSQL, the `mode` option accepts `plain` (the default), `phrase`, `websearch`, or `raw`. The `raw` mode allows you to use [PostgreSQL text search query syntax](https://www.postgresql.org/docs/current/textsearch-controls.html#TEXTSEARCH-PARSING-QUERIES):
+
+```php
+$users = DB::table('users')
+    ->whereFullText('bio', 'web & developer', ['mode' => 'raw'])
+    ->get();
+```
+
 <a name="vector-similarity-clauses"></a>
 ### Vector Similarity Clauses
 

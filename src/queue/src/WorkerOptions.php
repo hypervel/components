@@ -20,7 +20,7 @@ class WorkerOptions
      * @param int $maxJobs the maximum number of jobs to run
      * @param int $maxTime the maximum number of seconds a worker may live
      * @param int $rest the number of seconds to rest between jobs
-     * @param int $stopWhenEmptyFor the number of seconds the queue may remain empty
+     * @param int $stopWhenEmptyFor the number of seconds without processing a job before stopping
      * @param int $concurrency the number of jobs to process at once
      * @param int $monitorInterval the number of seconds between timeout scans
      * @param array<string, mixed> $coroutineContext context values to seed while each job runs

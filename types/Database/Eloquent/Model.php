@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Types\Model;
 
+use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\Eloquent\Attributes\CollectedBy;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\HasCollection;
@@ -13,7 +14,7 @@ use User;
 
 use function PHPStan\Testing\assertType;
 
-function test(User $user, Post $post, Comment $comment, Article $article, DatabaseNotification $notification): void
+function test(User $user, Post $post, Comment $comment, Article $article, DatabaseNotification $notification, Expression $expression): void
 {
     assertType('UserFactory', User::factory(function ($attributes, $model) {
         assertType('array<string, mixed>', $attributes);
@@ -34,6 +35,10 @@ function test(User $user, Post $post, Comment $comment, Article $article, Databa
         $builder->where('created_at', '<', now()->subYears(2000));
     });
 
+    User::handleLazyLoadingViolationUsing(fn (Model $model, string $key) => 'handled');
+    User::handleDiscardedAttributeViolationUsing(fn (Model $model, array $keys) => 'handled');
+    User::handleMissingAttributeViolationUsing(fn (Model $model, string $key) => 'default');
+
     assertType('Hypervel\Database\Eloquent\Builder<User>', User::query());
     assertType('Hypervel\Database\Eloquent\Builder<User>', $user->newQuery());
     assertType('Hypervel\Database\Eloquent\Builder<User>', $user->withTrashed());
@@ -49,6 +54,17 @@ function test(User $user, Post $post, Comment $comment, Article $article, Databa
     assertType('Hypervel\Types\Model\Posts<(int|string), Hypervel\Types\Model\Post>', $post->newCollection(['foo' => new Post]));
     assertType('Hypervel\Types\Model\Articles<(int|string), Hypervel\Types\Model\Article>', $article->newCollection([new Article]));
     assertType('Hypervel\Types\Model\Comments', $comment->newCollection([new Comment]));
+
+    assertType('User', $user->loadAggregate('posts', $expression, 'sum'));
+    assertType('User', $user->loadMax('posts', $expression));
+    assertType('User', $user->loadMin('posts', $expression));
+    assertType('User', $user->loadSum('posts', $expression));
+    assertType('User', $user->loadAvg('posts', $expression));
+    assertType('User', $user->loadMorphAggregate('parentable', [Post::class => ['comments']], $expression, 'sum'));
+    assertType('User', $user->loadMorphMax('parentable', [Post::class => ['comments']], $expression));
+    assertType('User', $user->loadMorphMin('parentable', [Post::class => ['comments']], $expression));
+    assertType('User', $user->loadMorphSum('parentable', [Post::class => ['comments']], $expression));
+    assertType('User', $user->loadMorphAvg('parentable', [Post::class => ['comments']], $expression));
 
     assertType('bool', $user->restore());
     assertType('User', $user->restoreOrCreate());

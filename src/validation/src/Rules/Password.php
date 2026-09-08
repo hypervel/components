@@ -411,6 +411,8 @@ class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, 
 
     /**
      * Get an iterator for the password validation rules.
+     *
+     * @return ArrayIterator<array-key, mixed>
      */
     public function getIterator(): Traversable
     {

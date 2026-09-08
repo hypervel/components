@@ -785,11 +785,13 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldHaveReceived('dispatch')->with(m::type(WorkerIdle::class))->twice();
         $this->events->shouldHaveReceived('dispatch')->with(m::on(
             fn (object $event): bool => $event instanceof WorkerStopping
+                && $event->status === Worker::EXIT_SUCCESS
+                && $event->workerOptions === $workerOptions
                 && $event->reason === WorkerStopReason::QueueEmptyFor
         ))->once();
     }
 
-    public function testWorkerResetsQueueEmptyTimerAfterAJobCompletes(): void
+    public function testWorkerResetsQueueEmptyTimerAfterProcessingJob(): void
     {
         $workerOptions = new WorkerOptions(stopWhenEmptyFor: 5);
         $worker = $this->getWorker('default', ['queue' => [
@@ -805,6 +807,12 @@ class QueueWorkerTest extends TestCase
         $this->assertTrue($job->fired);
         $this->assertSame(16.0, $worker->currentTime);
         $this->events->shouldHaveReceived('dispatch')->with(m::type(WorkerIdle::class))->twice();
+        $this->events->shouldHaveReceived('dispatch')->with(m::on(
+            fn (object $event): bool => $event instanceof WorkerStopping
+                && $event->status === Worker::EXIT_SUCCESS
+                && $event->workerOptions === $workerOptions
+                && $event->reason === WorkerStopReason::QueueEmptyFor
+        ))->once();
     }
 
     public function testWorkerDoesNotStopForAnEmptyQueueWhileAJobIsRunning(): void

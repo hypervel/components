@@ -6,7 +6,9 @@ namespace Hypervel\Tests\Integration\Database\Sqlite;
 
 use Closure;
 use Exception;
+use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Database\Grammar;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\SQLiteConnection;
@@ -15,6 +17,7 @@ use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Override;
 use PDO;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
 class DatabaseSchemaBlueprintTest extends SqliteTestCase
@@ -1197,7 +1200,8 @@ SQL);
         }
     }
 
-    public function testNewRawIndexBeforeRenameFailsWithoutATypeError(): void
+    #[DataProvider('rawIndexExpressionProvider')]
+    public function testNewRawIndexBeforeRenameFailsWithoutATypeError(bool $useContractExpression): void
     {
         $connection = DB::connection();
         $schema = $connection->getSchemaBuilder();
@@ -1208,8 +1212,17 @@ SQL);
         });
 
         try {
-            $schema->table('items', function (Blueprint $table) {
-                $table->rawIndex('lower("email")', 'email_expression');
+            $schema->table('items', function (Blueprint $table) use ($useContractExpression): void {
+                if ($useContractExpression) {
+                    $table->index([new class implements Expression {
+                        public function getValue(Grammar $grammar): string
+                        {
+                            return 'lower("email")';
+                        }
+                    }], 'email_expression');
+                } else {
+                    $table->rawIndex('lower("email")', 'email_expression');
+                }
                 $table->renameColumn('name', 'label');
                 $table->bigInteger('score')->change();
             });
@@ -1220,6 +1233,14 @@ SQL);
 
         $this->assertSame(['name', 'email', 'score'], $schema->getColumnListing('items'));
         $this->assertNull($this->indexSql('email_expression'));
+    }
+
+    /**
+     * Provide concrete and contract-only index expression paths.
+     */
+    public static function rawIndexExpressionProvider(): array
+    {
+        return ['concrete' => [false], 'contract' => [true]];
     }
 
     public function testAddUniqueIndexWithoutNameWorks()

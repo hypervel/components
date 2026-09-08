@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Pagination\LengthAwarePaginator;
 use Hypervel\Database\MultipleRecordsFoundException;
+use Hypervel\Database\Query\Expression;
 use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\CarbonImmutable;
@@ -263,6 +265,46 @@ class QueryBuilderTest extends DatabaseTestCase
     public function testFromWithAlias()
     {
         $this->assertCount(2, DB::table('posts', 'alias')->select('alias.*')->get());
+    }
+
+    #[DefineEnvironment('definePrefixedEnvironment')]
+    public function testAliasedSourcesPreserveTheirColumnsWhenAddingSelections(): void
+    {
+        $expected = DB::table('posts')->orderBy('id')->get()->all();
+
+        foreach ([DB::table('posts', 'source'), DB::table('posts AS source'), DB::table('posts', '0')] as $query) {
+            $rows = $query->addSelect(['bonus' => new Expression(42)])->orderBy('id')->get();
+
+            $this->assertCount(2, $rows);
+            foreach ($rows as $index => $row) {
+                $this->assertEquals([...((array) $expected[$index]), 'bonus' => 42], (array) $row);
+            }
+        }
+
+        $query = DB::query()->fromSub(DB::table('posts')->select('id')->where('id', '>', 0), 'source');
+
+        $this->assertEquals([
+            (object) ['id' => 1, 'bonus' => 42],
+            (object) ['id' => 2, 'bonus' => 42],
+        ], (clone $query)->addSelect(['bonus' => new Expression(42)])->orderBy('id')->get()->all());
+
+        $this->assertEquals([
+            (object) ['id' => 1, 'bonus' => 7],
+            (object) ['id' => 2, 'bonus' => 7],
+        ], $query->addSelect(['bonus' => DB::query()->selectRaw('?', [7])])->orderBy('id')->get()->all());
+    }
+
+    #[DefineEnvironment('definePrefixedEnvironment')]
+    public function testGroupedSubqueryPaginationPreservesItsSourceAndBindings(): void
+    {
+        $query = DB::query()
+            ->fromSub(DB::table('posts')->select('id')->where('id', '>', 0), 'source')
+            ->join('posts as joined', 'joined.id', '=', 'source.id')
+            ->groupBy('source.id');
+
+        $this->assertSame(2, $query->getCountForPagination());
+        $this->assertNull($query->columns);
+        $this->assertSame([0], $query->getBindings());
     }
 
     public function testFromWithSubQuery()
@@ -629,6 +671,18 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertCount(3, DB::getQueryLog());
     }
 
+    public function testScalarExpressionsUseTheReturnedFieldName(): void
+    {
+        foreach ([new Expression(0), new Expression(1.5), new Expression('id + 1'), new Expression('id + 1 as total')] as $expression) {
+            $query = DB::table('posts')->where('id', 1);
+            $expected = array_first((array) (clone $query)->first([$expression]));
+
+            $this->assertSame($expected, (clone $query)->value($expression));
+            $this->assertSame($expected, (clone $query)->soleValue($expression));
+            $this->assertSame([1 => $expected], (clone $query)->pluck($expression, 'id')->all());
+        }
+    }
+
     public function testPluck()
     {
         // Test SELECT override, since pluck will take the first column.
@@ -862,6 +916,16 @@ class QueryBuilderTest extends DatabaseTestCase
         }
 
         $this->assertNull($query->columns);
+    }
+
+    /**
+     * Configure a table prefix before the connection and schema are created.
+     */
+    protected function definePrefixedEnvironment(ApplicationContract $app): void
+    {
+        $config = $app->make('config');
+        $connection = $config->string('database.default');
+        $config->set("database.connections.{$connection}.prefix", 'app_');
     }
 
     protected function defineEnvironmentWouldThrowsPDOException($app): void

@@ -8,6 +8,7 @@ use Closure;
 use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Support\Traits\Macroable;
 use OutOfBoundsException;
+use Psr\Http\Message\StreamInterface;
 
 class ResponseSequence
 {
@@ -33,8 +34,10 @@ class ResponseSequence
 
     /**
      * Push a response to the sequence.
+     *
+     * @param null|array|resource|StreamInterface|string $body
      */
-    public function push(array|string|null $body = null, int $status = 200, array $headers = []): static
+    public function push(mixed $body = null, int $status = 200, array $headers = []): static
     {
         return $this->pushResponse(
             Factory::response($body, $status, $headers)

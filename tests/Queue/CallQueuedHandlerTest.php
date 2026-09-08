@@ -8,6 +8,9 @@ use Exception;
 use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\Dispatcher as ConcreteBusDispatcher;
 use Hypervel\Bus\Queueable;
+use Hypervel\Bus\UniqueLock;
+use Hypervel\Cache\Repository;
+use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcher;
 use Hypervel\Contracts\Cache\Lock;
@@ -23,6 +26,7 @@ use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\FakeJob;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use RuntimeException;
 use Swoole\Coroutine\Channel;
@@ -148,6 +152,55 @@ class CallQueuedHandlerTest extends TestCase
 
         $handler = new CallQueuedHandler($dispatcher, $container);
         $handler->call($job, ['command' => $serialized]);
+    }
+
+    #[DataProvider('middlewareRetryLockOwners')]
+    public function testMiddlewareFailureOnRetryReleasesOnlyItsOwnLockWithoutJobTraits(bool $replacementOwner): void
+    {
+        $command = new CallQueuedHandlerTestUniqueJobWithFailingMiddleware;
+        $cache = new Repository(new WorkerArrayStore);
+        $lock = $cache->lock(UniqueLock::getKey($command), 60, $replacementOwner ? 'replacement-owner' : 'original-owner');
+        $this->assertTrue($lock->get());
+
+        $failure = new RuntimeException('Middleware failed.');
+        $container = m::mock(ContainerContract::class);
+        $container->shouldReceive('make')->with(Cache::class)->andReturn($cache);
+        $container->shouldReceive('make')->with('failing.middleware')->once()
+            ->andReturn(static fn (): never => throw $failure);
+
+        $dispatcher = m::mock(BusDispatcher::class);
+        $dispatcher->shouldReceive('dispatchNow')->never();
+
+        $job = m::mock(Job::class);
+        $job->shouldReceive('isReleased')->andReturn(false);
+        $job->shouldReceive('attempts')->andReturn(2);
+        $job->shouldReceive('payload')->andReturn([
+            'illuminate:log:context' => [
+                'hidden' => ['laravel_unique_job_lock_owner' => serialize('original-owner')],
+            ],
+        ]);
+
+        $handler = new CallQueuedHandler($dispatcher, $container);
+
+        try {
+            $handler->call($job, ['command' => serialize($command)]);
+            $this->fail('The middleware exception was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertSame($replacementOwner, $lock->isOwnedByCurrentProcess());
+    }
+
+    /**
+     * Provide original and replacement lock owners.
+     */
+    public static function middlewareRetryLockOwners(): array
+    {
+        return [
+            'original owner' => [false],
+            'replacement owner' => [true],
+        ];
     }
 
     public function testHandleModelNotFoundFailsJobWhenDeleteWhenMissingModelsIsFalse(): void
@@ -395,6 +448,18 @@ class CallQueuedHandlerTestUniqueUntilProcessingJob implements ShouldBeUniqueUnt
     use InteractsWithQueue;
     use Queueable;
 
+    public function handle(): void
+    {
+    }
+}
+
+class CallQueuedHandlerTestUniqueJobWithFailingMiddleware implements ShouldBeUniqueUntilProcessing, ShouldQueue
+{
+    public array $middleware = ['failing.middleware'];
+
+    /**
+     * Handle the job.
+     */
     public function handle(): void
     {
     }

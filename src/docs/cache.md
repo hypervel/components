@@ -1135,6 +1135,14 @@ Hypervel includes several Artisan commands for working with cache stores:
 
 </div>
 
+To prevent `cache:clear` from running in production, call the command's `prohibit` method from your `AppServiceProvider`'s `boot` method. This also prevents clearing locks:
+
+```php
+use Hypervel\Cache\Console\ClearCommand;
+
+ClearCommand::prohibit($this->app->isProduction());
+```
+
 <a name="events"></a>
 ## Events
 

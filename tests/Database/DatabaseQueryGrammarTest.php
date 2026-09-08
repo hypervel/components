@@ -38,6 +38,18 @@ class DatabaseQueryGrammarTest extends TestCase
         $this->assertSame('`a``b`', (new MySqlGrammar($connection))->wrapIdentifier('a`b'));
     }
 
+    public function testQualifiedColumnsPrefixOnlyTheTableSegment(): void
+    {
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getTablePrefix')->andReturn('app_');
+        $grammar = new Grammar($connection);
+
+        $this->assertSame('"id"', $grammar->wrap('id'));
+        $this->assertSame('"app_users"."id"', $grammar->wrap('users.id'));
+        $this->assertSame('"main"."app_users"."id"', $grammar->wrap('main.users.id'));
+        $this->assertSame('"main"."app_users".*', $grammar->wrap('main.users.*'));
+    }
+
     public function testWhereRawReturnsStringWhenExpressionPassed(): void
     {
         $builder = m::mock(Builder::class);

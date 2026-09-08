@@ -6,8 +6,10 @@ namespace Hypervel\Database;
 
 use Closure;
 use Generator;
+use Hypervel\Contracts\Database\Query\Expression;
+use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
+use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Query\Builder;
-use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Query\Grammars\Grammar as QueryGrammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\Schema\Builder as SchemaBuilder;
@@ -18,8 +20,10 @@ interface ConnectionInterface
 {
     /**
      * Begin a fluent query against a database table.
+     *
+     * @param Closure|Builder|EloquentBuilder<*>|Relation<*, *, *>|Expression|UnitEnum|string $table
      */
-    public function table(Closure|Builder|UnitEnum|string $table, ?string $as = null): Builder;
+    public function table(Closure|Builder|EloquentBuilder|Relation|Expression|UnitEnum|string $table, ?string $as = null): Builder;
 
     /**
      * Get a new raw query expression.

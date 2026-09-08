@@ -131,6 +131,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Broadcasting\Broadcasters\Broadcaster::flushState();
         \Hypervel\Bus\DispatchLockContext::flushState();
         \Hypervel\Bus\PendingBatch::flushState();
+        \Hypervel\Cache\Console\ClearCommand::flushState();
         \Hypervel\Cache\Redis\Console\BenchmarkCommand::flushState();
         \Hypervel\Cache\Redis\Console\DoctorCommand::flushState();
         \Hypervel\Cache\Repository::flushState();
@@ -236,6 +237,8 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Prompts\Prompt::flushState();
         \Hypervel\Prompts\Terminal::flushState();
         \Hypervel\Queue\Capsule\Manager::flushState();
+        \Hypervel\Queue\Console\ClearCommand::flushState();
+        \Hypervel\Queue\Console\FlushFailedCommand::flushState();
         \Hypervel\Queue\Console\WorkCommand::flushState();
         \Hypervel\Queue\Queue::flushState();
         \Hypervel\Queue\Worker::flushState();

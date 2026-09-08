@@ -19,7 +19,7 @@ class WorkCommand extends BaseWorkCommand
                             {--once : Only process the next job on the queue}
                             {--concurrency=1 : The number of jobs to process at once}
                             {--stop-when-empty : Stop when the queue is empty}
-                            {--stop-when-empty-for=0 : Stop when the queue has been empty for the given number of seconds}
+                            {--stop-when-empty-for=0 : Stop when no jobs have been processed for the given number of seconds}
                             {--delay=0 : The number of seconds to delay failed jobs (Deprecated)}
                             {--backoff=0 : The number of seconds to wait before retrying a job that encountered an uncaught exception}
                             {--max-jobs=0 : The number of jobs to process before stopping}

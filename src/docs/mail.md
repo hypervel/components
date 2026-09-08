@@ -994,6 +994,40 @@ If you would like to build an entirely new theme for Hypervel's Markdown compone
 
 To customize the theme for an individual mailable, you may set the `$theme` property of the mailable class to the name of the theme that should be used when sending that mailable.
 
+<a name="customizing-the-layout"></a>
+#### Customizing the Layout
+
+When using the `mail::layout` component directly, you may provide a `head` slot to add styles or metadata without publishing the layout. The `mail::message` component does not forward this slot:
+
+```blade
+<x-mail::layout>
+<x-slot:head>
+<style>
+@media only screen and (max-width: 600px) {
+    .inner-body { border-radius: 0 !important; }
+}
+</style>
+</x-slot:head>
+
+# Order Shipped
+
+Your order has shipped!
+</x-mail::layout>
+```
+
+The layout does not include a header or footer by default; add `header` and `footer` slots containing the `mail::header` and `mail::footer` components if needed.
+
+<a name="markdown-extensions"></a>
+#### Markdown Extensions
+
+You may enable additional CommonMark extensions by adding their classes to the `extensions` array under `markdown` in your application's `config/mail.php` configuration file:
+
+```php
+'extensions' => [
+    \League\CommonMark\Extension\Strikethrough\StrikethroughExtension::class,
+],
+```
+
 <a name="sending-mail"></a>
 ## Sending Mail
 

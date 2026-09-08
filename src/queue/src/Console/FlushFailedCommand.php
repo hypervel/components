@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Console;
 
 use Hypervel\Console\Command;
+use Hypervel\Console\Prohibitable;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'queue:flush')]
 class FlushFailedCommand extends Command
 {
+    use Prohibitable;
+
     /**
      * The console command name.
      */
@@ -24,19 +27,25 @@ class FlushFailedCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): int
     {
+        if ($this->isProhibited()) {
+            return self::FAILURE;
+        }
+
         $hours = $this->option('hours');
 
         $this->hypervel->make(FailedJobProviderInterface::class)
             ->flush($hours ? (int) $hours : null);
 
         if ($this->option('hours')) {
-            $this->info("All jobs that failed more than {$this->option('hours')} hours ago have been deleted successfully.");
+            $this->components->info("All jobs that failed more than {$this->option('hours')} hours ago have been deleted successfully.");
 
-            return;
+            return self::SUCCESS;
         }
 
-        $this->info('All failed jobs deleted successfully.');
+        $this->components->info('All failed jobs deleted successfully.');
+
+        return self::SUCCESS;
     }
 }
