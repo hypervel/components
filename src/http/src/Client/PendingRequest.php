@@ -686,6 +686,8 @@ class PendingRequest implements Transient
 
     /**
      * Add a new callback to execute after the response is built.
+     *
+     * @param callable(Response, Request): (null|Response) $callback
      */
     public function afterResponse(callable $callback): static
     {
@@ -1659,6 +1661,8 @@ class PendingRequest implements Transient
 
     /**
      * Build the stub handler.
+     *
+     * @throws StrayRequestException
      */
     public function buildStubHandler(): Closure
     {

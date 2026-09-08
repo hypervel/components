@@ -10852,6 +10852,30 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($validator->passes());
     }
 
+    public function testItCanConfigureAllowedExponentRangeUsingCallableObject(): void
+    {
+        $validator = new Validator($this->getArrayTranslator(), ['foo' => '1.0e-1000'], ['foo' => ['numeric', 'max:3']]);
+        $policy = new class {
+            public bool $allowed = true;
+
+            /**
+             * Determine whether the exponent is allowed.
+             */
+            public function __invoke(int $scale, string $attribute, mixed $value): bool
+            {
+                return $this->allowed;
+            }
+        };
+
+        $validator->ensureExponentWithinAllowedRangeUsing($policy);
+
+        $this->assertTrue($validator->passes());
+
+        $policy->allowed = false;
+
+        $this->assertFalse($validator->passes());
+    }
+
     public function testMessagesDefaultWhenUsingSizeSpecificCustomMessages()
     {
         $trans = $this->getArrayTranslator();

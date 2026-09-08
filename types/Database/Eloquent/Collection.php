@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+use Hypervel\Contracts\Database\Query\Expression;
+use Hypervel\Database\Eloquent\Collection;
+
 use function PHPStan\Testing\assertType;
 
 $collection = User::all();
@@ -62,6 +65,20 @@ assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->load
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadAvg(['string' => function ($query) {
     // assertType('Hypervel\Database\Eloquent\Relations\Relation<*,*,*>', $query);
 }], 'string'));
+
+/**
+ * Check expression columns on deferred relationship aggregates.
+ *
+ * @param Collection<int, User> $collection
+ */
+function assertEloquentCollectionAggregateExpressionTypes(Collection $collection, Expression $expression): void
+{
+    assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadAggregate('posts', $expression, 'sum'));
+    assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMax('posts', $expression));
+    assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMin('posts', $expression));
+    assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadSum('posts', $expression));
+    assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadAvg('posts', $expression));
+}
 
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadExists('string'));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadExists(['string']));
