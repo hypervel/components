@@ -33,8 +33,10 @@ class DatabaseLock extends Lock implements RefreshableLock
 
     /**
      * The prune probability odds.
+     *
+     * @var null|array{int, int}|array{}
      */
-    protected array $lottery;
+    protected ?array $lottery;
 
     /**
      * The default number of seconds that a lock should be held.
@@ -43,6 +45,8 @@ class DatabaseLock extends Lock implements RefreshableLock
 
     /**
      * Create a new lock instance.
+     *
+     * @param null|array{int, int}|array{} $lottery the prune probability odds, or null to disable automatic pruning
      */
     public function __construct(
         ConnectionResolverInterface $resolver,
@@ -51,7 +55,7 @@ class DatabaseLock extends Lock implements RefreshableLock
         string $table,
         int $seconds,
         ?string $owner = null,
-        array $lottery = [2, 100],
+        ?array $lottery = [2, 100],
         int $defaultTimeoutInSeconds = 86400
     ) {
         parent::__construct($name, $seconds, $owner);
@@ -73,6 +77,8 @@ class DatabaseLock extends Lock implements RefreshableLock
 
     /**
      * Attempt to acquire the lock.
+     *
+     * @throws Throwable
      */
     public function acquire(): bool
     {
@@ -99,7 +105,7 @@ class DatabaseLock extends Lock implements RefreshableLock
             $acquired = $updated >= 1;
         }
 
-        if (count($this->lottery) === 2 && random_int(1, $this->lottery[1]) <= $this->lottery[0]) {
+        if (count($this->lottery ?? []) === 2 && random_int(1, $this->lottery[1]) <= $this->lottery[0]) {
             $this->pruneExpiredLocks();
         }
 

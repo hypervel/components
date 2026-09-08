@@ -15,6 +15,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class CacheDatabaseLockTest extends TestCase
 {
@@ -117,6 +118,17 @@ class CacheDatabaseLockTest extends TestCase
         // Lottery cleanup
         $table->shouldReceive('where')->once()->with('expiration', '<=', m::type('int'))->andReturn($table);
         $table->shouldReceive('delete')->once();
+
+        $this->assertTrue($lock->acquire());
+    }
+
+    #[TestWith([null])]
+    #[TestWith([[]])]
+    public function testLockCanBeAcquiredWithoutAutomaticPruning(?array $lottery): void
+    {
+        [$lock, $table] = $this->getLock(lockLottery: $lottery);
+
+        $table->shouldReceive('insert')->once()->andReturn(true);
 
         $this->assertTrue($lock->acquire());
     }
@@ -367,7 +379,7 @@ class CacheDatabaseLockTest extends TestCase
     /**
      * Get a DatabaseLock instance with mocked dependencies.
      */
-    protected function getLock(int $seconds = 10, array $lockLottery = [0, 1], ?string $connectionName = 'default'): array
+    protected function getLock(int $seconds = 10, ?array $lockLottery = [0, 1], ?string $connectionName = 'default'): array
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
         $connection = m::mock(ConnectionInterface::class);

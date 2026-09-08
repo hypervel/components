@@ -839,6 +839,8 @@ Cache::lock('foo', 10)
     });
 ```
 
+When using database locks, you may disable automatic pruning by setting your cache store's `lock_lottery` option to an empty array. You may then call `pruneExpiredLocks` on a database lock to remove expired locks explicitly.
+
 <a name="managing-locks-across-processes"></a>
 ### Managing Locks Across Processes
 
