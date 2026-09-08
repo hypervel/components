@@ -374,10 +374,10 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals([], $results->all());
     }
 
-    public function testValueMethodWithModelFound()
+    public function testValueMethodWithModelFound(): void
     {
         $builder = m::mock(Builder::class . '[first]', [$this->getMockQueryBuilder()]);
-        $mockModel = new stdClass;
+        $mockModel = new class extends Model {};
         $mockModel->name = 'foo';
         $builder->shouldReceive('first')->with(['name'])->andReturn($mockModel);
 

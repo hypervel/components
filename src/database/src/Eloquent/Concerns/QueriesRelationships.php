@@ -418,10 +418,8 @@ trait QueriesRelationships
 
     /**
      * Add a basic where clause to a relationship query and eager-load the relationship with the same conditions.
-     *
-     * @param  \Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|string  $relation
      */
-    public function withWhereRelation(Relation|string $relation, Closure|string|array|ExpressionContract $column, mixed $operator = null, mixed $value = null): static
+    public function withWhereRelation(string $relation, Closure|string|array|ExpressionContract $column, mixed $operator = null, mixed $value = null): static
     {
         return $this->whereRelation($relation, $column, $operator, $value)
             ->with([
@@ -875,7 +873,7 @@ trait QueriesRelationships
             $this->ensureNoTimeoutOnRelationshipConstraint($query);
 
             if (is_null($this->query->columns)) {
-                $this->query->select([$this->query->from . '.*']);
+                $this->query->select([$this->query->getDefaultSelectColumn()]);
             }
 
             if ($function === 'exists') {

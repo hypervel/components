@@ -122,7 +122,12 @@ class Builder implements BuilderContract
     /**
      * The table which the query is targeting.
      */
-    public Expression|string|null $from = null;
+    public ExpressionContract|string|null $from = null;
+
+    /**
+     * The logical alias explicitly supplied for the query source.
+     */
+    protected ?string $fromAlias = null;
 
     /**
      * The index hint for the query.
@@ -337,17 +342,23 @@ class Builder implements BuilderContract
     {
         [$query, $bindings] = $this->createSub($query);
 
-        return $this->fromRaw('(' . $query . ') as ' . $this->grammar->wrapTable($as), $bindings);
+        $this->fromRaw('(' . $query . ') as ' . $this->grammar->wrapTable($as), $bindings);
+
+        $this->fromAlias = $as;
+
+        return $this;
     }
 
     /**
      * Add a raw "from" clause to the query.
      */
-    public function fromRaw(Expression|string $expression, mixed $bindings = []): static
+    public function fromRaw(ExpressionContract|string $expression, mixed $bindings = []): static
     {
-        $this->from = $expression instanceof Expression
+        $this->from = $expression instanceof ExpressionContract
             ? $expression
             : new Expression($expression);
+
+        $this->fromAlias = null;
 
         $this->addBinding($bindings, 'from');
 
@@ -432,13 +443,13 @@ class Builder implements BuilderContract
         foreach ($columns as $as => $column) {
             if (is_string($as) && $column instanceof ExpressionContract) {
                 if (is_null($this->columns)) {
-                    $this->select($this->from . '.*');
+                    $this->select($this->getDefaultSelectColumn());
                 }
 
                 $this->selectExpression($column, $as);
             } elseif (is_string($as) && $this->isQueryable($column)) {
                 if (is_null($this->columns)) {
-                    $this->select($this->from . '.*');
+                    $this->select($this->getDefaultSelectColumn());
                 }
 
                 $this->selectSub($column, $as);
@@ -452,6 +463,16 @@ class Builder implements BuilderContract
         }
 
         return $this;
+    }
+
+    /**
+     * Get the wildcard selection for the query's primary source.
+     */
+    public function getDefaultSelectColumn(): string
+    {
+        // Raw sources need an explicit alias or selection: an unqualified wildcard
+        // can introduce duplicate columns into a joined pagination count subquery.
+        return ($this->fromAlias ?? last(preg_split('/\s+as\s+/i', $this->from))) . '.*';
     }
 
     /**
@@ -511,7 +532,13 @@ class Builder implements BuilderContract
             return $this->fromSub($table, $as);
         }
 
-        $this->from = $as ? "{$table} as {$as}" : $table;
+        if ($table instanceof ExpressionContract && $as !== null && $as !== '') {
+            $this->fromRaw($table->getValue($this->grammar) . ' as ' . $this->grammar->wrapTable($as));
+        } else {
+            $this->from = $as !== null && $as !== '' ? "{$table} as {$as}" : $table;
+        }
+
+        $this->fromAlias = $as !== '' ? $as : null;
 
         return $this;
     }
@@ -549,7 +576,7 @@ class Builder implements BuilderContract
     /**
      * Add a "join" clause to the query.
      */
-    public function join(ExpressionContract|string $table, Closure|ExpressionContract|string $first, ?string $operator = null, mixed $second = null, string $type = 'inner', bool $where = false): static
+    public function join(ExpressionContract|string $table, Closure|ExpressionContract|string $first, ExpressionContract|string|null $operator = null, mixed $second = null, string $type = 'inner', bool $where = false): static
     {
         $join = $this->newJoinClause($this, $type, $table);
 
@@ -593,7 +620,7 @@ class Builder implements BuilderContract
      *
      * @throws InvalidArgumentException
      */
-    public function joinSub(Closure|self|EloquentBuilder|Relation|string $query, string $as, Closure|ExpressionContract|string $first, ?string $operator = null, mixed $second = null, string $type = 'inner', bool $where = false): static
+    public function joinSub(Closure|self|EloquentBuilder|Relation|string $query, string $as, Closure|ExpressionContract|string $first, ExpressionContract|string|null $operator = null, mixed $second = null, string $type = 'inner', bool $where = false): static
     {
         [$query, $bindings] = $this->createSub($query);
 
@@ -635,7 +662,7 @@ class Builder implements BuilderContract
     /**
      * Add a left join to the query.
      */
-    public function leftJoin(ExpressionContract|string $table, Closure|ExpressionContract|string $first, ?string $operator = null, ExpressionContract|string|null $second = null): static
+    public function leftJoin(ExpressionContract|string $table, Closure|ExpressionContract|string $first, ExpressionContract|string|null $operator = null, ExpressionContract|string|null $second = null): static
     {
         return $this->join($table, $first, $operator, $second, 'left');
     }
@@ -653,7 +680,7 @@ class Builder implements BuilderContract
      *
      * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|string  $query
      */
-    public function leftJoinSub(Closure|self|EloquentBuilder|Relation|string $query, string $as, Closure|ExpressionContract|string $first, ?string $operator = null, ExpressionContract|string|null $second = null): static
+    public function leftJoinSub(Closure|self|EloquentBuilder|Relation|string $query, string $as, Closure|ExpressionContract|string $first, ExpressionContract|string|null $operator = null, ExpressionContract|string|null $second = null): static
     {
         return $this->joinSub($query, $as, $first, $operator, $second, 'left');
     }
@@ -661,7 +688,7 @@ class Builder implements BuilderContract
     /**
      * Add a right join to the query.
      */
-    public function rightJoin(ExpressionContract|string $table, Closure|string $first, ?string $operator = null, ExpressionContract|string|null $second = null): static
+    public function rightJoin(ExpressionContract|string $table, Closure|ExpressionContract|string $first, ExpressionContract|string|null $operator = null, ExpressionContract|string|null $second = null): static
     {
         return $this->join($table, $first, $operator, $second, 'right');
     }
@@ -679,7 +706,7 @@ class Builder implements BuilderContract
      *
      * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|string  $query
      */
-    public function rightJoinSub(Closure|self|EloquentBuilder|Relation|string $query, string $as, Closure|ExpressionContract|string $first, ?string $operator = null, ExpressionContract|string|null $second = null): static
+    public function rightJoinSub(Closure|self|EloquentBuilder|Relation|string $query, string $as, Closure|ExpressionContract|string $first, ExpressionContract|string|null $operator = null, ExpressionContract|string|null $second = null): static
     {
         return $this->joinSub($query, $as, $first, $operator, $second, 'right');
     }
@@ -687,7 +714,7 @@ class Builder implements BuilderContract
     /**
      * Add a "cross join" clause to the query.
      */
-    public function crossJoin(ExpressionContract|string $table, Closure|ExpressionContract|string|null $first = null, ?string $operator = null, ExpressionContract|string|null $second = null): static
+    public function crossJoin(ExpressionContract|string $table, Closure|ExpressionContract|string|null $first = null, ExpressionContract|string|null $operator = null, ExpressionContract|string|null $second = null): static
     {
         if ($first) {
             return $this->join($table, $first, $operator, $second, 'cross');
@@ -717,7 +744,7 @@ class Builder implements BuilderContract
     /**
      * Add a straight join to the query.
      */
-    public function straightJoin(ExpressionContract|string $table, Closure|string $first, ?string $operator = null, ExpressionContract|string|null $second = null): static
+    public function straightJoin(ExpressionContract|string $table, Closure|ExpressionContract|string $first, ExpressionContract|string|null $operator = null, ExpressionContract|string|null $second = null): static
     {
         return $this->join($table, $first, $operator, $second, 'straight_join');
     }
@@ -735,7 +762,7 @@ class Builder implements BuilderContract
      *
      * @param Closure|self|EloquentBuilder<*>|Relation<*, *, *>|string $query
      */
-    public function straightJoinSub(Closure|self|EloquentBuilder|Relation|string $query, string $as, Closure|ExpressionContract|string $first, ?string $operator = null, ExpressionContract|string|null $second = null): static
+    public function straightJoinSub(Closure|self|EloquentBuilder|Relation|string $query, string $as, Closure|ExpressionContract|string $first, ExpressionContract|string|null $operator = null, ExpressionContract|string|null $second = null): static
     {
         return $this->joinSub($query, $as, $first, $operator, $second, 'straight_join');
     }
@@ -840,7 +867,7 @@ class Builder implements BuilderContract
         $type = 'Basic';
 
         $columnString = ($column instanceof ExpressionContract)
-            ? $this->grammar->getValue($column)
+            ? (string) $this->grammar->getValue($column)
             : $column;
 
         // If the column is making a JSON reference we'll check to see if the value
@@ -982,7 +1009,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where" clause comparing two columns to the query.
      */
-    public function whereColumn(ExpressionContract|string|array $first, ?string $operator = null, ?string $second = null, string $boolean = 'and'): static
+    public function whereColumn(ExpressionContract|string|array $first, ExpressionContract|string|null $operator = null, ExpressionContract|string|null $second = null, string $boolean = 'and'): static
     {
         // If the column is an array, we will assume it is an array of key-value pairs
         // and can add them each as a where clause. We will maintain the boolean we
@@ -1017,7 +1044,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where" clause comparing two columns to the query.
      */
-    public function orWhereColumn(ExpressionContract|string|array $first, ?string $operator = null, ?string $second = null): static
+    public function orWhereColumn(ExpressionContract|string|array $first, ExpressionContract|string|null $operator = null, ExpressionContract|string|null $second = null): static
     {
         return $this->whereColumn($first, $operator, $second, 'or');
     }
@@ -2912,7 +2939,7 @@ class Builder implements BuilderContract
     /**
      * Get a single column's value from the first result of a query.
      */
-    public function value(string $column): mixed
+    public function value(ExpressionContract|string $column): mixed
     {
         return $this->withoutFetchUsing(function () use ($column) {
             $result = (array) $this->first([$column]);
@@ -2939,7 +2966,7 @@ class Builder implements BuilderContract
      * @throws \Hypervel\Database\RecordsNotFoundException
      * @throws \Hypervel\Database\MultipleRecordsFoundException
      */
-    public function soleValue(string $column): mixed
+    public function soleValue(ExpressionContract|string $column): mixed
     {
         return $this->withoutFetchUsing(function () use ($column) {
             $result = (array) $this->sole([$column]);
@@ -3168,7 +3195,7 @@ class Builder implements BuilderContract
             $clone->timeout = null;
 
             if (is_null($clone->columns) && ! empty($this->joins)) {
-                $clone->select($this->from . '.*');
+                $clone->select($clone->getDefaultSelectColumn());
             }
 
             return $countQuery
@@ -3278,7 +3305,11 @@ class Builder implements BuilderContract
             // If the columns are qualified with a table or have an alias, we cannot use
             // those directly in the "pluck" operations since the results from the DB
             // are only keyed by the column itself. We'll strip the table out here.
-            $column = $this->stripTableForPluck($column);
+            // Databases choose different names for unaliased expressions. Use the
+            // returned field name instead of trying to infer it from the SQL.
+            $column = $column instanceof ExpressionContract
+                ? (string) array_key_first((array) $queryResult[0])
+                : $this->stripTableForPluck($column);
 
             $key = $this->stripTableForPluck($key);
 
@@ -3968,7 +3999,7 @@ class Builder implements BuilderContract
     public function getColumns(): array
     {
         return ! is_null($this->columns)
-            ? array_map(fn ($column) => $this->grammar->getValue($column), $this->columns)
+            ? array_map(fn ($column) => (string) $this->grammar->getValue($column), $this->columns)
             : [];
     }
 

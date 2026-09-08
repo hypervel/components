@@ -10,7 +10,10 @@ use DateTimeInterface;
 use Exception;
 use Generator;
 use Hypervel\Context\NonCopyableContext;
+use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
+use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Events\QueryFailed;
 use Hypervel\Database\Events\TransactionBeginning;
@@ -295,8 +298,10 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Begin a fluent query against a database table.
+     *
+     * @param Closure|QueryBuilder|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|UnitEnum|string $table
      */
-    public function table(Closure|QueryBuilder|UnitEnum|string $table, ?string $as = null): QueryBuilder
+    public function table(Closure|QueryBuilder|EloquentBuilder|Relation|ExpressionContract|UnitEnum|string $table, ?string $as = null): QueryBuilder
     {
         if ($table instanceof UnitEnum) {
             $table = (string) enum_value($table);
@@ -1078,7 +1083,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Get a new raw query expression.
      */
-    public function raw(mixed $value): Expression
+    public function raw(mixed $value): ExpressionContract
     {
         return new Expression($value);
     }

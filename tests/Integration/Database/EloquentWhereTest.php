@@ -8,6 +8,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\MultipleRecordsFoundException;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
@@ -304,6 +305,33 @@ class EloquentWhereTest extends DatabaseTestCase
         ]);
 
         $this->assertEquals('test-name', UserWhereTest::where('name', 'test-name')->soleValue('name'));
+    }
+
+    public function testExpressionValuesPreserveSqlAndModelAttributeAccess(): void
+    {
+        UserWhereTest::create(['name' => 'Taylor', 'email' => 'taylor@example.com', 'address' => 'Main Street']);
+
+        foreach ([0, 1.5, 'id + 1', 'id + 1 as total'] as $index => $value) {
+            $expression = new Expression($value);
+            $expected = [0, 1.5, 2, 2][$index];
+
+            $this->assertEquals($expected, UserWhereTest::query()->value($expression));
+            $this->assertEquals($expected, UserWhereTest::query()->soleValue($expression));
+            $this->assertEquals($expected, UserWhereTest::query()->valueOrFail($expression));
+            $this->assertEquals([$expected], UserWhereTest::query()->pluck($expression)->all());
+        }
+
+        $this->assertSame(2.0, UserWhereTest::query()->withCasts(['total' => 'float'])->value(new Expression('id + 1 as total')));
+        $this->assertSame('Taylor', UserWhereTest::query()->select('name')->value(new Expression(1)));
+
+        $model = new class extends UserWhereTest {
+            public function getAttribute(string $key): mixed
+            {
+                return $key === 'total' ? 'Total: ' . parent::getAttribute($key) : parent::getAttribute($key);
+            }
+        };
+
+        $this->assertSame('Total: 2', $model->newQuery()->value(new Expression('id + 1 as total')));
     }
 
     public function testChunkMap()
