@@ -77,7 +77,7 @@ Before migrating a ConfigProvider, read:
 - `src/docs/packages.md#class-map-overrides` if the package uses class map replacement
 - `Hypervel\Support\ServiceProvider`
 
-Use existing Hypervel packages as pattern references. For low-level Swoole / Hyperf-style infrastructure, useful references include `pool`, `object-pool`, `engine`, `server`, `signal`, and `sentry`. The `database` package is a good reference for translating Hyperf provider patterns into Hypervel provider code.
+Use `websocket-server` as the package skeleton reference for Composer metadata, licensing, and provider discovery. For provider patterns, see `engine` for contract bindings and `signal` for worker-lifecycle listeners. The `database` package is a useful reference for more involved provider registration. Adapt the relevant pattern rather than copying a package's runtime-specific setup.
 
 ### Categorize the ConfigProvider entries
 
