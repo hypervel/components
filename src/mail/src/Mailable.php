@@ -283,6 +283,8 @@ class Mailable implements MailableContract, Renderable
     /**
      * Build the view for the message.
      *
+     * @return array<int|string, null|Closure|Htmlable|string>|string
+     *
      * @throws ReflectionException
      */
     protected function buildView(): array|string
@@ -1423,7 +1425,7 @@ class Mailable implements MailableContract, Renderable
             return $this->assertionableRenderStrings;
         }
 
-        return $this->assertionableRenderStrings = $this->withLocale($this->locale, function () {
+        return $this->assertionableRenderStrings = $this->withLocale($this->locale, function (): array {
             $this->prepareMailableForDelivery();
 
             /** @var \Hypervel\Mail\Mailer $mailer */
@@ -1448,7 +1450,8 @@ class Mailable implements MailableContract, Renderable
                 );
             }
 
-            return [(string) $html, (string) $text];
+            // Match the mailer's conversion for Htmlable views, which need not be stringable.
+            return [(string) $html, $text instanceof Htmlable ? $text->toHtml() : (string) $text];
         });
     }
 

@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Contracts\Mail\Attachable;
 use Hypervel\Contracts\Mail\Mailer as MailerContract;
+use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Filesystem\FilesystemAdapter;
@@ -20,6 +21,7 @@ use Hypervel\Mail\MailManager;
 use Hypervel\Mail\Message;
 use Hypervel\Mail\Transport\ArrayTransport;
 use Hypervel\Support\ClassInvoker;
+use Hypervel\Support\HtmlString;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\AssertionFailedError;
@@ -571,6 +573,38 @@ class MailMailableTest extends TestCase
         ];
 
         $this->assertSame($expected, $mailable->buildViewData());
+    }
+
+    public function testMailableAssertionsRenderHtmlableText(): void
+    {
+        $mailable = new class extends Mailable {
+            /**
+             * Build the view for the message.
+             */
+            protected function buildView(): array
+            {
+                return [
+                    'html' => new HtmlString('<p>HTML content</p>'),
+                    'text' => new class implements Htmlable {
+                        /**
+                         * Get content as a string of HTML.
+                         */
+                        public function toHtml(): string
+                        {
+                            return 'Plain content';
+                        }
+                    },
+                ];
+            }
+        };
+
+        $mailable->from('sender@example.com')->to('recipient@example.com');
+        $mailer = new Mailer('array', $this->app->make(ViewFactory::class), new ArrayTransport);
+        $sentMessage = $mailer->send($mailable);
+
+        $this->assertSame('Plain content', $sentMessage->getOriginalMessage()->getTextBody());
+
+        $mailable->assertSeeInHtml('HTML content')->assertSeeInText('Plain content');
     }
 
     public function testMailerMayBeSet(): void
