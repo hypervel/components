@@ -190,14 +190,6 @@ class HttpClientTest extends TestCase
         ];
     }
 
-    public function testInvalidFakeResponseBodyValuesAreRejected(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('HTTP fake response body must be a string, array, resource, Psr\Http\Message\StreamInterface, or null.');
-
-        $this->factory::response(new stdClass);
-    }
-
     public function testInvalidJsonFakeResponseBodyValuesAreRejected(): void
     {
         $this->expectException(InvalidArgumentException::class);
@@ -242,6 +234,20 @@ class HttpClientTest extends TestCase
         $response = $this->factory::response($resource)->wait();
 
         $this->assertSame('Hello World', (string) $response->getBody());
+    }
+
+    public function testFakeResponseRejectsUnsupportedBody(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException('HTTP fake response body must be a string, array, stream resource, Psr\Http\Message\StreamInterface, or null.'));
+
+        $this->factory::response(new stdClass);
+    }
+
+    public function testFakeResponseRejectsNonStreamResourceBody(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException('HTTP fake response body must be a string, array, stream resource, Psr\Http\Message\StreamInterface, or null.'));
+
+        $this->factory::response(stream_context_create());
     }
 
     public function testAcceptedRequest(): void
@@ -2061,6 +2067,30 @@ class HttpClientTest extends TestCase
 
         // The sequence is empty, it should throw an exception.
         $this->factory->get('https://example.com');
+    }
+
+    public function testSequenceBuilderSupportsStreamBodies(): void
+    {
+        $stream = Utils::streamFor('PSR-7 stream body');
+        $resource = fopen('php://temp', 'w+');
+
+        try {
+            fwrite($resource, 'resource body');
+            rewind($resource);
+
+            $this->factory->fakeSequence()
+                ->push($stream)
+                ->push($resource);
+
+            $this->assertSame('PSR-7 stream body', $this->factory->get('https://example.com')->body());
+            $this->assertSame('resource body', $this->factory->get('https://example.com')->body());
+        } finally {
+            $stream->close();
+
+            if (is_resource($resource)) {
+                fclose($resource);
+            }
+        }
     }
 
     public function testSequenceBuilderCanKeepGoingWhenEmpty(): void

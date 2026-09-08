@@ -1045,6 +1045,8 @@ Http::fake([
 ]);
 ```
 
+The `push` method accepts the same response bodies as `Http::response`, including PHP stream resources and PSR-7 streams.
+
 When all the responses in a response sequence have been consumed, any further requests will cause the response sequence to throw an exception. If you would like to specify a default response that should be returned when a sequence is empty, you may use the `whenEmpty` method:
 
 ```php
