@@ -1624,6 +1624,14 @@ You may also specify an operator and count value to further customize the query:
 $posts = Post::has('comments', '>=', 3)->get();
 ```
 
+You may pass a raw expression as the count to compare against another column:
+
+```php
+use Hypervel\Support\Facades\DB;
+
+$posts = Post::has('comments', '>=', DB::raw('posts.required_comments'))->get();
+```
+
 Nested `has` statements may be constructed using "dot" notation. For example, you may retrieve all posts that have at least one comment that has at least one image:
 
 ```php
