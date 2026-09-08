@@ -459,6 +459,8 @@ Connections are created when first needed, up to `max_connections`. The retained
 
 Database and Redis managers call `start()` after pool initialization succeeds. When constructing a pool yourself, call `start()` to enable its configured background maintenance. You may borrow and release connections before starting it. Repeated calls do not create duplicate timers.
 
+When customizing pool resolution, ensure the container returns an open pool; throw an exception if initialization fails.
+
 The `close()` method is terminal and may be called more than once. It destroys idle connections immediately, rejects new borrows, and destroys connections that were already borrowed when their owners return them.
 
 To shrink an open pool, call `trimExcessIdle()`. This closes idle connections while the managed count exceeds `min_retained_connections`, regardless of their age. Borrowed connections remain available to their owners.
