@@ -56,7 +56,7 @@ class TinkerServiceProviderTest extends TestCase
         $this->assertIsArray($config->get('tinker.commands'));
         $this->assertIsArray($config->get('tinker.alias'));
         $this->assertIsArray($config->get('tinker.dont_alias'));
-        $this->assertNotNull($config->get('tinker.trust_project'));
+        $this->assertSame('prompt', $config->get('tinker.trust_project'));
     }
 
     public function testPublishedConfigDoesNotExcludeApplicationNamespacesByDefault(): void
