@@ -75,7 +75,12 @@ trait InteractsWithData
     /**
      * Apply the callback if the instance contains the given key.
      *
-     * @return $this|mixed
+     * @template TReturn
+     * @template TReturnDefault = never
+     *
+     * @param callable(mixed): TReturn $callback
+     * @param null|(callable(): TReturnDefault) $default
+     * @return $this|TReturn|TReturnDefault
      */
     public function whenHas(string $key, callable $callback, ?callable $default = null): mixed
     {
@@ -141,7 +146,12 @@ trait InteractsWithData
     /**
      * Apply the callback if the instance contains a non-empty value for the given key.
      *
-     * @return $this|mixed
+     * @template TReturn
+     * @template TReturnDefault = never
+     *
+     * @param callable(mixed): TReturn $callback
+     * @param null|(callable(): TReturnDefault) $default
+     * @return $this|TReturn|TReturnDefault
      */
     public function whenFilled(string $key, callable $callback, ?callable $default = null): mixed
     {
@@ -160,10 +170,13 @@ trait InteractsWithData
      * Apply the callback if the instance contains a valid enum value for the given key.
      *
      * @template TEnum of \BackedEnum
+     * @template TReturn
+     * @template TReturnDefault = never
      *
      * @param class-string<TEnum> $enumClass
-     * @param callable(TEnum): mixed $callback
-     * @return $this|mixed
+     * @param callable(TEnum): TReturn $callback
+     * @param null|(callable(): TReturnDefault) $default
+     * @return $this|TReturn|TReturnDefault
      */
     public function whenEnum(string $key, string $enumClass, callable $callback, ?callable $default = null): mixed
     {
@@ -190,6 +203,13 @@ trait InteractsWithData
 
     /**
      * Apply the callback if the instance is missing the given key.
+     *
+     * @template TReturn
+     * @template TReturnDefault = never
+     *
+     * @param callable(mixed): TReturn $callback
+     * @param null|(callable(): TReturnDefault) $default
+     * @return $this|TReturn|TReturnDefault
      */
     public function whenMissing(string $key, callable $callback, ?callable $default = null): mixed
     {
