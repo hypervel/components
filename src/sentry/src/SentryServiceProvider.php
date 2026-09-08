@@ -39,7 +39,7 @@ use Hypervel\Sentry\Tracing\Routing\TracingCallableDispatcherTracing;
 use Hypervel\Sentry\Tracing\Routing\TracingControllerDispatcherTracing;
 use Hypervel\Sentry\Tracing\ViewEngineDecorator;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
-use Hypervel\Sentry\Transport\Pool;
+use Hypervel\Sentry\Transport\HttpTransportPool;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\View\Engines\EngineResolver;
 use Hypervel\View\Factory as ViewFactory;
@@ -218,7 +218,7 @@ class SentryServiceProvider extends ServiceProvider
             // Set the pooled transport for async sending via Swoole coroutines
             $poolConfig = $this->app->make('config')->array("{$configRoot}.pool");
             $transport = new HttpPoolTransport(
-                new Pool(
+                new HttpTransportPool(
                     $clientBuilder->getOptions(),
                     $this->sentryPoolOptions($poolConfig),
                 )
@@ -347,8 +347,8 @@ class SentryServiceProvider extends ServiceProvider
 
         return PoolOptions::fromArray([
             ...$config,
-            'max_idle_time' => 0,
-            'idle_ttl' => null,
+            'max_idle_time' => null,
+            'pool_idle_timeout' => null,
         ]);
     }
 

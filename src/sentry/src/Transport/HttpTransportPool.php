@@ -16,8 +16,11 @@ use Sentry\Transport\HttpTransport;
 /**
  * @extends ObjectPool<HttpTransport>
  */
-class Pool extends ObjectPool
+class HttpTransportPool extends ObjectPool
 {
+    /**
+     * Create a pool of reusable Sentry HTTP transports.
+     */
     public function __construct(
         protected Options $sentryOptions,
         PoolOptions $poolOptions,
@@ -25,6 +28,9 @@ class Pool extends ObjectPool
         parent::__construct($poolOptions);
     }
 
+    /**
+     * Create an HTTP transport with its own rate-limit state.
+     */
     protected function createObject(): HttpTransport
     {
         return new HttpTransport(
@@ -35,6 +41,9 @@ class Pool extends ObjectPool
         );
     }
 
+    /**
+     * Create the SDK HTTP client.
+     */
     protected function getHttpClient(): HttpClientInterface
     {
         return new HttpClient(Version::getSdkIdentifier(), Version::getSdkVersion());

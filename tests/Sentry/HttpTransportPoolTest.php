@@ -8,7 +8,7 @@ use Hypervel\Container\Container;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\PackageManifest;
 use Hypervel\ObjectPool\PoolOptions;
-use Hypervel\Sentry\Transport\Pool;
+use Hypervel\Sentry\Transport\HttpTransportPool;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionProperty;
@@ -19,7 +19,7 @@ use Sentry\HttpClient\Response;
 use Sentry\Options;
 use Sentry\Transport\ResultStatus;
 
-class PoolTest extends TestCase
+class HttpTransportPoolTest extends TestCase
 {
     public function testCreatesTheSdkHttpClient(): void
     {
@@ -31,7 +31,7 @@ class PoolTest extends TestCase
 
         Container::getInstance()->singleton(PackageManifest::class, fn () => $manifest);
 
-        $pool = new InspectableSentryTransportPool(
+        $pool = new InspectableHttpTransportPool(
             new Options,
             $this->poolOptions(),
         );
@@ -54,7 +54,7 @@ class PoolTest extends TestCase
 
         Container::getInstance()->singleton(PackageManifest::class, fn () => $manifest);
 
-        $pool = new InspectableSentryTransportPool(new Options, $this->poolOptions());
+        $pool = new InspectableHttpTransportPool(new Options, $this->poolOptions());
         $httpClient = $pool->createHttpClient();
 
         $this->assertSame(Application::VERSION, (new ReflectionProperty($httpClient, 'sdkVersion'))->getValue($httpClient));
@@ -70,17 +70,17 @@ class PoolTest extends TestCase
                 'X-Sentry-Rate-Limits' => ['60:error'],
             ], ''));
 
-        $pool = new ScriptedSentryTransportPool(
+        $pool = new ScriptedHttpTransportPool(
             new Options(['dsn' => 'https://public@example.com/1']),
             $this->poolOptions(),
             $httpClient,
         );
 
-        $transport = $pool->get();
+        $transport = $pool->borrow();
         $this->assertSame(ResultStatus::rateLimit(), $transport->send(Event::createEvent())->getStatus());
         $pool->release($transport);
 
-        $sameTransport = $pool->get();
+        $sameTransport = $pool->borrow();
         $this->assertSame($transport, $sameTransport);
         $this->assertSame(ResultStatus::rateLimit(), $sameTransport->send(Event::createEvent())->getStatus());
         $pool->release($sameTransport);
@@ -96,13 +96,13 @@ class PoolTest extends TestCase
             'min_retained_objects' => 0,
             'max_objects' => 1,
             'wait_timeout' => 0.1,
-            'max_lifetime' => 0,
-            'idle_ttl' => null,
+            'max_lifetime' => null,
+            'pool_idle_timeout' => null,
         ]);
     }
 }
 
-class InspectableSentryTransportPool extends Pool
+class InspectableHttpTransportPool extends HttpTransportPool
 {
     public function createHttpClient(): HttpClientInterface
     {
@@ -110,7 +110,7 @@ class InspectableSentryTransportPool extends Pool
     }
 }
 
-class ScriptedSentryTransportPool extends Pool
+class ScriptedHttpTransportPool extends HttpTransportPool
 {
     public function __construct(
         Options $sentryOptions,

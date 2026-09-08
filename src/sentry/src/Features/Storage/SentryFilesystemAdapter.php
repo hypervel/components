@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Features\Storage;
 
+use Hypervel\Contracts\ObjectPool\InvalidatesPool;
 use Hypervel\Filesystem\FilesystemAdapter;
-use Hypervel\ObjectPool\Contracts\InvalidatesPool;
 
 class SentryFilesystemAdapter extends FilesystemAdapter implements DecoratedFilesystem, InvalidatesPool
 {
