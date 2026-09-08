@@ -2,7 +2,7 @@
 
 ## Status
 
-Complete. The implementation, current `0.4` merge, PsySH `dev-main` update, focused validation, load-bearing counterfactuals, final self-review, and independent code review are complete. Replace `dev-main` with the first compatible stable PsySH release containing the required behavior before Hypervel 0.4 is released.
+Complete. The implementation, current `0.4` merge, PsySH `dev-main` update, project-trust correction, focused validation, load-bearing counterfactuals, final self-review, and independent code review are complete. Replace `dev-main` with the first compatible stable PsySH release containing the required behavior before Hypervel 0.4 is released.
 
 ## Scope
 
@@ -69,7 +69,7 @@ Record low-confidence concerns under rejected or unresolved analysis. Do not imp
 
 ## Contracts and performance budget
 
-- Keep `--execute`, positional `include`, `commands`, `alias`, `dont_alias`, `casters`, and `trust_project` Laravel-shaped.
+- Keep `--execute`, positional `include`, `commands`, `alias`, `dont_alias`, and `casters` Laravel-shaped. Keep the `trust_project` name, accepted values, and semantics while defaulting to PsySH's safer `prompt` mode instead of Laravel Tinker's `always`.
 - Keep PsySH process forking disabled before shell construction. Local `.psysh.php` configuration cannot re-enable `ProcessForker`: listeners are constructed before local config is loaded and are never rebuilt.
 - Use PsySH's normal `Shell`; current `dev-main` owns include loading and direct-execution signal cleanup without a Hypervel subclass.
 - Interactive Tinker retains Ctrl-C handling. One-shot execution must not leave process-global signal or error-handler state behind.
@@ -87,10 +87,11 @@ Record low-confidence concerns under rejected or unresolved analysis. Do not imp
 | `tinker-05` | `execute($code, true)` rethrows `BreakException`; Tinker's broad catch renders `exit(3)` as an error and returns 1. | Return the embedded exit code without error rendering. |
 | `tinker-06` | Raw prefixes make `App\Nova` also match `App\NovaThing` and make `/app/vendor-local/...` look like `/app/vendor/...`. | Match normalized aliases and vendor directories on semantic boundaries. |
 | `tinker-07` | One Application presentation getter throwing `Error` or `TypeError` escapes the per-property `Exception` boundary and aborts the dump. | Contain `Throwable` from each getter. |
-| `tinker-08` | Symfony returns `null` for a disabled configured command, which PsySH forwards to its `callable|Command` parameter and rejects with `TypeError`. | Omit disabled command results. |
+| `tinker-08` | Symfony returns `null` for a disabled configured command, which PsySH forwards to its `callable\|Command` parameter and rejects with `TypeError`. | Omit disabled command results. |
 | `tinker-09` | Split metadata declares unused Contracts and a misleading Database suggestion, lacks durable dependency coverage, and omits upstream provenance. | Correct dependencies/provenance and add focused metadata coverage. |
 | `tinker-10` | Public guidance omits execute/alias/caster/trust behavior and incorrectly says all PCNTL support is disabled. | Complete the concise Tinker guide in Laravel-docs prose. |
 | `tinker-11` | Tinker redundantly writes the Kernel-cached Console application's exception policy and can leave a caller's explicit setting changed. | Remove the mutation. |
+| `tinker-12` | Laravel Tinker's `always` project-trust default silently executes `.psysh.php` from the current working directory, opting out of PsySH's protection against untrusted project configuration. | Use PsySH's native `prompt` mode by default; retain explicit `always` and `never` configuration. |
 
 ## Implementation
 
@@ -237,7 +238,9 @@ In `src/tinker/composer.json`:
 - require PsySH `dev-main` as described in section 1;
 - omit `suggest`: Database and Process are already hard transitive dependencies.
 
-Add `tests/Tinker/PackageMetadataTest.php` to pin direct dependency/root-constraint agreement, the absent Contracts dependency and `suggest` section, and provider discovery. Add upstream provenance and a one-line `Differences From Laravel` note about the user-visible no-fork behavior to the README.
+Add `tests/Tinker/PackageMetadataTest.php` to pin direct dependency/root-constraint agreement, the absent Contracts dependency and `suggest` section, and provider discovery. Add upstream provenance and concise `Differences From Laravel` notes about the user-visible no-fork behavior and safer project-trust default to the README.
+
+Default `trust_project` to `prompt`, using PsySH's existing trust implementation. Interactive Tinker asks before loading an unfamiliar local `.psysh.php`; noninteractive execution skips untrusted project configuration without blocking. Keep `always`, `never`, boolean, and null values available. Do not add path allowlists, change working directories, or expose PsySH's `--trust-project` options: Hypervel's command does not define those options, and the existing environment variable is sufficient for one-run automation.
 
 Update only the Tinker section of `src/docs/artisan.md`, following the surrounding Laravel-docs prose. Document:
 
@@ -246,13 +249,15 @@ Update only the Tinker section of `src/docs/artisan.md`, following the surroundi
 - that Hypervel disables process forking, not all PCNTL support;
 - `tinker.alias` vendor opt-in and `dont_alias` exclusions;
 - custom `tinker.casters`;
-- `trust_project`.
+- the `prompt` project-trust default, interactive confirmation, noninteractive skip, and working remedies: answer the prompt, configure `trust_project`, or set `TINKER_TRUST_PROJECT=always` for one trusted run.
 
 Keep the guide concise: no exhaustive config reference, internal listener discussion, or default-caster listing.
 
+Add one concise porting-guide entry explaining that Laravel applications which rely on implicit `.psysh.php` loading must explicitly select `always` in a trusted environment.
+
 ### 6. Update durable records
 
-Add one compact Tinker ledger section covering `tinker-01` through `tinker-11`, the temporary PsySH `dev-main` constraint, Console revalidation, final API/performance result, and rejected designs. Route the core Tinker line to this work unit. Preserve every newer `0.4` record while resolving the audit-plan and ledger conflicts. Check the core package checklist only after current `0.4` is merged, `dev-main` is installed, and implementation, validation, self-review, and code review are complete.
+Add one compact Tinker ledger section covering `tinker-01` through `tinker-12`, the temporary PsySH `dev-main` constraint, Console revalidation, final API/performance result, and rejected designs. Route the core Tinker line to this work unit. Preserve every newer `0.4` record while resolving the audit-plan and ledger conflicts. Check the core package checklist only after current `0.4` is merged, `dev-main` is installed, and implementation, validation, self-review, and code review are complete.
 
 ## Tests and validation
 
@@ -262,21 +267,23 @@ Required Hypervel regressions:
 
 1. Successful and failing direct execution preserve a sentinel SIGINT handler; test cleanup restores the sentinel even after assertion failure. Do not assert async-signal mode at the Hypervel boundary because Symfony Console owns additional signal state.
 2. A bounded subprocess runs the disposable runtime clone's own `artisan` at `BASE_PATH` to prove `--execute=0` and `--execute=''` select direct execution. The clone does not discover the root package, so temporarily add `TinkerServiceProvider` to its `bootstrap/providers.php` through the existing provider-file API and restore the original file in `finally`. Pass `COMPOSER_VENDOR_DIR` and `HYPERVEL_AUTOLOAD_PATH` to the child; `TESTBENCH_BASE_PATH` is not involved because the clone's entry point already owns `BASE_PATH`. Give the child an open stdin pipe that is deliberately not closed while awaiting it: the wrong REPL branch sees piped input and blocks in `getInput(false)`, while the direct branch returns immediately. Use a ten-second failure budget, treat timeout as test failure, and close every pipe in `finally`; do not require a PTY, invent another bootstrap, or add a production shell factory.
-3. One integration test changes into an isolated temporary project and proves that a positional include and the shipped trusted-by-default local `.psysh.php` include both share variables with directly executed code. A second uses unique include paths, disables mocked console output, and proves that a malformed positional include reports `ParseError`, a later include still loads, the prior error handler remains installed, and successful executed code still returns 0. Inspect and rebalance the handler stack before any assertion so a regression cannot contaminate later tests.
-4. `exit(3)` returns 3 without evaluation-error output; ordinary throwables still return 1.
-5. Direct `getCommands()` coverage proves that an enabled configured command is retained after the whitelist while a disabled configured command is omitted.
-6. The public `isAliasable()` matrix covers exact class, namespace child, common-prefix sibling, trailing separator, exclusion, real vendor child, and vendor-prefix sibling. The loader exclusion test invokes `aliasClass()` directly and relies on its shell mock because PHP class aliases are permanent and make `class_exists()` order-dependent.
-7. An Application getter throwing `Error` is omitted while later virtual properties remain.
-8. Metadata/provenance, nullable project-trust configuration, and existing coroutine execution remain correct.
+3. One integration test changes into an isolated temporary project, explicitly selects `always`, and proves that a positional include and trusted local `.psysh.php` include both share variables with directly executed code. A second uses unique include paths, disables mocked console output, and proves that a malformed positional include reports `ParseError`, a later include still loads, the prior error handler remains installed, and successful executed code still returns 0. Inspect and rebalance the handler stack before any assertion so a regression cannot contaminate later tests.
+4. A direct-execution test changes into an isolated temporary project under the shipped `prompt` default and proves that an untrusted `.psysh.php` cannot create its sentinel file. Do not assert PsySH's warning text.
+5. `exit(3)` returns 3 without evaluation-error output; ordinary throwables still return 1.
+6. Direct `getCommands()` coverage proves that an enabled configured command is retained after the whitelist while a disabled configured command is omitted.
+7. The public `isAliasable()` matrix covers exact class, namespace child, common-prefix sibling, trailing separator, exclusion, real vendor child, and vendor-prefix sibling. The loader exclusion test invokes `aliasClass()` directly and relies on its shell mock because PHP class aliases are permanent and make `class_exists()` order-dependent.
+8. An Application getter throwing `Error` is omitted while later virtual properties remain.
+9. Metadata/provenance, nullable project-trust configuration, and existing coroutine execution remain correct.
 
 Validation order:
 
 1. Run each changed Tinker test file, the alias-loader file in reverse order, then the complete `tests/Tinker` group.
 2. Validate both Composer manifests and confirm the installed PsySH source is current `dev-main`.
 3. Confirm the include tests are load-bearing by temporarily removing the positional `setIncludes()` call and moving direct-execution `setOutput()` after `execute()`, running the matching test after each change, and reverting immediately.
-4. Run `composer lint:fix`, `composer analyse`, and the complete `tests/Tinker` group in that order.
-5. Perform a fresh caller/callee, process-global state, terminal/signal, public API, cold-path performance, retained-memory, stale-code, and overengineering review.
-6. Apply review corrections, rerun affected focused tests, and repeat the complete gate when changes warrant it.
+4. Confirm the project-trust regression is load-bearing by running the negative trust regression, positive include test, and default-pinning config test with `TINKER_TRUST_PROJECT=always`: the negative and default-pinning tests must fail while the positive include test still passes through its explicit `always` setting.
+5. Run `composer lint:fix`, `composer analyse`, and the complete `tests/Tinker` group in that order.
+6. Perform a fresh caller/callee, process-global state, terminal/signal, public API, cold-path performance, retained-memory, stale-code, and overengineering review.
+7. Apply review corrections, rerun affected focused tests, and repeat the complete gate when changes warrant it.
 
 ## Rejected designs and non-findings
 
@@ -288,7 +295,9 @@ Validation order:
 - Keep the shell's command set invocation-local and preserve existing caster precedence. Configured command registration on the Kernel-cached Console application follows upstream Tinker behavior.
 - Keep the null guard around dynamic Application getter results; only its failure boundary widens.
 - Do not add default caster config, exhaustive docs, suggestions for packages already required transitively, or tests that merely mirror trivial mappings.
+- Do not add `--trust-project` or `--no-trust-project` to Tinker. Supporting them would add two options and reorder trust configuration to duplicate the existing environment-variable control.
+- `setTrustProject()` would override trust flags parsed by PsySH, but neither Laravel nor Hypervel defines those flags on the Tinker command. This unreachable shared behavior is not a defect.
 
 ## Expected result
 
-Tinker preserves its Laravel-facing API and Hypervel's coroutine/no-fork adaptations while direct execution becomes exact for falsey code, includes, exit status, disabled commands, and process-global cleanup. Alias discovery respects semantic boundaries; presentation degrades per property; metadata and docs describe the real package. All work remains cold developer-console work, with no application hot-path or high-scale footprint. No accepted defect, workaround, stale branch, compatibility shim, TODO, or speculative machinery remains in the completed Hypervel package.
+Tinker preserves its Laravel-facing API and Hypervel's coroutine/no-fork adaptations while direct execution becomes exact for falsey code, includes, exit status, disabled commands, process-global cleanup, and untrusted project configuration. Alias discovery respects semantic boundaries; presentation degrades per property; metadata and docs describe the real package. All work remains cold developer-console work, with no application hot-path or high-scale footprint. No accepted defect, workaround, stale branch, compatibility shim, TODO, or speculative machinery remains in the completed Hypervel package.
