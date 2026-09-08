@@ -69,4 +69,14 @@ class FulltextTest extends PostgresTestCase
 
         $this->assertCount(1, $articles);
     }
+
+    public function testWhereFulltextWithRaw(): void
+    {
+        $articles = DB::table('articles')
+            ->whereFullText(['title', 'body'], 'PostgreSQL & tut:*', ['mode' => 'raw'])
+            ->orderBy('id')
+            ->get();
+
+        $this->assertSame(['PostgreSQL Tutorial', 'Optimizing PostgreSQL'], $articles->pluck('title')->all());
+    }
 }

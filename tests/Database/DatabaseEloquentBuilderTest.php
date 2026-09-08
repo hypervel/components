@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Database\DatabaseEloquentBuilderTest;
 
 use BadMethodCallException;
 use Closure;
+use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\ClassMorphViolationException;
 use Hypervel\Database\Connection;
@@ -29,6 +30,7 @@ use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use PDO;
+use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
 use Stringable;
 
@@ -372,10 +374,10 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals([], $results->all());
     }
 
-    public function testValueMethodWithModelFound()
+    public function testValueMethodWithModelFound(): void
     {
         $builder = m::mock(Builder::class . '[first]', [$this->getMockQueryBuilder()]);
-        $mockModel = new stdClass;
+        $mockModel = new class extends Model {};
         $mockModel->name = 'foo';
         $builder->shouldReceive('first')->with(['name'])->andReturn($mockModel);
 
@@ -1781,6 +1783,20 @@ class DatabaseEloquentBuilderTest extends TestCase
         );
     }
 
+    public function testWithAggregateNumericExpression(): void
+    {
+        $model = new ModelParentStub;
+
+        $this->assertSame(
+            'select "model_parent_stubs".*, (select count(1) from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "foo_count1" from "model_parent_stubs"',
+            $model->withAggregate('foo', new Expression(1), 'count')->toSql()
+        );
+        $this->assertSame(
+            'select "model_parent_stubs".*, (select sum(1.5) from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "foo_sum15" from "model_parent_stubs"',
+            $model->withSum('foo', new Expression(1.5))->toSql()
+        );
+    }
+
     public function testWithAggregateAndSelfRelationConstrain()
     {
         Stub::resolveRelationUsing('children', function ($model) {
@@ -2051,7 +2067,8 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals($builder->toSql(), $result);
     }
 
-    public function testHasNestedWithMorphTo()
+    #[DataProvider('nestedRelationshipCountProvider')]
+    public function testHasNestedWithMorphTo(ExpressionContract|int $count): void
     {
         $model = new ModelParentStub;
         $connection = $this->mockConnectionForModel($model, '');
@@ -2063,16 +2080,15 @@ class DatabaseEloquentBuilderTest extends TestCase
             [$morphToKey => ModelOtherFarRelatedStub::class],
         ]);
 
-        $builder = $model->orWhereHasMorph('morph', [ModelFarRelatedStub::class], function ($q) {
-            $q->has('baz');
-        })->orWhereHasMorph('morph', [ModelOtherFarRelatedStub::class], function ($q) {
-            $q->has('baz');
+        $builder = $model->orWhereHasMorph('morph', [ModelFarRelatedStub::class], function ($q) use ($count) {
+            $q->has('baz', '>=', $count);
+        })->orWhereHasMorph('morph', [ModelOtherFarRelatedStub::class], function ($q) use ($count) {
+            $q->has('baz', '>=', $count);
         });
 
-        $results = $model->has('morph.baz')->toSql();
+        $results = $model->has('morph.baz', '>=', $count)->toSql();
 
-        // we need to adjust the expected builder because some parathesis are added,
-        // which doesn't impact the behavior of the test.
+        // Normalize the extra parentheses around the wildcard's grouped morph types.
 
         $builderSql = $builder->toSql();
         $builderSql = str_replace(')))) or ((', '))) or (', $builderSql);
@@ -2080,7 +2096,8 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame($builderSql, $results);
     }
 
-    public function testHasNestedWithMorphToAndMultipleSubRelations()
+    #[DataProvider('nestedRelationshipCountProvider')]
+    public function testHasNestedWithMorphToAndMultipleSubRelations(ExpressionContract|int $count): void
     {
         $model = new ModelParentStub;
         $connection = $this->mockConnectionForModel($model, '');
@@ -2092,21 +2109,67 @@ class DatabaseEloquentBuilderTest extends TestCase
             [$morphToKey => ModelOtherFarRelatedStub::class],
         ]);
 
-        $builder = $model->orWhereHasMorph('morph', [ModelFarRelatedStub::class], function ($q) {
-            $q->has('baz.bam');
-        })->orWhereHasMorph('morph', [ModelOtherFarRelatedStub::class], function ($q) {
-            $q->has('baz.bam');
+        $builder = $model->orWhereHasMorph('morph', [ModelFarRelatedStub::class], function ($q) use ($count) {
+            $q->has('baz.bam', '>=', $count);
+        })->orWhereHasMorph('morph', [ModelOtherFarRelatedStub::class], function ($q) use ($count) {
+            $q->has('baz.bam', '>=', $count);
         });
 
-        $results = $model->has('morph.baz.bam')->toSql();
+        $results = $model->has('morph.baz.bam', '>=', $count)->toSql();
 
-        // we need to adjust the expected builder because some parathesis are added,
-        // which doesn't impact the behavior of the test.
+        // Normalize the extra parentheses around the wildcard's grouped morph types.
 
         $builderSql = $builder->toSql();
         $builderSql = str_replace(')))) or ((', '))) or (', $builderSql);
 
         $this->assertSame($builderSql, $results);
+    }
+
+    /**
+     * Provide counts that must survive each polymorphic branch.
+     */
+    public static function nestedRelationshipCountProvider(): array
+    {
+        return [
+            'default count' => [1],
+            'integer count' => [2],
+            'expression count' => [new Expression('2')],
+        ];
+    }
+
+    public function testHasNestedWithMorphToAfterFirstRelation(): void
+    {
+        ModelCloseRelatedStub::resolveRelationUsing('morph', static fn (ModelCloseRelatedStub $model) => $model->morphTo('morph'));
+
+        $model = new ModelParentStub;
+        $connection = $this->mockConnectionForModel($model, '');
+        $connection->shouldReceive('select')->once()->andReturn([
+            ['morph_type' => ModelFarRelatedStub::class],
+            ['morph_type' => ModelOtherFarRelatedStub::class],
+        ]);
+
+        $expected = $model->whereHas('foo', static function (Builder $query): void {
+            $query->whereHasMorph('morph', [ModelFarRelatedStub::class, ModelOtherFarRelatedStub::class], static function (Builder $query): void {
+                $query->has('baz');
+            });
+        });
+        $actual = $model->whereHas('foo.morph.baz');
+
+        $this->assertSame($expected->toSql(), $actual->toSql());
+        $this->assertSame([ModelFarRelatedStub::class, ModelOtherFarRelatedStub::class], $actual->getBindings());
+    }
+
+    public function testHasWithCustomCountExpression(): void
+    {
+        $count = m::mock(ExpressionContract::class);
+        $count->shouldReceive('getValue')->andReturn('model_parent_stubs.required_count');
+
+        $query = (new ModelParentStub)->whereHas('foo', static function (Builder $query): void {
+            $query->where('active', true);
+        }, '>=', $count);
+
+        $this->assertSame('select * from "model_parent_stubs" where (select count(*) from "model_close_related_stubs" where ("model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") and ("active" = ?)) >= model_parent_stubs.required_count', $query->toSql());
+        $this->assertSame([true], $query->getBindings());
     }
 
     public function testOrHasNested()

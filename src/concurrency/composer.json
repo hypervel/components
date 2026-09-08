@@ -31,7 +31,7 @@
     },
     "require": {
         "php": "^8.4",
-        "laravel/serializable-closure": "^2.0.10",
+        "laravel/serializable-closure": "^2.0.11",
         "hypervel/console": "^0.4",
         "hypervel/container": "^0.4",
         "hypervel/context": "^0.4",

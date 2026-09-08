@@ -372,10 +372,12 @@ If needed, you may pass a third argument to the `retry` method. The third argume
 use Hypervel\Http\Client\PendingRequest;
 use Throwable;
 
-$response = Http::retry(3, 100, function (Throwable $exception, PendingRequest $request) {
+$response = Http::retry(3, 100, function (?Throwable $exception, PendingRequest $request) {
     return $exception instanceof ConnectionException;
 })->post(/* ... */);
 ```
+
+The callback also receives the HTTP method as a third argument, or `null` when the method is unavailable.
 
 If a request attempt fails, you may wish to make a change to the request before a new attempt is made. You can achieve this by modifying the request argument provided to the callable you provided to the `retry` method. For example, you might want to retry the request with a new authorization token if the first attempt returned an authentication error:
 
@@ -384,7 +386,7 @@ use Hypervel\Http\Client\PendingRequest;
 use Hypervel\Http\Client\RequestException;
 use Throwable;
 
-$response = Http::withToken($this->getToken())->retry(2, 0, function (Throwable $exception, PendingRequest $request) {
+$response = Http::withToken($this->getToken())->retry(2, 0, function (?Throwable $exception, PendingRequest $request) {
     if (! $exception instanceof RequestException || $exception->response->status() !== 401) {
         return false;
     }
@@ -1042,6 +1044,8 @@ Http::fake([
         ->pushStatus(404),
 ]);
 ```
+
+The `push` method accepts the same response bodies as `Http::response`, including PHP stream resources and PSR-7 streams.
 
 When all the responses in a response sequence have been consumed, any further requests will cause the response sequence to throw an exception. If you would like to specify a default response that should be returned when a sequence is empty, you may use the `whenEmpty` method:
 

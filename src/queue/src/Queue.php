@@ -14,6 +14,7 @@ use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\ShouldBeEncrypted;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Queue\Attributes\Backoff;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
@@ -198,11 +199,23 @@ abstract class Queue
 
         $uniqueJobMetadata = DispatchLockContext::peekPayloadMetadata($job);
 
-        $payload = $uniqueJobMetadata === null
+        $payload = $uniqueJobMetadata === null && (! ContextRepository::hasInstance() || ! ContextRepository::getInstance()->hasHidden('laravel_unique_job_key'))
             ? $this->withCreatePayloadHooks($queue, $payload)
             : Context::scope(
-                fn (): array => $this->withCreatePayloadHooks($queue, $payload),
-                hidden: $uniqueJobMetadata,
+                function () use ($uniqueJobMetadata, $queue, $payload): array {
+                    if ($uniqueJobMetadata === null) {
+                        // A child without its own lock must not inherit its parent's
+                        // ownership and release that lock during missing-model cleanup.
+                        Context::forgetHidden([
+                            'laravel_unique_job_cache_store',
+                            'laravel_unique_job_key',
+                            'laravel_unique_job_lock_owner',
+                        ]);
+                    }
+
+                    return $this->withCreatePayloadHooks($queue, $payload);
+                },
+                hidden: $uniqueJobMetadata ?? [],
             );
 
         try {

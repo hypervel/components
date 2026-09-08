@@ -93,6 +93,137 @@ class InteractsWithDatabaseTest extends TestCase
         }
     }
 
+    public function testCastToJsonSqlite(): void
+    {
+        $grammar = 'SQLite';
+
+        $this->assertEquals(
+            <<<'TEXT'
+        '["foo","bar"]'
+        TEXT,
+            $this->castAsJsonUsingGrammar(['foo', 'bar'], $grammar)
+        );
+
+        $this->assertEquals(
+            <<<'TEXT'
+        '["foo","bar"]'
+        TEXT,
+            $this->castAsJsonUsingGrammar(collect(['foo', 'bar']), $grammar)
+        );
+
+        $this->assertEquals(
+            <<<'TEXT'
+        '{"foo":"bar"}'
+        TEXT,
+            $this->castAsJsonUsingGrammar((object) ['foo' => 'bar'], $grammar)
+        );
+    }
+
+    public function testCastToJsonPostgres(): void
+    {
+        $grammar = 'Postgres';
+
+        $this->assertEquals(
+            <<<'TEXT'
+        '["foo","bar"]'
+        TEXT,
+            $this->castAsJsonUsingGrammar(['foo', 'bar'], $grammar)
+        );
+
+        $this->assertEquals(
+            <<<'TEXT'
+        '["foo","bar"]'
+        TEXT,
+            $this->castAsJsonUsingGrammar(collect(['foo', 'bar']), $grammar)
+        );
+
+        $this->assertEquals(
+            <<<'TEXT'
+        '{"foo":"bar"}'
+        TEXT,
+            $this->castAsJsonUsingGrammar((object) ['foo' => 'bar'], $grammar)
+        );
+    }
+
+    public function testCastToJsonMySql(): void
+    {
+        $grammar = 'MySql';
+
+        $this->assertEquals(
+            <<<'TEXT'
+        cast('["foo","bar"]' as json)
+        TEXT,
+            $this->castAsJsonUsingGrammar(['foo', 'bar'], $grammar)
+        );
+
+        $this->assertEquals(
+            <<<'TEXT'
+        cast('["foo","bar"]' as json)
+        TEXT,
+            $this->castAsJsonUsingGrammar(collect(['foo', 'bar']), $grammar)
+        );
+
+        $this->assertEquals(
+            <<<'TEXT'
+        cast('{"foo":"bar"}' as json)
+        TEXT,
+            $this->castAsJsonUsingGrammar((object) ['foo' => 'bar'], $grammar)
+        );
+    }
+
+    public function testCastToJsonMariaDb(): void
+    {
+        $grammar = 'MariaDb';
+
+        $this->assertEquals(
+            <<<'TEXT'
+        json_query('["foo","bar"]', '$')
+        TEXT,
+            $this->castAsJsonUsingGrammar(['foo', 'bar'], $grammar)
+        );
+
+        $this->assertEquals(
+            <<<'TEXT'
+        json_query('["foo","bar"]', '$')
+        TEXT,
+            $this->castAsJsonUsingGrammar(collect(['foo', 'bar']), $grammar)
+        );
+
+        $this->assertEquals(
+            <<<'TEXT'
+        json_query('{"foo":"bar"}', '$')
+        TEXT,
+            $this->castAsJsonUsingGrammar((object) ['foo' => 'bar'], $grammar)
+        );
+    }
+
+    /**
+     * Cast JSON using the given grammar and the driver-neutral escape boundary.
+     */
+    protected function castAsJsonUsingGrammar(array|object|string $value, string $grammar): string
+    {
+        $database = DB::getFacadeRoot();
+        $connection = m::mock(Connection::class);
+        $grammarClass = 'Hypervel\Database\Query\Grammars\\' . $grammar . 'Grammar';
+        $grammar = new $grammarClass($connection);
+
+        $connection->shouldReceive('getQueryGrammar')->andReturn($grammar);
+        $connection->shouldReceive('raw')->andReturnUsing(
+            static fn (string $value): Expression => new Expression($value),
+        );
+        $connection->shouldReceive('escape')->andReturnUsing(
+            static fn (string $value): string => "'{$value}'",
+        );
+
+        try {
+            DB::shouldReceive('connection')->with(null)->andReturn($connection);
+
+            return $this->castAsJson($value)->getValue($grammar);
+        } finally {
+            DB::swap($database);
+        }
+    }
+
     public function testAssertModelExists()
     {
         $user = User::factory()->create();

@@ -41,6 +41,7 @@ use PHPStan\PhpDocParser\Ast\Type\IdentifierTypeNode;
 use PHPStan\PhpDocParser\Ast\Type\IntersectionTypeNode;
 use PHPStan\PhpDocParser\Ast\Type\NullableTypeNode;
 use PHPStan\PhpDocParser\Ast\Type\ThisTypeNode;
+use PHPStan\PhpDocParser\Ast\Type\TypeNode;
 use PHPStan\PhpDocParser\Ast\Type\UnionTypeNode;
 use PHPStan\PhpDocParser\Lexer\Lexer;
 use PHPStan\PhpDocParser\Parser\ConstExprParser;
@@ -548,7 +549,21 @@ function resolveDocblockTypes($method, $typeNode, int $depth = 1)
             }
 
             $genericArgs = collect($typeNode->genericTypes)
-                ->map(fn ($node) => resolveDocblockTypes($method, $node, $depth + 1))
+                ->map(function (TypeNode $node, int $index) use ($method, $typeNode, $depth): ?string {
+                    $variance = $typeNode->variances[$index] ?? GenericTypeNode::VARIANCE_INVARIANT;
+
+                    // Match GenericTypeNode's rendering: '*' is stored as mixed with
+                    // bivariant metadata, but rendering it as mixed changes the type.
+                    if ($variance === GenericTypeNode::VARIANCE_BIVARIANT) {
+                        return '*';
+                    }
+
+                    $type = resolveDocblockTypes($method, $node, $depth + 1);
+
+                    return $variance === GenericTypeNode::VARIANCE_INVARIANT
+                        ? $type
+                        : $variance . ' ' . $type;
+                })
                 ->filter();
 
             // Use all() === [] instead of isEmpty(); Hypervel's Collection::isEmpty()

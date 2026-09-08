@@ -10,10 +10,12 @@ use DateInterval;
 use DatePeriod;
 use DateTime;
 use Hypervel\Contracts\Database\Query\ConditionExpression;
+use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Grammar as BaseGrammar;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Expression as Raw;
 use Hypervel\Database\Query\Grammars\Grammar;
@@ -157,6 +159,90 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder = $this->getBuilder(prefix: 'prefix_');
         $builder->select('*')->from('users');
         $this->assertSame('select * from "prefix_users"', $builder->toSql());
+    }
+
+    public function testDefaultSelectionUsesTheLogicalSourceAlias(): void
+    {
+        $builder = $this->getBuilder(prefix: 'prefix_');
+        $builder->from('users', '0')->addSelect(['bonus' => new Raw(42)]);
+
+        $this->assertSame('select "prefix_0".*, (42) as "bonus" from "prefix_users" as "prefix_0"', $builder->toSql());
+
+        $builder = $this->getBuilder(prefix: 'prefix_');
+        $builder->from('users AS people')->addSelect(['bonus' => new Raw(42)]);
+
+        $this->assertSame('select "prefix_people".*, (42) as "bonus" from "prefix_users" as "prefix_people"', $builder->toSql());
+    }
+
+    public function testReplacingTheSourceResetsItsDefaultSelectionAlias(): void
+    {
+        $builder = $this->getBuilder(prefix: 'prefix_')->fromSub('select 1 as id', 'old');
+
+        $plain = (clone $builder)->from('users')->addSelect(['bonus' => new Raw(42)]);
+        $this->assertSame('select "prefix_users".*, (42) as "bonus" from "prefix_users"', $plain->toSql());
+
+        $subquery = (clone $builder)->fromSub('select 2 as id', 'new')->addSelect(['bonus' => new Raw(42)]);
+        $this->assertSame('select "prefix_new".*, (42) as "bonus" from (select 2 as id) as "prefix_new"', $subquery->toSql());
+
+        $this->expectException(TypeError::class);
+
+        $builder->fromRaw('users')->addSelect(['bonus' => new Raw(42)]);
+    }
+
+    public function testContractExpressionsAreAcceptedAsQuerySources(): void
+    {
+        $expression = new class implements ExpressionContract {
+            public function getValue(BaseGrammar $grammar): string
+            {
+                return $grammar->wrapTable('users');
+            }
+        };
+
+        $builder = $this->getBuilder(prefix: 'prefix_');
+        $builder->fromRaw($expression);
+        $this->assertSame('select * from "prefix_users"', $builder->toSql());
+        $this->assertSame($expression, $builder->from);
+
+        $builder->from($expression, 'people')->addSelect(['bonus' => new Raw(42)]);
+        $this->assertSame('select "prefix_people".*, (42) as "bonus" from "prefix_users" as "prefix_people"', $builder->toSql());
+
+        $builder->from($expression);
+        $this->assertSame($expression, $builder->from);
+    }
+
+    public function testNumericExpressionsRemainSqlAndColumnsAreText(): void
+    {
+        $builder = $this->getBuilder();
+        $builder->from('users')->select([new Raw(0), new Raw(1.5), 'name'])
+            ->where(new Raw(1), 1)->orWhere(new Raw(1.5), 1.5);
+
+        $this->assertSame('select 0, 1.5, "name" from "users" where 1 = ? or 1.5 = ?', $builder->toSql());
+        $this->assertSame([1, 1.5], $builder->getBindings());
+        $this->assertSame(['0', '1.5', 'name'], $builder->getColumns());
+    }
+
+    public function testColumnAndJoinShortcutsAcceptContractExpressions(): void
+    {
+        $expression = new class implements ExpressionContract {
+            public function getValue(BaseGrammar $grammar): string
+            {
+                return $grammar->wrap('users.id');
+            }
+        };
+
+        $builder = $this->getBuilder()->from('users')
+            ->whereColumn('id', $expression)->orWhereColumn('id', '=', $expression)
+            ->leftJoin('contacts', 'contacts.user_id', $expression)
+            ->rightJoin('accounts', $expression, '=', 'accounts.user_id')
+            ->join('profiles', function (JoinClause $join) use ($expression): void {
+                $join->on('profiles.user_id', $expression)->orOn('profiles.owner_id', $expression);
+            });
+
+        $this->assertSame(
+            'select * from "users" left join "contacts" on "contacts"."user_id" = "users"."id" right join "accounts" on "users"."id" = "accounts"."user_id" inner join "profiles" on "profiles"."user_id" = "users"."id" or "profiles"."owner_id" = "users"."id" where "id" = "users"."id" or "id" = "users"."id"',
+            $builder->toSql(),
+        );
+        $this->assertSame([], $builder->getBindings());
     }
 
     public function testBasicSelectDistinct()

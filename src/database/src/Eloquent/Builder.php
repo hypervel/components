@@ -756,9 +756,7 @@ class Builder implements BuilderContract
     public function value(Expression|string $column): mixed
     {
         if ($result = $this->first([$column])) {
-            $column = $column instanceof Expression ? $column->getValue($this->getGrammar()) : $column;
-
-            return $result->{Str::afterLast($column, '.')};
+            return $this->getValueFromModel($result, $column);
         }
 
         return null;
@@ -772,9 +770,7 @@ class Builder implements BuilderContract
      */
     public function soleValue(Expression|string $column): mixed
     {
-        $column = $column instanceof Expression ? $column->getValue($this->getGrammar()) : $column;
-
-        return $this->sole([$column])->{Str::afterLast($column, '.')};
+        return $this->getValueFromModel($this->sole([$column]), $column);
     }
 
     /**
@@ -784,9 +780,21 @@ class Builder implements BuilderContract
      */
     public function valueOrFail(Expression|string $column): mixed
     {
-        $column = $column instanceof Expression ? $column->getValue($this->getGrammar()) : $column;
+        return $this->getValueFromModel($this->firstOrFail([$column]), $column);
+    }
 
-        return $this->firstOrFail([$column])->{Str::afterLast($column, '.')};
+    /**
+     * Get the selected value through the model's attribute accessors.
+     */
+    protected function getValueFromModel(Model $model, Expression|string $column): mixed
+    {
+        // The returned field name accounts for aliases and driver-specific names
+        // for unaliased expressions without interpreting their SQL.
+        $column = $column instanceof Expression
+            ? (string) array_key_first($model->getAttributes())
+            : Str::afterLast($column, '.');
+
+        return $model->{$column};
     }
 
     /**
@@ -983,18 +991,22 @@ class Builder implements BuilderContract
      */
     public function pluck(Expression|string $column, ?string $key = null): BaseCollection
     {
-        $results = $this->toBase()->pluck($column, $key);
+        if ($column instanceof Expression) {
+            // Casts and accessors use the returned field name, which cannot be
+            // recovered from the values alone or reliably inferred from raw SQL.
+            [$results, $column] = $this->toBase()->pluckWithColumn($column, $key);
+        } else {
+            $results = $this->toBase()->pluck($column, $key);
 
-        $column = $column instanceof Expression ? $column->getValue($this->getGrammar()) : $column;
-
-        $column = Str::after($column, "{$this->model->getTable()}.");
+            $column = Str::after($column, "{$this->model->getTable()}.");
+        }
 
         // If the model has a mutator for the requested column, we will spin through
         // the results and mutate the values so that the mutated version of these
         // columns are returned as you would expect from these Eloquent models.
-        if (! $this->model->hasAnyGetMutator($column)
+        if (is_null($column) || (! $this->model->hasAnyGetMutator($column)
             && ! $this->model->hasCast($column)
-            && ! in_array($column, $this->model->getDates())) {
+            && ! in_array($column, $this->model->getDates()))) {
             return $this->applyAfterQueryCallbacks($results);
         }
 
@@ -1924,7 +1936,7 @@ class Builder implements BuilderContract
     /**
      * Qualify the given columns with the model's table.
      */
-    public function qualifyColumns(Expression|array $columns): array
+    public function qualifyColumns(array $columns): array
     {
         return $this->model->qualifyColumns($columns);
     }

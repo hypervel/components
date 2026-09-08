@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation and verification are complete. Integration with the latest `0.4` and verification of the combined code remain.
+Implementation, integration with `0.4`, and verification of the combined code are complete.
 
 ## Outcome and boundaries
 

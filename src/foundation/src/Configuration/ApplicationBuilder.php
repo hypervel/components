@@ -8,9 +8,11 @@ use Closure;
 use Hypervel\Console\Application as Artisan;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernel;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Http\Kernel as HttpKernel;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\RegisterProviders;
+use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Foundation\Http\HealthCheckController;
 use Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
 use Hypervel\Foundation\Support\Providers\EventServiceProvider as AppEventServiceProvider;
@@ -298,18 +300,21 @@ class ApplicationBuilder
     /**
      * Register and configure the application's exception handler.
      *
-     * @param null|(callable(Exceptions): void) $using
+     * Boot-only. The exception handler binding and resolution callback persist
+     * in the application container and affect subsequent requests.
+     *
+     * @param null|(callable(Exceptions): mixed) $using
      */
     public function withExceptions(?callable $using = null): static
     {
         $this->app->singleton(
-            \Hypervel\Contracts\Debug\ExceptionHandler::class,
-            \Hypervel\Foundation\Exceptions\Handler::class
+            ExceptionHandler::class,
+            Handler::class
         );
 
         if ($using !== null) {
             $this->app->afterResolving(
-                \Hypervel\Foundation\Exceptions\Handler::class,
+                Handler::class,
                 fn ($handler) => $using(new Exceptions($handler)),
             );
         }
