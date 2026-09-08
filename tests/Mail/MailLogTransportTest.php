@@ -44,7 +44,7 @@ class MailLogTransportTest extends TestCase
         ]);
 
         $transport = $this->app->make('mail.manager')
-            ->removePoolable('log')
+            ->removePoolableDriver('log')
             ->getSymfonyTransport();
         $this->assertInstanceOf(LogTransport::class, $transport);
 

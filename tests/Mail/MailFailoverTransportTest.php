@@ -42,7 +42,7 @@ class MailFailoverTransportTest extends TestCase
         ]);
 
         $transport = $this->app->make('mail.manager')
-            ->removePoolable('failover')
+            ->removePoolableDriver('failover')
             ->getSymfonyTransport();
         $this->assertInstanceOf(FailoverTransport::class, $transport);
     }
@@ -70,7 +70,7 @@ class MailFailoverTransportTest extends TestCase
         ]);
 
         $transport = $this->app->make('mail.manager')
-            ->removePoolable('failover')
+            ->removePoolableDriver('failover')
             ->getSymfonyTransport();
         $this->assertInstanceOf(FailoverTransport::class, $transport);
     }
