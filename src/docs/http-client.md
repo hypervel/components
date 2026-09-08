@@ -372,10 +372,12 @@ If needed, you may pass a third argument to the `retry` method. The third argume
 use Hypervel\Http\Client\PendingRequest;
 use Throwable;
 
-$response = Http::retry(3, 100, function (Throwable $exception, PendingRequest $request) {
+$response = Http::retry(3, 100, function (?Throwable $exception, PendingRequest $request) {
     return $exception instanceof ConnectionException;
 })->post(/* ... */);
 ```
+
+The callback also receives the HTTP method as a third argument, or `null` when the method is unavailable.
 
 If a request attempt fails, you may wish to make a change to the request before a new attempt is made. You can achieve this by modifying the request argument provided to the callable you provided to the `retry` method. For example, you might want to retry the request with a new authorization token if the first attempt returned an authentication error:
 
@@ -384,7 +386,7 @@ use Hypervel\Http\Client\PendingRequest;
 use Hypervel\Http\Client\RequestException;
 use Throwable;
 
-$response = Http::withToken($this->getToken())->retry(2, 0, function (Throwable $exception, PendingRequest $request) {
+$response = Http::withToken($this->getToken())->retry(2, 0, function (?Throwable $exception, PendingRequest $request) {
     if (! $exception instanceof RequestException || $exception->response->status() !== 401) {
         return false;
     }

@@ -572,6 +572,9 @@ class PendingRequest implements Transient
 
     /**
      * Specify the number of times the request should be attempted.
+     *
+     * @param (Closure(int, mixed): int)|int $sleepMilliseconds
+     * @param null|(callable(null|Throwable, static, null|string): bool) $when
      */
     public function retry(
         array|int $times,
@@ -912,36 +915,40 @@ class PendingRequest implements Transient
 
                         $response = $this->runAfterResponseCallbacks($response);
 
-                        if (! $response->successful()) {
-                            try {
-                                $shouldRetry = $this->retryWhenCallback ? call_user_func(
-                                    $this->retryWhenCallback,
-                                    $response->toException(),
-                                    $this
-                                ) : true;
-                            } catch (Exception $exception) {
-                                $shouldRetry = false;
+                        if ($response->successful()) {
+                            return;
+                        }
 
-                                throw $exception;
-                            }
+                        // A caller-supplied client bypasses the middleware that captures the request.
+                        try {
+                            $shouldRetry = $this->retryWhenCallback ? call_user_func(
+                                $this->retryWhenCallback,
+                                $response->toException(),
+                                $this,
+                                $this->request?->toPsrRequest()->getMethod()
+                            ) : true;
+                        } catch (Exception $exception) {
+                            $shouldRetry = false;
 
-                            if ($this->throwCallback
-                                && ($this->throwIfCallback === null
-                                    || call_user_func($this->throwIfCallback, $response))) {
-                                $response->throw($this->throwCallback);
-                            }
+                            throw $exception;
+                        }
 
-                            $potentialTries = is_array($this->tries)
-                                ? count($this->tries) + 1
-                                : $this->tries;
+                        if ($this->throwCallback
+                            && ($this->throwIfCallback === null
+                                || call_user_func($this->throwIfCallback, $response))) {
+                            $response->throw($this->throwCallback);
+                        }
 
-                            if ($attempt < $potentialTries && $shouldRetry) {
-                                $response->throw();
-                            }
+                        $potentialTries = is_array($this->tries)
+                            ? count($this->tries) + 1
+                            : $this->tries;
 
-                            if ($potentialTries > 1 && $this->retryThrow) {
-                                $response->throw();
-                            }
+                        if ($attempt < $potentialTries && $shouldRetry) {
+                            $response->throw();
+                        }
+
+                        if ($potentialTries > 1 && $this->retryThrow) {
+                            $response->throw();
                         }
                     }
                 );
@@ -964,7 +971,8 @@ class PendingRequest implements Transient
             $result = $shouldRetry ?? ($this->retryWhenCallback ? call_user_func( // @phpstan-ignore nullCoalesce.variable ($shouldRetry is set by the retry callback closure via shared &$ref)
                 $this->retryWhenCallback,
                 $exception,
-                $this
+                $this,
+                $this->request?->toPsrRequest()->getMethod()
             ) : true);
 
             $shouldRetry = null;
@@ -1126,7 +1134,8 @@ class PendingRequest implements Transient
             $shouldRetry = $this->retryWhenCallback ? call_user_func(
                 $this->retryWhenCallback,
                 $response instanceof Response ? $response->toException() : $response,
-                $this
+                $this,
+                $method
             ) : true;
         } catch (CanceledException $exception) {
             throw $exception;

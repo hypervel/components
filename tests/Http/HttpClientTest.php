@@ -3539,6 +3539,74 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentCount(2);
     }
 
+    public function testAsyncRetryCallbackReceivesHttpMethod(): void
+    {
+        $method = null;
+
+        $this->factory->fake([
+            '*' => $this->factory->sequence()
+                ->push(['error'], 500)
+                ->push(['ok'], 200),
+        ]);
+
+        $response = $this->factory
+            ->async()
+            ->retry(2, 0, function (Throwable $exception, PendingRequest $request, string $requestMethod) use (&$method): bool {
+                $method = $requestMethod;
+
+                return true;
+            }, false)
+            ->get('http://foo.com/get')
+            ->wait();
+
+        $this->assertSame('GET', $method);
+        $this->assertTrue($response->successful());
+    }
+
+    public function testRetryCallbackReceivesHttpMethod(): void
+    {
+        $method = null;
+
+        $this->factory->fake([
+            '*' => $this->factory->sequence()
+                ->push(['error'], 500)
+                ->push(['ok'], 200),
+        ]);
+
+        $response = $this->factory
+            ->withRequestMiddleware(static fn (RequestInterface $request): RequestInterface => $request->withMethod('PATCH'))
+            ->retry(2, 0, function (Throwable $exception, PendingRequest $request, ?string $requestMethod) use (&$method): bool {
+                $method = $requestMethod;
+
+                return true;
+            }, false)
+            ->get('http://foo.com/get');
+
+        $this->assertSame('PATCH', $method);
+        $this->assertTrue($response->successful());
+    }
+
+    public function testRetryCallbackReceivesNullHttpMethodWithCustomClient(): void
+    {
+        $callbackCalled = false;
+
+        $response = $this->factory
+            ->setClient(new GuzzleClient([
+                'handler' => static fn (): PromiseInterface => Factory::response('Failed', 500),
+            ]))
+            ->retry(1, when: function (Throwable $exception, PendingRequest $request, ?string $method) use (&$callbackCalled): bool {
+                $callbackCalled = true;
+
+                $this->assertNull($method);
+
+                return false;
+            }, throw: false)
+            ->get('http://foo.com/get');
+
+        $this->assertTrue($callbackCalled);
+        $this->assertSame(500, $response->status());
+    }
+
     public function testClientCanBeSet(): void
     {
         $client = $this->factory->buildClient();
@@ -4206,7 +4274,9 @@ class HttpClientTest extends TestCase
         $this->factory->fake(function (Request $request) {
             return $this->factory::response('Fake');
         })->withMiddleware($middleware)
-            ->retry(3, 1, function (Exception $exception, PendingRequest $request) {
+            ->retry(3, 1, function (Exception $exception, PendingRequest $request, ?string $method): bool {
+                $this->assertNull($method);
+
                 return true;
             })->post('https://example.com');
     }
@@ -5048,7 +5118,7 @@ class HttpClientTest extends TestCase
         $this->assertSame(403, $response->status());
     }
 
-    public function testRequestExceptionIsThrownWhenUnlessConditionIsNotSatisfied(): void
+    public function testPendingRequestExceptionIsThrownWhenUnlessConditionIsNotSatisfied(): void
     {
         $this->factory->fake([
             '*' => $this->factory::response('', 400),
@@ -5059,7 +5129,7 @@ class HttpClientTest extends TestCase
         $this->factory->throwUnless(false)->get('http://foo.com/api');
     }
 
-    public function testRequestExceptionIsNotThrownWhenUnlessConditionIsSatisfied(): void
+    public function testPendingRequestExceptionIsNotThrownWhenUnlessConditionIsSatisfied(): void
     {
         $this->factory->fake([
             '*' => $this->factory::response(['result' => ['foo' => 'bar']], 400),
@@ -5201,6 +5271,49 @@ class HttpClientTest extends TestCase
         $this->assertSame(403, $response->status());
     }
 
+    public function testRequestExceptionIsThrownIfTheThrowUnlessClosureOnThePendingRequestReturnsFalse(): void
+    {
+        $this->factory->fake([
+            '*' => $this->factory::response(['error'], 403),
+        ]);
+
+        $exception = null;
+
+        try {
+            $this->factory
+                ->throwUnless(function (Response $response): bool {
+                    $this->assertInstanceOf(Response::class, $response);
+                    $this->assertSame(403, $response->status());
+
+                    return false;
+                })
+                ->get('http://foo.com/get');
+        } catch (RequestException $e) {
+            $exception = $e;
+        }
+
+        $this->assertNotNull($exception);
+        $this->assertInstanceOf(RequestException::class, $exception);
+    }
+
+    public function testRequestExceptionIsNotThrownIfTheThrowUnlessClosureOnThePendingRequestReturnsTrue(): void
+    {
+        $this->factory->fake([
+            '*' => $this->factory::response(['error'], 403),
+        ]);
+
+        $response = $this->factory
+            ->throwUnless(function (Response $response): bool {
+                $this->assertInstanceOf(Response::class, $response);
+                $this->assertSame(403, $response->status());
+
+                return true;
+            })
+            ->get('http://foo.com/get');
+
+        $this->assertSame(403, $response->status());
+    }
+
     public function testRequestExceptionIsThrownWithCallbackIfThePendingRequestIsSetToThrowOnFailure(): void
     {
         $this->factory->fake([
@@ -5309,6 +5422,35 @@ class HttpClientTest extends TestCase
         $this->assertSame('{"result":{"foo":"bar"}}', $response->body());
     }
 
+    public function testRequestExceptionIsThrownWhenUnlessConditionIsNotSatisfied(): void
+    {
+        $this->factory->fake([
+            '*' => $this->factory::response('', 400),
+        ]);
+
+        $exception = null;
+
+        try {
+            $this->factory->get('http://foo.com/api')->throwUnless(false);
+        } catch (RequestException $e) {
+            $exception = $e;
+        }
+
+        $this->assertNotNull($exception);
+        $this->assertInstanceOf(RequestException::class, $exception);
+    }
+
+    public function testRequestExceptionIsNotThrownWhenUnlessConditionIsSatisfied(): void
+    {
+        $this->factory->fake([
+            '*' => $this->factory::response(['result' => ['foo' => 'bar']], 400),
+        ]);
+
+        $response = $this->factory->get('http://foo.com/api')->throwUnless(true);
+
+        $this->assertSame('{"result":{"foo":"bar"}}', $response->body());
+    }
+
     public function testRequestExceptionIsThrowIfConditionClosureIsSatisfied(): void
     {
         $this->factory->fake([
@@ -5393,6 +5535,43 @@ class HttpClientTest extends TestCase
         } catch (RequestException) {
             $this->assertTrue($throwUnlessCallbackCalled);
         }
+    }
+
+    public function testRequestExceptionIsThrownWhenUnlessConditionClosureIsNotSatisfied(): void
+    {
+        $this->factory->fake([
+            '*' => $this->factory::response('', 400),
+        ]);
+
+        $exception = null;
+
+        try {
+            $this->factory->get('http://foo.com/api')->throwUnless(function (Response $response): bool {
+                $this->assertSame(400, $response->status());
+
+                return false;
+            });
+        } catch (RequestException $e) {
+            $exception = $e;
+        }
+
+        $this->assertNotNull($exception);
+        $this->assertInstanceOf(RequestException::class, $exception);
+    }
+
+    public function testRequestExceptionIsNotThrownWhenUnlessConditionClosureIsSatisfied(): void
+    {
+        $this->factory->fake([
+            '*' => $this->factory::response(['result' => ['foo' => 'bar']], 400),
+        ]);
+
+        $response = $this->factory->get('http://foo.com/api')->throwUnless(function (Response $response): bool {
+            $this->assertSame(400, $response->status());
+
+            return true;
+        });
+
+        $this->assertSame('{"result":{"foo":"bar"}}', $response->body());
     }
 
     public function testRequestExceptionIsThrownIfStatusCodeIsSatisfied(): void
