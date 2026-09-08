@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\ObjectPool\Contracts;
+namespace Hypervel\Contracts\ObjectPool;
 
 use Hypervel\ObjectPool\PoolOptions;
 
 interface ObjectPool
 {
     /**
-     * Get an object from the object pool.
+     * Borrow an object from the pool.
      */
-    public function get(): object;
+    public function borrow(): object;
 
     /**
      * Release an object back to the object pool.
@@ -44,29 +44,29 @@ interface ObjectPool
     public function isClosed(): bool;
 
     /**
-     * Determine if the entire pool has exceeded its idle TTL.
+     * Determine if the entire pool has exceeded its idle timeout.
      */
-    public function isIdle(): bool;
+    public function isIdleExpired(): bool;
 
     /**
      * Return the number of objects currently checked out.
      */
-    public function getBorrowedObjectNumber(): int;
+    public function getBorrowedCount(): int;
 
     /**
      * Return the current number of objects managed by the pool.
      */
-    public function getCurrentObjectNumber(): int;
+    public function getManagedCount(): int;
 
     /**
      * Return the number of objects currently available in the pool.
      */
-    public function getObjectNumberInPool(): int;
+    public function getIdleCount(): int;
 
     /**
      * Return the number of coroutines waiting for an object.
      */
-    public function getWaiters(): int;
+    public function getWaitingCount(): int;
 
     /**
      * Get the normalized pool options.
@@ -76,7 +76,7 @@ interface ObjectPool
     /**
      * Return statistics about the pool's current state.
      *
-     * @return array{total: int, idle: int, borrowed: int, waiters: int, closed: bool}
+     * @return array{managed: int, borrowed: int, idle: int, waiting: int, closed: bool}
      */
     public function getStats(): array;
 }

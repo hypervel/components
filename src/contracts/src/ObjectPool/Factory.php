@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\ObjectPool\Contracts;
+namespace Hypervel\Contracts\ObjectPool;
 
 use Hypervel\ObjectPool\PoolDefinition;
 
@@ -17,7 +17,7 @@ interface Factory
      */
     public function pool(
         string $name,
-        callable $callback,
+        callable $createCallback,
         array $options = [],
     ): ObjectPool;
 
@@ -26,7 +26,7 @@ interface Factory
      */
     public function getOrCreate(
         PoolDefinition $definition,
-        callable $callback,
+        callable $createCallback,
     ): ObjectPool;
 
     /**
@@ -36,6 +36,8 @@ interface Factory
 
     /**
      * Determine if a pool is currently registered for an identity.
+     *
+     * This does not reserve registry membership across a coroutine yield.
      */
     public function has(string $identity): bool;
 
@@ -44,17 +46,17 @@ interface Factory
      *
      * @return array<string, ObjectPool>
      */
-    public function pools(): array;
+    public function getPools(): array;
 
     /**
      * Get the definition currently registered for an identity.
      */
-    public function definition(string $identity): ?PoolDefinition;
+    public function getDefinition(string $identity): ?PoolDefinition;
 
     /**
      * Remove and close a pool when it still matches an optional expected instance.
      */
-    public function remove(string $identity, ?ObjectPool $expected = null): bool;
+    public function purge(string $identity, ?ObjectPool $expected = null): bool;
 
     /**
      * Remove and close every registered pool.
@@ -62,5 +64,5 @@ interface Factory
      * Boot or tests only. This clears worker-lifetime pools shared by every
      * coroutine; use targeted removal for runtime resource recovery.
      */
-    public function flush(): void;
+    public function purgeAll(): void;
 }

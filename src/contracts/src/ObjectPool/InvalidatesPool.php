@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\ObjectPool\Contracts;
+namespace Hypervel\Contracts\ObjectPool;
 
 interface InvalidatesPool
 {

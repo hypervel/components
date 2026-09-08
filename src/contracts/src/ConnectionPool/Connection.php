@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Contracts\Pool;
+namespace Hypervel\Contracts\ConnectionPool;
 
-interface ConnectionInterface
+interface Connection
 {
     /**
-     * Get the real connection from pool.
+     * Return the underlying connection.
      */
     public function getConnection(): mixed;
 
@@ -17,7 +17,7 @@ interface ConnectionInterface
     public function reconnect(): bool;
 
     /**
-     * Check the connection is valid.
+     * Determine if the connection is valid.
      */
     public function check(): bool;
 
@@ -27,7 +27,7 @@ interface ConnectionInterface
     public function close(): bool;
 
     /**
-     * Release the connection to pool.
+     * Release the connection to its pool.
      */
     public function release(): void;
 
