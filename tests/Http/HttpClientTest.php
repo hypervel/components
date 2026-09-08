@@ -591,6 +591,21 @@ class HttpClientTest extends TestCase
 
     public function testResponseObjectIsTappable(): void
     {
+        $bar = null;
+        $this->factory->fake([
+            '*' => ['result' => ['foo' => 'bar']],
+        ]);
+
+        $this->factory->get('http://foo.com/api')
+            ->tap(function (Response $response) use (&$bar) {
+                $bar = $response['result']['foo'];
+            });
+
+        $this->assertSame('bar', $bar);
+    }
+
+    public function testResponseTapKeepsResponseAvailableForChaining(): void
+    {
         $response = new Response($this->factory::psr7Response(['foo' => 'bar']));
 
         $this->assertSame(['foo' => 'bar'], $response->tap(function (Response $response) {
@@ -618,6 +633,7 @@ class HttpClientTest extends TestCase
 
         $response = $this->factory->get('http://www.omdbapi.com/?apikey=test_api_key&i=test_imdb_id');
 
+        $this->assertIsArray($response->movieFields());
         $this->assertSame([
             'title' => 'The Godfather',
             'year' => 1972,

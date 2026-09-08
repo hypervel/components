@@ -66,6 +66,8 @@ $response->handlerStats() : array;
 $response->toPsrResponse() : Psr\Http\Message\ResponseInterface;
 ```
 
+You may also use the response's [tap method](/docs/{{version}}/helpers#method-tap) to inspect it without interrupting a method chain.
+
 The `Hypervel\Http\Client\Response` object also implements the PHP `ArrayAccess` interface, allowing you to access JSON response data directly on the response:
 
 ```php
