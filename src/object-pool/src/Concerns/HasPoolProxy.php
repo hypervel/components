@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\ObjectPool\Traits;
+namespace Hypervel\ObjectPool\Concerns;
 
 use Closure;
-use Hypervel\ObjectPool\Contracts\Factory;
+use Hypervel\Contracts\ObjectPool\Factory;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolFingerprint;
 use Hypervel\ObjectPool\PoolOptions;
@@ -13,6 +13,9 @@ use Hypervel\ObjectPool\PoolProxy;
 use Hypervel\Support\Arr;
 use InvalidArgumentException;
 
+/**
+ * Hosts must declare a protected array $poolableDrivers containing their default poolable drivers.
+ */
 trait HasPoolProxy
 {
     /** @var array<string, Closure> */
@@ -23,7 +26,7 @@ trait HasPoolProxy
      */
     protected function createPoolProxy(
         string $driver,
-        Closure $resolver,
+        Closure $createCallback,
         PoolDefinition $definition,
         string $proxyClass,
     ): mixed {
@@ -33,7 +36,7 @@ trait HasPoolProxy
 
         return new $proxyClass(
             $definition,
-            $resolver,
+            $createCallback,
             $this->poolFactory(),
             $this->getReleaseCallback($driver),
         );
@@ -90,10 +93,10 @@ trait HasPoolProxy
      * is consulted on subsequent driver creation. Per-request use races across
      * coroutines and does not affect already-cached drivers.
      */
-    public function addPoolable(string $driver): static
+    public function addPoolableDriver(string $driver): static
     {
-        if (! in_array($driver, $this->poolables, true)) {
-            $this->poolables[] = $driver;
+        if (! in_array($driver, $this->poolableDrivers, true)) {
+            $this->poolableDrivers[] = $driver;
         }
 
         return $this;
@@ -106,16 +109,16 @@ trait HasPoolProxy
      * is consulted on subsequent driver creation. Per-request use races across
      * coroutines and does not affect already-cached drivers.
      */
-    public function removePoolable(string $driver): static
+    public function removePoolableDriver(string $driver): static
     {
-        $index = array_search($driver, $this->poolables, true);
+        $index = array_search($driver, $this->poolableDrivers, true);
 
         if ($index === false) {
             return $this;
         }
 
-        unset($this->poolables[$index]);
-        $this->poolables = array_values($this->poolables);
+        unset($this->poolableDrivers[$index]);
+        $this->poolableDrivers = array_values($this->poolableDrivers);
 
         return $this;
     }
@@ -123,9 +126,9 @@ trait HasPoolProxy
     /**
      * Get the poolable-driver list.
      */
-    public function getPoolables(): array
+    public function getPoolableDrivers(): array
     {
-        return $this->poolables;
+        return $this->poolableDrivers;
     }
 
     /**
@@ -135,9 +138,9 @@ trait HasPoolProxy
      * is consulted on subsequent driver creation. Per-request use races across
      * coroutines and does not affect already-cached drivers.
      */
-    public function setPoolables(array $poolables): static
+    public function setPoolableDrivers(array $poolableDrivers): static
     {
-        $this->poolables = array_values($poolables);
+        $this->poolableDrivers = array_values($poolableDrivers);
 
         return $this;
     }
