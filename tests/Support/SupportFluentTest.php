@@ -422,7 +422,7 @@ class SupportFluentTest extends TestCase
         $this->assertNull($fluent->enum('int.doesnt_exist', TestBackedEnum::class));
     }
 
-    public function testEnumsMethod()
+    public function testEnumsMethod(): void
     {
         $fluent = new Fluent([
             'valid_enum_values' => ['A', 'B'],
@@ -444,9 +444,9 @@ class SupportFluentTest extends TestCase
 
         $this->assertEquals([TestStringBackedEnum::A, TestStringBackedEnum::B], $fluent->enums('valid_enum_values', TestStringBackedEnum::class));
 
-        $this->assertEmpty($fluent->enums('invalid_enum_value', TestStringBackedEnum::class));
+        $this->assertEmpty($fluent->enums('invalid_enum_values', TestStringBackedEnum::class));
         $this->assertEmpty($fluent->enums('empty_value_request', TestStringBackedEnum::class));
-        $this->assertEmpty($fluent->enums('valid_enum_value', TestEnum::class));
+        $this->assertEmpty($fluent->enums('valid_enum_values', TestEnum::class));
 
         $this->assertEquals([TestBackedEnum::A, TestBackedEnum::B], $fluent->enums('string.a', TestBackedEnum::class));
         $this->assertEquals([TestBackedEnum::B], $fluent->enums('string.b', TestBackedEnum::class));

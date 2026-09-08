@@ -1123,9 +1123,9 @@ class HttpRequestTest extends TestCase
 
         $this->assertEquals([TestEnumBacked::test, TestEnumBacked::test], $request->enums('valid_enum_values', TestEnumBacked::class));
 
-        $this->assertEmpty($request->enums('invalid_enum_value', TestEnumBacked::class));
+        $this->assertEmpty($request->enums('invalid_enum_values', TestEnumBacked::class));
         $this->assertEmpty($request->enums('empty_value_request', TestEnumBacked::class));
-        $this->assertEmpty($request->enums('valid_enum_value', TestEnum::class));
+        $this->assertEmpty($request->enums('valid_enum_values', TestEnum::class));
 
         $this->assertEquals([TestIntegerEnumBacked::minus_1, TestIntegerEnumBacked::zero], $request->enums('string.minus_1', TestIntegerEnumBacked::class));
         $this->assertEquals([TestIntegerEnumBacked::zero], $request->enums('string.0', TestIntegerEnumBacked::class));
