@@ -16,9 +16,12 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Foundation\Auth\User;
 use Hypervel\Foundation\Bus\Dispatchable;
+use Hypervel\Queue\Events\UniqueJobSkipped;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\SerializesModels;
 use Hypervel\Support\Facades\Bus;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\Factories\UserFactory;
@@ -61,6 +64,26 @@ class UniqueJobTest extends QueueTestCase
         $this->assertFalse(
             $this->app->get(Cache::class)->lock($this->getLockKey(UniqueTestJob::class), 10)->get()
         );
+    }
+
+    public function testUniqueJobEmitsUniqueJobSkippedEventWhenAlreadyAcquired(): void
+    {
+        Bus::fake();
+
+        $skipped = [];
+
+        Event::listen(UniqueJobSkipped::class, function (UniqueJobSkipped $event) use (&$skipped): void {
+            $skipped[] = $event->job;
+        });
+
+        UniqueTestJob::dispatch();
+
+        $this->assertSame([], $skipped);
+
+        UniqueTestJob::dispatch();
+
+        $this->assertCount(1, $skipped);
+        $this->assertInstanceOf(UniqueTestJob::class, $skipped[0]);
     }
 
     public function testUniqueJobWithViaDispatched(): void
@@ -154,6 +177,41 @@ class UniqueJobTest extends QueueTestCase
         $this->assertTrue($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
     }
 
+    public function testRetryOfUniqueUntilProcessingJobDoesNotReleaseSubsequentLock(): void
+    {
+        $this->markTestSkippedWhenUsingSyncQueueDriver();
+
+        dispatch($job = new UniqueUntilProcessingRetryJob);
+
+        $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
+
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertTrue($job::$handled);
+        $this->assertTrue($this->app->get(Cache::class)->lock($this->getLockKey($job), 60)->get());
+
+        UniqueUntilProcessingRetryJob::$handled = false;
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertTrue($job::$handled);
+        $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
+    }
+
+    public function testRetryOfOwnerlessUniqueUntilProcessingJobDoesNotReleaseSubsequentLock(): void
+    {
+        $this->markTestSkippedWhenUsingSyncQueueDriver();
+
+        dispatch($job = new OwnerlessUniqueUntilProcessingRetryJob);
+
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertTrue($this->app->get(Cache::class)->lock($this->getLockKey($job), 60)->get());
+
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
+    }
+
     public function testLockIsReleasedOnModelNotFoundException(): void
     {
         UniqueTestSerializesModelsJob::$handled = false;
@@ -174,6 +232,57 @@ class UniqueJobTest extends QueueTestCase
             $this->assertModelMissing($user);
             $this->assertTrue($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
         }
+    }
+
+    public function testModelNotFoundExceptionDoesNotReleaseSubsequentLock(): void
+    {
+        $this->markTestSkippedWhenUsingSyncQueueDriver();
+
+        /** @var User $user */
+        $user = UserFactory::new()->create();
+        $job = new UniqueTestSerializesModelsJob($user);
+        $cache = $this->app->get(Cache::class);
+        $lock = new UniqueLock($cache);
+
+        dispatch($job);
+
+        $lock->release($job);
+
+        $replacement = new UniqueTestSerializesModelsJob($user);
+        $this->assertTrue($lock->acquire($replacement));
+
+        $user->delete();
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertFalse($cache->lock($this->getLockKey($job), 10)->get());
+
+        $lock->release($replacement);
+    }
+
+    public function testMissingModelInOrdinaryChildDoesNotReleaseParentUniqueLock(): void
+    {
+        $this->markTestSkippedWhenUsingSyncQueueDriver();
+
+        NestedUniqueParentJob::$dispatchedChild = false;
+
+        /** @var User $user */
+        $user = UserFactory::new()->create();
+
+        dispatch($job = new NestedUniqueParentJob);
+
+        $cache = $this->app->get(Cache::class);
+        $this->assertFalse($cache->lock($this->getLockKey($job), 10)->get());
+
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertTrue(NestedUniqueParentJob::$dispatchedChild);
+        $this->assertFalse($cache->lock($this->getLockKey($job), 10)->get());
+
+        $user->delete();
+        $this->runQueueWorkerCommand(['--once' => true]);
+
+        $this->assertSame(1, Queue::size());
+        $this->assertFalse($cache->lock($this->getLockKey($job), 10)->get());
     }
 
     public function testQueueFakeReleasesUniqueJobLocksBetweenFakes(): void
@@ -197,6 +306,26 @@ class UniqueJobTest extends QueueTestCase
         UniqueTestJob::dispatch();
 
         Queue::assertPushedTimes(UniqueTestJob::class, 1);
+    }
+
+    public function testRolledBackPushDoesNotReleaseAnotherDispatchesUniqueLock(): void
+    {
+        $this->markTestSkippedWhenUsingSyncQueueDriver();
+
+        dispatch($job = new UniqueTestAfterCommitJob);
+
+        $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
+
+        try {
+            DB::transaction(function (): never {
+                Queue::push(new UniqueTestAfterCommitJob);
+
+                throw new Exception('Rollback.');
+            });
+        } catch (Exception) {
+        }
+
+        $this->assertFalse($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
     }
 
     /**
@@ -318,6 +447,47 @@ class UniqueUntilStartTestJob extends UniqueTestJob implements ShouldBeUniqueUnt
     public int $tries = 2;
 }
 
+class UniqueUntilProcessingRetryJob implements ShouldQueue, ShouldBeUniqueUntilProcessing
+{
+    use InteractsWithQueue;
+    use Queueable;
+    use Dispatchable;
+
+    public int $tries = 2;
+
+    public static bool $handled = false;
+
+    /**
+     * Handle the job.
+     */
+    public function handle(): void
+    {
+        static::$handled = true;
+
+        if ($this->attempts() === 1) {
+            throw new Exception('First attempt failure.');
+        }
+    }
+}
+
+class OwnerlessUniqueUntilProcessingRetryJob implements ShouldQueue, ShouldBeUniqueUntilProcessing
+{
+    use InteractsWithQueue;
+    use Dispatchable;
+
+    public int $tries = 2;
+
+    /**
+     * Handle the job.
+     */
+    public function handle(): void
+    {
+        if ($this->attempts() === 1) {
+            throw new Exception('First attempt failure.');
+        }
+    }
+}
+
 class UniqueTestSerializesModelsJob extends UniqueTestJob
 {
     use SerializesModels;
@@ -363,5 +533,81 @@ class UniqueIdTestJobWithDisplayName extends UniqueTestJob
     public function displayName(): string
     {
         return 'App\Actions\UniqueTestAction';
+    }
+}
+
+class UniqueTestAfterCommitJob implements ShouldQueue, ShouldBeUnique
+{
+    use Dispatchable;
+    use InteractsWithQueue;
+    use Queueable;
+
+    /**
+     * Create a job that dispatches after commit.
+     */
+    public function __construct()
+    {
+        $this->afterCommit = true;
+    }
+
+    /**
+     * Handle the job.
+     */
+    public function handle(): void
+    {
+    }
+}
+
+class NestedUniqueParentJob implements ShouldQueue, ShouldBeUnique
+{
+    use Dispatchable;
+    use InteractsWithQueue;
+    use Queueable;
+
+    public int $tries = 3;
+
+    public static bool $dispatchedChild = false;
+
+    /**
+     * Get the lifetime of the unique lock.
+     */
+    public function uniqueFor(): int
+    {
+        return 300;
+    }
+
+    /**
+     * Dispatch a child while retaining this job's lock for a retry.
+     */
+    public function handle(): void
+    {
+        static::$dispatchedChild = true;
+
+        NestedOrdinaryChildJob::dispatch(User::query()->firstOrFail());
+
+        $this->release(120);
+    }
+}
+
+class NestedOrdinaryChildJob implements ShouldQueue
+{
+    use Dispatchable;
+    use Queueable;
+    use SerializesModels;
+
+    public bool $deleteWhenMissingModels = true;
+
+    /**
+     * Create a child job containing a model.
+     */
+    public function __construct(public User $user)
+    {
+    }
+
+    /**
+     * Handle the job.
+     */
+    public function handle(): void
+    {
     }
 }

@@ -9,6 +9,7 @@ use Exception;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\DebounceLock;
+use Hypervel\Bus\Queueable;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
@@ -74,7 +75,7 @@ class CallQueuedHandler
         }
 
         if (! $job->isReleased() && ! $this->commandShouldBeUniqueUntilProcessing($command)) {
-            $this->ensureUniqueJobLockIsReleased($command);
+            $this->ensureUniqueJobLockIsReleased($command, $job);
         }
 
         if (! $job->hasFailed() && ! $job->isReleased()) {
@@ -122,13 +123,13 @@ class CallQueuedHandler
             ->send($command)
             ->through(array_merge(method_exists($command, 'middleware') ? $command->middleware() : [], $command->middleware ?? []))
             ->finally(function ($command) use ($job, &$lockReleased) {
-                if (! $lockReleased && $this->commandShouldBeUniqueUntilProcessing($command) && ! $job->isReleased() && $job->attempts() <= 1) { /* @phpstan-ignore booleanNot.alwaysTrue ($lockReleased is set in then() which runs before finally()) */
-                    $this->ensureUniqueJobLockIsReleased($command);
+                if (! $lockReleased && $this->commandShouldBeUniqueUntilProcessing($command) && ! $job->isReleased() && $this->uniqueJobLockShouldBeReleased($job, $command)) { /* @phpstan-ignore booleanNot.alwaysTrue ($lockReleased is set in then() which runs before finally()) */
+                    $this->ensureUniqueJobLockIsReleased($command, $job);
                 }
             })
             ->then(function ($command) use ($job, &$lockReleased) {
-                if ($this->commandShouldBeUniqueUntilProcessing($command) && $job->attempts() <= 1) {
-                    $this->ensureUniqueJobLockIsReleased($command);
+                if ($this->commandShouldBeUniqueUntilProcessing($command) && $this->uniqueJobLockShouldBeReleased($job, $command)) {
+                    $this->ensureUniqueJobLockIsReleased($command, $job);
 
                     $lockReleased = true;
                 }
@@ -202,12 +203,43 @@ class CallQueuedHandler
     }
 
     /**
-     * Ensure the lock for a unique job is released.
+     * Determine if the unique job lock should be released.
      */
-    protected function ensureUniqueJobLockIsReleased(mixed $command): void
+    protected function uniqueJobLockShouldBeReleased(Job $job, mixed $command): bool
+    {
+        // Middleware may retain the original lock for a retry. An owner token
+        // allows cleanup on that retry without releasing a newer dispatch's lock.
+        return $job->attempts() <= 1 || $this->getUniqueJobLockOwner($job, $command) !== '';
+    }
+
+    /**
+     * Resolve the unique lock owner carried by the command or its queued payload.
+     */
+    protected function getUniqueJobLockOwner(Job $job, mixed $command): string
+    {
+        if (isset(class_uses_recursive($command)[Queueable::class])) {
+            return $command->uniqueLockOwner;
+        }
+
+        // Jobs without Queueable carry ownership in their payload. Ambient
+        // context may have been replaced by a nested synchronous dispatch.
+        $owner = $job->payload()['illuminate:log:context']['hidden']['laravel_unique_job_lock_owner'] ?? null;
+
+        return $owner === null ? '' : unserialize($owner, ['allowed_classes' => false]);
+    }
+
+    /**
+     * Ensure the lock for a unique job is released.
+     *
+     * @param null|Job $job the queued job carrying ownership for commands without Queueable state
+     */
+    protected function ensureUniqueJobLockIsReleased(mixed $command, ?Job $job = null): void
     {
         if ($this->commandShouldBeUnique($command)) {
-            (new UniqueLock($this->container->make(Cache::class)))->release($command);
+            (new UniqueLock($this->container->make(Cache::class)))->release(
+                $command,
+                $job === null ? '' : $this->getUniqueJobLockOwner($job, $command),
+            );
         }
     }
 
@@ -361,7 +393,7 @@ class CallQueuedHandler
         }
 
         if (! $this->commandShouldBeUniqueUntilProcessing($command)) {
-            $this->ensureUniqueJobLockIsReleased($command);
+            $this->ensureUniqueJobLockIsReleased($command, $job);
         }
 
         if ($command instanceof __PHP_Incomplete_Class) {
