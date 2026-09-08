@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis;
 
+use Hypervel\ConnectionPool\Exceptions\ConnectionException;
+use Hypervel\Contracts\ConnectionPool\ConnectionPool;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Pool\PoolInterface;
-use Hypervel\Pool\Exceptions\ConnectionException;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
 use Redis;
@@ -23,7 +23,7 @@ class PhpRedisConnection extends RedisConnection
      *
      * @param array<string, mixed> $config
      */
-    public function __construct(Container $container, PoolInterface $pool, array $config)
+    public function __construct(Container $container, ConnectionPool $pool, array $config)
     {
         parent::__construct($container, $pool, $config);
 

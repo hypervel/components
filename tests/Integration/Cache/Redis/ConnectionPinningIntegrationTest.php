@@ -24,7 +24,7 @@ class ConnectionPinningIntegrationTest extends RedisCacheIntegrationTestCase
     {
         parent::defineEnvironment($app);
 
-        $app->make('config')->set('database.redis.cache.pool.min_connections', 1);
+        $app->make('config')->set('database.redis.cache.pool.min_retained_connections', 1);
         $app->make('config')->set('database.redis.cache.pool.max_connections', 1);
         $app->make('config')->set('database.redis.cache.pool.wait_timeout', 0.25);
     }

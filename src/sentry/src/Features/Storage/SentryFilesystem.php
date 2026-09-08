@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Features\Storage;
 
 use Hypervel\Contracts\Filesystem\Filesystem;
-use Hypervel\ObjectPool\Contracts\InvalidatesPool;
+use Hypervel\Contracts\ObjectPool\InvalidatesPool;
 
 class SentryFilesystem implements DecoratedFilesystem, Filesystem, InvalidatesPool
 {

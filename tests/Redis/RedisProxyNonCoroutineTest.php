@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Redis;
 
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Redis\PhpRedisConnection;
-use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Redis\RedisSentinelFactory;
@@ -61,11 +61,11 @@ class RedisProxyNonCoroutineTest extends TestCase
         $connection->expects('release');
 
         $pool = m::mock(RedisPool::class);
-        $pool->expects('get')->andReturn($connection);
-        $factory = m::mock(PoolFactory::class);
-        $factory->expects('getPool')->with('default')->andReturn($pool);
+        $pool->expects('borrow')->andReturn($connection);
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->expects('pool')->with('default')->andReturn($pool);
         $redis = new RedisProxy(
-            $factory,
+            $poolManager,
             'default',
             m::mock(RedisSentinelFactory::class),
         );

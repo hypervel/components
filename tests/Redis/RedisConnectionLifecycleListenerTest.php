@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Redis;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Redis\Listeners\RedisConnectionLifecycleListener;
-use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\RedisManager;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -51,39 +51,39 @@ class RedisConnectionLifecycleListenerTest extends TestCase
     {
         $container = m::mock(Container::class);
         $container->expects('resolved')->with('redis')->andReturnFalse();
-        $container->expects('resolved')->with(PoolFactory::class)->andReturnFalse();
+        $container->expects('resolved')->with(PoolManager::class)->andReturnFalse();
         $container->shouldNotReceive('make');
 
         (new RedisConnectionLifecycleListener($container))->discardProcessConnections();
     }
 
-    public function testProcessCleanupDiscardsManagerAndFlushesPoolFactory(): void
+    public function testProcessCleanupDiscardsManagerAndPurgesPools(): void
     {
         $manager = m::mock(RedisManager::class);
         $manager->expects('discardConnections');
-        $factory = m::mock(PoolFactory::class);
-        $factory->expects('flushAll');
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->expects('purgeAll');
         $container = m::mock(Container::class);
         $container->expects('resolved')->with('redis')->andReturnTrue();
         $container->expects('make')->with('redis')->andReturn($manager);
-        $container->expects('resolved')->with(PoolFactory::class)->andReturnTrue();
-        $container->expects('make')->with(PoolFactory::class)->andReturn($factory);
+        $container->expects('resolved')->with(PoolManager::class)->andReturnTrue();
+        $container->expects('make')->with(PoolManager::class)->andReturn($poolManager);
 
         (new RedisConnectionLifecycleListener($container))->discardProcessConnections();
     }
 
-    public function testManagerFailureDoesNotSkipPoolFlushAndRemainsPrimary(): void
+    public function testManagerFailureDoesNotSkipPoolPurgeAndRemainsPrimary(): void
     {
         $managerException = new RuntimeException('Manager discard failed.');
         $manager = m::mock(RedisManager::class);
         $manager->expects('discardConnections')->andThrow($managerException);
-        $factory = m::mock(PoolFactory::class);
-        $factory->expects('flushAll')->andThrow(new RuntimeException('Pool flush failed.'));
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->expects('purgeAll')->andThrow(new RuntimeException('Pool purge failed.'));
         $container = m::mock(Container::class);
         $container->expects('resolved')->with('redis')->andReturnTrue();
         $container->expects('make')->with('redis')->andReturn($manager);
-        $container->expects('resolved')->with(PoolFactory::class)->andReturnTrue();
-        $container->expects('make')->with(PoolFactory::class)->andReturn($factory);
+        $container->expects('resolved')->with(PoolManager::class)->andReturnTrue();
+        $container->expects('make')->with(PoolManager::class)->andReturn($poolManager);
 
         try {
             (new RedisConnectionLifecycleListener($container))->discardProcessConnections();
@@ -93,18 +93,18 @@ class RedisConnectionLifecycleListenerTest extends TestCase
         }
     }
 
-    public function testPoolFlushCancellationSupersedesOrdinaryManagerFailure(): void
+    public function testPoolPurgeCancellationSupersedesOrdinaryManagerFailure(): void
     {
-        $cancellation = new CanceledException('Pool flush canceled.');
+        $cancellation = new CanceledException('Pool purge canceled.');
         $manager = m::mock(RedisManager::class);
         $manager->expects('discardConnections')->andThrow(new RuntimeException('Manager discard failed.'));
-        $factory = m::mock(PoolFactory::class);
-        $factory->expects('flushAll')->andThrow($cancellation);
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->expects('purgeAll')->andThrow($cancellation);
         $container = m::mock(Container::class);
         $container->expects('resolved')->with('redis')->andReturnTrue();
         $container->expects('make')->with('redis')->andReturn($manager);
-        $container->expects('resolved')->with(PoolFactory::class)->andReturnTrue();
-        $container->expects('make')->with(PoolFactory::class)->andReturn($factory);
+        $container->expects('resolved')->with(PoolManager::class)->andReturnTrue();
+        $container->expects('make')->with(PoolManager::class)->andReturn($poolManager);
 
         try {
             (new RedisConnectionLifecycleListener($container))->discardProcessConnections();
@@ -114,22 +114,22 @@ class RedisConnectionLifecycleListenerTest extends TestCase
         }
     }
 
-    public function testPoolFactoryFailurePropagatesAfterManagerCleanup(): void
+    public function testPoolPurgeFailurePropagatesAfterManagerCleanup(): void
     {
-        $exception = new RuntimeException('Pool flush failed.');
+        $exception = new RuntimeException('Pool purge failed.');
         $manager = m::mock(RedisManager::class);
         $manager->expects('discardConnections');
-        $factory = m::mock(PoolFactory::class);
-        $factory->expects('flushAll')->andThrow($exception);
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->expects('purgeAll')->andThrow($exception);
         $container = m::mock(Container::class);
         $container->expects('resolved')->with('redis')->andReturnTrue();
         $container->expects('make')->with('redis')->andReturn($manager);
-        $container->expects('resolved')->with(PoolFactory::class)->andReturnTrue();
-        $container->expects('make')->with(PoolFactory::class)->andReturn($factory);
+        $container->expects('resolved')->with(PoolManager::class)->andReturnTrue();
+        $container->expects('make')->with(PoolManager::class)->andReturn($poolManager);
 
         try {
             (new RedisConnectionLifecycleListener($container))->discardProcessConnections();
-            $this->fail('Expected the pool factory failure to propagate.');
+            $this->fail('Expected the pool purge failure to propagate.');
         } catch (RuntimeException $throwable) {
             $this->assertSame($exception, $throwable);
         }

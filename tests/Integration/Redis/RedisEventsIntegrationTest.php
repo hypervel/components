@@ -8,7 +8,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Redis\Events\CommandExecuted;
-use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\RedisManager;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
@@ -35,35 +35,35 @@ class RedisEventsIntegrationTest extends TestCase
         );
 
         $manager = $this->app->make(RedisManager::class);
-        $poolFactory = $this->app->make(PoolFactory::class);
-        $initialPool = $poolFactory->getPool('default');
+        $poolManager = $this->app->make(PoolManager::class);
+        $initialPool = $poolManager->pool('default');
 
         Redis::ping();
         $this->assertSame([], $commands);
 
         $manager->enableEvents();
-        $this->assertArrayNotHasKey('default', $poolFactory->pools());
+        $this->assertArrayNotHasKey('default', $poolManager->getPools());
 
         Redis::set('redis-events-integration', 'value');
-        $enabledPool = $poolFactory->pools()['default'];
+        $enabledPool = $poolManager->getPools()['default'];
         $this->assertNotSame($initialPool, $enabledPool);
         $this->assertSame(['set'], $commands);
 
         $manager->enableEvents();
-        $this->assertSame($enabledPool, $poolFactory->pools()['default']);
+        $this->assertSame($enabledPool, $poolManager->getPools()['default']);
 
         Redis::get('redis-events-integration');
         $this->assertSame(['set', 'get'], $commands);
 
         $manager->disableEvents();
-        $this->assertArrayNotHasKey('default', $poolFactory->pools());
+        $this->assertArrayNotHasKey('default', $poolManager->getPools());
 
         Redis::get('redis-events-integration');
-        $disabledPool = $poolFactory->pools()['default'];
+        $disabledPool = $poolManager->getPools()['default'];
         $this->assertNotSame($enabledPool, $disabledPool);
         $this->assertSame(['set', 'get'], $commands);
 
         $manager->disableEvents();
-        $this->assertSame($disabledPool, $poolFactory->pools()['default']);
+        $this->assertSame($disabledPool, $poolManager->getPools()['default']);
     }
 }

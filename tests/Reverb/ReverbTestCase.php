@@ -66,11 +66,11 @@ class ReverbTestCase extends TestCase
             'port' => 6379,
             'database' => 0,
             'pool' => array_replace($config->array('database.redis.default.pool'), [
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 1,
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
                 'max_idle_time' => 60.0,
             ]),
         ]);

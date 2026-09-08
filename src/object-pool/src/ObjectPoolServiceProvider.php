@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\ObjectPool;
 
+use Hypervel\Contracts\ObjectPool\Factory;
+use Hypervel\Contracts\ObjectPool\Recycler;
 use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Core\Events\BeforeServerFork;
-use Hypervel\ObjectPool\Contracts\Factory;
-use Hypervel\ObjectPool\Contracts\Recycler;
 use Hypervel\ObjectPool\Listeners\StartRecycler;
 use Hypervel\Support\ServiceProvider;
 
@@ -32,7 +32,7 @@ class ObjectPoolServiceProvider extends ServiceProvider
 
         $events->listen(BeforeServerFork::class, function (): void {
             if ($this->app->resolved(PoolManager::class)) {
-                $this->app->make(PoolManager::class)->flush();
+                $this->app->make(PoolManager::class)->purgeAll();
             }
         });
 

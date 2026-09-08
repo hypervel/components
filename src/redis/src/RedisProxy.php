@@ -16,7 +16,7 @@ use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
 use Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder;
 use Hypervel\Redis\Limiters\DurationLimiterBuilder;
-use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\Subscriber\Subscriber;
 use Hypervel\Redis\Traits\MultiExec;
 use Hypervel\Support\Arr;
@@ -87,7 +87,7 @@ class RedisProxy implements ConnectionContract
      * Create a new Redis proxy instance.
      */
     public function __construct(
-        protected PoolFactory $factory,
+        protected PoolManager $poolManager,
         protected string $poolName,
         protected RedisSentinelFactory $sentinelFactory,
     ) {
@@ -106,7 +106,7 @@ class RedisProxy implements ConnectionContract
      */
     public function isCluster(): bool
     {
-        $config = $this->factory->getPool($this->poolName)->getConfig();
+        $config = $this->poolManager->pool($this->poolName)->getConfig();
 
         return $config['cluster']['enabled'] ?? false;
     }
@@ -475,7 +475,7 @@ class RedisProxy implements ConnectionContract
             : null;
 
         $connection = $connection
-            ?: $this->factory->getPool($this->poolName)->get();
+            ?: $this->poolManager->pool($this->poolName)->borrow();
 
         if (! $connection instanceof RedisConnection) {
             throw new InvalidRedisConnectionException('The connection is not a valid RedisConnection.');
@@ -625,7 +625,7 @@ class RedisProxy implements ConnectionContract
      */
     public function subscriber(): Subscriber
     {
-        $pool = $this->factory->getPool($this->poolName);
+        $pool = $this->poolManager->pool($this->poolName);
         $config = $pool->getConfig();
 
         if ($config['sentinel']['enabled'] ?? false) {
@@ -650,7 +650,7 @@ class RedisProxy implements ConnectionContract
             );
         }
 
-        $connection = $pool->get();
+        $connection = $pool->borrow();
         $discoveryException = null;
         $releaseException = null;
         $masters = [];

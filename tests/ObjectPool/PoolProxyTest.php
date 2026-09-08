@@ -7,9 +7,9 @@ namespace Hypervel\Tests\ObjectPool;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
-use Hypervel\ObjectPool\Contracts\Factory;
-use Hypervel\ObjectPool\Contracts\InvalidatesPool;
-use Hypervel\ObjectPool\Contracts\ObjectPool as ObjectPoolContract;
+use Hypervel\Contracts\ObjectPool\Factory;
+use Hypervel\Contracts\ObjectPool\InvalidatesPool;
+use Hypervel\Contracts\ObjectPool\ObjectPool as ObjectPoolContract;
 use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolManager;
@@ -45,7 +45,7 @@ class PoolProxyTest extends TestCase
 
     protected function tearDownInCoroutine(): void
     {
-        $this->manager->flush();
+        $this->manager->purgeAll();
     }
 
     public function testInvokeBorrowsConfiguresAndReleases(): void
@@ -66,8 +66,8 @@ class PoolProxyTest extends TestCase
 
         $pool = $this->manager->get($this->definition->identity);
         $this->assertSame([$object], $released);
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(1, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(1, $pool->getIdleCount());
     }
 
     public function testPoolIsResolvedPerOperationAfterInvalidation(): void
@@ -113,8 +113,8 @@ class PoolProxyTest extends TestCase
             $this->assertSame($failure, $exception);
         }
 
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+        $this->assertSame(0, $pool->getManagedCount());
+        $this->assertSame(0, $pool->getBorrowedCount());
     }
 
     public function testDiscardFailureDoesNotMaskAConfigureFailure(): void
@@ -127,7 +127,7 @@ class PoolProxyTest extends TestCase
         $this->container->instance(ExceptionHandler::class, $handler);
 
         $pool = m::mock(ObjectPoolContract::class);
-        $pool->shouldReceive('get')->once()->andReturn($object);
+        $pool->shouldReceive('borrow')->once()->andReturn($object);
         $pool->shouldReceive('discard')->once()->with($object)->andThrow($discardFailure);
         $factory = m::mock(Factory::class);
         $factory->shouldReceive('getOrCreate')->once()->andReturn($pool);
@@ -170,8 +170,8 @@ class PoolProxyTest extends TestCase
         }
 
         $pool = $this->manager->get($this->definition->identity);
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+        $this->assertSame(0, $pool->getManagedCount());
+        $this->assertSame(0, $pool->getBorrowedCount());
     }
 
     public function testFinalizationFailurePropagatesAfterSuccessfulOperation(): void
@@ -191,7 +191,7 @@ class PoolProxyTest extends TestCase
             $this->assertSame($failure, $exception);
         }
 
-        $this->assertSame(0, $this->manager->get($this->definition->identity)->getCurrentObjectNumber());
+        $this->assertSame(0, $this->manager->get($this->definition->identity)->getManagedCount());
     }
 
     public function testReleaseCallbackTravelsWithSynchronousAndDeferredLeases(): void
@@ -239,13 +239,13 @@ class PoolProxyTest extends TestCase
     }
 
     private function proxy(
-        Closure $resolver,
+        Closure $createCallback,
         ?Closure $releaseCallback = null,
         ?Closure $configure = null,
     ): InspectablePoolProxy {
         return new InspectablePoolProxy(
             $this->definition,
-            $resolver,
+            $createCallback,
             $this->manager,
             $releaseCallback,
             $configure,
@@ -257,12 +257,12 @@ class InspectablePoolProxy extends PoolProxy
 {
     public function __construct(
         PoolDefinition $definition,
-        Closure $resolver,
+        Closure $createCallback,
         Factory $pools,
         ?Closure $releaseCallback = null,
         protected ?Closure $configure = null,
     ) {
-        parent::__construct($definition, $resolver, $pools, $releaseCallback);
+        parent::__construct($definition, $createCallback, $pools, $releaseCallback);
     }
 
     public function handle(string $value): string

@@ -16,7 +16,7 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\Events\QueryExecuted;
-use Hypervel\Database\Pool\PoolFactory;
+use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\InteractsWithTime;
@@ -283,9 +283,9 @@ class DatabaseManager implements ConnectionResolverInterface
             }
         }
 
-        // Flush the pool to honor config changes
-        if ($this->app->has(PoolFactory::class)) {
-            $this->app->make(PoolFactory::class)->flushPoolsForConnection($connectionName->base);
+        // Purge the pools to honor config changes.
+        if ($this->app->has(PoolManager::class)) {
+            $this->app->make(PoolManager::class)->purgeForConnection($connectionName->base);
         }
     }
 

@@ -44,6 +44,7 @@
         "hypervel/broadcasting": "^0.4",
         "hypervel/collections": "^0.4",
         "hypervel/conditionable": "^0.4",
+        "hypervel/connection-pool": "^0.4",
         "hypervel/console": "^0.4",
         "hypervel/container": "^0.4",
         "hypervel/context": "^0.4",
@@ -57,7 +58,6 @@
         "hypervel/http": "^0.4",
         "hypervel/macroable": "^0.4",
         "hypervel/pagination": "^0.4",
-        "hypervel/pool": "^0.4",
         "hypervel/prompts": "^0.4",
         "hypervel/queue": "^0.4",
         "hypervel/support": "^0.4"

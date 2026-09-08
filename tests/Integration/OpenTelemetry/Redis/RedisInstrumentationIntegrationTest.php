@@ -12,7 +12,7 @@ use Hypervel\OpenTelemetry\Instrumentation\RedisInstrumentation;
 use Hypervel\OpenTelemetry\OpenTelemetryManager;
 use Hypervel\OpenTelemetry\OpenTelemetryServiceProvider;
 use Hypervel\OpenTelemetry\Support\ProcessIdentity;
-use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
 use OpenTelemetry\SDK\Logs\Exporter\InMemoryExporter as InMemoryLogExporter;
@@ -34,7 +34,7 @@ class RedisInstrumentationIntegrationTest extends TestCase
 
     public function testBindingRefreshesAWarmedPoolAndRecordsTheNextRealCommand(): void
     {
-        $initialPool = $this->app->make(PoolFactory::class)->getPool('default');
+        $initialPool = $this->app->make(PoolManager::class)->pool('default');
         $exporters = new RedisInstrumentationExporterFactory;
         $config = $this->app->make('config');
         $config->set('opentelemetry.metrics.exporter', 'none');
@@ -61,14 +61,14 @@ class RedisInstrumentationIntegrationTest extends TestCase
         try {
             $manager->bind(ProcessIdentity::cli());
 
-            $this->assertArrayNotHasKey('default', $this->app->make(PoolFactory::class)->pools());
+            $this->assertArrayNotHasKey('default', $this->app->make(PoolManager::class)->getPools());
 
             Redis::set('opentelemetry-redis-integration', 'value');
 
             $this->assertTrue($manager->flush());
             $this->assertNotSame(
                 $initialPool,
-                $this->app->make(PoolFactory::class)->pools()['default'],
+                $this->app->make(PoolManager::class)->getPools()['default'],
             );
             $this->assertSame(
                 ['SET'],

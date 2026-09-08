@@ -12,9 +12,9 @@ use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\ObjectPool\CallbackObjectPool;
 use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolOptions;
-use Hypervel\ObjectPool\SimpleObjectPool;
 use Hypervel\Queue\Jobs\SqsJob;
 use Hypervel\Queue\SqsQueue;
 use Hypervel\Tests\TestCase;
@@ -27,7 +27,7 @@ use Throwable;
 
 class QueueSqsJobTest extends TestCase
 {
-    /** @var list<SimpleObjectPool> */
+    /** @var list<CallbackObjectPool> */
     private array $pools = [];
 
     protected string $key;
@@ -334,7 +334,7 @@ class QueueSqsJobTest extends TestCase
             $this->assertSame($expected, $exception);
         }
 
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
+        $this->assertSame(0, $pool->getManagedCount());
     }
 
     public function testDeleteCleansOverflowPayloadAfterLeaseReleaseFails(): void
@@ -528,13 +528,13 @@ class QueueSqsJobTest extends TestCase
         $job = $this->getJob();
         $job->getSqs()->shouldReceive('deleteMessage')->once()
             ->andReturnUsing(function () use ($pool): void {
-                $this->assertSame(1, $pool->getBorrowedObjectNumber());
+                $this->assertSame(1, $pool->getBorrowedCount());
             });
 
         $job->withPoolLease($lease)->delete();
 
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(1, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(1, $pool->getIdleCount());
     }
 
     public function testReleaseReleasesPoolLeaseAfterBackendCall(): void
@@ -543,13 +543,13 @@ class QueueSqsJobTest extends TestCase
         $job = $this->getJob();
         $job->getSqs()->shouldReceive('changeMessageVisibility')->once()
             ->andReturnUsing(function () use ($pool): void {
-                $this->assertSame(1, $pool->getBorrowedObjectNumber());
+                $this->assertSame(1, $pool->getBorrowedCount());
             });
 
         $job->withPoolLease($lease)->release(5);
 
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(1, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(1, $pool->getIdleCount());
     }
 
     public function testBackendFailureDiscardsPoolLeaseAndPreservesTheException(): void
@@ -570,8 +570,8 @@ class QueueSqsJobTest extends TestCase
         }
 
         $this->assertSame(1, $destroyed);
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+        $this->assertSame(0, $pool->getManagedCount());
+        $this->assertSame(0, $pool->getBorrowedCount());
     }
 
     public function testDiscardCancellationSupersedesAnOrdinaryBackendFailure(): void
@@ -591,8 +591,8 @@ class QueueSqsJobTest extends TestCase
             $this->assertSame($discardCancellation, $exception);
         }
 
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+        $this->assertSame(0, $pool->getManagedCount());
+        $this->assertSame(0, $pool->getBorrowedCount());
     }
 
     public function testBackendAccessIsRejectedAfterLeaseFinalization(): void
@@ -602,7 +602,7 @@ class QueueSqsJobTest extends TestCase
         $job->getSqs()->shouldReceive('deleteMessage')->once();
 
         $job->withPoolLease($lease)->delete();
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+        $this->assertSame(0, $pool->getBorrowedCount());
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('client is no longer available');
@@ -613,18 +613,18 @@ class QueueSqsJobTest extends TestCase
     /**
      * Create a checked-out object under a queue-job lease.
      *
-     * @return array{SimpleObjectPool, Lease}
+     * @return array{CallbackObjectPool, Lease}
      */
     protected function lease(?Closure $destroyCallback = null, ?Closure $releaseCallback = null): array
     {
-        $pool = new SimpleObjectPool(
+        $pool = new CallbackObjectPool(
             fn () => new stdClass,
             PoolOptions::fromArray([]),
             $destroyCallback,
         );
         $this->pools[] = $pool;
 
-        return [$pool, new Lease($pool, $pool->get(), $releaseCallback)];
+        return [$pool, new Lease($pool, $pool->borrow(), $releaseCallback)];
     }
 
     protected function getJob(): SqsJob

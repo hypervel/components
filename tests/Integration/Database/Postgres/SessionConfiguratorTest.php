@@ -8,7 +8,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\PdoConnection;
-use Hypervel\Database\Pool\DbPool;
+use Hypervel\Database\Pool\DatabasePool;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\SessionConfigurator;
@@ -19,7 +19,7 @@ class SessionConfiguratorTest extends PostgresTestCase
 {
     private const string CONNECTION_NAME = 'postgres_session_configurator_test';
 
-    private DbPool $sessionPool;
+    private DatabasePool $sessionPool;
 
     private PostgresSessionConfigurator $configurator;
 
@@ -39,9 +39,9 @@ class SessionConfiguratorTest extends PostgresTestCase
         $connectionConfig = $this->postgresConfig;
         $connectionConfig['pool'] = [
             'testing_enabled' => true,
-            'min_connections' => 1,
+            'min_retained_connections' => 1,
             'max_connections' => 1,
-            'heartbeat' => -1,
+            'heartbeat_interval' => null,
         ];
 
         $config->set('database.connections.' . self::CONNECTION_NAME, $connectionConfig);
@@ -53,7 +53,7 @@ class SessionConfiguratorTest extends PostgresTestCase
 
         $this->configurator = new PostgresSessionConfigurator(self::CONNECTION_NAME);
         PdoConnection::configureSessionUsing($this->configurator);
-        $this->sessionPool = new DbPool($this->app, self::CONNECTION_NAME);
+        $this->sessionPool = new DatabasePool($this->app, self::CONNECTION_NAME);
     }
 
     protected function tearDown(): void
@@ -217,8 +217,7 @@ class SessionConfiguratorTest extends PostgresTestCase
 
     private function borrow(): PooledConnection
     {
-        /** @var PooledConnection $pooledConnection */
-        return $this->sessionPool->get();
+        return $this->sessionPool->borrow();
     }
 }
 
