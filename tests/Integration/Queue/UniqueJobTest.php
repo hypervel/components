@@ -41,7 +41,7 @@ class UniqueJobTest extends QueueTestCase
         $config->set('queue.default', env('QUEUE_CONNECTION', 'database'));
     }
 
-    public function testUniqueJobsAreNotDispatched()
+    public function testUniqueJobsAreNotDispatched(): void
     {
         Bus::fake();
 
@@ -63,7 +63,7 @@ class UniqueJobTest extends QueueTestCase
         );
     }
 
-    public function testUniqueJobWithViaDispatched()
+    public function testUniqueJobWithViaDispatched(): void
     {
         Bus::fake();
 
@@ -71,7 +71,7 @@ class UniqueJobTest extends QueueTestCase
         Bus::assertDispatched(UniqueViaJob::class);
     }
 
-    public function testLockIsReleasedForSuccessfulJobs()
+    public function testLockIsReleasedForSuccessfulJobs(): void
     {
         UniqueTestJob::$handled = false;
         dispatch($job = new UniqueTestJob);
@@ -81,7 +81,7 @@ class UniqueJobTest extends QueueTestCase
         $this->assertTrue($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
     }
 
-    public function testLockIsReleasedForFailedJobs()
+    public function testLockIsReleasedForFailedJobs(): void
     {
         UniqueTestFailJob::$handled = false;
 
@@ -95,7 +95,7 @@ class UniqueJobTest extends QueueTestCase
         }
     }
 
-    public function testLockIsNotReleasedForJobRetries()
+    public function testLockIsNotReleasedForJobRetries(): void
     {
         $this->markTestSkippedWhenUsingSyncQueueDriver();
 
@@ -117,7 +117,7 @@ class UniqueJobTest extends QueueTestCase
         $this->assertTrue($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
     }
 
-    public function testLockIsNotReleasedForJobReleases()
+    public function testLockIsNotReleasedForJobReleases(): void
     {
         $this->markTestSkippedWhenUsingSyncQueueDriver();
 
@@ -138,7 +138,7 @@ class UniqueJobTest extends QueueTestCase
         $this->assertTrue($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
     }
 
-    public function testLockCanBeReleasedBeforeProcessing()
+    public function testLockCanBeReleasedBeforeProcessing(): void
     {
         $this->markTestSkippedWhenUsingSyncQueueDriver();
 
@@ -154,11 +154,11 @@ class UniqueJobTest extends QueueTestCase
         $this->assertTrue($this->app->get(Cache::class)->lock($this->getLockKey($job), 10)->get());
     }
 
-    public function testLockIsReleasedOnModelNotFoundException()
+    public function testLockIsReleasedOnModelNotFoundException(): void
     {
         UniqueTestSerializesModelsJob::$handled = false;
 
-        /** @var \Illuminate\Foundation\Auth\User */
+        /** @var User $user */
         $user = UserFactory::new()->create();
         $job = new UniqueTestSerializesModelsJob($user);
 
@@ -176,7 +176,7 @@ class UniqueJobTest extends QueueTestCase
         }
     }
 
-    public function testQueueFakeReleasesUniqueJobLocksBetweenFakes()
+    public function testQueueFakeReleasesUniqueJobLocksBetweenFakes(): void
     {
         Queue::fake();
 
@@ -189,7 +189,7 @@ class UniqueJobTest extends QueueTestCase
         Queue::assertPushed(UniqueTestJob::class);
     }
 
-    public function testQueueFakePreservesUniqueJobLockWithinTest()
+    public function testQueueFakePreservesUniqueJobLockWithinTest(): void
     {
         Queue::fake();
 
@@ -199,12 +199,15 @@ class UniqueJobTest extends QueueTestCase
         Queue::assertPushedTimes(UniqueTestJob::class, 1);
     }
 
-    protected function getLockKey($job)
+    /**
+     * Get the unique lock key for the given job.
+     */
+    protected function getLockKey(object|string $job): string
     {
         return 'laravel_unique_job:' . (is_string($job) ? $job : get_class($job)) . ':';
     }
 
-    public function testLockUsesDisplayNameWhenAvailable()
+    public function testLockUsesDisplayNameWhenAvailable(): void
     {
         Bus::fake();
 
@@ -228,33 +231,33 @@ class UniqueJobTest extends QueueTestCase
         );
     }
 
-    public function testUniqueLockCreatesKeyWithClassName()
+    public function testUniqueLockCreatesKeyWithClassName(): void
     {
-        $this->assertEquals(
+        $this->assertSame(
             'laravel_unique_job:' . UniqueTestJob::class . ':',
             UniqueLock::getKey(new UniqueTestJob)
         );
     }
 
-    public function testUniqueLockCreatesKeyWithIdAndClassName()
+    public function testUniqueLockCreatesKeyWithIdAndClassName(): void
     {
-        $this->assertEquals(
+        $this->assertSame(
             'laravel_unique_job:' . UniqueIdTestJob::class . ':unique-id-1',
             UniqueLock::getKey(new UniqueIdTestJob)
         );
     }
 
-    public function testUniqueLockCreatesKeyWithDisplayNameWhenAvailable()
+    public function testUniqueLockCreatesKeyWithDisplayNameWhenAvailable(): void
     {
-        $this->assertEquals(
-            'laravel_unique_job:' . hash('xxh128', 'App\Actions\UniqueTestAction') . ':unique-id-2',
-            UniqueLock::getKey(new UniqueIdTestJobWithDisplayName)
+        $this->assertSame(
+            'laravel_unique_job:' . hash('xxh128', 'App\Actions\UniqueTestAction') . ':',
+            UniqueLock::getKey(new UniqueTestJobWithDisplayName)
         );
     }
 
-    public function testUniqueLockCreatesKeyWithIdAndDisplayNameWhenAvailable()
+    public function testUniqueLockCreatesKeyWithIdAndDisplayNameWhenAvailable(): void
     {
-        $this->assertEquals(
+        $this->assertSame(
             'laravel_unique_job:' . hash('xxh128', 'App\Actions\UniqueTestAction') . ':unique-id-2',
             UniqueLock::getKey(new UniqueIdTestJobWithDisplayName)
         );

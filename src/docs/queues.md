@@ -518,6 +518,23 @@ class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
 > [!NOTE]
 > If you only need to limit the concurrent processing of a job, use the [WithoutOverlapping](/docs/{{version}}/queues#preventing-job-overlaps) job middleware instead.
 
+<a name="custom-job-names"></a>
+#### Custom Job Names
+
+By default, Hypervel identifies jobs by their class name. You may define a `displayName` method on your job to provide a custom name:
+
+```php
+/**
+ * Get the display name for the job.
+ */
+public function displayName(): string
+{
+    return 'search-index-updates';
+}
+```
+
+This name is also used to identify [unique jobs](#unique-jobs), [debounced jobs](#debounced-jobs), and jobs using the [WithoutOverlapping](#preventing-job-overlaps) or [ThrottlesExceptions](#throttling-exceptions) middleware. The `uniqueId` and `debounceId` values still distinguish jobs with the same name. The `WithoutOverlapping::shared` and `ThrottlesExceptions::by` methods may be used to override this grouping.
+
 <a name="debounced-jobs"></a>
 ### Debounced Jobs
 
@@ -850,7 +867,7 @@ public function middleware(): array
 <a name="sharing-lock-keys"></a>
 #### Sharing Lock Keys Across Job Classes
 
-By default, the `WithoutOverlapping` middleware will only prevent overlapping jobs of the same class. So, although two different job classes may use the same lock key, they will not be prevented from overlapping. However, you can instruct Hypervel to apply the key across job classes using the `shared` method:
+By default, the `WithoutOverlapping` middleware groups jobs by their [custom display name](#custom-job-names), or by their class name when no custom name is defined. Jobs in different groups may overlap even when they use the same lock key. However, you can instruct Hypervel to apply the key across job classes using the `shared` method:
 
 ```php
 use Hypervel\Queue\Middleware\WithoutOverlapping;
@@ -958,7 +975,7 @@ return [(new ThrottlesExceptions(10, 5 * 60))->backoff(
 
 The middleware's `backoff` method controls the ordinary queue retry delay after an individual exception. It is separate from the rate limiter's [exponential backoff policy](/docs/{{version}}/rate-limiting#exponential-backoff).
 
-Internally, this middleware uses Hypervel's rate limiter, and the job's display name is used as the rate limit key. You may override this key by calling the `by` method when attaching the middleware to your job. This may be useful if you have multiple jobs interacting with the same third-party service and would like them to share a common throttling bucket:
+This middleware uses Hypervel's rate limiter, and the job's class name or [custom display name](#custom-job-names) is used as the rate limit key. You may override this key by calling the `by` method when attaching the middleware to your job. This may be useful if you have multiple jobs interacting with the same third-party service and would like them to share a common throttling bucket:
 
 ```php
 use Hypervel\Queue\Middleware\ThrottlesExceptions;
@@ -3639,7 +3656,7 @@ Bus::assertChained([
 <a name="testing-job-batches"></a>
 ### Testing Job Batches
 
-The `Bus` facade's `assertBatched` method may be used to assert that a [batch of jobs](/docs/{{version}}/queues#job-batching) was dispatched. The closure given to the `assertBatched` method receives an instance of `Hypervel\Bus\PendingBatch`, which may be used to inspect the jobs within the batch:
+The `Bus` facade's `assertBatched` method may be used to assert that a [batch of jobs](/docs/{{version}}/queues#job-batching) was dispatched. The closure given to the `assertBatched` method receives an instance of `Hypervel\Support\Testing\Fakes\PendingBatchFake`, which extends `Hypervel\Bus\PendingBatch` and may be used to inspect the jobs within the batch:
 
 ```php
 use Hypervel\Bus\PendingBatch;
@@ -3668,7 +3685,9 @@ Bus::assertBatched([
 The `hasJobs` method may be used on the pending batch to verify that the batch contains the expected jobs. The method accepts an array of job instances, class names, or closures:
 
 ```php
-Bus::assertBatched(function (PendingBatch $batch) {
+use Hypervel\Support\Testing\Fakes\PendingBatchFake;
+
+Bus::assertBatched(function (PendingBatchFake $batch) {
     return $batch->hasJobs([
         new ProcessCsvRow(row: 1),
         new ProcessCsvRow(row: 2),
@@ -3680,7 +3699,7 @@ Bus::assertBatched(function (PendingBatch $batch) {
 When using closures, the closure will receive the job instance. The expected job type will be inferred from the closure's type hint:
 
 ```php
-Bus::assertBatched(function (PendingBatch $batch) {
+Bus::assertBatched(function (PendingBatchFake $batch) {
     return $batch->hasJobs([
         fn (ProcessCsvRow $job) => $job->row === 1,
         fn (ProcessCsvRow $job) => $job->row === 2,
