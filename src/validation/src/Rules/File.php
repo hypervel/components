@@ -206,8 +206,12 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
 
     /**
      * Convert a potentially human-friendly file size to kilobytes.
+     *
+     * @return ($size is int ? int : float|int)
+     *
+     * @throws InvalidArgumentException
      */
-    protected function toKilobytes(int|string $size): mixed
+    protected function toKilobytes(int|string $size): int|float
     {
         if (! is_string($size)) {
             return $size;
@@ -215,7 +219,7 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
 
         $size = strtolower(trim($size));
 
-        $value = floatval($size);
+        $value = (float) $size;
 
         return round(match (true) {
             Str::endsWith($size, 'kb') => $value * 1,
