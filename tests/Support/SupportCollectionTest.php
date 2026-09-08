@@ -2314,6 +2314,28 @@ class SupportCollectionTest extends TestCase
     }
 
     #[DataProvider('collectionClassProvider')]
+    public function testSortByManyWithNumericFractions(string $collection): void
+    {
+        $data = new $collection([
+            ['score' => 1.9, 'rank' => 5],
+            ['score' => '1.1', 'rank' => 2],
+            ['score' => 1.1, 'rank' => 1],
+            ['score' => -1.1, 'rank' => 0],
+            ['score' => '-1.9', 'rank' => 0],
+        ]);
+
+        $this->assertSame([4, 3, 2, 1, 0], $data->sortBy([
+            ['score', 'asc'],
+            ['rank', 'asc'],
+        ], SORT_NUMERIC)->keys()->all());
+
+        $this->assertSame([0, 2, 1, 3, 4], $data->sortBy([
+            ['score', 'desc'],
+            ['rank', 'asc'],
+        ], SORT_NUMERIC)->keys()->all());
+    }
+
+    #[DataProvider('collectionClassProvider')]
     public function testNaturalSortByManyWithNull($collection): void
     {
         $itemFoo = new stdClass;
