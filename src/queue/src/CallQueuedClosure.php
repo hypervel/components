@@ -41,7 +41,7 @@ class CallQueuedClosure implements ShouldQueue
      * Create a new job instance.
      */
     public function __construct(
-        protected SerializableClosure $closure
+        public SerializableClosure $closure
     ) {
     }
 
