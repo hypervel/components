@@ -17,6 +17,14 @@ Before using Hypervel's encrypter, you must set the `key` configuration option i
 
 Hypervel supports `AES-128-CBC`, `AES-256-CBC`, `AES-128-GCM`, and `AES-256-GCM`. By default, Hypervel uses the `AES-256-CBC` cipher.
 
+To prevent `key:generate` from running in production, call the command's `prohibit` method from your `AppServiceProvider`'s `boot` method. This also prevents using `--force` or `--show`:
+
+```php
+use Hypervel\Encryption\Commands\KeyGenerateCommand;
+
+KeyGenerateCommand::prohibit($this->app->isProduction());
+```
+
 <a name="gracefully-rotating-encryption-keys"></a>
 ### Gracefully Rotating Encryption Keys
 

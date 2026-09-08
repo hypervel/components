@@ -6,8 +6,10 @@ namespace Hypervel\Queue\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
+use Hypervel\Console\Prohibitable;
 use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 use ReflectionClass;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputArgument;
@@ -17,6 +19,7 @@ use Symfony\Component\Console\Input\InputOption;
 class ClearCommand extends Command
 {
     use ConfirmableTrait;
+    use Prohibitable;
 
     /**
      * The console command name.
@@ -26,15 +29,15 @@ class ClearCommand extends Command
     /**
      * The console command description.
      */
-    protected string $description = 'Delete all of the jobs from the specified queue';
+    protected string $description = 'Delete all of the jobs from the specified queues';
 
     /**
      * Execute the console command.
      */
-    public function handle(): ?int
+    public function handle(): int
     {
-        if (! $this->confirmToProceed()) {
-            return 1;
+        if ($this->isProhibited() || ! $this->confirmToProceed()) {
+            return self::FAILURE;
         }
 
         $connection = $this->argument('connection');
@@ -50,17 +53,25 @@ class ClearCommand extends Command
 
         $queue = $this->hypervel->make('queue')->connection($connection);
 
-        if ($queue instanceof ClearableQueue) {
-            $count = $queue->clear($queueName);
+        if (! $queue instanceof ClearableQueue) {
+            $this->components->error('Clearing queues is not supported on [' . (new ReflectionClass($queue))->getShortName() . ']');
 
-            $this->info('Cleared ' . $count . ' ' . Str::plural('job', $count) . ' from the [' . $queueName . '] queue');
-        } else {
-            $this->error('Clearing queues is not supported on [' . (new ReflectionClass($queue))->getShortName() . ']');
-
-            return 1;
+            return self::FAILURE;
         }
 
-        return 0;
+        // Queue names such as "0", "01", and "1" are distinct identifiers.
+        $queues = (new Stringable($queueName))->explode(',')
+            ->map(static fn (string $queue): string => trim($queue))
+            ->filter(static fn (string $queue): bool => $queue !== '')
+            ->uniqueStrict();
+
+        $count = $queues->reduce(fn (int $carry, string $name): int => $carry + $queue->clear($name), 0);
+
+        $this->components->info(
+            sprintf('Cleared %s %s from the [%s] %s', $count, Str::plural('job', $count), $queues->implode(', '), Str::plural('queue', $queues->count()))
+        );
+
+        return self::SUCCESS;
     }
 
     /**
@@ -91,7 +102,7 @@ class ClearCommand extends Command
     protected function getOptions(): array
     {
         return [
-            ['queue', null, InputOption::VALUE_OPTIONAL, 'The name of the queue to clear'],
+            ['queue', null, InputOption::VALUE_OPTIONAL, 'The names of the queues to clear'],
 
             ['force', null, InputOption::VALUE_NONE, 'Force the operation to run when in production'],
         ];

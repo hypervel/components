@@ -3208,6 +3208,14 @@ The `queue:flush` command removes all failed job records from your queue, no mat
 php artisan queue:flush --hours=48
 ```
 
+To prevent `queue:flush` from running in production, call the command's `prohibit` method from your `AppServiceProvider`'s `boot` method:
+
+```php
+use Hypervel\Queue\Console\FlushFailedCommand;
+
+FlushFailedCommand::prohibit($this->app->isProduction());
+```
+
 <a name="ignoring-missing-models"></a>
 ### Ignoring Missing Models
 
@@ -3307,6 +3315,20 @@ You may also provide the `connection` argument and `queue` option to delete jobs
 
 ```shell
 php artisan queue:clear redis --queue=emails
+```
+
+To clear multiple queues, provide a comma-separated list of queue names:
+
+```shell
+php artisan queue:clear redis --queue=high,low,emails
+```
+
+To prevent `queue:clear` from running in production, call the command's `prohibit` method from your `AppServiceProvider`'s `boot` method. Prohibited commands cannot be run using `--force`:
+
+```php
+use Hypervel\Queue\Console\ClearCommand;
+
+ClearCommand::prohibit($this->app->isProduction());
 ```
 
 > [!WARNING]

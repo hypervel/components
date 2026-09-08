@@ -34,28 +34,32 @@ class KeyGenerateCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): int
     {
         if ($this->isProhibited()) {
-            return;
+            return self::FAILURE;
         }
 
         $key = $this->generateRandomKey();
 
         if ($this->option('show')) {
-            return $this->line('<comment>' . $key . '</comment>'); // @phpstan-ignore method.void
+            $this->line('<comment>' . $key . '</comment>');
+
+            return self::SUCCESS;
         }
 
         // Next, we will replace the application key in the environment file so it is
         // automatically setup for this developer. This key gets generated using a
         // secure random byte generator and is later base64 encoded for storage.
         if (! $this->setKeyInEnvironmentFile($key)) {
-            return;
+            return self::FAILURE;
         }
 
         $this->hypervel->make('config')->set('app.key', $key);
 
         $this->components->info('Application key set successfully.');
+
+        return self::SUCCESS;
     }
 
     /**
