@@ -13,7 +13,7 @@ use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\PdoConnection;
-use Hypervel\Database\Pool\DbPool;
+use Hypervel\Database\Pool\DatabasePool;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\SessionConfigurator;
@@ -86,7 +86,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
             'pool' => [
                 'testing_enabled' => true,
                 'max_connections' => 5,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
             ],
         ]);
 
@@ -95,9 +95,9 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
             'database' => static::$sessionPath,
             'pool' => [
                 'testing_enabled' => true,
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 1,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
             ],
         ]);
     }
@@ -555,7 +555,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
     {
         $configurator = new CoroutineSessionConfigurator('session_context_pool');
         PdoConnection::configureSessionUsing($configurator);
-        $pool = new DbPool($this->app, 'session_context_pool');
+        $pool = new DatabasePool($this->app, 'session_context_pool');
         $firstFinished = new Channel(1);
 
         try {
@@ -564,7 +564,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
                     CoroutineContext::set(CoroutineSessionConfigurator::CONTEXT_KEY, '101');
 
                     /** @var PooledConnection $pooledConnection */
-                    $pooledConnection = $pool->get();
+                    $pooledConnection = $pool->borrow();
 
                     try {
                         return (int) $pooledConnection->getConnection()
@@ -580,7 +580,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
                     CoroutineContext::set(CoroutineSessionConfigurator::CONTEXT_KEY, '202');
 
                     /** @var PooledConnection $pooledConnection */
-                    $pooledConnection = $pool->get();
+                    $pooledConnection = $pool->borrow();
 
                     try {
                         return (int) $pooledConnection->getConnection()
@@ -594,7 +594,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
 
             CoroutineContext::set(CoroutineSessionConfigurator::CONTEXT_KEY, '202');
             /** @var PooledConnection $matchingPooledConnection */
-            $matchingPooledConnection = $pool->get();
+            $matchingPooledConnection = $pool->borrow();
 
             try {
                 $matchingValue = (int) $matchingPooledConnection->getConnection()

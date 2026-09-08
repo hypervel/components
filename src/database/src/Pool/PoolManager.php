@@ -10,18 +10,18 @@ use Hypervel\Database\Connectors\ConnectionFactory;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
-/**
- * Factory for creating and caching database connection pools.
- */
-class PoolFactory
+class PoolManager
 {
     /**
      * The cached pool instances.
      *
-     * @var array<string, DbPool>
+     * @var array<string, DatabasePool>
      */
     protected array $pools = [];
 
+    /**
+     * Create a pool manager.
+     */
     public function __construct(
         protected Container $container
     ) {
@@ -30,29 +30,66 @@ class PoolFactory
     /**
      * Get or create a pool for the given connection name.
      */
-    public function getPool(string $name): DbPool
+    public function pool(string $name): DatabasePool
     {
-        if (isset($this->pools[$name])) {
-            return $this->pools[$name];
+        while (true) {
+            if (($pool = $this->pools[$name] ?? null) !== null) {
+                if (! $pool->isClosed()) {
+                    return $pool;
+                }
+
+                unset($this->pools[$name]);
+            }
+
+            $poolName = $this->getPoolName($name);
+
+            if (($pool = $this->pools[$poolName] ?? null) !== null) {
+                if (! $pool->isClosed()) {
+                    return $pool;
+                }
+
+                unset($this->pools[$poolName]);
+            }
+
+            $pool = $this->container->make(DatabasePool::class, ['name' => $poolName]);
+
+            try {
+                $pool->start();
+            } catch (Throwable $failure) {
+                try {
+                    $pool->close();
+                } catch (CanceledException $cancellation) {
+                    if (! $failure instanceof CanceledException) {
+                        throw $cancellation;
+                    }
+                } catch (Throwable) {
+                    // Preserve the activation failure over an ordinary cleanup failure.
+                }
+
+                throw $failure;
+            }
+
+            $existing = $this->pools[$poolName] ?? null;
+
+            if ($existing === null || $existing->isClosed()) {
+                return $this->pools[$poolName] = $pool;
+            }
+
+            if ($existing === $pool) {
+                return $pool;
+            }
+
+            // Cleanup can yield while the registered pool closes or is replaced.
+            $pool->close();
         }
-
-        $poolName = $this->getPoolName($name);
-
-        if (isset($this->pools[$poolName])) {
-            return $this->pools[$poolName];
-        }
-
-        $pool = $this->container->make(DbPool::class, ['name' => $poolName]);
-
-        return $this->pools[$poolName] = $pool;
     }
 
     /**
      * Get the existing pools keyed by their physical connection names.
      *
-     * @return array<string, DbPool>
+     * @return array<string, DatabasePool>
      */
-    public function pools(): array
+    public function getPools(): array
     {
         return $this->pools;
     }
@@ -89,18 +126,18 @@ class PoolFactory
     /**
      * Check if a pool exists for the given connection name.
      */
-    public function hasPool(string $name): bool
+    public function has(string $name): bool
     {
         return isset($this->pools[$this->getExistingPoolName($name)]);
     }
 
     /**
-     * Flush a specific pool, closing all connections.
+     * Remove a pool and close its connections.
      *
      * Boot or tests only. Closes a worker-shared pool; connections already
      * checked out by concurrent coroutines are destroyed on release.
      */
-    public function flushPool(string $name): void
+    public function purge(string $name): void
     {
         $poolName = $this->getExistingPoolName($name);
         $pool = $this->pools[$poolName] ?? null;
@@ -122,12 +159,12 @@ class PoolFactory
     }
 
     /**
-     * Flush all pool variants for a configured connection.
+     * Remove every pool for a configured connection.
      *
      * Boot or tests only. This closes shared worker pools and affects every
      * coroutine that later resolves the same configured connection.
      */
-    public function flushPoolsForConnection(string $name): void
+    public function purgeForConnection(string $name): void
     {
         $base = ConnectionName::parse($name)->base;
         $pools = [];
@@ -143,12 +180,12 @@ class PoolFactory
     }
 
     /**
-     * Flush all pools, closing all connections.
+     * Remove all pools and close their connections.
      *
      * Boot or tests only. Closes every worker-shared pool; connections already
      * checked out by concurrent coroutines are destroyed on release.
      */
-    public function flushAll(): void
+    public function purgeAll(): void
     {
         $pools = $this->pools;
         $this->pools = [];
@@ -159,7 +196,7 @@ class PoolFactory
     /**
      * Close a finite set of detached pools.
      *
-     * @param array<string, DbPool> $pools
+     * @param array<string, DatabasePool> $pools
      */
     private function closePools(array $pools): void
     {

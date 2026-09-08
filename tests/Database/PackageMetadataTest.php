@@ -50,7 +50,7 @@ class PackageMetadataTest extends TestCase
             'hypervel/http',
             'hypervel/macroable',
             'hypervel/pagination',
-            'hypervel/pool',
+            'hypervel/connection-pool',
             'hypervel/prompts',
             'hypervel/queue',
             'hypervel/support',
