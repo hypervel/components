@@ -8,9 +8,9 @@ use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Filesystem\LeasedStream;
+use Hypervel\ObjectPool\CallbackObjectPool;
 use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolOptions;
-use Hypervel\ObjectPool\SimpleObjectPool;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -21,7 +21,7 @@ use Throwable;
 
 class LeasedStreamTest extends TestCase
 {
-    /** @var list<SimpleObjectPool> */
+    /** @var list<CallbackObjectPool> */
     private array $pools = [];
 
     protected function tearDownInCoroutine(): void
@@ -38,15 +38,15 @@ class LeasedStreamTest extends TestCase
 
         $this->assertSame('contents', stream_get_contents($stream));
         $this->assertTrue(feof($stream));
-        $this->assertSame(1, $pool->getBorrowedObjectNumber());
+        $this->assertSame(1, $pool->getBorrowedCount());
 
         rewind($stream);
         $this->assertSame('contents', stream_get_contents($stream));
-        $this->assertSame(1, $pool->getBorrowedObjectNumber());
+        $this->assertSame(1, $pool->getBorrowedCount());
 
         fclose($stream);
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(1, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(1, $pool->getIdleCount());
     }
 
     public function testExplicitCloseAndStreamResourceDestructionReleaseExactlyOnce(): void
@@ -65,7 +65,7 @@ class LeasedStreamTest extends TestCase
         gc_collect_cycles();
 
         $this->assertSame(1, $releaseCount);
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+        $this->assertSame(0, $pool->getBorrowedCount());
     }
 
     public function testAbandonedWrapperClosesInnerStreamAndReleasesLease(): void
@@ -77,8 +77,8 @@ class LeasedStreamTest extends TestCase
         gc_collect_cycles();
 
         $this->assertFalse(is_resource($inner));
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(1, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(1, $pool->getIdleCount());
     }
 
     public function testSeekTellAndStatForwardToTheInnerStream(): void
@@ -101,7 +101,7 @@ class LeasedStreamTest extends TestCase
         $this->assertIsArray($sockets);
         [$inner, $writer] = $sockets;
         $pool = $this->pool();
-        $lease = new Lease($pool, $pool->get());
+        $lease = new Lease($pool, $pool->borrow());
         $stream = LeasedStream::wrap($inner, $lease);
         fwrite($writer, 'ready');
         $read = [$stream];
@@ -125,7 +125,7 @@ class LeasedStreamTest extends TestCase
         $inner = fopen(RecordingStreamWrapper::PROTOCOL . '://stream', 'r+');
         $this->assertIsResource($inner);
         $pool = $this->pool();
-        $stream = LeasedStream::wrap($inner, new Lease($pool, $pool->get()));
+        $stream = LeasedStream::wrap($inner, new Lease($pool, $pool->borrow()));
 
         $this->assertTrue(stream_set_blocking($stream, false));
         $this->assertTrue(stream_set_timeout($stream, 1, 500_000));
@@ -154,7 +154,7 @@ class LeasedStreamTest extends TestCase
     public function testInvalidResourceIsRejectedWithoutTakingLeaseOwnership(): void
     {
         $pool = $this->pool();
-        $lease = new Lease($pool, $pool->get());
+        $lease = new Lease($pool, $pool->borrow());
 
         try {
             LeasedStream::wrap('not-a-resource', $lease);
@@ -163,7 +163,7 @@ class LeasedStreamTest extends TestCase
             $this->assertSame('LeasedStream::wrap() expects an open stream resource.', $exception->getMessage());
         }
 
-        $this->assertSame(1, $pool->getBorrowedObjectNumber());
+        $this->assertSame(1, $pool->getBorrowedCount());
         $lease->release();
     }
 
@@ -176,7 +176,7 @@ class LeasedStreamTest extends TestCase
         $handler->shouldReceive('report')->once()->with($failure);
         $container->instance(ExceptionHandler::class, $handler);
         $pool = $this->pool();
-        $lease = new Lease($pool, $pool->get(), function () use ($failure): never {
+        $lease = new Lease($pool, $pool->borrow(), function () use ($failure): never {
             throw $failure;
         });
         $inner = fopen('php://temp', 'r+');
@@ -185,8 +185,8 @@ class LeasedStreamTest extends TestCase
 
         fclose($stream);
 
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+        $this->assertSame(0, $pool->getManagedCount());
+        $this->assertSame(0, $pool->getBorrowedCount());
     }
 
     public function testProtocolCollisionClosesResourceAndFinalizesLeaseTransactionally(): void
@@ -269,7 +269,7 @@ namespace {
     use Hypervel\Filesystem\LeasedStream;
     use Hypervel\ObjectPool\Lease;
     use Hypervel\ObjectPool\PoolOptions;
-    use Hypervel\ObjectPool\SimpleObjectPool;
+    use Hypervel\ObjectPool\CallbackObjectPool;
 
     class ForeignLeasedStreamWrapper
     {
@@ -279,11 +279,11 @@ namespace {
         }
     }
 
-    $pool = new SimpleObjectPool(
+    $pool = new CallbackObjectPool(
         static fn (): object => new stdClass,
         PoolOptions::fromArray([]),
     );
-    $lease = new Lease($pool, $pool->get(), __RELEASE_CALLBACK__);
+    $lease = new Lease($pool, $pool->borrow(), __RELEASE_CALLBACK__);
     $resource = \fopen('php://temp', 'r+');
     __SETUP__
     $class = RuntimeException::class;
@@ -298,8 +298,8 @@ namespace {
 
     echo json_encode([
         'resource_closed' => ! is_resource($resource),
-        'borrowed' => $pool->getBorrowedObjectNumber(),
-        'idle' => $pool->getObjectNumberInPool(),
+        'borrowed' => $pool->getBorrowedCount(),
+        'idle' => $pool->getIdleCount(),
         'class' => $class,
         'message' => $message,
     ], JSON_THROW_ON_ERROR);
@@ -331,12 +331,12 @@ PHP;
     }
 
     /**
-     * @return array{0: SimpleObjectPool, 1: Lease, 2: resource}
+     * @return array{0: CallbackObjectPool, 1: Lease, 2: resource}
      */
     private function leaseWithStream(string $contents, ?Closure $releaseCallback = null): array
     {
         $pool = $this->pool();
-        $lease = new Lease($pool, $pool->get(), $releaseCallback);
+        $lease = new Lease($pool, $pool->borrow(), $releaseCallback);
         $inner = fopen('php://temp', 'r+');
         $this->assertIsResource($inner);
         fwrite($inner, $contents);
@@ -348,9 +348,9 @@ PHP;
     /**
      * Create a tracked object pool.
      */
-    private function pool(): SimpleObjectPool
+    private function pool(): CallbackObjectPool
     {
-        $this->pools[] = $pool = new SimpleObjectPool(
+        $this->pools[] = $pool = new CallbackObjectPool(
             static fn (): object => new stdClass,
             PoolOptions::fromArray([]),
         );
