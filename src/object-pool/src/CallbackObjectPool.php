@@ -6,19 +6,19 @@ namespace Hypervel\ObjectPool;
 
 use Closure;
 
-class SimpleObjectPool extends ObjectPool
+class CallbackObjectPool extends ObjectPool
 {
-    protected Closure $callback;
+    protected Closure $createCallback;
 
     /**
-     * Create a simple callback-backed object pool.
+     * Create an object pool using a construction callback.
      */
     public function __construct(
-        callable $callback,
+        callable $createCallback,
         PoolOptions $options,
         ?Closure $destroyCallback = null,
     ) {
-        $this->callback = Closure::fromCallable($callback);
+        $this->createCallback = Closure::fromCallable($createCallback);
 
         parent::__construct($options, $destroyCallback);
     }
@@ -28,6 +28,6 @@ class SimpleObjectPool extends ObjectPool
      */
     protected function createObject(): object
     {
-        return ($this->callback)();
+        return ($this->createCallback)();
     }
 }

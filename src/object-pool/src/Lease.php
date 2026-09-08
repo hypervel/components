@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\ObjectPool;
 
 use Closure;
-use Hypervel\ObjectPool\Contracts\ObjectPool as ObjectPoolContract;
+use Hypervel\Contracts\ObjectPool\ObjectPool as ObjectPoolContract;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;

@@ -20,11 +20,11 @@ class ObjectPoolNonCoroutineTest extends TestCase
     public function testDeadlineReleaseRemainsCommittedWhenItsWakeCannotBeCreated(): void
     {
         $pool = $this->createPool();
-        $borrowed = $pool->get();
+        $borrowed = $pool->borrow();
         $replacement = null;
         SwooleCoroutine::set(['max_coroutine' => 1]);
         SwooleCoroutine::create(function () use ($pool, &$replacement): void {
-            $replacement = $pool->get();
+            $replacement = $pool->borrow();
         });
 
         $pool->release($borrowed);
@@ -38,11 +38,11 @@ class ObjectPoolNonCoroutineTest extends TestCase
     public function testDeadlineDiscardRemainsCommittedWhenItsWakeCannotBeCreated(): void
     {
         $pool = $this->createPool();
-        $borrowed = $pool->get();
+        $borrowed = $pool->borrow();
         $replacement = null;
         SwooleCoroutine::set(['max_coroutine' => 1]);
         SwooleCoroutine::create(function () use ($pool, &$replacement): void {
-            $replacement = $pool->get();
+            $replacement = $pool->borrow();
         });
 
         $pool->discard($borrowed);
