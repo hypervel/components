@@ -176,13 +176,13 @@ img {
 }
 
 .footer p {
-    color: #a1a1aa;
+    color: #71717a;
     font-size: 12px;
     text-align: center;
 }
 
 .footer a {
-    color: #a1a1aa;
+    color: #71717a;
     text-decoration: underline;
 }
 
@@ -248,11 +248,11 @@ img {
 
 .button-green,
 .button-success {
-    background-color: #16a34a;
-    border-bottom: 8px solid #16a34a;
-    border-left: 18px solid #16a34a;
-    border-right: 18px solid #16a34a;
-    border-top: 8px solid #16a34a;
+    background-color: #15803d;
+    border-bottom: 8px solid #15803d;
+    border-left: 18px solid #15803d;
+    border-right: 18px solid #15803d;
+    border-top: 8px solid #15803d;
 }
 
 .button-red,
