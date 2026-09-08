@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\ObjectPool;
+namespace Hypervel\Tests\Coroutine;
 
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\PoolChannel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
-use Hypervel\ObjectPool\Channel;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use stdClass;
@@ -16,13 +16,13 @@ use Swoole\Event;
 
 use function Hypervel\Coroutine\run;
 
-class ChannelTest extends TestCase
+class PoolChannelTest extends TestCase
 {
     protected bool $runTestsInCoroutine = false;
 
     public function testObjectsAreVisibleAcrossExecutionModes(): void
     {
-        $channel = new Channel(2);
+        $channel = new PoolChannel(2);
         $outsideObject = new stdClass;
         $insideObject = new stdClass;
 
@@ -38,12 +38,12 @@ class ChannelTest extends TestCase
 
     public function testEmptyPopOutsideCoroutineReturnsFalse(): void
     {
-        $this->assertFalse((new Channel(1))->pop());
+        $this->assertFalse((new PoolChannel(1))->pop());
     }
 
     public function testCoroutineWaiterIsWokenByPush(): void
     {
-        $channel = new Channel(1);
+        $channel = new PoolChannel(1);
         $object = new stdClass;
 
         run(function () use ($channel, $object): void {
@@ -65,16 +65,17 @@ class ChannelTest extends TestCase
 
     public function testWaitTimesOut(): void
     {
-        $channel = new Channel(1);
+        $channel = new PoolChannel(1);
 
         run(function () use ($channel): void {
             $this->assertFalse($channel->wait(0.001));
+            $this->assertSame(0, $channel->waiters());
         });
     }
 
     public function testWaitConvertsNonThrowingCancellation(): void
     {
-        $channel = new Channel(1);
+        $channel = new PoolChannel(1);
 
         run(function () use ($channel): void {
             $cancellation = null;
@@ -88,13 +89,14 @@ class ChannelTest extends TestCase
 
             $this->assertTrue(EngineCoroutine::cancelById($coroutine->getId()));
             $this->assertInstanceOf(CanceledException::class, $cancellation);
-            $this->assertSame('The object pool wait was canceled.', $cancellation->getMessage());
+            $this->assertSame('The pool wait was canceled.', $cancellation->getMessage());
+            $this->assertSame(0, $channel->waiters());
         });
     }
 
     public function testSignalNeverBlocksWhenWakeIsAlreadyPending(): void
     {
-        $channel = new FullSignalObjectPoolChannel;
+        $channel = new FullSignalPoolChannel;
 
         run(function () use ($channel): void {
             $channel->fillSignal();
@@ -114,7 +116,7 @@ class ChannelTest extends TestCase
 
     public function testCloseWakesEveryWaiter(): void
     {
-        $channel = new Channel(2);
+        $channel = new PoolChannel(2);
 
         run(function () use ($channel): void {
             $results = [];
@@ -131,12 +133,13 @@ class ChannelTest extends TestCase
 
             ksort($results);
             $this->assertSame([true, true], $results);
+            $this->assertSame(0, $channel->waiters());
         });
     }
 
     public function testCloseIsIdempotentAndLaterSignalOperationsUseLocalState(): void
     {
-        $channel = new Channel(1);
+        $channel = new PoolChannel(1);
 
         $channel->close();
         $channel->close();
@@ -147,7 +150,7 @@ class ChannelTest extends TestCase
 
     public function testPushAfterCloseIsRejectedWithoutRetainingTheObject(): void
     {
-        $channel = new Channel(1);
+        $channel = new PoolChannel(1);
 
         $channel->close();
 
@@ -156,11 +159,28 @@ class ChannelTest extends TestCase
         $this->assertFalse($channel->pop());
     }
 
+    public function testCloseRetainsQueuedObjectsForFifoDraining(): void
+    {
+        $channel = new PoolChannel(2);
+        $first = new stdClass;
+        $second = new stdClass;
+
+        $channel->push($first);
+        $channel->push($second);
+        $channel->close();
+
+        $this->assertSame(2, $channel->length());
+        $this->assertSame($first, $channel->pop());
+        $this->assertSame($second, $channel->pop());
+        $this->assertFalse($channel->pop());
+        $this->assertSame(0, $channel->length());
+    }
+
     #[RunInSeparateProcess]
     public function testOutsideCoroutinePushCommitsWhenAWakeCoroutineCannotBeCreated(): void
     {
         SwooleCoroutine::set(['max_coroutine' => 1]);
-        $channel = new Channel(1);
+        $channel = new PoolChannel(1);
         $waitResult = null;
         $object = new stdClass;
 
@@ -178,7 +198,7 @@ class ChannelTest extends TestCase
     }
 }
 
-class FullSignalObjectPoolChannel extends Channel
+class FullSignalPoolChannel extends PoolChannel
 {
     public function __construct()
     {

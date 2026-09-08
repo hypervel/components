@@ -2,23 +2,21 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Pool;
+namespace Hypervel\Coroutine;
 
-use Hypervel\Contracts\Pool\ConnectionInterface;
-use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel as EngineChannel;
 use Hypervel\Engine\Exceptions\CoroutineCreateException;
 use SplQueue;
 use Swoole\Coroutine\CanceledException;
 
 /**
- * Store idle connections independently of execution mode and signal coroutine waiters.
+ * Store idle objects independently of execution mode and signal coroutine waiters.
  *
- * Keep this in sync with the object-pool channel in `hypervel/object-pool`.
+ * @template T of object
  */
-class Channel
+class PoolChannel
 {
-    /** @var SplQueue<ConnectionInterface> */
+    /** @var SplQueue<T> */
     protected SplQueue $queue;
 
     /** @var EngineChannel<bool> */
@@ -38,17 +36,21 @@ class Channel
     }
 
     /**
-     * Pop an idle connection without waiting.
+     * Retrieve an idle object without waiting.
+     *
+     * @return false|T
      */
-    public function pop(): ConnectionInterface|false
+    public function pop(): false|object
     {
         return $this->queue->isEmpty() ? false : $this->queue->dequeue();
     }
 
     /**
-     * Push an idle connection and wake one waiter.
+     * Push an idle object and wake one waiter.
+     *
+     * @param T $data
      */
-    public function push(ConnectionInterface $data): bool
+    public function push(object $data): bool
     {
         if ($this->closed) {
             return false;
@@ -61,7 +63,7 @@ class Channel
     }
 
     /**
-     * Get the number of connections in the channel.
+     * Get the current number of objects in the channel.
      */
     public function length(): int
     {
@@ -95,7 +97,7 @@ class Channel
             $result = $this->signal->pop($timeout);
 
             if ($result === false && $this->signal->isCanceled()) {
-                throw new CanceledException('The connection pool wait was canceled.');
+                throw new CanceledException('The pool wait was canceled.');
             }
 
             return $result !== false || ! $this->signal->isTimeout();
