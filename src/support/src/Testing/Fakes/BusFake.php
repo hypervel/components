@@ -375,7 +375,7 @@ class BusFake implements Fake, QueueingDispatcher
         $chain = $expectedChain;
 
         PHPUnit::assertTrue(
-            $this->dispatched($command, $callback)->filter(function ($job) use ($chain) {
+            $this->dispatched($command, $callback)->contains(function ($job) use ($chain) {
                 if (count($chain) !== count($job->chained)) {
                     return false;
                 }
@@ -412,7 +412,7 @@ class BusFake implements Fake, QueueingDispatcher
                 }
 
                 return true;
-            })->isNotEmpty(),
+            }),
             'The expected chain was not dispatched.'
         );
     }
@@ -701,12 +701,12 @@ class BusFake implements Fake, QueueingDispatcher
             return true;
         }
 
-        return Collection::make($this->jobsToFake)
-            ->filter(function ($job) use ($command) {
+        return (new Collection($this->jobsToFake))
+            ->contains(function ($job) use ($command) {
                 return $job instanceof Closure
                     ? $job($command)
                     : $job === get_class($command);
-            })->isNotEmpty();
+            });
     }
 
     /**
@@ -714,12 +714,12 @@ class BusFake implements Fake, QueueingDispatcher
      */
     protected function shouldDispatchCommand(mixed $command): bool
     {
-        return Collection::make($this->jobsToDispatch)
-            ->filter(function ($job) use ($command) {
+        return (new Collection($this->jobsToDispatch))
+            ->contains(function ($job) use ($command) {
                 return $job instanceof Closure
                     ? $job($command)
                     : $job === get_class($command);
-            })->isNotEmpty();
+            });
     }
 
     /**

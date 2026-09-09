@@ -18,6 +18,7 @@ use Hypervel\Process\PendingProcess;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use OutOfBoundsException;
+use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use RuntimeException;
 use Symfony\Component\Process\Process as SymfonyProcess;
@@ -1547,6 +1548,85 @@ class ProcessTest extends TestCase
         $factory->assertNotRan(function ($process, $result) {
             return $process->command == 'cat foo';
         });
+    }
+
+    public function testAssertRanWithFalsyCommandString(): void
+    {
+        $factory = new Factory;
+
+        $factory->fake();
+
+        $factory->run('0');
+
+        $factory->assertRan('0');
+        $factory->assertRanTimes('0', 1);
+        $factory->assertNotRan('ls -la');
+    }
+
+    public function testAssertRanWithFalsyStartedCommandString(): void
+    {
+        $factory = new Factory;
+
+        $factory->fake();
+
+        $factory->start('0')->wait();
+
+        $factory->assertRan('0');
+    }
+
+    public function testAssertingProcessesRanInOrder(): void
+    {
+        $factory = new Factory;
+        $factory->fake();
+
+        $factory->run('git fetch');
+        $factory->run('git reset --hard origin/main');
+        $factory->run('composer install --no-dev');
+
+        $factory->assertRanInOrder([
+            'git fetch',
+            'git reset --hard origin/main',
+            fn ($process) => str_starts_with($process->command, 'composer install'),
+        ]);
+    }
+
+    public function testAssertingProcessesRanInOrderFailsWhenOutOfOrder(): void
+    {
+        $this->expectException(AssertionFailedError::class);
+
+        $factory = new Factory;
+        $factory->fake();
+
+        $factory->run('composer install');
+        $factory->run('git fetch');
+
+        $factory->assertRanInOrder(['git fetch', 'composer install']);
+    }
+
+    public function testAssertingProcessesRanInOrderFailsWhenCountDiffers(): void
+    {
+        $this->expectException(AssertionFailedError::class);
+
+        $factory = new Factory;
+        $factory->fake();
+
+        $factory->run('git fetch');
+
+        $factory->assertRanInOrder(['git fetch', 'composer install']);
+    }
+
+    public function testFakeAssertionsWithArrayCommands(): void
+    {
+        $factory = new Factory;
+        $factory->fake();
+
+        $factory->run(['php', 'artisan', 'migrate']);
+
+        $factory->assertRan(['php', 'artisan', 'migrate']);
+        $factory->assertRanTimes(['php', 'artisan', 'migrate'], 1);
+        $factory->assertNotRan(['php', 'artisan', 'migrate:rollback']);
+        $factory->assertDidntRun(['php', 'artisan', 'migrate:rollback']);
+        $factory->assertRanInOrder([['php', 'artisan', 'migrate']]);
     }
 
     public function testAssertingThatNothingRan()

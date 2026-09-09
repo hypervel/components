@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
-use BackedEnum;
 use Hypervel\Contracts\Support\Arrayable;
 use Stringable;
 use UnitEnum;
@@ -21,7 +20,7 @@ class DoesntContain implements Stringable
     /**
      * Create a new doesnt_contain rule instance.
      */
-    public function __construct(array|Arrayable|BackedEnum|string|UnitEnum $values)
+    public function __construct(array|Arrayable|UnitEnum|string $values)
     {
         if ($values instanceof Arrayable) {
             $values = $values->toArray();
