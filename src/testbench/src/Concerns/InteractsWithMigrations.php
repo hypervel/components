@@ -33,9 +33,8 @@ trait InteractsWithMigrations
     protected function setUpInteractsWithMigrations(): void
     {
         if ($this->usesInMemoryDatabaseForMigrationState()) {
-            $this->afterApplicationCreated(static function (): void {
-                static::usesTestingFeature(new ResetRefreshDatabaseState);
-            });
+            // A later setup hook may skip or fail before after-application callbacks run.
+            static::usesTestingFeature(new ResetRefreshDatabaseState);
         }
     }
 
