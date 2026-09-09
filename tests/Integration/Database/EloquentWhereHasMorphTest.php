@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\EloquentWhereHasMorphTest;
 
+use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class EloquentWhereHasMorphTest extends DatabaseTestCase
 {
@@ -92,6 +96,64 @@ class EloquentWhereHasMorphTest extends DatabaseTestCase
             })->orderBy('id')->get();
 
         $this->assertEquals([1, 4], $comments->pluck('id')->all());
+    }
+
+    #[DataProvider('wildcardCountComparisonProvider')]
+    public function testWhereHasMorphWithWildcardCountComparisons(string $operator, array $zeroIds, array $columnIds): void
+    {
+        $this->assertSame($zeroIds, Comment::whereHasMorph('commentable', '*', null, $operator, 0)
+            ->orderBy('id')->pluck('id')->all());
+
+        $this->assertSame($zeroIds, Comment::whereHasMorph('commentable', '*', null, $operator, new Expression('0'))
+            ->orderBy('id')->pluck('id')->all());
+
+        $count = m::mock(ExpressionContract::class);
+        // Decimal subtraction avoids unsigned integer underflow on MySQL and MariaDB.
+        $count->shouldReceive('getValue')->andReturn('comments.id - 7.0');
+
+        $query = Comment::whereHasMorph('commentable', '*', null, $operator, $count)->orderBy('id');
+
+        $this->assertSame($columnIds, $query->pluck('id')->all());
+        $this->assertEqualsCanonicalizing([Post::class, Video::class], $query->getBindings());
+    }
+
+    /**
+     * Provide zero-count and row-dependent comparisons, including nullable morphs.
+     */
+    public static function wildcardCountComparisonProvider(): array
+    {
+        return [
+            'equal' => ['=', [3, 7, 8], [7]],
+            'null-safe equal' => ['<=>', [3, 7, 8], [7]],
+            'not equal' => ['!=', [1, 2, 4, 5, 6], [1, 2, 3, 4, 5, 6, 8]],
+            'alternate not equal' => ['<>', [1, 2, 4, 5, 6], [1, 2, 3, 4, 5, 6, 8]],
+            'less than' => ['<', [], [8]],
+            'less than or equal' => ['<=', [3, 7, 8], [7, 8]],
+            'greater than' => ['>', [1, 2, 4, 5, 6], [1, 2, 3, 4, 5, 6]],
+            'greater than or equal' => ['>=', [1, 2, 3, 4, 5, 6, 7, 8], [1, 2, 3, 4, 5, 6, 7]],
+        ];
+    }
+
+    public function testWhereHasMorphWithExpressionCountAndOnlyNullMorphTypes(): void
+    {
+        Comment::whereNotNull('commentable_type')->forceDelete();
+
+        $this->assertSame([7], Comment::whereHasMorph('commentable', '*', null, '=', new Expression('comments.id - 7.0'))
+            ->orderBy('id')->pluck('id')->all());
+    }
+
+    public function testWhereHasMorphWithExpressionCountAndExplicitTypes(): void
+    {
+        $this->assertSame([3], Comment::whereHasMorph('commentable', [Post::class, Video::class], null, '=', new Expression('0'))
+            ->orderBy('id')->pluck('id')->all());
+    }
+
+    public function testWhereHasMorphWithExpressionCountIsLogicallyGrouped(): void
+    {
+        $this->assertSame([], Comment::whereNot('title', 'foo')
+            ->whereHasMorph('commentable', '*', null, '=', new Expression('0'))->pluck('id')->all());
+        $this->assertSame([], Comment::whereHasMorph('commentable', '*', null, '=', new Expression('0'))
+            ->whereNot('title', 'foo')->pluck('id')->all());
     }
 
     public function testWhereHasMorphWithWildcardAndMorphMap()

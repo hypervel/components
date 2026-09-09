@@ -369,6 +369,8 @@ Runtime metrics use one snapshot per source during collection. The complete defa
 - `hypervel.server.connections`, `hypervel.server.requests`, `hypervel.server.tasks.active`, and `hypervel.server.task_queue.size`;
 - `hypervel.worker.requests` and `hypervel.worker.coroutines`.
 
+Pool metrics report idle resources and used capacity. Used capacity is the managed count minus the idle count, so it includes resources undergoing maintenance or cleanup as well as application borrows. Collection reads existing pools without creating resources or running health checks.
+
 Object-pool metrics use the exact pool registry name. Framework-generated automatic names contain a construction fingerprint and may change when construction input changes. Use an explicit stable `pool.name` when dashboard continuity matters. Deliberately dynamic application pool names and recycler eviction can create historical backend series even though the live worker contains only a bounded set. Disable those metrics or use a metric view when that is not acceptable.
 
 <a name="exceptions-logs"></a>

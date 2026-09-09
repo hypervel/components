@@ -7,10 +7,10 @@ namespace Hypervel\Tests\ObjectPool;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
-use Hypervel\ObjectPool\Contracts\ObjectPool as ObjectPoolContract;
+use Hypervel\Contracts\ObjectPool\ObjectPool as ObjectPoolContract;
+use Hypervel\ObjectPool\CallbackObjectPool;
 use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolOptions;
-use Hypervel\ObjectPool\SimpleObjectPool;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -21,7 +21,7 @@ use Throwable;
 
 class LeaseTest extends TestCase
 {
-    /** @var list<SimpleObjectPool> */
+    /** @var list<CallbackObjectPool> */
     private array $pools = [];
 
     protected function tearDownInCoroutine(): void
@@ -34,7 +34,7 @@ class LeaseTest extends TestCase
     public function testGetAndReleaseFinalizeExactlyOnce(): void
     {
         $pool = $this->pool();
-        $object = $pool->get();
+        $object = $pool->borrow();
         $lease = new Lease($pool, $object);
 
         $this->assertSame($object, $lease->get());
@@ -42,14 +42,14 @@ class LeaseTest extends TestCase
         $lease->release();
         $lease->release();
 
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(1, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(1, $pool->getIdleCount());
     }
 
     public function testGetRejectsAReleasedLease(): void
     {
         $pool = $this->pool();
-        $lease = new Lease($pool, $pool->get());
+        $lease = new Lease($pool, $pool->borrow());
         $lease->release();
 
         $this->expectException(RuntimeException::class);
@@ -61,7 +61,7 @@ class LeaseTest extends TestCase
     public function testReleaseCallbackRunsBeforeTheObjectReturnsToThePool(): void
     {
         $pool = $this->pool();
-        $object = $pool->get();
+        $object = $pool->borrow();
         $callbackObject = null;
         $borrowedDuringCallback = null;
         $lease = new Lease(
@@ -69,7 +69,7 @@ class LeaseTest extends TestCase
             $object,
             function (object $released) use ($pool, &$callbackObject, &$borrowedDuringCallback): void {
                 $callbackObject = $released;
-                $borrowedDuringCallback = $pool->getBorrowedObjectNumber();
+                $borrowedDuringCallback = $pool->getBorrowedCount();
             },
         );
 
@@ -77,7 +77,7 @@ class LeaseTest extends TestCase
 
         $this->assertSame($object, $callbackObject);
         $this->assertSame(1, $borrowedDuringCallback);
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+        $this->assertSame(0, $pool->getBorrowedCount());
     }
 
     public function testThrowingReleaseCallbackDiscardsTheObjectAndPropagates(): void
@@ -86,7 +86,7 @@ class LeaseTest extends TestCase
         $pool = $this->pool(function (object $object) use (&$destroyed): void {
             $destroyed[] = $object;
         });
-        $object = $pool->get();
+        $object = $pool->borrow();
         $expected = new RuntimeException('reset failed');
         $lease = new Lease($pool, $object, function () use ($expected): never {
             throw $expected;
@@ -100,8 +100,8 @@ class LeaseTest extends TestCase
         }
 
         $this->assertSame([$object], $destroyed);
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+        $this->assertSame(0, $pool->getManagedCount());
+        $this->assertSame(0, $pool->getBorrowedCount());
     }
 
     public function testDiscardFailureDoesNotMaskAReleaseCallbackFailure(): void
@@ -175,7 +175,7 @@ class LeaseTest extends TestCase
         $pool = $this->pool(function (object $object) use (&$destroyed): void {
             $destroyed[] = $object;
         });
-        $object = $pool->get();
+        $object = $pool->borrow();
         $lease = new Lease($pool, $object);
 
         $lease->discard();
@@ -183,21 +183,21 @@ class LeaseTest extends TestCase
         $lease->release();
 
         $this->assertSame([$object], $destroyed);
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
+        $this->assertSame(0, $pool->getManagedCount());
     }
 
     public function testDestructorReleasesAnAbandonedBorrow(): void
     {
         $pool = $this->pool();
-        $object = $pool->get();
+        $object = $pool->borrow();
         $lease = new Lease($pool, $object);
 
         unset($lease);
         gc_collect_cycles();
 
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(1, $pool->getObjectNumberInPool());
-        $borrowed = $pool->get();
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(1, $pool->getIdleCount());
+        $borrowed = $pool->borrow();
         $this->assertSame($object, $borrowed);
         $pool->release($borrowed);
     }
@@ -211,14 +211,14 @@ class LeaseTest extends TestCase
         $container->instance(ExceptionHandler::class, $handler);
 
         $pool = $this->pool();
-        $lease = new Lease($pool, $pool->get(), function () use ($expected): never {
+        $lease = new Lease($pool, $pool->borrow(), function () use ($expected): never {
             throw $expected;
         });
 
         unset($lease);
         gc_collect_cycles();
 
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
+        $this->assertSame(0, $pool->getManagedCount());
     }
 
     public function testLeaseAcceptsAContractImplementationThatDoesNotExtendTheBasePool(): void
@@ -283,9 +283,9 @@ class LeaseTest extends TestCase
     /**
      * Create a tracked object pool.
      */
-    private function pool(?Closure $destroyCallback = null): SimpleObjectPool
+    private function pool(?Closure $destroyCallback = null): CallbackObjectPool
     {
-        $pool = new SimpleObjectPool(
+        $pool = new CallbackObjectPool(
             static fn (): object => new stdClass,
             PoolOptions::fromArray([]),
             $destroyCallback,
@@ -315,7 +315,7 @@ class ContractOnlyObjectPool implements ObjectPoolContract
 
     public ?Throwable $discardException = null;
 
-    public function get(): object
+    public function borrow(): object
     {
         return new stdClass;
     }
@@ -355,27 +355,27 @@ class ContractOnlyObjectPool implements ObjectPoolContract
         return false;
     }
 
-    public function isIdle(): bool
+    public function isIdleExpired(): bool
     {
         return false;
     }
 
-    public function getBorrowedObjectNumber(): int
+    public function getBorrowedCount(): int
     {
         return 0;
     }
 
-    public function getCurrentObjectNumber(): int
+    public function getManagedCount(): int
     {
         return 0;
     }
 
-    public function getObjectNumberInPool(): int
+    public function getIdleCount(): int
     {
         return 0;
     }
 
-    public function getWaiters(): int
+    public function getWaitingCount(): int
     {
         return 0;
     }
@@ -387,6 +387,6 @@ class ContractOnlyObjectPool implements ObjectPoolContract
 
     public function getStats(): array
     {
-        return ['total' => 0, 'idle' => 0, 'borrowed' => 0, 'waiters' => 0, 'closed' => false];
+        return ['managed' => 0, 'borrowed' => 0, 'idle' => 0, 'waiting' => 0, 'closed' => false];
     }
 }

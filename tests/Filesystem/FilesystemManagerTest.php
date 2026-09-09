@@ -13,13 +13,13 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Filesystem\Filesystem;
+use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Filesystem\AwsS3V3Adapter;
 use Hypervel\Filesystem\ClientPooledFilesystem;
 use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Filesystem\FilesystemPoolProxy;
 use Hypervel\Filesystem\GoogleCloudStorageAdapter;
-use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\PoolFingerprint;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Testing\ParallelTesting;
@@ -73,7 +73,7 @@ class FilesystemManagerTest extends TestCase
     protected function tearDownInCoroutine(): void
     {
         foreach ($this->poolManagers as $poolManager) {
-            $poolManager->flush();
+            $poolManager->purgeAll();
         }
     }
 
@@ -348,7 +348,7 @@ class FilesystemManagerTest extends TestCase
         $exceptionHandler = m::mock(ExceptionHandler::class);
         $exceptionHandler->shouldReceive('report')->once()->with(m::type(UnableToWriteFile::class));
         $container->instance(ExceptionHandler::class, $exceptionHandler);
-        $filesystem = (new FilesystemManager($container))->addPoolable('local');
+        $filesystem = (new FilesystemManager($container))->addPoolableDriver('local');
         $disk = $filesystem->disk('archive');
 
         $this->assertInstanceOf(FilesystemPoolProxy::class, $disk);
@@ -363,7 +363,7 @@ class FilesystemManagerTest extends TestCase
 
     public function testDisksDoNotExposePoolConstructionMetadata(): void
     {
-        $manager = (new FilesystemManager($this->getContainer()))->addPoolable('local');
+        $manager = (new FilesystemManager($this->getContainer()))->addPoolableDriver('local');
         $direct = (new FilesystemManager($this->getContainer()))->build([
             'driver' => 'local',
             'root' => $this->tempDir . '/unpooled-local',
@@ -638,7 +638,7 @@ class FilesystemManagerTest extends TestCase
             ],
         ]);
         $filesystem = (new FilesystemManager($container))
-            ->addPoolable('local');
+            ->addPoolableDriver('local');
 
         Container::setInstance($container);
 
@@ -666,7 +666,7 @@ class FilesystemManagerTest extends TestCase
         $archivesClient = $archives->withClient(static fn (object $client): object => $client);
 
         $this->assertSame($documentsClient, $archivesClient);
-        $this->assertCount(1, $container->make(PoolFactory::class)->pools());
+        $this->assertCount(1, $container->make(PoolFactory::class)->getPools());
     }
 
     public function testS3DisksWithDifferentCredentialsUseDifferentClientPools(): void
@@ -687,7 +687,7 @@ class FilesystemManagerTest extends TestCase
             $first->withClient(static fn (object $client): object => $client),
             $second->withClient(static fn (object $client): object => $client),
         );
-        $this->assertCount(2, $container->make(PoolFactory::class)->pools());
+        $this->assertCount(2, $container->make(PoolFactory::class)->getPools());
     }
 
     public function testRepeatedOnDemandS3BuildsConvergeWithoutNameCollisions(): void
@@ -949,7 +949,7 @@ class FilesystemManagerTest extends TestCase
             ],
         ]);
         Container::setInstance($container);
-        $manager = (new FilesystemManager($container))->addPoolable('local');
+        $manager = (new FilesystemManager($container))->addPoolableDriver('local');
         $disk = $manager->disk('target');
 
         $this->assertFalse($disk->exists('missing.txt'));
@@ -979,7 +979,7 @@ class FilesystemManagerTest extends TestCase
             ],
         ]);
         Container::setInstance($container);
-        $manager = (new FilesystemManager($container))->addPoolable('local');
+        $manager = (new FilesystemManager($container))->addPoolableDriver('local');
         $named = $manager->disk('target');
         $anonymous = $manager->build($scopedConfig);
 
@@ -1263,7 +1263,7 @@ class FilesystemManagerTest extends TestCase
                 'ondemand' => $config,
             ],
         ]);
-        $manager = (new FilesystemManager($container))->addPoolable('local');
+        $manager = (new FilesystemManager($container))->addPoolableDriver('local');
 
         $first = $manager->disk('first');
         $second = $manager->disk('second');
@@ -1289,7 +1289,7 @@ class FilesystemManagerTest extends TestCase
                 'served' => $base,
             ],
         ]);
-        $manager = (new FilesystemManager($container))->addPoolable('local');
+        $manager = (new FilesystemManager($container))->addPoolableDriver('local');
         $inlineParent = $manager->build([
             'driver' => 'scoped',
             'disk' => $base,
@@ -1313,7 +1313,7 @@ class FilesystemManagerTest extends TestCase
             'driver' => 'local',
             'root' => $this->tempDir . '/anonymous-serving-pools',
         ];
-        $manager = (new FilesystemManager($this->getContainer()))->addPoolable('local');
+        $manager = (new FilesystemManager($this->getContainer()))->addPoolableDriver('local');
         $unserved = $manager->build($config);
         $served = $manager->build([...$config, 'serve' => true]);
 

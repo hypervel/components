@@ -51,7 +51,7 @@ class FilesystemPoolProxyTest extends TestCase
 
     protected function tearDownInCoroutine(): void
     {
-        $this->pools->flush();
+        $this->pools->purgeAll();
     }
 
     protected function tearDown(): void
@@ -75,8 +75,8 @@ class FilesystemPoolProxyTest extends TestCase
         $this->assertTrue($proxy->exists('file.txt'));
         $this->assertSame('contents', $proxy->get('file.txt'));
         $this->assertSame(1, $creations);
-        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
-        $this->assertSame(1, $this->pools->get('filesystem:driver')->getObjectNumberInPool());
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedCount());
+        $this->assertSame(1, $this->pools->get('filesystem:driver')->getIdleCount());
     }
 
     public function testJsonReturnsScalarDataAndReleasesTheDriver(): void
@@ -85,7 +85,7 @@ class FilesystemPoolProxyTest extends TestCase
         $proxy = $this->proxy(fn (): FilesystemAdapter => $this->filesystem());
 
         $this->assertSame('value', $proxy->json('value.json'));
-        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedCount());
     }
 
     public function testImageDefersAndBalancesTheWholeDriverLease(): void
@@ -111,7 +111,7 @@ class FilesystemPoolProxyTest extends TestCase
         $this->assertSame('image bytes', $image->toBytes());
         $this->assertSame(1, $creations);
         $this->assertSame(1, $releaseCalls);
-        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedCount());
 
         $this->assertSame('image bytes', $image->toBytes());
         $this->assertSame(1, $releaseCalls);
@@ -139,7 +139,7 @@ class FilesystemPoolProxyTest extends TestCase
         }
 
         $this->assertSame(1, $releaseCalls);
-        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedCount());
     }
 
     public function testAssertEmptyReturnsTheProxyAndReleasesTheDriver(): void
@@ -147,7 +147,7 @@ class FilesystemPoolProxyTest extends TestCase
         $proxy = $this->proxy(fn (): FilesystemAdapter => $this->filesystem());
 
         $this->assertSame($proxy, $proxy->assertEmpty());
-        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedCount());
     }
 
     public function testSynchronousFlysystemMethodsAndConditionableUseTheProxyBoundary(): void
@@ -166,7 +166,7 @@ class FilesystemPoolProxyTest extends TestCase
             $this->assertSame($proxy, $candidate);
             $this->assertSame($proxy, $candidate->unless(false, static fn (): null => null));
         }));
-        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedCount());
     }
 
     public function testEveryCallbackSlotIsWrittenOnEveryBorrowAcrossSharedProxies(): void
@@ -208,13 +208,13 @@ class FilesystemPoolProxyTest extends TestCase
 
         $stream = $proxy->readStream('file.txt');
         $this->assertIsResource($stream);
-        $this->assertSame(1, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+        $this->assertSame(1, $this->pools->get('filesystem:driver')->getBorrowedCount());
         $this->assertSame(0, $releaseCalls);
         $this->assertSame('streamed', stream_get_contents($stream));
 
         fclose($stream);
 
-        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedCount());
         $this->assertSame(1, $releaseCalls);
     }
 
@@ -232,13 +232,13 @@ class FilesystemPoolProxyTest extends TestCase
         $stream = $proxy->readStreamRange('file.txt', 3, 5);
 
         $this->assertIsResource($stream);
-        $this->assertSame(1, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+        $this->assertSame(1, $this->pools->get('filesystem:driver')->getBorrowedCount());
         $this->assertSame(0, $releaseCalls);
         $this->assertSame('345', stream_get_contents($stream));
 
         fclose($stream);
 
-        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedCount());
         $this->assertSame(1, $releaseCalls);
     }
 
@@ -247,7 +247,7 @@ class FilesystemPoolProxyTest extends TestCase
         $proxy = $this->proxy(fn (): FilesystemAdapter => $this->filesystem());
 
         $driver = $proxy->withDriver(function (object $driver): object {
-            $this->assertSame(1, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+            $this->assertSame(1, $this->pools->get('filesystem:driver')->getBorrowedCount());
 
             return $driver;
         });
@@ -255,7 +255,7 @@ class FilesystemPoolProxyTest extends TestCase
 
         $this->assertSame($this->driver, $driver);
         $this->assertSame($this->adapter, $adapter);
-        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedCount());
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('does not support [getClient] access');
@@ -299,8 +299,8 @@ class FilesystemPoolProxyTest extends TestCase
         $proxy = $this->proxy(static fn (): FilesystemContract => $filesystem);
 
         $this->assertTrue($proxy->exists('file.txt'));
-        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
-        $this->assertSame(1, $this->pools->get('filesystem:driver')->getObjectNumberInPool());
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedCount());
+        $this->assertSame(1, $this->pools->get('filesystem:driver')->getIdleCount());
     }
 
     public function testSettingCallbacksOnAContractOnlyFilesystemFailsAndDiscardsIt(): void
@@ -317,7 +317,7 @@ class FilesystemPoolProxyTest extends TestCase
             $this->assertStringContainsString($filesystem::class, $exception->getMessage());
         }
 
-        $this->assertSame(0, $this->pools->get('filesystem:driver')->getCurrentObjectNumber());
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getManagedCount());
     }
 
     public function testResponseUsesShortBorrowsAndClosesTheStreamLease(): void
@@ -337,7 +337,7 @@ class FilesystemPoolProxyTest extends TestCase
 
         $this->assertInstanceOf(IterableStreamedResponse::class, $result);
         $this->assertSame(206, $result->getStatusCode());
-        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedCount());
         $this->assertSame(2, $releaseCalls);
 
         $content = '';
@@ -350,7 +350,7 @@ class FilesystemPoolProxyTest extends TestCase
         ));
 
         $this->assertSame('234', $content);
-        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedCount());
         $this->assertSame(3, $releaseCalls);
     }
 
@@ -393,7 +393,7 @@ class FilesystemPoolProxyTest extends TestCase
             $this->assertSame($releaseCancellation, $exception);
         }
 
-        $this->assertSame(0, $this->pools->get('filesystem:driver')->getCurrentObjectNumber());
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getManagedCount());
     }
 
     private function definition(): PoolDefinition
@@ -403,17 +403,17 @@ class FilesystemPoolProxyTest extends TestCase
             'custom',
             'auto:driver',
             PoolOptions::fromArray([
-                'max_lifetime' => 0,
-                'idle_ttl' => null,
+                'max_lifetime' => null,
+                'pool_idle_timeout' => null,
             ]),
         );
     }
 
-    private function proxy(Closure $resolver, ?Closure $releaseCallback = null): FilesystemPoolProxy
+    private function proxy(Closure $createCallback, ?Closure $releaseCallback = null): FilesystemPoolProxy
     {
         return new FilesystemPoolProxy(
             $this->definition(),
-            $resolver,
+            $createCallback,
             $this->pools,
             ['driver' => 'custom'],
             $releaseCallback,

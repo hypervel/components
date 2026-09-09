@@ -8,6 +8,7 @@ use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Encryption\Commands\KeyGenerateCommand;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Prompts\Prompt;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use Override;
@@ -115,6 +116,25 @@ class KeyGenerateCommandTest extends TestCase
         $this->assertStringNotContainsString(base64_encode(str_repeat('a', 16)), $envContents);
     }
 
+    public function testDecliningConfirmationDoesNotReplaceTheKey(): void
+    {
+        $this->app->instance('env', 'production');
+        // Production disables the automatic test fallback for console prompts.
+        Prompt::fallbackWhen(true);
+
+        $key = 'base64:' . base64_encode(str_repeat('a', 16));
+        config(['app.key' => $key]);
+        $path = $this->envDir . '/.env';
+        file_put_contents($path, 'APP_KEY=' . $key);
+
+        $this->artisan('key:generate')
+            ->expectsConfirmation('Are you sure you want to run this command?', 'no')
+            ->assertFailed();
+
+        $this->assertSame('APP_KEY=' . $key, file_get_contents($path));
+        $this->assertSame($key, config('app.key'));
+    }
+
     public function testErrorWhenEnvFileHasNoAppKeyLine(): void
     {
         $this->app->make('config')->set('app.key', '');
@@ -124,7 +144,7 @@ class KeyGenerateCommandTest extends TestCase
 
         $this->artisan('key:generate')
             ->expectsOutputToContain('No APP_KEY variable was found in the .env file.')
-            ->assertSuccessful();
+            ->assertFailed();
     }
 
     public function testGeneratedKeyHasCorrectLengthForCipher(): void
@@ -157,7 +177,7 @@ class KeyGenerateCommandTest extends TestCase
 
         $this->artisan('key:generate')
             ->expectsOutputToContain('This command is prohibited from running in this environment.')
-            ->assertSuccessful();
+            ->assertFailed();
 
         $this->assertSame('APP_KEY=', file_get_contents($path));
         $this->assertSame('', $config->get('app.key'));
@@ -207,7 +227,7 @@ class KeyGenerateCommandTest extends TestCase
         file_put_contents($path, $line);
 
         $this->artisan('key:generate', ['--force' => true])
-            ->assertSuccessful();
+            ->assertFailed();
 
         $this->assertSame($line, file_get_contents($path));
         $this->assertSame('base64:current', $config->get('app.key'));

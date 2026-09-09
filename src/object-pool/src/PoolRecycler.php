@@ -4,29 +4,33 @@ declare(strict_types=1);
 
 namespace Hypervel\ObjectPool;
 
+use Hypervel\Contracts\ObjectPool\Factory;
+use Hypervel\Contracts\ObjectPool\Recycler;
 use Hypervel\Coordinator\Timer;
-use Hypervel\ObjectPool\Contracts\Factory;
-use Hypervel\ObjectPool\Contracts\Recycler;
 use InvalidArgumentException;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class PoolRecycler implements Recycler
 {
-    protected ?Timer $timer = null;
+    protected Timer $timer;
 
     protected ?int $timerId = null;
-
-    protected float $interval;
 
     /**
      * Create a pool recycler.
      */
     public function __construct(
         protected Factory $manager,
-        float $interval = 10.0,
+        protected float $interval = 10.0,
+        ?Timer $timer = null,
     ) {
-        $this->setInterval($interval);
+        if (! is_finite($interval) || $interval <= 0.0) {
+            throw new InvalidArgumentException('The recycler interval must be a finite number greater than 0.');
+        }
+
+        $this->timer = $timer ?? new Timer;
     }
 
     /**
@@ -35,48 +39,6 @@ class PoolRecycler implements Recycler
     public function getInterval(): float
     {
         return $this->interval;
-    }
-
-    /**
-     * Set the maintenance interval in seconds.
-     *
-     * Boot-only. The interval persists on the singleton recycler for the worker
-     * lifetime and controls every subsequently scheduled maintenance loop.
-     */
-    public function setInterval(float $interval): void
-    {
-        if (! is_finite($interval) || $interval <= 0.0) {
-            throw new InvalidArgumentException('The recycler interval must be a finite number greater than 0.');
-        }
-
-        $this->interval = $interval;
-    }
-
-    /**
-     * Get the timer used to schedule maintenance.
-     */
-    public function getTimer(): Timer
-    {
-        return $this->timer ??= new Timer;
-    }
-
-    /**
-     * Set the timer used to schedule maintenance.
-     *
-     * Boot or tests only. Replacing the timer after start would diverge from
-     * the already-scheduled loop retained by the previous timer.
-     */
-    public function setTimer(Timer $timer): void
-    {
-        $this->timer = $timer;
-    }
-
-    /**
-     * Get the active maintenance timer ID.
-     */
-    public function getTimerId(): ?int
-    {
-        return $this->timerId;
     }
 
     /**
@@ -91,11 +53,13 @@ class PoolRecycler implements Recycler
             return;
         }
 
-        $this->timerId = $this->getTimer()->tick(
+        $this->timerId = $this->timer->tick(
             $this->interval,
             function (): void {
                 try {
                     $this->maintainPools();
+                } catch (CanceledException $exception) {
+                    throw $exception;
                 } catch (Throwable $exception) {
                     PoolErrorReporter::report($exception);
                 }
@@ -112,7 +76,7 @@ class PoolRecycler implements Recycler
     public function stop(): void
     {
         if ($this->timerId !== null) {
-            $this->getTimer()->clear($this->timerId);
+            $this->timer->clear($this->timerId);
         }
 
         $this->timerId = null;
@@ -123,17 +87,19 @@ class PoolRecycler implements Recycler
      */
     protected function maintainPools(): void
     {
-        foreach ($this->manager->pools() as $identity => $pool) {
+        foreach ($this->manager->getPools() as $identity => $pool) {
             // A throwing public-contract pool must not starve unrelated pools of maintenance.
             try {
-                if ($pool->isIdle()) {
-                    $this->manager->remove($identity, $pool);
+                if ($pool->isIdleExpired()) {
+                    $this->manager->purge($identity, $pool);
 
                     continue;
                 }
 
                 $pool->sweepExpired();
                 $pool->trimIdle();
+            } catch (CanceledException $exception) {
+                throw $exception;
             } catch (Throwable $exception) {
                 PoolErrorReporter::report(new RuntimeException(
                     "Pool maintenance failed for [{$identity}].",

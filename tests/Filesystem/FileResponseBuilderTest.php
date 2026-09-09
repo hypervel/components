@@ -11,9 +11,9 @@ use Hypervel\Filesystem\FileResponseBuilder;
 use Hypervel\Filesystem\LeasedStream;
 use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\Request;
+use Hypervel\ObjectPool\CallbackObjectPool;
 use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolOptions;
-use Hypervel\ObjectPool\SimpleObjectPool;
 use Hypervel\Tests\TestCase;
 use League\Flysystem\UnableToReadFile;
 use Mockery as m;
@@ -445,7 +445,7 @@ class FileResponseBuilderTest extends TestCase
 
     public function testAStreamBackedByALeaseReleasesAfterEmission(): void
     {
-        $pool = new SimpleObjectPool(
+        $pool = new CallbackObjectPool(
             static fn (): object => new stdClass,
             PoolOptions::fromArray([]),
         );
@@ -454,17 +454,17 @@ class FileResponseBuilderTest extends TestCase
             $response = $this->build(
                 Request::create('/file.txt', 'GET'),
                 function (?int $start, ?int $end) use ($pool): mixed {
-                    $lease = new Lease($pool, $pool->get());
+                    $lease = new Lease($pool, $pool->borrow());
 
                     return LeasedStream::wrap($this->stream('leased'), $lease);
                 },
                 6,
             );
 
-            $this->assertSame(0, $pool->getBorrowedObjectNumber());
+            $this->assertSame(0, $pool->getBorrowedCount());
             $this->assertSame('leased', $this->streamedContent($response));
-            $this->assertSame(0, $pool->getBorrowedObjectNumber());
-            $this->assertSame(1, $pool->getObjectNumberInPool());
+            $this->assertSame(0, $pool->getBorrowedCount());
+            $this->assertSame(1, $pool->getIdleCount());
         } finally {
             $pool->close();
         }

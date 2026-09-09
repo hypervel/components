@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Testing\PHPUnit;
 
 use Carbon\CarbonInterface;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\ConnectionPool\Connection as PoolConnection;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Data\CursorPaginatedDataCollection;
 use Hypervel\Data\DataCollection;
 use Hypervel\Data\Lazy;
@@ -641,7 +641,7 @@ class AfterEachTestSubscriberTest extends TestCase
     public function testDatabaseCleanupFailureDoesNotSkipFrameworkStateReset(): void
     {
         $expectedException = new RuntimeException('database cleanup failed');
-        $connection = new class($expectedException) implements ConnectionInterface {
+        $connection = new class($expectedException) implements PoolConnection {
             public function __construct(private RuntimeException $exception)
             {
             }

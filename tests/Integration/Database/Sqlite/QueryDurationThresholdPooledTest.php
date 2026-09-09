@@ -202,11 +202,11 @@ class QueryDurationThresholdPooledTest extends TestCase
             'database' => $databasePath,
             'prefix' => '',
             'pool' => [
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 5,
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
                 'max_idle_time' => 60.0,
                 'testing_enabled' => true,
             ],

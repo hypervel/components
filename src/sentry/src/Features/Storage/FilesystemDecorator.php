@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Features\Storage;
 
 use Hypervel\Contracts\Filesystem\Filesystem;
+use Hypervel\Contracts\ObjectPool\InvalidatesPool;
 use Hypervel\Http\File;
 use Hypervel\Http\UploadedFile;
-use Hypervel\ObjectPool\Contracts\InvalidatesPool;
 use Hypervel\Sentry\Integration;
 use Hypervel\Sentry\Util\Filesize;
 use Psr\Http\Message\StreamInterface;

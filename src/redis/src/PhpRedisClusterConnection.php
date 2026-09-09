@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis;
 
-use Hypervel\Pool\Exceptions\ConnectionException;
+use Hypervel\ConnectionPool\Exceptions\ConnectionException;
 use InvalidArgumentException;
 use Redis;
 use RedisCluster;

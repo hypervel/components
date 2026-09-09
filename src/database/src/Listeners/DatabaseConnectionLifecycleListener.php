@@ -6,12 +6,15 @@ namespace Hypervel\Database\Listeners;
 
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Database\ConnectionResolver;
-use Hypervel\Database\Pool\PoolFactory;
+use Hypervel\Database\Pool\PoolManager;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class DatabaseConnectionLifecycleListener
 {
+    /**
+     * Create a connection lifecycle listener.
+     */
     public function __construct(
         protected ContainerContract $container,
     ) {
@@ -52,9 +55,9 @@ class DatabaseConnectionLifecycleListener
             }
         }
 
-        if ($this->container->resolved(PoolFactory::class)) {
+        if ($this->container->resolved(PoolManager::class)) {
             try {
-                $this->container->make(PoolFactory::class)->flushAll();
+                $this->container->make(PoolManager::class)->purgeAll();
             } catch (Throwable $throwable) {
                 if ($exception === null
                     || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)

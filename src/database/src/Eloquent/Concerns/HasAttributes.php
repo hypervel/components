@@ -472,7 +472,7 @@ trait HasAttributes
      */
     public function hasAttribute(string $key): bool
     {
-        if (! $key) {
+        if ($key === '') {
             return false;
         }
 
@@ -488,7 +488,7 @@ trait HasAttributes
      */
     public function getAttribute(string $key): mixed
     {
-        if (! $key) {
+        if ($key === '') {
             return null;
         }
 

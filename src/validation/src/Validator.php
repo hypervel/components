@@ -1960,10 +1960,12 @@ class Validator implements ValidatorContract
 
     /**
      * Ensure exponents are within range using the given callback.
+     *
+     * @param callable(int, string, mixed): mixed $callback
      */
-    public function ensureExponentWithinAllowedRangeUsing(Closure $callback): static
+    public function ensureExponentWithinAllowedRangeUsing(callable $callback): static
     {
-        $this->ensureExponentWithinAllowedRangeUsing = $callback;
+        $this->ensureExponentWithinAllowedRangeUsing = $callback(...);
 
         return $this;
     }

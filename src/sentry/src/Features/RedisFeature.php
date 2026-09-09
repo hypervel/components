@@ -7,7 +7,7 @@ namespace Hypervel\Sentry\Features;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Events\CommandFailed;
-use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisManager;
 use Hypervel\Sentry\Features\Concerns\ResolvesEventOrigin;
@@ -69,7 +69,7 @@ class RedisFeature extends Feature
             return;
         }
 
-        $pool = $this->container->make(PoolFactory::class)->getPool($event->connectionName);
+        $pool = $this->container->make(PoolManager::class)->getPools()[$event->connectionName] ?? null;
         $redisConfig = $this->container->make(RedisConfig::class);
         $config = $redisConfig->connectionConfig($event->connectionName);
 
@@ -93,12 +93,20 @@ class RedisFeature extends Feature
             'db.statement' => $redisStatement,
             'db.redis.connection' => $event->connectionName,
             'db.redis.database_index' => $config['database'] ?? 0,
-            'db.redis.pool.name' => $event->connectionName,
-            'db.redis.pool.max' => $pool->getOption()->getMaxConnections(),
-            'db.redis.pool.max_idle_time' => $pool->getOption()->getMaxIdleTime(),
-            'db.redis.pool.idle' => $pool->getConnectionsInChannel(),
-            'db.redis.pool.using' => $pool->getCurrentConnections(),
         ];
+
+        if ($pool !== null) {
+            $options = $pool->getOptions();
+            $data += [
+                'db.redis.pool.name' => $event->connectionName,
+                'db.redis.pool.max' => $options->maxConnections,
+                'db.redis.pool.max_idle_time' => $options->maxIdleTime,
+                'db.redis.pool.managed' => $pool->getManagedCount(),
+                'db.redis.pool.borrowed' => $pool->getBorrowedCount(),
+                'db.redis.pool.idle' => $pool->getIdleCount(),
+                'db.redis.pool.waiting' => $pool->getWaitingCount(),
+            ];
+        }
 
         if ($event instanceof CommandFailed) {
             $data['db.redis.error'] = $event->exception->getMessage();

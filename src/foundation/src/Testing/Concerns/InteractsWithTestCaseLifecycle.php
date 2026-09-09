@@ -7,7 +7,7 @@ namespace Hypervel\Foundation\Testing\Concerns;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\DatabaseTransactionsManager;
-use Hypervel\Database\Pool\PoolFactory;
+use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Foundation\Bootstrap\HandleExceptions;
 use Hypervel\Foundation\Testing\Attributes\SetUp;
 use Hypervel\Foundation\Testing\Attributes\TearDown;
@@ -123,17 +123,11 @@ trait InteractsWithTestCaseLifecycle
             }
 
             try {
-                // Flush the DB connection pool in a separate coroutine so the
-                // pooled connections checked out during the destroyed callbacks
-                // (e.g. migrate:rollback) are first released by their Coroutine::defer
-                // when the previous coroutine ends. This lets close() drain them
-                // immediately; any genuinely late release is still destroyed by
-                // the closed pool rather than returned to circulation.
-                // The resolved() gate skips the work for tests that never touched
-                // the DB pool factory.
-                if ($app->resolved(PoolFactory::class)) {
+                // Use a separate coroutine so destroyed callbacks release their
+                // borrowed connections through defer before the pools are closed.
+                if ($app->resolved(PoolManager::class)) {
                     $this->runInCoroutine(
-                        fn () => $app->make(PoolFactory::class)->flushAll()
+                        fn () => $app->make(PoolManager::class)->purgeAll()
                     );
                 }
             } catch (Throwable $throwable) {

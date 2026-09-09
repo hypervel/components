@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\ObjectPool;
 
 use Closure;
-use Hypervel\ObjectPool\Contracts\Factory;
+use Hypervel\Contracts\ObjectPool\Factory;
+use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolFingerprint;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolProxy;
-use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -29,7 +29,7 @@ class HasPoolProxyTest extends TestCase
 
     protected function tearDownInCoroutine(): void
     {
-        $this->manager->factory->flush();
+        $this->manager->factory->purgeAll();
     }
 
     public function testAutomaticDefinitionIsNamespacedAndFingerprintsConstructionInput(): void
@@ -116,12 +116,12 @@ class HasPoolProxyTest extends TestCase
 
     public function testPoolableDriverMutatorsKeepAListShape(): void
     {
-        $this->manager->setPoolables(['first', 'second']);
-        $this->manager->removePoolable('first');
-        $this->manager->addPoolable('second');
-        $this->manager->addPoolable('third');
+        $this->manager->setPoolableDrivers(['first', 'second']);
+        $this->manager->removePoolableDriver('first');
+        $this->manager->addPoolableDriver('second');
+        $this->manager->addPoolableDriver('third');
 
-        $this->assertSame(['second', 'third'], $this->manager->getPoolables());
+        $this->assertSame(['second', 'third'], $this->manager->getPoolableDrivers());
     }
 }
 
@@ -129,7 +129,7 @@ class PoolTraitManager
 {
     use HasPoolProxy;
 
-    protected array $poolables = [];
+    protected array $poolableDrivers = [];
 
     public function __construct(
         public PoolManager $factory,
@@ -141,9 +141,9 @@ class PoolTraitManager
         return $this->poolDefinition($resource, $poolConfig, $fingerprintSource);
     }
 
-    public function proxy(string $driver, Closure $resolver, PoolDefinition $definition): TraitPoolProxy
+    public function proxy(string $driver, Closure $createCallback, PoolDefinition $definition): TraitPoolProxy
     {
-        return $this->createPoolProxy($driver, $resolver, $definition, TraitPoolProxy::class);
+        return $this->createPoolProxy($driver, $createCallback, $definition, TraitPoolProxy::class);
     }
 
     protected function poolFactory(): Factory

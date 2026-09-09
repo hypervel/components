@@ -41,7 +41,7 @@ class PackageMetadataTest extends TestCase
             'hypervel/coroutine',
             'hypervel/engine',
             'hypervel/macroable',
-            'hypervel/pool',
+            'hypervel/connection-pool',
             'hypervel/support',
         ] as $dependency) {
             $this->assertArrayHasKey($dependency, $composer['require']);

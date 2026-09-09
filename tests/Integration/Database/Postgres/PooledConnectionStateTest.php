@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Integration\Database\Postgres;
 
 use Hypervel\Database\Connection;
 use Hypervel\Database\Pool\PooledConnection;
-use Hypervel\Database\Pool\PoolFactory;
+use Hypervel\Database\Pool\PoolManager;
 use ReflectionProperty;
 
 use function Hypervel\Coroutine\go;
@@ -20,14 +20,14 @@ use function Hypervel\Coroutine\go;
 class PooledConnectionStateTest extends PostgresTestCase
 {
     /**
-     * Helper to get a PooledConnection directly from the pool.
+     * Borrow a connection directly from the pool.
      */
     protected function getPooledConnection(): PooledConnection
     {
-        $factory = $this->app->make(PoolFactory::class);
-        $pool = $factory->getPool($this->driver);
+        $poolManager = $this->app->make(PoolManager::class);
+        $pool = $poolManager->pool($this->driver);
 
-        return $pool->get();
+        return $pool->borrow();
     }
 
     public function testQueryLoggingStateDoesNotLeakBetweenCoroutines(): void

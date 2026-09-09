@@ -50,6 +50,22 @@ class EloquentWithCountTest extends DatabaseTestCase
         ], $results->get()->toArray());
     }
 
+    public function testWithCountPreservesASubquerySourceAndItsBindings(): void
+    {
+        $one = Model1::create();
+        Model1::create();
+        $one->twos()->create();
+
+        $results = Model1::query()
+            ->fromSub(Model1::query()->whereKey($one->id), 'one')
+            ->withCount('twos')
+            ->get();
+
+        $this->assertEquals([
+            ['id' => $one->id, 'twos_count' => 1],
+        ], $results->toArray());
+    }
+
     public function testGlobalScopes()
     {
         $one = Model1::create();

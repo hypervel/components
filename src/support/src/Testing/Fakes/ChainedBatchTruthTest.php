@@ -12,7 +12,7 @@ class ChainedBatchTruthTest
     /**
      * Create a new truth test instance.
      *
-     * @param Closure $callback the underlying truth test
+     * @param Closure(PendingBatch): bool $callback the underlying truth test
      */
     public function __construct(
         protected Closure $callback

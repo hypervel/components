@@ -7,8 +7,8 @@ namespace Hypervel\Filesystem;
 use Closure;
 use Hypervel\Contracts\Filesystem\Cloud;
 use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
+use Hypervel\Contracts\ObjectPool\Factory;
 use Hypervel\Filesystem\Concerns\InteractsWithPooledFilesystem;
-use Hypervel\ObjectPool\Contracts\Factory;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolProxy;
 use RuntimeException;
@@ -23,12 +23,12 @@ class FilesystemPoolProxy extends PoolProxy implements Cloud
      */
     public function __construct(
         PoolDefinition $definition,
-        Closure $resolver,
+        Closure $createCallback,
         Factory $pools,
         protected array $config,
         ?Closure $releaseCallback = null,
     ) {
-        parent::__construct($definition, $resolver, $pools, $releaseCallback);
+        parent::__construct($definition, $createCallback, $pools, $releaseCallback);
     }
 
     /**
@@ -38,7 +38,7 @@ class FilesystemPoolProxy extends PoolProxy implements Cloud
     {
         if (! $object instanceof FilesystemContract) {
             throw new RuntimeException(
-                'Pooled filesystem resolvers must return an instance of ' . FilesystemContract::class . '.',
+                'Pooled filesystem creation callbacks must return an instance of ' . FilesystemContract::class . '.',
             );
         }
 

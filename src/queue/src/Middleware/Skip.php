@@ -10,6 +10,9 @@ use function value;
 
 class Skip
 {
+    /**
+     * Create a new middleware instance.
+     */
     public function __construct(protected bool $skip = false)
     {
     }

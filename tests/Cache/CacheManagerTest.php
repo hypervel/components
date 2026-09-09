@@ -28,7 +28,7 @@ use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Events\Dispatcher as Event;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Redis\PhpRedisConnection;
-use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Tests\Cache\Fixtures\ArrayFilesystem;
 use Hypervel\Tests\TestCase;
@@ -966,17 +966,16 @@ class CacheManagerTest extends TestCase
 
         // Mock RedisPool
         $pool = m::mock(RedisPool::class);
-        $pool->shouldReceive('get')->andReturn($connection);
+        $pool->shouldReceive('borrow')->andReturn($connection);
 
-        // Mock PoolFactory
-        $poolFactory = m::mock(PoolFactory::class);
-        $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->shouldReceive('pool')->with('default')->andReturn($pool);
 
         // Mock RedisFactory
         $redisFactory = m::mock(RedisFactory::class);
 
         $app->instance('redis', $redisFactory);
-        $app->instance(PoolFactory::class, $poolFactory);
+        $app->instance(PoolManager::class, $poolManager);
 
         Container::setInstance($app);
 

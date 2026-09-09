@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\ObjectPool\Listeners;
 
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\ObjectPool\Recycler;
 use Hypervel\Core\Events\AfterWorkerStart;
-use Hypervel\ObjectPool\Contracts\Recycler;
 
 class StartRecycler
 {

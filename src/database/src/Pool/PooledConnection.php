@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Database\Pool;
 
 use Closure;
+use Hypervel\ConnectionPool\Events\ConnectionReleasing;
+use Hypervel\Contracts\ConnectionPool\Connection as PoolConnection;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
-use Hypervel\Contracts\Pool\ConnectionInterface as PoolConnectionInterface;
 use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
@@ -16,8 +17,6 @@ use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Engine\Exceptions\CoroutineCreateException;
-use Hypervel\Pool\Events\ReleaseConnection;
-use Hypervel\Pool\PoolOption;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -26,10 +25,10 @@ use Throwable;
 /**
  * Wraps a database Connection for use with Hypervel's connection pool.
  *
- * This adapter implements Hypervel's pool ConnectionInterface, allowing our
+ * This adapter implements Hypervel's pool connection contract, allowing our
  * Laravel-ported Connection to work with Hypervel's pooling infrastructure.
  */
-class PooledConnection implements PoolConnectionInterface
+class PooledConnection implements PoolConnection
 {
     /**
      * Maximum allowed errors before marking connection as stale.
@@ -48,7 +47,7 @@ class PooledConnection implements PoolConnectionInterface
 
     protected float $createdAt = 0.0;
 
-    protected float $lifetimeExpiresAt = 0.0;
+    protected ?float $lifetimeExpiresAt = null;
 
     protected bool $availableForReuse = false;
 
@@ -61,7 +60,7 @@ class PooledConnection implements PoolConnectionInterface
      */
     public function __construct(
         protected Container $container,
-        protected DbPool $pool,
+        protected DatabasePool $pool,
         protected array $config
     ) {
         $this->factory = $container->make('db.factory');
@@ -191,9 +190,9 @@ class PooledConnection implements PoolConnectionInterface
                 return false;
             }
 
-            $maxIdleTime = $this->pool->getOption()->getMaxIdleTime();
+            $maxIdleTime = $this->pool->getOptions()->maxIdleTime;
 
-            if ($now > $maxIdleTime + max($this->lastReleaseTime, $this->lastUseTime)) {
+            if ($maxIdleTime !== null && $now > $maxIdleTime + max($this->lastReleaseTime, $this->lastUseTime)) {
                 return false;
             }
         }
@@ -210,7 +209,9 @@ class PooledConnection implements PoolConnectionInterface
             return false;
         }
 
-        return ($now ?? hrtime(true) / 1e9) > $this->pool->getOption()->getMaxIdleTime() + $this->lastReleaseTime;
+        $maxIdleTime = $this->pool->getOptions()->maxIdleTime;
+
+        return $maxIdleTime !== null && ($now ?? hrtime(true) / 1e9) > $maxIdleTime + $this->lastReleaseTime;
     }
 
     /**
@@ -336,11 +337,11 @@ class PooledConnection implements PoolConnectionInterface
             $this->lastReleaseTime = hrtime(true) / 1e9;
 
             // Dispatch release event if configured
-            $events = $this->pool->getOption()->getEvents();
-            if (in_array(ReleaseConnection::class, $events, true)
-                && $this->dispatcher?->hasListeners(ReleaseConnection::class)
+            $events = $this->pool->getOptions()->events;
+            if (in_array(ConnectionReleasing::class, $events, true)
+                && $this->dispatcher?->hasListeners(ConnectionReleasing::class)
             ) {
-                $this->dispatcher->dispatch(new ReleaseConnection($this));
+                $this->dispatcher->dispatch(new ConnectionReleasing($this));
             }
         } catch (CanceledException $cancellation) {
             $cancellationFailure = $cancellation;
@@ -427,7 +428,7 @@ class PooledConnection implements PoolConnectionInterface
      */
     public function isLifetimeExpired(?float $now = null): bool
     {
-        if ($this->lifetimeExpiresAt <= 0) {
+        if ($this->lifetimeExpiresAt === null) {
             return false;
         }
 
@@ -465,10 +466,7 @@ class PooledConnection implements PoolConnectionInterface
     private function stampGeneration(float $now): void
     {
         $this->createdAt = $now;
-        $this->lifetimeExpiresAt = PoolOption::jitteredLifetimeDeadline(
-            $now,
-            $this->pool->getOption()->getMaxLifetime()
-        );
+        $this->lifetimeExpiresAt = $this->pool->getOptions()->jitteredLifetimeDeadline($now);
     }
 
     /**

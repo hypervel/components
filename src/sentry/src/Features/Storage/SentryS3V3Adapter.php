@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Features\Storage;
 
+use Hypervel\Contracts\ObjectPool\InvalidatesPool;
 use Hypervel\Filesystem\AwsS3V3Adapter;
-use Hypervel\ObjectPool\Contracts\InvalidatesPool;
 
 class SentryS3V3Adapter extends AwsS3V3Adapter implements DecoratedFilesystem, InvalidatesPool
 {

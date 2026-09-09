@@ -8,7 +8,7 @@ use Hypervel\Container\Container;
 use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\Pool\PooledConnection;
-use Hypervel\Database\Pool\PoolFactory;
+use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -252,8 +252,8 @@ class DatabaseConnectionResolverTest extends TestCase
 
     public function testDiscardInvalidatesOnlyItsBareSharedSqliteConnection(): void
     {
-        $pool = $this->app->make(PoolFactory::class)->getPool('testing');
-        $pooled = $pool->get();
+        $pool = $this->app->make(PoolManager::class)->pool('testing');
+        $pooled = $pool->borrow();
         $this->assertInstanceOf(PooledConnection::class, $pooled);
         $connection = $pooled->getConnection();
         $connection->statement('create table ownership_test (value varchar)');
@@ -262,7 +262,7 @@ class DatabaseConnectionResolverTest extends TestCase
         $pooled->discard();
 
         $this->assertNull($connection->getRawPdo());
-        $replacement = $pool->get();
+        $replacement = $pool->borrow();
         $this->assertSame(
             'preserved',
             $replacement->getConnection()->selectOne('select value from ownership_test')->value,
@@ -272,17 +272,17 @@ class DatabaseConnectionResolverTest extends TestCase
 
     public function testDiscardAndReconnectRollBackSharedSqliteTransactions(): void
     {
-        $pool = $this->app->make(PoolFactory::class)->getPool('testing');
+        $pool = $this->app->make(PoolManager::class)->pool('testing');
         $sharedPdo = $pool->getSharedInMemorySqlitePdo();
         $this->assertNotNull($sharedPdo);
 
-        $discarded = $pool->get();
+        $discarded = $pool->borrow();
         $discarded->getConnection()->beginTransaction();
         $this->assertTrue($sharedPdo->inTransaction());
         $discarded->discard();
         $this->assertFalse($sharedPdo->inTransaction());
 
-        $reconnected = $pool->get();
+        $reconnected = $pool->borrow();
         $reconnected->getConnection()->beginTransaction();
         $this->assertTrue($sharedPdo->inTransaction());
         $this->assertTrue($reconnected->reconnect());

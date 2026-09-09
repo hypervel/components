@@ -7,7 +7,7 @@ namespace Hypervel\Support\Facades;
 use Hypervel\Support\Testing\Fakes\MailFake;
 
 /**
- * @method static \Hypervel\Mail\MailManager addPoolable(string $driver)
+ * @method static \Hypervel\Mail\MailManager addPoolableDriver(string $driver)
  * @method static \Hypervel\Mail\Mailer build(array $config)
  * @method static \Symfony\Component\Mailer\Transport\TransportInterface createSymfonyTransport(array $config)
  * @method static \Hypervel\Contracts\Mail\Mailer driver(\UnitEnum|string|null $driver = null)
@@ -15,14 +15,14 @@ use Hypervel\Support\Testing\Fakes\MailFake;
  * @method static \Hypervel\Mail\MailManager forgetMailers()
  * @method static \Hypervel\Contracts\Container\Container getApplication()
  * @method static string getDefaultDriver()
- * @method static array getPoolables()
+ * @method static array getPoolableDrivers()
  * @method static \Closure|null getReleaseCallback(string $driver)
  * @method static \Hypervel\Contracts\Mail\Mailer mailer(\UnitEnum|string|null $name = null)
  * @method static void purge(\UnitEnum|string|null $name = null)
- * @method static \Hypervel\Mail\MailManager removePoolable(string $driver)
+ * @method static \Hypervel\Mail\MailManager removePoolableDriver(string $driver)
  * @method static \Hypervel\Mail\MailManager setApplication(\Hypervel\Contracts\Container\Container $app)
  * @method static void setDefaultDriver(\UnitEnum|string $name)
- * @method static \Hypervel\Mail\MailManager setPoolables(array $poolables)
+ * @method static \Hypervel\Mail\MailManager setPoolableDrivers(array $poolableDrivers)
  * @method static \Hypervel\Mail\MailManager setReleaseCallback(string $driver, \Closure $callback)
  * @method static void alwaysFrom(string $address, string|null $name = null)
  * @method static void alwaysReplyTo(string $address, string|null $name = null)

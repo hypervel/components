@@ -7,6 +7,7 @@ namespace Hypervel\Cache\Console;
 use BadMethodCallException;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Console\Command;
+use Hypervel\Console\Prohibitable;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Filesystem\Filesystem;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -16,6 +17,8 @@ use Symfony\Component\Console\Input\InputOption;
 #[AsCommand(name: 'cache:clear')]
 class ClearCommand extends Command
 {
+    use Prohibitable;
+
     /**
      * The console command name.
      */
@@ -41,6 +44,10 @@ class ClearCommand extends Command
      */
     public function handle(): int
     {
+        if ($this->isProhibited()) {
+            return self::FAILURE;
+        }
+
         if ($this->option('locks')) {
             return $this->clearLocks();
         }

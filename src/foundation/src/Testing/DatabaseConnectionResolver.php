@@ -6,15 +6,15 @@ namespace Hypervel\Foundation\Testing;
 
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\ConnectionPool\Connection as PoolConnection;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Contracts\Pool\ConnectionInterface as PoolConnectionInterface;
 use Hypervel\Database\CachedConnectionResolver;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionName;
 use Hypervel\Database\ConnectionResolver;
-use Hypervel\Database\Pool\DbPool;
+use Hypervel\Database\Pool\DatabasePool;
 use LogicException;
 use Throwable;
 use UnitEnum;
@@ -40,7 +40,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
     /**
      * Borrowed pooled wrappers that own the cached bare connections.
      *
-     * @var array<string, PoolConnectionInterface>
+     * @var array<string, PoolConnection>
      */
     protected static array $pooledConnections = [];
 
@@ -158,14 +158,14 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
     /**
      * Resolve the cache key that owns the pooled wrapper.
      */
-    protected function connectionCacheKey(string $name, ?DbPool $pool = null): string
+    protected function connectionCacheKey(string $name, ?DatabasePool $pool = null): string
     {
         if ($pool === null) {
-            if (! $this->factory->hasPool($name)) {
+            if (! $this->poolManager->has($name)) {
                 return $name;
             }
 
-            $pool = $this->factory->getPool($name);
+            $pool = $this->poolManager->pool($name);
         }
 
         return $pool->getSharedInMemorySqlitePdo() !== null
@@ -202,7 +202,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
     /**
      * Get a database connection instance.
      *
-     * Creates connections through the pool factory and retains their owning
+     * Borrows connections through the pool manager and retains their owning
      * wrappers until terminal test teardown.
      */
     public function connection(UnitEnum|string|null $name = null): ConnectionInterface
@@ -234,7 +234,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
             return $connection;
         }
 
-        $pool = $this->factory->getPool($connectionName->requested);
+        $pool = $this->poolManager->pool($connectionName->requested);
         $cacheKey = $this->connectionCacheKey($connectionName->requested, $pool);
 
         if ($cacheKey !== $connectionName->requested
@@ -247,7 +247,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
             return $connection;
         }
 
-        $pooled = $pool->get();
+        $pooled = $pool->borrow();
 
         try {
             $connection = $pooled->getConnection();

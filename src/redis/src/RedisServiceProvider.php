@@ -9,7 +9,7 @@ use Hypervel\Core\Events\BeforeServerFork;
 use Hypervel\Core\Events\BeforeWorkerStart;
 use Hypervel\Core\Events\TaskTerminated;
 use Hypervel\Redis\Listeners\RedisConnectionLifecycleListener;
-use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Support\ServiceProvider;
 use Swoole\Constant;
 
@@ -22,7 +22,7 @@ class RedisServiceProvider extends ServiceProvider
     {
         $this->app->singleton('redis', fn ($app) => new RedisManager(
             $app,
-            $app->make(PoolFactory::class),
+            $app->make(PoolManager::class),
             $app->make(RedisConfig::class),
             $app->make(RedisSentinelFactory::class),
         ));

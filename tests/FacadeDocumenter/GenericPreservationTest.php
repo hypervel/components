@@ -158,9 +158,84 @@ class GenericPreservationTest extends FacadeDocumenterTestCase
         $this->assertStringContainsString('@method static void accept(array<int, int|string> $parameters)', $contents);
     }
 
-    /**
-     * Preserve balanced union-typed template bounds.
-     */
+    public function testGenericArgumentVarianceIsPreserved(): void
+    {
+        $this->writeAppFile(
+            'Generic/Variance/Proxy.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\Generic\Variance;
+
+                use Hypervel\Database\Eloquent\Builder;
+                use Hypervel\Database\Eloquent\Model;
+                use Hypervel\Support\Collection;
+
+                class Proxy
+                {
+                    /**
+                     * @param Builder<*> $query
+                     * @return Builder<*>
+                     */
+                    public function query(Builder $query): Builder
+                    {
+                        return $query;
+                    }
+
+                    /** @param array<int, Builder<*>> $queries */
+                    public function nested(array $queries): void
+                    {
+                    }
+
+                    /** @param Builder<covariant Model> $query */
+                    public function covariant(Builder $query): void
+                    {
+                    }
+
+                    /** @param Builder<contravariant Model> $query */
+                    public function contravariant(Builder $query): void
+                    {
+                    }
+
+                    /** @param Collection<int, mixed> $values */
+                    public function invariant(Collection $values): void
+                    {
+                    }
+                }
+                PHP
+        );
+
+        $this->writeAppFile(
+            'Generic/Variance/Facade.php',
+            <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace App\Generic\Variance;
+
+                /** @see \App\Generic\Variance\Proxy */
+                class Facade
+                {
+                }
+                PHP
+        );
+
+        $process = $this->runDocumenter(['App\Generic\Variance\Facade']);
+
+        $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput() . $process->getOutput());
+
+        $contents = $this->appFileContents('App\Generic\Variance\Facade');
+
+        $this->assertStringContainsString('@method static \Hypervel\Database\Eloquent\Builder<*> query(\Hypervel\Database\Eloquent\Builder<*> $query)', $contents);
+        $this->assertStringContainsString('@method static void nested(array<int, \Hypervel\Database\Eloquent\Builder<*>> $queries)', $contents);
+        $this->assertStringContainsString('@method static void covariant(\Hypervel\Database\Eloquent\Builder<covariant \Hypervel\Database\Eloquent\Model> $query)', $contents);
+        $this->assertStringContainsString('@method static void contravariant(\Hypervel\Database\Eloquent\Builder<contravariant \Hypervel\Database\Eloquent\Model> $query)', $contents);
+        $this->assertStringContainsString('@method static void invariant(\Hypervel\Support\Collection<int, mixed> $values)', $contents);
+    }
+
     public function testUnionTypedTemplateBoundRemainsBalanced(): void
     {
         $this->writeAppFile(

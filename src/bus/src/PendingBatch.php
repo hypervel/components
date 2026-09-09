@@ -182,11 +182,11 @@ class PendingBatch
     }
 
     /**
-     * Indicate that the batch should not be cancelled when a job within the batch fails.
+     * Indicate that the batch should not be canceled when a job within the batch fails.
      *
      * Optionally, add callbacks to be executed upon each job failure.
      *
-     * @param array<array-key, callable>|bool|callable $param
+     * @param array<array-key, callable(Batch, ?Throwable): mixed>|bool|(callable(Batch, ?Throwable): mixed) $param
      */
     public function allowFailures(mixed $param = true): static
     {

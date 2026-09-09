@@ -7,18 +7,17 @@ namespace Hypervel\Redis;
 use BadMethodCallException;
 use Closure;
 use Generator;
+use Hypervel\ConnectionPool\Connection as BaseConnection;
+use Hypervel\ConnectionPool\Exceptions\ConnectionException;
 use Hypervel\Context\NonCopyableContext;
+use Hypervel\Contracts\ConnectionPool\ConnectionPool;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
-use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Engine\Exceptions\CoroutineCreateException;
-use Hypervel\Pool\Connection as BaseConnection;
-use Hypervel\Pool\Exceptions\ConnectionException;
-use Hypervel\Pool\PoolOption;
 use Hypervel\Redis\Exceptions\InvalidRedisOptionException;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\Operations\FlushByPattern;
@@ -347,7 +346,7 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
 
     protected float $createdAt = 0.0;
 
-    protected float $lifetimeExpiresAt = 0.0;
+    protected ?float $lifetimeExpiresAt = null;
 
     protected bool $availableForReuse = false;
 
@@ -375,7 +374,7 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
      *
      * @param array<string, mixed> $config
      */
-    public function __construct(Container $container, PoolInterface $pool, array $config)
+    public function __construct(Container $container, ConnectionPool $pool, array $config)
     {
         parent::__construct($container, $pool);
         $this->config = $config;
@@ -507,7 +506,9 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
                 return false;
             }
 
-            if ($now > $this->pool->getOption()->getMaxIdleTime() + max($this->lastReleaseTime, $this->lastUseTime)) {
+            $maxIdleTime = $this->pool->getOptions()->maxIdleTime;
+
+            if ($maxIdleTime !== null && $now > $maxIdleTime + max($this->lastReleaseTime, $this->lastUseTime)) {
                 return false;
             }
         }
@@ -554,10 +555,7 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
         $now = hrtime(true) / 1e9;
         $this->lastUseTime = $now;
         $this->createdAt = $now;
-        $this->lifetimeExpiresAt = PoolOption::jitteredLifetimeDeadline(
-            $now,
-            $this->pool->getOption()->getMaxLifetime()
-        );
+        $this->lifetimeExpiresAt = $this->pool->getOptions()->jitteredLifetimeDeadline($now);
         $this->availableForReuse = false;
         $this->watching = false;
         $this->markValid();
@@ -943,7 +941,9 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
         }
 
         // Heartbeat pings must not keep request-idle connections alive forever.
-        return ($now ?? hrtime(true) / 1e9) > $this->pool->getOption()->getMaxIdleTime() + $this->lastReleaseTime;
+        $maxIdleTime = $this->pool->getOptions()->maxIdleTime;
+
+        return $maxIdleTime !== null && ($now ?? hrtime(true) / 1e9) > $maxIdleTime + $this->lastReleaseTime;
     }
 
     /**
@@ -959,7 +959,7 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
      */
     public function isLifetimeExpired(?float $now = null): bool
     {
-        if ($this->lifetimeExpiresAt <= 0) {
+        if ($this->lifetimeExpiresAt === null) {
             return false;
         }
 

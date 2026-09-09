@@ -123,18 +123,20 @@ class BusBatchTest extends TestCase
             use Batchable;
         };
 
-        $thirdJob = function () {
+        $thirdJob = function (): void {
         };
 
         $queue->shouldReceive('connection')->once()
             ->with('test-connection')
             ->andReturn($connection = m::mock(QueueContract::class));
 
-        $connection->shouldReceive('bulk')->once()->with(m::on(function ($args) use ($job, $secondJob) {
+        $connection->shouldReceive('bulk')->once()->with(m::on(function (array $args) use ($job, $secondJob, $thirdJob): bool {
             return
-                $args[0] == $job
-                && $args[1] == $secondJob
+                count($args) === 3
+                && $args[0] === $job
+                && $args[1] === $secondJob
                 && $args[2] instanceof CallQueuedClosure
+                && $args[2]->closure->getClosure() === $thirdJob
                 && is_string($args[2]->batchId);
         }), '', 'test-queue');
 

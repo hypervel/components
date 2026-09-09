@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Servers\Hypervel;
 
-use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
@@ -101,8 +101,8 @@ class HypervelServerProviderTest extends ReverbTestCase
             'enabled' => true,
             'seeds' => ['127.0.0.1:6379'],
         ]);
-        $this->app->instance(PoolFactory::class, $poolFactory = m::mock(PoolFactory::class));
-        $poolFactory->shouldNotReceive('getPool');
+        $this->app->instance(PoolManager::class, $poolManager = m::mock(PoolManager::class));
+        $poolManager->shouldNotReceive('pool');
         $provider = new HypervelServerProvider(
             $this->app,
             [

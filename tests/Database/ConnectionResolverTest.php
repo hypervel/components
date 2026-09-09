@@ -9,9 +9,9 @@ use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolver;
-use Hypervel\Database\Pool\DbPool;
+use Hypervel\Database\Pool\DatabasePool;
 use Hypervel\Database\Pool\PooledConnection;
-use Hypervel\Database\Pool\PoolFactory;
+use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -127,22 +127,22 @@ class ConnectionResolverTest extends TestCase
 
     public function testNonCoroutineConnectionIsRetainedUntilTerminalRelease(): void
     {
-        $factory = m::mock(PoolFactory::class);
-        $pool = m::mock(DbPool::class);
+        $poolManager = m::mock(PoolManager::class);
+        $pool = m::mock(DatabasePool::class);
         $firstWrapper = m::mock(PooledConnection::class);
         $secondWrapper = m::mock(PooledConnection::class);
         $firstConnection = m::mock(Connection::class);
         $secondConnection = m::mock(Connection::class);
 
-        $factory->expects('getPool')->twice()->with('mysql')->andReturn($pool);
+        $poolManager->expects('pool')->twice()->with('mysql')->andReturn($pool);
         $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
-        $pool->expects('get')->twice()->andReturn($firstWrapper, $secondWrapper);
+        $pool->expects('borrow')->twice()->andReturn($firstWrapper, $secondWrapper);
         $firstWrapper->expects('getConnection')->andReturn($firstConnection);
         $firstWrapper->expects('release');
         $secondWrapper->expects('getConnection')->andReturn($secondConnection);
         $secondWrapper->expects('release');
 
-        $resolver = $this->makeResolver('mysql', $factory);
+        $resolver = $this->makeResolver('mysql', $poolManager);
 
         $this->assertSame($firstConnection, $resolver->connection());
         $this->assertSame($firstConnection, $resolver->connection());
@@ -156,17 +156,17 @@ class ConnectionResolverTest extends TestCase
 
     public function testTerminalReleaseOwnsEveryRequestedConnectionRole(): void
     {
-        $factory = m::mock(PoolFactory::class);
-        $resolver = $this->makeResolver('mysql', $factory);
+        $poolManager = m::mock(PoolManager::class);
+        $resolver = $this->makeResolver('mysql', $poolManager);
 
         foreach (['mysql', 'mysql::read', 'mysql::write'] as $name) {
-            $pool = m::mock(DbPool::class);
+            $pool = m::mock(DatabasePool::class);
             $wrapper = m::mock(PooledConnection::class);
             $connection = m::mock(Connection::class);
 
-            $factory->expects('getPool')->once()->with($name)->andReturn($pool);
+            $poolManager->expects('pool')->once()->with($name)->andReturn($pool);
             $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
-            $pool->expects('get')->once()->andReturn($wrapper);
+            $pool->expects('borrow')->once()->andReturn($wrapper);
             $wrapper->expects('getConnection')->andReturn($connection);
             $wrapper->expects('release');
 
@@ -182,22 +182,22 @@ class ConnectionResolverTest extends TestCase
 
     public function testSharedInMemorySqliteAliasesReuseOneConnectionOwner(): void
     {
-        $factory = m::mock(PoolFactory::class);
-        $pool = m::mock(DbPool::class);
+        $poolManager = m::mock(PoolManager::class);
+        $pool = m::mock(DatabasePool::class);
         $wrapper = m::mock(PooledConnection::class);
         $connection = m::mock(Connection::class);
 
-        $factory->expects('getPool')->once()->with('sqlite')->andReturn($pool);
-        $factory->expects('getPool')->once()->with('sqlite::read')->andReturn($pool);
-        $factory->expects('getPool')->once()->with('sqlite::write')->andReturn($pool);
+        $poolManager->expects('pool')->once()->with('sqlite')->andReturn($pool);
+        $poolManager->expects('pool')->once()->with('sqlite::read')->andReturn($pool);
+        $poolManager->expects('pool')->once()->with('sqlite::write')->andReturn($pool);
         $pool->expects('getSharedInMemorySqlitePdo')->times(3)->andReturn(m::mock(PDO::class));
         $pool->expects('getName')->times(3)->andReturn('sqlite');
-        $pool->expects('get')->once()->andReturn($wrapper);
+        $pool->expects('borrow')->once()->andReturn($wrapper);
         $wrapper->expects('getConnection')->once()->andReturn($connection);
         $connection->expects('useWriteConnectionWhenReading')->once();
         $wrapper->expects('release')->once();
 
-        $resolver = $this->makeResolver('sqlite', $factory);
+        $resolver = $this->makeResolver('sqlite', $poolManager);
 
         $this->assertSame($connection, $resolver->connection('sqlite'));
         $this->assertSame($connection, $resolver->connection('sqlite::read'));
@@ -208,21 +208,21 @@ class ConnectionResolverTest extends TestCase
 
     public function testTerminalStateIsDetachedBeforeReleaseCanReenterTheResolver(): void
     {
-        $factory = m::mock(PoolFactory::class);
-        $pool = m::mock(DbPool::class);
+        $poolManager = m::mock(PoolManager::class);
+        $pool = m::mock(DatabasePool::class);
         $firstWrapper = m::mock(PooledConnection::class);
         $secondWrapper = m::mock(PooledConnection::class);
         $firstConnection = m::mock(Connection::class);
         $secondConnection = m::mock(Connection::class);
 
-        $factory->expects('getPool')->twice()->with('mysql')->andReturn($pool);
+        $poolManager->expects('pool')->twice()->with('mysql')->andReturn($pool);
         $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
-        $pool->expects('get')->twice()->andReturn($firstWrapper, $secondWrapper);
+        $pool->expects('borrow')->twice()->andReturn($firstWrapper, $secondWrapper);
         $firstWrapper->expects('getConnection')->andReturn($firstConnection);
         $secondWrapper->expects('getConnection')->andReturn($secondConnection);
         $secondWrapper->expects('release');
 
-        $resolver = $this->makeResolver('mysql', $factory);
+        $resolver = $this->makeResolver('mysql', $poolManager);
         $resolver->setDefaultConnection('reporting');
 
         $firstWrapper->expects('release')->andReturnUsing(function () use ($resolver, $secondConnection): void {
@@ -240,19 +240,19 @@ class ConnectionResolverTest extends TestCase
     {
         $firstException = new RuntimeException('First release failed.');
         $secondException = new RuntimeException('Second release failed.');
-        $factory = m::mock(PoolFactory::class);
-        $resolver = $this->makeResolver('first', $factory);
+        $poolManager = m::mock(PoolManager::class);
+        $resolver = $this->makeResolver('first', $poolManager);
 
         foreach ([
             ['first', $firstException],
             ['second', $secondException],
         ] as [$name, $exception]) {
-            $pool = m::mock(DbPool::class);
+            $pool = m::mock(DatabasePool::class);
             $wrapper = m::mock(PooledConnection::class);
 
-            $factory->expects('getPool')->once()->with($name)->andReturn($pool);
+            $poolManager->expects('pool')->once()->with($name)->andReturn($pool);
             $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
-            $pool->expects('get')->once()->andReturn($wrapper);
+            $pool->expects('borrow')->once()->andReturn($wrapper);
             $wrapper->expects('getConnection')->andReturn(m::mock(Connection::class));
             $wrapper->expects('release')->andThrow($exception);
 
@@ -274,20 +274,20 @@ class ConnectionResolverTest extends TestCase
         $ordinaryFailure = new RuntimeException('First release failed.');
         $firstCancellation = new CanceledException('Second release was canceled.');
         $secondCancellation = new CanceledException('Third release was canceled.');
-        $factory = m::mock(PoolFactory::class);
-        $resolver = $this->makeResolver('first', $factory);
+        $poolManager = m::mock(PoolManager::class);
+        $resolver = $this->makeResolver('first', $poolManager);
 
         foreach ([
             ['first', $ordinaryFailure],
             ['second', $firstCancellation],
             ['third', $secondCancellation],
         ] as [$name, $failure]) {
-            $pool = m::mock(DbPool::class);
+            $pool = m::mock(DatabasePool::class);
             $wrapper = m::mock(PooledConnection::class);
 
-            $factory->expects('getPool')->once()->with($name)->andReturn($pool);
+            $poolManager->expects('pool')->once()->with($name)->andReturn($pool);
             $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
-            $pool->expects('get')->once()->andReturn($wrapper);
+            $pool->expects('borrow')->once()->andReturn($wrapper);
             $wrapper->expects('getConnection')->andReturn(m::mock(Connection::class));
             $wrapper->expects('release')->andThrow($failure);
 
@@ -306,16 +306,16 @@ class ConnectionResolverTest extends TestCase
 
     public function testTerminalDiscardExhaustsExactConnections(): void
     {
-        $factory = m::mock(PoolFactory::class);
-        $resolver = $this->makeResolver('first', $factory);
+        $poolManager = m::mock(PoolManager::class);
+        $resolver = $this->makeResolver('first', $poolManager);
 
         foreach (['first', 'second'] as $name) {
-            $pool = m::mock(DbPool::class);
+            $pool = m::mock(DatabasePool::class);
             $wrapper = m::mock(PooledConnection::class);
 
-            $factory->expects('getPool')->once()->with($name)->andReturn($pool);
+            $poolManager->expects('pool')->once()->with($name)->andReturn($pool);
             $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
-            $pool->expects('get')->once()->andReturn($wrapper);
+            $pool->expects('borrow')->once()->andReturn($wrapper);
             $wrapper->expects('getConnection')->andReturn(m::mock(Connection::class));
             $wrapper->expects('discard');
 
@@ -329,17 +329,17 @@ class ConnectionResolverTest extends TestCase
     public function testConnectionRetrievalFailureDiscardsTheExactWrapper(): void
     {
         $exception = new RuntimeException('Connection retrieval failed.');
-        $factory = m::mock(PoolFactory::class);
-        $pool = m::mock(DbPool::class);
+        $poolManager = m::mock(PoolManager::class);
+        $pool = m::mock(DatabasePool::class);
         $wrapper = m::mock(PooledConnection::class);
 
-        $factory->expects('getPool')->once()->with('mysql')->andReturn($pool);
+        $poolManager->expects('pool')->once()->with('mysql')->andReturn($pool);
         $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
-        $pool->expects('get')->once()->andReturn($wrapper);
+        $pool->expects('borrow')->once()->andReturn($wrapper);
         $wrapper->expects('getConnection')->andThrow($exception);
         $wrapper->expects('discard');
 
-        $resolver = $this->makeResolver('mysql', $factory);
+        $resolver = $this->makeResolver('mysql', $poolManager);
 
         try {
             $resolver->connection();
@@ -352,19 +352,19 @@ class ConnectionResolverTest extends TestCase
     public function testWriteRoleConfigurationFailureDiscardsTheExactWrapper(): void
     {
         $exception = new RuntimeException('Write role configuration failed.');
-        $factory = m::mock(PoolFactory::class);
-        $pool = m::mock(DbPool::class);
+        $poolManager = m::mock(PoolManager::class);
+        $pool = m::mock(DatabasePool::class);
         $wrapper = m::mock(PooledConnection::class);
         $connection = m::mock(Connection::class);
 
-        $factory->expects('getPool')->once()->with('mysql::write')->andReturn($pool);
+        $poolManager->expects('pool')->once()->with('mysql::write')->andReturn($pool);
         $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
-        $pool->expects('get')->once()->andReturn($wrapper);
+        $pool->expects('borrow')->once()->andReturn($wrapper);
         $wrapper->expects('getConnection')->andReturn($connection);
         $connection->expects('useWriteConnectionWhenReading')->andThrow($exception);
         $wrapper->expects('discard');
 
-        $resolver = $this->makeResolver('mysql', $factory);
+        $resolver = $this->makeResolver('mysql', $poolManager);
 
         try {
             $resolver->connection('mysql::write');
@@ -378,17 +378,17 @@ class ConnectionResolverTest extends TestCase
     {
         $setupException = new RuntimeException('Connection retrieval failed.');
         $discardException = new RuntimeException('Discard failed.');
-        $factory = m::mock(PoolFactory::class);
-        $pool = m::mock(DbPool::class);
+        $poolManager = m::mock(PoolManager::class);
+        $pool = m::mock(DatabasePool::class);
         $wrapper = m::mock(PooledConnection::class);
 
-        $factory->expects('getPool')->once()->with('mysql')->andReturn($pool);
+        $poolManager->expects('pool')->once()->with('mysql')->andReturn($pool);
         $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
-        $pool->expects('get')->once()->andReturn($wrapper);
+        $pool->expects('borrow')->once()->andReturn($wrapper);
         $wrapper->expects('getConnection')->andThrow($setupException);
         $wrapper->expects('discard')->andThrow($discardException);
 
-        $resolver = $this->makeResolver('mysql', $factory);
+        $resolver = $this->makeResolver('mysql', $poolManager);
 
         try {
             $resolver->connection();
@@ -402,17 +402,17 @@ class ConnectionResolverTest extends TestCase
     {
         $setupException = new RuntimeException('Connection retrieval failed.');
         $discardCancellation = new CanceledException('Discard was canceled.');
-        $factory = m::mock(PoolFactory::class);
-        $pool = m::mock(DbPool::class);
+        $poolManager = m::mock(PoolManager::class);
+        $pool = m::mock(DatabasePool::class);
         $wrapper = m::mock(PooledConnection::class);
 
-        $factory->expects('getPool')->once()->with('mysql')->andReturn($pool);
+        $poolManager->expects('pool')->once()->with('mysql')->andReturn($pool);
         $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
-        $pool->expects('get')->once()->andReturn($wrapper);
+        $pool->expects('borrow')->once()->andReturn($wrapper);
         $wrapper->expects('getConnection')->andThrow($setupException);
         $wrapper->expects('discard')->andThrow($discardCancellation);
 
-        $resolver = $this->makeResolver('mysql', $factory);
+        $resolver = $this->makeResolver('mysql', $poolManager);
 
         try {
             $resolver->connection();
@@ -426,17 +426,17 @@ class ConnectionResolverTest extends TestCase
     {
         $setupCancellation = new CanceledException('Connection setup was canceled.');
         $discardException = new RuntimeException('Discard failed.');
-        $factory = m::mock(PoolFactory::class);
-        $pool = m::mock(DbPool::class);
+        $poolManager = m::mock(PoolManager::class);
+        $pool = m::mock(DatabasePool::class);
         $wrapper = m::mock(PooledConnection::class);
 
-        $factory->expects('getPool')->once()->with('mysql')->andReturn($pool);
+        $poolManager->expects('pool')->once()->with('mysql')->andReturn($pool);
         $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
-        $pool->expects('get')->once()->andReturn($wrapper);
+        $pool->expects('borrow')->once()->andReturn($wrapper);
         $wrapper->expects('getConnection')->andThrow($setupCancellation);
         $wrapper->expects('discard')->andThrow($discardException);
 
-        $resolver = $this->makeResolver('mysql', $factory);
+        $resolver = $this->makeResolver('mysql', $poolManager);
 
         try {
             $resolver->connection();
@@ -450,17 +450,17 @@ class ConnectionResolverTest extends TestCase
     {
         $setupCancellation = new CanceledException('Connection setup was canceled.');
         $discardCancellation = new CanceledException('Discard was canceled.');
-        $factory = m::mock(PoolFactory::class);
-        $pool = m::mock(DbPool::class);
+        $poolManager = m::mock(PoolManager::class);
+        $pool = m::mock(DatabasePool::class);
         $wrapper = m::mock(PooledConnection::class);
 
-        $factory->expects('getPool')->once()->with('mysql')->andReturn($pool);
+        $poolManager->expects('pool')->once()->with('mysql')->andReturn($pool);
         $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
-        $pool->expects('get')->once()->andReturn($wrapper);
+        $pool->expects('borrow')->once()->andReturn($wrapper);
         $wrapper->expects('getConnection')->andThrow($setupCancellation);
         $wrapper->expects('discard')->andThrow($discardCancellation);
 
-        $resolver = $this->makeResolver('mysql', $factory);
+        $resolver = $this->makeResolver('mysql', $poolManager);
 
         try {
             $resolver->connection();
@@ -472,18 +472,18 @@ class ConnectionResolverTest extends TestCase
 
     public function testCoroutineConnectionRemainsDeferOwned(): void
     {
-        $factory = m::mock(PoolFactory::class);
-        $pool = m::mock(DbPool::class);
+        $poolManager = m::mock(PoolManager::class);
+        $pool = m::mock(DatabasePool::class);
         $wrapper = m::mock(PooledConnection::class);
         $connection = m::mock(Connection::class);
 
-        $factory->expects('getPool')->once()->with('mysql')->andReturn($pool);
+        $poolManager->expects('pool')->once()->with('mysql')->andReturn($pool);
         $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
-        $pool->expects('get')->once()->andReturn($wrapper);
+        $pool->expects('borrow')->once()->andReturn($wrapper);
         $wrapper->expects('getConnection')->andReturn($connection);
         $wrapper->expects('release');
 
-        $resolver = $this->makeResolver('mysql', $factory);
+        $resolver = $this->makeResolver('mysql', $poolManager);
 
         run(function () use ($resolver, $connection): void {
             $this->assertSame($connection, $resolver->connection());
@@ -495,13 +495,13 @@ class ConnectionResolverTest extends TestCase
 
     protected function makeResolver(
         string $configuredDefault,
-        ?PoolFactory $factory = null,
+        ?PoolManager $poolManager = null,
     ): ConnectionResolver {
         $app = Container::getInstance();
         $app->instance('config', new Repository([
             'database' => ['default' => $configuredDefault],
         ]));
-        $app->instance(PoolFactory::class, $factory ?? m::mock(PoolFactory::class));
+        $app->instance(PoolManager::class, $poolManager ?? m::mock(PoolManager::class));
 
         return new ConnectionResolver($app);
     }

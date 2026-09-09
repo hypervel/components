@@ -10,15 +10,15 @@ use DateTimeImmutable;
 use Hypervel\Container\Container;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\ObjectPool\Factory;
+use Hypervel\Contracts\ObjectPool\InvalidatesPool;
+use Hypervel\Contracts\ObjectPool\ObjectPool as ObjectPoolContract;
 use Hypervel\Filesystem\ClientPooledFilesystem;
 use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Image\ImageException;
-use Hypervel\ObjectPool\Contracts\Factory;
-use Hypervel\ObjectPool\Contracts\InvalidatesPool;
-use Hypervel\ObjectPool\Contracts\ObjectPool as ObjectPoolContract;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolOptions;
@@ -57,7 +57,7 @@ class ClientPooledFilesystemTest extends TestCase
 
     protected function tearDownInCoroutine(): void
     {
-        $this->pools->flush();
+        $this->pools->purgeAll();
     }
 
     protected function tearDown(): void
@@ -80,8 +80,8 @@ class ClientPooledFilesystemTest extends TestCase
 
         $this->assertSame(1, $clientCreations);
         $this->assertSame(3, $stackCreations);
-        $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedObjectNumber());
-        $this->assertSame(1, $this->pools->get('filesystem:test')->getObjectNumberInPool());
+        $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedCount());
+        $this->assertSame(1, $this->pools->get('filesystem:test')->getIdleCount());
     }
 
     public function testImageDefersAndBalancesItsClientBorrowUntilMaterialization(): void
@@ -98,7 +98,7 @@ class ClientPooledFilesystemTest extends TestCase
         $this->assertSame('contents', $image->toBytes());
         $this->assertSame(1, $clientCreations);
         $this->assertSame(1, $stackCreations);
-        $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedObjectNumber());
+        $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedCount());
 
         $this->assertSame('contents', $image->toBytes());
         $this->assertSame(1, $stackCreations);
@@ -120,7 +120,7 @@ class ClientPooledFilesystemTest extends TestCase
 
         $this->assertSame(1, $clientCreations);
         $this->assertSame(1, $stackCreations);
-        $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedObjectNumber());
+        $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedCount());
     }
 
     public function testSynchronousFlysystemMethodsAndConditionableUseTheProxyBoundary(): void
@@ -145,7 +145,7 @@ class ClientPooledFilesystemTest extends TestCase
         }));
         $this->assertSame(1, $clientCreations);
         $this->assertSame(6, $stackCreations);
-        $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedObjectNumber());
+        $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedCount());
     }
 
     public function testCallbacksAreStoredPerDiskAndAppliedToEveryFreshStack(): void
@@ -208,7 +208,7 @@ class ClientPooledFilesystemTest extends TestCase
         $disk = $this->disk($clientCreations, $stackCreations);
 
         $client = $disk->withClient(function (object $client): object {
-            $this->assertSame(1, $this->pools->get('filesystem:test')->getBorrowedObjectNumber());
+            $this->assertSame(1, $this->pools->get('filesystem:test')->getBorrowedCount());
 
             return $client;
         });
@@ -220,7 +220,7 @@ class ClientPooledFilesystemTest extends TestCase
         $this->assertSame($this->adapter, $adapter);
         $this->assertSame(1, $clientCreations);
         $this->assertSame(3, $stackCreations);
-        $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedObjectNumber());
+        $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedCount());
     }
 
     #[DataProvider('rejectedInternalProvider')]
@@ -273,13 +273,13 @@ class ClientPooledFilesystemTest extends TestCase
 
         $stream = $disk->readStream('file.txt');
         $this->assertIsResource($stream);
-        $this->assertSame(1, $this->pools->get('filesystem:test')->getBorrowedObjectNumber());
+        $this->assertSame(1, $this->pools->get('filesystem:test')->getBorrowedCount());
         $this->assertSame(0, $releaseCalls);
         $this->assertSame('streamed', stream_get_contents($stream));
 
         fclose($stream);
 
-        $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedObjectNumber());
+        $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedCount());
         $this->assertSame(1, $releaseCalls);
     }
 
@@ -296,8 +296,8 @@ class ClientPooledFilesystemTest extends TestCase
         );
 
         $this->assertNull($disk->readStream('missing.txt'));
-        $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedObjectNumber());
-        $this->assertSame(1, $this->pools->get('filesystem:test')->getObjectNumberInPool());
+        $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedCount());
+        $this->assertSame(1, $this->pools->get('filesystem:test')->getIdleCount());
     }
 
     public function testInvalidStackFactoryResultDiscardsTheBorrowedClient(): void
@@ -317,8 +317,8 @@ class ClientPooledFilesystemTest extends TestCase
             $this->assertStringContainsString('stack factories must return', $exception->getMessage());
         }
 
-        $this->assertSame(0, $this->pools->get('filesystem:test')->getCurrentObjectNumber());
-        $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedObjectNumber());
+        $this->assertSame(0, $this->pools->get('filesystem:test')->getManagedCount());
+        $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedCount());
     }
 
     public function testDiscardFailureDoesNotMaskAStackFactoryFailure(): void
@@ -332,7 +332,7 @@ class ClientPooledFilesystemTest extends TestCase
         $container->instance(ExceptionHandler::class, $handler);
 
         $pool = m::mock(ObjectPoolContract::class);
-        $pool->shouldReceive('get')->once()->andReturn($client);
+        $pool->shouldReceive('borrow')->once()->andReturn($client);
         $pool->shouldReceive('discard')->once()->with($client)->andThrow($discardFailure);
         $factory = m::mock(Factory::class);
         $factory->shouldReceive('getOrCreate')->once()->andReturn($pool);
@@ -395,7 +395,7 @@ class ClientPooledFilesystemTest extends TestCase
 
         $this->assertInstanceOf(IterableStreamedResponse::class, $result);
         $this->assertSame(206, $result->getStatusCode());
-        $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedObjectNumber());
+        $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedCount());
         $this->assertSame(1, $clientCreations);
         $this->assertSame(2, $stackCreations);
         $this->assertSame(2, $releaseCalls);
@@ -410,7 +410,7 @@ class ClientPooledFilesystemTest extends TestCase
         ));
 
         $this->assertSame('456', $content);
-        $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedObjectNumber());
+        $this->assertSame(0, $this->pools->get('filesystem:test')->getBorrowedCount());
         $this->assertSame(1, $clientCreations);
         $this->assertSame(3, $stackCreations);
         $this->assertSame(3, $releaseCalls);
@@ -444,7 +444,7 @@ class ClientPooledFilesystemTest extends TestCase
             $this->assertSame($operationFailure, $exception);
         }
 
-        $this->assertSame(0, $this->pools->get('filesystem:test')->getCurrentObjectNumber());
+        $this->assertSame(0, $this->pools->get('filesystem:test')->getManagedCount());
     }
 
     public function testReleaseCancellationSupersedesAnOperationFailure(): void
@@ -471,7 +471,7 @@ class ClientPooledFilesystemTest extends TestCase
             $this->assertSame($releaseCancellation, $exception);
         }
 
-        $this->assertSame(0, $this->pools->get('filesystem:test')->getCurrentObjectNumber());
+        $this->assertSame(0, $this->pools->get('filesystem:test')->getManagedCount());
     }
 
     private function definition(): PoolDefinition
@@ -481,8 +481,8 @@ class ClientPooledFilesystemTest extends TestCase
             's3',
             'auto:test',
             PoolOptions::fromArray([
-                'max_lifetime' => 0,
-                'idle_ttl' => null,
+                'max_lifetime' => null,
+                'pool_idle_timeout' => null,
             ]),
         );
     }

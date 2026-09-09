@@ -8,9 +8,9 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Factory;
+use Hypervel\ObjectPool\CallbackObjectPool;
 use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolOptions;
-use Hypervel\ObjectPool\SimpleObjectPool;
 use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobFailed;
@@ -32,7 +32,7 @@ use stdClass;
 
 class PooledJobWorkerTest extends TestCase
 {
-    /** @var list<SimpleObjectPool> */
+    /** @var list<CallbackObjectPool> */
     private array $pools = [];
 
     protected function tearDownInCoroutine(): void
@@ -70,7 +70,7 @@ class PooledJobWorkerTest extends TestCase
             'queue',
         );
         $pool = $this->pool();
-        $job->withPoolLease(new Lease($pool, $pool->get()));
+        $job->withPoolLease(new Lease($pool, $pool->borrow()));
 
         $attemptsObservedByListener = null;
         $events = m::mock(Dispatcher::class);
@@ -99,8 +99,8 @@ class PooledJobWorkerTest extends TestCase
 
         $this->assertSame(3, $attemptsObservedByListener);
         $this->assertTrue($job->isDeleted());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(1, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(1, $pool->getIdleCount());
     }
 
     public function testWorkerExceptionReleasesTheBackendBeforeReturningTheLease(): void
@@ -122,7 +122,7 @@ class PooledJobWorkerTest extends TestCase
         ], JSON_THROW_ON_ERROR));
         $job = new BeanstalkdJob($container, $pheanstalk, $rawJob, 'connection', 'queue');
         $pool = $this->pool();
-        $job->withPoolLease(new Lease($pool, $pool->get()));
+        $job->withPoolLease(new Lease($pool, $pool->borrow()));
         $events = m::mock(Dispatcher::class);
         $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnTrue();
         $events->shouldReceive('hasListeners')->once()->with(JobExceptionOccurred::class)->andReturnTrue();
@@ -139,8 +139,8 @@ class PooledJobWorkerTest extends TestCase
         }
 
         $this->assertTrue($job->isReleased());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(1, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(1, $pool->getIdleCount());
     }
 
     public function testWorkerTerminalFailureDeletesBeforeReturningTheLease(): void
@@ -162,7 +162,7 @@ class PooledJobWorkerTest extends TestCase
         ], JSON_THROW_ON_ERROR));
         $job = new BeanstalkdJob($container, $pheanstalk, $rawJob, 'connection', 'queue');
         $pool = $this->pool();
-        $job->withPoolLease(new Lease($pool, $pool->get()));
+        $job->withPoolLease(new Lease($pool, $pool->borrow()));
         $events = m::mock(Dispatcher::class);
         $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnTrue();
         $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnTrue();
@@ -181,16 +181,16 @@ class PooledJobWorkerTest extends TestCase
 
         $this->assertTrue($job->hasFailed());
         $this->assertTrue($job->isDeleted());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(1, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(1, $pool->getIdleCount());
     }
 
     /**
      * Create a tracked object pool.
      */
-    private function pool(): SimpleObjectPool
+    private function pool(): CallbackObjectPool
     {
-        $pool = new SimpleObjectPool(fn () => new stdClass, PoolOptions::fromArray([]));
+        $pool = new CallbackObjectPool(fn () => new stdClass, PoolOptions::fromArray([]));
         $this->pools[] = $pool;
 
         return $pool;

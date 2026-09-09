@@ -8,8 +8,9 @@ use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\ConnectionResolver;
+use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\DatabaseManager;
-use Hypervel\Database\Pool\PoolFactory;
+use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -30,7 +31,7 @@ class DatabaseManagerSetDefaultConnectionTest extends TestCase
         parent::tearDown();
     }
 
-    public function testSetDefaultConnectionWritesToCoroutineContext()
+    public function testSetDefaultConnectionWritesToCoroutineContext(): void
     {
         $manager = $this->makeManager(['default' => 'pgsql']);
 
@@ -43,7 +44,7 @@ class DatabaseManagerSetDefaultConnectionTest extends TestCase
         );
     }
 
-    public function testSetDefaultConnectionWithNullClearsContextOverride()
+    public function testSetDefaultConnectionWithNullClearsContextOverride(): void
     {
         $manager = $this->makeManager(['default' => 'pgsql']);
 
@@ -57,7 +58,7 @@ class DatabaseManagerSetDefaultConnectionTest extends TestCase
         );
     }
 
-    public function testSetDefaultConnectionDoesNotMutateConfig()
+    public function testSetDefaultConnectionDoesNotMutateConfig(): void
     {
         $config = new Repository(['database' => ['default' => 'pgsql']]);
         $manager = $this->makeManager([], $config);
@@ -71,7 +72,7 @@ class DatabaseManagerSetDefaultConnectionTest extends TestCase
         );
     }
 
-    public function testGetDefaultConnectionReturnsContextOverrideWhenSet()
+    public function testGetDefaultConnectionReturnsContextOverrideWhenSet(): void
     {
         $manager = $this->makeManager(['default' => 'pgsql']);
 
@@ -80,7 +81,7 @@ class DatabaseManagerSetDefaultConnectionTest extends TestCase
         $this->assertSame('reporting', $manager->getDefaultConnection());
     }
 
-    public function testGetDefaultConnectionFallsBackToConfigWhenContextIsCleared()
+    public function testGetDefaultConnectionFallsBackToConfigWhenContextIsCleared(): void
     {
         $manager = $this->makeManager(['default' => 'pgsql']);
 
@@ -90,7 +91,7 @@ class DatabaseManagerSetDefaultConnectionTest extends TestCase
         $this->assertSame('pgsql', $manager->getDefaultConnection());
     }
 
-    public function testOverrideInOneCoroutineIsNotVisibleInSibling()
+    public function testOverrideInOneCoroutineIsNotVisibleInSibling(): void
     {
         $manager = $this->makeManager(['default' => 'pgsql']);
 
@@ -115,8 +116,7 @@ class DatabaseManagerSetDefaultConnectionTest extends TestCase
     }
 
     /**
-     * Build a DatabaseManager wired up enough to exercise the setter/getter.
-     * The pool/factory machinery isn't needed since no connection is opened.
+     * Create a database manager without opening connections.
      */
     protected function makeManager(array $databaseConfig, ?Repository $config = null): DatabaseManager
     {
@@ -124,9 +124,9 @@ class DatabaseManagerSetDefaultConnectionTest extends TestCase
 
         $app = Container::getInstance();
         $app->instance('config', $config);
-        $app->instance(PoolFactory::class, m::mock(PoolFactory::class));
+        $app->instance(PoolManager::class, m::mock(PoolManager::class));
 
-        $factory = m::mock(\Hypervel\Database\Connectors\ConnectionFactory::class);
+        $factory = m::mock(ConnectionFactory::class);
 
         return new DatabaseManager($app, $factory);
     }

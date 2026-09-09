@@ -25,7 +25,7 @@
     ],
     "require": {
         "php": "^8.4",
-        "laravel/serializable-closure": "^2.0.10",
+        "laravel/serializable-closure": "^2.0.11",
         "nesbot/carbon": "^3.13.1",
         "hypervel/cache": "^0.4",
         "hypervel/collections": "^0.4",

@@ -16,28 +16,28 @@ class ReloadCommandTest extends TestCase
         return [ServiceProviderWithReload::class];
     }
 
-    public function testCanRunReloadWithPackageRegisteredCommand()
+    public function testCanRunReloadWithPackageRegisteredCommand(): void
     {
         $this->artisan('reload')
             ->assertSuccessful()
             ->expectsOutputToContain('my service');
     }
 
-    public function testCanExcludeCommandsByKey()
+    public function testCanExcludeCommandsByKey(): void
     {
         $this->artisan('reload', ['--except' => 'my service'])
             ->assertSuccessful()
             ->doesntExpectOutputToContain('my service');
     }
 
-    public function testCanExcludeCommandsByCommand()
+    public function testCanExcludeCommandsByCommand(): void
     {
         $this->artisan('reload', ['--except' => 'my_service:reload'])
             ->assertSuccessful()
-            ->doesntExpectOutputToContain('my_service:reload');
+            ->doesntExpectOutputToContain('my service');
     }
 
-    public function testIncludesDefaultTasks()
+    public function testIncludesDefaultTasks(): void
     {
         $this->artisan('reload')
             ->assertSuccessful()

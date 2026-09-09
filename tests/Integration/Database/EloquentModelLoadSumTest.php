@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\EloquentModelLoadSumTest;
 
+use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use Mockery as m;
 
 class EloquentModelLoadSumTest extends DatabaseTestCase
 {
@@ -47,6 +49,20 @@ class EloquentModelLoadSumTest extends DatabaseTestCase
 
         $this->assertCount(1, DB::getQueryLog());
         $this->assertEquals(21, $model->related1_sum_number);
+    }
+
+    public function testLoadSumWithContractExpression(): void
+    {
+        $model = BaseModel::first();
+        $expression = m::mock(Expression::class);
+        $expression->shouldReceive('getValue')->andReturn('number * 2');
+
+        DB::enableQueryLog();
+
+        $model->loadSum('related1 as total', $expression);
+
+        $this->assertCount(1, DB::getQueryLog());
+        $this->assertEquals(42, $model->total);
     }
 
     public function testLoadSumMultipleRelations()

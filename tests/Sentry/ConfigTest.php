@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Sentry;
 
 use Hypervel\Sentry\Features\RedisFeature;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
-use Hypervel\Sentry\Transport\Pool;
+use Hypervel\Sentry\Transport\HttpTransportPool;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
@@ -26,8 +26,6 @@ class ConfigTest extends SentryTestCase
             ],
         ]);
 
-        // Verify the Pool is actually constructed with the config values from sentry.pool.
-        // The old bug read from 'pools.sentry' which didn't exist, so the Pool always got defaults.
         /** @var ClientBuilder $builder */
         $builder = $this->app->make(ClientBuilder::class);
 
@@ -40,8 +38,22 @@ class ConfigTest extends SentryTestCase
         $this->assertSame(7, $pool->getOptions()->maxObjects);
         $this->assertSame(0.05, $pool->getOptions()->waitTimeout);
         $this->assertSame(120.0, $pool->getOptions()->maxLifetime);
-        $this->assertSame(0.0, $pool->getOptions()->maxIdleTime);
-        $this->assertNull($pool->getOptions()->idleTtl);
+        $this->assertNull($pool->getOptions()->maxIdleTime);
+        $this->assertNull($pool->getOptions()->poolIdleTimeout);
+    }
+
+    public function testTransportLifetimeCanBeDisabled(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.pool.max_lifetime' => null,
+        ]);
+
+        $builder = $this->app->make(ClientBuilder::class);
+        $pool = $this->getPoolFromTransport($this->getTransportFromBuilder($builder));
+
+        $this->assertNull($pool->getOptions()->maxLifetime);
+        $this->assertNull($pool->getOptions()->maxIdleTime);
+        $this->assertNull($pool->getOptions()->poolIdleTimeout);
     }
 
     #[DataProvider('unsupportedPoolOptions')]
@@ -63,7 +75,7 @@ class ConfigTest extends SentryTestCase
         return [
             ['min_retained_objects', 1],
             ['max_idle_time', 30],
-            ['idle_ttl', 300],
+            ['pool_idle_timeout', 300],
             ['unknown', true],
         ];
     }
@@ -157,7 +169,7 @@ class ConfigTest extends SentryTestCase
         return $reflection->getValue($builder);
     }
 
-    private function getPoolFromTransport(HttpPoolTransport $transport): Pool
+    private function getPoolFromTransport(HttpPoolTransport $transport): HttpTransportPool
     {
         $reflection = new ReflectionProperty($transport, 'pool');
 

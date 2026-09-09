@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Schema;
 
+use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Support\Collection;
@@ -302,13 +303,13 @@ class BlueprintState
     /**
      * Replace an exact column name in a projection.
      *
-     * @param list<Expression|string> $columns
-     * @return list<Expression|string>
+     * @param list<ExpressionContract|string> $columns
+     * @return list<ExpressionContract|string>
      */
     protected function replaceColumn(array $columns, string $from, string $to): array
     {
         return array_map(
-            static fn (Expression|string $column): Expression|string => $column === $from ? $to : $column,
+            static fn (ExpressionContract|string $column): ExpressionContract|string => $column === $from ? $to : $column,
             $columns,
         );
     }

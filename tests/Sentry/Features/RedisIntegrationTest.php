@@ -6,22 +6,24 @@ namespace Hypervel\Tests\Sentry\Features;
 
 use Error;
 use Exception;
+use Hypervel\ConnectionPool\PoolOptions;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Contracts\Pool\PoolOptionInterface;
 use Hypervel\Contracts\Session\Session;
+use Hypervel\Coordinator\Timer;
 use Hypervel\Http\Request;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\PhpRedisConnection;
-use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Sentry\Features\RedisFeature;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use Sentry\SentrySdk;
 use Sentry\State\Hub;
 use Sentry\State\HubInterface;
@@ -312,7 +314,10 @@ class RedisIntegrationTest extends SentryTestCase
         $this->assertEquals(10, $spanData['db.redis.pool.max']);
         $this->assertEquals(60.0, $spanData['db.redis.pool.max_idle_time']);
         $this->assertEquals(5, $spanData['db.redis.pool.idle']);
-        $this->assertEquals(2, $spanData['db.redis.pool.using']);
+        $this->assertEquals(7, $spanData['db.redis.pool.managed']);
+        $this->assertEquals(2, $spanData['db.redis.pool.borrowed']);
+        $this->assertEquals(1, $spanData['db.redis.pool.waiting']);
+        $this->assertArrayNotHasKey('db.redis.pool.using', $spanData);
     }
 
     public function testRedisCommandWithDifferentConfiguration(): void
@@ -412,21 +417,72 @@ class RedisIntegrationTest extends SentryTestCase
         $this->assertArrayNotHasKey('duration', $redisSpan->getData());
     }
 
-    private function setupMocks(string $connectionName = 'default', int $database = 0): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testTracingWithoutARegisteredPoolDoesNotCreateOne(bool $purgePool): void
     {
-        $poolOption = m::mock(PoolOptionInterface::class);
-        $poolOption->shouldReceive('getMaxConnections')->andReturn(10);
-        $poolOption->shouldReceive('getMaxIdleTime')->andReturn(60.0);
+        config()->set('database.redis.default.pool.heartbeat_interval', 1.0);
+        $manager = $this->app->make(PoolManager::class);
+        $timerCount = Timer::stats()['num'];
 
+        try {
+            if ($purgePool) {
+                $pool = $manager->pool('default');
+                $manager->purge('default');
+                $this->assertTrue($pool->isClosed());
+            }
+
+            $this->assertSame([], $manager->getPools());
+            $transaction = $this->startTransaction();
+
+            $this->app->make(Dispatcher::class)->dispatch(
+                new CommandExecuted('GET', ['test-key'], 0.005, $this->createRedisConnection('default')),
+            );
+
+            $spans = $transaction->getSpanRecorder()->getSpans();
+            $this->assertCount(2, $spans);
+            $this->assertSame('GET test-key', $spans[1]->getDescription());
+            $this->assertArrayNotHasKey('db.redis.pool.name', $spans[1]->getData());
+            $this->assertSame([], $manager->getPools());
+            $this->assertSame($timerCount, Timer::stats()['num']);
+        } finally {
+            $manager->purgeAll();
+        }
+    }
+
+    public function testRedisSpanRetainsNullIdleTimeout(): void
+    {
+        $this->setupMocks(maxIdleTime: null);
+        $transaction = $this->startTransaction();
+
+        $this->app->make(Dispatcher::class)->dispatch(
+            new CommandExecuted('GET', ['test-key'], 0.005, $this->createRedisConnection('default')),
+        );
+
+        $spans = $transaction->getSpanRecorder()->getSpans();
+        $this->assertCount(2, $spans);
+        $data = $spans[1]->getData();
+        $this->assertArrayHasKey('db.redis.pool.max_idle_time', $data);
+        $this->assertNull($data['db.redis.pool.max_idle_time']);
+    }
+
+    /**
+     * Register an observed Redis pool.
+     */
+    private function setupMocks(string $connectionName = 'default', int $database = 0, ?float $maxIdleTime = 60.0): void
+    {
         $pool = m::mock(RedisPool::class);
-        $pool->shouldReceive('getOption')->andReturn($poolOption);
-        $pool->shouldReceive('getConnectionsInChannel')->andReturn(5);
-        $pool->shouldReceive('getCurrentConnections')->andReturn(2);
+        $pool->shouldReceive('getOptions')->andReturn(PoolOptions::fromArray(['max_idle_time' => $maxIdleTime]));
+        $pool->shouldReceive('getManagedCount')->andReturn(7);
+        $pool->shouldReceive('getBorrowedCount')->andReturn(2);
+        $pool->shouldReceive('getIdleCount')->andReturn(5);
+        $pool->shouldReceive('getWaitingCount')->andReturn(1);
 
-        $poolFactory = m::mock(PoolFactory::class);
-        $poolFactory->shouldReceive('getPool')->with($connectionName)->andReturn($pool);
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->shouldReceive('getPools')->andReturn([$connectionName => $pool]);
+        $poolManager->shouldNotReceive('pool');
 
-        $this->app->instance(PoolFactory::class, $poolFactory);
+        $this->app->instance(PoolManager::class, $poolManager);
 
         $this->app->make('config')->set("database.redis.{$connectionName}.database", $database);
     }

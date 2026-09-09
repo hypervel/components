@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Redis;
 
 use Hypervel\Config\Repository;
+use Hypervel\ConnectionPool\Connection;
+use Hypervel\Contracts\ConnectionPool\Connection as PoolConnection;
+use Hypervel\Contracts\ConnectionPool\UsageTracker;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
-use Hypervel\Contracts\Pool\ConnectionInterface;
-use Hypervel\Contracts\Pool\FrequencyInterface;
-use Hypervel\Pool\Connection;
-use Hypervel\Pool\LowFrequencyInterface;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Tests\TestCase;
@@ -26,11 +25,11 @@ class RedisPoolTest extends TestCase
             'database' => 0,
             'timeout' => null,
             'pool' => [
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 30,
                 'connect_timeout' => 1.25,
                 'wait_timeout' => 3.0,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
                 'max_idle_time' => 1,
             ],
         ];
@@ -51,11 +50,11 @@ class RedisPoolTest extends TestCase
             'database' => 0,
             'timeout' => 7.0,
             'pool' => [
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 30,
                 'connect_timeout' => 1.25,
                 'wait_timeout' => 3.0,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
                 'max_idle_time' => 1,
             ],
         ];
@@ -80,11 +79,11 @@ class RedisPoolTest extends TestCase
                         'events' => false,
                         'options' => [],
                         'pool' => [
-                            'min_connections' => 1,
+                            'min_retained_connections' => 1,
                             'max_connections' => 30,
                             'connect_timeout' => 1.25,
                             'wait_timeout' => 3.0,
-                            'heartbeat' => -1,
+                            'heartbeat_interval' => null,
                             'max_idle_time' => 1,
                         ],
                     ],
@@ -102,7 +101,7 @@ class RedisPoolTest extends TestCase
         $this->assertTrue($redisConfig->connectionConfig('default')['events']);
     }
 
-    public function testLowFrequencyFlushClosesIdleConnections(): void
+    public function testUsagePolicyTrimsExcessIdleConnections(): void
     {
         TestPoolConnection::reset();
 
@@ -112,11 +111,11 @@ class RedisPoolTest extends TestCase
             'database' => 0,
             'timeout' => null,
             'pool' => [
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 30,
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
                 'max_idle_time' => 1,
             ],
         ];
@@ -127,28 +126,28 @@ class RedisPoolTest extends TestCase
 
         $pool = new TestRedisPool($container, 'default');
 
-        $connection1 = $pool->get();
-        $connection2 = $pool->get();
-        $connection3 = $pool->get();
+        $connection1 = $pool->borrow();
+        $connection2 = $pool->borrow();
+        $connection3 = $pool->borrow();
 
-        $this->assertSame(3, $pool->getCurrentConnections());
+        $this->assertSame(3, $pool->getManagedCount());
 
         $connection1->release();
         $connection2->release();
         $connection3->release();
 
-        $this->assertSame(3, $pool->getCurrentConnections());
+        $this->assertSame(3, $pool->getManagedCount());
 
-        $pool->setFrequencyForTest(new AlwaysLowFrequency);
-        $connection = $pool->get();
+        $pool->setUsageTrackerForTest(new AlwaysTrimIdle);
+        $connection = $pool->borrow();
 
-        $this->assertSame(1, $pool->getCurrentConnections());
+        $this->assertSame(1, $pool->getManagedCount());
         $this->assertSame(2, TestPoolConnection::$closeCount);
 
         $connection->release();
 
-        $this->assertSame(1, $pool->getCurrentConnections());
-        $this->assertSame(1, $pool->getConnectionsInChannel());
+        $this->assertSame(1, $pool->getManagedCount());
+        $this->assertSame(1, $pool->getIdleCount());
     }
 
     /**
@@ -171,12 +170,13 @@ class RedisPoolTest extends TestCase
 
 class TestRedisPool extends RedisPool
 {
-    public function setFrequencyForTest(FrequencyInterface|LowFrequencyInterface $frequency): void
+    public function setUsageTrackerForTest(UsageTracker $tracker): void
     {
-        $this->frequency = $frequency;
+        $this->usageTracker = $tracker;
+        $this->usageTrackerInitialized = true;
     }
 
-    protected function createConnection(): ConnectionInterface
+    protected function createConnection(): PoolConnection
     {
         return new TestPoolConnection($this->container, $this);
     }
@@ -209,19 +209,13 @@ class TestPoolConnection extends Connection
     }
 }
 
-class AlwaysLowFrequency implements FrequencyInterface, LowFrequencyInterface
+class AlwaysTrimIdle implements UsageTracker
 {
-    public function hit(int $number = 1): bool
+    public function recordBorrow(): void
     {
-        return true;
     }
 
-    public function frequency(): float
-    {
-        return 0.0;
-    }
-
-    public function isLowFrequency(): bool
+    public function shouldTrimExcessIdle(): bool
     {
         return true;
     }

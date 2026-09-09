@@ -23,12 +23,12 @@ use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Foundation\CachesRoutes;
+use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Contracts\Queue\Factory as Queue;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Http\Request;
-use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
-use Hypervel\ObjectPool\Traits\HasPoolProxy;
+use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\Queue\Attributes\Connection as ConnectionAttribute;
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
@@ -70,7 +70,7 @@ class BroadcastManager implements BroadcastingFactoryContract
     /**
      * The array of drivers which will be wrapped as pool proxies.
      */
-    protected array $poolables = [];
+    protected array $poolableDrivers = [];
 
     /**
      * Create a new manager instance.
@@ -310,7 +310,7 @@ class BroadcastManager implements BroadcastingFactoryContract
 
         $constructionConfig = Arr::except($config, ['pool']);
 
-        return in_array($config['driver'], $this->poolables, true)
+        return in_array($config['driver'], $this->poolableDrivers, true)
             ? $this->createPoolProxy(
                 $config['driver'],
                 fn () => $this->doResolve(null, $constructionConfig),
@@ -530,7 +530,7 @@ class BroadcastManager implements BroadcastingFactoryContract
 
         $config = $this->getConfig($name);
 
-        if (is_null($config) || ! in_array($config['driver'], $this->poolables, true)) {
+        if (is_null($config) || ! in_array($config['driver'], $this->poolableDrivers, true)) {
             return;
         }
 
@@ -541,7 +541,7 @@ class BroadcastManager implements BroadcastingFactoryContract
             $constructionConfig,
         );
 
-        $this->poolFactory()->remove($definition->identity);
+        $this->poolFactory()->purge($definition->identity);
     }
 
     /**

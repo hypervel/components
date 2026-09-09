@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Pool\PoolInterface;
+use Hypervel\Contracts\ConnectionPool\ConnectionPool;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Tests\Redis\Fixtures\RespServer;
 use Mockery as m;
@@ -51,7 +51,7 @@ run(function (): void {
         try {
             new PhpRedisConnection(
                 new Container,
-                m::mock(PoolInterface::class),
+                m::mock(ConnectionPool::class),
                 [
                     'url' => null,
                     'scheme' => 'tls',
@@ -76,14 +76,14 @@ run(function (): void {
                     'backoff_cap' => 1000,
                     'sentinel' => ['enabled' => false],
                     'pool' => [
-                        'min_connections' => 1,
+                        'min_retained_connections' => 1,
                         'max_connections' => 1,
                         'connect_timeout' => 30.0,
                         'wait_timeout' => 3.0,
-                        'heartbeat' => -1.0,
+                        'heartbeat_interval' => null,
                         'heartbeat_timeout' => 1.0,
                         'max_idle_time' => 60.0,
-                        'max_lifetime' => -1.0,
+                        'max_lifetime' => null,
                     ],
                 ],
             );

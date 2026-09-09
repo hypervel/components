@@ -12,7 +12,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @method static \Hypervel\Filesystem\FilesystemManager addPoolable(string $driver)
+ * @method static \Hypervel\Filesystem\FilesystemManager addPoolableDriver(string $driver)
  * @method static \Hypervel\Contracts\Filesystem\Filesystem build(array|string $config, string|null $name = null)
  * @method static \Hypervel\Contracts\Filesystem\Filesystem createFtpDriver(array $config)
  * @method static \Hypervel\Contracts\Filesystem\Cloud createGcsDriver(array $config)
@@ -26,13 +26,13 @@ use function Hypervel\Support\enum_value;
  * @method static void flushState()
  * @method static \Hypervel\Filesystem\FilesystemManager forgetDisk(array|string $disk)
  * @method static string getDefaultDriver()
- * @method static array getPoolables()
+ * @method static array getPoolableDrivers()
  * @method static \Closure|null getReleaseCallback(string $driver)
  * @method static void purge(string|null $name = null)
- * @method static \Hypervel\Filesystem\FilesystemManager removePoolable(string $driver)
+ * @method static \Hypervel\Filesystem\FilesystemManager removePoolableDriver(string $driver)
  * @method static \Hypervel\Filesystem\FilesystemManager set(string $name, mixed $disk)
  * @method static \Hypervel\Filesystem\FilesystemManager setApplication(\Hypervel\Contracts\Container\Container $app)
- * @method static \Hypervel\Filesystem\FilesystemManager setPoolables(array $poolables)
+ * @method static \Hypervel\Filesystem\FilesystemManager setPoolableDrivers(array $poolableDrivers)
  * @method static \Hypervel\Filesystem\FilesystemManager setReleaseCallback(string $driver, \Closure $callback)
  * @method static mixed unless(mixed $value = null, null|callable $callback = null, null|callable $default = null)
  * @method static mixed when(mixed $value = null, null|callable $callback = null, null|callable $default = null)

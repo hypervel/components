@@ -646,7 +646,7 @@ public function boot(): void
 <a name="reload-commands"></a>
 ### Reload Commands
 
-Hypervel's [reload command](/docs/{{version}}/deployment#reloading-services) terminates any running services so they can be automatically restarted by a system process monitor. Using the `reloads` method, you may register your package's own Artisan commands that should be invoked when the `reload` command is executed:
+You may register commands that should run when Hypervel's [reload command](/docs/{{version}}/deployment#reloading-services) is executed using the `reloads` method:
 
 ```php
 /**

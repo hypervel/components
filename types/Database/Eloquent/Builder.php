@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Types\Builder;
 
+use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\HasBuilder;
 use Hypervel\Database\Eloquent\Model;
@@ -21,7 +22,8 @@ function test(
     Post $post,
     ChildPost $childPost,
     Comment $comment,
-    QueryBuilder $queryBuilder
+    QueryBuilder $queryBuilder,
+    Expression $expression
 ): void {
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->where('id', 1));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orWhere('name', 'John'));
@@ -89,37 +91,37 @@ function test(
     assertType('Hypervel\Database\Eloquent\Relations\Relation<Hypervel\Database\Eloquent\Model, Hypervel\Types\Builder\User, *>', $query->getRelation('foo'));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Post>', $query->setModel(new Post));
 
-    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->has('foo', callback: function ($query) {
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->has('foo', count: $expression, callback: function ($query) {
         assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Database\Eloquent\Model>', $query);
     }));
-    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->has($user->posts(), callback: function ($query) {
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->has($user->posts(), count: $expression, callback: function ($query) {
         assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Post>', $query);
     }));
-    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orHas($user->posts()));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orHas($user->posts(), count: $expression));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->doesntHave($user->posts(), callback: function ($query) {
         assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Post>', $query);
     }));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orDoesntHave($user->posts()));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->whereHas($user->posts(), function ($query) {
         assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Post>', $query);
-    }));
+    }, count: $expression));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->withWhereHas('posts', function ($query) {
         assertType('Hypervel\Database\Eloquent\Builder<*>|Hypervel\Database\Eloquent\Relations\Relation<*, *, *>', $query);
-    }));
+    }, count: $expression));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orWhereHas($user->posts(), function ($query) {
         assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Post>', $query);
-    }));
+    }, count: $expression));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->whereDoesntHave($user->posts(), function ($query) {
         assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Post>', $query);
     }));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orWhereDoesntHave($user->posts(), function ($query) {
         assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Post>', $query);
     }));
-    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->hasMorph($post->taggable(), 'taggable', callback: function ($query, $type) {
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->hasMorph($post->taggable(), 'taggable', count: $expression, callback: function ($query, $type) {
         assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Database\Eloquent\Model>', $query);
         assertType('string', $type);
     }));
-    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orHasMorph($post->taggable(), 'taggable'));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orHasMorph($post->taggable(), 'taggable', count: $expression));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->doesntHaveMorph($post->taggable(), 'taggable', callback: function ($query, $type) {
         assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Database\Eloquent\Model>', $query);
         assertType('string', $type);
@@ -128,11 +130,11 @@ function test(
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->whereHasMorph($post->taggable(), 'taggable', function ($query, $type) {
         assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Database\Eloquent\Model>', $query);
         assertType('string', $type);
-    }));
+    }, count: $expression));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orWhereHasMorph($post->taggable(), 'taggable', function ($query, $type) {
         assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Database\Eloquent\Model>', $query);
         assertType('string', $type);
-    }));
+    }, count: $expression));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->whereDoesntHaveMorph($post->taggable(), 'taggable', function ($query, $type) {
         assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Database\Eloquent\Model>', $query);
         assertType('string', $type);
@@ -165,6 +167,21 @@ function test(
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orWhereMorphDoesntHaveRelation($post->taggable(), 'taggable', function ($query) {
         assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Database\Eloquent\Model>', $query);
     }));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->whereRelation('posts', $expression, '=', 1));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->withWhereRelation('posts', $expression, '=', 1));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orWhereRelation('posts', $expression, '=', 1));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->whereDoesntHaveRelation('posts', $expression, '=', 1));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orWhereDoesntHaveRelation('posts', $expression, '=', 1));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->whereMorphRelation($post->taggable(), 'taggable', $expression, '=', 1));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orWhereMorphRelation($post->taggable(), 'taggable', $expression, '=', 1));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->whereMorphDoesntHaveRelation($post->taggable(), 'taggable', $expression, '=', 1));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orWhereMorphDoesntHaveRelation($post->taggable(), 'taggable', $expression, '=', 1));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->withAggregate('posts', $expression, 'sum'));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->withMax('posts', $expression));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->withMin('posts', $expression));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->withSum('posts', $expression));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->withAvg('posts', $expression));
+
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->whereMorphedTo($post->taggable(), new Post));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->whereNotMorphedTo($post->taggable(), new Post));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orWhereMorphedTo($post->taggable(), new Post));

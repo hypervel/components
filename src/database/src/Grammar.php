@@ -133,7 +133,7 @@ abstract class Grammar
     protected function wrapSegments(array $segments): string
     {
         return (new Collection($segments))->map(function ($segment, $key) use ($segments) {
-            return $key === 0 && count($segments) > 1
+            return $key === count($segments) - 2
                 ? $this->wrapTable($segment)
                 : $this->wrapValue($segment);
         })->implode('.');

@@ -551,7 +551,7 @@ class Repository implements ReplicableContext
      * Boot-only. Registers a listener on the worker-global event dispatcher;
      * per-request registration persists and affects subsequent requests.
      *
-     * @param (callable(self): void) $callback
+     * @param (callable(self): mixed) $callback
      * @return $this
      */
     public function dehydrating(callable $callback): static
@@ -567,7 +567,7 @@ class Repository implements ReplicableContext
      * Boot-only. Registers a listener on the worker-global event dispatcher;
      * per-request registration persists and affects subsequent requests.
      *
-     * @param (callable(self): void) $callback
+     * @param (callable(self): mixed) $callback
      * @return $this
      */
     public function hydrated(callable $callback): static

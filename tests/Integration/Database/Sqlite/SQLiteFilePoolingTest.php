@@ -6,9 +6,11 @@ namespace Hypervel\Tests\Integration\Database\Sqlite;
 
 use Hypervel\Database\Connectors\SQLiteConnector;
 use Hypervel\Database\Pool\PooledConnection;
-use Hypervel\Database\Pool\PoolFactory;
+use Hypervel\Database\Pool\PoolManager;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
 
 use function Hypervel\Coroutine\go;
 use function Hypervel\Coroutine\run;
@@ -27,36 +29,32 @@ class SQLiteFilePoolingTest extends TestCase
 {
     protected bool $runTestsInCoroutine = false;
 
-    protected static string $databasePath;
+    protected string $databasePath;
 
-    public static function setUpBeforeClass(): void
-    {
-        parent::setUpBeforeClass();
-
-        self::$databasePath = sys_get_temp_dir() . '/hypervel_sqlite_pool_test.db';
-
-        // Ensure clean state
-        if (file_exists(self::$databasePath)) {
-            @unlink(self::$databasePath);
-        }
-        touch(self::$databasePath);
-    }
-
-    public static function tearDownAfterClass(): void
-    {
-        if (file_exists(self::$databasePath)) {
-            @unlink(self::$databasePath);
-        }
-
-        parent::tearDownAfterClass();
-    }
+    protected string $databaseDirectory;
 
     protected function setUp(): void
     {
         parent::setUp();
 
+        $this->databaseDirectory = ParallelTesting::tempDir('SQLiteFilePoolingTest');
+        $files = new Filesystem;
+        $files->deleteDirectory($this->databaseDirectory);
+        $files->ensureDirectoryExists($this->databaseDirectory);
+        $this->databasePath = $this->databaseDirectory . '/database.sqlite';
+        touch($this->databasePath);
+
         $this->configureDatabase();
         $this->createTestTable();
+    }
+
+    protected function tearDown(): void
+    {
+        try {
+            parent::tearDown();
+        } finally {
+            (new Filesystem)->deleteDirectory($this->databaseDirectory);
+        }
     }
 
     protected function configureDatabase(): void
@@ -67,14 +65,14 @@ class SQLiteFilePoolingTest extends TestCase
 
         $connectionConfig = [
             'driver' => 'sqlite',
-            'database' => self::$databasePath,
+            'database' => $this->databasePath,
             'prefix' => '',
             'pool' => [
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 5,
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
                 'max_idle_time' => 60.0,
             ],
         ];
@@ -95,10 +93,10 @@ class SQLiteFilePoolingTest extends TestCase
 
     protected function getPooledConnection(): PooledConnection
     {
-        $factory = $this->app->make(PoolFactory::class);
-        $pool = $factory->getPool('sqlite_file');
+        $poolManager = $this->app->make(PoolManager::class);
+        $pool = $poolManager->pool('sqlite_file');
 
-        return $pool->get();
+        return $pool->borrow();
     }
 
     /**

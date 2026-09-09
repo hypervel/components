@@ -10,7 +10,7 @@ use Hypervel\Database\Connectors\SQLiteConnector;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\Pool\PooledConnection;
-use Hypervel\Database\Pool\PoolFactory;
+use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
@@ -19,15 +19,6 @@ use Hypervel\Testing\ParallelTesting;
 
 use function Hypervel\Coroutine\run;
 
-/**
- * Tests for pool connection management fixes (DB-01 through DB-04).
- *
- * These tests verify:
- * - DB-01: Nested transactions are fully rolled back on connection release
- * - DB-02: Pool flushAll() closes all connections properly
- * - DB-03: DatabaseManager disconnect/reconnect/purge work correctly in pooled mode
- * - DB-04: ConnectionEstablished event is dispatched for pooled connections
- */
 class PoolConnectionManagementTest extends TestCase
 {
     protected bool $runTestsInCoroutine = false;
@@ -78,11 +69,11 @@ class PoolConnectionManagementTest extends TestCase
             'database' => self::$databasePath,
             'prefix' => '',
             'pool' => [
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 5,
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
                 'max_idle_time' => 60.0,
             ],
         ];
@@ -100,17 +91,17 @@ class PoolConnectionManagementTest extends TestCase
         });
     }
 
-    protected function getPoolFactory(): PoolFactory
+    protected function poolManager(): PoolManager
     {
-        return $this->app->make(PoolFactory::class);
+        return $this->app->make(PoolManager::class);
     }
 
     protected function getPooledConnection(): PooledConnection
     {
-        $factory = $this->getPoolFactory();
-        $pool = $factory->getPool('pool_test');
+        $poolManager = $this->poolManager();
+        $pool = $poolManager->pool('pool_test');
 
-        return $pool->get();
+        return $pool->borrow();
     }
 
     // =========================================================================
@@ -225,63 +216,58 @@ class PoolConnectionManagementTest extends TestCase
     }
 
     // =========================================================================
-    // DB-02: Pool flush semantics
+    // Pool purge semantics
     // =========================================================================
 
     /**
-     * Test that flushPool closes all connections in the pool.
+     * Test that purge closes all connections in the pool.
      */
-    public function testFlushPoolClosesAllConnections(): void
+    public function testPurgeClosesAllConnections(): void
     {
-        $factory = $this->getPoolFactory();
-        $pool = $factory->getPool('pool_test');
+        $poolManager = $this->poolManager();
+        $pool = $poolManager->pool('pool_test');
 
         // Get and release a few connections to populate the pool
         run(function () use ($pool) {
             $connections = [];
             for ($i = 0; $i < 3; ++$i) {
-                $connections[] = $pool->get();
+                $connections[] = $pool->borrow();
             }
-            foreach ($connections as $conn) {
-                $conn->release();
+            foreach ($connections as $connection) {
+                $connection->release();
             }
         });
 
-        $connectionsBeforeFlush = $pool->getCurrentConnections();
-        $this->assertGreaterThan(0, $connectionsBeforeFlush, 'Pool should have connections before flush');
+        $connectionsBeforePurge = $pool->getManagedCount();
+        $this->assertGreaterThan(0, $connectionsBeforePurge, 'Pool should have connections before purge');
 
-        // Flush the pool
-        $factory->flushPool('pool_test');
+        $poolManager->purge('pool_test');
 
-        // Pool should be removed from factory
-        // Getting pool again should create a fresh one
-        $newPool = $factory->getPool('pool_test');
-        $this->assertEquals(0, $newPool->getCurrentConnections(), 'Fresh pool should have no connections');
+        $newPool = $poolManager->pool('pool_test');
+        $this->assertSame(0, $newPool->getManagedCount(), 'Fresh pool should have no connections');
     }
 
     /**
-     * Test that flushAll closes all connections in all pools.
+     * Test that purgeAll closes all connections in all pools.
      */
-    public function testFlushAllClosesAllPoolConnections(): void
+    public function testPurgeAllClosesAllPoolConnections(): void
     {
-        $factory = $this->getPoolFactory();
+        $poolManager = $this->poolManager();
 
         // Get pool and create some connections
-        $pool = $factory->getPool('pool_test');
+        $pool = $poolManager->pool('pool_test');
 
         run(function () use ($pool) {
-            $conn = $pool->get();
-            $conn->release();
+            $connection = $pool->borrow();
+            $connection->release();
         });
 
-        $this->assertGreaterThan(0, $pool->getCurrentConnections());
+        $this->assertGreaterThan(0, $pool->getManagedCount());
 
-        // Flush all pools
-        $factory->flushAll();
+        $poolManager->purgeAll();
 
-        // Getting pool again should give fresh pool
-        $newPool = $factory->getPool('pool_test');
-        $this->assertEquals(0, $newPool->getCurrentConnections());
+        $newPool = $poolManager->pool('pool_test');
+        $this->assertSame(0, $newPool->getManagedCount());
     }
 
     // =========================================================================
@@ -379,15 +365,11 @@ class PoolConnectionManagementTest extends TestCase
     }
 
     /**
-     * Test that purge() flushes the pool.
-     *
-     * Note: We test purge by verifying the pool is flushed after calling purge.
-     * The context clearing is tested implicitly - if context wasn't cleared,
-     * the old connection would still be returned.
+     * Test that DatabaseManager::purge() removes the pool.
      */
-    public function testPurgeFlushesPool(): void
+    public function testDatabaseManagerPurgeRemovesPool(): void
     {
-        $factory = $this->getPoolFactory();
+        $poolManager = $this->poolManager();
 
         // First, populate the pool with some connections
         run(function () {
@@ -398,8 +380,8 @@ class PoolConnectionManagementTest extends TestCase
         });
 
         // Pool should have connections now
-        $pool = $factory->getPool('pool_test');
-        $connectionsBefore = $pool->getCurrentConnections();
+        $pool = $poolManager->pool('pool_test');
+        $connectionsBefore = $pool->getManagedCount();
         $this->assertGreaterThan(0, $connectionsBefore, 'Pool should have connections before purge');
 
         // Purge
@@ -407,9 +389,8 @@ class PoolConnectionManagementTest extends TestCase
         $manager = $this->app->make(DatabaseManager::class);
         $manager->purge('pool_test');
 
-        // Pool should be flushed (getting pool again gives fresh one with no connections)
-        $newPool = $factory->getPool('pool_test');
-        $this->assertEquals(0, $newPool->getCurrentConnections(), 'Pool should be empty after purge');
+        $newPool = $poolManager->pool('pool_test');
+        $this->assertSame(0, $newPool->getManagedCount(), 'Pool should be empty after purge');
     }
 
     // =========================================================================
@@ -433,9 +414,8 @@ class PoolConnectionManagementTest extends TestCase
             }
         );
 
-        // Flush pool to ensure we get a fresh connection (which triggers reconnect)
-        $factory = $this->getPoolFactory();
-        $factory->flushPool('pool_test');
+        $poolManager = $this->poolManager();
+        $poolManager->purge('pool_test');
 
         run(function () {
             $pooled = $this->getPooledConnection();
@@ -463,9 +443,8 @@ class PoolConnectionManagementTest extends TestCase
             }
         );
 
-        // Flush pool to ensure fresh connection
-        $factory = $this->getPoolFactory();
-        $factory->flushPool('pool_test');
+        $poolManager = $this->poolManager();
+        $poolManager->purge('pool_test');
 
         run(function () {
             $pooled = $this->getPooledConnection();

@@ -29,7 +29,7 @@
         "ext-posix": "*",
         "brick/math": "^0.17",
         "guzzlehttp/guzzle": "^7.15.1",
-        "laravel/serializable-closure": "^2.0.10",
+        "laravel/serializable-closure": "^2.0.11",
         "league/flysystem": "^3.25.1",
         "league/uri": "^7.5.1",
         "monolog/monolog": "^3.1",

@@ -151,6 +151,8 @@ class Factory
 
     /**
      * Create a new response instance for use during stubbing.
+     *
+     * @param null|array|resource|StreamInterface|string $body
      */
     public static function response(
         mixed $body = null,
@@ -164,6 +166,8 @@ class Factory
 
     /**
      * Create a new PSR-7 response instance for use during stubbing.
+     *
+     * @param null|array|resource|StreamInterface|string $body
      *
      * @throws InvalidArgumentException
      */
@@ -182,8 +186,8 @@ class Factory
             $headers['Content-Type'] = 'application/json';
         }
 
-        if (! is_string($body) && ! is_null($body) && ! is_resource($body) && ! $body instanceof StreamInterface) {
-            throw new InvalidArgumentException('HTTP fake response body must be a string, array, resource, Psr\Http\Message\StreamInterface, or null.');
+        if (! is_string($body) && ! is_null($body) && (! is_resource($body) || get_resource_type($body) !== 'stream') && ! $body instanceof StreamInterface) {
+            throw new InvalidArgumentException('HTTP fake response body must be a string, array, stream resource, Psr\Http\Message\StreamInterface, or null.');
         }
 
         return new Psr7Response($status, static::normalizeResponseHeaders($headers), $body);
@@ -247,6 +251,8 @@ class Factory
 
     /**
      * Create a new RequestException instance for use during stubbing.
+     *
+     * @param null|array|resource|StreamInterface|string $body
      */
     public static function failedRequest(
         mixed $body = null,

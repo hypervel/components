@@ -65,14 +65,15 @@ You may configure your application's Redis settings via the `config/database.php
         'backoff_base' => (int) env('REDIS_BACKOFF_BASE', 100),
         'backoff_cap' => (int) env('REDIS_BACKOFF_CAP', 1000),
         'pool' => [
-            'min_connections' => (int) env('REDIS_MIN_CONNECTIONS', 1),
+            'min_retained_connections' => (int) env('REDIS_MIN_RETAINED_CONNECTIONS', 1),
             'max_connections' => (int) env('REDIS_MAX_CONNECTIONS', 10),
             'connect_timeout' => 10.0,
             'wait_timeout' => 3.0,
-            'heartbeat' => (float) env('REDIS_HEARTBEAT', -1),
+            'heartbeat_interval' => ($duration = env('REDIS_HEARTBEAT_INTERVAL')) === null ? null : (float) $duration,
             'heartbeat_timeout' => (float) env('REDIS_HEARTBEAT_TIMEOUT', 1.0),
-            'max_idle_time' => (float) env('REDIS_MAX_IDLE_TIME', 60),
-            'max_lifetime' => (float) env('REDIS_MAX_LIFETIME', -1),
+            'idle_check_interval' => null,
+            'max_idle_time' => ($duration = env('REDIS_MAX_IDLE_TIME', 60)) === null ? null : (float) $duration,
+            'max_lifetime' => ($duration = env('REDIS_MAX_LIFETIME')) === null ? null : (float) $duration,
         ],
     ],
 ],
@@ -188,14 +189,15 @@ If your application is utilizing Redis Cluster, you should define a `cluster` ar
     'backoff_base' => (int) env('REDIS_BACKOFF_BASE', 100),
     'backoff_cap' => (int) env('REDIS_BACKOFF_CAP', 1000),
     'pool' => [
-        'min_connections' => (int) env('REDIS_MIN_CONNECTIONS', 1),
+        'min_retained_connections' => (int) env('REDIS_MIN_RETAINED_CONNECTIONS', 1),
         'max_connections' => (int) env('REDIS_MAX_CONNECTIONS', 10),
         'connect_timeout' => 10.0,
         'wait_timeout' => 3.0,
-        'heartbeat' => (float) env('REDIS_HEARTBEAT', -1),
+        'heartbeat_interval' => ($duration = env('REDIS_HEARTBEAT_INTERVAL')) === null ? null : (float) $duration,
         'heartbeat_timeout' => (float) env('REDIS_HEARTBEAT_TIMEOUT', 1.0),
-        'max_idle_time' => (float) env('REDIS_MAX_IDLE_TIME', 60),
-        'max_lifetime' => (float) env('REDIS_MAX_LIFETIME', -1),
+        'idle_check_interval' => null,
+        'max_idle_time' => ($duration = env('REDIS_MAX_IDLE_TIME', 60)) === null ? null : (float) $duration,
+        'max_lifetime' => ($duration = env('REDIS_MAX_LIFETIME')) === null ? null : (float) $duration,
     ],
     'cluster' => [
         'enabled' => true,
@@ -271,23 +273,34 @@ Hypervel pools Redis connections so commands can reuse established sockets acros
     // ...
 
     'pool' => [
-        'min_connections' => 1,
+        'min_retained_connections' => 1,
         'max_connections' => 10,
         'connect_timeout' => 10.0,
         'wait_timeout' => 3.0,
-        'heartbeat' => -1,
+        'heartbeat_interval' => null,
         'heartbeat_timeout' => 1.0,
+        'idle_check_interval' => null,
         'max_idle_time' => 60.0,
-        'max_lifetime' => -1,
+        'max_lifetime' => null,
     ],
 ],
 ```
 
 When the `pool` array is omitted, Hypervel uses a managed-connection floor of one and allows up to 10 connections, with 10-second connection, three-second wait, and 60-second idle timeouts. Heartbeats and maximum-lifetime recycling are disabled, and the heartbeat timeout is one second. The environment variables shown above only apply to connection records that declare a `pool` array.
 
-The `min_connections` option controls how far trimming excess idle connections may reduce the total managed connection count. It is not an idle-count invariant or a guaranteed total minimum, and it does not prewarm or automatically replenish the pool. The caller that first needs each new connection pays its connection-establishment cost, and the pool may have zero idle connections under load. Lifecycle-expired or unhealthy connections and explicit discards can reduce the managed count below `min_connections`; failed connection creation can leave it below that value. None is automatically replenished. The `max_connections` option caps the number of connections the worker may open. The `connect_timeout` option controls how long Hypervel will wait while opening a new Redis connection. The `wait_timeout` option controls how long a coroutine may wait for a pooled connection to become available. The `heartbeat` option controls how often Hypervel validates idle connections in the worker pool; set this value to `-1` to disable background heartbeats. The `heartbeat_timeout` option controls how long a heartbeat ping may run before the connection is discarded. The `max_idle_time` option controls how long an idle connection may remain reusable while the total managed count is above `min_connections`, and the `max_lifetime` option controls the upper bound for how long a pooled connection generation may live before it is recycled while idle or before it is reused; Hypervel assigns each generation an effective lifetime between 90-100% of this value to avoid synchronized reconnects. Set `max_lifetime` to `-1` to disable lifetime recycling.
+The `min_retained_connections` option controls how many connections Hypervel keeps when trimming excess idle connections. Connections are opened only when needed, so the first operation that uses a new connection waits for it to open. This setting does not create connections in advance or replace connections that fail, expire, or are discarded. The pool may have no idle connections while they are all in use.
+
+The `max_connections` option limits how many connections a worker may open. You may use `connect_timeout` to limit how long Hypervel waits while opening a Redis connection, and `wait_timeout` to limit how long a coroutine waits for an available pool connection.
+
+To check idle connections in the background, set `heartbeat_interval` to a positive number of seconds. Set it to null to disable these checks. The `heartbeat_timeout` option limits how long a ping may run before the connection is discarded.
+
+The `max_idle_time` option controls how long a connection may remain unused before it expires. Background heartbeats remove idle connections above `min_retained_connections`; a connection that has expired is also refreshed before its next use. Set `max_idle_time` to null to disable idle expiry.
+
+You may use `max_lifetime` to replace connections periodically, even when they are used regularly. Connections are replaced only while idle or before their next use. Each connection receives a lifetime between 90 and 100 percent of this value so they do not all reconnect at once. Set `max_lifetime` to null to disable lifetime expiry.
 
 Idle and lifetime recycling are checked when a connection is borrowed from the pool. When heartbeat is enabled, Hypervel also runs a background sweep over idle pooled Redis connections so stale sockets are found before a request needs them. Heartbeat and max lifetime recycling apply to Hypervel's worker pool whether the connection points directly at Redis, a managed Redis service, or a proxy.
+
+For the full option reference and custom maintenance behavior, see the [pool documentation](/docs/{{version}}/pools#connection-pool-options).
 
 <a name="interacting-with-redis"></a>
 ## Interacting With Redis

@@ -31,11 +31,11 @@ use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Cache\Store as CacheStore;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Foundation\CachesRoutes;
+use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Http\Request;
-use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Routing\Route;
@@ -541,7 +541,7 @@ class BroadcastManagerTest extends TestCase
             'custom',
             fn () => new ManagerUserAuthenticationBroadcaster($app)
         );
-        $broadcastManager->addPoolable('custom');
+        $broadcastManager->addPoolableDriver('custom');
 
         $broadcastManager->resolveAuthenticatedUserUsing(function (Request $request): array {
             return ['id' => 'user-' . $request->input('socket_id')];
@@ -578,7 +578,7 @@ class BroadcastManagerTest extends TestCase
                 return new ManagerUserAuthenticationBroadcaster($container);
             }
         );
-        $manager->addPoolable('custom');
+        $manager->addPoolableDriver('custom');
 
         $first = $manager->connection('first');
         $second = $manager->connection('second');
@@ -624,8 +624,8 @@ class BroadcastManagerTest extends TestCase
 
         $this->assertInstanceOf(PusherBroadcaster::class, $pusherBroadcaster);
         $this->assertInstanceOf(AblyBroadcaster::class, $ablyBroadcaster);
-        $this->assertSame([], $app->make(PoolFactory::class)->pools());
-        $this->assertSame([], $manager->getPoolables());
+        $this->assertSame([], $app->make(PoolFactory::class)->getPools());
+        $this->assertSame([], $manager->getPoolableDrivers());
 
         $replacementPusher = m::mock(Pusher::class);
         $manager->setDefaultDriver('pusher');
@@ -659,7 +659,7 @@ class BroadcastManagerTest extends TestCase
             'custom',
             fn (ContainerContract $container) => new ManagerUserAuthenticationBroadcaster($container)
         );
-        $manager->addPoolable('custom');
+        $manager->addPoolableDriver('custom');
 
         $driver = $manager->connection('custom');
         $this->assertInstanceOf(BroadcastPoolProxy::class, $driver);
@@ -693,7 +693,7 @@ class BroadcastManagerTest extends TestCase
         ]);
         $app->singleton('redis', fn () => throw new Exception('Redis unavailable.'));
         $manager = new BroadcastManager($app);
-        $manager->addPoolable('redis');
+        $manager->addPoolableDriver('redis');
 
         $first = $manager->connection('first');
         $second = $manager->connection('second');

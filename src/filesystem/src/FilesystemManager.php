@@ -11,10 +11,10 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Filesystem\Cloud;
 use Hypervel\Contracts\Filesystem\Factory as FactoryContract;
 use Hypervel\Contracts\Filesystem\Filesystem;
-use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
-use Hypervel\ObjectPool\Contracts\InvalidatesPool;
+use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
+use Hypervel\Contracts\ObjectPool\InvalidatesPool;
+use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\ObjectPool\PoolDefinition;
-use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Support\Arr;
 use Hypervel\Support\RebindsCallbacksToSelf;
 use Hypervel\Support\Str;
@@ -98,7 +98,7 @@ class FilesystemManager implements FactoryContract
     /**
      * The array of drivers which will be wrapped as pool proxies.
      */
-    protected array $poolables = ['s3', 'gcs'];
+    protected array $poolableDrivers = ['s3', 'gcs'];
 
     /**
      * Create a new filesystem manager instance.
@@ -214,7 +214,7 @@ class FilesystemManager implements FactoryContract
         }
 
         $driver = $config['driver'];
-        $hasPool = in_array($driver, $this->poolables, true);
+        $hasPool = in_array($driver, $this->poolableDrivers, true);
         $constructionConfig = Arr::except($config, ['pool']);
         $resolver = fn (Filesystem $filesystem): Filesystem => $this->configureServingRoute(
             $filesystem,
@@ -285,11 +285,11 @@ class FilesystemManager implements FactoryContract
         ?string $name,
         ?string $servingRouteDisk,
         string $servingRoutePrefix,
-        Closure $resolver,
+        Closure $createCallback,
     ): FilesystemPoolProxy {
         return new FilesystemPoolProxy(
             $this->diskPoolDefinition($driver, $config, $name, $servingRouteDisk, $servingRoutePrefix),
-            $resolver,
+            $createCallback,
             $this->poolFactory(),
             Arr::except($config, ['pool']),
             $this->getReleaseCallback($driver),
@@ -910,7 +910,7 @@ class FilesystemManager implements FactoryContract
     public function extend(string $driver, Closure $callback, bool $poolable = false): static
     {
         if ($poolable) {
-            $this->addPoolable($driver);
+            $this->addPoolableDriver($driver);
         }
 
         try {

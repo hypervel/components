@@ -4,18 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\OpenTelemetry\Instrumentation;
 
-use Hypervel\Contracts\Pool\PoolOptionInterface;
-use Hypervel\Database\Pool\PoolFactory as DatabasePoolFactory;
-use Hypervel\ObjectPool\Contracts\Factory as ObjectPoolFactory;
-use Hypervel\ObjectPool\Contracts\ObjectPool;
+use Hypervel\ConnectionPool\ConnectionPool;
+use Hypervel\ConnectionPool\PoolOptions as ConnectionPoolOptions;
+use Hypervel\Contracts\ObjectPool\Factory as ObjectPoolFactory;
+use Hypervel\Contracts\ObjectPool\ObjectPool;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Database\Pool\PoolManager as DatabasePoolManager;
+use Hypervel\ObjectPool\CallbackObjectPool;
+use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolFingerprint;
 use Hypervel\ObjectPool\PoolManager as ObjectPoolManager;
 use Hypervel\ObjectPool\PoolOptions;
-use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\OpenTelemetry\Instrumentation\PoolInstrumentation;
-use Hypervel\Pool\Pool;
-use Hypervel\Redis\Pool\PoolFactory as RedisPoolFactory;
+use Hypervel\Redis\Pool\PoolManager as RedisPoolManager;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use OpenTelemetry\API\Metrics\MeterProviderInterface;
@@ -27,6 +29,7 @@ use OpenTelemetry\SDK\Metrics\MeterProviderBuilder;
 use OpenTelemetry\SDK\Metrics\MetricExporter\InMemoryExporter;
 use OpenTelemetry\SDK\Metrics\MetricReader\ExportingReader;
 use OpenTelemetry\SemConv\Incubating\Metrics\DbIncubatingMetrics;
+use Swoole\Coroutine\Channel;
 use WeakReference;
 
 class PoolInstrumentationTest extends TestCase
@@ -55,10 +58,10 @@ class PoolInstrumentationTest extends TestCase
     {
         $databasePool = $this->connectionPool(current: 4, idle: 2, max: 10, waiters: 1);
         $redisPool = $this->connectionPool(current: 3, idle: 1, max: 8, waiters: 2);
-        $databasePools = m::mock(DatabasePoolFactory::class);
-        $databasePools->shouldReceive('pools')->once()->andReturn(['default' => $databasePool]);
-        $redisPools = m::mock(RedisPoolFactory::class);
-        $redisPools->shouldReceive('pools')->once()->andReturn(['default' => $redisPool]);
+        $databasePools = m::mock(DatabasePoolManager::class);
+        $databasePools->shouldReceive('getPools')->once()->andReturn(['default' => $databasePool]);
+        $redisPools = m::mock(RedisPoolManager::class);
+        $redisPools->shouldReceive('getPools')->once()->andReturn(['default' => $redisPool]);
         $objectPools = new ObjectPoolManager;
         $definitions = new PoolDefinitionManagerStub($objectPools);
         $autoDefinition = $definitions->definition(
@@ -78,10 +81,10 @@ class PoolInstrumentationTest extends TestCase
             static fn (): object => new PoolMetricObject,
             ['max_objects' => 6],
         );
-        $autoIdle = $autoPool->get();
-        $autoBorrowed = $autoPool->get();
-        $namedBorrowed = $namedPool->get();
-        $directIdle = $directPool->get();
+        $autoIdle = $autoPool->borrow();
+        $autoBorrowed = $autoPool->borrow();
+        $namedBorrowed = $namedPool->borrow();
+        $directIdle = $directPool->borrow();
         $autoPool->release($autoIdle);
         $directPool->release($directIdle);
 
@@ -164,18 +167,68 @@ class PoolInstrumentationTest extends TestCase
         } finally {
             $autoPool->release($autoBorrowed);
             $namedPool->release($namedBorrowed);
-            $objectPools->flush();
+            $objectPools->purgeAll();
         }
+    }
+
+    public function testUsedObjectCountIncludesCapacityHeldDuringDestruction(): void
+    {
+        $destroyStarted = new Channel(1);
+        $finishDestroy = new Channel(1);
+        $pool = new CallbackObjectPool(
+            static fn (): object => new PoolMetricObject,
+            PoolOptions::fromArray([]),
+            static function () use ($destroyStarted, $finishDestroy): void {
+                $destroyStarted->push(true);
+                $finishDestroy->pop(1.0);
+            },
+        );
+        $objectPools = m::mock(ObjectPoolManager::class);
+        $objectPools->shouldReceive('getPools')->twice()->andReturn(['app:reports' => $pool]);
+        $databasePools = m::mock(DatabasePoolManager::class);
+        $databasePools->shouldNotReceive('getPools');
+        $redisPools = m::mock(RedisPoolManager::class);
+        $redisPools->shouldNotReceive('getPools');
+        $instrumentation = $this->instrumentation($databasePools, $redisPools, $objectPools);
+        $instrumentation->register($this->options(enabled: ['hypervel.object_pool.objects']));
+        $borrowed = $pool->borrow();
+        $child = Coroutine::create(static fn () => $pool->discard($borrowed));
+
+        try {
+            $this->assertTrue($destroyStarted->pop(1.0));
+            $this->assertSame(0, $pool->getBorrowedCount());
+            $during = $this->collect();
+
+            $this->assertPoint($during['hypervel.object_pool.objects'], 1, [
+                'hypervel.object_pool.name' => 'app:reports',
+                'hypervel.object_pool.state' => 'used',
+            ]);
+            $this->assertPoint($during['hypervel.object_pool.objects'], 0, [
+                'hypervel.object_pool.name' => 'app:reports',
+                'hypervel.object_pool.state' => 'idle',
+            ]);
+        } finally {
+            $finishDestroy->close();
+            Coroutine::join([$child], 1.0);
+            $pool->close();
+        }
+
+        $this->assertFalse(Coroutine::exists($child));
+        $after = $this->collect();
+        $this->assertPoint($after['hypervel.object_pool.objects'], 0, [
+            'hypervel.object_pool.name' => 'app:reports',
+            'hypervel.object_pool.state' => 'used',
+        ]);
     }
 
     public function testDisabledMetricsDoNotResolveTheMeterOrInspectPoolRegistries(): void
     {
-        $databasePools = m::mock(DatabasePoolFactory::class);
-        $databasePools->shouldNotReceive('pools');
-        $redisPools = m::mock(RedisPoolFactory::class);
-        $redisPools->shouldNotReceive('pools');
+        $databasePools = m::mock(DatabasePoolManager::class);
+        $databasePools->shouldNotReceive('getPools');
+        $redisPools = m::mock(RedisPoolManager::class);
+        $redisPools->shouldNotReceive('getPools');
         $objectPools = m::mock(ObjectPoolManager::class);
-        $objectPools->shouldNotReceive('pools');
+        $objectPools->shouldNotReceive('getPools');
         $meterProvider = m::mock(MeterProviderInterface::class);
         $meterProvider->shouldNotReceive('getMeter');
 
@@ -192,19 +245,18 @@ class PoolInstrumentationTest extends TestCase
 
     public function testIndividualConnectionMetricsReadOnlyTheirRequiredSourceValues(): void
     {
-        $option = m::mock(PoolOptionInterface::class);
-        $option->shouldReceive('getMaxConnections')->once()->andReturn(12);
-        $pool = m::mock(Pool::class);
-        $pool->shouldReceive('getOption')->once()->andReturn($option);
-        $pool->shouldNotReceive('getCurrentConnections');
-        $pool->shouldNotReceive('getConnectionsInChannel');
-        $pool->shouldNotReceive('getWaiters');
-        $databasePools = m::mock(DatabasePoolFactory::class);
-        $databasePools->shouldReceive('pools')->once()->andReturn(['primary' => $pool]);
-        $redisPools = m::mock(RedisPoolFactory::class);
-        $redisPools->shouldReceive('pools')->once()->andReturn([]);
+        $pool = m::mock(ConnectionPool::class);
+        $pool->shouldReceive('getOptions')->once()->andReturn(ConnectionPoolOptions::fromArray(['max_connections' => 12]));
+        $pool->shouldNotReceive('getManagedCount');
+        $pool->shouldNotReceive('getIdleCount');
+        $pool->shouldNotReceive('getWaitingCount');
+        $pool->shouldNotReceive('getStats');
+        $databasePools = m::mock(DatabasePoolManager::class);
+        $databasePools->shouldReceive('getPools')->once()->andReturn(['primary' => $pool]);
+        $redisPools = m::mock(RedisPoolManager::class);
+        $redisPools->shouldReceive('getPools')->once()->andReturn([]);
         $objectPools = m::mock(ObjectPoolManager::class);
-        $objectPools->shouldNotReceive('pools');
+        $objectPools->shouldNotReceive('getPools');
 
         $instrumentation = $this->instrumentation($databasePools, $redisPools, $objectPools);
         $instrumentation->register($this->options(
@@ -224,11 +276,11 @@ class PoolInstrumentationTest extends TestCase
         $objectPool->shouldReceive('getOptions')->once()->andReturn(PoolOptions::fromArray(['max_objects' => 7]));
         $objectPool->shouldNotReceive('getStats');
         $objectPools = m::mock(ObjectPoolManager::class);
-        $objectPools->shouldReceive('pools')->once()->andReturn(['app:bounded' => $objectPool]);
-        $databasePools = m::mock(DatabasePoolFactory::class);
-        $databasePools->shouldNotReceive('pools');
-        $redisPools = m::mock(RedisPoolFactory::class);
-        $redisPools->shouldNotReceive('pools');
+        $objectPools->shouldReceive('getPools')->once()->andReturn(['app:bounded' => $objectPool]);
+        $databasePools = m::mock(DatabasePoolManager::class);
+        $databasePools->shouldNotReceive('getPools');
+        $redisPools = m::mock(RedisPoolManager::class);
+        $redisPools->shouldNotReceive('getPools');
 
         $instrumentation = $this->instrumentation($databasePools, $redisPools, $objectPools);
         $instrumentation->register($this->options(enabled: ['hypervel.object_pool.max']));
@@ -242,12 +294,12 @@ class PoolInstrumentationTest extends TestCase
 
     public function testBoundCallbacksStopCollectingAfterTheInstrumentationIsDestroyed(): void
     {
-        $databasePools = m::mock(DatabasePoolFactory::class);
-        $databasePools->shouldReceive('pools')->once()->andReturn([]);
-        $redisPools = m::mock(RedisPoolFactory::class);
-        $redisPools->shouldReceive('pools')->once()->andReturn([]);
+        $databasePools = m::mock(DatabasePoolManager::class);
+        $databasePools->shouldReceive('getPools')->once()->andReturn([]);
+        $redisPools = m::mock(RedisPoolManager::class);
+        $redisPools->shouldReceive('getPools')->once()->andReturn([]);
         $objectPools = m::mock(ObjectPoolManager::class);
-        $objectPools->shouldNotReceive('pools');
+        $objectPools->shouldNotReceive('getPools');
         $instrumentation = $this->instrumentation($databasePools, $redisPools, $objectPools);
         $reference = WeakReference::create($instrumentation);
         $instrumentation->register($this->options(enabled: [
@@ -264,10 +316,10 @@ class PoolInstrumentationTest extends TestCase
 
     public function testRemovedObjectPoolDisappearsFromTheNextCollection(): void
     {
-        $databasePools = m::mock(DatabasePoolFactory::class);
-        $databasePools->shouldNotReceive('pools');
-        $redisPools = m::mock(RedisPoolFactory::class);
-        $redisPools->shouldNotReceive('pools');
+        $databasePools = m::mock(DatabasePoolManager::class);
+        $databasePools->shouldNotReceive('getPools');
+        $redisPools = m::mock(RedisPoolManager::class);
+        $redisPools->shouldNotReceive('getPools');
         $objectPools = new ObjectPoolManager;
         $objectPools->pool('app:ephemeral', static fn (): object => new PoolMetricObject);
         $instrumentation = $this->instrumentation($databasePools, $redisPools, $objectPools);
@@ -278,7 +330,7 @@ class PoolInstrumentationTest extends TestCase
             'hypervel.object_pool.name' => 'app:ephemeral',
             'hypervel.object_pool.state' => 'idle',
         ]);
-        $objectPools->remove('app:ephemeral');
+        $objectPools->purge('app:ephemeral');
         $second = $this->collect();
 
         $this->assertInstanceOf(Sum::class, $second['hypervel.object_pool.objects']->data);
@@ -289,8 +341,8 @@ class PoolInstrumentationTest extends TestCase
      * Create pool instrumentation.
      */
     private function instrumentation(
-        DatabasePoolFactory $databasePools,
-        RedisPoolFactory $redisPools,
+        DatabasePoolManager $databasePools,
+        RedisPoolManager $redisPools,
         ObjectPoolManager $objectPools,
     ): PoolInstrumentation {
         return new PoolInstrumentation(
@@ -304,15 +356,13 @@ class PoolInstrumentationTest extends TestCase
     /**
      * Create a connection pool with one exact snapshot.
      */
-    private function connectionPool(int $current, int $idle, int $max, int $waiters): Pool
+    private function connectionPool(int $current, int $idle, int $max, int $waiters): ConnectionPool
     {
-        $option = m::mock(PoolOptionInterface::class);
-        $option->shouldReceive('getMaxConnections')->once()->andReturn($max);
-        $pool = m::mock(Pool::class);
-        $pool->shouldReceive('getCurrentConnections')->once()->andReturn($current);
-        $pool->shouldReceive('getConnectionsInChannel')->once()->andReturn($idle);
-        $pool->shouldReceive('getOption')->once()->andReturn($option);
-        $pool->shouldReceive('getWaiters')->once()->andReturn($waiters);
+        $pool = m::mock(ConnectionPool::class);
+        $pool->shouldReceive('getManagedCount')->once()->andReturn($current);
+        $pool->shouldReceive('getIdleCount')->once()->andReturn($idle);
+        $pool->shouldReceive('getOptions')->once()->andReturn(ConnectionPoolOptions::fromArray(['max_connections' => $max]));
+        $pool->shouldReceive('getWaitingCount')->once()->andReturn($waiters);
 
         return $pool;
     }

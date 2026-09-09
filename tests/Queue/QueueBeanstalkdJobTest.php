@@ -9,9 +9,9 @@ use Exception;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\ObjectPool\CallbackObjectPool;
 use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolOptions;
-use Hypervel\ObjectPool\SimpleObjectPool;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Jobs\BeanstalkdJob;
 use Hypervel\Queue\TimeoutExceededException;
@@ -28,7 +28,7 @@ use stdClass;
 
 class QueueBeanstalkdJobTest extends TestCase
 {
-    /** @var list<SimpleObjectPool> */
+    /** @var list<CallbackObjectPool> */
     private array $pools = [];
 
     protected function tearDownInCoroutine(): void
@@ -117,13 +117,13 @@ class QueueBeanstalkdJobTest extends TestCase
         $job->getPheanstalk()->shouldReceive('statsJob')->once()->andReturn($this->stats(1));
         $job->getPheanstalk()->shouldReceive('delete')->once()->with($job->getPheanstalkJob())
             ->andReturnUsing(function () use ($pool): void {
-                $this->assertSame(1, $pool->getBorrowedObjectNumber());
+                $this->assertSame(1, $pool->getBorrowedCount());
             });
 
         $job->withPoolLease($lease)->delete();
 
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(1, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(1, $pool->getIdleCount());
     }
 
     public function testReleaseReleasesPoolLeaseAfterBackendCall(): void
@@ -134,13 +134,13 @@ class QueueBeanstalkdJobTest extends TestCase
         $job->getPheanstalk()->shouldReceive('release')->once()
             ->with($job->getPheanstalkJob(), Pheanstalk::DEFAULT_PRIORITY, 5)
             ->andReturnUsing(function () use ($pool): void {
-                $this->assertSame(1, $pool->getBorrowedObjectNumber());
+                $this->assertSame(1, $pool->getBorrowedCount());
             });
 
         $job->withPoolLease($lease)->release(5);
 
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(1, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(1, $pool->getIdleCount());
     }
 
     public function testBuryReleasesPoolLeaseAfterBackendCall(): void
@@ -150,13 +150,13 @@ class QueueBeanstalkdJobTest extends TestCase
         $job->getPheanstalk()->shouldReceive('statsJob')->once()->andReturn($this->stats(1));
         $job->getPheanstalk()->shouldReceive('bury')->once()->with($job->getPheanstalkJob())
             ->andReturnUsing(function () use ($pool): void {
-                $this->assertSame(1, $pool->getBorrowedObjectNumber());
+                $this->assertSame(1, $pool->getBorrowedCount());
             });
 
         $job->withPoolLease($lease)->bury();
 
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(1, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(1, $pool->getIdleCount());
     }
 
     public function testBackendFailureDiscardsPoolLeaseAndPreservesTheException(): void
@@ -178,8 +178,8 @@ class QueueBeanstalkdJobTest extends TestCase
         }
 
         $this->assertSame(1, $destroyed);
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+        $this->assertSame(0, $pool->getManagedCount());
+        $this->assertSame(0, $pool->getBorrowedCount());
     }
 
     public function testAttemptsRemainAvailableButBackendAccessIsRejectedAfterFinalization(): void
@@ -196,7 +196,7 @@ class QueueBeanstalkdJobTest extends TestCase
         $job->delete();
 
         $this->assertSame(2, $job->attempts());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+        $this->assertSame(0, $pool->getBorrowedCount());
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('backend is no longer available');
@@ -207,18 +207,18 @@ class QueueBeanstalkdJobTest extends TestCase
     /**
      * Create a checked-out object under a queue-job lease.
      *
-     * @return array{SimpleObjectPool, Lease}
+     * @return array{CallbackObjectPool, Lease}
      */
     protected function lease(?Closure $destroyCallback = null): array
     {
-        $pool = new SimpleObjectPool(
+        $pool = new CallbackObjectPool(
             fn () => new stdClass,
             PoolOptions::fromArray([]),
             $destroyCallback,
         );
         $this->pools[] = $pool;
 
-        return [$pool, new Lease($pool, $pool->get())];
+        return [$pool, new Lease($pool, $pool->borrow())];
     }
 
     /**

@@ -45,7 +45,7 @@ class QueuePoolProxyTest extends TestCase
     protected function tearDownInCoroutine(): void
     {
         foreach ($this->poolManagers as $poolManager) {
-            $poolManager->flush();
+            $poolManager->purgeAll();
         }
     }
 
@@ -123,8 +123,8 @@ class QueuePoolProxyTest extends TestCase
         $pool = $pools->get($proxy->getPoolName());
         $this->assertTrue($cleanupObservedClearedDispatcher);
         $this->assertFalse($queue->hasAfterCommitDispatcher());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(1, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(1, $pool->getIdleCount());
     }
 
     public function testDirectConnectionAccessRejectsNonSqsPoolsBeforeBorrowing(): void
@@ -154,13 +154,13 @@ class QueuePoolProxyTest extends TestCase
         $this->assertSame(['jobs'], $queue->lastPopArguments);
 
         $pool = $pools->get($proxy->getPoolName());
-        $this->assertSame(1, $pool->getBorrowedObjectNumber());
-        $this->assertSame(0, $pool->getObjectNumberInPool());
+        $this->assertSame(1, $pool->getBorrowedCount());
+        $this->assertSame(0, $pool->getIdleCount());
 
         $popped->delete();
 
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(1, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(1, $pool->getIdleCount());
     }
 
     public function testPopForwardsTheQueueIndexToAnAwareConnection(): void
@@ -172,8 +172,8 @@ class QueuePoolProxyTest extends TestCase
         $this->assertSame(['jobs', 2], $queue->lastIndexedPop);
 
         $pool = $pools->get($proxy->getPoolName());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(1, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(1, $pool->getIdleCount());
     }
 
     public function testClearUsesOneBorrowAndReleasesItImmediately(): void
@@ -188,8 +188,8 @@ class QueuePoolProxyTest extends TestCase
         $this->assertSame('jobs', $queue->lastClearedQueue);
 
         $pool = $pools->get($proxy->getPoolName());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(1, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(1, $pool->getIdleCount());
     }
 
     public function testNullPopReleasesImmediately(): void
@@ -199,8 +199,8 @@ class QueuePoolProxyTest extends TestCase
         $this->assertNull($proxy->pop());
 
         $pool = $pools->get($proxy->getPoolName());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(1, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(1, $pool->getIdleCount());
     }
 
     public function testPopFailureStaysPrimaryWhenReleaseCallbackAlsoFails(): void
@@ -225,8 +225,8 @@ class QueuePoolProxyTest extends TestCase
         }
 
         $pool = $pools->get($proxy->getPoolName());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(0, $pool->getManagedCount());
     }
 
     public function testReleaseCancellationSupersedesAPopFailure(): void
@@ -251,8 +251,8 @@ class QueuePoolProxyTest extends TestCase
         }
 
         $pool = $pools->get($proxy->getPoolName());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(0, $pool->getManagedCount());
     }
 
     public function testNonLeaseAwareJobIsRequeuedBeforeFailingClosed(): void
@@ -269,8 +269,8 @@ class QueuePoolProxyTest extends TestCase
         }
 
         $pool = $pools->get($proxy->getPoolName());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(1, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(1, $pool->getIdleCount());
     }
 
     public function testFailedRequeueDiscardsTheBackendAndAReplacementIsCreated(): void
@@ -293,11 +293,11 @@ class QueuePoolProxyTest extends TestCase
         }
 
         $pool = $pools->get($proxy->getPoolName());
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
+        $this->assertSame(0, $pool->getManagedCount());
 
         $this->assertSame(0, $proxy->size());
         $this->assertSame(2, $created);
-        $this->assertSame(1, $pool->getCurrentObjectNumber());
+        $this->assertSame(1, $pool->getManagedCount());
     }
 
     public function testNonLeaseAwareJobRequeueCancellationIsNotWrapped(): void
@@ -315,8 +315,8 @@ class QueuePoolProxyTest extends TestCase
         }
 
         $pool = $pools->get($proxy->getPoolName());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(0, $pool->getManagedCount());
     }
 
     public function testTerminalBackendFailureDiscardsTheQueueAndCreatesAReplacement(): void
@@ -354,11 +354,11 @@ class QueuePoolProxyTest extends TestCase
         }
 
         $pool = $pools->get($proxy->getPoolName());
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
+        $this->assertSame(0, $pool->getManagedCount());
 
         $this->assertSame(0, $proxy->size());
         $this->assertSame(2, $created);
-        $this->assertSame(1, $pool->getCurrentObjectNumber());
+        $this->assertSame(1, $pool->getManagedCount());
     }
 
     public function testAbandonedJobReleasesThroughItsLeaseDestructor(): void
@@ -373,13 +373,13 @@ class QueuePoolProxyTest extends TestCase
 
         $popped = $proxy->pop();
         $pool = $pools->get($proxy->getPoolName());
-        $this->assertSame(1, $pool->getBorrowedObjectNumber());
+        $this->assertSame(1, $pool->getBorrowedCount());
 
         unset($popped);
         gc_collect_cycles();
 
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(1, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(1, $pool->getIdleCount());
     }
 
     #[DataProvider('beanstalkAttachmentFailureDataProvider')]
@@ -427,9 +427,9 @@ class QueuePoolProxyTest extends TestCase
         }
 
         $pool = $pools->get($proxy->getPoolName());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame($recoveryFails ? 0 : 1, $pool->getCurrentObjectNumber());
-        $this->assertSame($recoveryFails ? 0 : 1, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame($recoveryFails ? 0 : 1, $pool->getManagedCount());
+        $this->assertSame($recoveryFails ? 0 : 1, $pool->getIdleCount());
     }
 
     public static function beanstalkAttachmentFailureDataProvider(): array
@@ -473,8 +473,8 @@ class QueuePoolProxyTest extends TestCase
         }
 
         $pool = $pools->get($proxy->getPoolName());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(0, $pool->getManagedCount());
     }
 
     public function testAttachmentCancellationDoesNotStartBackendRecovery(): void
@@ -504,8 +504,8 @@ class QueuePoolProxyTest extends TestCase
         }
 
         $pool = $pools->get($proxy->getPoolName());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(0, $pool->getManagedCount());
     }
 
     /**
@@ -515,7 +515,7 @@ class QueuePoolProxyTest extends TestCase
      * @return array{QueuePoolProxy, PoolManager}
      */
     protected function proxy(
-        Closure $resolver,
+        Closure $createCallback,
         ?Closure $releaseCallback = null,
         ?ExceptionHandler $handler = null,
         string $resourceType = 'queue-test',
@@ -538,7 +538,7 @@ class QueuePoolProxyTest extends TestCase
         );
 
         return [
-            new $proxyClass($definition, $resolver, $pools, $releaseCallback),
+            new $proxyClass($definition, $createCallback, $pools, $releaseCallback),
             $pools,
         ];
     }

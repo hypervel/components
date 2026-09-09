@@ -10,7 +10,7 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Events\StatementPrepared;
 use Hypervel\Database\PdoConnection;
-use Hypervel\Database\Pool\DbPool;
+use Hypervel\Database\Pool\DatabasePool;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\SessionConfigurator;
 use Hypervel\Filesystem\Filesystem;
@@ -22,7 +22,7 @@ class SessionConfiguratorTest extends DatabaseTestCase
 {
     private const string CONNECTION_NAME = 'session_configurator_test';
 
-    private DbPool $sessionPool;
+    private DatabasePool $sessionPool;
 
     private CrossDriverSessionConfigurator $configurator;
 
@@ -47,9 +47,9 @@ class SessionConfiguratorTest extends DatabaseTestCase
 
         $connectionConfig['pool'] = [
             'testing_enabled' => true,
-            'min_connections' => 1,
+            'min_retained_connections' => 1,
             'max_connections' => 1,
-            'heartbeat' => -1,
+            'heartbeat_interval' => null,
         ];
 
         $config->set('database.connections.' . self::CONNECTION_NAME, $connectionConfig);
@@ -61,7 +61,7 @@ class SessionConfiguratorTest extends DatabaseTestCase
 
         $this->configurator = new CrossDriverSessionConfigurator(self::CONNECTION_NAME, $this->driver);
         PdoConnection::configureSessionUsing($this->configurator);
-        $this->sessionPool = new DbPool($this->app, self::CONNECTION_NAME);
+        $this->sessionPool = new DatabasePool($this->app, self::CONNECTION_NAME);
     }
 
     protected function tearDown(): void
@@ -212,8 +212,7 @@ class SessionConfiguratorTest extends DatabaseTestCase
 
     private function borrow(): PooledConnection
     {
-        /** @var PooledConnection $pooledConnection */
-        return $this->sessionPool->get();
+        return $this->sessionPool->borrow();
     }
 }
 

@@ -6,9 +6,9 @@ namespace Hypervel\Filesystem;
 
 use Closure;
 use Hypervel\Contracts\Filesystem\Cloud;
+use Hypervel\Contracts\ObjectPool\Factory;
+use Hypervel\Contracts\ObjectPool\InvalidatesPool;
 use Hypervel\Filesystem\Concerns\InteractsWithPooledFilesystem;
-use Hypervel\ObjectPool\Contracts\Factory;
-use Hypervel\ObjectPool\Contracts\InvalidatesPool;
 use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolDefinition;
 use RuntimeException;
@@ -44,7 +44,7 @@ class ClientPooledFilesystem implements Cloud, InvalidatesPool
     }
 
     /**
-     * Get the pooled client's identity.
+     * Return the pool's fully qualified registry name.
      */
     public function getPoolName(): string
     {
@@ -56,7 +56,7 @@ class ClientPooledFilesystem implements Cloud, InvalidatesPool
      */
     public function invalidatePool(): bool
     {
-        return $this->pools->remove($this->definition->identity);
+        return $this->pools->purge($this->definition->identity);
     }
 
     /**
@@ -109,7 +109,7 @@ class ClientPooledFilesystem implements Cloud, InvalidatesPool
     protected function leaseStack(): array
     {
         $pool = $this->pools->getOrCreate($this->definition, $this->clientFactory);
-        $lease = new Lease($pool, $pool->get(), $this->releaseCallback);
+        $lease = new Lease($pool, $pool->borrow(), $this->releaseCallback);
 
         try {
             return [$lease, $this->buildStack($lease->get())];

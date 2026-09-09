@@ -9,7 +9,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Pool\PooledConnection;
-use Hypervel\Database\Pool\PoolFactory;
+use Hypervel\Database\Pool\PoolManager;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
@@ -40,7 +40,7 @@ class ConnectionResolver implements ConnectionResolverInterface
      */
     protected readonly ?string $default;
 
-    protected PoolFactory $factory;
+    protected PoolManager $poolManager;
 
     /**
      * Pooled wrappers retained by non-coroutine task execution.
@@ -55,7 +55,7 @@ class ConnectionResolver implements ConnectionResolverInterface
     public function __construct(
         protected Container $container
     ) {
-        $this->factory = $container->make(PoolFactory::class);
+        $this->poolManager = $container->make(PoolManager::class);
         $this->default = $container->make('config')->string('database.default');
     }
 
@@ -88,8 +88,7 @@ class ConnectionResolver implements ConnectionResolverInterface
             }
         }
 
-        // Get a pooled connection wrapper from the pool
-        $pool = $this->factory->getPool($connectionName->requested);
+        $pool = $this->poolManager->pool($connectionName->requested);
 
         // Role aliases of one shared in-memory PDO must share its sole wrapper owner.
         if ($pool->getSharedInMemorySqlitePdo() !== null) {
@@ -110,7 +109,7 @@ class ConnectionResolver implements ConnectionResolverInterface
         }
 
         /** @var PooledConnection $pooledConnection */
-        $pooledConnection = $pool->get();
+        $pooledConnection = $pool->borrow();
 
         try {
             $connection = $pooledConnection->getConnection();

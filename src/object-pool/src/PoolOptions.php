@@ -8,7 +8,7 @@ use InvalidArgumentException;
 
 final readonly class PoolOptions
 {
-    public const float DEFAULT_IDLE_TTL = 300.0;
+    public const float DEFAULT_POOL_IDLE_TIMEOUT = 300.0;
 
     private const int DEFAULT_MIN_RETAINED_OBJECTS = 1;
 
@@ -18,8 +18,6 @@ final readonly class PoolOptions
 
     private const float DEFAULT_MAX_LIFETIME = 60.0;
 
-    private const float DEFAULT_MAX_IDLE_TIME = 0.0;
-
     /**
      * Create normalized pool options.
      */
@@ -27,9 +25,9 @@ final readonly class PoolOptions
         public int $minRetainedObjects,
         public int $maxObjects,
         public float $waitTimeout,
-        public float $maxLifetime,
-        public float $maxIdleTime,
-        public ?float $idleTtl,
+        public ?float $maxLifetime,
+        public ?float $maxIdleTime,
+        public ?float $poolIdleTimeout,
     ) {
     }
 
@@ -44,7 +42,7 @@ final readonly class PoolOptions
             'wait_timeout',
             'max_lifetime',
             'max_idle_time',
-            'idle_ttl',
+            'pool_idle_timeout',
         ];
         $unknownOptions = array_diff(array_keys($options), $knownOptions);
 
@@ -62,9 +60,9 @@ final readonly class PoolOptions
         );
         $maxObjects = self::integerOption($options, 'max_objects', self::DEFAULT_MAX_OBJECTS);
         $waitTimeout = self::durationOption($options, 'wait_timeout', self::DEFAULT_WAIT_TIMEOUT);
-        $maxLifetime = self::durationOption($options, 'max_lifetime', self::DEFAULT_MAX_LIFETIME);
-        $maxIdleTime = self::durationOption($options, 'max_idle_time', self::DEFAULT_MAX_IDLE_TIME);
-        $idleTtl = self::nullableDurationOption($options, 'idle_ttl', self::DEFAULT_IDLE_TTL);
+        $maxLifetime = self::nullableDurationOption($options, 'max_lifetime', self::DEFAULT_MAX_LIFETIME);
+        $maxIdleTime = self::nullableDurationOption($options, 'max_idle_time', null);
+        $poolIdleTimeout = self::nullableDurationOption($options, 'pool_idle_timeout', self::DEFAULT_POOL_IDLE_TIMEOUT);
 
         if ($minRetainedObjects < 0) {
             throw new InvalidArgumentException('Pool option [min_retained_objects] must be at least 0.');
@@ -84,16 +82,16 @@ final readonly class PoolOptions
             throw new InvalidArgumentException('Pool option [wait_timeout] must be greater than 0.');
         }
 
-        if ($maxLifetime < 0.0) {
-            throw new InvalidArgumentException('Pool option [max_lifetime] must be at least 0.');
+        if ($maxLifetime !== null && $maxLifetime <= 0.0) {
+            throw new InvalidArgumentException('Pool option [max_lifetime] must be null or greater than 0.');
         }
 
-        if ($maxIdleTime < 0.0) {
-            throw new InvalidArgumentException('Pool option [max_idle_time] must be at least 0.');
+        if ($maxIdleTime !== null && $maxIdleTime <= 0.0) {
+            throw new InvalidArgumentException('Pool option [max_idle_time] must be null or greater than 0.');
         }
 
-        if ($idleTtl !== null && $idleTtl <= 0.0) {
-            throw new InvalidArgumentException('Pool option [idle_ttl] must be null or greater than 0.');
+        if ($poolIdleTimeout !== null && $poolIdleTimeout <= 0.0) {
+            throw new InvalidArgumentException('Pool option [pool_idle_timeout] must be null or greater than 0.');
         }
 
         return new self(
@@ -102,7 +100,7 @@ final readonly class PoolOptions
             $waitTimeout,
             $maxLifetime,
             $maxIdleTime,
-            $idleTtl,
+            $poolIdleTimeout,
         );
     }
 
@@ -116,7 +114,7 @@ final readonly class PoolOptions
             && $this->waitTimeout === $other->waitTimeout
             && $this->maxLifetime === $other->maxLifetime
             && $this->maxIdleTime === $other->maxIdleTime
-            && $this->idleTtl === $other->idleTtl;
+            && $this->poolIdleTimeout === $other->poolIdleTimeout;
     }
 
     /**
@@ -126,9 +124,9 @@ final readonly class PoolOptions
      *     min_retained_objects: int,
      *     max_objects: int,
      *     wait_timeout: float,
-     *     max_lifetime: float,
-     *     max_idle_time: float,
-     *     idle_ttl: ?float
+     *     max_lifetime: ?float,
+     *     max_idle_time: ?float,
+     *     pool_idle_timeout: ?float
      * }
      */
     public function toArray(): array
@@ -139,7 +137,7 @@ final readonly class PoolOptions
             'wait_timeout' => $this->waitTimeout,
             'max_lifetime' => $this->maxLifetime,
             'max_idle_time' => $this->maxIdleTime,
-            'idle_ttl' => $this->idleTtl,
+            'pool_idle_timeout' => $this->poolIdleTimeout,
         ];
     }
 
@@ -160,7 +158,7 @@ final readonly class PoolOptions
     /**
      * Read and normalize a finite duration option.
      */
-    private static function durationOption(array $options, string $name, float $default): float
+    private static function durationOption(array $options, string $name, ?float $default): float
     {
         $value = array_key_exists($name, $options) ? $options[$name] : $default;
 
@@ -180,9 +178,9 @@ final readonly class PoolOptions
     /**
      * Read and normalize a nullable finite duration option.
      */
-    private static function nullableDurationOption(array $options, string $name, float $default): ?float
+    private static function nullableDurationOption(array $options, string $name, ?float $default): ?float
     {
-        if (array_key_exists($name, $options) && $options[$name] === null) {
+        if ((array_key_exists($name, $options) ? $options[$name] : $default) === null) {
             return null;
         }
 

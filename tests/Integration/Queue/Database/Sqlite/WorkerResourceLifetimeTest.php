@@ -14,7 +14,7 @@ use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Waiter;
-use Hypervel\Database\Pool\PoolFactory;
+use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Queue\Events\JobPopping;
 use Hypervel\Queue\Events\Looping;
 use Hypervel\Queue\Events\WorkerIdle;
@@ -39,7 +39,7 @@ class WorkerResourceLifetimeTest extends TestCase
         $connection = $config->string('database.default');
         $config->set("database.connections.{$connection}.pool", [
             'testing_enabled' => true,
-            'min_connections' => 1,
+            'min_retained_connections' => 1,
             'max_connections' => 1,
         ]);
     }
@@ -47,7 +47,7 @@ class WorkerResourceLifetimeTest extends TestCase
     public function testLifecycleCallbacksReleasePooledConnectionsBeforeTheDaemonAdvances(): void
     {
         $connectionName = $this->app->make('config')->string('database.default');
-        $poolFactory = $this->app->make(PoolFactory::class);
+        $poolManager = $this->app->make(PoolManager::class);
         $events = $this->app->make(EventDispatcher::class);
         $observed = [];
 
@@ -55,23 +55,23 @@ class WorkerResourceLifetimeTest extends TestCase
             DB::selectOne('SELECT 1');
             $observed[] = 'starting';
         });
-        $events->listen(Looping::class, function () use ($poolFactory, $connectionName, &$observed): void {
-            $this->assertSame(1, $poolFactory->getPool($connectionName)->getConnectionsInChannel());
+        $events->listen(Looping::class, function () use ($poolManager, $connectionName, &$observed): void {
+            $this->assertSame(1, $poolManager->pool($connectionName)->getIdleCount());
             DB::selectOne('SELECT 1');
             $observed[] = 'looping';
         });
-        $events->listen(JobPopping::class, function () use ($poolFactory, $connectionName, &$observed): void {
-            $this->assertSame(1, $poolFactory->getPool($connectionName)->getConnectionsInChannel());
+        $events->listen(JobPopping::class, function () use ($poolManager, $connectionName, &$observed): void {
+            $this->assertSame(1, $poolManager->pool($connectionName)->getIdleCount());
             DB::selectOne('SELECT 1');
             $observed[] = 'popping';
         });
-        $events->listen(WorkerIdle::class, function () use ($poolFactory, $connectionName, &$observed): void {
-            $this->assertSame(0, $poolFactory->getPool($connectionName)->getConnectionsInChannel());
+        $events->listen(WorkerIdle::class, function () use ($poolManager, $connectionName, &$observed): void {
+            $this->assertSame(0, $poolManager->pool($connectionName)->getIdleCount());
             DB::selectOne('SELECT 1');
             $observed[] = 'idle';
         });
-        $events->listen(WorkerStopping::class, function () use ($poolFactory, $connectionName, &$observed): void {
-            $this->assertSame(1, $poolFactory->getPool($connectionName)->getConnectionsInChannel());
+        $events->listen(WorkerStopping::class, function () use ($poolManager, $connectionName, &$observed): void {
+            $this->assertSame(1, $poolManager->pool($connectionName)->getIdleCount());
             $observed[] = 'stopping';
         });
 
@@ -92,18 +92,18 @@ class WorkerResourceLifetimeTest extends TestCase
             $worker->daemon('default', 'queue', new WorkerOptions(stopWhenEmpty: true, memory: 1024)),
         );
         $this->assertSame(['starting', 'looping', 'popping', 'idle', 'stopping'], $observed);
-        $this->assertSame(1, $poolFactory->getPool($connectionName)->getConnectionsInChannel());
+        $this->assertSame(1, $poolManager->pool($connectionName)->getIdleCount());
     }
 
     public function testStoppingWaitsForAdmittedJobDeferredCleanup(): void
     {
         $connectionName = $this->app->make('config')->string('database.default');
-        $pool = $this->app->make(PoolFactory::class)->getPool($connectionName);
+        $pool = $this->app->make(PoolManager::class)->pool($connectionName);
         $events = $this->app->make(EventDispatcher::class);
         $stopped = false;
 
         $events->listen(WorkerStopping::class, function () use ($pool, &$stopped): void {
-            $this->assertSame(1, $pool->getConnectionsInChannel());
+            $this->assertSame(1, $pool->getIdleCount());
             DB::selectOne('SELECT 1');
             $stopped = true;
         });
@@ -141,7 +141,7 @@ class WorkerResourceLifetimeTest extends TestCase
     public function testTimeoutAndSignalCallbacksReleasePooledConnectionsAfterEachBatch(): void
     {
         $connectionName = $this->app->make('config')->string('database.default');
-        $pool = $this->app->make(PoolFactory::class)->getPool($connectionName);
+        $pool = $this->app->make(PoolManager::class)->pool($connectionName);
         $events = $this->app->make(EventDispatcher::class);
         $timer = new WorkerResourceTimer;
         $events->listen(WorkerPausing::class, static function (): void {
@@ -168,10 +168,10 @@ class WorkerResourceLifetimeTest extends TestCase
 
         $worker->startMonitorForTest($options);
         $timer->fire();
-        $this->assertSame(1, $pool->getConnectionsInChannel());
+        $this->assertSame(1, $pool->getIdleCount());
 
         $worker->pauseForTest($options);
-        $this->assertSame(1, $pool->getConnectionsInChannel());
+        $this->assertSame(1, $pool->getIdleCount());
     }
 }
 

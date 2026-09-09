@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\OpenTelemetry\Instrumentation;
 
-use Hypervel\Database\Pool\PoolFactory as DatabasePoolFactory;
+use Hypervel\ConnectionPool\ConnectionPool;
+use Hypervel\Database\Pool\PoolManager as DatabasePoolManager;
 use Hypervel\ObjectPool\PoolManager as ObjectPoolManager;
-use Hypervel\Pool\Pool;
-use Hypervel\Redis\Pool\PoolFactory as RedisPoolFactory;
+use Hypervel\Redis\Pool\PoolManager as RedisPoolManager;
 use OpenTelemetry\API\Metrics\MeterInterface;
 use OpenTelemetry\API\Metrics\MeterProviderInterface;
 use OpenTelemetry\API\Metrics\ObservableUpDownCounterInterface;
@@ -31,8 +31,8 @@ class PoolInstrumentation extends AbstractInstrumentation
      * Create pool instrumentation.
      */
     public function __construct(
-        protected DatabasePoolFactory $databasePools,
-        protected RedisPoolFactory $redisPools,
+        protected DatabasePoolManager $databasePools,
+        protected RedisPoolManager $redisPools,
         protected ObjectPoolManager $objectPools,
         protected MeterProviderInterface $meterProvider,
     ) {
@@ -135,11 +135,11 @@ class PoolInstrumentation extends AbstractInstrumentation
      */
     protected function observeConnectionPools(array $observers): void
     {
-        foreach ($this->databasePools->pools() as $name => $pool) {
+        foreach ($this->databasePools->getPools() as $name => $pool) {
             $this->observeConnectionPool($observers, $pool, 'database:' . $name);
         }
 
-        foreach ($this->redisPools->pools() as $name => $pool) {
+        foreach ($this->redisPools->getPools() as $name => $pool) {
             $this->observeConnectionPool($observers, $pool, 'redis:' . $name);
         }
     }
@@ -149,13 +149,13 @@ class PoolInstrumentation extends AbstractInstrumentation
      *
      * @param array<string, ObserverInterface> $observers
      */
-    protected function observeConnectionPool(array $observers, Pool $pool, string $name): void
+    protected function observeConnectionPool(array $observers, ConnectionPool $pool, string $name): void
     {
         $attributes = [DbIncubatingAttributes::DB_CLIENT_CONNECTION_POOL_NAME => $name];
 
         if (isset($observers[DbIncubatingMetrics::DB_CLIENT_CONNECTION_COUNT])) {
-            $idle = $pool->getConnectionsInChannel();
-            $used = $pool->getCurrentConnections() - $idle;
+            $idle = $pool->getIdleCount();
+            $used = $pool->getManagedCount() - $idle;
             $observer = $observers[DbIncubatingMetrics::DB_CLIENT_CONNECTION_COUNT];
             $observer->observe($idle, $attributes + [
                 DbIncubatingAttributes::DB_CLIENT_CONNECTION_STATE => DbIncubatingAttributes::DB_CLIENT_CONNECTION_STATE_VALUE_IDLE,
@@ -167,14 +167,14 @@ class PoolInstrumentation extends AbstractInstrumentation
 
         if (isset($observers[DbIncubatingMetrics::DB_CLIENT_CONNECTION_MAX])) {
             $observers[DbIncubatingMetrics::DB_CLIENT_CONNECTION_MAX]->observe(
-                $pool->getOption()->getMaxConnections(),
+                $pool->getOptions()->maxConnections,
                 $attributes,
             );
         }
 
         if (isset($observers[DbIncubatingMetrics::DB_CLIENT_CONNECTION_PENDING_REQUESTS])) {
             $observers[DbIncubatingMetrics::DB_CLIENT_CONNECTION_PENDING_REQUESTS]->observe(
-                $pool->getWaiters(),
+                $pool->getWaitingCount(),
                 $attributes,
             );
         }
@@ -187,7 +187,7 @@ class PoolInstrumentation extends AbstractInstrumentation
      */
     protected function observeObjectPools(array $observers): void
     {
-        foreach ($this->objectPools->pools() as $identity => $pool) {
+        foreach ($this->objectPools->getPools() as $identity => $pool) {
             $attributes = [self::OBJECT_POOL_NAME_ATTRIBUTE => $identity];
             $stats = null;
 
@@ -197,7 +197,7 @@ class PoolInstrumentation extends AbstractInstrumentation
                 $observer->observe($stats['idle'], $attributes + [
                     self::OBJECT_POOL_STATE_ATTRIBUTE => DbIncubatingAttributes::DB_CLIENT_CONNECTION_STATE_VALUE_IDLE,
                 ]);
-                $observer->observe($stats['borrowed'], $attributes + [
+                $observer->observe($stats['managed'] - $stats['idle'], $attributes + [
                     self::OBJECT_POOL_STATE_ATTRIBUTE => DbIncubatingAttributes::DB_CLIENT_CONNECTION_STATE_VALUE_USED,
                 ]);
             }
@@ -212,7 +212,7 @@ class PoolInstrumentation extends AbstractInstrumentation
             if (isset($observers[self::OBJECTS_PENDING_REQUESTS_METRIC])) {
                 $stats ??= $pool->getStats();
                 $observers[self::OBJECTS_PENDING_REQUESTS_METRIC]->observe(
-                    $stats['waiters'],
+                    $stats['waiting'],
                     $attributes,
                 );
             }

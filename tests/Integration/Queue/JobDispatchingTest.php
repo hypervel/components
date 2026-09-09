@@ -20,6 +20,7 @@ use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\Config;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Tests\Integration\Queue\QueueTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
 #[WithMigration]
@@ -225,6 +226,57 @@ class JobDispatchingTest extends QueueTestCase
             'value',
             unserialize($ordinaryPayload['illuminate:log:context']['hidden']['persistent'])
         );
+    }
+
+    #[DataProvider('payloadHookResults')]
+    public function testOrdinaryPayloadDoesNotInheritUniqueJobMetadata(bool $hookFails): void
+    {
+        config(['queue.default' => 'database']);
+
+        $hidden = [
+            'persistent' => 'value',
+            'laravel_unique_job_cache_store' => 'database',
+            'laravel_unique_job_key' => 'laravel_unique_job:parent:',
+            'laravel_unique_job_lock_owner' => 'parent-owner',
+        ];
+        $context = ContextRepository::getInstance()->add('request_id', 'request')->addHidden($hidden);
+        $ordinaryPayload = null;
+        $failure = $hookFails ? new RuntimeException('Payload hook failed.') : null;
+
+        Queue::createPayloadUsing(function (string $connection, ?string $queue, array $payload) use (&$ordinaryPayload, $failure): array {
+            $ordinaryPayload = $payload;
+
+            if ($failure !== null) {
+                throw $failure;
+            }
+
+            return [];
+        });
+
+        $caught = null;
+
+        try {
+            Job::dispatch('ordinary');
+        } catch (RuntimeException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
+        $this->assertSame(['persistent' => serialize('value')], $ordinaryPayload['illuminate:log:context']['hidden']);
+        $this->assertSame(['request_id' => serialize('request')], $ordinaryPayload['illuminate:log:context']['data']);
+        $this->assertSame($hidden, $context->allHidden());
+        $this->assertSame(['request_id' => 'request'], $context->all());
+    }
+
+    /**
+     * Provide successful and failing payload hooks.
+     */
+    public static function payloadHookResults(): array
+    {
+        return [
+            'successful hook' => [false],
+            'failing hook' => [true],
+        ];
     }
 
     public function testQueueMayBeNullForJobQueueingAndJobQueuedEvent(): void

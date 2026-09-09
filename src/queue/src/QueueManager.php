@@ -9,11 +9,11 @@ use DateInterval;
 use DateTimeInterface;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Contracts\Queue\Monitor as MonitorContract;
 use Hypervel\Contracts\Queue\Queue;
-use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
-use Hypervel\ObjectPool\Traits\HasPoolProxy;
+use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\Queue\Connectors\ConnectorInterface;
 use Hypervel\Queue\Events\QueuePaused;
 use Hypervel\Queue\Events\QueueResumed;
@@ -47,7 +47,7 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * The array of drivers which will be wrapped as pool proxies.
      */
-    protected array $poolables = ['beanstalkd', 'sqs'];
+    protected array $poolableDrivers = ['beanstalkd', 'sqs'];
 
     /**
      * The pool proxy classes for drivers with supplemental queue capabilities.
@@ -363,16 +363,16 @@ class QueueManager implements FactoryContract, MonitorContract
         }
 
         $constructionConfig = Arr::except($config, ['pool']);
-        $resolver = fn () => $this->getConnector($config['driver'])
+        $createCallback = fn () => $this->getConnector($config['driver'])
             ->connect($constructionConfig)
             ->setContainer($this->app) // @phpstan-ignore method.notFound (setContainer is on concrete Queue, not contract)
             ->setConfig($constructionConfig);
 
-        if (in_array($config['driver'], $this->poolables, true)) {
+        if (in_array($config['driver'], $this->poolableDrivers, true)) {
             /** @var QueuePoolProxy $proxy */
             $proxy = $this->createPoolProxy(
                 $config['driver'],
-                $resolver,
+                $createCallback,
                 $this->poolDefinition($config['driver'], $config['pool'] ?? [], $constructionConfig),
                 $this->poolProxyClasses[$config['driver']] ?? QueuePoolProxy::class,
             );
@@ -380,7 +380,7 @@ class QueueManager implements FactoryContract, MonitorContract
             return $proxy->setConnectionName($name);
         }
 
-        return $resolver()->setConnectionName($name);
+        return $createCallback()->setConnectionName($name);
     }
 
     /**
@@ -495,7 +495,7 @@ class QueueManager implements FactoryContract, MonitorContract
 
         $config = $this->getConfig($name);
 
-        if (is_null($config) || ! in_array($config['driver'], $this->poolables, true)) {
+        if (is_null($config) || ! in_array($config['driver'], $this->poolableDrivers, true)) {
             return;
         }
 
@@ -506,7 +506,7 @@ class QueueManager implements FactoryContract, MonitorContract
             $constructionConfig,
         );
 
-        $this->poolFactory()->remove($definition->identity);
+        $this->poolFactory()->purge($definition->identity);
     }
 
     /**
