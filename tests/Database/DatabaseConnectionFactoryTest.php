@@ -507,6 +507,28 @@ class DatabaseConnectionFactoryTest extends TestCase
         $this->assertSame('', $receivedConfig['prefix']);
     }
 
+    public function testConfigFirstExtensionReceivesLiteralUrlCredentials(): void
+    {
+        $factory = new ConnectionFactory(new Container);
+        $factory->extend('http', static fn (array $config): FactoryNonPdoConnection => new FactoryNonPdoConnection(
+            $config['database'],
+            $config['prefix'],
+            $config,
+        ));
+
+        $connection = $factory->make([
+            'url' => 'http://0:18446744073709551615@true:8123/analytics',
+            'username' => 'base-user',
+            'password' => 'base-password',
+        ], 'analytics');
+
+        $this->assertInstanceOf(FactoryNonPdoConnection::class, $connection);
+        $this->assertSame('0', $connection->getConfig('username'));
+        $this->assertSame('18446744073709551615', $connection->getConfig('password'));
+        $this->assertSame('true', $connection->getConfig('host'));
+        $this->assertSame(8123, $connection->getConfig('port'));
+    }
+
     public function testConnectionExtensionMustReturnANeutralConnection(): void
     {
         $factory = new ConnectionFactory(new Container);

@@ -603,6 +603,56 @@ class RefreshDatabaseTest extends TestCase
         $this->assertSame(['default' => $freshPdo], RefreshDatabaseState::$inMemoryConnections);
     }
 
+    public function testBeginTransactionRestoresTheDispatcherWhenItFails(): void
+    {
+        $failure = new RuntimeException('Transaction begin failed.');
+        $dispatcher = m::mock(Dispatcher::class);
+        $connection = m::mock(ConnectionInterface::class);
+        $connection->shouldReceive('setTransactionManager')->once();
+        $connection->shouldReceive('getEventDispatcher')->once()->andReturn($dispatcher);
+        $connection->shouldReceive('unsetEventDispatcher')->once()->ordered();
+        $connection->shouldReceive('beginTransaction')->once()->andThrow($failure)->ordered();
+        $connection->shouldReceive('setEventDispatcher')->once()->with($dispatcher)->ordered();
+
+        $database = m::mock(DatabaseManager::class);
+        $database->shouldReceive('connection')->once()->with(null)->andReturn($connection);
+        $this->app->instance('db', $database);
+
+        try {
+            $this->beginDatabaseTransactionWork();
+            $this->fail('Expected the transaction begin failure to be rethrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+    }
+
+    public function testRollbackRestoresTheDispatcherAndKeepsMigrationBookkeepingWhenItFails(): void
+    {
+        RefreshDatabaseState::$migrated = true;
+        $failure = new RuntimeException('Transaction rollback failed.');
+        $dispatcher = m::mock(Dispatcher::class);
+        $connection = m::mock(PdoConnection::class);
+        $connection->shouldReceive('getEventDispatcher')->once()->andReturn($dispatcher);
+        $connection->shouldReceive('unsetEventDispatcher')->once()->ordered();
+        $connection->shouldReceive('inTransaction')->once()->andReturnFalse()->ordered();
+        $connection->shouldReceive('forgetRecordModificationState')->once()->ordered();
+        $connection->shouldReceive('rollBack')->once()->andThrow($failure)->ordered();
+        $connection->shouldReceive('setEventDispatcher')->once()->with($dispatcher)->ordered();
+
+        $database = m::mock(DatabaseManager::class);
+        $database->shouldReceive('connection')->once()->with(null)->andReturn($connection);
+        $this->app->instance('db', $database);
+
+        try {
+            $this->rollbackDatabaseTransactionWork();
+            $this->fail('Expected the transaction rollback failure to be rethrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertFalse(RefreshDatabaseState::$migrated);
+    }
+
     protected function getMockedDatabase(): DatabaseManager
     {
         $connection = m::mock(ConnectionInterface::class);

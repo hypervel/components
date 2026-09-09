@@ -8,7 +8,11 @@ use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Database\Query\Grammars\Grammar;
+use Hypervel\Database\Query\JoinClause;
+use Hypervel\Database\Query\Processors\Processor;
 use PDO;
+use stdClass;
 use User;
 
 use function PHPStan\Testing\assertType;
@@ -153,4 +157,100 @@ function testFetchUsingResetRemainsConservative(Builder $query): void
     $query->fetchUsing();
 
     assertType('Hypervel\Support\Collection<(int|string), mixed>', $query->get());
+}
+
+function testBindingSlots(Builder $query, CustomBindingBuilder $custom): void
+{
+    $query->addBinding(1, 'where');
+    $query->setBindings([1], 'select');
+    $query->cloneWithoutBindings(['where', 'order']);
+    assertType('Hypervel\Database\Query\Builder', $query->newQuery());
+
+    $query->addBinding(1, 'wher'); // @phpstan-ignore argument.type (Misspelled default slots must reject.)
+
+    assertType('Hypervel\Types\Query\Builder\CustomBindingBuilder', $custom->addBinding(1, 'expressions'));
+    assertType('Hypervel\Types\Query\Builder\CustomBindingBuilder', $custom->setBindings([2], 'expressions'));
+    assertType("array<'expressions'|'from'|'groupBy'|'having'|'join'|'order'|'select'|'union'|'unionOrder'|'where', list<mixed>>", $custom->getRawBindings());
+    assertType('Hypervel\Types\Query\Builder\CustomBindingBuilder', $custom->cloneWithoutBindings(['expressions', 'where']));
+    assertType('Hypervel\Types\Query\Builder\CustomBindingBuilder', $custom->clone());
+    assertType('Hypervel\Types\Query\Builder\CustomBindingBuilder', $custom->newQuery());
+    assertType('Hypervel\Types\Query\Builder\CustomBindingBuilder', $custom->forNestedWhere());
+    assertType('list<mixed>', $custom->forNestedWhere()->getRawBindings()['expressions']);
+    assertType('Hypervel\Types\Query\Builder\CustomBindingBuilder', $custom->nestedExpressionBinding(1));
+    $custom->clone()->addBinding(3, 'expressions');
+    $custom->newQuery()->addBinding(4, 'expressions');
+    $custom->forNestedWhere()->addBinding(5, 'expressions');
+    $custom->setBindings([1], 'expression'); // @phpstan-ignore argument.type (Misspelled extension slots must reject.)
+    $custom->cloneWithoutBindings(['expression']); // @phpstan-ignore argument.type (Cloning must validate the same slot type.)
+
+    $custom->fetchUsing(PDO::FETCH_ASSOC)->addBinding(6, 'expressions');
+    $custom->addBinding(7, 'expressions');
+}
+
+function testJoinBuilderFactories(JoinClause $join, CustomJoinClause $custom): void
+{
+    assertType('Hypervel\Database\Query\JoinClause', $join->newQuery());
+    assertType('Hypervel\Database\Query\Builder', $custom->subQuery());
+}
+
+/** @extends Builder<int, stdClass, 'expressions'|'from'|'groupBy'|'having'|'join'|'order'|'select'|'union'|'unionOrder'|'where'> */
+class CustomBindingBuilder extends Builder
+{
+    /**
+     * Create a builder with an additional binding slot.
+     */
+    public function __construct(ConnectionInterface $connection, ?Grammar $grammar = null, ?Processor $processor = null)
+    {
+        parent::__construct($connection, $grammar, $processor);
+
+        $this->bindings['expressions'] = [];
+    }
+
+    /**
+     * Add a binding to the expression clause.
+     */
+    public function expressionBinding(mixed $value): static
+    {
+        return $this->addBinding($value, 'expressions');
+    }
+
+    /**
+     * Add an expression binding through a nested query.
+     */
+    public function nestedExpressionBinding(mixed $value): static
+    {
+        return $this->mergeExpressionBindings($this->forNestedWhere()->expressionBinding($value));
+    }
+
+    /**
+     * Merge another expression clause's bindings.
+     */
+    protected function mergeExpressionBindings(self $query): static
+    {
+        return $this->addBinding($query->getRawBindings()['expressions'], 'expressions');
+    }
+
+    /**
+     * Verify protected factories retain the custom binding slot.
+     */
+    public function testProtectedFactoryTypes(): void
+    {
+        $this->cloneForPaginationCount()->expressionBinding(1);
+        $this->forSubQuery()->addBinding(2, 'expressions');
+    }
+}
+
+class CustomJoinClause extends JoinClause
+{
+    /**
+     * Expose the parent query returned for join subqueries.
+     */
+    public function subQuery(): Builder
+    {
+        $query = $this->forSubQuery();
+
+        assertType("Hypervel\\Database\\Query\\Builder<int, stdClass, 'from'|'groupBy'|'having'|'join'|'order'|'select'|'union'|'unionOrder'|'where'>", $query);
+
+        return $query;
+    }
 }

@@ -54,6 +54,7 @@ use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Query\Builder as BaseBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
+use Hypervel\Database\Query\Grammars\PostgresGrammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Support\CarbonImmutable;
@@ -1100,7 +1101,7 @@ class DatabaseEloquentModelTest extends TestCase
 
         $model = $this->getMockBuilder(ModelStub::class)->onlyMethods(['newModelQuery', 'updateTimestamps', 'refresh'])->getMock();
         $query = m::mock(Builder::class);
-        $query->shouldReceive('insert')->once()->with(['name' => 'taylor']);
+        $query->shouldReceive('insert')->once()->with([['name' => 'taylor']]);
         $query->shouldReceive('getConnection')->once()->andReturn(m::mock(ConnectionInterface::class, ['getName' => 'default']));
         $model->expects($this->once())->method('newModelQuery')->willReturn($query);
         $model->expects($this->once())->method('updateTimestamps');
@@ -1117,6 +1118,54 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertTrue($model->save());
         $this->assertNull($model->id);
         $this->assertTrue($model->exists);
+    }
+
+    #[TestWith([['tags' => ['api'], 'tenant_id' => 42], 'insert into "stub" ("tags", "tenant_id") values (?, ?)', [['api'], 42]])]
+    #[TestWith([['labels' => ['region' => 'eu']], 'insert into "stub" ("labels") values (?)', [['region' => 'eu']]])]
+    #[TestWith([['tags' => [], 'labels' => ['region' => 'eu']], 'insert into "stub" ("labels", "tags") values (?, ?)', [['region' => 'eu'], []]])]
+    #[TestWith([['name' => 'taylor'], 'insert into "stub" ("name") values (?)', ['taylor']])]
+    public function testNonIncrementingModelInsertsOneRow(array $attributes, string $sql, array $bindings): void
+    {
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getTablePrefix')->andReturn('');
+        $connection->shouldReceive('getName')->andReturn('testing');
+        $grammar = new Grammar($connection);
+        $processor = new Processor;
+        $connection->shouldReceive('query')->andReturnUsing(
+            fn () => new BaseBuilder($connection, $grammar, $processor)
+        );
+        $connection->shouldReceive('insert')->once()->with($sql, $bindings)->andReturnTrue();
+
+        Model::setConnectionResolver($resolver = m::mock(ConnectionResolverInterface::class));
+        $resolver->shouldReceive('connection')->andReturn($connection);
+
+        $model = new class extends ModelStub {
+            public bool $incrementing = false;
+
+            public bool $timestamps = false;
+        };
+
+        $created = $model->newQuery()->create($attributes);
+
+        $this->assertSame($attributes, $created->getAttributes());
+        $this->assertTrue($created->exists);
+        $this->assertTrue($created->wasRecentlyCreated);
+        $this->assertFalse($created->isDirty());
+    }
+
+    public function testNonIncrementingModelWithoutAttributesDoesNotInsert(): void
+    {
+        $model = $this->getMockBuilder(ModelStub::class)->onlyMethods(['newModelQuery'])->getMock();
+        $model->setConnection('testing');
+        $model->setIncrementing(false);
+        $model->timestamps = false;
+        $query = m::mock(Builder::class);
+        $query->shouldNotReceive('insert');
+        $model->expects($this->once())->method('newModelQuery')->willReturn($query);
+
+        $this->assertTrue($model->save());
+        $this->assertFalse($model->exists);
+        $this->assertFalse($model->wasRecentlyCreated);
     }
 
     public function testInsertIsCanceledIfCreatingEventReturnsFalse()
@@ -1143,7 +1192,7 @@ class DatabaseEloquentModelTest extends TestCase
         $query->shouldReceive('toBase')->once()->andReturn($baseQuery);
         $baseQuery->shouldReceive('insertOrIgnoreReturning')
             ->once()
-            ->with(['name' => 'taylor'], ['*'], null)
+            ->with([['name' => 'taylor']], ['*'], null)
             ->andReturn(new BaseCollection([(object) ['id' => 1, 'name' => 'taylor']]));
         $query->shouldReceive('getConnection')
             ->once()
@@ -1176,7 +1225,7 @@ class DatabaseEloquentModelTest extends TestCase
         $query->shouldReceive('toBase')->once()->andReturn($baseQuery);
         $baseQuery->shouldReceive('insertOrIgnoreReturning')
             ->once()
-            ->with(['name' => 'taylor'], ['*'], null)
+            ->with([['name' => 'taylor']], ['*'], null)
             ->andReturn(new BaseCollection);
         $query->shouldReceive('getConnection')
             ->once()
@@ -1206,7 +1255,7 @@ class DatabaseEloquentModelTest extends TestCase
         $query->shouldReceive('toBase')->once()->andReturn($baseQuery);
         $baseQuery->shouldReceive('insertOrIgnoreReturning')
             ->once()
-            ->with(['name' => 'taylor'], ['*'], null)
+            ->with([['name' => 'taylor']], ['*'], null)
             ->andReturn(new BaseCollection([(object) ['name' => 'taylor']]));
         $query->shouldReceive('getConnection')
             ->once()
@@ -1240,7 +1289,7 @@ class DatabaseEloquentModelTest extends TestCase
         $query->shouldReceive('toBase')->once()->andReturn($baseQuery);
         $baseQuery->shouldReceive('insertOrIgnoreReturning')
             ->once()
-            ->with(['name' => 'taylor'], ['*'], ['name'])
+            ->with([['name' => 'taylor']], ['*'], ['name'])
             ->andReturn(new BaseCollection);
         $query->shouldReceive('getConnection')
             ->once()
@@ -1258,6 +1307,38 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertFalse($model->saveOrIgnore([], ['name']));
         $this->assertFalse($model->exists);
         $this->assertFalse($model->wasRecentlyCreated);
+    }
+
+    #[TestWith([true, ['tags' => ['api'], 'name' => 'taylor'], ['name'], 'insert into "stub" ("name", "tags") values (?, ?) on conflict ("name") do nothing returning *', ['taylor', ['api']]])]
+    #[TestWith([false, ['tags' => ['api'], 'name' => 'taylor'], ['name'], 'insert into "stub" ("name", "tags") values (?, ?) on conflict ("name") do nothing returning *', ['taylor', ['api']]])]
+    #[TestWith([false, ['tags' => [], 'labels' => ['region' => 'eu']], ['labels'], 'insert into "stub" ("labels", "tags") values (?, ?) on conflict ("labels") do nothing returning *', [['region' => 'eu'], []]])]
+    #[TestWith([true, ['name' => 'taylor'], ['name'], 'insert into "stub" ("name") values (?) on conflict ("name") do nothing returning *', ['taylor']])]
+    public function testInsertOrIgnorePreservesOneModelRow(bool $incrementing, array $attributes, array $uniqueBy, string $sql, array $bindings): void
+    {
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getTablePrefix')->andReturn('');
+        $connection->shouldReceive('getName')->andReturn('testing');
+        $grammar = new PostgresGrammar($connection);
+        $processor = new Processor;
+        $connection->shouldReceive('query')->andReturnUsing(
+            fn () => new BaseBuilder($connection, $grammar, $processor)
+        );
+        $connection->shouldReceive('selectFromWriteConnection')->once()
+            ->with($sql, $bindings)->andReturn([(object) ['id' => 1, ...$attributes]]);
+        $connection->shouldReceive('recordsHaveBeenModified')->once()->with(true);
+
+        Model::setConnectionResolver($resolver = m::mock(ConnectionResolverInterface::class));
+        $resolver->shouldReceive('connection')->andReturn($connection);
+
+        $model = new class($attributes) extends ModelStub {
+            public bool $timestamps = false;
+        };
+        $model->setIncrementing($incrementing);
+
+        $this->assertTrue($model->saveOrIgnore(uniqueBy: $uniqueBy));
+        $this->assertSame($incrementing ? 1 : null, $model->getKey());
+        $this->assertTrue($model->exists);
+        $this->assertTrue($model->wasRecentlyCreated);
     }
 
     public function testInsertOrIgnoreThrowsOnExistingModel(): void

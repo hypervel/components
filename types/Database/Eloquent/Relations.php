@@ -38,8 +38,8 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Post>', $user->posts()->getResults());
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Post>', $user->posts()->fetchUsing(PDO::FETCH_ASSOC)->get());
     assertType('Hypervel\Types\Relations\Post|null', $user->posts()->useWritePdo()->first());
-    assertType('Hypervel\Database\Query\Builder<int, Hypervel\Types\Relations\Post>', $user->posts()->dump());
-    assertType('Hypervel\Database\Query\Builder<int, Hypervel\Types\Relations\Post>', $user->posts()->dumpRawSql());
+    assertType("Hypervel\\Database\\Query\\Builder<int, Hypervel\\Types\\Relations\\Post, 'from'|'groupBy'|'having'|'join'|'order'|'select'|'union'|'unionOrder'|'where'>", $user->posts()->dump());
+    assertType("Hypervel\\Database\\Query\\Builder<int, Hypervel\\Types\\Relations\\Post, 'from'|'groupBy'|'having'|'join'|'order'|'select'|'union'|'unionOrder'|'where'>", $user->posts()->dumpRawSql());
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Relations\Post>', $user->posts()->clone());
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Relations\Post>', $user->posts()->applyScopes());
     assertType('Hypervel\Database\Eloquent\Relations\HasMany<Hypervel\Types\Relations\Post, Hypervel\Types\Relations\User>', $user->posts()->whereIn('id', [1]));

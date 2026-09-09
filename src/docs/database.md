@@ -15,6 +15,7 @@
     - [Monitoring Cumulative Query Time](#monitoring-cumulative-query-time)
 - [Database Transactions](#database-transactions)
 - [Connecting to the Database CLI](#connecting-to-the-database-cli)
+    - [Custom Database Clients](#custom-database-clients)
 - [Inspecting Your Databases](#inspecting-your-databases)
 - [Monitoring Your Databases](#monitoring-your-databases)
 
@@ -221,7 +222,7 @@ For the full option reference and custom maintenance behavior, see the [pool doc
 
 For a connection with separate read and write hosts, each base pool slot may lazily open one write PDO and one read PDO. It does not open one PDO per configured host. If `max_connections` is `10`, a worker may therefore hold up to roughly 20 server-side database connections for that configured connection once both sides have been used. Size your database server, PgBouncer, PgDog, or other pooler capacity with that in mind. Increase `max_connections` for more concurrent database work per worker, not simply because you configured more read hosts.
 
-Explicit `::read` connections use a separate read-side pool built from the merged read configuration, including the base `pool` settings unless the read configuration overrides them. Explicit `::write` connections do not create a separate pool, but a coroutine that uses both `mysql` and `mysql::write` at the same time may borrow two slots from the base pool. Most applications do not need these suffixes in normal query paths because Hypervel already routes reads, writes, transactions, and sticky reads automatically.
+When a read side is configured, explicit `::read` connections use a separate read-side pool built from the merged read configuration, including the base `pool` settings unless the read configuration overrides them. Drivers registered through `DB::extend` still receive the complete connection configuration so they can select their own endpoints; the pool's options come from the merged read configuration. Without a read side, `::read` uses the base pool. Explicit `::write` connections do not create a separate pool, but a coroutine that uses both `mysql` and `mysql::write` at the same time may borrow two slots from the base pool. Most applications do not need these suffixes in normal query paths because Hypervel already routes reads, writes, transactions, and sticky reads automatically.
 
 Heartbeat and max lifetime recycling apply to Hypervel's worker pool whether the connection points directly at the database or through a proxy / pooler. They help long-running workers avoid stale sockets and rotate old idle connection generations before those connections are used by a request.
 
@@ -349,11 +350,33 @@ DB::extend('clickhouse', function (array $config, ?string $name): Connection {
 });
 ```
 
-The extension name may be a driver name or a configured connection name. A connection-specific extension takes precedence over a driver extension. The configuration includes the normalized `connect_timeout` value, allowing the driver to apply the pool's connection deadline to its client.
+The extension name may be a driver name or a configured connection name. A connection-specific extension takes precedence over a driver extension. The resolver receives the complete connection configuration with its base URL parsed and any `read` and `write` records retained. The driver owns endpoint selection and parsing of role-specific URLs. Pooled connections also include the normalized `connect_timeout` value, allowing the driver to apply the pool's connection deadline to its client.
 
 Custom connections implement their own query execution, transactions, escaping, health check, reconnection, and cleanup behavior. They must also return their driver key, such as `clickhouse`, from the protected `getDefaultDriverName` method. Hypervel uses this value when the connection has no configured driver name; an explicitly configured driver name still takes precedence.
 
 Hypervel's database pool calls these connection methods without assuming PDO, so a native or HTTP driver does not need to create a fake PDO instance.
+
+Drivers with separate read and write resources may call the protected `resolveReadWriteType` method before selecting a resource. It returns `read` or `write`, honoring active transactions, forced write routing, and sticky reads. Pass `false` for a write operation. The method also records the selected role for query events and exceptions. Resource lookup remains the driver's responsibility; if a read falls back to the write resource, record that fallback in `latestReadWriteTypeRetrieved`.
+
+An explicit `::read` connection with a configured read side carries `read_write_type = 'read'`. The driver must use that side for every operation, including statements and forced-write reads, just as Hypervel's PDO drivers do. Without a read side, use the connection's ordinary fallback behavior; direct resolution may still supply the read marker. Do not require a write marker for `::write`: pooled resolution forces write routing through `useWriteConnectionWhenReading`, which the role resolver already honors.
+
+Use the protected `run` method when your execution callback returns a completed response. If execution continues while rows are consumed, use `runStreaming` instead. It accepts the same query, bindings, and callback arguments, with the callback returning an iterable. Hooks and execution begin when iteration starts, and success is logged only after normal exhaustion. The recorded duration includes consumer work between yields, which also counts toward cumulative query-duration thresholds. Iteration failures follow the normal query-exception and `QueryFailed` paths; cancellation passes through unchanged. The callback remains responsible for closing its resources in a `finally` block when iteration ends or is abandoned.
+
+If an active stream is explicitly closed, its next advancement must throw `Hypervel\Database\StreamClosedException` instead of ending as though the query completed. `runStreaming` passes this exception through unchanged, without incrementing the connection's error count, logging a successful query, or dispatching query events. Resource cleanup still belongs in the driver's `finally` block.
+
+`runStreaming` calls the existing lost-connection retry hook only before the first value has been yielded. Drivers must also reject retries when their operation cannot be replayed safely, including when a progress callback has already exposed part of the response. The streaming boundary restores the outer operation's role when a consumer resumes it after running another query. Existing PDO cursors retain their execute-time event boundary.
+
+Both execution methods construct database errors through the protected `newQueryException` method. Drivers whose parameter types need custom error formatting may override this method to return a `QueryException` subclass. Preserve the original query, bindings, and cause; exceptions that are not database failures may be rethrown unchanged. The base implementation continues to prepare bindings and enrich unique-constraint errors with the reported index or columns.
+
+Query builders with statement-level options may override the protected `Query\Builder::ensureCanEmbedQuery` method to reject options that belong on the outer statement. It runs when attaching a subquery, scalar or exists predicate, or union member; call the parent to preserve the built-in rejection of embedded timeouts.
+
+The migration repository delegates its table definition to `Schema\Builder::createMigrationRepositoryTable`. A driver may override this method when it needs a different physical schema, while retaining the standard repository and migration commands. Its table must support storing migration names and integer batch numbers; the default definition also includes an auto-incrementing `id`.
+
+The native `DatabaseTruncation` testing trait delegates to `Schema\Builder::truncateTables` after applying its table filters. It passes the complete list of selected schema-qualified names with the connection's table prefix temporarily disabled. The default implementation checks for rows on the write connection and truncates non-empty tables through the query builder, so replica lag cannot skip cleanup. Drivers with engine-specific reset behavior may override this bulk method while keeping `getTables` accurate and using the native testing traits. If a selected table cannot be safely reset, throw an exception instead of silently leaving test data behind.
+
+To add column modifiers, a `Schema\Blueprint` subclass may override the protected `newColumnDefinition(array $attributes)` method and return its own `ColumnDefinition` subclass. Declare `@extends Blueprint<YourColumnDefinition>` on the Blueprint subclass so static analysis recognizes the custom return type from inherited helpers such as `string`, `unsignedBigInteger`, and `timestamps`. Foreign-ID helpers retain their specialized definition and constraint methods. Column-list accessors continue to return base definitions because a Blueprint may contain several definition types.
+
+Custom query builders may declare their binding-slot names through the third `Query\Builder` template argument, after the result key and row types. Initialize the additional keys in the builder's `bindings` array; the existing binding methods validate those keys at runtime. The `newQuery`, `forNestedWhere`, and protected `cloneForPaginationCount` methods return `static`, retaining the concrete builder and its binding types. Overrides must preserve that return contract. The protected `forSubQuery` method returns a base query builder because a join's subquery belongs to its parent query, not the join itself.
 
 <a name="static-analysis"></a>
 ### Static Analysis
@@ -737,7 +760,37 @@ If the connection has separate read and write hosts, you may connect to either h
 php artisan db mysql --read
 ```
 
-The `--read` and `--write` options understand list-style read / write configuration and host arrays. When a side contains multiple hosts, the command connects to the first configured host for that side.
+The `--read` and `--write` options understand list-style read / write configuration and host arrays. The command selects the first record for the requested side, applies that record's URL if present, and selects its first host. URL values override matching connection options, while omitted values remain inherited. A base connection with a host array also uses its first host when neither option is given.
+
+<a name="custom-database-clients"></a>
+### Custom Database Clients
+
+Custom database drivers may support the `db` command by registering a resolver with `DatabaseCliManager` in a service provider's `boot` method. The resolver returns the executable, argument list, and optional environment variables for the client:
+
+```php
+use Hypervel\Database\DatabaseCliConfiguration;
+use Hypervel\Database\DatabaseCliManager;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(DatabaseCliManager $clients): void
+{
+    $clients->extend('analytics', function (array $connection): DatabaseCliConfiguration {
+        return new DatabaseCliConfiguration(
+            command: 'analytics-client',
+            arguments: [$connection['database']],
+            environment: ['ANALYTICS_HOST' => $connection['host']],
+        );
+    });
+}
+```
+
+The resolver receives the connection configuration after URL parsing, read/write selection, and host-list selection. It is called once per command invocation and does not need to open a database connection. Validate any requirements specific to your client in the resolver; a client that uses a local file or socket does not need a host.
+
+Pass arguments as separate list entries, not a shell command string. Use the environment map for credentials when the client supports it. Both arguments and environment variables default to empty arrays.
+
+Resolvers remain registered for the worker lifetime, so register them only during application boot. Registering a resolver for a built-in driver replaces its client configuration. Otherwise, built-in drivers continue through `DbCommand`'s existing argument and environment helpers, including any subclass overrides.
 
 <a name="inspecting-your-databases"></a>
 ## Inspecting Your Databases

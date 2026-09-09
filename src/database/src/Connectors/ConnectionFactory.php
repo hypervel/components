@@ -50,10 +50,7 @@ class ConnectionFactory
         // Next we will check to see if an extension has been registered for a driver
         // and will call the Closure if so, which allows us to have a more generic
         // resolver for the drivers themselves which applies to all connections.
-        $driver = $config['driver'] ?? null;
-        $resolver = $name !== null && isset($this->extensions[$name])
-            ? $this->extensions[$name]
-            : ($driver !== null ? $this->extensions[$driver] ?? null : null);
+        $resolver = $this->getExtension($config, $name);
 
         if ($resolver !== null) {
             $connection = call_user_func($resolver, $config, $name);
@@ -66,6 +63,18 @@ class ConnectionFactory
         }
 
         return $this->createPdoConnectionFromConfig($config);
+    }
+
+    /**
+     * Get the extension resolver for a connection configuration.
+     */
+    public function getExtension(array $config, ?string $name): ?callable
+    {
+        $driver = $config['driver'] ?? null;
+
+        return $name !== null && isset($this->extensions[$name])
+            ? $this->extensions[$name]
+            : ($driver !== null ? $this->extensions[$driver] ?? null : null);
     }
 
     /**

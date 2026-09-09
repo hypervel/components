@@ -43,9 +43,15 @@ class ConfigurationUrlParser
 
         $rawComponents = $this->parseUrl($url);
 
-        $decodedComponents = $this->parseStringsToNativeTypes(
-            array_map('rawurldecode', $rawComponents)
+        $decodedComponents = array_map(
+            static fn (string|int $value): string|int => is_string($value) ? rawurldecode($value) : $value,
+            $rawComponents,
         );
+
+        // The sqlite:/// rewrite and read/write URLs use "null" for an omitted host.
+        if (($decodedComponents['host'] ?? null) === 'null') {
+            $decodedComponents['host'] = null;
+        }
 
         return array_merge(
             $config,

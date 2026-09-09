@@ -45,6 +45,7 @@ use function Hypervel\Support\enum_value;
 /**
  * @template TKey of array-key = int
  * @template TValue = \stdClass
+ * @template TBindingType of string = 'select'|'from'|'join'|'where'|'groupBy'|'having'|'order'|'union'|'unionOrder'
  */
 class Builder implements BuilderContract
 {
@@ -71,17 +72,7 @@ class Builder implements BuilderContract
     /**
      * The current query value bindings.
      *
-     * @var array{
-     *     select: list<mixed>,
-     *     from: list<mixed>,
-     *     join: list<mixed>,
-     *     where: list<mixed>,
-     *     groupBy: list<mixed>,
-     *     having: list<mixed>,
-     *     order: list<mixed>,
-     *     union: list<mixed>,
-     *     unionOrder: list<mixed>,
-     * }
+     * @var array<TBindingType, list<mixed>>
      */
     public array $bindings = [
         'select' => [],
@@ -400,7 +391,7 @@ class Builder implements BuilderContract
         }
 
         if ($query instanceof self) {
-            $this->ensureNoTimeoutOnEmbeddedQuery($query);
+            $this->ensureCanEmbedQuery($query);
 
             $query = $this->prependDatabaseNameIfCrossDatabaseQuery($query);
 
@@ -608,7 +599,7 @@ class Builder implements BuilderContract
     /**
      * Add a "join where" clause to the query.
      */
-    public function joinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, ExpressionContract|string $second, string $type = 'inner'): static
+    public function joinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, mixed $second, string $type = 'inner'): static
     {
         return $this->join($table, $first, $operator, $second, $type, true);
     }
@@ -670,7 +661,7 @@ class Builder implements BuilderContract
     /**
      * Add a "join where" clause to the query.
      */
-    public function leftJoinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, ExpressionContract|string|null $second): static
+    public function leftJoinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, mixed $second): static
     {
         return $this->joinWhere($table, $first, $operator, $second, 'left');
     }
@@ -696,7 +687,7 @@ class Builder implements BuilderContract
     /**
      * Add a "right join where" clause to the query.
      */
-    public function rightJoinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, ExpressionContract|string $second): static
+    public function rightJoinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, mixed $second): static
     {
         return $this->joinWhere($table, $first, $operator, $second, 'right');
     }
@@ -752,7 +743,7 @@ class Builder implements BuilderContract
     /**
      * Add a straight join where clause to the query.
      */
-    public function straightJoinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, ExpressionContract|string $second): static
+    public function straightJoinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, mixed $second): static
     {
         return $this->joinWhere($table, $first, $operator, $second, 'straight_join');
     }
@@ -1357,6 +1348,8 @@ class Builder implements BuilderContract
             $values = $this->resolveDatePeriodBounds($values);
         }
 
+        $values = is_array($values) ? $values : iterator_to_array($values, false);
+
         $this->wheres[] = compact('type', 'column', 'values', 'boolean', 'not');
 
         $this->addBinding(array_slice($this->cleanBindings(Arr::flatten($values)), 0, 2), 'where');
@@ -1447,10 +1440,13 @@ class Builder implements BuilderContract
     public function whereValueBetween(mixed $value, array $columns, string $boolean = 'and', bool $not = false): static
     {
         $type = 'valueBetween';
+        $value = $this->flattenValue($value);
 
         $this->wheres[] = compact('type', 'value', 'columns', 'boolean', 'not');
 
-        $this->addBinding($value, 'where');
+        if (! $value instanceof ExpressionContract) {
+            $this->addBinding($value, 'where');
+        }
 
         return $this;
     }
@@ -1599,7 +1595,8 @@ class Builder implements BuilderContract
             $value = $value->format('d');
         }
 
-        if (! $value instanceof ExpressionContract) {
+        // Leave expression and driver-owned value objects to their binding/grammar paths.
+        if (! is_object($value)) {
             $value = sprintf('%02d', $value);
         }
 
@@ -1644,7 +1641,8 @@ class Builder implements BuilderContract
             $value = $value->format('m');
         }
 
-        if (! $value instanceof ExpressionContract) {
+        // Leave expression and driver-owned value objects to their binding/grammar paths.
+        if (! is_object($value)) {
             $value = sprintf('%02d', $value);
         }
 
@@ -1733,7 +1731,7 @@ class Builder implements BuilderContract
     /**
      * Create a new query instance for nested where condition.
      */
-    public function forNestedWhere(): self
+    public function forNestedWhere(): static
     {
         $query = $this->newQuery();
 
@@ -1780,7 +1778,7 @@ class Builder implements BuilderContract
             $query = $callback instanceof self ? $callback : $callback->toBase();
         }
 
-        $this->ensureNoTimeoutOnEmbeddedQuery($query);
+        $this->ensureCanEmbedQuery($query);
 
         $this->wheres[] = compact(
             'type',
@@ -1861,7 +1859,7 @@ class Builder implements BuilderContract
      */
     public function addWhereExistsQuery(self $query, string $boolean = 'and', bool $not = false): static
     {
-        $this->ensureNoTimeoutOnEmbeddedQuery($query);
+        $this->ensureCanEmbedQuery($query);
 
         $type = $not ? 'NotExists' : 'Exists';
 
@@ -2254,8 +2252,8 @@ class Builder implements BuilderContract
      */
     public function having(
         ExpressionContract|Closure|string $column,
-        DateTimeInterface|string|int|float|null $operator = null,
-        ExpressionContract|DateTimeInterface|string|int|float|null $value = null,
+        mixed $operator = null,
+        mixed $value = null,
         string $boolean = 'and',
     ): static {
         $type = 'Basic';
@@ -2306,8 +2304,8 @@ class Builder implements BuilderContract
      */
     public function orHaving(
         ExpressionContract|Closure|string $column,
-        DateTimeInterface|string|int|float|null $operator = null,
-        ExpressionContract|DateTimeInterface|string|int|float|null $value = null,
+        mixed $operator = null,
+        mixed $value = null,
     ): static {
         [$value, $operator] = $this->prepareValueAndOperator(
             $value,
@@ -2392,6 +2390,8 @@ class Builder implements BuilderContract
         if ($values instanceof DatePeriod) {
             $values = $this->resolveDatePeriodBounds($values);
         }
+
+        $values = is_array($values) ? $values : iterator_to_array($values, false);
 
         $this->havings[] = compact('type', 'column', 'values', 'boolean', 'not');
 
@@ -2764,7 +2764,7 @@ class Builder implements BuilderContract
             $query = $query->toBase();
         }
 
-        $this->ensureNoTimeoutOnEmbeddedQuery($query);
+        $this->ensureCanEmbedQuery($query);
 
         $this->unions[] = compact('query', 'all');
 
@@ -3161,9 +3161,17 @@ class Builder implements BuilderContract
      */
     public function getCountForPagination(array $columns = ['*']): int
     {
-        $results = $this->withoutFetchUsing(
-            fn () => $this->runPaginationCountQuery($columns)
-        );
+        $results = $this->withoutFetchUsing(function () use ($columns) {
+            $query = $this;
+
+            // Count preparation needs the completed clauses without consuming the page's callbacks.
+            if ($this->beforeQueryCallbacks !== []) {
+                $query = $this->clone();
+                $query->applyBeforeQueryCallbacks();
+            }
+
+            return $query->runPaginationCountQuery($columns);
+        });
 
         // Once we have run the pagination count query, we will get the resulting count and
         // take into account what type of query it was. When there is a group by we will
@@ -3192,15 +3200,18 @@ class Builder implements BuilderContract
 
             // The clone becomes an inner derived table, so its timeout belongs on the executed count statement.
             $countQuery->timeout = $clone->timeout;
+            $countQuery->useWritePdo = $clone->useWritePdo;
             $clone->timeout = null;
 
             if (is_null($clone->columns) && ! empty($this->joins)) {
                 $clone->select($clone->getDefaultSelectColumn());
             }
 
+            $sql = $clone->toSql();
+
+            // Inner bindings belong to the derived table, not outer clauses that aggregation may clear.
             return $countQuery
-                ->from(new Expression('(' . $clone->toSql() . ') as ' . $this->grammar->wrap('aggregate_table')))
-                ->mergeBindings($clone)
+                ->fromRaw('(' . $sql . ') as ' . $this->grammar->wrap('aggregate_table'), $clone->getBindings())
                 ->setAggregate('count', $this->withoutSelectAliases($columns))
                 ->get()->all();
         }
@@ -3216,7 +3227,7 @@ class Builder implements BuilderContract
     /**
      * Clone the existing query instance for usage in a pagination subquery.
      */
-    protected function cloneForPaginationCount(): self
+    protected function cloneForPaginationCount(): static
     {
         return $this->cloneWithout(['orders', 'limit', 'offset'])
             ->cloneWithoutBindings(['order']);
@@ -3988,13 +3999,16 @@ class Builder implements BuilderContract
     /**
      * Get a new instance of the query builder.
      */
-    public function newQuery(): self
+    public function newQuery(): static
     {
+        // @phpstan-ignore return.type (Constructor arguments do not carry the template types bound by the subclass.)
         return new static($this->connection, $this->grammar, $this->processor);
     }
 
     /**
      * Create a new query instance for a sub-query.
+     *
+     * @return self<TKey, TValue, TBindingType>
      */
     protected function forSubQuery(): self
     {
@@ -4064,17 +4078,7 @@ class Builder implements BuilderContract
     /**
      * Get the raw array of bindings.
      *
-     * @return array{
-     *      select: list<mixed>,
-     *      from: list<mixed>,
-     *      join: list<mixed>,
-     *      where: list<mixed>,
-     *      groupBy: list<mixed>,
-     *      having: list<mixed>,
-     *      order: list<mixed>,
-     *      union: list<mixed>,
-     *      unionOrder: list<mixed>,
-     * }
+     * @return array<TBindingType, list<mixed>>
      */
     public function getRawBindings(): array
     {
@@ -4085,7 +4089,7 @@ class Builder implements BuilderContract
      * Set the bindings on the query builder.
      *
      * @param list<mixed> $bindings
-     * @param "from"|"groupBy"|"having"|"join"|"order"|"select"|"union"|"unionOrder"|"where" $type
+     * @param TBindingType $type
      *
      * @throws InvalidArgumentException
      */
@@ -4103,7 +4107,7 @@ class Builder implements BuilderContract
     /**
      * Add a binding to the query.
      *
-     * @param "from"|"groupBy"|"having"|"join"|"order"|"select"|"union"|"unionOrder"|"where" $type
+     * @param TBindingType $type
      *
      * @throws InvalidArgumentException
      */
@@ -4231,7 +4235,7 @@ class Builder implements BuilderContract
      *
      * @return $this
      *
-     * @phpstan-this-out self<array-key, mixed>
+     * @phpstan-this-out self<array-key, mixed, TBindingType>
      */
     public function fetchUsing(mixed ...$fetchUsing): static
     {
@@ -4252,11 +4256,11 @@ class Builder implements BuilderContract
     }
 
     /**
-     * Ensure an embedded query does not carry a statement-level timeout.
+     * Ensure the query can be embedded in another statement.
      *
      * @throws InvalidArgumentException
      */
-    protected function ensureNoTimeoutOnEmbeddedQuery(self $query): void
+    protected function ensureCanEmbedQuery(self $query): void
     {
         if ($query->timeout !== null) {
             throw new InvalidArgumentException(
@@ -4287,6 +4291,8 @@ class Builder implements BuilderContract
 
     /**
      * Clone the query without the given bindings.
+     *
+     * @param list<TBindingType> $except
      */
     public function cloneWithoutBindings(array $except): static
     {
