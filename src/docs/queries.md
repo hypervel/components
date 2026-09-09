@@ -1451,6 +1451,8 @@ $report = DB::table('orders')
     ->get();
 ```
 
+The `havingNotBetween` method excludes results within the given range. You may use `orHavingBetween` and `orHavingNotBetween` to join these conditions to the previous having clause using `or`.
+
 You may pass multiple arguments to the `groupBy` method to group by multiple columns:
 
 ```php
