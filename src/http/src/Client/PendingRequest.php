@@ -158,6 +158,8 @@ class PendingRequest implements Transient
 
     /**
      * The callbacks that should execute after the response is built.
+     *
+     * @var Collection<int, callable(Response, null|Request): mixed>
      */
     protected Collection $afterResponseCallbacks;
 
@@ -695,7 +697,7 @@ class PendingRequest implements Transient
     /**
      * Add a new callback to execute after the response is built.
      *
-     * @param callable(Response, null|Request): (null|Response) $callback
+     * @param callable(Response, null|Request): mixed $callback
      */
     public function afterResponse(callable $callback): static
     {

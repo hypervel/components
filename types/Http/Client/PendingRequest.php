@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Hypervel\Http\Client\PendingRequest;
+use Hypervel\Http\Client\Response;
 use Hypervel\Support\Facades\Http;
 
 use function PHPStan\Testing\assertType;
@@ -14,7 +15,7 @@ foreach (['get', 'post', 'put', 'patch', 'delete', 'head', 'query'] as $method) 
 
 // PHPStan carries async()'s self-out type onto repeated Http::createPendingRequest()
 // expressions in the same scope, although each call creates a fresh request.
-// Keep these state checks separate from the loop's inferred async state.
+// Keep the state and callback checks below in separate scopes from that loop.
 function (bool $async): void {
     assertType('Hypervel\Http\Client\Response', Http::createPendingRequest()->withHeaders([])->get('/foo'));
     assertType('GuzzleHttp\Promise\PromiseInterface|Hypervel\Http\Client\Response', Http::async()->get('/foo'));
@@ -27,6 +28,22 @@ function (bool $async): void {
     assertType('Hypervel\Http\Client\Response', $request->get('/foo'));
 
     assertType('GuzzleHttp\Promise\PromiseInterface|Hypervel\Http\Client\Response', Http::createPendingRequest()->async($async)->get('/foo'));
+};
+
+function (): void {
+    $request = Http::createPendingRequest()
+        ->afterResponse(function ($response, $request): string {
+            assertType('Hypervel\Http\Client\Response', $response);
+            assertType('Hypervel\Http\Client\Request|null', $request);
+
+            return 'ignored';
+        })
+        ->afterResponse(static function (Response $response): void {
+        })
+        ->afterResponse(static fn (Response $response): Response => new Response($response->toPsrResponse()));
+
+    assertType('Hypervel\Http\Client\PendingRequest<false>', $request);
+    assertType('Hypervel\Http\Client\Response', $request->get('/foo'));
 };
 
 class PlainHttpPendingRequest extends PendingRequest
