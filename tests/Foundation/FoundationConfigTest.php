@@ -10,6 +10,7 @@ use Hypervel\Foundation\Application;
 use Hypervel\Pool\PoolOption;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Swoole\Constant;
 
 class FoundationConfigTest extends TestCase
@@ -251,6 +252,31 @@ class FoundationConfigTest extends TestCase
             $this->assertFalse($disks[$name]['throw']);
             $this->assertFalse($disks[$name]['report']);
         }
+    }
+
+    #[DataProvider('publicDiskUrlProvider')]
+    public function testPublicDiskUrlsNormalizeTheApplicationUrl(?string $appUrl, string $expectedUrl): void
+    {
+        $config = $this->withEnvironmentValue(
+            'APP_URL',
+            $appUrl,
+            fn (): array => $this->filesystemConfig(),
+        );
+        $disk = $this->app->make('filesystem')->build($config['disks']['public']);
+
+        $this->assertSame($expectedUrl, $disk->url('avatar.png'));
+    }
+
+    /**
+     * Provide application URLs and their public file URLs.
+     */
+    public static function publicDiskUrlProvider(): array
+    {
+        return [
+            'without trailing slash' => ['https://example.test', 'https://example.test/storage/avatar.png'],
+            'subpath with trailing slash' => ['https://example.test/app/', 'https://example.test/app/storage/avatar.png'],
+            'absent application URL' => [null, '/storage/avatar.png'],
+        ];
     }
 
     public function testS3RootReadsTheAwsRootEnvironmentVariable(): void
