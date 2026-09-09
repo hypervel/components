@@ -9,15 +9,18 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\PoolChannel;
+use Hypervel\Engine\Channel;
 use Hypervel\ObjectPool\Exceptions\PoolClosedException;
 use Hypervel\ObjectPool\Exceptions\PoolExhaustedException;
 use Hypervel\ObjectPool\ObjectPool;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -523,6 +526,106 @@ class ObjectPoolTest extends TestCase
 
         $this->assertSame($releasedAt, $pool->releaseTime($object));
         $pool->close();
+    }
+
+    #[DataProvider('maintenanceMethods')]
+    public function testMaintenanceDestroysHealthyObjectsWhileCloseIsStillDraining(string $method): void
+    {
+        $maintenanceStarted = new Channel(1);
+        $closeStarted = new Channel(1);
+        $resumeMaintenance = new Channel(1);
+        $resumeClose = new Channel(1);
+        $maintenanceDone = new Channel(1);
+        $closeDone = new Channel(1);
+        $objects = [];
+        $destroyed = [];
+        $pool = $this->pool(
+            ['max_objects' => 3, 'min_retained_objects' => 1, 'max_lifetime' => 60, 'max_idle_time' => 60],
+            destroyCallback: function (object $object) use (
+                &$objects,
+                &$destroyed,
+                $maintenanceStarted,
+                $closeStarted,
+                $resumeMaintenance,
+                $resumeClose,
+            ): void {
+                $destroyed[] = $object;
+
+                if ($object === $objects[0]) {
+                    $maintenanceStarted->push(true);
+                    $resumeMaintenance->pop(1.0);
+                } elseif ($object === $objects[1]) {
+                    $closeStarted->push(true);
+                    $resumeClose->pop(1.0);
+                }
+            },
+        );
+        $objects = [$pool->borrow(), $pool->borrow(), $pool->borrow()];
+
+        foreach ($objects as $object) {
+            $pool->release($object);
+        }
+
+        if ($method === 'sweepExpired') {
+            $pool->ageCreation($objects[0], 120.0);
+        } else {
+            $pool->ageRelease($objects[0], 120.0);
+        }
+
+        $coroutineIds = [];
+
+        try {
+            $coroutineIds[] = Coroutine::create(function () use ($pool, $method, $maintenanceDone): void {
+                try {
+                    $pool->{$method}();
+                    $maintenanceDone->push(true);
+                } catch (Throwable $exception) {
+                    $maintenanceDone->push($exception);
+                }
+            });
+            $this->assertTrue($maintenanceStarted->pop(1.0));
+
+            $coroutineIds[] = Coroutine::create(function () use ($pool, $closeDone): void {
+                try {
+                    $pool->close();
+                    $closeDone->push(true);
+                } catch (Throwable $exception) {
+                    $closeDone->push($exception);
+                }
+            });
+            $this->assertTrue($closeStarted->pop(1.0));
+            $this->assertTrue($pool->isClosed());
+            $this->assertTrue($closeDone->isEmpty());
+
+            $resumeMaintenance->push(true);
+            $this->assertTrue($maintenanceDone->pop(1.0));
+            $this->assertTrue($closeDone->isEmpty());
+            $this->assertSame($objects, $destroyed);
+            $this->assertSame(1, $pool->getManagedCount());
+
+            $resumeClose->push(true);
+            $this->assertTrue($closeDone->pop(1.0));
+            $this->assertSame([
+                'managed' => 0, 'borrowed' => 0, 'idle' => 0, 'waiting' => 0, 'closed' => true,
+            ], $pool->getStats());
+            $this->assertSame($objects, $destroyed);
+        } finally {
+            $resumeMaintenance->close();
+            $resumeClose->close();
+            Coroutine::join($coroutineIds, 1.0);
+            $pool->close();
+        }
+    }
+
+    /**
+     * Provide maintenance operations that requeue healthy objects.
+     */
+    public static function maintenanceMethods(): array
+    {
+        return [
+            'lifetime sweep' => ['sweepExpired'],
+            'idle trim' => ['trimIdle'],
+        ];
     }
 
     public function testPoolIdleTimeoutRequiresNoBorrowedOrInFlightObjects(): void

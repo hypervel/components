@@ -374,6 +374,8 @@ The connection class is responsible for translating connection options into the 
 
 If a protocol needs to keep one socket alive with a periodic heartbeat, you may extend `KeepaliveConnection`. This connection type exposes a `call()` method for working with its socket and does not allow direct `getConnection()` access. Your subclass should create the socket through `getActiveConnection()` and may override `heartbeat()` and `sendClose()` for the protocol.
 
+If reconnection completes without an available socket, `call()` immediately throws `Hypervel\ConnectionPool\Exceptions\ConnectionException`. A failed socket wait throws `Hypervel\ConnectionPool\Exceptions\SocketPopException`; `wait_timeout` limits how long the call waits.
+
 If a connection is closed or replaced while a call is running, the call's socket is dropped when it finishes instead of being returned for reuse. This cleanup does not send a protocol close message. Return a socket resource or client whose release or destructor closes the underlying connection.
 
 Connection pools are worker-lifetime services. A package should keep them in a manager that returns the current pool for each operation instead of retaining a borrowed connection or a pool that has been removed.
