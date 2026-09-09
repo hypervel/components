@@ -382,6 +382,7 @@ class DatabaseEloquentHasManyTest extends TestCase
     {
         $queryBuilder = m::mock(QueryBuilder::class);
         $builder = m::mock(Builder::class, [$queryBuilder]);
+        $builder->shouldReceive('ensureCanCreateOrFirst')->passthru();
         $builder->shouldReceive('whereNotNull')->with('table.foreign_key');
         $builder->shouldReceive('where')->with('table.foreign_key', '=', 1);
         $related = m::mock(Model::class);

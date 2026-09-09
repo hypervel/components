@@ -644,6 +644,8 @@ class Builder implements BuilderContract
      */
     public function firstOrCreate(array $attributes = [], Closure|array $values = []): Model
     {
+        $this->ensureCanCreateOrFirst();
+
         if (! is_null($instance = (clone $this)->where($attributes)->first())) {
             return $instance;
         }
@@ -658,11 +660,20 @@ class Builder implements BuilderContract
      */
     public function createOrFirst(array $attributes = [], Closure|array $values = []): Model
     {
+        $this->ensureCanCreateOrFirst();
+
         try {
             return $this->withSavepointIfNeeded(fn () => $this->create(array_merge($attributes, value($values))));
         } catch (UniqueConstraintViolationException $e) {
             return $this->useWritePdo()->where($attributes)->first() ?? throw $e;
         }
+    }
+
+    /**
+     * Validate first-or-create and create-or-first operations, including relationship calls.
+     */
+    public function ensureCanCreateOrFirst(): void
+    {
     }
 
     /**
