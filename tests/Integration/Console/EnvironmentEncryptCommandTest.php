@@ -23,7 +23,7 @@ class EnvironmentEncryptCommandTest extends TestCase
 
         $this->filesystem = m::spy(Filesystem::class);
         $this->filesystem->shouldReceive('get')
-            ->andReturn('APP_NAME=Laravel');
+            ->andReturn('APP_NAME=Hypervel');
         $this->filesystem->shouldReceive('replace');
         $this->filesystem->shouldReceive('chmod')->andReturn('0640');
         File::swap($this->filesystem);
@@ -208,7 +208,7 @@ class EnvironmentEncryptCommandTest extends TestCase
         $filesystem->shouldReceive('get')
             ->with(base_path('.env'))
             ->once()
-            ->andReturn("APP_NAME=Laravel\nAPP_ENV=local");
+            ->andReturn("APP_NAME=Hypervel\nAPP_ENV=local");
         $filesystem->shouldReceive('replace')
             ->once()
             ->with(base_path('.env.encrypted'), m::on(function ($content) {
@@ -239,7 +239,7 @@ class EnvironmentEncryptCommandTest extends TestCase
         $filesystem->shouldReceive('get')
             ->with(base_path('.env'))
             ->once()
-            ->andReturn("# Comment\nAPP_NAME=Laravel\n\nAPP_ENV=local");
+            ->andReturn("# Comment\nAPP_NAME=Hypervel\n\nAPP_ENV=local");
         $filesystem->shouldReceive('replace')
             ->once()
             ->with(base_path('.env.encrypted'), m::on(function ($content) {
