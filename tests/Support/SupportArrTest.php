@@ -365,16 +365,16 @@ class SupportArrTest extends TestCase
         $array = ['a' => 1, 'b' => 2, 'c' => 1, 'd' => 3];
         $this->assertEquals(['b' => 2, 'd' => 3], Arr::exceptValues($array, 1));
 
-        $this->assertEquals([], Arr::exceptValues([], 'foo'));
+        $this->assertSame([], Arr::exceptValues([], 'foo'));
         $this->assertEquals(['foo', 'bar'], Arr::exceptValues(['foo', 'bar'], []));
 
         $array = [1, '1', 2, '2', 3];
         $this->assertEquals([1 => '1', 3 => '2'], Arr::exceptValues($array, [1, 2, 3], true));
-        $this->assertEquals([], Arr::exceptValues($array, [1, 2, 3]));
+        $this->assertSame([], Arr::exceptValues($array, [1, 2, 3]));
 
         $array = ['a' => true, 'b' => false, 'c' => 1, 'd' => 0];
         $this->assertEquals(['a' => true, 'b' => false], Arr::exceptValues($array, [1, 0], true));
-        $this->assertEquals([], Arr::exceptValues($array, [1, 0]));
+        $this->assertSame([], Arr::exceptValues($array, [1, 0]));
     }
 
     public function testExists(): void
@@ -1076,8 +1076,8 @@ class SupportArrTest extends TestCase
         $array = ['a' => 1, 'b' => 2, 'c' => 1, 'd' => 3];
         $this->assertEquals(['a' => 1, 'c' => 1], Arr::onlyValues($array, 1));
 
-        $this->assertEquals([], Arr::onlyValues([], 'foo'));
-        $this->assertEquals([], Arr::onlyValues(['foo', 'bar'], []));
+        $this->assertSame([], Arr::onlyValues([], 'foo'));
+        $this->assertSame([], Arr::onlyValues(['foo', 'bar'], []));
 
         $array = [1, '1', 2, '2', 3];
         $this->assertEquals([0 => 1, 2 => 2, 4 => 3], Arr::onlyValues($array, [1, 2, 3], true));
