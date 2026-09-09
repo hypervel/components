@@ -491,7 +491,7 @@ class AuthGuardTest extends TestCase
         $mock->logoutCurrentDevice();
     }
 
-    public function testLoginMethodQueuesCookieWhenRemembering()
+    public function testLoginMethodQueuesCookieWhenRemembering(): void
     {
         [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();
         $guard = new SessionGuard('default', $provider, $session, $app);
@@ -503,9 +503,9 @@ class AuthGuardTest extends TestCase
         $guard->getSession()->shouldReceive('put')->once()->with($guard->getName(), 'foo');
         $session->shouldReceive('regenerate')->once();
         $user = m::mock(Authenticatable::class);
-        $user->shouldReceive('getAuthIdentifier')->andReturn('foo');
-        $user->shouldReceive('getAuthPassword')->andReturn('bar');
-        $user->shouldReceive('getRememberToken')->andReturn('recaller');
+        $user->shouldReceive('getAuthIdentifier')->times(2)->andReturn('foo');
+        $user->shouldReceive('getAuthPassword')->once()->andReturn('bar');
+        $user->shouldReceive('getRememberToken')->times(2)->andReturn('recaller');
         $user->shouldReceive('setRememberToken')->never();
         $provider->shouldReceive('updateRememberToken')->never();
         $guard->login($user, true);
@@ -531,7 +531,7 @@ class AuthGuardTest extends TestCase
         $guard->login($user, true);
     }
 
-    public function testLoginMethodQueuesCookieWhenRememberingAndAllowsOverride()
+    public function testLoginMethodQueuesCookieWhenRememberingAndAllowsOverride(): void
     {
         [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();
         $guard = new SessionGuard('default', $provider, $session, $app);
@@ -544,9 +544,9 @@ class AuthGuardTest extends TestCase
         $guard->getSession()->shouldReceive('put')->once()->with($guard->getName(), 'foo');
         $session->shouldReceive('regenerate')->once();
         $user = m::mock(Authenticatable::class);
-        $user->shouldReceive('getAuthIdentifier')->andReturn('foo');
-        $user->shouldReceive('getAuthPassword')->andReturn('bar');
-        $user->shouldReceive('getRememberToken')->andReturn('recaller');
+        $user->shouldReceive('getAuthIdentifier')->times(2)->andReturn('foo');
+        $user->shouldReceive('getAuthPassword')->once()->andReturn('bar');
+        $user->shouldReceive('getRememberToken')->times(2)->andReturn('recaller');
         $user->shouldReceive('setRememberToken')->never();
         $provider->shouldReceive('updateRememberToken')->never();
         $guard->login($user, true);

@@ -830,6 +830,8 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
 });
 ```
 
+Custom guards used with `auth.session` must provide a `hashPasswordForCookie` method that returns an HMAC of the password hash and use the same value when creating remember cookies. Extending `Hypervel\Auth\SessionGuard` provides this behavior.
+
 Then, you may use the `logoutOtherDevices` method provided by the `Auth` facade. This method requires the user to confirm their current password, which your application should accept through an input form:
 
 ```php
