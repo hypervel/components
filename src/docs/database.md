@@ -398,6 +398,8 @@ includes:
 
 A scope that declares no return type, or declares `void`, `null`, or the query builder, stays chainable. Declaring a broader type such as `mixed` or `object` tells the analyzer the scope may return something else, so that type is preserved. When a scope declares a union containing the query builder, such as `Builder|int`, the builder becomes the chainable receiver and the remaining types are kept.
 
+For a [custom Eloquent builder](/docs/{{version}}/eloquent#custom-eloquent-builders), use the `HasBuilder` trait on the model with `@use HasBuilder<YourBuilder<static>>`. The extension follows the model's declared `query()` return type, including through relationships. If your Eloquent builder also uses a custom query builder, declare that type on `getQuery()`. Forwarded methods retain the Eloquent builder or relationship when they are chainable, while custom Eloquent terminal methods retain their result types. Query builders declaring `TKey` and `TValue` templates preserve model-valued callback signatures during forwarding; direct `getQuery()` and `toBase()` calls keep their raw-row types.
+
 <a name="running-queries"></a>
 ## Running SQL Queries
 
