@@ -964,6 +964,22 @@ $users = DB::table('users')
     ->get();
 ```
 
+You may also pass a query builder or closure as the first argument to compare a subquery's result to the given values. For example, the following query retrieves users whose most recent score is between 50 and 100:
+
+```php
+use Hypervel\Database\Query\Builder;
+
+$users = DB::table('users')
+    ->whereBetween(function (Builder $query) {
+        $query->select('score')
+            ->from('scores')
+            ->whereColumn('scores.user_id', 'users.id')
+            ->orderByDesc('scores.created_at')
+            ->limit(1);
+    }, [50, 100])
+    ->get();
+```
+
 **whereNotBetween / orWhereNotBetween**
 
 The `whereNotBetween` method verifies that a column's value lies outside of two values:
@@ -991,6 +1007,8 @@ $patients = DB::table('patients')
     ->whereNotBetweenColumns('weight', ['minimum_allowed_weight', 'maximum_allowed_weight'])
     ->get();
 ```
+
+Like `whereBetween`, these methods also accept a query builder or closure as the first argument to compare a subquery's result to the two column values.
 
 **whereValueBetween / whereValueNotBetween / orWhereValueBetween / orWhereValueNotBetween**
 
