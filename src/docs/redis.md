@@ -391,6 +391,24 @@ Redis::disableEvents();
 
 These methods are intended for application boot. If a pool was created earlier in the same startup lifecycle with the other setting, Hypervel replaces that pool generation on its next use. Matching pools are left untouched. Connections already checked out from a replaced generation may finish their current work and are destroyed when returned.
 
+To listen for failed commands, register a callback using the `Redis` facade's `listenForFailures` method in the `boot` method of a service provider:
+
+```php
+use Hypervel\Redis\Events\CommandFailed;
+use Hypervel\Support\Facades\Log;
+use Hypervel\Support\Facades\Redis;
+
+Redis::listenForFailures(function (CommandFailed $event): void {
+    Log::error('Redis command failed.', [
+        'connection' => $event->connectionName,
+        'command' => $event->command,
+        'exception' => $event->exception,
+    ]);
+});
+```
+
+Listening for a failure does not suppress the command's exception. You may also use `Redis::listen` to register a callback that receives a `Hypervel\Redis\Events\CommandExecuted` event after each successful command.
+
 <a name="holding-a-pooled-connection"></a>
 #### Holding a Pooled Connection
 

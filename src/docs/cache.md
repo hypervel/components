@@ -357,6 +357,16 @@ $value = Cache::get('key', function () {
 });
 ```
 
+You may also use enums as cache keys. Backed enums use their values, while unit enums use their case names:
+
+```php
+use App\Enums\CacheKey;
+
+Cache::put(CacheKey::Visits, 10, 600);
+
+$visits = Cache::get(CacheKey::Visits);
+```
+
 <a name="determining-item-existence"></a>
 #### Determining Item Existence
 
