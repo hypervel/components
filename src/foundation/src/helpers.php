@@ -862,9 +862,9 @@ if (! function_exists('session')) {
      *
      * If an array is passed as the key, we will assume you want to set an array of values.
      *
-     * @return ($key is null ? SessionManager : ($key is string ? mixed : null))
+     * @return ($key is null ? SessionManager : ($key is array ? null : mixed))
      */
-    function session(array|string|null $key = null, mixed $default = null): mixed
+    function session(array|UnitEnum|string|null $key = null, mixed $default = null): mixed
     {
         $session = app('session');
 
