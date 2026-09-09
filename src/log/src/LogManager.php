@@ -263,13 +263,13 @@ class LogManager implements LoggerInterface
             $config['channels'] = explode(',', $config['channels']);
         }
 
-        $handlers = Collection::make($config['channels'])->flatMap(function ($channel) {
+        $handlers = (new Collection($config['channels']))->flatMap(function ($channel) {
             return $channel instanceof LoggerInterface
                 ? $channel->getHandlers() // @phpstan-ignore-line
                 : $this->channel($channel)->getHandlers(); // @phpstan-ignore-line
         })->all();
 
-        $processors = Collection::make($config['channels'])->flatMap(function ($channel) {
+        $processors = (new Collection($config['channels']))->flatMap(function ($channel) {
             return $channel instanceof LoggerInterface
                 ? $channel->getProcessors() // @phpstan-ignore-line
                 : $this->channel($channel)->getProcessors(); // @phpstan-ignore-line
@@ -382,7 +382,7 @@ class LogManager implements LoggerInterface
             );
         }
 
-        Collection::make($config['processors'] ?? [])->each(function ($processor) {
+        (new Collection($config['processors'] ?? []))->each(function ($processor) {
             $processor = $processor['processor'] ?? $processor;
 
             if (! is_a($processor, ProcessorInterface::class, true)) {
@@ -409,7 +409,7 @@ class LogManager implements LoggerInterface
             $config
         );
 
-        $processors = Collection::make($config['processors'] ?? [])
+        $processors = (new Collection($config['processors'] ?? []))
             ->map(function ($processor) {
                 $resolved = $this->app->make(
                     $processor['processor'] ?? $processor,

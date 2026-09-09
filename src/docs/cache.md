@@ -357,6 +357,16 @@ $value = Cache::get('key', function () {
 });
 ```
 
+You may also use enums as cache keys. Backed enums use their values, while unit enums use their case names:
+
+```php
+use App\Enums\CacheKey;
+
+Cache::put(CacheKey::Visits, 10, 600);
+
+$visits = Cache::get(CacheKey::Visits);
+```
+
 <a name="determining-item-existence"></a>
 #### Determining Item Existence
 
@@ -838,6 +848,8 @@ Cache::lock('foo', 10)
         // ...
     });
 ```
+
+When using database locks, you may disable automatic pruning by setting your cache store's `lock_lottery` option to an empty array. You may then call `pruneExpiredLocks` on a database lock to remove expired locks explicitly.
 
 <a name="managing-locks-across-processes"></a>
 ### Managing Locks Across Processes

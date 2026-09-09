@@ -340,6 +340,31 @@ class FoundationConfigTest extends TestCase
         }
     }
 
+    #[DataProvider('publicDiskUrlProvider')]
+    public function testPublicDiskUrlsNormalizeTheApplicationUrl(?string $appUrl, string $expectedUrl): void
+    {
+        $config = $this->withEnvironmentValue(
+            'APP_URL',
+            $appUrl,
+            fn (): array => $this->filesystemConfig(),
+        );
+        $disk = $this->app->make('filesystem')->build($config['disks']['public']);
+
+        $this->assertSame($expectedUrl, $disk->url('avatar.png'));
+    }
+
+    /**
+     * Provide application URLs and their public file URLs.
+     */
+    public static function publicDiskUrlProvider(): array
+    {
+        return [
+            'without trailing slash' => ['https://example.test', 'https://example.test/storage/avatar.png'],
+            'subpath with trailing slash' => ['https://example.test/app/', 'https://example.test/app/storage/avatar.png'],
+            'absent application URL' => [null, '/storage/avatar.png'],
+        ];
+    }
+
     public function testS3RootReadsTheAwsRootEnvironmentVariable(): void
     {
         $config = $this->withEnvironmentValue(

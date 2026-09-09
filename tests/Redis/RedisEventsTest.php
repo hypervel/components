@@ -49,11 +49,9 @@ class RedisEventsTest extends TestCase
 
         $redis = $this->createRedis($connection);
 
-        try {
-            $redis->get('key');
-        } catch (Exception) {
-            // Expected
-        }
+        $this->expectExceptionObject($exception);
+
+        $redis->get('key');
     }
 
     public function testCommandExecutedEventIsNotDispatchedWhenCommandFails(): void
@@ -258,6 +256,9 @@ class RedisEventsTest extends TestCase
         $this->assertTrue(true);
     }
 
+    /**
+     * Create a Redis proxy using the given connection.
+     */
     private function createRedis(m\MockInterface|RedisConnection $connection): RedisProxy
     {
         $pool = m::mock(RedisPool::class);
@@ -274,6 +275,9 @@ class RedisEventsTest extends TestCase
         );
     }
 
+    /**
+     * Create a mock Redis connection for the given command.
+     */
     private function createMockRedisConnection(
         string $command = 'get',
         mixed $returnValue = 'value',
@@ -284,6 +288,7 @@ class RedisEventsTest extends TestCase
 
         if ($exception !== null) {
             $mockPhpRedis->shouldReceive($command)
+                ->once()
                 ->andThrow($exception);
         } else {
             $mockPhpRedis->shouldReceive($command)

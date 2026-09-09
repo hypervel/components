@@ -880,8 +880,13 @@ If you would like your intermediate table to have `created_at` and `updated_at` 
 return $this->belongsToMany(Role::class)->withTimestamps();
 ```
 
-> [!WARNING]
-> Intermediate tables that utilize Eloquent's automatically maintained timestamps are required to have both `created_at` and `updated_at` timestamp columns.
+By default, the intermediate table must contain both timestamp columns. To use different column names, pass them to the `createdAt` and `updatedAt` arguments. You may pass `false` to either argument to disable that timestamp:
+
+```php
+return $this->belongsToMany(Role::class)->withTimestamps(updatedAt: false);
+```
+
+For custom pivot models, also override `getCreatedAtColumn` or `getUpdatedAtColumn` to return the renamed column or `null` for a disabled timestamp.
 
 <a name="customizing-the-pivot-attribute-name"></a>
 #### Customizing the `pivot` Attribute Name

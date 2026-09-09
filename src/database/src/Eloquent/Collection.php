@@ -653,7 +653,7 @@ class Collection extends BaseCollection implements QueueableCollection
     public function mergeHidden(array|string $attributes): static
     {
         // @phpstan-ignore return.type (HigherOrderProxy returns $this, not TModel)
-        return $this->each->mergeHidden($attributes);
+        return $this->each->mergeHidden((array) $attributes);
     }
 
     /**
@@ -686,7 +686,7 @@ class Collection extends BaseCollection implements QueueableCollection
     public function mergeVisible(array|string $attributes): static
     {
         // @phpstan-ignore return.type (HigherOrderProxy returns $this, not TModel)
-        return $this->each->mergeVisible($attributes);
+        return $this->each->mergeVisible((array) $attributes);
     }
 
     /**
@@ -993,7 +993,7 @@ class Collection extends BaseCollection implements QueueableCollection
 
         $class = get_class($model);
 
-        if ($this->reject(fn ($model) => $model instanceof $class)->isNotEmpty()) {
+        if ($this->contains(fn ($model) => ! $model instanceof $class)) {
             throw new LogicException('Unable to create query for collection with mixed types.');
         }
 

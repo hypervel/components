@@ -66,6 +66,8 @@ $response->handlerStats() : array;
 $response->toPsrResponse() : Psr\Http\Message\ResponseInterface;
 ```
 
+You may also use the response's [tap method](/docs/{{version}}/helpers#method-tap) to inspect it without interrupting a method chain.
+
 The `Hypervel\Http\Client\Response` object also implements the PHP `ArrayAccess` interface, allowing you to access JSON response data directly on the response:
 
 ```php
@@ -1078,6 +1080,24 @@ use Hypervel\Http\Client\Request;
 Http::fake(function (Request $request) {
     return Http::response('Hello World', 200);
 });
+```
+
+<a name="request-attributes"></a>
+#### Request Attributes
+
+To distinguish requests sent to the same URL, you may attach attributes using the `withAttributes` method. These attributes are available to fake callbacks and request assertions through the request's `attributes` method and are not sent to the remote server:
+
+```php
+use Hypervel\Http\Client\Request;
+use Hypervel\Support\Facades\Http;
+
+Http::fake(fn (Request $request) => match ($request->attributes()['name'] ?? null) {
+    'products' => Http::response(['products' => []]),
+    default => Http::response(),
+});
+
+$response = Http::withAttributes(['name' => 'products'])
+    ->get('https://example.com/graphql');
 ```
 
 <a name="inspecting-requests"></a>

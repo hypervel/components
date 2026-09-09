@@ -48,6 +48,24 @@ class ValidationDateRuleTest extends TestCase
         $this->assertEquals('date|before_or_equal:"today"', (string) $rule);
     }
 
+    public function testPastRule(): void
+    {
+        $rule = Rule::date()->past();
+        $this->assertSame('date|before:"now"', (string) $rule);
+
+        $rule = Rule::date()->nowOrPast();
+        $this->assertSame('date|before_or_equal:"now"', (string) $rule);
+    }
+
+    public function testFutureRule(): void
+    {
+        $rule = Rule::date()->future();
+        $this->assertSame('date|after:"now"', (string) $rule);
+
+        $rule = Rule::date()->nowOrFuture();
+        $this->assertSame('date|after_or_equal:"now"', (string) $rule);
+    }
+
     public function testAfterSpecificDateRule(): void
     {
         $rule = Rule::date()->after(CarbonImmutable::parse('2024-01-01'));

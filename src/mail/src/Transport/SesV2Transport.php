@@ -6,6 +6,7 @@ namespace Hypervel\Mail\Transport;
 
 use Aws\Exception\AwsException;
 use Aws\SesV2\SesV2Client;
+use Hypervel\Support\Collection;
 use Stringable;
 use Symfony\Component\Mailer\Exception\TransportException;
 use Symfony\Component\Mailer\Header\MetadataHeader;
@@ -26,6 +27,8 @@ class SesV2Transport extends AbstractTransport implements Stringable
     }
 
     /**
+     * Send the given message.
+     *
      * @throws TransportException
      */
     protected function doSend(SentMessage $message): void
@@ -55,7 +58,7 @@ class SesV2Transport extends AbstractTransport implements Stringable
                     [
                         'Source' => $message->getEnvelope()->getSender()->toString(),
                         'Destination' => [
-                            'ToAddresses' => collect($message->getEnvelope()->getRecipients())
+                            'ToAddresses' => (new Collection($message->getEnvelope()->getRecipients()))
                                 ->map
                                 ->toString()
                                 ->values() // @phpstan-ignore method.nonObject (HigherOrderProxy: ->map->toString() returns Collection, not string)

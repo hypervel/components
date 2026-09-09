@@ -9,99 +9,88 @@ use Hypervel\Tests\TestCase;
 
 class RecallerTest extends TestCase
 {
-    public function testIdReturnsFirstSegment()
+    public function testIdReturnsFirstSegment(): void
     {
         $recaller = new Recaller('123|token|hash');
 
         $this->assertSame('123', $recaller->id());
     }
 
-    public function testTokenReturnsSecondSegment()
+    public function testTokenReturnsSecondSegment(): void
     {
         $recaller = new Recaller('123|token|hash');
 
         $this->assertSame('token', $recaller->token());
     }
 
-    public function testHashReturnsThirdSegment()
+    public function testHashReturnsThirdSegment(): void
     {
         $recaller = new Recaller('123|token|hash');
 
         $this->assertSame('hash', $recaller->hash());
     }
 
-    public function testHashDoesNotIncludeFourthSegment()
+    public function testHashDoesNotIncludeFourthSegment(): void
     {
         $recaller = new Recaller('123|token|hash|extra');
 
         $this->assertSame('hash', $recaller->hash());
     }
 
-    public function testSegmentsReturnsAllParts()
+    public function testSegmentsReturnsAllParts(): void
     {
-        $recaller = new Recaller('123|token|hash');
+        $recaller = new Recaller('123|token|hash|extra');
 
-        $this->assertSame(['123', 'token', 'hash'], $recaller->segments());
+        $this->assertSame(['123', 'token', 'hash', 'extra'], $recaller->segments());
+        $this->assertTrue($recaller->valid());
     }
 
-    public function testValidReturnsTrueForProperRecaller()
+    public function testValidReturnsTrueForProperRecaller(): void
     {
         $recaller = new Recaller('123|token|hash');
 
         $this->assertTrue($recaller->valid());
     }
 
-    public function testValidReturnsFalseWhenNoPipes()
+    public function testValidReturnsFalseWhenNoPipes(): void
     {
         $recaller = new Recaller('invalid');
 
         $this->assertFalse($recaller->valid());
     }
 
-    public function testValidReturnsFalseWhenOnlyTwoSegments()
+    public function testValidReturnsFalseWhenOnlyTwoSegments(): void
     {
         $recaller = new Recaller('123|token');
 
         $this->assertFalse($recaller->valid());
     }
 
-    public function testValidReturnsFalseWhenIdIsEmpty()
+    public function testValidReturnsFalseWhenIdIsEmpty(): void
     {
         $recaller = new Recaller('|token|hash');
 
         $this->assertFalse($recaller->valid());
     }
 
-    public function testValidReturnsFalseWhenTokenIsEmpty()
+    public function testValidReturnsFalseWhenTokenIsEmpty(): void
     {
         $recaller = new Recaller('123||hash');
 
         $this->assertFalse($recaller->valid());
     }
 
-    public function testValidReturnsFalseWhenIdIsWhitespace()
+    public function testValidReturnsFalseWhenIdIsWhitespace(): void
     {
         $recaller = new Recaller(' |token|hash');
 
         $this->assertFalse($recaller->valid());
     }
 
-    public function testRawStringFallsBackWhenUnserializeFails()
+    public function testPlainCookieStringPreservesIdentifierAndToken(): void
     {
-        // The constructor attempts unserialize — a non-serialized string
-        // fails unserialize and falls back to the raw string.
         $raw = '123|token|hash';
         $recaller = new Recaller($raw);
-
-        $this->assertSame('123', $recaller->id());
-        $this->assertSame('token', $recaller->token());
-    }
-
-    public function testSerializedStringIsUnserializedInConstructor()
-    {
-        // The constructor successfully unserializes a serialized string.
-        $raw = '123|token|hash';
-        $recaller = new Recaller(serialize($raw));
 
         $this->assertSame('123', $recaller->id());
         $this->assertSame('token', $recaller->token());

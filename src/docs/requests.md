@@ -471,6 +471,8 @@ You may also pass an array of keys to build the instance from only those input v
 $user = $request->fluent(['name', 'role']);
 ```
 
+Fluent instances also provide the input retrieval methods described on this page, such as `integer`, `boolean`, `date`, and `enum`.
+
 <a name="retrieving-date-input-values"></a>
 #### Retrieving Date Input Values
 

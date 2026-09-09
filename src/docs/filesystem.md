@@ -509,7 +509,7 @@ If you would like to modify the host for URLs generated using the `Storage` faca
 'public' => [
     'driver' => 'local',
     'root' => storage_path('app/public'),
-    'url' => env('APP_URL').'/storage',
+    'url' => rtrim((string) env('APP_URL'), '/').'/storage',
     'visibility' => 'public',
     'throw' => false,
 ],

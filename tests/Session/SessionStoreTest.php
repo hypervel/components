@@ -818,10 +818,12 @@ class SessionStoreTest extends TestCase
     {
         $session = $this->getSession();
         $session->put(SessionTestKey::User, 'Taylor');
+        $session->put('User', 'keep');
         $this->assertTrue($session->has('user'));
 
         $session->forget(SessionTestKey::User);
         $this->assertFalse($session->has('user'));
+        $this->assertSame('keep', $session->get('User'));
 
         $session->put(SessionTestKey::User, 'Taylor');
         $session->put(SessionTestKey::Settings, 'dark-mode');

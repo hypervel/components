@@ -31,7 +31,7 @@ class Listener
     /**
      * Return the queries that have been executed.
      *
-     * @return array<int, array{connectionName: string, time: ?float, sql: string, bindings: array}>
+     * @return array<int, array{connectionName: ?string, time: ?float, sql: string, bindings: array}>
      */
     public function queries(): array
     {

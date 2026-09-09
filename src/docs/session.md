@@ -133,7 +133,7 @@ $value = $request->session()->get('key', function () {
 <a name="the-global-session-helper"></a>
 #### The Global Session Helper
 
-You may also use the global `session` PHP function to retrieve and store data in the session. When the `session` helper is called with a single, string argument, it will return the value of that session key. When the helper is called with an array of key / value pairs, those values will be stored in the session:
+You may also use the global `session` PHP function to retrieve and store data in the session. When the `session` helper is called with a single string or enum argument, it will return the value of that session key. When the helper is called with an array of key / value pairs, those values will be stored in the session:
 
 ```php
 Route::get('/home', function () {
@@ -150,6 +150,24 @@ Route::get('/home', function () {
 
 > [!NOTE]
 > There is little practical difference between using the session via an HTTP request instance versus using the global `session` helper. Both methods are [testable](/docs/{{version}}/testing) via the `assertSessionHas` method which is available in all of your test cases.
+
+<a name="enum-session-keys"></a>
+#### Enum Session Keys
+
+You may use enums as session keys. Backed enums use their value as the key, while unbacked enums use their case name:
+
+```php
+enum SessionKey: string
+{
+    case Cart = 'cart';
+}
+
+session()->put(SessionKey::Cart, $items);
+
+$items = session(SessionKey::Cart);
+
+session()->forget(SessionKey::Cart);
+```
 
 <a name="retrieving-all-session-data"></a>
 #### Retrieving All Session Data

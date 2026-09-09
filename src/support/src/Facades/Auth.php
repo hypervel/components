@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 use Hypervel\Contracts\Auth\StatefulGuard;
+use Hypervel\Contracts\Auth\SupportsBasicAuth;
 
 /**
  * @method static void clearUserCache(mixed $identifier, \UnitEnum|string|null $guard = null)
@@ -30,19 +31,45 @@ use Hypervel\Contracts\Auth\StatefulGuard;
  * @method static void shouldUse(\UnitEnum|string|null $name)
  * @method static \Closure userResolver()
  * @method static \Hypervel\Auth\AuthManager viaRequest(string $driver, callable $callback)
+ * @method static void attempting(callable $callback)
+ * @method static bool attemptWhen(array $credentials = [], callable|array|null $callbacks = null, bool $remember = false)
+ * @method static \Hypervel\Contracts\Auth\Authenticatable authenticate()
+ * @method static void flushMacros()
+ * @method static void flushState()
+ * @method static \Hypervel\Auth\SessionGuard forgetUser()
+ * @method static \Hypervel\Contracts\Cookie\QueueingFactory getCookieJar()
+ * @method static \Hypervel\Contracts\Events\Dispatcher|null getDispatcher()
+ * @method static \Hypervel\Contracts\Auth\Authenticatable|null getLastAttempted()
+ * @method static string getName()
+ * @method static \Hypervel\Contracts\Auth\UserProvider|null getProvider()
+ * @method static string getRecallerName()
+ * @method static \Symfony\Component\HttpFoundation\Request getRequest()
+ * @method static \Hypervel\Contracts\Session\Session getSession()
+ * @method static \Hypervel\Support\Timebox getTimebox()
+ * @method static \Hypervel\Contracts\Auth\Authenticatable|null getUser()
+ * @method static string hashPasswordForCookie(string|null $passwordHash)
+ * @method static bool hasMacro(string $name)
+ * @method static void logoutCurrentDevice()
+ * @method static \Hypervel\Contracts\Auth\Authenticatable|null logoutOtherDevices(string $password)
+ * @method static void macro(string $name, callable|object $macro)
+ * @method static void mixin(object $mixin, bool $replace = true)
+ * @method static void setCookieJar(\Hypervel\Contracts\Cookie\QueueingFactory $cookie)
+ * @method static void setDispatcher(\Hypervel\Contracts\Events\Dispatcher $events)
+ * @method static void setProvider(\Hypervel\Contracts\Auth\UserProvider $provider)
+ * @method static \Hypervel\Auth\SessionGuard setRememberDuration(int $minutes)
  *
  * @see \Hypervel\Auth\AuthManager
- * @see \Hypervel\Contracts\Auth\Guard
- * @see \Hypervel\Contracts\Auth\StatefulGuard
+ * @see \Hypervel\Auth\SessionGuard
  *
  * @mixin \Hypervel\Contracts\Auth\StatefulGuard
+ * @mixin \Hypervel\Contracts\Auth\SupportsBasicAuth
  */
 class Auth extends Facade
 {
     /**
      * Get methods that should be excluded from the generated facade docblock.
      *
-     * The guard surface comes from the mixin because @method tags cannot carry
+     * The guard contracts come from mixins because @method tags cannot carry
      * the contracts' @phpstan-impure metadata.
      *
      * The documenter excludes by name, so review this hook if AuthManager gains
@@ -52,7 +79,10 @@ class Auth extends Facade
      */
     protected static function ignoredFacadeDocumenterMethods(): array
     {
-        return get_class_methods(StatefulGuard::class);
+        return [
+            ...get_class_methods(StatefulGuard::class),
+            ...get_class_methods(SupportsBasicAuth::class),
+        ];
     }
 
     /**

@@ -51,6 +51,7 @@ return [
             'database' => env('DB_DATABASE', database_path('database.sqlite')),
             'prefix' => '',
             'prefix_indexes' => null,
+            'mask_bindings_in_exception_messages' => (bool) env('DB_MASK_BINDINGS', false),
             'foreign_key_constraints' => (bool) env('DB_FOREIGN_KEYS', true),
             'busy_timeout' => null,
             'journal_mode' => null,
@@ -72,6 +73,7 @@ return [
             'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
             'prefix' => env('DB_PREFIX', ''),
             'prefix_indexes' => true,
+            'mask_bindings_in_exception_messages' => (bool) env('DB_MASK_BINDINGS', false),
             'strict' => true,
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
@@ -103,6 +105,7 @@ return [
             'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
             'prefix' => env('DB_PREFIX', ''),
             'prefix_indexes' => true,
+            'mask_bindings_in_exception_messages' => (bool) env('DB_MASK_BINDINGS', false),
             'strict' => true,
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
@@ -132,6 +135,7 @@ return [
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => env('DB_PREFIX', ''),
             'prefix_indexes' => true,
+            'mask_bindings_in_exception_messages' => (bool) env('DB_MASK_BINDINGS', false),
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
             'options' => [
@@ -161,6 +165,7 @@ return [
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => env('DB_PREFIX', ''),
             'prefix_indexes' => true,
+            'mask_bindings_in_exception_messages' => (bool) env('DB_MASK_BINDINGS', false),
             'search_path' => 'public',
             'sslmode' => env('DB_POOLED_SSLMODE', env('DB_SSLMODE', 'prefer')),
             'options' => [
