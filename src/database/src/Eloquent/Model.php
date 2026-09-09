@@ -1701,8 +1701,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             return true;
         }
 
+        // Keep array-valued attributes inside the model's single row.
         $result = $query->toBase()->insertOrIgnoreReturning(
-            $attributes,
+            [$attributes],
             ['*'],
             $uniqueBy
         );
