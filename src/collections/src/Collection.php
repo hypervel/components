@@ -14,8 +14,10 @@ use Hypervel\Support\Traits\EnumeratesValues;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\TransformsToResourceCollection;
 use InvalidArgumentException;
+use Override;
 use SortDirection;
 use stdClass;
+use Stringable as BaseStringable;
 use Traversable;
 use UnitEnum;
 
@@ -505,7 +507,18 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
 
     /**
      * Group an associative array by a field or using a callback.
+     *
+     * @template TGroupKey of array-key|bool|null|UnitEnum|BaseStringable
+     *
+     * @param array|(callable(TValue, TKey): (array<array-key, TGroupKey>|TGroupKey))|string $groupBy
+     * @return static<
+     *  ($groupBy is (array|string)
+     *      ? array-key
+     *      : (TGroupKey is array-key ? TGroupKey : (TGroupKey is bool ? int : (TGroupKey is (BaseStringable|null) ? string : array-key)))),
+     *  static<($preserveKeys is true ? TKey : int), ($groupBy is array ? mixed : TValue)>
+     * >
      */
+    #[Override]
     public function groupBy(callable|array|string $groupBy, bool $preserveKeys = false): static
     {
         if (! $this->useAsCallable($groupBy) && is_array($groupBy)) {
@@ -529,7 +542,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
                 $groupKey = match (true) {
                     is_bool($groupKey) => (int) $groupKey,
                     $groupKey instanceof UnitEnum => enum_value($groupKey),
-                    $groupKey instanceof \Stringable => (string) $groupKey,
+                    $groupKey instanceof BaseStringable => (string) $groupKey,
                     is_null($groupKey) => (string) $groupKey,
                     default => $groupKey,
                 };
@@ -554,13 +567,8 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
 
     /**
      * Key an associative array by a field or using a callback.
-     *
-     * @template TNewKey of array-key|\UnitEnum
-     *
-     * @param array|(callable(TValue, TKey): TNewKey)|string $keyBy
-     * @return static<($keyBy is (array|string) ? array-key : (TNewKey is UnitEnum ? array-key : TNewKey)), TValue>
-     * @phpstan-ignore method.childReturnType (complex conditional types PHPStan can't match)
      */
+    #[Override]
     public function keyBy(callable|array|string $keyBy): static
     {
         $keyBy = $this->valueRetriever($keyBy);
@@ -1816,9 +1824,9 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Count the number of items in the collection by a field or using a callback.
      *
-     * @param null|(callable(TValue, TKey): (array-key|UnitEnum))|string $countBy
      * @return static<array-key, int>
      */
+    #[Override]
     public function countBy(callable|string|null $countBy = null): Collection
     {
         return $this->newInstance($this->lazy()->countBy($countBy)->all());

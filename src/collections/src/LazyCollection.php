@@ -354,9 +354,9 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
     /**
      * Count the number of items in the collection by a field or using a callback.
      *
-     * @param null|(callable(TValue, TKey): (array-key|UnitEnum))|string $countBy
      * @return static<array-key, int>
      */
+    #[Override]
     public function countBy(callable|string|null $countBy = null): static
     {
         $countBy = is_null($countBy)
@@ -557,13 +557,8 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
 
     /**
      * Key an associative array by a field or using a callback.
-     *
-     * @template TNewKey of array-key|\UnitEnum
-     *
-     * @param array|(callable(TValue, TKey): TNewKey)|string $keyBy
-     * @return static<($keyBy is (array|string) ? array-key : (TNewKey is UnitEnum ? array-key : TNewKey)), TValue>
-     * @phpstan-ignore method.childReturnType (complex conditional return type PHPStan can't verify)
      */
+    #[Override]
     public function keyBy(callable|array|string $keyBy): static
     {
         return $this->newInstance(function () use ($keyBy) {
