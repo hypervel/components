@@ -17,6 +17,12 @@ class Builder
 {
     use Macroable;
 
+    protected const int DEFAULT_STRING_LENGTH = 255;
+
+    protected const int DEFAULT_TIME_PRECISION = 0;
+
+    protected const string DEFAULT_MORPH_KEY_TYPE = 'int';
+
     /**
      * The database connection instance.
      */
@@ -36,18 +42,22 @@ class Builder
 
     /**
      * The default string length for migrations.
+     *
+     * @var null|non-negative-int
      */
-    public static ?int $defaultStringLength = 255;
+    public static ?int $defaultStringLength = self::DEFAULT_STRING_LENGTH;
 
     /**
      * The default time precision for migrations.
      */
-    public static ?int $defaultTimePrecision = 0;
+    public static ?int $defaultTimePrecision = self::DEFAULT_TIME_PRECISION;
 
     /**
      * The default relationship morph key type.
+     *
+     * @var 'int'|'ulid'|'uuid'
      */
-    public static string $defaultMorphKeyType = 'int';
+    public static string $defaultMorphKeyType = self::DEFAULT_MORPH_KEY_TYPE;
 
     /**
      * Create a new database Schema manager.
@@ -63,6 +73,8 @@ class Builder
      *
      * Boot-only. The length persists in a static property for the worker
      * lifetime and applies to every Blueprint::string() across all coroutines.
+     *
+     * @param non-negative-int $length
      */
     public static function defaultStringLength(int $length): void
     {
@@ -95,17 +107,6 @@ class Builder
         }
 
         static::$defaultMorphKeyType = $type;
-    }
-
-    /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        static::$defaultStringLength = 255;
-        static::$defaultTimePrecision = 0;
-        static::$defaultMorphKeyType = 'int';
-        static::flushMacros();
     }
 
     /**
@@ -575,6 +576,11 @@ class Builder
 
     /**
      * Disable foreign key constraints during the execution of a callback.
+     *
+     * @template TReturn
+     *
+     * @param Closure(): TReturn $callback
+     * @return TReturn
      */
     public function withoutForeignKeyConstraints(Closure $callback): mixed
     {
@@ -750,6 +756,10 @@ class Builder
 
     /**
      * Parse the given database object reference and extract the schema and table.
+     *
+     * @return array{null|string, string}
+     *
+     * @throws InvalidArgumentException
      */
     public function parseSchemaAndTable(string $reference, bool|string|null $withDefaultSchema = null): array
     {
@@ -789,5 +799,16 @@ class Builder
     public function blueprintResolver(Closure $resolver): void
     {
         $this->resolver = $resolver;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$defaultStringLength = self::DEFAULT_STRING_LENGTH;
+        static::$defaultTimePrecision = self::DEFAULT_TIME_PRECISION;
+        static::$defaultMorphKeyType = self::DEFAULT_MORPH_KEY_TYPE;
+        static::flushMacros();
     }
 }

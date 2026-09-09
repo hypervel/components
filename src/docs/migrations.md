@@ -1405,11 +1405,7 @@ $table->string('name')->lock('none');
 $table->index('email')->lock('shared');
 ```
 
-If the requested lock mode is incompatible with the operation, MySQL will raise an error. The `lock` modifier may be combined with the `instant` modifier to further optimize schema changes:
-
-```php
-$table->string('name')->instant()->lock('none');
-```
+If the requested lock mode is incompatible with the operation, MySQL will raise an error. When the `instant` modifier is used, MySQL permits only the `default` lock mode.
 
 <a name="modifying-columns"></a>
 ### Modifying Columns

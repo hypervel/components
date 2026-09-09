@@ -19,6 +19,8 @@ class MigrationCreator
 
     /**
      * The registered post create hooks.
+     *
+     * @var (Closure(?string, string): void)[]
      */
     protected array $postCreate = [];
 
@@ -169,6 +171,11 @@ class MigrationCreator
 
     /**
      * Register a post migration create hook.
+     *
+     * Boot-only. Hooks persist on the migration creator for the worker
+     * lifetime and run for every subsequent migration creation.
+     *
+     * @param Closure(?string, string): void $callback
      */
     public function afterCreate(Closure $callback): void
     {

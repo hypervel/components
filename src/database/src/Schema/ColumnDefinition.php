@@ -23,9 +23,8 @@ use LogicException;
  * @method $this instant() Specify that algorithm=instant should be used for the column operation (MySQL)
  * @method $this index(bool|string $indexName = null) Add an index
  * @method $this invisible() Specify that the column should be invisible to "SELECT *" (MySQL)
- * @method $this lock(string $value) Specify the DDL lock mode for the column operation (MySQL)
+ * @method $this lock(('default'|'exclusive'|'none'|'shared') $value) Specify the DDL lock mode for the column operation (MySQL)
  * @method $this nullable(bool $value = true) Allow NULL values to be inserted into the column
- * @method $this persisted() Mark the computed generated column as persistent (SQL Server)
  * @method $this primary(bool $value = true) Add a primary index
  * @method $this spatialIndex(bool|string $indexName = null) Add a spatial index
  * @method $this vectorIndex(bool|string $indexName = null) Add a vector index
