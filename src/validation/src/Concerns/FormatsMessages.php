@@ -20,10 +20,6 @@ trait FormatsMessages
      */
     protected function getMessage(string $attribute, string $rule): string
     {
-        $attributeWithPlaceholders = $attribute;
-
-        $attribute = $this->replacePlaceholderInString($attribute);
-
         $inlineMessage = $this->getInlineMessage($attribute, $rule);
 
         // First we will retrieve the custom message for the validation rule if one
@@ -54,7 +50,7 @@ trait FormatsMessages
         // specific error message for the type of attribute being validated such
         // as a number, file or string which all have different message types.
         if (in_array($rule, $this->sizeRules, true)) {
-            return $this->getSizeMessage($attributeWithPlaceholders, $rule);
+            return $this->getSizeMessage($attribute, $rule);
         }
 
         // Finally, if no developer specified messages have been set, and no other
@@ -98,6 +94,8 @@ trait FormatsMessages
     {
         $source = $source ?: $this->customMessages;
 
+        $displayAttribute = $this->replacePlaceholderInString($attribute);
+
         $keys = ["{$attribute}.{$lowerRule}", $lowerRule, $attribute];
 
         if ($this->getAttributeType($attribute) !== 'file') {
@@ -112,11 +110,13 @@ trait FormatsMessages
         // message for the fields, then we will check for a general custom line
         // that is not attribute specific. If we find either we'll return it.
         foreach ($keys as $key) {
-            foreach (array_keys($source) as $sourceKey) {
-                if (str_contains($sourceKey, '*')) {
-                    $pattern = str_replace('\*', '([^.]*)', preg_quote($sourceKey, '#'));
+            $displayKey = $this->replacePlaceholderInString($key);
 
-                    if (preg_match('#^' . $pattern . '\z#u', $key) === 1) {
+            foreach (array_keys($source) as $sourceKey) {
+                $sourceKey = (string) $sourceKey;
+
+                if (str_contains($sourceKey, '*')) {
+                    if (preg_match($this->getWildcardMessagePattern($sourceKey), $key) === 1) {
                         $message = $source[$sourceKey];
 
                         if (is_array($message) && isset($message[$lowerRule])) {
@@ -129,10 +129,10 @@ trait FormatsMessages
                     continue;
                 }
 
-                if (Str::is($sourceKey, $key)) {
+                if ($sourceKey === $displayKey) {
                     $message = $source[$sourceKey];
 
-                    if ($sourceKey === $attribute && is_array($message)) {
+                    if ($sourceKey === $displayAttribute && is_array($message)) {
                         return $message[$lowerRule] ?? null;
                     }
 
@@ -150,7 +150,9 @@ trait FormatsMessages
     protected function getCustomMessageFromTranslator(array|string $keys): string
     {
         foreach (Arr::wrap($keys) as $key) {
-            if (($message = $this->translator->string($key)) !== $key) {
+            $displayKey = $this->replacePlaceholderInString($key);
+
+            if (($message = $this->translator->string($displayKey)) !== $displayKey) {
                 return $message;
             }
 
@@ -180,14 +182,38 @@ trait FormatsMessages
      */
     protected function getWildcardCustomMessages(array $messages, string $search, string $default): string
     {
+        $displaySearch = $this->replacePlaceholderInString($search);
+
         foreach ($messages as $key => $message) {
             $key = (string) $key;
-            if ($search === $key || (Str::contains($key, ['*']) && Str::is($key, $search))) {
+            if ($displaySearch === $key || (str_contains($key, '*')
+                && preg_match($this->getWildcardMessagePattern($key, multipleSegments: true), $search) === 1)) {
                 return $message;
             }
         }
 
         return $default;
+    }
+
+    /**
+     * Build a wildcard message pattern that preserves literal path segments.
+     */
+    protected function getWildcardMessagePattern(string $key, bool $multipleSegments = false): string
+    {
+        $segments = [];
+
+        foreach (explode('.', $key) as $segment) {
+            $pattern = str_replace('\*', $multipleSegments ? '.*' : '[^.]*', preg_quote($segment, '#'));
+
+            // Fixed dots may name literal keys, but a wildcard segment must not split one.
+            $segments[] = str_contains($segment, '*')
+                ? '(?<![^.])' . $pattern . '(?![^.])'
+                : $pattern;
+        }
+
+        $dot = '(?:\.|' . preg_quote(static::encodeAttributeWithPlaceholder('\.'), '#') . ')';
+
+        return '#^' . implode($dot, $segments) . '\z#su';
     }
 
     /**
@@ -223,6 +249,9 @@ trait FormatsMessages
 
     /**
      * Replace all error message place-holders with actual values.
+     *
+     * Attribute paths and dependent field parameters retain their encoded literal
+     * dots and asterisks until display or delivery to a registered custom replacer.
      */
     public function makeReplacements(string $message, string $attribute, string $rule, array $parameters): string
     {
@@ -237,7 +266,13 @@ trait FormatsMessages
         $message = $this->replaceOrdinalPositionPlaceholder($message, $attribute);
 
         if (isset($this->replacers[Str::snake($rule)])) {
-            return $this->callReplacer($message, $attribute, Str::snake($rule), $parameters, $this);
+            return $this->callReplacer(
+                $message,
+                $this->replacePlaceholderInString($attribute),
+                Str::snake($rule),
+                $this->dependsOnOtherFields($rule) ? $this->replaceDotPlaceholderInParameters($parameters) : $parameters,
+                $this
+            );
         }
         if (method_exists($this, $replacer = "replace{$rule}")) {
             return $this->{$replacer}($message, $attribute, $rule, $parameters);
@@ -253,6 +288,7 @@ trait FormatsMessages
     {
         $primaryAttribute = $this->getPrimaryAttribute($attribute);
 
+        // Resolve wildcard metadata before decoding a literal dot into a path separator.
         $expectedAttributes = $attribute !== $primaryAttribute
             ? [$attribute, $primaryAttribute]
             : [$attribute];
@@ -272,6 +308,8 @@ trait FormatsMessages
                 return $translatedAttribute;
             }
         }
+
+        $attribute = $this->replacePlaceholderInString($attribute);
 
         // When no language line has been specified for the attribute and it is also
         // an implicit attribute we will display the raw attribute's name and not
@@ -304,15 +342,17 @@ trait FormatsMessages
     {
         $source = $source ?: $this->customAttributes;
 
-        if (isset($source[$attribute])) {
-            return $source[$attribute];
+        $displayAttribute = $this->replacePlaceholderInString($attribute);
+
+        if (isset($source[$displayAttribute])) {
+            return $source[$displayAttribute];
         }
 
         foreach (array_keys($source) as $sourceKey) {
-            if (str_contains($sourceKey, '*')) {
-                $pattern = str_replace('\*', '([^.]*)', preg_quote($sourceKey, '#'));
+            $sourceKey = (string) $sourceKey;
 
-                if (preg_match('#^' . $pattern . '\z#u', $attribute) === 1) {
+            if (str_contains($sourceKey, '*')) {
+                if (preg_match($this->getWildcardMessagePattern($sourceKey), $attribute) === 1) {
                     return $source[$sourceKey];
                 }
             }
@@ -453,6 +493,8 @@ trait FormatsMessages
      */
     public function getDisplayableValue(string $attribute, mixed $value): string
     {
+        $attribute = $this->replacePlaceholderInString($attribute);
+
         if (isset($this->customValues[$attribute][$value])) {
             return $this->customValues[$attribute][$value];
         }

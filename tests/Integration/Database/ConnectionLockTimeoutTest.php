@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Integration\Database;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\ConcurrencyErrorDetector;
 use Hypervel\Database\Connection;
-use Hypervel\Database\Pool\DbPool;
+use Hypervel\Database\Pool\DatabasePool;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Blueprint;
@@ -32,9 +32,9 @@ class ConnectionLockTimeoutTest extends DatabaseTestCase
         $connection['lock_timeout'] = 1;
         $connection['pool'] = [
             'testing_enabled' => true,
-            'min_connections' => 1,
+            'min_retained_connections' => 1,
             'max_connections' => 1,
-            'heartbeat' => -1,
+            'heartbeat_interval' => null,
         ];
 
         $config->set('database.connections.' . self::CONNECTION_NAME, $connection);
@@ -46,10 +46,10 @@ class ConnectionLockTimeoutTest extends DatabaseTestCase
             $this->markTestSkipped('SQLite uses its existing busy_timeout connection option.');
         }
 
-        $pool = new DbPool($this->app, self::CONNECTION_NAME);
+        $pool = new DatabasePool($this->app, self::CONNECTION_NAME);
 
         /** @var PooledConnection $pooledConnection */
-        $pooledConnection = $pool->get();
+        $pooledConnection = $pool->borrow();
 
         try {
             $connection = $pooledConnection->getConnection();
@@ -83,11 +83,11 @@ class ConnectionLockTimeoutTest extends DatabaseTestCase
             $this->markTestSkipped('SQLite uses its existing busy_timeout connection option.');
         }
 
-        $holderPool = new DbPool($this->app, self::CONNECTION_NAME);
-        $contenderPool = new DbPool($this->app, self::CONNECTION_NAME);
+        $holderPool = new DatabasePool($this->app, self::CONNECTION_NAME);
+        $contenderPool = new DatabasePool($this->app, self::CONNECTION_NAME);
 
         /** @var PooledConnection $setupConnection */
-        $setupConnection = $holderPool->get();
+        $setupConnection = $holderPool->borrow();
 
         try {
             $schema = $setupConnection->getConnection()->getSchemaBuilder();
@@ -107,7 +107,7 @@ class ConnectionLockTimeoutTest extends DatabaseTestCase
             [$holderCompleted, $contenderResult] = parallel([
                 function () use ($holderPool, $lockAcquired, $releaseLock): bool {
                     /** @var PooledConnection $pooledConnection */
-                    $pooledConnection = $holderPool->get();
+                    $pooledConnection = $holderPool->borrow();
                     $connection = $pooledConnection->getConnection();
 
                     try {
@@ -129,7 +129,7 @@ class ConnectionLockTimeoutTest extends DatabaseTestCase
                     $lockAcquired->pop(5);
 
                     /** @var PooledConnection $pooledConnection */
-                    $pooledConnection = $contenderPool->get();
+                    $pooledConnection = $contenderPool->borrow();
                     $connection = $pooledConnection->getConnection();
 
                     try {
@@ -180,7 +180,7 @@ class ConnectionLockTimeoutTest extends DatabaseTestCase
             $this->assertLessThan(3.0, $contenderResult['lock_wait_seconds']);
         } finally {
             /** @var PooledConnection $cleanupConnection */
-            $cleanupConnection = $holderPool->get();
+            $cleanupConnection = $holderPool->borrow();
 
             try {
                 $cleanupConnection->getConnection()->getSchemaBuilder()->dropIfExists(self::LOCK_TABLE);

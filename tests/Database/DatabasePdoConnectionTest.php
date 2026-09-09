@@ -734,6 +734,57 @@ class DatabasePdoConnectionTest extends TestCase
         $connection->statement('foo');
     }
 
+    public function testQueryExceptionEmbedsBindingsByDefault(): void
+    {
+        foreach ([[], ['mask_bindings_in_exception_messages' => null]] as $config) {
+            $connection = new PdoConnection($this->getFailingPdo(), '', '', $config);
+
+            try {
+                $connection->statement('SELECT * FROM users WHERE email = ?', ['foo@example.com']);
+
+                $this->fail('A QueryException was not thrown.');
+            } catch (QueryException $e) {
+                $this->assertStringContainsString('SQL: SELECT * FROM users WHERE email = foo@example.com', $e->getMessage());
+            }
+        }
+    }
+
+    public function testQueryExceptionMasksBindingsWhenEnabledOnTheConnection(): void
+    {
+        foreach ([true, '1'] as $maskBindings) {
+            $connection = new PdoConnection($this->getFailingPdo(), '', '', [
+                'mask_bindings_in_exception_messages' => $maskBindings,
+            ]);
+
+            try {
+                $connection->statement('SELECT * FROM users WHERE email = ?', ['foo@example.com']);
+
+                $this->fail('A QueryException was not thrown.');
+            } catch (QueryException $e) {
+                $this->assertStringContainsString('SQL: SELECT * FROM users WHERE email = ?', $e->getMessage());
+                $this->assertStringNotContainsString('foo@example.com', $e->getMessage());
+                $this->assertSame(['foo@example.com'], $e->getBindings());
+            }
+        }
+    }
+
+    /**
+     * Create a PDO connection whose statement execution fails.
+     */
+    protected function getFailingPdo(): PDO
+    {
+        $statement = m::mock(PDOStatement::class);
+        $statement->shouldReceive('bindValue')->once();
+        $statement->shouldReceive('execute')->once()->andThrow(
+            new PDOException('SQLSTATE[42S02]: Base table or view not found')
+        );
+
+        $pdo = m::mock(PDO::class);
+        $pdo->shouldReceive('prepare')->once()->andReturn($statement);
+
+        return $pdo;
+    }
+
     public function testOnLostConnectionPDOIsSwappedOutsideTransaction(): void
     {
         $pdo = m::mock(PDO::class);

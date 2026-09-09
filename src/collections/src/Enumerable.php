@@ -15,8 +15,10 @@ use IteratorAggregate;
 use JsonException;
 use JsonSerializable;
 use SortDirection;
+use Stringable as BaseStringable;
 use Traversable;
 use UnexpectedValueException;
+use UnitEnum;
 
 /**
  * Some transformations may return a base collection when an implementation
@@ -435,26 +437,25 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Group an associative array by a field or using a callback.
      *
-     * @template TGroupKey of array-key|\UnitEnum|\Stringable
+     * @template TGroupKey of array-key|bool|null|UnitEnum|BaseStringable
      *
      * @param array|(callable(TValue, TKey): (array<array-key, TGroupKey>|TGroupKey))|string $groupBy
      * @return static<
      *  ($groupBy is (array|string)
      *      ? array-key
-     *      : (TGroupKey is \UnitEnum ? array-key : (TGroupKey is \Stringable ? string : TGroupKey))),
-     *  static<($preserveKeys is true ? TKey : int), ($groupBy is array ? mixed : TValue)>
+     *      : (TGroupKey is array-key ? TGroupKey : (TGroupKey is bool ? int : (TGroupKey is (BaseStringable|null) ? string : array-key)))),
+     *  Collection<($preserveKeys is true ? TKey : int), ($groupBy is array ? mixed : TValue)>
      * >
-     * @phpstan-ignore generics.notSubtype (PHPStan cannot prove normalized conditional group keys satisfy array-key)
      */
     public function groupBy(callable|array|string $groupBy, bool $preserveKeys = false): static;
 
     /**
      * Key an associative array by a field or using a callback.
      *
-     * @template TNewKey of array-key
+     * @template TNewKey of array-key|UnitEnum|BaseStringable
      *
      * @param array|(callable(TValue, TKey): TNewKey)|string $keyBy
-     * @return static<($keyBy is string ? array-key : ($keyBy is array ? array-key : TNewKey)), TValue>
+     * @return static<($keyBy is (array|string) ? array-key : (TNewKey is array-key ? TNewKey : (TNewKey is BaseStringable ? string : array-key))), TValue>
      */
     public function keyBy(callable|array|string $keyBy): static;
 
@@ -1085,8 +1086,8 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Count the number of items in the collection by a field or using a callback.
      *
-     * @param null|(callable(TValue, TKey): array-key)|string $countBy
-     * @return static<array-key, int>
+     * @param null|(callable(TValue, TKey): (array-key|bool|UnitEnum))|string $countBy
+     * @return Collection<array-key, int>|static<array-key, int>
      */
     public function countBy(callable|string|null $countBy = null): Collection|static;
 

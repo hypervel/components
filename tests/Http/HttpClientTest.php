@@ -67,6 +67,7 @@ use stdClass;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\VarDumper\VarDumper;
 use Throwable;
+use WeakReference;
 
 use function Hypervel\Coroutine\parallel;
 use function Hypervel\Coroutine\run;
@@ -189,14 +190,6 @@ class HttpClientTest extends TestCase
         ];
     }
 
-    public function testInvalidFakeResponseBodyValuesAreRejected(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('HTTP fake response body must be a string, array, resource, Psr\Http\Message\StreamInterface, or null.');
-
-        $this->factory::response(new stdClass);
-    }
-
     public function testInvalidJsonFakeResponseBodyValuesAreRejected(): void
     {
         $this->expectException(InvalidArgumentException::class);
@@ -241,6 +234,20 @@ class HttpClientTest extends TestCase
         $response = $this->factory::response($resource)->wait();
 
         $this->assertSame('Hello World', (string) $response->getBody());
+    }
+
+    public function testFakeResponseRejectsUnsupportedBody(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException('HTTP fake response body must be a string, array, stream resource, Psr\Http\Message\StreamInterface, or null.'));
+
+        $this->factory::response(new stdClass);
+    }
+
+    public function testFakeResponseRejectsNonStreamResourceBody(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException('HTTP fake response body must be a string, array, stream resource, Psr\Http\Message\StreamInterface, or null.'));
+
+        $this->factory::response(stream_context_create());
     }
 
     public function testAcceptedRequest(): void
@@ -584,6 +591,21 @@ class HttpClientTest extends TestCase
 
     public function testResponseObjectIsTappable(): void
     {
+        $bar = null;
+        $this->factory->fake([
+            '*' => ['result' => ['foo' => 'bar']],
+        ]);
+
+        $this->factory->get('http://foo.com/api')
+            ->tap(function (Response $response) use (&$bar) {
+                $bar = $response['result']['foo'];
+            });
+
+        $this->assertSame('bar', $bar);
+    }
+
+    public function testResponseTapKeepsResponseAvailableForChaining(): void
+    {
         $response = new Response($this->factory::psr7Response(['foo' => 'bar']));
 
         $this->assertSame(['foo' => 'bar'], $response->tap(function (Response $response) {
@@ -611,6 +633,7 @@ class HttpClientTest extends TestCase
 
         $response = $this->factory->get('http://www.omdbapi.com/?apikey=test_api_key&i=test_imdb_id');
 
+        $this->assertIsArray($response->movieFields());
         $this->assertSame([
             'title' => 'The Godfather',
             'year' => 1972,
@@ -2060,6 +2083,30 @@ class HttpClientTest extends TestCase
 
         // The sequence is empty, it should throw an exception.
         $this->factory->get('https://example.com');
+    }
+
+    public function testSequenceBuilderSupportsStreamBodies(): void
+    {
+        $stream = Utils::streamFor('PSR-7 stream body');
+        $resource = fopen('php://temp', 'w+');
+
+        try {
+            fwrite($resource, 'resource body');
+            rewind($resource);
+
+            $this->factory->fakeSequence()
+                ->push($stream)
+                ->push($resource);
+
+            $this->assertSame('PSR-7 stream body', $this->factory->get('https://example.com')->body());
+            $this->assertSame('resource body', $this->factory->get('https://example.com')->body());
+        } finally {
+            $stream->close();
+
+            if (is_resource($resource)) {
+                fclose($resource);
+            }
+        }
     }
 
     public function testSequenceBuilderCanKeepGoingWhenEmpty(): void
@@ -3538,6 +3585,133 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentCount(2);
     }
 
+    #[DataProvider('requestRewritingModes')]
+    public function testAsyncRetryCallbackReceivesHttpMethod(bool $rewriteMethod): void
+    {
+        $method = null;
+
+        $this->factory->fake([
+            '*' => $this->factory->sequence()
+                ->push(['error'], 500)
+                ->push(['ok'], 200),
+        ]);
+
+        $pendingRequest = $this->factory->async();
+
+        if ($rewriteMethod) {
+            $pendingRequest->withRequestMiddleware(static fn (RequestInterface $request): RequestInterface => $request->withMethod('PATCH'));
+        }
+
+        $response = $pendingRequest
+            ->retry(2, 0, function (Throwable $exception, PendingRequest $request, string $requestMethod) use (&$method): bool {
+                $method = $requestMethod;
+
+                return true;
+            }, false)
+            ->get('http://foo.com/get')
+            ->wait();
+
+        $this->assertSame($rewriteMethod ? 'PATCH' : 'GET', $method);
+        $this->assertTrue($response->successful());
+    }
+
+    /**
+     * Provide original and middleware-rewritten request methods.
+     */
+    public static function requestRewritingModes(): array
+    {
+        return ['original' => [false], 'middleware' => [true]];
+    }
+
+    public function testRetryCallbackReceivesHttpMethod(): void
+    {
+        $method = null;
+
+        $this->factory->fake([
+            '*' => $this->factory->sequence()
+                ->push(['error'], 500)
+                ->push(['ok'], 200),
+        ]);
+
+        $response = $this->factory
+            ->withRequestMiddleware(static fn (RequestInterface $request): RequestInterface => $request->withMethod('PATCH'))
+            ->retry(2, 0, function (Throwable $exception, PendingRequest $request, ?string $requestMethod) use (&$method): bool {
+                $method = $requestMethod;
+
+                return true;
+            }, false)
+            ->get('http://foo.com/get');
+
+        $this->assertSame('PATCH', $method);
+        $this->assertTrue($response->successful());
+    }
+
+    public function testRetryCallbackReceivesNullHttpMethodWithCustomClient(): void
+    {
+        $callbackCalled = false;
+
+        $this->factory->fake();
+        $pendingRequest = $this->factory->withHeaders([]);
+        $pendingRequest->get('http://foo.com/get');
+
+        $response = $pendingRequest
+            ->setClient(new GuzzleClient([
+                'handler' => static fn (): PromiseInterface => Factory::response('Failed', 500),
+            ]))
+            ->retry(1, when: function (Throwable $exception, PendingRequest $request, ?string $method) use (&$callbackCalled): bool {
+                $callbackCalled = true;
+
+                $this->assertNull($method);
+
+                return false;
+            }, throw: false)
+            ->post('http://foo.com/post');
+
+        $this->assertTrue($callbackCalled);
+        $this->assertSame(500, $response->status());
+    }
+
+    #[DataProvider('requestExecutionModes')]
+    public function testBeforeSendingReplacementIsUsedByRetryAndResponseCallbacks(bool $async): void
+    {
+        $method = null;
+        $responseMethods = [];
+
+        $this->factory->fake([
+            '*' => $this->factory->sequence()->pushStatus(500)->pushStatus(200),
+        ]);
+
+        $response = $this->factory->async($async)
+            ->beforeSending(static fn (Request $request): RequestInterface => $request->toPsrRequest()->withMethod('PATCH'))
+            ->afterResponse(function (Response $response, Request $request) use (&$responseMethods): void {
+                $responseMethods[] = $request->method();
+            })
+            ->retry(2, 0, function (Throwable $exception, PendingRequest $request, ?string $requestMethod) use (&$method): bool {
+                $method = $requestMethod;
+
+                return true;
+            }, false)
+            ->get('http://foo.com/get');
+
+        if ($async) {
+            $response = $response->wait();
+        }
+
+        $this->assertTrue($response->successful());
+        $this->assertSame('PATCH', $method);
+        $this->assertSame(['PATCH', 'PATCH'], $responseMethods);
+        $this->factory->assertSentCount(2);
+        $this->factory->assertSent(fn (Request $request): bool => $request->method() === 'PATCH');
+    }
+
+    /**
+     * Provide synchronous and asynchronous request execution.
+     */
+    public static function requestExecutionModes(): array
+    {
+        return ['sync' => [false], 'async' => [true]];
+    }
+
     public function testClientCanBeSet(): void
     {
         $client = $this->factory->buildClient();
@@ -4205,7 +4379,9 @@ class HttpClientTest extends TestCase
         $this->factory->fake(function (Request $request) {
             return $this->factory::response('Fake');
         })->withMiddleware($middleware)
-            ->retry(3, 1, function (Exception $exception, PendingRequest $request) {
+            ->retry(3, 1, function (Exception $exception, PendingRequest $request, ?string $method): bool {
+                $this->assertNull($method);
+
                 return true;
             })->post('https://example.com');
     }
@@ -4956,6 +5132,31 @@ class HttpClientTest extends TestCase
         $this->factory->maxRedirects(1)->get('https://1.example.com');
     }
 
+    public function testPendingRequestsAreFreedOnceUnset(): void
+    {
+        $garbageCollectionEnabled = gc_enabled();
+        gc_disable();
+
+        try {
+            $request = (new PendingRequest)
+                ->throwUnless(static fn (Response $response): bool => false)
+                ->stub(static fn (): PromiseInterface => Factory::response('ok'));
+
+            $reference = WeakReference::create($request);
+            $response = $request->post('http://localhost/memory-test');
+
+            $this->assertSame('ok', $response->body());
+
+            unset($request, $response);
+
+            $this->assertNull($reference->get());
+        } finally {
+            if ($garbageCollectionEnabled) {
+                gc_enable();
+            }
+        }
+    }
+
     public function testRequestExceptionIsNotThrownIfThePendingRequestIsSetToThrowOnFailureButTheResponseIsSuccessful(): void
     {
         $this->factory->fake([
@@ -5022,7 +5223,7 @@ class HttpClientTest extends TestCase
         $this->assertSame(403, $response->status());
     }
 
-    public function testRequestExceptionIsThrownWhenUnlessConditionIsNotSatisfied(): void
+    public function testPendingRequestExceptionIsThrownWhenUnlessConditionIsNotSatisfied(): void
     {
         $this->factory->fake([
             '*' => $this->factory::response('', 400),
@@ -5033,7 +5234,7 @@ class HttpClientTest extends TestCase
         $this->factory->throwUnless(false)->get('http://foo.com/api');
     }
 
-    public function testRequestExceptionIsNotThrownWhenUnlessConditionIsSatisfied(): void
+    public function testPendingRequestExceptionIsNotThrownWhenUnlessConditionIsSatisfied(): void
     {
         $this->factory->fake([
             '*' => $this->factory::response(['result' => ['foo' => 'bar']], 400),
@@ -5175,6 +5376,49 @@ class HttpClientTest extends TestCase
         $this->assertSame(403, $response->status());
     }
 
+    public function testRequestExceptionIsThrownIfTheThrowUnlessClosureOnThePendingRequestReturnsFalse(): void
+    {
+        $this->factory->fake([
+            '*' => $this->factory::response(['error'], 403),
+        ]);
+
+        $exception = null;
+
+        try {
+            $this->factory
+                ->throwUnless(function (Response $response): bool {
+                    $this->assertInstanceOf(Response::class, $response);
+                    $this->assertSame(403, $response->status());
+
+                    return false;
+                })
+                ->get('http://foo.com/get');
+        } catch (RequestException $e) {
+            $exception = $e;
+        }
+
+        $this->assertNotNull($exception);
+        $this->assertInstanceOf(RequestException::class, $exception);
+    }
+
+    public function testRequestExceptionIsNotThrownIfTheThrowUnlessClosureOnThePendingRequestReturnsTrue(): void
+    {
+        $this->factory->fake([
+            '*' => $this->factory::response(['error'], 403),
+        ]);
+
+        $response = $this->factory
+            ->throwUnless(function (Response $response): bool {
+                $this->assertInstanceOf(Response::class, $response);
+                $this->assertSame(403, $response->status());
+
+                return true;
+            })
+            ->get('http://foo.com/get');
+
+        $this->assertSame(403, $response->status());
+    }
+
     public function testRequestExceptionIsThrownWithCallbackIfThePendingRequestIsSetToThrowOnFailure(): void
     {
         $this->factory->fake([
@@ -5283,6 +5527,35 @@ class HttpClientTest extends TestCase
         $this->assertSame('{"result":{"foo":"bar"}}', $response->body());
     }
 
+    public function testRequestExceptionIsThrownWhenUnlessConditionIsNotSatisfied(): void
+    {
+        $this->factory->fake([
+            '*' => $this->factory::response('', 400),
+        ]);
+
+        $exception = null;
+
+        try {
+            $this->factory->get('http://foo.com/api')->throwUnless(false);
+        } catch (RequestException $e) {
+            $exception = $e;
+        }
+
+        $this->assertNotNull($exception);
+        $this->assertInstanceOf(RequestException::class, $exception);
+    }
+
+    public function testRequestExceptionIsNotThrownWhenUnlessConditionIsSatisfied(): void
+    {
+        $this->factory->fake([
+            '*' => $this->factory::response(['result' => ['foo' => 'bar']], 400),
+        ]);
+
+        $response = $this->factory->get('http://foo.com/api')->throwUnless(true);
+
+        $this->assertSame('{"result":{"foo":"bar"}}', $response->body());
+    }
+
     public function testRequestExceptionIsThrowIfConditionClosureIsSatisfied(): void
     {
         $this->factory->fake([
@@ -5367,6 +5640,43 @@ class HttpClientTest extends TestCase
         } catch (RequestException) {
             $this->assertTrue($throwUnlessCallbackCalled);
         }
+    }
+
+    public function testRequestExceptionIsThrownWhenUnlessConditionClosureIsNotSatisfied(): void
+    {
+        $this->factory->fake([
+            '*' => $this->factory::response('', 400),
+        ]);
+
+        $exception = null;
+
+        try {
+            $this->factory->get('http://foo.com/api')->throwUnless(function (Response $response): bool {
+                $this->assertSame(400, $response->status());
+
+                return false;
+            });
+        } catch (RequestException $e) {
+            $exception = $e;
+        }
+
+        $this->assertNotNull($exception);
+        $this->assertInstanceOf(RequestException::class, $exception);
+    }
+
+    public function testRequestExceptionIsNotThrownWhenUnlessConditionClosureIsSatisfied(): void
+    {
+        $this->factory->fake([
+            '*' => $this->factory::response(['result' => ['foo' => 'bar']], 400),
+        ]);
+
+        $response = $this->factory->get('http://foo.com/api')->throwUnless(function (Response $response): bool {
+            $this->assertSame(400, $response->status());
+
+            return true;
+        });
+
+        $this->assertSame('{"result":{"foo":"bar"}}', $response->body());
     }
 
     public function testRequestExceptionIsThrownIfStatusCodeIsSatisfied(): void

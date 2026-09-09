@@ -13,12 +13,14 @@ use Hypervel\Foundation\Application;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
 class ClearCommandTest extends TestCase
 {
-    private ClearCommandTestStub $command;
+    private ClearCommand $command;
 
     private CacheManager|m\MockInterface $cacheManager;
 
@@ -36,18 +38,48 @@ class ClearCommandTest extends TestCase
         $this->cacheManager = m::mock(CacheManager::class);
         $this->files = m::mock(Filesystem::class);
         $this->cacheRepository = m::mock(Repository::class);
-        $this->command = new ClearCommandTestStub($this->cacheManager, $this->files);
+        $this->command = new ClearCommand($this->cacheManager, $this->files);
         $this->command->setHypervel($app);
     }
 
-    public function testClearWithNoStoreArgument()
+    #[DataProvider('flushResults')]
+    public function testClearWithNoStoreArgument(bool $successful, int $exitCode): void
     {
         $this->files->shouldReceive('deleteDirectory')->once();
 
         $this->cacheManager->shouldReceive('store')->once()->with(null)->andReturn($this->cacheRepository);
-        $this->cacheRepository->shouldReceive('flush')->once();
+        $this->cacheRepository->shouldReceive('flush')->once()->andReturn($successful);
 
-        $this->runCommand($this->command);
+        $this->assertSame($exitCode, $this->runCommand($this->command));
+    }
+
+    /**
+     * Provide successful and failed cache flush results.
+     */
+    public static function flushResults(): array
+    {
+        return [
+            [true, SymfonyCommand::SUCCESS],
+            [false, SymfonyCommand::FAILURE],
+        ];
+    }
+
+    #[DataProvider('prohibitedOptions')]
+    public function testProhibitedCommandDoesNotClearCacheOrLocks(array $options): void
+    {
+        ClearCommand::prohibit();
+        $this->cacheManager->shouldNotReceive('store');
+        $this->files->shouldNotReceive('deleteDirectory');
+
+        $this->assertSame(SymfonyCommand::FAILURE, $this->runCommand($this->command, $options));
+    }
+
+    /**
+     * Provide the cache clearing modes.
+     */
+    public static function prohibitedOptions(): array
+    {
+        return [[[]], [['--locks' => true]]];
     }
 
     public function testClearWithStoreArgument()
@@ -150,16 +182,11 @@ class ClearCommandTest extends TestCase
         $this->assertSame(1, $this->runCommand($this->command, ['--locks' => true]));
     }
 
-    protected function runCommand($command, $input = [])
+    /**
+     * Run the cache clear command with the given input.
+     */
+    protected function runCommand(SymfonyCommand $command, array $input = []): int
     {
         return $command->run(new ArrayInput($input), new NullOutput);
-    }
-}
-
-class ClearCommandTestStub extends ClearCommand
-{
-    public function call(\Symfony\Component\Console\Command\Command|string $command, array $arguments = []): int
-    {
-        return 0;
     }
 }

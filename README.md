@@ -1,7 +1,7 @@
 <p align="center"><a href="https://hypervel.org" target="_blank"><img src="https://hypervel.org/logo.png" width="400"></a></p>
 
 <p align="center">
-<a href="https://github.com/hypervel/components/actions"><img src="https://github.com/hypervel/components/workflows/tests/badge.svg" alt="Build Status"></a>
+<a href="https://github.com/hypervel/components/actions"><img src="https://github.com/hypervel/components/actions/workflows/tests.yml/badge.svg" alt="Build Status"></a>
 <a href="https://packagist.org/packages/hypervel/components"><img src="https://img.shields.io/packagist/dt/hypervel/framework" alt="Total Downloads"></a>
 <a href="https://packagist.org/packages/hypervel/components"><img src="https://img.shields.io/packagist/v/hypervel/components" alt="Latest Stable Version"></a>
 <a href="https://packagist.org/packages/hypervel/components"><img src="https://img.shields.io/packagist/l/hypervel/components" alt="License"></a>

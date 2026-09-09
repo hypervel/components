@@ -18,7 +18,9 @@ class ResumeCommand extends Command
     /**
      * The console command name.
      */
-    protected ?string $signature = 'queue:resume {queue : The name of the queue that should resume processing}';
+    protected ?string $signature = 'queue:resume
+                            {queue? : The name of the queue that should resume processing}
+                            {--all : Resume job processing for all queues on all connections}';
 
     /**
      * The console command name aliases.
@@ -37,13 +39,30 @@ class ResumeCommand extends Command
      */
     public function handle(QueueFactory $manager): int
     {
-        [$connection, $queue] = $this->parseQueue($this->argument('queue'));
-
         /** @var QueueManager $manager */
+        if ($this->option('all')) {
+            $manager->resumeAll();
+
+            $this->components->info('Job processing on all queues across all connections has been resumed.');
+
+            return self::SUCCESS;
+        }
+
+        /** @var null|string $queue */
+        $queue = $this->argument('queue');
+
+        if ($queue === null || $queue === '') {
+            $this->components->error('A queue name is required unless the --all option is used.');
+
+            return self::FAILURE;
+        }
+
+        [$connection, $queue] = $this->parseQueue($queue);
+
         $manager->resume($connection, $queue);
 
         $this->components->info("Job processing on queue [{$connection}:{$queue}] has been resumed.");
 
-        return 0;
+        return self::SUCCESS;
     }
 }

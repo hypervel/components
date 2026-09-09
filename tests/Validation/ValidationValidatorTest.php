@@ -46,6 +46,7 @@ use ReflectionProperty;
 use RuntimeException;
 use SplFileInfo;
 use stdClass;
+use Stringable as StringableInterface;
 use Symfony\Component\HttpFoundation\File\File;
 use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
 use UnitEnum;
@@ -943,6 +944,72 @@ class ValidationValidatorTest extends TestCase
         $this->assertSame('The url must start with one of the following values hTtp, hTtps', $v->messages()->first('url'));
     }
 
+    #[TestWith(['declined_if', ['foo' => 'yes', 'bar' => 'aAa']])]
+    #[TestWith(['missing_if', ['foo' => 'yes', 'bar' => 'aAa']])]
+    #[TestWith(['present_if', ['bar' => 'aAa']])]
+    #[TestWith(['required_if', ['bar' => 'aAa']])]
+    public function testConditionalRulePlaceholdersPreserveCasingVariants(string $rule, array $data): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            $data,
+            ['foo' => $rule . ':bar,aAa'],
+            [$rule => ':other|:OTHER|:Other|:value|:VALUE|:Value'],
+            ['bar' => 'otherField'],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame('otherField|OTHERFIELD|OtherField|aAa|AAA|AAa', $validator->errors()->first('foo'));
+    }
+
+    public function testRequiredIfDeclinedPlaceholdersPreserveCasingVariants(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['bar' => 'no'],
+            ['foo' => 'required_if_declined:bar'],
+            ['required_if_declined' => ':other|:OTHER|:Other'],
+            ['bar' => 'otherField'],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame('otherField|OTHERFIELD|OtherField', $validator->errors()->first('foo'));
+    }
+
+    public function testProhibitedUnlessPlaceholdersPreserveCasingVariants(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['foo' => 'yes', 'bar' => 'aAa'],
+            ['foo' => 'prohibited_unless:bar,tAylor,sVen'],
+            ['prohibited_unless' => ':other|:OTHER|:Other|:values|:VALUES|:Values'],
+            ['bar' => 'otherField'],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame(
+            'otherField|OTHERFIELD|OtherField|tAylor, sVen|TAYLOR, SVEN|TAylor, SVen',
+            $validator->errors()->first('foo'),
+        );
+    }
+
+    #[TestWith(['required_array_keys', []])]
+    #[TestWith(['ends_with', 'other'])]
+    #[TestWith(['doesnt_end_with', 'tAylor'])]
+    #[TestWith(['doesnt_start_with', 'sVen'])]
+    public function testValueListRulePlaceholdersPreserveCasingVariants(string $rule, array|string $value): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['foo' => $value],
+            ['foo' => $rule . ':tAylor,sVen'],
+            [$rule => ':values|:VALUES|:Values'],
+        );
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame('tAylor, sVen|TAYLOR, SVEN|TAylor, SVen', $validator->errors()->first('foo'));
+    }
+
     public function testDisplayableAttributesAreReplacedInCustomReplacers()
     {
         $trans = $this->getArrayTranslator();
@@ -1404,6 +1471,30 @@ class ValidationValidatorTest extends TestCase
         // But it's not valid if there's an unexpected key.
         $v = new Validator($trans, ['user' => ['name' => 'Duilio', 'username' => 'duilio', 'is_admin' => true]], $rules);
         $this->assertFalse($v->passes());
+    }
+
+    #[TestWith(['array', 'a.b'])]
+    #[TestWith(['array', 'a*b'])]
+    #[TestWith(['required_array_keys', 'a.b'])]
+    #[TestWith(['required_array_keys', 'a*b'])]
+    #[TestWith(['in_array_keys', 'a.b'])]
+    #[TestWith(['in_array_keys', 'a*b'])]
+    public function testArrayRulesAcceptLiteralKeys(string $rule, string $key): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['options' => [$key => 'value']],
+            ['options' => $rule . ':' . $key],
+        );
+
+        $this->assertTrue($validator->passes());
+    }
+
+    public function testArrayValidationAcceptsLiteralKeysWhenCalledDirectly(): void
+    {
+        $validator = new Validator($this->getArrayTranslator(), [], []);
+
+        $this->assertTrue($validator->validateArray('options', ['a.b' => 1, 'a*b' => 2], ['a.b', 'a*b']));
     }
 
     public function testValidateCurrentPassword(): void
@@ -4935,7 +5026,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testValidateEmail()
+    public function testValidateEmail(): void
     {
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['x' => 'aslsdlks'], ['x' => 'Email']);
@@ -4945,8 +5036,8 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
 
         $v = new Validator($trans, [
-            'x' => new class implements \Stringable {
-                public function __toString()
+            'x' => new class implements StringableInterface {
+                public function __toString(): string
                 {
                     return 'aslsdlks';
                 }
@@ -4955,8 +5046,8 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
 
         $v = new Validator($trans, [
-            'x' => new class implements \Stringable {
-                public function __toString()
+            'x' => new class implements StringableInterface {
+                public function __toString(): string
                 {
                     return 'foo@gmail.com';
                 }
@@ -4966,6 +5057,9 @@ class ValidationValidatorTest extends TestCase
 
         $v = new Validator($trans, ['x' => 'foo@gmail.com'], ['x' => 'Email']);
         $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['x' => "\"foo\r\nBcc: victim@example.com\"@example.com"], ['x' => 'Email']);
+        $this->assertFalse($v->passes());
     }
 
     public function testValidateEmailWithInternationalCharacters()
@@ -5784,6 +5878,32 @@ class ValidationValidatorTest extends TestCase
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['3' => 'aslsdlks'], [3 => 'required']);
         $this->assertTrue($v->passes());
+    }
+
+    public function testNumericKeysUseCustomMessageArrays(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['Taylor', ''],
+            ['*' => 'required'],
+            ['1' => ['required' => 'Second item required.']],
+        );
+
+        $this->assertSame('Second item required.', $validator->errors()->first('1'));
+    }
+
+    public function testNumericKeysUseExactAndWildcardAttributeNames(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['', ''],
+            ['*' => 'required'],
+            ['required' => 'Required :attribute.'],
+            ['0' => 'First item', '*' => 'Other item'],
+        );
+
+        $this->assertSame('Required First item.', $validator->errors()->first('0'));
+        $this->assertSame('Required Other item.', $validator->errors()->first('1'));
     }
 
     public function testMergeRules()
@@ -7837,6 +7957,268 @@ class ValidationValidatorTest extends TestCase
 
         $this->assertTrue($validator->fails());
         $this->assertSame('The name field is required when user.role* is not present.', $validator->messages()->first());
+    }
+
+    #[TestWith(['settings.version', 'settings\.version'])]
+    #[TestWith(['settings*version', 'settings\*version'])]
+    public function testLiteralFieldMessagesUseTheCorrectInput(string $attribute, string $ruleAttribute): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            [$attribute => 'invalid', 'settings' => ['version' => 'nested']],
+            [$ruleAttribute => 'integer'],
+            ['integer' => ':attribute: :input'],
+            [$attribute => 'Version'],
+        );
+        $validator->addCustomValues([$attribute => ['invalid' => 'Invalid version']]);
+
+        $this->assertSame('Version: Invalid version', $validator->errors()->first($attribute));
+    }
+
+    #[TestWith(['inline'])]
+    #[TestWith(['fallback'])]
+    #[TestWith(['translation'])]
+    #[TestWith(['flat_translation'])]
+    public function testWildcardMessagesDoNotSplitLiteralKeys(string $source): void
+    {
+        $translator = new Translator(new ArrayLoader, 'en');
+        $messages = ['foo.*.required' => 'Nested message.', 'required' => 'Default message.'];
+
+        if ($source !== 'fallback') {
+            $translator->addLines(['validation.required' => 'Default message.'], 'en');
+        }
+
+        if ($source === 'translation') {
+            $translator->addLines(['validation.custom.foo.*.required' => 'Nested message.'], 'en');
+        } elseif ($source === 'flat_translation') {
+            $translator->addLines(['validation.custom' => ['foo.*.required' => 'Nested message.']], 'en');
+        }
+
+        foreach ([true, false] as $literal) {
+            $validator = new Validator(
+                $translator,
+                $literal ? ['foo.bar' => ''] : ['foo' => ['bar' => '']],
+                [$literal ? 'foo\.bar' : 'foo.bar' => 'required'],
+                $source === 'inline' ? $messages : [],
+            );
+
+            if ($source === 'fallback') {
+                $validator->setFallbackMessages($messages);
+            }
+
+            $this->assertSame(
+                $literal ? 'Default message.' : 'Nested message.',
+                $validator->errors()->first(),
+            );
+        }
+    }
+
+    #[TestWith(['inline'])]
+    #[TestWith(['translation'])]
+    public function testWildcardAttributesDoNotSplitLiteralKeys(string $source): void
+    {
+        $translator = new Translator(new ArrayLoader, 'en');
+        $translator->addLines(['validation.required' => 'Required :attribute.'], 'en');
+
+        if ($source === 'translation') {
+            $translator->addLines(['validation.attributes.foo.*' => 'Nested label'], 'en');
+        }
+
+        foreach ([true, false] as $literal) {
+            $validator = new Validator(
+                $translator,
+                $literal ? ['foo.bar' => ''] : ['foo' => ['bar' => '']],
+                [$literal ? 'foo\.bar' : 'foo.bar' => 'required'],
+                attributes: $source === 'inline' ? ['foo.*' => 'Nested label'] : [],
+            );
+
+            $this->assertSame(
+                $literal ? 'Required foo.bar.' : 'Required Nested label.',
+                $validator->errors()->first(),
+            );
+        }
+    }
+
+    #[TestWith(['items.list.*', ['items.list' => ['']], 'items\.list.*'])]
+    #[TestWith(['items.list.*', ['items' => ['list' => ['']]], 'items.list.*'])]
+    #[TestWith(['*', ['foo.bar' => ''], 'foo\.bar'])]
+    #[TestWith(['foo*bar', ['foo.bar' => ''], 'foo\.bar'])]
+    #[TestWith(['user*', ['username' => ''], 'username'])]
+    #[TestWith(['*name', ['username' => ''], 'username'])]
+    #[TestWith(['user*.email', ['user1' => ['email' => '']], 'user1.email'])]
+    #[TestWith(['settings*version', ['settings*version' => ''], 'settings\*version'])]
+    public function testWildcardMessagesAndLabelsPreserveLiteralSegments(string $pattern, array $data, string $attribute): void
+    {
+        $validator = new Validator(
+            new Translator(new ArrayLoader, 'en'),
+            $data,
+            [$attribute => 'required'],
+            [$pattern . '.required' => 'Required :attribute.'],
+            [$pattern => 'Custom label'],
+        );
+
+        $this->assertSame('Required Custom label.', $validator->errors()->first());
+    }
+
+    #[TestWith(['items.list.*.required', ['items.list' => ['']], 'items\.list.*'])]
+    #[TestWith(['a.*.required', ['a' => ['b' => ['c' => '']]], 'a.b.c'])]
+    #[TestWith(['a.*.required', ['a' => ["line\nbreak" => '']], "a.line\nbreak"])]
+    public function testTranslatedWildcardMessagesPreserveLiteralAndNestedSegments(string $pattern, array $data, string $attribute): void
+    {
+        $translator = new Translator(new ArrayLoader, 'en');
+        $translator->addLines(['validation.custom' => [$pattern => 'Custom message.']], 'en');
+
+        $validator = new Validator($translator, $data, [$attribute => 'required']);
+
+        $this->assertSame('Custom message.', $validator->errors()->first());
+    }
+
+    public function testLiteralWildcardSegmentsPreserveLabelsAndPositions(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['versions' => ['1.2' => [3 => 'invalid']]],
+            ['versions.*.*' => 'integer'],
+            ['versions.*.*.integer' => ':attribute: :index / :position / :second-index'],
+            ['versions.*.*' => 'Version'],
+        );
+
+        $this->assertSame('Version: 3 / 4 / :second-index', $validator->errors()->first());
+
+        $validator->setAttributeNames([]);
+        $validator->setImplicitAttributesFormatter(static fn (string $attribute): string => "Field {$attribute}");
+        $validator->passes();
+
+        $this->assertSame('Field versions.1.2.3: 3 / 4 / :second-index', $validator->errors()->first());
+    }
+
+    #[TestWith(['settings.version', 'settings\.version'])]
+    #[TestWith(['settings*version', 'settings\*version'])]
+    public function testDependentRuleMessagesReadLiteralFieldValues(string $attribute, string $ruleAttribute): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            [$attribute => 'yes', 'settings' => ['version' => 'no']],
+            ['name' => 'required_if:' . $ruleAttribute . ',yes'],
+            ['required_if' => ':other: :value'],
+            [$attribute => 'Version'],
+        );
+        $validator->addCustomValues([$attribute => ['yes' => 'Enabled']]);
+
+        $this->assertSame('Version: Enabled', $validator->errors()->first('name'));
+        $this->assertSame(['RequiredIf' => [$attribute, 'yes']], $validator->failed()['name']);
+    }
+
+    public function testComparisonMessagesPreserveBothLiteralFieldPaths(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['current.value' => 1, 'other.value' => 50, 'other' => ['value' => 100]],
+            ['current\.value' => 'numeric|gt:other\.value'],
+            ['gt' => ':attribute must exceed :value.'],
+        );
+
+        $this->assertSame('current.value must exceed 50.', $validator->errors()->first());
+    }
+
+    #[TestWith(['inline'])]
+    #[TestWith(['translation'])]
+    #[TestWith(['flat_translation'])]
+    public function testLiteralFieldMessagesRetainTheirNumericType(string $source): void
+    {
+        $translator = $this->getArrayTranslator();
+        $messages = ['value.amount.min' => ['numeric' => 'Numeric minimum.', 'string' => 'String minimum.']];
+
+        if ($source === 'translation') {
+            $translator->addLines(['validation.custom.value.amount.min.numeric' => 'Numeric minimum.'], 'en');
+        } elseif ($source === 'flat_translation') {
+            $translator->addLines(['validation.custom' => ['value.amount.min.numeric' => 'Numeric minimum.']], 'en');
+        }
+
+        $validator = new Validator(
+            $translator,
+            ['value.amount' => 1],
+            ['value\.amount' => 'numeric|min:5'],
+            $source === 'inline' ? $messages : [],
+        );
+
+        $this->assertSame('Numeric minimum.', $validator->errors()->first());
+    }
+
+    public function testLiteralFieldMessagesUseFallbackMessageKeys(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['value.amount' => 'invalid'],
+            ['value\.amount' => 'integer'],
+        );
+        $validator->setFallbackMessages(['value.amount.integer' => 'Integer required.']);
+
+        $this->assertSame('Integer required.', $validator->errors()->first());
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCustomReplacersReceiveDecodedFieldPaths(bool $classBased): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['settings.version' => 'invalid', 'other.value' => 'yes'],
+            ['settings\.version' => 'accepted_if:other\.value,yes'],
+            ['accepted_if' => ':input'],
+        );
+
+        $callback = function (string $message, string $attribute, string $rule, array $parameters, Validator $instance) use ($validator): string {
+            $this->assertSame('invalid', $message);
+            $this->assertSame('settings.version', $attribute);
+            $this->assertSame('accepted_if', $rule);
+            $this->assertSame(['other.value', 'yes'], $parameters);
+            $this->assertSame($validator, $instance);
+
+            return 'Custom message.';
+        };
+
+        if ($classBased) {
+            $validator->setContainer($container = m::mock(ContainerContract::class));
+            $container->shouldReceive('make')->once()->with('LiteralFieldReplacer')->andReturn($replacer = m::mock(stdClass::class));
+            $replacer->shouldReceive('replace')->once()->andReturnUsing($callback);
+            $validator->addReplacer('accepted_if', 'LiteralFieldReplacer');
+        } else {
+            $validator->addReplacer('accepted_if', $callback);
+        }
+
+        $this->assertSame('Custom message.', $validator->errors()->first('settings.version'));
+    }
+
+    public function testCustomRuleMessagesPreserveLiteralFieldIdentity(): void
+    {
+        $rule = new class implements Rule {
+            /**
+             * Determine if the validation rule passes.
+             */
+            public function passes(string $attribute, mixed $value): bool
+            {
+                return $attribute !== 'settings.version' || $value !== 'invalid';
+            }
+
+            /**
+             * Get the validation error messages.
+             */
+            public function message(): array
+            {
+                return [':attribute: :input', 'other' => ':attribute: :input'];
+            }
+        };
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['settings.version' => 'invalid', 'settings' => ['version' => 'nested'], 'other' => 'other input'],
+            ['settings\.version' => $rule],
+        );
+
+        $this->assertSame([
+            'settings.version' => ['settings.version: invalid'],
+            'other' => ['other: other input'],
+        ], $validator->errors()->getMessages());
     }
 
     public function testCoveringEmptyKeys()
@@ -10466,6 +10848,30 @@ class ValidationValidatorTest extends TestCase
         $this->assertSame('1.0e-1000', $value);
 
         $withinRange = false;
+
+        $this->assertFalse($validator->passes());
+    }
+
+    public function testItCanConfigureAllowedExponentRangeUsingCallableObject(): void
+    {
+        $validator = new Validator($this->getArrayTranslator(), ['foo' => '1.0e-1000'], ['foo' => ['numeric', 'max:3']]);
+        $policy = new class {
+            public bool $allowed = true;
+
+            /**
+             * Determine whether the exponent is allowed.
+             */
+            public function __invoke(int $scale, string $attribute, mixed $value): bool
+            {
+                return $this->allowed;
+            }
+        };
+
+        $validator->ensureExponentWithinAllowedRangeUsing($policy);
+
+        $this->assertTrue($validator->passes());
+
+        $policy->allowed = false;
 
         $this->assertFalse($validator->passes());
     }

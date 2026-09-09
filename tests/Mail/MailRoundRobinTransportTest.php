@@ -42,7 +42,7 @@ class MailRoundRobinTransportTest extends TestCase
         ]);
 
         $transport = $this->app->make('mail.manager')
-            ->removePoolable('roundrobin')
+            ->removePoolableDriver('roundrobin')
             ->getSymfonyTransport();
         $this->assertInstanceOf(RoundRobinTransport::class, $transport);
     }

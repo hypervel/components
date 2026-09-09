@@ -76,6 +76,16 @@ php artisan schema:dump --database=testing --prune
 
 You should commit your database schema file to source control so that other new developers on your team may quickly create your application's initial database structure.
 
+To prevent schema dumps in production, call `DumpCommand::prohibit` from the `boot` method of your application's `AppServiceProvider`:
+
+```php
+use Hypervel\Database\Console\DumpCommand;
+
+DumpCommand::prohibit($this->app->isProduction());
+```
+
+When prohibited, `schema:dump` exits without dumping the schema or pruning migrations.
+
 > [!WARNING]
 > Migration squashing is only available for the MariaDB, MySQL, PostgreSQL, and SQLite databases and utilizes the database's command-line client.
 
@@ -363,6 +373,20 @@ if (Schema::hasForeignKey('posts', ['user_id'])) {
 ```
 
 The `hasForeignKey` method accepts either the foreign key name or its column list.
+
+To modify a table only when a column or index exists, use `whenTableHasColumn` or `whenTableHasIndex`. Their `whenTableDoesntHaveColumn` and `whenTableDoesntHaveIndex` counterparts run the callback only when the column or index is absent:
+
+```php
+Schema::whenTableDoesntHaveColumn('users', 'email', function (Blueprint $table) {
+    $table->string('email');
+});
+
+Schema::whenTableDoesntHaveIndex('users', ['email'], function (Blueprint $table) {
+    $table->unique('email');
+}, 'unique');
+```
+
+The index methods accept an index name or an array of column names as their second argument. You may pass an index type, such as `unique`, as the fourth argument.
 
 <a name="database-connection-table-options"></a>
 #### Database Connection and Table Options

@@ -24,12 +24,14 @@
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
     - [Scout](#scout)
     - [JSON Schema](#json-schema)
+    - [Validation](#validation)
     - [Data Objects](#data-objects)
     - [Rate Limiting](#rate-limiting)
     - [Pagination](#pagination)
     - [Dates](#dates)
     - [UUIDs](#uuids)
     - [Filesystem](#filesystem)
+    - [Tinker](#tinker)
 - [Database, Cache, Sessions, and Queues](#database-cache-sessions-and-queues)
     - [Database](#database)
     - [Redis](#redis)
@@ -482,6 +484,11 @@ Hypervel compiles integer and float values passed to Scout's Algolia `where`, `w
 
 When porting schemas that place sibling assertions beside a local `$ref` or use nullable composition, make overlapping assertions identical. Hypervel rejects conflicts instead of silently replacing referenced constraints. See the [JSON Schema documentation](/docs/{{version}}/json-schema#reconstructing-schemas).
 
+<a name="validation"></a>
+### Validation
+
+Handwritten validation parameters use standard CSV quoting. Replace backslash-escaped quotes inside quoted parameters with doubled quotes; backslashes are literal. Fluent rule builders handle quoting for you. See [rule parameters](/docs/{{version}}/validation#rule-parameters).
+
 <a name="data-objects"></a>
 ### Data Objects
 
@@ -530,6 +537,11 @@ Hypervel's `Filesystem::hash()` method uses `xxh128` by default. Pass `md5` expl
 
 Unlike Laravel, Hypervel honors `read-only` on scoped disk records. Remove that option from any scoped disk that must accept writes.
 
+<a name="tinker"></a>
+### Tinker
+
+Hypervel uses PsySH's prompt project-trust mode by default, while Laravel Tinker trusts `.psysh.php` configuration automatically. Interactive sessions ask before loading an unfamiliar project, and non-interactive sessions skip its configuration. Applications that rely on loading this file without confirmation should set `trust_project` or `TINKER_TRUST_PROJECT` to `always` when Tinker runs from a trusted working directory. See the [Tinker documentation](/docs/{{version}}/artisan#trusting-project-configuration) for more information.
+
 <a name="database-cache-sessions-and-queues"></a>
 ## Database, Cache, Sessions, and Queues
 
@@ -559,7 +571,7 @@ Hypervel's `migrate:fresh` command discovers the connection declared by each mig
 
 Hypervel's Redis integration uses the PhpRedis extension exclusively. Its default `config/database.php` file does not contain a `client` option or `REDIS_CLIENT` environment variable. Remove those Laravel settings when porting configuration. A copied `client` option with any value other than `phpredis` is rejected; Predis is not supported.
 
-Laravel's top-level `database.redis.clusters` configuration is also rejected. Each Hypervel Redis connection selects its standalone, Sentinel, or Cluster topology within the named connection, so begin with the matching Hypervel example instead of adapting Laravel's connection shape. Optional advanced members use their documented defaults when omitted. Hypervel does not support Laravel's `retry_interval` setting; configure retries with `max_retries`, `backoff_algorithm`, `backoff_base`, and `backoff_cap`. Configure Redis Cluster by adding a `cluster` array to a named Redis connection. See the [Redis configuration](/docs/{{version}}/redis#configuration) and [cluster documentation](/docs/{{version}}/redis#clusters).
+Laravel's top-level `database.redis.clusters` configuration is also rejected. Each Hypervel Redis connection selects its standalone, Sentinel, or Cluster topology within the named connection, so begin with the matching Hypervel example instead of adapting Laravel's connection shape. Optional advanced members use their documented defaults when omitted. Hypervel does not support Laravel's `retry_interval` or `command_retries` settings and does not replay failed commands; configure PhpRedis connection retries with `max_retries`, `backoff_algorithm`, `backoff_base`, and `backoff_cap`. Configure Redis Cluster by adding a `cluster` array to a named Redis connection. See the [Redis configuration](/docs/{{version}}/redis#configuration) and [cluster documentation](/docs/{{version}}/redis#clusters).
 
 <a name="cache"></a>
 ### Cache
@@ -574,6 +586,8 @@ Custom cache tag sets must declare `TagSet::reset(): bool` and `TagSet::flush():
 
 <a name="sessions"></a>
 ### Sessions
+
+Custom guards used with `auth.session` must provide `hashPasswordForCookie()`; Hypervel does not fall back to raw password hashes when the method is missing. Guards extending `SessionGuard` already support it. See [session authentication](/docs/{{version}}/authentication#invalidating-sessions-on-other-devices).
 
 Hypervel's persistent application session drivers are `file`, `cookie`, `database`, and `redis`. The non-persistent `array` and `null` drivers are available for testing. Redis sessions are stored directly in Redis and may select a named Redis connection using `SESSION_CONNECTION`.
 

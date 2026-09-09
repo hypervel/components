@@ -79,7 +79,7 @@ class JoinClause extends Builder
      */
     public function on(
         Closure|ExpressionContract|string $first,
-        ?string $operator = null,
+        ExpressionContract|string|null $operator = null,
         ExpressionContract|string|null $second = null,
         string $boolean = 'and',
     ): static {
@@ -95,7 +95,7 @@ class JoinClause extends Builder
      */
     public function orOn(
         Closure|ExpressionContract|string $first,
-        ?string $operator = null,
+        ExpressionContract|string|null $operator = null,
         ExpressionContract|string|null $second = null,
     ): static {
         return $this->on($first, $operator, $second, 'or');

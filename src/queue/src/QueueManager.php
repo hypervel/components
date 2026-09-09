@@ -9,12 +9,16 @@ use DateInterval;
 use DateTimeInterface;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Contracts\Queue\Monitor as MonitorContract;
 use Hypervel\Contracts\Queue\Queue;
-use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
-use Hypervel\ObjectPool\Traits\HasPoolProxy;
+use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\Queue\Connectors\ConnectorInterface;
+use Hypervel\Queue\Events\QueuePaused;
+use Hypervel\Queue\Events\QueueResumed;
+use Hypervel\Queue\Events\QueuesPaused;
+use Hypervel\Queue\Events\QueuesResumed;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use InvalidArgumentException;
@@ -43,7 +47,7 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * The array of drivers which will be wrapped as pool proxies.
      */
-    protected array $poolables = ['beanstalkd', 'sqs'];
+    protected array $poolableDrivers = ['beanstalkd', 'sqs'];
 
     /**
      * The pool proxy classes for drivers with supplemental queue capabilities.
@@ -178,8 +182,8 @@ class QueueManager implements FactoryContract, MonitorContract
         /** @var Dispatcher $events */
         $events = $this->app->make('events');
 
-        if ($events->hasListeners(Events\QueuePaused::class)) {
-            $events->dispatch(new Events\QueuePaused($connection, $queue));
+        if ($events->hasListeners(QueuePaused::class)) {
+            $events->dispatch(new QueuePaused($connection, $queue));
         }
     }
 
@@ -196,8 +200,26 @@ class QueueManager implements FactoryContract, MonitorContract
         /** @var Dispatcher $events */
         $events = $this->app->make('events');
 
-        if ($events->hasListeners(Events\QueuePaused::class)) {
-            $events->dispatch(new Events\QueuePaused($connection, $queue, $ttl));
+        if ($events->hasListeners(QueuePaused::class)) {
+            $events->dispatch(new QueuePaused($connection, $queue, $ttl));
+        }
+    }
+
+    /**
+     * Pause job processing for all queues on all connections.
+     */
+    public function pauseAll(): void
+    {
+        // Use Laravel's key for cross-framework queue interoperability.
+        $this->app->make('cache')
+            ->store()
+            ->forever('illuminate:queues:paused', true);
+
+        /** @var Dispatcher $events */
+        $events = $this->app->make('events');
+
+        if ($events->hasListeners(QueuesPaused::class)) {
+            $events->dispatch(new QueuesPaused);
         }
     }
 
@@ -214,8 +236,28 @@ class QueueManager implements FactoryContract, MonitorContract
         /** @var Dispatcher $events */
         $events = $this->app->make('events');
 
-        if ($events->hasListeners(Events\QueueResumed::class)) {
-            $events->dispatch(new Events\QueueResumed($connection, $queue));
+        if ($events->hasListeners(QueueResumed::class)) {
+            $events->dispatch(new QueueResumed($connection, $queue));
+        }
+    }
+
+    /**
+     * Resume job processing for all queues on all connections.
+     *
+     * Queues paused individually are not affected.
+     */
+    public function resumeAll(): void
+    {
+        // Use Laravel's key for cross-framework queue interoperability.
+        $this->app->make('cache')
+            ->store()
+            ->forget('illuminate:queues:paused');
+
+        /** @var Dispatcher $events */
+        $events = $this->app->make('events');
+
+        if ($events->hasListeners(QueuesResumed::class)) {
+            $events->dispatch(new QueuesResumed);
         }
     }
 
@@ -225,9 +267,10 @@ class QueueManager implements FactoryContract, MonitorContract
     public function isPaused(string $connection, string $queue): bool
     {
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
-        return (bool) $this->app->make('cache')
-            ->store()
-            ->get("illuminate:queue:paused:{$connection}:{$queue}", false);
+        $cache = $this->app->make('cache')->store();
+
+        return (bool) ($cache->get('illuminate:queues:paused', false)
+            ?: $cache->get("illuminate:queue:paused:{$connection}:{$queue}", false));
     }
 
     /**
@@ -235,12 +278,19 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function getPausedQueues(string $connection, array $queues): array
     {
+        $cache = $this->app->make('cache')->store();
+
+        // Keep the global key separate: cluster proxies may reject cross-slot batches.
+        if ($cache->get('illuminate:queues:paused', false)) {
+            return array_values($queues);
+        }
+
         $keys = array_map(
             static fn (string $queue): string => "illuminate:queue:paused:{$connection}:{$queue}",
             $queues,
         );
 
-        $states = $this->app->make('cache')->store()->many($keys);
+        $states = $cache->many($keys);
 
         return array_values(array_filter(
             $queues,
@@ -313,16 +363,16 @@ class QueueManager implements FactoryContract, MonitorContract
         }
 
         $constructionConfig = Arr::except($config, ['pool']);
-        $resolver = fn () => $this->getConnector($config['driver'])
+        $createCallback = fn () => $this->getConnector($config['driver'])
             ->connect($constructionConfig)
             ->setContainer($this->app) // @phpstan-ignore method.notFound (setContainer is on concrete Queue, not contract)
             ->setConfig($constructionConfig);
 
-        if (in_array($config['driver'], $this->poolables, true)) {
+        if (in_array($config['driver'], $this->poolableDrivers, true)) {
             /** @var QueuePoolProxy $proxy */
             $proxy = $this->createPoolProxy(
                 $config['driver'],
-                $resolver,
+                $createCallback,
                 $this->poolDefinition($config['driver'], $config['pool'] ?? [], $constructionConfig),
                 $this->poolProxyClasses[$config['driver']] ?? QueuePoolProxy::class,
             );
@@ -330,7 +380,7 @@ class QueueManager implements FactoryContract, MonitorContract
             return $proxy->setConnectionName($name);
         }
 
-        return $resolver()->setConnectionName($name);
+        return $createCallback()->setConnectionName($name);
     }
 
     /**
@@ -445,7 +495,7 @@ class QueueManager implements FactoryContract, MonitorContract
 
         $config = $this->getConfig($name);
 
-        if (is_null($config) || ! in_array($config['driver'], $this->poolables, true)) {
+        if (is_null($config) || ! in_array($config['driver'], $this->poolableDrivers, true)) {
             return;
         }
 
@@ -456,7 +506,7 @@ class QueueManager implements FactoryContract, MonitorContract
             $constructionConfig,
         );
 
-        $this->poolFactory()->remove($definition->identity);
+        $this->poolFactory()->purge($definition->identity);
     }
 
     /**

@@ -880,8 +880,13 @@ If you would like your intermediate table to have `created_at` and `updated_at` 
 return $this->belongsToMany(Role::class)->withTimestamps();
 ```
 
-> [!WARNING]
-> Intermediate tables that utilize Eloquent's automatically maintained timestamps are required to have both `created_at` and `updated_at` timestamp columns.
+By default, the intermediate table must contain both timestamp columns. To use different column names, pass them to the `createdAt` and `updatedAt` arguments. You may pass `false` to either argument to disable that timestamp:
+
+```php
+return $this->belongsToMany(Role::class)->withTimestamps(updatedAt: false);
+```
+
+For custom pivot models, also override `getCreatedAtColumn` or `getUpdatedAtColumn` to return the renamed column or `null` for a disabled timestamp.
 
 <a name="customizing-the-pivot-attribute-name"></a>
 #### Customizing the `pivot` Attribute Name
@@ -1624,6 +1629,14 @@ You may also specify an operator and count value to further customize the query:
 $posts = Post::has('comments', '>=', 3)->get();
 ```
 
+You may pass a raw expression as the count to compare against another column:
+
+```php
+use Hypervel\Support\Facades\DB;
+
+$posts = Post::has('comments', '>=', DB::raw('posts.required_comments'))->get();
+```
+
 Nested `has` statements may be constructed using "dot" notation. For example, you may retrieve all posts that have at least one comment that has at least one image:
 
 ```php
@@ -1685,6 +1698,14 @@ $posts = Post::whereRelation(
     'comments', 'created_at', '>=', now()->minus(hours: 1)
 )->get();
 ```
+
+To retrieve models that have no related records matching a condition, you may use `whereDoesntHaveRelation` or `orWhereDoesntHaveRelation`. For example, the following query retrieves posts that have no unapproved comments:
+
+```php
+$posts = Post::whereDoesntHaveRelation('comments', 'is_approved', false)->get();
+```
+
+The `whereMorphDoesntHaveRelation` and `orWhereMorphDoesntHaveRelation` methods provide the same functionality for polymorphic relationships.
 
 <a name="querying-relationship-absence"></a>
 ### Querying Relationship Absence
@@ -1892,6 +1913,14 @@ Like the `loadCount` method, deferred versions of these methods are also availab
 $post = Post::first();
 
 $post->loadSum('comments', 'votes');
+```
+
+You may also pass a raw expression instead of a column name to the `withMin`, `withMax`, `withAvg`, and `withSum` methods or their deferred counterparts:
+
+```php
+use Hypervel\Support\Facades\DB;
+
+$posts = Post::withSum('comments as weighted_votes', DB::raw('votes * 2'))->get();
 ```
 
 If you're combining these aggregate methods with a `select` statement, ensure that you call the aggregate methods after the `select` method:
@@ -2179,6 +2208,12 @@ use App\Models\User;
 $users = User::withWhereHas('posts', function ($query) {
     $query->where('featured', true);
 })->get();
+```
+
+For a single, simple condition, you may use the `withWhereRelation` method:
+
+```php
+$users = User::withWhereRelation('posts', 'featured', true)->get();
 ```
 
 <a name="lazy-eager-loading"></a>

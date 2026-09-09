@@ -4,15 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\ObjectPool;
 
-use Hypervel\ObjectPool\Contracts\ObjectPool;
+use Hypervel\Contracts\ObjectPool\ObjectPool;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolFingerprint;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionProperty;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -29,7 +34,7 @@ class PoolManagerTest extends TestCase
 
     protected function tearDownInCoroutine(): void
     {
-        $this->manager->flush();
+        $this->manager->purgeAll();
     }
 
     public function testPoolBuildsDefinitionsFromNamesAndOptions(): void
@@ -41,11 +46,11 @@ class PoolManagerTest extends TestCase
         $configuredPool = $this->manager->pool(
             'app:exports',
             static fn (): object => new stdClass,
-            ['max_objects' => 20, 'idle_ttl' => null],
+            ['max_objects' => 20, 'pool_idle_timeout' => null],
         );
 
-        $defaultDefinition = $this->manager->definition('app:reports');
-        $configuredDefinition = $this->manager->definition('app:exports');
+        $defaultDefinition = $this->manager->getDefinition('app:reports');
+        $configuredDefinition = $this->manager->getDefinition('app:exports');
 
         $this->assertInstanceOf(PoolDefinition::class, $defaultDefinition);
         $this->assertSame('app:reports', $defaultDefinition->identity);
@@ -59,7 +64,7 @@ class PoolManagerTest extends TestCase
         $this->assertSame('app:exports', $configuredDefinition->resourceType);
         $this->assertSame(PoolFingerprint::fromExplicit('app:exports'), $configuredDefinition->fingerprint);
         $this->assertSame(20, $configuredDefinition->options->maxObjects);
-        $this->assertNull($configuredDefinition->options->idleTtl);
+        $this->assertNull($configuredDefinition->options->poolIdleTimeout);
         $this->assertSame($configuredDefinition->options->toArray(), $configuredPool->getOptions()->toArray());
     }
 
@@ -73,7 +78,7 @@ class PoolManagerTest extends TestCase
             'app:reports',
             static fn (): never => throw new RuntimeException('replacement factory must be ignored'),
         );
-        $object = $second->get();
+        $object = $second->borrow();
         $second->release($object);
 
         $this->assertSame($first, $second);
@@ -137,11 +142,11 @@ class PoolManagerTest extends TestCase
         $this->assertInstanceOf(ObjectPool::class, $pool);
         $this->assertTrue($this->manager->has($definition->identity));
         $this->assertSame($pool, $this->manager->get($definition->identity));
-        $this->assertSame([$definition->identity => $pool], $this->manager->pools());
-        $this->assertSame($definition, $this->manager->definition($definition->identity));
+        $this->assertSame([$definition->identity => $pool], $this->manager->getPools());
+        $this->assertSame($definition, $this->manager->getDefinition($definition->identity));
     }
 
-    public function testMatchingDefinitionReusesPoolAndIgnoresNewConstructionResolver(): void
+    public function testMatchingDefinitionReusesPoolAndIgnoresNewCreateCallback(): void
     {
         $definition = $this->definition();
         $first = $this->manager->getOrCreate(
@@ -152,7 +157,7 @@ class PoolManagerTest extends TestCase
             $this->definition(),
             static fn (): never => throw new RuntimeException('replacement factory must be ignored'),
         );
-        $object = $second->get();
+        $object = $second->borrow();
         $second->release($object);
 
         $this->assertSame($first, $second);
@@ -176,7 +181,7 @@ class PoolManagerTest extends TestCase
 
         $this->assertNotSame($first, $replacement);
         $this->assertSame($replacement, $this->manager->get($replacementDefinition->identity));
-        $this->assertSame($replacementDefinition, $this->manager->definition($replacementDefinition->identity));
+        $this->assertSame($replacementDefinition, $this->manager->getDefinition($replacementDefinition->identity));
     }
 
     public function testResourceTypeMismatchThrows(): void
@@ -226,9 +231,9 @@ class PoolManagerTest extends TestCase
             $this->fail('Expected mismatched options to throw.');
         } catch (RuntimeException $exception) {
             $this->assertStringContainsString('"max_objects":{"registered":10,"requested":20}', $exception->getMessage());
-            $this->assertStringContainsString('"max_idle_time":{"registered":0,"requested":5}', $exception->getMessage());
+            $this->assertStringContainsString('"max_idle_time":{"registered":null,"requested":5}', $exception->getMessage());
             $this->assertStringNotContainsString('wait_timeout', $exception->getMessage());
-            $this->assertStringNotContainsString('idle_ttl', $exception->getMessage());
+            $this->assertStringNotContainsString('pool_idle_timeout', $exception->getMessage());
         }
     }
 
@@ -240,25 +245,25 @@ class PoolManagerTest extends TestCase
         $this->manager->get('missing');
     }
 
-    public function testRemoveUnregistersBeforeClosingAndReturnsWhetherItRemoved(): void
+    public function testPurgeUnregistersBeforeClosingAndReturnsWhetherItRemoved(): void
     {
         $definition = $this->definition();
         $pool = $this->manager->getOrCreate(
             $definition,
             static fn (): object => new stdClass,
         );
-        $object = $pool->get();
+        $object = $pool->borrow();
         $pool->release($object);
 
-        $this->assertTrue($this->manager->remove($definition->identity));
-        $this->assertFalse($this->manager->remove($definition->identity));
+        $this->assertTrue($this->manager->purge($definition->identity));
+        $this->assertFalse($this->manager->purge($definition->identity));
         $this->assertFalse($this->manager->has($definition->identity));
-        $this->assertNull($this->manager->definition($definition->identity));
+        $this->assertNull($this->manager->getDefinition($definition->identity));
         $this->assertTrue($pool->isClosed());
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
+        $this->assertSame(0, $pool->getManagedCount());
     }
 
-    public function testRemoveWithUnexpectedInstanceIsANoOp(): void
+    public function testPurgeWithUnexpectedInstanceIsANoOp(): void
     {
         $definition = $this->definition();
         $pool = $this->manager->getOrCreate($definition, static fn (): object => new stdClass);
@@ -267,12 +272,12 @@ class PoolManagerTest extends TestCase
             static fn (): object => new stdClass,
         );
 
-        $this->assertFalse($this->manager->remove($definition->identity, $other));
+        $this->assertFalse($this->manager->purge($definition->identity, $other));
         $this->assertSame($pool, $this->manager->get($definition->identity));
         $this->assertFalse($pool->isClosed());
     }
 
-    public function testFlushClearsDefinitionsAndClosesEveryPool(): void
+    public function testPurgeAllClearsDefinitionsAndClosesEveryPool(): void
     {
         $firstDefinition = $this->definition();
         $secondDefinition = $this->definition(
@@ -283,13 +288,86 @@ class PoolManagerTest extends TestCase
         $first = $this->manager->getOrCreate($firstDefinition, static fn (): object => new stdClass);
         $second = $this->manager->getOrCreate($secondDefinition, static fn (): object => new stdClass);
 
-        $this->manager->flush();
+        $this->manager->purgeAll();
 
-        $this->assertSame([], $this->manager->pools());
-        $this->assertNull($this->manager->definition($firstDefinition->identity));
-        $this->assertNull($this->manager->definition($secondDefinition->identity));
+        $this->assertSame([], $this->manager->getPools());
+        $this->assertNull($this->manager->getDefinition($firstDefinition->identity));
+        $this->assertNull($this->manager->getDefinition($secondDefinition->identity));
         $this->assertTrue($first->isClosed());
         $this->assertTrue($second->isClosed());
+    }
+
+    #[DataProvider('closeFailures')]
+    public function testPurgeAllAttemptsEveryDetachedPoolAndPreservesFailurePriority(
+        Throwable $firstFailure,
+        Throwable $secondFailure,
+        Throwable $expectedFailure,
+    ): void {
+        $pools = [];
+        $definitions = [];
+        $observedRegistries = [];
+
+        foreach ([$firstFailure, $secondFailure, null] as $index => $failure) {
+            $identity = 'pool:' . $index;
+            $pool = m::mock(ObjectPool::class);
+            $pool->shouldReceive('close')->once()->andReturnUsing(function () use (
+                $identity,
+                $failure,
+                &$observedRegistries,
+            ): void {
+                $observedRegistries[] = [$this->manager->getPools(), $this->manager->getDefinition($identity)];
+
+                if ($failure !== null) {
+                    throw $failure;
+                }
+            });
+            $pools[$identity] = $pool;
+            $definitions[$identity] = $this->definition(identity: $identity);
+        }
+
+        (new ReflectionProperty(PoolManager::class, 'pools'))->setValue($this->manager, $pools);
+        (new ReflectionProperty(PoolManager::class, 'definitions'))->setValue($this->manager, $definitions);
+        $actualFailure = null;
+
+        try {
+            $this->manager->purgeAll();
+        } catch (Throwable $exception) {
+            $actualFailure = $exception;
+        }
+
+        $this->assertSame($expectedFailure, $actualFailure);
+        $this->assertSame([[[], null], [[], null], [[], null]], $observedRegistries);
+        $this->assertSame([], $this->manager->getPools());
+    }
+
+    public static function closeFailures(): array
+    {
+        $firstFailure = new RuntimeException('first close failed');
+        $secondFailure = new RuntimeException('second close failed');
+        $firstCancellation = new CanceledException('first close canceled');
+        $secondCancellation = new CanceledException('second close canceled');
+
+        return [
+            'first ordinary failure' => [$firstFailure, $secondFailure, $firstFailure],
+            'later cancellation takes priority' => [$firstFailure, $secondCancellation, $secondCancellation],
+            'first cancellation stays primary' => [$firstCancellation, $secondCancellation, $firstCancellation],
+        ];
+    }
+
+    public function testPurgeAllPreservesPoolsRegisteredDuringDetachedCleanup(): void
+    {
+        $replacement = null;
+        $pool = m::mock(ObjectPool::class);
+        $pool->shouldReceive('close')->once()->andReturnUsing(function () use (&$replacement): void {
+            $replacement = $this->manager->pool('reports', static fn () => new stdClass);
+        });
+        (new ReflectionProperty(PoolManager::class, 'pools'))->setValue($this->manager, ['reports' => $pool]);
+
+        $this->manager->purgeAll();
+
+        $this->assertSame($replacement, $this->manager->get('reports'));
+        $this->assertFalse($replacement->isClosed());
+        $this->assertNotNull($this->manager->getDefinition('reports'));
     }
 
     public function testConcurrentMatchingRegistrationsConverge(): void
@@ -305,7 +383,7 @@ class PoolManagerTest extends TestCase
         foreach ($pools as $pool) {
             $this->assertSame($first, $pool);
         }
-        $this->assertCount(1, $this->manager->pools());
+        $this->assertCount(1, $this->manager->getPools());
     }
 
     private function definition(

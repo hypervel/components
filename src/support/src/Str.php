@@ -183,6 +183,8 @@ class Str
 
     /**
      * Convert a value to camel case.
+     *
+     * @return ($value is '' ? '' : string)
      */
     public static function camel(string $value): string
     {
@@ -205,6 +207,8 @@ class Str
 
     /**
      * Remove the given string(s) if it exists at the start of the haystack.
+     *
+     * @param string|string[] $needle
      */
     public static function chopStart(string $subject, string|array $needle): string
     {
@@ -219,6 +223,8 @@ class Str
 
     /**
      * Remove the given string(s) if it exists at the end of the haystack.
+     *
+     * @param string|string[] $needle
      */
     public static function chopEnd(string $subject, string|array $needle): string
     {
@@ -235,6 +241,7 @@ class Str
      * Determine if a given string contains a given substring.
      *
      * @param iterable<string>|string $needles
+     * @return ($needles is array{} ? false : ($haystack is non-empty-string ? bool : false))
      */
     public static function contains(string $haystack, string|iterable $needles, bool $ignoreCase = false): bool
     {
@@ -263,22 +270,28 @@ class Str
      * Determine if a given string contains all array values.
      *
      * @param iterable<string> $needles
+     * @return ($needles is array{} ? false : ($haystack is non-empty-string ? bool : false))
      */
     public static function containsAll(string $haystack, iterable $needles, bool $ignoreCase = false): bool
     {
+        $any = false;
+
         foreach ($needles as $needle) {
+            $any = true;
+
             if (! static::contains($haystack, $needle, $ignoreCase)) {
                 return false;
             }
         }
 
-        return true;
+        return $any;
     }
 
     /**
      * Determine if a given string doesn't contain a given substring.
      *
      * @param iterable<string>|string $needles
+     * @return ($needles is array{} ? true : ($haystack is non-empty-string ? bool : true))
      */
     public static function doesntContain(string $haystack, string|iterable $needles, bool $ignoreCase = false): bool
     {
@@ -287,6 +300,9 @@ class Str
 
     /**
      * Convert the case of a string.
+     *
+     * @param MB_CASE_FOLD|MB_CASE_FOLD_SIMPLE|MB_CASE_LOWER|MB_CASE_LOWER_SIMPLE|MB_CASE_TITLE|MB_CASE_TITLE_SIMPLE|MB_CASE_UPPER|MB_CASE_UPPER_SIMPLE $mode
+     * @return ($string is '' ? '' : string)
      */
     public static function convertCase(string $string, int $mode = MB_CASE_FOLD, ?string $encoding = 'UTF-8'): string
     {
@@ -305,6 +321,7 @@ class Str
      * Replace consecutive instances of a given character with a single character in the given string.
      *
      * @param array<string>|string $characters
+     * @return ($string is '' ? '' : string)
      */
     public static function deduplicate(string $string, array|string $characters = ' '): string
     {
@@ -322,7 +339,8 @@ class Str
     /**
      * Determine if a given string ends with a given substring.
      *
-     * @param iterable<string>|string $needles
+     * @param null|BaseStringable|bool|float|int|iterable<null|BaseStringable|bool|float|int|string>|string $needles
+     * @return ($needles is array{} ? false : ($haystack is null|''|false ? false : bool))
      */
     public static function endsWith(string|int|float|bool|BaseStringable|null $haystack, string|int|float|bool|BaseStringable|iterable|null $needles): bool
     {
@@ -333,7 +351,7 @@ class Str
         $haystack = (string) $haystack;
 
         if (! is_iterable($needles)) {
-            $needles = (array) $needles;
+            $needles = [$needles];
         }
 
         foreach ($needles as $needle) {
@@ -350,7 +368,8 @@ class Str
     /**
      * Determine if a given string doesn't end with a given substring.
      *
-     * @param iterable<string>|string $needles
+     * @param null|BaseStringable|bool|float|int|iterable<null|BaseStringable|bool|float|int|string>|string $needles
+     * @return ($needles is array{} ? true : ($haystack is null|''|false ? true : bool))
      */
     public static function doesntEndWith(string|int|float|bool|BaseStringable|null $haystack, string|int|float|bool|BaseStringable|iterable|null $needles): bool
     {
@@ -358,9 +377,9 @@ class Str
     }
 
     /**
-     * Extracts an excerpt from text that matches the first instance of a phrase.
+     * Extract an excerpt from text that matches the first instance of a phrase.
      *
-     * @param array{radius?: float|int, omission?: string} $options
+     * @param array{radius?: int, omission?: string} $options
      */
     public static function excerpt(string|int|float|bool|BaseStringable|null $text, string|int|float|bool|BaseStringable|null $phrase = '', array $options = []): ?string
     {
@@ -395,6 +414,8 @@ class Str
 
     /**
      * Cap a string with a single instance of a given value.
+     *
+     * @return ($value is '' ? ($cap is '' ? '' : non-empty-string) : non-empty-string)
      */
     public static function finish(string $value, string $cap): string
     {
@@ -405,6 +426,8 @@ class Str
 
     /**
      * Wrap the string with the given strings.
+     *
+     * @return ($value is '' ? ($before is '' ? ($after is '' ? '' : ($after is null ? '' : non-empty-string)) : non-empty-string) : non-empty-string)
      */
     public static function wrap(string $value, string $before, ?string $after = null): string
     {
@@ -479,6 +502,8 @@ class Str
 
     /**
      * Determine if a given value is valid JSON.
+     *
+     * @phpstan-assert-if-true =non-empty-string $value
      */
     public static function isJson(mixed $value): bool
     {
@@ -493,6 +518,8 @@ class Str
      * Determine if a given value is a valid URL.
      *
      * @param string[] $protocols
+     *
+     * @phpstan-assert-if-true =non-empty-string $value
      */
     public static function isUrl(mixed $value, array $protocols = []): bool
     {
@@ -545,6 +572,8 @@ class Str
      * Determine if a given value is a valid UUID.
      *
      * @param null|'max'|'nil'|int<0, 8> $version
+     *
+     * @phpstan-assert-if-true =non-empty-string $value
      */
     public static function isUuid(mixed $value, int|string|null $version = null): bool
     {
@@ -573,6 +602,8 @@ class Str
 
     /**
      * Determine if a given value is a valid ULID.
+     *
+     * @phpstan-assert-if-true =non-empty-string $value
      */
     public static function isUlid(mixed $value): bool
     {
@@ -585,6 +616,8 @@ class Str
 
     /**
      * Convert a string to kebab case.
+     *
+     * @return ($value is '' ? '' : string)
      */
     public static function kebab(string $value): string
     {
@@ -593,6 +626,8 @@ class Str
 
     /**
      * Return the length of the given string.
+     *
+     * @return non-negative-int
      */
     public static function length(string $value, ?string $encoding = null): int
     {
@@ -625,6 +660,8 @@ class Str
 
     /**
      * Convert the given string to lower-case.
+     *
+     * @return ($value is '' ? '' : lowercase-string&non-empty-string)
      */
     public static function lower(string $value): string
     {
@@ -646,9 +683,10 @@ class Str
     }
 
     /**
-     * Converts GitHub flavored Markdown into HTML.
+     * Convert GitHub flavored Markdown into HTML.
      *
      * @param \League\CommonMark\Extension\ExtensionInterface[] $extensions
+     * @return ($string is '' ? '' : string)
      */
     public static function markdown(string $string, array $options = [], array $extensions = []): string
     {
@@ -664,9 +702,10 @@ class Str
     }
 
     /**
-     * Converts inline Markdown into HTML.
+     * Convert inline Markdown into HTML.
      *
      * @param \League\CommonMark\Extension\ExtensionInterface[] $extensions
+     * @return ($string is '' ? '' : string)
      */
     public static function inlineMarkdown(string $string, array $options = [], array $extensions = []): string
     {
@@ -733,6 +772,7 @@ class Str
      * Determine if a given string matches a given pattern.
      *
      * @param iterable<string>|string $pattern
+     * @return ($pattern is array{} ? false : bool)
      */
     public static function isMatch(string|iterable $pattern, string $value): bool
     {
@@ -767,10 +807,13 @@ class Str
 
     /**
      * Remove all non-numeric characters from a string.
+     *
+     * @param string|string[] $value
+     * @return ($value is string ? string : string[])
      */
     public static function numbers(string|array $value): string|array
     {
-        return preg_replace('/[^0-9]/', '', $value);
+        return preg_replace('/\D/', '', $value);
     }
 
     /**
@@ -852,6 +895,8 @@ class Str
 
     /**
      * Generate a random, secure password.
+     *
+     * @return ($letters is false ? ($numbers is true ? ($symbols is false ? ($spaces is false ? numeric-string : string) : string) : string) : string)
      */
     public static function password(int $length = 32, bool $letters = true, bool $numbers = true, bool $symbols = true, bool $spaces = false): string
     {
@@ -888,6 +933,8 @@ class Str
 
     /**
      * Find the multi-byte safe position of the first occurrence of a given substring in a string.
+     *
+     * @return ($needle is '' ? int : ($haystack is '' ? false : false|int))
      */
     public static function position(string $haystack, string $needle, int $offset = 0, ?string $encoding = null): int|false
     {
@@ -1029,6 +1076,7 @@ class Str
      * @param iterable<string>|string $search
      * @param iterable<string>|string $replace
      * @param iterable<string>|string $subject
+     * @return ($subject is string ? string : string[])
      */
     public static function replace(string|iterable $search, string|iterable $replace, string|iterable $subject, bool $caseSensitive = true): string|array
     {
@@ -1046,7 +1094,58 @@ class Str
 
         return $caseSensitive
             ? str_replace($search, $replace, $subject)
-            : str_ireplace($search, $replace, $subject);
+            : static::replaceWhileIgnoringCase($search, $replace, $subject);
+    }
+
+    /**
+     * Replace the given value in the given string regardless of case.
+     *
+     * @param string|string[] $search
+     * @param string|string[] $replace
+     * @param string|string[] $subject
+     * @return ($subject is string ? string : string[])
+     */
+    protected static function replaceWhileIgnoringCase(string|array $search, string|array $replace, string|array $subject): string|array
+    {
+        if (! is_array($search) && is_array($replace)) {
+            return str_ireplace($search, $replace, $subject);
+        }
+
+        if (is_string($search) ? static::isAscii($search) : array_all($search, static::isAscii(...))) {
+            return str_ireplace($search, $replace, $subject);
+        }
+
+        $searches = is_array($search) ? array_values($search) : [$search];
+
+        $replacements = is_array($replace)
+            ? array_values($replace)
+            : array_fill(0, count($searches), $replace);
+
+        // Validate every input first: replacement bytes can invalidate later UTF-8 matching.
+        foreach ([$searches, $replacements, (array) $subject] as $values) {
+            foreach ($values as $value) {
+                if (! preg_match('//u', (string) $value)) {
+                    return str_ireplace($search, $replace, $subject);
+                }
+            }
+        }
+
+        foreach ($searches as $index => $term) {
+            $term = (string) $term;
+
+            if ($term === '') {
+                continue;
+            }
+
+            $replacement = (string) ($replacements[$index] ?? '');
+
+            // ASCII terms retain native case folding even alongside Unicode terms.
+            $subject = static::isAscii($term)
+                ? str_ireplace($term, $replacement, $subject)
+                : preg_replace_callback('/' . preg_quote($term, '/') . '/iu', fn (): string => $replacement, $subject);
+        }
+
+        return $subject;
     }
 
     /**
@@ -1129,6 +1228,7 @@ class Str
      * @param string|string[] $pattern
      * @param (Closure(array): string)|string|string[] $replace
      * @param string|string[] $subject
+     * @return ($subject is array ? null|string[] : null|string)
      */
     public static function replaceMatches(string|array $pattern, Closure|array|string $replace, string|array $subject, int $limit = -1): string|array|null
     {
@@ -1152,7 +1252,7 @@ class Str
 
         return $caseSensitive
             ? str_replace($search, '', $subject)
-            : str_ireplace($search, '', $subject);
+            : static::replaceWhileIgnoringCase($search, '', $subject);
     }
 
     /**
@@ -1165,6 +1265,8 @@ class Str
 
     /**
      * Begin a string with a single instance of a given value.
+     *
+     * @return ($value is '' ? ($prefix is '' ? '' : non-empty-string) : non-empty-string)
      */
     public static function start(string $value, string $prefix): string
     {
@@ -1175,6 +1277,8 @@ class Str
 
     /**
      * Convert the given string to upper-case.
+     *
+     * @return ($value is '' ? '' : non-empty-string&uppercase-string)
      */
     public static function upper(string $value): string
     {
@@ -1394,10 +1498,10 @@ class Str
     /**
      * Determine if a given string starts with a given substring.
      *
-     * @param iterable<string>|string $needles
-     * @return ($needles is array{} ? false : ($haystack is non-empty-string ? bool : false))
+     * @param null|BaseStringable|bool|float|int|iterable<null|BaseStringable|bool|float|int|string>|string $needles
+     * @return ($needles is array{} ? false : ($haystack is null|''|false ? false : bool))
      *
-     * @phpstan-assert-if-true =non-empty-string $haystack
+     * @phpstan-assert-if-true =non-empty-string|int|float|true|BaseStringable $haystack
      */
     public static function startsWith(string|int|float|bool|BaseStringable|null $haystack, string|int|float|bool|BaseStringable|iterable|null $needles): bool
     {
@@ -1425,10 +1529,10 @@ class Str
     /**
      * Determine if a given string doesn't start with a given substring.
      *
-     * @param iterable<string>|string $needles
-     * @return ($needles is array{} ? true : ($haystack is non-empty-string ? bool : true))
+     * @param null|BaseStringable|bool|float|int|iterable<null|BaseStringable|bool|float|int|string>|string $needles
+     * @return ($needles is array{} ? true : ($haystack is null|''|false ? true : bool))
      *
-     * @phpstan-assert-if-false =non-empty-string $haystack
+     * @phpstan-assert-if-false =non-empty-string|int|float|true|BaseStringable $haystack
      */
     public static function doesntStartWith(string|int|float|bool|BaseStringable|null $haystack, string|int|float|bool|BaseStringable|iterable|null $needles): bool
     {

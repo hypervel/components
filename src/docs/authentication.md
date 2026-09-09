@@ -498,6 +498,16 @@ public function boot(): void
 
 When the `guest` middleware names a guard and the request continues, that guard becomes the current default guard for the request. If multiple guards are listed, the first guard is selected.
 
+You may use the `RedirectIfAuthenticated` middleware's `using` method as an alternative to a middleware alias. For example, the following is equivalent to `guest:admin,web`:
+
+```php
+use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
+use Hypervel\Support\Facades\Route;
+
+Route::get('/admin/login', fn () => view('auth.login'))
+    ->middleware(RedirectIfAuthenticated::using('admin', 'web'));
+```
+
 <a name="specifying-a-guard"></a>
 #### Specifying a Guard
 
@@ -819,6 +829,8 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     });
 });
 ```
+
+Custom guards used with `auth.session` must provide a `hashPasswordForCookie` method that returns an HMAC of the password hash and use the same value when creating remember cookies. Extending `Hypervel\Auth\SessionGuard` provides this behavior.
 
 Then, you may use the `logoutOtherDevices` method provided by the `Auth` facade. This method requires the user to confirm their current password, which your application should accept through an input form:
 

@@ -10,7 +10,10 @@ use DateTimeInterface;
 use Exception;
 use Generator;
 use Hypervel\Context\NonCopyableContext;
+use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
+use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Events\QueryFailed;
 use Hypervel\Database\Events\TransactionBeginning;
@@ -212,6 +215,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         $this->configuredTablePrefix = $tablePrefix;
 
         $this->config = $config;
+        $this->config['mask_bindings_in_exception_messages'] = (bool) ($config['mask_bindings_in_exception_messages'] ?? false);
 
         $this->readWriteType = $config[self::READ_WRITE_TYPE_CONFIG_KEY] ?? null;
 
@@ -295,8 +299,10 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
     /**
      * Begin a fluent query against a database table.
+     *
+     * @param Closure|QueryBuilder|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|UnitEnum|string $table
      */
-    public function table(Closure|QueryBuilder|UnitEnum|string $table, ?string $as = null): QueryBuilder
+    public function table(Closure|QueryBuilder|EloquentBuilder|Relation|ExpressionContract|UnitEnum|string $table, ?string $as = null): QueryBuilder
     {
         if ($table instanceof UnitEnum) {
             $table = (string) enum_value($table);
@@ -689,8 +695,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         }
 
         // If an exception occurs when attempting to run a query, we'll format the error
-        // message to include the bindings with SQL, which will make this exception a
-        // lot more helpful to the developer instead of just the database's errors.
+        // message to include the SQL and, unless masked, its bindings. This provides
+        // more context for the developer than just the database's original error.
         catch (CanceledException $exception) {
             throw $exception;
         } catch (Exception $e) {
@@ -716,6 +722,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
             $previous,
             $this->getConnectionDetails(),
             $this->latestReadWriteTypeUsed(),
+            $this->getConfig('mask_bindings_in_exception_messages'),
         );
 
         if ($isUniqueConstraintError && $queryException instanceof UniqueConstraintViolationException) {
@@ -1164,7 +1171,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Get a new raw query expression.
      */
-    public function raw(mixed $value): Expression
+    public function raw(mixed $value): ExpressionContract
     {
         return new Expression($value);
     }

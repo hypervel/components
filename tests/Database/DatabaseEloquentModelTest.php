@@ -4524,6 +4524,19 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertFalse($user->hasAttribute('belongsToStub'));
     }
 
+    public function testZeroNamedAttributesUseNormalAttributeAccess(): void
+    {
+        $model = new ModelStub;
+        $model->setAttribute('0', '42');
+        $model->mergeCasts(['0' => 'integer']);
+
+        $this->assertTrue($model->hasAttribute('0'));
+        $this->assertSame(42, $model->getAttribute('0'));
+        $this->assertSame(42, $model->{'0'});
+        $this->assertFalse($model->hasAttribute(''));
+        $this->assertNull($model->getAttribute(''));
+    }
+
     public function testModelToJsonSucceedsWithPriorErrors(): void
     {
         $user = new ModelStub(['name' => 'Mateus']);

@@ -41,6 +41,9 @@ use Symfony\Component\VarDumper\VarDumper;
 use Throwable;
 use UnitEnum;
 
+/**
+ * @template TAsync of bool = bool
+ */
 class PendingRequest implements Transient
 {
     use Conditionable;
@@ -155,6 +158,8 @@ class PendingRequest implements Transient
 
     /**
      * The callbacks that should execute after the response is built.
+     *
+     * @var Collection<int, callable(Response, null|Request): mixed>
      */
     protected Collection $afterResponseCallbacks;
 
@@ -180,6 +185,8 @@ class PendingRequest implements Transient
 
     /**
      * Whether the requests should be asynchronous.
+     *
+     * @var TAsync
      */
     protected bool $async = false;
 
@@ -245,8 +252,9 @@ class PendingRequest implements Transient
             'timeout' => 30,
         ], $options);
 
+        // A bound callback would keep the request alive until cyclic garbage collection runs.
         $this->beforeSendingCallbacks = new Collection([
-            function (Request $request, array $options, PendingRequest $pendingRequest) {
+            static function (Request $request, array $options, PendingRequest $pendingRequest): void {
                 $pendingRequest->request = $request;
                 $pendingRequest->cookies = $options['cookies'];
 
@@ -571,6 +579,9 @@ class PendingRequest implements Transient
 
     /**
      * Specify the number of times the request should be attempted.
+     *
+     * @param (Closure(int, mixed): int)|int $sleepMilliseconds
+     * @param null|(callable(null|Throwable, static, null|string): bool) $when
      */
     public function retry(
         array|int $times,
@@ -685,6 +696,8 @@ class PendingRequest implements Transient
 
     /**
      * Add a new callback to execute after the response is built.
+     *
+     * @param callable(Response, null|Request): mixed $callback
      */
     public function afterResponse(callable $callback): static
     {
@@ -700,7 +713,7 @@ class PendingRequest implements Transient
      */
     public function throw(?callable $callback = null): static
     {
-        $this->throwCallback = $callback === null ? fn () => null : $callback(...);
+        $this->throwCallback = $callback === null ? static fn (): null => null : $callback(...);
 
         return $this;
     }
@@ -727,7 +740,7 @@ class PendingRequest implements Transient
     public function throwUnless(bool|callable $condition, ?callable $callback = null): static
     {
         if (is_callable($condition)) {
-            return $this->throwIf(fn (Response $response) => ! $condition($response), $callback);
+            return $this->throwIf(static fn (Response $response): bool => ! $condition($response), $callback);
         }
 
         return $this->throwIf(! $condition, $callback);
@@ -740,7 +753,7 @@ class PendingRequest implements Transient
     {
         $values = func_get_args();
 
-        return $this->beforeSending(function (Request $request, array $options) use ($values) {
+        return $this->beforeSending(static function (Request $request, array $options) use ($values): void {
             foreach (array_merge($values, [$request, $options]) as $value) {
                 VarDumper::dump($value);
             }
@@ -754,7 +767,7 @@ class PendingRequest implements Transient
     {
         $values = func_get_args();
 
-        return $this->beforeSending(function (Request $request, array $options) use ($values) {
+        return $this->beforeSending(static function (Request $request, array $options) use ($values): never {
             foreach (array_merge($values, [$request, $options]) as $value) {
                 VarDumper::dump($value);
             }
@@ -765,6 +778,8 @@ class PendingRequest implements Transient
 
     /**
      * Issue a GET request to the given URL.
+     *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
      *
      * @throws ConnectionException
      * @throws InvalidArgumentException
@@ -783,6 +798,8 @@ class PendingRequest implements Transient
     /**
      * Issue a HEAD request to the given URL.
      *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
+     *
      * @throws ConnectionException
      * @throws InvalidArgumentException
      */
@@ -800,6 +817,8 @@ class PendingRequest implements Transient
     /**
      * Issue a QUERY request to the given URL.
      *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
+     *
      * @throws ConnectionException
      * @throws InvalidArgumentException
      */
@@ -812,6 +831,8 @@ class PendingRequest implements Transient
 
     /**
      * Issue a POST request to the given URL.
+     *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
      *
      * @throws ConnectionException
      * @throws InvalidArgumentException
@@ -826,6 +847,8 @@ class PendingRequest implements Transient
     /**
      * Issue a PATCH request to the given URL.
      *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
+     *
      * @throws ConnectionException
      * @throws InvalidArgumentException
      */
@@ -839,6 +862,8 @@ class PendingRequest implements Transient
     /**
      * Issue a PUT request to the given URL.
      *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
+     *
      * @throws ConnectionException
      * @throws InvalidArgumentException
      */
@@ -851,6 +876,8 @@ class PendingRequest implements Transient
 
     /**
      * Issue a DELETE request to the given URL.
+     *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
      *
      * @throws ConnectionException
      * @throws InvalidArgumentException
@@ -873,6 +900,8 @@ class PendingRequest implements Transient
 
     /**
      * Send the request to the given URL.
+     *
+     * @phpstan-return (TAsync is false ? Response : PromiseInterface)
      *
      * @throws Exception
      * @throws ConnectionException|Throwable
@@ -909,36 +938,40 @@ class PendingRequest implements Transient
 
                         $response = $this->runAfterResponseCallbacks($response);
 
-                        if (! $response->successful()) {
-                            try {
-                                $shouldRetry = $this->retryWhenCallback ? call_user_func(
-                                    $this->retryWhenCallback,
-                                    $response->toException(),
-                                    $this
-                                ) : true;
-                            } catch (Exception $exception) {
-                                $shouldRetry = false;
+                        if ($response->successful()) {
+                            return;
+                        }
 
-                                throw $exception;
-                            }
+                        // A caller-supplied client bypasses the middleware that captures the request.
+                        try {
+                            $shouldRetry = $this->retryWhenCallback ? call_user_func(
+                                $this->retryWhenCallback,
+                                $response->toException(),
+                                $this,
+                                $this->request?->toPsrRequest()->getMethod()
+                            ) : true;
+                        } catch (Exception $exception) {
+                            $shouldRetry = false;
 
-                            if ($this->throwCallback
-                                && ($this->throwIfCallback === null
-                                    || call_user_func($this->throwIfCallback, $response))) {
-                                $response->throw($this->throwCallback);
-                            }
+                            throw $exception;
+                        }
 
-                            $potentialTries = is_array($this->tries)
-                                ? count($this->tries) + 1
-                                : $this->tries;
+                        if ($this->throwCallback
+                            && ($this->throwIfCallback === null
+                                || call_user_func($this->throwIfCallback, $response))) {
+                            $response->throw($this->throwCallback);
+                        }
 
-                            if ($attempt < $potentialTries && $shouldRetry) {
-                                $response->throw();
-                            }
+                        $potentialTries = is_array($this->tries)
+                            ? count($this->tries) + 1
+                            : $this->tries;
 
-                            if ($potentialTries > 1 && $this->retryThrow) {
-                                $response->throw();
-                            }
+                        if ($attempt < $potentialTries && $shouldRetry) {
+                            $response->throw();
+                        }
+
+                        if ($potentialTries > 1 && $this->retryThrow) {
+                            $response->throw();
                         }
                     }
                 );
@@ -961,7 +994,8 @@ class PendingRequest implements Transient
             $result = $shouldRetry ?? ($this->retryWhenCallback ? call_user_func( // @phpstan-ignore nullCoalesce.variable ($shouldRetry is set by the retry callback closure via shared &$ref)
                 $this->retryWhenCallback,
                 $exception,
-                $this
+                $this,
+                $this->request?->toPsrRequest()->getMethod()
             ) : true);
 
             $shouldRetry = null;
@@ -1123,7 +1157,8 @@ class PendingRequest implements Transient
             $shouldRetry = $this->retryWhenCallback ? call_user_func(
                 $this->retryWhenCallback,
                 $response instanceof Response ? $response->toException() : $response,
-                $this
+                $this,
+                $this->request?->toPsrRequest()->getMethod()
             ) : true;
         } catch (CanceledException $exception) {
             throw $exception;
@@ -1185,6 +1220,9 @@ class PendingRequest implements Transient
      */
     protected function sendRequest(string $method, string $url, array $options = []): PromiseInterface|ResponseInterface
     {
+        // Custom clients bypass the capture middleware, including when swapped between attempts.
+        $this->request = null;
+
         $clientMethod = $this->async ? 'requestAsync' : 'request';
 
         $onStats = function (TransferStats $transferStats) {
@@ -1658,6 +1696,8 @@ class PendingRequest implements Transient
 
     /**
      * Build the stub handler.
+     *
+     * @throws StrayRequestException
      */
     public function buildStubHandler(): Closure
     {
@@ -1785,6 +1825,14 @@ class PendingRequest implements Transient
 
                 $data = $request->getBody() === $preparedBody ? $originalData : [];
             });
+
+            // RequestSending observes the initial request; response callbacks and
+            // retry policies need any replacement returned by later callbacks.
+            if ($this->request?->toPsrRequest() !== $request) {
+                $this->request = (new Request($request))
+                    ->withData($data)
+                    ->setRequestAttributes($this->attributes);
+            }
         });
     }
 
@@ -1893,11 +1941,19 @@ class PendingRequest implements Transient
 
     /**
      * Toggle asynchronicity in requests.
+     *
+     * @template T of bool = true
+     *
+     * @param T $async
+     * @return static<T>
+     *
+     * @phpstan-self-out static<T>
      */
     public function async(bool $async = true): static
     {
         $this->async = $async;
 
+        // @phpstan-ignore return.type (The fluent setter returns the same receiver with its new generic state.)
         return $this;
     }
 

@@ -335,13 +335,13 @@ The default pool settings are suitable for most applications. If your applicatio
         'max_objects' => 10,
         'wait_timeout' => 3.0,
         'max_lifetime' => 60.0,
-        'max_idle_time' => 0.0,
-        'idle_ttl' => 300.0,
+        'max_idle_time' => null,
+        'pool_idle_timeout' => 300.0,
     ],
 ],
 ```
 
-`min_retained_objects` is an idle-trimming floor and does not eagerly create transports. `max_objects` limits concurrent pool capacity. `wait_timeout` determines how long a coroutine waits for capacity before a `RuntimeException` is thrown. `max_lifetime` expires transports by absolute age, `max_idle_time` trims individual idle transports, and `idle_ttl` removes an entirely unused pool after 300 seconds by default. Set `idle_ttl` explicitly to `null` to disable whole-pool eviction.
+`min_retained_objects` is an idle-trimming floor and does not eagerly create transports. `max_objects` limits concurrent pool capacity. `wait_timeout` determines how long a coroutine waits for capacity before a `RuntimeException` is thrown. `max_lifetime` expires transports by absolute age, `max_idle_time` trims individual idle transports, and `pool_idle_timeout` removes an entirely unused pool after 300 seconds by default. Set any of these three optional durations to `null` to disable it.
 
 Use `pool.name` to select a readable explicit identity and `pool.fingerprint` to declare construction equivalence when a custom transport config contains an object, closure, or resource that cannot be fingerprinted automatically. Reusing an explicit name with a different transport type, fingerprint, or normalized options fails immediately.
 
@@ -358,7 +358,7 @@ $mailer = Mail::build([
     'password' => $account->smtp_password,
     'pool' => [
         'max_objects' => 20,
-        'idle_ttl' => 300,
+        'pool_idle_timeout' => 300,
     ],
 ]);
 ```
@@ -369,7 +369,7 @@ Equivalent jobs reuse the same bounded transport pool, while different credentia
 $mailer->getSymfonyTransport()->invalidatePool();
 ```
 
-Otherwise, the pool is reclaimed automatically after `idle_ttl` once it has no active borrow. Custom transports require both declarations: register the transport with `poolable: true`, then set `pool` to `true` or an option array for on-demand builds. This ensures the transport author declares reuse safe and the caller deliberately requests retention.
+Otherwise, the pool is reclaimed automatically after `pool_idle_timeout` once it has no active borrow. Custom transports require both declarations: register the transport with `poolable: true`, then set `pool` to `true` or an option array for on-demand builds. This ensures the transport author declares reuse safe and the caller deliberately requests retention.
 
 <a name="generating-mailables"></a>
 ## Generating Mailables
@@ -993,6 +993,40 @@ After exporting the components, the `resources/views/vendor/mail/html/themes` di
 If you would like to build an entirely new theme for Hypervel's Markdown components, you may place a CSS file within the `html/themes` directory. After naming and saving your CSS file, update the `theme` option of your application's `config/mail.php` configuration file to match the name of your new theme.
 
 To customize the theme for an individual mailable, you may set the `$theme` property of the mailable class to the name of the theme that should be used when sending that mailable.
+
+<a name="customizing-the-layout"></a>
+#### Customizing the Layout
+
+When using the `mail::layout` component directly, you may provide a `head` slot to add styles or metadata without publishing the layout. The `mail::message` component does not forward this slot:
+
+```blade
+<x-mail::layout>
+<x-slot:head>
+<style>
+@media only screen and (max-width: 600px) {
+    .inner-body { border-radius: 0 !important; }
+}
+</style>
+</x-slot:head>
+
+# Order Shipped
+
+Your order has shipped!
+</x-mail::layout>
+```
+
+The layout does not include a header or footer by default; add `header` and `footer` slots containing the `mail::header` and `mail::footer` components if needed.
+
+<a name="markdown-extensions"></a>
+#### Markdown Extensions
+
+You may enable additional CommonMark extensions by adding their classes to the `extensions` array under `markdown` in your application's `config/mail.php` configuration file:
+
+```php
+'extensions' => [
+    \League\CommonMark\Extension\Strikethrough\StrikethroughExtension::class,
+],
+```
 
 <a name="sending-mail"></a>
 ## Sending Mail

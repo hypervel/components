@@ -15,6 +15,7 @@ use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Tests\TestCase;
 use LogicException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
 
 class DatabaseEloquentCollectionTest extends TestCase
@@ -24,6 +25,8 @@ class DatabaseEloquentCollectionTest extends TestCase
      */
     protected function setUp(): void
     {
+        parent::setUp();
+
         $db = new DB;
 
         $db->addConnection([
@@ -731,20 +734,33 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertEquals([], $c[0]->getHidden());
     }
 
-    public function testMergeHiddenAddsHiddenOnEntireCollection()
+    #[DataProvider('mergeAttributesProvider')]
+    public function testMergeHiddenAddsHiddenOnEntireCollection(array|string $attributes): void
     {
         $c = new Collection([new CollectionModel]);
-        $c = $c->mergeHidden(['merged']);
+        $c = $c->mergeHidden($attributes);
 
         $this->assertEquals(['hidden', 'merged'], $c[0]->getHidden());
     }
 
-    public function testMergeVisibleRemovesHiddenFromEntireCollection()
+    #[DataProvider('mergeAttributesProvider')]
+    public function testMergeVisibleRemovesHiddenFromEntireCollection(array|string $attributes): void
     {
         $c = new Collection([new CollectionModel]);
-        $c = $c->mergeVisible(['merged']);
+        $c = $c->mergeVisible($attributes);
 
         $this->assertEquals(['visible', 'merged'], $c[0]->getVisible());
+    }
+
+    /**
+     * Provide attributes to merge across the collection.
+     */
+    public static function mergeAttributesProvider(): array
+    {
+        return [
+            'array' => [['merged']],
+            'string' => ['merged'],
+        ];
     }
 
     public function testSetVisibleReplacesVisibleOnEntireCollection()

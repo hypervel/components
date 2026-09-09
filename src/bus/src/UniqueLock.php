@@ -122,8 +122,10 @@ class UniqueLock
 
     /**
      * Release the lock for the given job.
+     *
+     * @param string $owner the captured lock owner for a job without Queueable state
      */
-    public function release(mixed $job): void
+    public function release(mixed $job, string $owner = ''): void
     {
         $cache = method_exists($job, 'uniqueVia')
             ? ($job->uniqueVia() ?? $this->cache)
@@ -131,7 +133,7 @@ class UniqueLock
 
         $owner = isset(class_uses_recursive($job)[Queueable::class])
             ? $job->uniqueLockOwner
-            : '';
+            : $owner;
 
         static::releaseOwned($cache, static::getKey($job), $owner);
     }

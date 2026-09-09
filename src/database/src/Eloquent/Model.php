@@ -9,6 +9,7 @@ use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Broadcasting\HasBroadcastChannel;
 use Hypervel\Contracts\Container\Transient;
+use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\QueueableCollection;
 use Hypervel\Contracts\Queue\QueueableEntity;
@@ -224,7 +225,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * The callback that is responsible for handling lazy loading violations.
      *
-     * @var null|(callable(self, string): void)
+     * @var null|(callable(self, string): mixed)
      */
     protected static $lazyLoadingViolationCallback;
 
@@ -236,7 +237,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * The callback that is responsible for handling discarded attribute violations.
      *
-     * @var null|(callable(self, array): void)
+     * @var null|(callable(self, array): mixed)
      */
     protected static $discardedAttributeViolationCallback;
 
@@ -248,7 +249,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * The callback that is responsible for handling missing attribute violations.
      *
-     * @var null|(callable(self, string): void)
+     * @var null|(callable(self, string): mixed)
      */
     protected static $missingAttributeViolationCallback;
 
@@ -664,7 +665,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Boot-only. The callback persists in a static property for the worker
      * lifetime and runs on every lazy-loading violation across all coroutines.
      *
-     * @param null|(callable(self, string): void) $callback
+     * @param null|(callable(self, string): mixed) $callback
      */
     public static function handleLazyLoadingViolationUsing(?callable $callback): void
     {
@@ -689,7 +690,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * lifetime and runs on every discarded-attribute violation across all
      * coroutines.
      *
-     * @param null|(callable(self, array): void) $callback
+     * @param null|(callable(self, array): mixed) $callback
      */
     public static function handleDiscardedAttributeViolationUsing(?callable $callback): void
     {
@@ -714,7 +715,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * lifetime and runs on every missing-attribute violation across all
      * coroutines.
      *
-     * @param null|(callable(self, string): void) $callback
+     * @param null|(callable(self, string): mixed) $callback
      */
     public static function handleMissingAttributeViolationUsing(?callable $callback): void
     {
@@ -982,7 +983,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param array<int, string>|string $relations
      */
-    public function loadAggregate(array|string $relations, string $column, ?string $function = null): static
+    public function loadAggregate(array|string $relations, Expression|string $column, ?string $function = null): static
     {
         $this->newCollection([$this])->loadAggregate($relations, $column, $function);
 
@@ -1006,7 +1007,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param array<int, string>|string $relations
      */
-    public function loadMax(array|string $relations, string $column): static
+    public function loadMax(array|string $relations, Expression|string $column): static
     {
         return $this->loadAggregate($relations, $column, 'max');
     }
@@ -1016,7 +1017,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param array<int, string>|string $relations
      */
-    public function loadMin(array|string $relations, string $column): static
+    public function loadMin(array|string $relations, Expression|string $column): static
     {
         return $this->loadAggregate($relations, $column, 'min');
     }
@@ -1026,7 +1027,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param array<int, string>|string $relations
      */
-    public function loadSum(array|string $relations, string $column): static
+    public function loadSum(array|string $relations, Expression|string $column): static
     {
         return $this->loadAggregate($relations, $column, 'sum');
     }
@@ -1036,7 +1037,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param array<int, string>|string $relations
      */
-    public function loadAvg(array|string $relations, string $column): static
+    public function loadAvg(array|string $relations, Expression|string $column): static
     {
         return $this->loadAggregate($relations, $column, 'avg');
     }
@@ -1056,7 +1057,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param array<class-string, array<int, string>> $relations
      */
-    public function loadMorphAggregate(string $relation, array $relations, string $column, ?string $function = null): static
+    public function loadMorphAggregate(string $relation, array $relations, Expression|string $column, ?string $function = null): static
     {
         if (! $this->{$relation}) {
             return $this;
@@ -1084,7 +1085,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param array<class-string, array<int, string>> $relations
      */
-    public function loadMorphMax(string $relation, array $relations, string $column): static
+    public function loadMorphMax(string $relation, array $relations, Expression|string $column): static
     {
         return $this->loadMorphAggregate($relation, $relations, $column, 'max');
     }
@@ -1094,7 +1095,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param array<class-string, array<int, string>> $relations
      */
-    public function loadMorphMin(string $relation, array $relations, string $column): static
+    public function loadMorphMin(string $relation, array $relations, Expression|string $column): static
     {
         return $this->loadMorphAggregate($relation, $relations, $column, 'min');
     }
@@ -1104,7 +1105,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param array<class-string, array<int, string>> $relations
      */
-    public function loadMorphSum(string $relation, array $relations, string $column): static
+    public function loadMorphSum(string $relation, array $relations, Expression|string $column): static
     {
         return $this->loadMorphAggregate($relation, $relations, $column, 'sum');
     }
@@ -1114,7 +1115,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param array<class-string, array<int, string>> $relations
      */
-    public function loadMorphAvg(string $relation, array $relations, string $column): static
+    public function loadMorphAvg(string $relation, array $relations, Expression|string $column): static
     {
         return $this->loadMorphAggregate($relation, $relations, $column, 'avg');
     }

@@ -1337,6 +1337,28 @@ class DatabaseConnectionTest extends TestCase
         $this->assertSame(2, $connection->getErrorCount());
     }
 
+    public function testStreamingQueryExceptionsHonorBindingMasking(): void
+    {
+        foreach ([false, true] as $maskBindings) {
+            $connection = new NeutralConnectionForTest(config: [
+                'mask_bindings_in_exception_messages' => $maskBindings,
+            ]);
+            $failure = new RuntimeException('query failed');
+            $thrown = null;
+
+            try {
+                iterator_to_array($this->runStreamingQuery($connection, static fn (): never => throw $failure));
+            } catch (QueryException $exception) {
+                $thrown = $exception;
+            }
+
+            $this->assertInstanceOf(QueryException::class, $thrown);
+            $this->assertStringContainsString('SQL: select ' . ($maskBindings ? '?' : '1') . ')', $thrown->getMessage());
+            $this->assertSame([1], $thrown->getBindings());
+            $this->assertSame($failure, $thrown->getPrevious());
+        }
+    }
+
     public function testDriversCanPropagateNonDatabaseExceptionsWithoutWrapping(): void
     {
         $connection = new class extends NeutralConnectionForTest {

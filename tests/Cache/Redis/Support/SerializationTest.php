@@ -183,9 +183,9 @@ class SerializationTest extends TestCase
         $connection->shouldReceive('getOption')
             ->with(Redis::OPT_COMPRESSION)
             ->andReturn(Redis::COMPRESSION_LZF);
-        $connection->shouldReceive('_serialize')
-            ->with(serialize('test-value'))
-            ->andReturn('compressed-value');
+        $connection->shouldReceive('pack')
+            ->with([serialize('test-value')])
+            ->andReturn(['compressed-value']);
 
         $this->assertSame('compressed-value', $this->serialization->serializeForLua($connection, 'test-value'));
     }
@@ -216,7 +216,7 @@ class SerializationTest extends TestCase
         $this->assertSame('45.67', $this->serialization->serializeForLua($connection, 45.67));
     }
 
-    public function testSerializeForLuaCastsNumericToStringWithCompression(): void
+    public function testSerializeForLuaPreservesNumericTypesForPackingWithCompression(): void
     {
         if (! defined('Redis::COMPRESSION_LZF')) {
             $this->markTestSkipped('Redis::COMPRESSION_LZF not available (phpredis compiled without LZF support)');
@@ -228,10 +228,9 @@ class SerializationTest extends TestCase
         $connection->shouldReceive('getOption')
             ->with(Redis::OPT_COMPRESSION)
             ->andReturn(Redis::COMPRESSION_LZF);
-        // When compression is enabled, numeric strings get passed through _serialize
-        $connection->shouldReceive('_serialize')
-            ->with('123')
-            ->andReturn('compressed-123');
+        $connection->shouldReceive('pack')
+            ->with([123])
+            ->andReturn(['compressed-123']);
 
         $this->assertSame('compressed-123', $this->serialization->serializeForLua($connection, 123));
     }

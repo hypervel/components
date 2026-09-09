@@ -26,7 +26,7 @@ class BroadcastPoolProxyTest extends TestCase
     protected function tearDownInCoroutine(): void
     {
         foreach ($this->poolManagers as $poolManager) {
-            $poolManager->flush();
+            $poolManager->purgeAll();
         }
     }
 

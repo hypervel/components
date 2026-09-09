@@ -357,6 +357,16 @@ $value = Cache::get('key', function () {
 });
 ```
 
+You may also use enums as cache keys. Backed enums use their values, while unit enums use their case names:
+
+```php
+use App\Enums\CacheKey;
+
+Cache::put(CacheKey::Visits, 10, 600);
+
+$visits = Cache::get(CacheKey::Visits);
+```
+
 <a name="determining-item-existence"></a>
 #### Determining Item Existence
 
@@ -384,7 +394,7 @@ Cache::decrement('key');
 Cache::decrement('key', $amount);
 ```
 
-When using a Redis cache store with PhpRedis serialization, atomic counters require either `Redis::SERIALIZER_NONE` or the PhpRedis 6.2+ `pack_ignore_numbers` option. See the [PhpRedis serialization documentation](/docs/{{version}}/redis#phpredis-serialization) for configuration details.
+When using a Redis cache store, atomic counters require disabling both PhpRedis serialization and compression or enabling the PhpRedis 6.2+ `pack_ignore_numbers` option. See the [PhpRedis serialization documentation](/docs/{{version}}/redis#phpredis-serialization) for configuration details.
 
 <a name="retrieve-store"></a>
 #### Retrieve and Store
@@ -839,6 +849,8 @@ Cache::lock('foo', 10)
     });
 ```
 
+When using database locks, you may disable automatic pruning by setting your cache store's `lock_lottery` option to an empty array. You may then call `pruneExpiredLocks` on a database lock to remove expired locks explicitly.
+
 <a name="managing-locks-across-processes"></a>
 ### Managing Locks Across Processes
 
@@ -1134,6 +1146,14 @@ Hypervel includes several Artisan commands for working with cache stores:
 | `cache:table` | Alias of `make:cache-table`. |
 
 </div>
+
+To prevent `cache:clear` from running in production, call the command's `prohibit` method from your `AppServiceProvider`'s `boot` method. This also prevents clearing locks:
+
+```php
+use Hypervel\Cache\Console\ClearCommand;
+
+ClearCommand::prohibit($this->app->isProduction());
+```
 
 <a name="events"></a>
 ## Events

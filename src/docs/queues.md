@@ -140,8 +140,8 @@ Configure a connection pool inside its queue connection definition:
         'max_objects' => 10,
         'wait_timeout' => 3.0,
         'max_lifetime' => 60.0,
-        'max_idle_time' => 0.0,
-        'idle_ttl' => 300.0,
+        'max_idle_time' => null,
+        'pool_idle_timeout' => 300.0,
     ],
 ],
 ```
@@ -518,6 +518,23 @@ class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
 > [!NOTE]
 > If you only need to limit the concurrent processing of a job, use the [WithoutOverlapping](/docs/{{version}}/queues#preventing-job-overlaps) job middleware instead.
 
+<a name="custom-job-names"></a>
+#### Custom Job Names
+
+By default, Hypervel identifies jobs by their class name. You may define a `displayName` method on your job to provide a custom name:
+
+```php
+/**
+ * Get the display name for the job.
+ */
+public function displayName(): string
+{
+    return 'search-index-updates';
+}
+```
+
+This name is also used to identify [unique jobs](#unique-jobs), [debounced jobs](#debounced-jobs), and jobs using the [WithoutOverlapping](#preventing-job-overlaps) or [ThrottlesExceptions](#throttling-exceptions) middleware. The `uniqueId` and `debounceId` values still distinguish jobs with the same name. The `WithoutOverlapping::shared` and `ThrottlesExceptions::by` methods may be used to override this grouping.
+
 <a name="debounced-jobs"></a>
 ### Debounced Jobs
 
@@ -850,7 +867,7 @@ public function middleware(): array
 <a name="sharing-lock-keys"></a>
 #### Sharing Lock Keys Across Job Classes
 
-By default, the `WithoutOverlapping` middleware will only prevent overlapping jobs of the same class. So, although two different job classes may use the same lock key, they will not be prevented from overlapping. However, you can instruct Hypervel to apply the key across job classes using the `shared` method:
+By default, the `WithoutOverlapping` middleware groups jobs by their [custom display name](#custom-job-names), or by their class name when no custom name is defined. Jobs in different groups may overlap even when they use the same lock key. However, you can instruct Hypervel to apply the key across job classes using the `shared` method:
 
 ```php
 use Hypervel\Queue\Middleware\WithoutOverlapping;
@@ -958,7 +975,7 @@ return [(new ThrottlesExceptions(10, 5 * 60))->backoff(
 
 The middleware's `backoff` method controls the ordinary queue retry delay after an individual exception. It is separate from the rate limiter's [exponential backoff policy](/docs/{{version}}/rate-limiting#exponential-backoff).
 
-Internally, this middleware uses Hypervel's rate limiter, and the job's display name is used as the rate limit key. You may override this key by calling the `by` method when attaching the middleware to your job. This may be useful if you have multiple jobs interacting with the same third-party service and would like them to share a common throttling bucket:
+This middleware uses Hypervel's rate limiter, and the job's class name or [custom display name](#custom-job-names) is used as the rate limit key. You may override this key by calling the `by` method when attaching the middleware to your job. This may be useful if you have multiple jobs interacting with the same third-party service and would like them to share a common throttling bucket:
 
 ```php
 use Hypervel\Queue\Middleware\ThrottlesExceptions;
@@ -2680,7 +2697,7 @@ The `--stop-when-empty` option may be used to instruct the worker to process all
 php artisan queue:work --stop-when-empty
 ```
 
-The `--stop-when-empty-for` option may be used to keep the worker alive until the queue has remained empty for a given number of seconds. The timer begins when the worker starts and resets whenever a job finishes:
+The `--stop-when-empty-for` option may be used to stop the worker when no jobs have been processed for a given number of seconds. The timer begins when the worker starts and resets whenever a job finishes:
 
 ```shell
 php artisan queue:work --stop-when-empty-for=30
@@ -2855,13 +2872,27 @@ php artisan queue:pause database:default
 
 In this example, `database` is the queue connection name and `default` is the queue name. Once a queue is paused, any workers processing jobs from that queue will continue to finish their current job, but will not pick up any new jobs until the queue is resumed.
 
+To pause job processing for every queue on every connection, use the `--all` option:
+
+```shell
+php artisan queue:pause --all
+```
+
 To resume processing jobs on a paused queue, use the `queue:resume` command:
 
 ```shell
 php artisan queue:resume database:default
 ```
 
-After resuming a queue, workers will begin processing new jobs from that queue immediately. The `queue:continue` command is available as an alias for `queue:resume`. Note that pausing a queue does not stop the worker process itself - it only prevents the worker from processing new jobs from the specified queue.
+To resume job processing for every queue on every connection, use the `--all` option with the `queue:resume` command:
+
+```shell
+php artisan queue:resume --all
+```
+
+After resuming a queue, workers will begin processing new jobs from that queue immediately. Resuming all queues does not resume queues that were paused individually. The `queue:continue` command is available as an alias for `queue:resume`. Note that pausing a queue does not stop the worker process itself - it only prevents the worker from processing new jobs from the specified queue.
+
+Queue workers report paused and resumed queues in their console output.
 
 <a name="worker-restart-and-pause-signals"></a>
 #### Worker Restart and Pause Signals
@@ -3177,6 +3208,14 @@ The `queue:flush` command removes all failed job records from your queue, no mat
 php artisan queue:flush --hours=48
 ```
 
+To prevent `queue:flush` from running in production, call the command's `prohibit` method from your `AppServiceProvider`'s `boot` method:
+
+```php
+use Hypervel\Queue\Console\FlushFailedCommand;
+
+FlushFailedCommand::prohibit($this->app->isProduction());
+```
+
 <a name="ignoring-missing-models"></a>
 ### Ignoring Missing Models
 
@@ -3276,6 +3315,20 @@ You may also provide the `connection` argument and `queue` option to delete jobs
 
 ```shell
 php artisan queue:clear redis --queue=emails
+```
+
+To clear multiple queues, provide a comma-separated list of queue names:
+
+```shell
+php artisan queue:clear redis --queue=high,low,emails
+```
+
+To prevent `queue:clear` from running in production, call the command's `prohibit` method from your `AppServiceProvider`'s `boot` method. Prohibited commands cannot be run using `--force`:
+
+```php
+use Hypervel\Queue\Console\ClearCommand;
+
+ClearCommand::prohibit($this->app->isProduction());
 ```
 
 > [!WARNING]
@@ -3625,7 +3678,7 @@ Bus::assertChained([
 <a name="testing-job-batches"></a>
 ### Testing Job Batches
 
-The `Bus` facade's `assertBatched` method may be used to assert that a [batch of jobs](/docs/{{version}}/queues#job-batching) was dispatched. The closure given to the `assertBatched` method receives an instance of `Hypervel\Bus\PendingBatch`, which may be used to inspect the jobs within the batch:
+The `Bus` facade's `assertBatched` method may be used to assert that a [batch of jobs](/docs/{{version}}/queues#job-batching) was dispatched. The closure given to the `assertBatched` method receives an instance of `Hypervel\Support\Testing\Fakes\PendingBatchFake`, which extends `Hypervel\Bus\PendingBatch` and may be used to inspect the jobs within the batch:
 
 ```php
 use Hypervel\Bus\PendingBatch;
@@ -3654,7 +3707,9 @@ Bus::assertBatched([
 The `hasJobs` method may be used on the pending batch to verify that the batch contains the expected jobs. The method accepts an array of job instances, class names, or closures:
 
 ```php
-Bus::assertBatched(function (PendingBatch $batch) {
+use Hypervel\Support\Testing\Fakes\PendingBatchFake;
+
+Bus::assertBatched(function (PendingBatchFake $batch) {
     return $batch->hasJobs([
         new ProcessCsvRow(row: 1),
         new ProcessCsvRow(row: 2),
@@ -3666,7 +3721,7 @@ Bus::assertBatched(function (PendingBatch $batch) {
 When using closures, the closure will receive the job instance. The expected job type will be inferred from the closure's type hint:
 
 ```php
-Bus::assertBatched(function (PendingBatch $batch) {
+Bus::assertBatched(function (PendingBatchFake $batch) {
     return $batch->hasJobs([
         fn (ProcessCsvRow $job) => $job->row === 1,
         fn (ProcessCsvRow $job) => $job->row === 2,

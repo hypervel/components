@@ -223,6 +223,16 @@ class FoundationHelpersTest extends TestCase
         $this->assertSame('default', cache('baz', 'default'));
     }
 
+    public function testSessionAcceptsEnumKeys(): void
+    {
+        session(['America/New_York' => 'string-backed', 1 => 'integer-backed', 'UTC' => 'unit']);
+
+        $this->assertSame('string-backed', session(StringEnum::NewYork));
+        $this->assertSame('integer-backed', session(IntEnum::One));
+        $this->assertSame('unit', session(UnitEnum::UTC));
+        $this->assertSame('default', session(UnitEnum::EST, 'default'));
+    }
+
     public function testLogsResolvesAChannelNamedZero(): void
     {
         $manager = m::mock(LogManager::class);

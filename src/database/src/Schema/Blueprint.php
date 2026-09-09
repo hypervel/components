@@ -709,7 +709,7 @@ class Blueprint
     }
 
     /**
-     * Create a new auto-incrementing big integer column on the table (8-byte, 0 to 18,446,744,073,709,551,615).
+     * Create a new auto-incrementing big integer column on the table (MySQL/MariaDB: 8-byte, 0 to 18,446,744,073,709,551,615).
      *
      * @return TColumnDefinition
      */
@@ -719,7 +719,7 @@ class Blueprint
     }
 
     /**
-     * Create a new auto-incrementing integer column on the table (4-byte, 0 to 4,294,967,295).
+     * Create a new auto-incrementing integer column on the table (MySQL/MariaDB: 4-byte, 0 to 4,294,967,295).
      *
      * @return TColumnDefinition
      */
@@ -729,7 +729,7 @@ class Blueprint
     }
 
     /**
-     * Create a new auto-incrementing integer column on the table (4-byte, 0 to 4,294,967,295).
+     * Create a new auto-incrementing integer column on the table (MySQL/MariaDB: 4-byte, 0 to 4,294,967,295).
      *
      * @return TColumnDefinition
      */
@@ -739,7 +739,7 @@ class Blueprint
     }
 
     /**
-     * Create a new auto-incrementing tiny integer column on the table (1-byte, 0 to 255).
+     * Create a new auto-incrementing tiny integer column on the table (MySQL/MariaDB: 1-byte, 0 to 255).
      *
      * @return TColumnDefinition
      */
@@ -749,7 +749,7 @@ class Blueprint
     }
 
     /**
-     * Create a new auto-incrementing small integer column on the table (2-byte, 0 to 65,535).
+     * Create a new auto-incrementing small integer column on the table (MySQL/MariaDB: 2-byte, 0 to 65,535).
      *
      * @return TColumnDefinition
      */
@@ -759,7 +759,7 @@ class Blueprint
     }
 
     /**
-     * Create a new auto-incrementing medium integer column on the table (3-byte, 0 to 16,777,215).
+     * Create a new auto-incrementing medium integer column on the table (MySQL/MariaDB: 3-byte, 0 to 16,777,215).
      *
      * @return TColumnDefinition
      */
@@ -769,7 +769,7 @@ class Blueprint
     }
 
     /**
-     * Create a new auto-incrementing big integer column on the table (8-byte, 0 to 18,446,744,073,709,551,615).
+     * Create a new auto-incrementing big integer column on the table (MySQL/MariaDB: 8-byte, 0 to 18,446,744,073,709,551,615).
      *
      * @return TColumnDefinition
      */
@@ -803,7 +803,7 @@ class Blueprint
     }
 
     /**
-     * Create a new tiny text column on the table (up to 255 characters).
+     * Create a new tiny text column on the table (up to 255 bytes on MySQL/MariaDB).
      *
      * @return TColumnDefinition
      */
@@ -813,7 +813,7 @@ class Blueprint
     }
 
     /**
-     * Create a new text column on the table (up to 65,535 characters / ~64 KB).
+     * Create a new text column on the table (up to 65,535 bytes on MySQL/MariaDB).
      *
      * @return TColumnDefinition
      */
@@ -823,7 +823,7 @@ class Blueprint
     }
 
     /**
-     * Create a new medium text column on the table (up to 16,777,215 characters / ~16 MB).
+     * Create a new medium text column on the table (up to 16,777,215 bytes on MySQL/MariaDB).
      *
      * @return TColumnDefinition
      */
@@ -833,7 +833,7 @@ class Blueprint
     }
 
     /**
-     * Create a new long text column on the table (up to 4,294,967,295 characters / ~4 GB).
+     * Create a new long text column on the table (up to 4,294,967,295 bytes on MySQL/MariaDB).
      *
      * @return TColumnDefinition
      */
@@ -843,8 +843,8 @@ class Blueprint
     }
 
     /**
-     * Create a new integer (4-byte) column on the table.
-     * Range: -2,147,483,648 to 2,147,483,647 (signed) or 0 to 4,294,967,295 (unsigned).
+     * Create a new integer column on the table.
+     * MySQL/MariaDB (4-byte): -2,147,483,648 to 2,147,483,647 (signed) or 0 to 4,294,967,295 (unsigned).
      *
      * @return TColumnDefinition
      */
@@ -854,8 +854,8 @@ class Blueprint
     }
 
     /**
-     * Create a new tiny integer (1-byte) column on the table.
-     * Range: -128 to 127 (signed) or 0 to 255 (unsigned).
+     * Create a new tiny integer column on the table.
+     * MySQL/MariaDB (1-byte): -128 to 127 (signed) or 0 to 255 (unsigned).
      *
      * @return TColumnDefinition
      */
@@ -865,8 +865,8 @@ class Blueprint
     }
 
     /**
-     * Create a new small integer (2-byte) column on the table.
-     * Range: -32,768 to 32,767 (signed) or 0 to 65,535 (unsigned).
+     * Create a new small integer column on the table.
+     * MySQL/MariaDB (2-byte): -32,768 to 32,767 (signed) or 0 to 65,535 (unsigned).
      *
      * @return TColumnDefinition
      */
@@ -876,8 +876,8 @@ class Blueprint
     }
 
     /**
-     * Create a new medium integer (3-byte) column on the table.
-     * Range: -8,388,608 to 8,388,607 (signed) or 0 to 16,777,215 (unsigned).
+     * Create a new medium integer column on the table.
+     * MySQL/MariaDB (3-byte): -8,388,608 to 8,388,607 (signed) or 0 to 16,777,215 (unsigned).
      *
      * @return TColumnDefinition
      */
@@ -887,8 +887,8 @@ class Blueprint
     }
 
     /**
-     * Create a new big integer (8-byte) column on the table.
-     * Range: -9,223,372,036,854,775,808 to 9,223,372,036,854,775,807 (signed) or 0 to 18,446,744,073,709,551,615 (unsigned).
+     * Create a new big integer column on the table.
+     * MySQL/MariaDB (8-byte): -9,223,372,036,854,775,808 to 9,223,372,036,854,775,807 (signed) or 0 to 18,446,744,073,709,551,615 (unsigned).
      *
      * @return TColumnDefinition
      */
@@ -898,7 +898,7 @@ class Blueprint
     }
 
     /**
-     * Create a new unsigned integer column on the table (4-byte, 0 to 4,294,967,295).
+     * Create a new unsigned integer column on the table (MySQL/MariaDB: 4-byte, 0 to 4,294,967,295).
      *
      * @return TColumnDefinition
      */
@@ -908,7 +908,7 @@ class Blueprint
     }
 
     /**
-     * Create a new unsigned tiny integer column on the table (1-byte, 0 to 255).
+     * Create a new unsigned tiny integer column on the table (MySQL/MariaDB: 1-byte, 0 to 255).
      *
      * @return TColumnDefinition
      */
@@ -918,7 +918,7 @@ class Blueprint
     }
 
     /**
-     * Create a new unsigned small integer column on the table (2-byte, 0 to 65,535).
+     * Create a new unsigned small integer column on the table (MySQL/MariaDB: 2-byte, 0 to 65,535).
      *
      * @return TColumnDefinition
      */
@@ -928,7 +928,7 @@ class Blueprint
     }
 
     /**
-     * Create a new unsigned medium integer column on the table (3-byte, 0 to 16,777,215).
+     * Create a new unsigned medium integer column on the table (MySQL/MariaDB: 3-byte, 0 to 16,777,215).
      *
      * @return TColumnDefinition
      */
@@ -938,7 +938,7 @@ class Blueprint
     }
 
     /**
-     * Create a new unsigned big integer column on the table (8-byte, 0 to 18,446,744,073,709,551,615).
+     * Create a new unsigned big integer column on the table (MySQL/MariaDB: 8-byte, 0 to 18,446,744,073,709,551,615).
      *
      * @return TColumnDefinition
      */
@@ -948,7 +948,7 @@ class Blueprint
     }
 
     /**
-     * Create a new unsigned big integer column on the table (8-byte, 0 to 18,446,744,073,709,551,615).
+     * Create a new unsigned big integer column on the table (MySQL/MariaDB: 8-byte, 0 to 18,446,744,073,709,551,615).
      */
     public function foreignId(string $column): ForeignIdColumnDefinition
     {

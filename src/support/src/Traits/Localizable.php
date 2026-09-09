@@ -11,6 +11,11 @@ trait Localizable
 {
     /**
      * Run the callback with the given locale.
+     *
+     * @template TReturn
+     *
+     * @param Closure(): TReturn $callback
+     * @return TReturn
      */
     public function withLocale(?string $locale, Closure $callback): mixed
     {

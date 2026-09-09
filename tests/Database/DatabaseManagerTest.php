@@ -453,7 +453,7 @@ class DatabaseManagerTest extends TestCase
         $connection = $manager->connection('read-extension::read');
 
         $this->assertSame([$expected], $receivedConfigurations);
-        $this->assertSame($expected, $connection->getConfig());
+        $this->assertSame($expected + ['mask_bindings_in_exception_messages' => false], $connection->getConfig());
         $connection->shouldReceive('replaceDriverResources')->once()->with(m::type(Connection::class));
 
         $this->assertSame($connection, $manager->reconnect('read-extension::read'));

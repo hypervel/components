@@ -66,6 +66,8 @@ $response->handlerStats() : array;
 $response->toPsrResponse() : Psr\Http\Message\ResponseInterface;
 ```
 
+You may also use the response's [tap method](/docs/{{version}}/helpers#method-tap) to inspect it without interrupting a method chain.
+
 The `Hypervel\Http\Client\Response` object also implements the PHP `ArrayAccess` interface, allowing you to access JSON response data directly on the response:
 
 ```php
@@ -372,10 +374,12 @@ If needed, you may pass a third argument to the `retry` method. The third argume
 use Hypervel\Http\Client\PendingRequest;
 use Throwable;
 
-$response = Http::retry(3, 100, function (Throwable $exception, PendingRequest $request) {
+$response = Http::retry(3, 100, function (?Throwable $exception, PendingRequest $request) {
     return $exception instanceof ConnectionException;
 })->post(/* ... */);
 ```
+
+The callback also receives the HTTP method as a third argument, or `null` when the method is unavailable.
 
 If a request attempt fails, you may wish to make a change to the request before a new attempt is made. You can achieve this by modifying the request argument provided to the callable you provided to the `retry` method. For example, you might want to retry the request with a new authorization token if the first attempt returned an authentication error:
 
@@ -384,7 +388,7 @@ use Hypervel\Http\Client\PendingRequest;
 use Hypervel\Http\Client\RequestException;
 use Throwable;
 
-$response = Http::withToken($this->getToken())->retry(2, 0, function (Throwable $exception, PendingRequest $request) {
+$response = Http::withToken($this->getToken())->retry(2, 0, function (?Throwable $exception, PendingRequest $request) {
     if (! $exception instanceof RequestException || $exception->response->status() !== 401) {
         return false;
     }
@@ -485,17 +489,17 @@ return Http::post(/* ... */)->throw(function (Response $response, RequestExcepti
 })->json();
 ```
 
-By default, `RequestException` messages are truncated to 120 characters when logged or reported. To customize or disable this behavior, you may utilize the `truncateRequestExceptionsAt` and `dontTruncateRequestExceptions` methods when configuring your application's exception handling behavior in your `bootstrap/app.php` file:
+By default, `RequestException` messages are truncated to 120 characters when logged or reported. To customize or disable this behavior, you may utilize the `truncateAt` and `dontTruncate` methods when configuring your application's registered behavior in your `bootstrap/app.php` file:
 
 ```php
-use Hypervel\Foundation\Configuration\Exceptions;
+use Hypervel\Http\Client\RequestException;
 
-->withExceptions(function (Exceptions $exceptions): void {
+->registered(function (): void {
     // Truncate request exception messages to 240 characters...
-    $exceptions->truncateRequestExceptionsAt(240);
+    RequestException::truncateAt(240);
 
     // Disable request exception message truncation...
-    $exceptions->dontTruncateRequestExceptions();
+    RequestException::dontTruncate();
 })
 ```
 
@@ -1043,6 +1047,8 @@ Http::fake([
 ]);
 ```
 
+The `push` method accepts the same response bodies as `Http::response`, including PHP stream resources and PSR-7 streams.
+
 When all the responses in a response sequence have been consumed, any further requests will cause the response sequence to throw an exception. If you would like to specify a default response that should be returned when a sequence is empty, you may use the `whenEmpty` method:
 
 ```php
@@ -1074,6 +1080,24 @@ use Hypervel\Http\Client\Request;
 Http::fake(function (Request $request) {
     return Http::response('Hello World', 200);
 });
+```
+
+<a name="request-attributes"></a>
+#### Request Attributes
+
+To distinguish requests sent to the same URL, you may attach attributes using the `withAttributes` method. These attributes are available to fake callbacks and request assertions through the request's `attributes` method and are not sent to the remote server:
+
+```php
+use Hypervel\Http\Client\Request;
+use Hypervel\Support\Facades\Http;
+
+Http::fake(fn (Request $request) => match ($request->attributes()['name'] ?? null) {
+    'products' => Http::response(['products' => []]),
+    default => Http::response(),
+});
+
+$response = Http::withAttributes(['name' => 'products'])
+    ->get('https://example.com/graphql');
 ```
 
 <a name="inspecting-requests"></a>

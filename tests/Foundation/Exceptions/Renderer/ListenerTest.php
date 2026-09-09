@@ -12,12 +12,12 @@ use Mockery as m;
 
 class ListenerTest extends TestCase
 {
-    public function testQueriesReturnsExpectedShapeAfterQueryExecuted()
+    public function testQueriesReturnsExpectedShapeAfterQueryExecuted(): void
     {
         $connection = m::mock(Connection::class);
 
-        $connection->shouldReceive('getName')->andReturn('testing');
-        $connection->shouldReceive('prepareBindings')->with(['foo'])->andReturn(['foo']);
+        $connection->shouldReceive('getName')->once()->andReturn('testing');
+        $connection->shouldReceive('prepareBindings')->once()->with(['foo'])->andReturn(['foo']);
 
         $event = new QueryExecuted('select * from users where id = ?', ['foo'], 5.2, $connection);
 
@@ -37,10 +37,141 @@ class ListenerTest extends TestCase
         $this->assertArrayHasKey('sql', $query);
         $this->assertArrayHasKey('bindings', $query);
 
-        $this->assertEquals('testing', $query['connectionName']);
-        $this->assertEquals(5.2, $query['time']);
-        $this->assertEquals('select * from users where id = ?', $query['sql']);
+        $this->assertSame('testing', $query['connectionName']);
+        $this->assertSame(5.2, $query['time']);
+        $this->assertSame('select * from users where id = ?', $query['sql']);
         $this->assertEquals(['foo'], $query['bindings']);
+    }
+
+    public function testListenerCapsAt100Queries(): void
+    {
+        $listener = new Listener;
+
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getName')->times(150)->andReturn('testing');
+        $connection->shouldReceive('prepareBindings')->times(100)->andReturnUsing(fn (array $bindings): array => $bindings);
+
+        for ($index = 0; $index < 150; ++$index) {
+            $listener->onQueryExecuted(
+                new QueryExecuted("select {$index}", [], 1.0, $connection)
+            );
+        }
+
+        $this->assertCount(100, $listener->queries());
+        $this->assertSame('select 0', $listener->queries()[0]['sql']);
+        $this->assertSame('select 99', $listener->queries()[99]['sql']);
+    }
+
+    public function testLargeSqlIsTruncated(): void
+    {
+        $listener = new Listener;
+
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getName')->once()->andReturn('testing');
+        $connection->shouldReceive('prepareBindings')->once()->andReturnUsing(fn (array $bindings): array => $bindings);
+
+        $largeSql = str_repeat('x', 5000);
+        $listener->onQueryExecuted(
+            new QueryExecuted($largeSql, [], 1.0, $connection)
+        );
+
+        $this->assertLessThanOrEqual(2000, strlen($listener->queries()[0]['sql']));
+    }
+
+    public function testBindingsMatchPlaceholderCountInTruncatedSql(): void
+    {
+        $listener = new Listener;
+
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getName')->once()->andReturn('testing');
+        $connection->shouldReceive('prepareBindings')->once()->andReturnUsing(fn (array $bindings): array => $bindings);
+
+        // Build SQL with 1000 placeholders so truncation to 2000 bytes removes
+        // some placeholders and their corresponding bindings.
+        $placeholders = implode(', ', array_fill(0, 1000, '?'));
+        $sql = "INSERT INTO t (a) VALUES ({$placeholders})";
+        $bindings = array_fill(0, 1000, 'value');
+
+        $listener->onQueryExecuted(
+            new QueryExecuted($sql, $bindings, 1.0, $connection)
+        );
+
+        $storedQuery = $listener->queries()[0];
+        $storedPlaceholders = substr_count($storedQuery['sql'], '?');
+
+        $this->assertSame(2000, strlen($storedQuery['sql']));
+        $this->assertCount($storedPlaceholders, $storedQuery['bindings']);
+    }
+
+    public function testExcessBindingsAreTrimmedToMatchPlaceholders(): void
+    {
+        $listener = new Listener;
+
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getName')->once()->andReturn('testing');
+        $connection->shouldReceive('prepareBindings')->once()->andReturnUsing(fn (array $bindings): array => $bindings);
+
+        // 1 placeholder but 1000 bindings — only 1 binding should be kept
+        $listener->onQueryExecuted(
+            new QueryExecuted('select ?', array_fill(0, 1000, 'v'), 1.0, $connection)
+        );
+
+        $this->assertCount(1, $listener->queries()[0]['bindings']);
+    }
+
+    public function testShortSqlAndBindingsAreNotModified(): void
+    {
+        $listener = new Listener;
+
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getName')->once()->andReturn('testing');
+        $connection->shouldReceive('prepareBindings')->once()->andReturnUsing(fn (array $bindings): array => $bindings);
+
+        $sql = 'select * from users where name = ?';
+        $listener->onQueryExecuted(
+            new QueryExecuted($sql, ['John'], 1.0, $connection)
+        );
+
+        $this->assertEquals($sql, $listener->queries()[0]['sql']);
+        $this->assertEquals(['John'], $listener->queries()[0]['bindings']);
+    }
+
+    public function testQueryWithNoBindingsIsUnchanged(): void
+    {
+        $listener = new Listener;
+
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getName')->once()->andReturn('testing');
+        $connection->shouldReceive('prepareBindings')->once()->andReturnUsing(fn (array $bindings): array => $bindings);
+
+        $listener->onQueryExecuted(
+            new QueryExecuted('select count(*) from users', [], 1.0, $connection)
+        );
+
+        $this->assertSame('select count(*) from users', $listener->queries()[0]['sql']);
+        $this->assertEmpty($listener->queries()[0]['bindings']);
+    }
+
+    public function testNormalQuerySkipsTruncation(): void
+    {
+        $listener = new Listener;
+
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getName')->once()->andReturn('testing');
+        $connection->shouldReceive('prepareBindings')->once()->andReturnUsing(fn (array $bindings): array => $bindings);
+
+        $sql = 'select * from users where id = ? and name = ? and email = ?';
+        $bindings = [1, 'John', 'john@example.com'];
+
+        $listener->onQueryExecuted(
+            new QueryExecuted($sql, $bindings, 1.0, $connection)
+        );
+
+        $storedQuery = $listener->queries()[0];
+
+        // Nothing should be modified — SQL is short and bindings match placeholders
+        $this->assertEquals($sql, $storedQuery['sql']);
+        $this->assertEquals($bindings, $storedQuery['bindings']);
     }
 
     public function testLongQueriesAndBindingsAreBounded(): void

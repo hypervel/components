@@ -65,6 +65,22 @@ Tinker allows you to interact with your entire Hypervel application on the comma
 php artisan tinker
 ```
 
+You may also execute code without opening the interactive shell using the `--execute` option:
+
+```shell
+php artisan tinker --execute='echo App\Models\User::count();'
+```
+
+The command returns an exit status of zero when the code completes successfully. If the code calls `exit`, Artisan returns the requested exit status. Uncaught exceptions return an exit status of one.
+
+You may pass one or more PHP files to load before Tinker executes your code:
+
+```shell
+php artisan tinker bootstrap.php --execute='echo $message;'
+```
+
+If an included file cannot be loaded, Tinker reports the error and continues. The command's exit status still reflects the executed code.
+
 You can publish Tinker's configuration file using the `vendor:publish` command and Tinker's publish tag:
 
 ```shell
@@ -81,7 +97,7 @@ php artisan vendor:publish --provider="Hypervel\Tinker\TinkerServiceProvider"
 > The `dispatch` helper function and `dispatch` method on the `Dispatchable` class depend on garbage collection to place the job on the queue. Therefore, when using Tinker, you should use `Bus::dispatch` or `Queue::push` to dispatch jobs.
 
 > [!NOTE]
-> Hypervel Tinker disables PsySH's pcntl support because `pcntl_fork` is incompatible with Swoole's coroutine scheduler.
+> Hypervel Tinker disables PsySH's process forking because `pcntl_fork` is incompatible with Swoole's coroutine scheduler.
 
 <a name="command-allow-list"></a>
 #### Command Allow List
@@ -95,15 +111,49 @@ Tinker utilizes an "allow" list to determine which Artisan commands are allowed 
 ```
 
 <a name="classes-that-should-not-be-aliased"></a>
-#### Classes That Should Not Be Aliased
+#### Class Aliases
 
-Typically, Tinker automatically aliases classes as you interact with them in Tinker. However, you may wish to never alias some classes. You may accomplish this by listing the classes in the `dont_alias` array of your `tinker.php` configuration file:
+Tinker does not automatically alias classes from your application's dependencies. To allow a specific vendor class or namespace, add its fully qualified name to the `alias` array of your `tinker.php` configuration file:
+
+```php
+'alias' => [
+    'Vendor\Package',
+],
+```
+
+You may also prevent application classes from being aliased by adding them to the `dont_alias` array:
 
 ```php
 'dont_alias' => [
     App\Models\User::class,
 ],
 ```
+
+<a name="custom-tinker-casters"></a>
+#### Custom Casters
+
+Tinker uses Symfony VarDumper casters to present objects in the shell. You may register custom casters in your `tinker.php` configuration file:
+
+```php
+'casters' => [
+    App\Money::class => App\Tinker\MoneyCaster::class . '::cast',
+],
+```
+
+Application casters take precedence over Tinker's default casters.
+
+<a name="trusting-project-configuration"></a>
+#### Trusting Project Configuration
+
+PsySH may load project-specific configuration from a local `.psysh.php` file. By default, Tinker asks you to trust an unfamiliar project before loading this file. During non-interactive execution, untrusted project configuration is skipped. If PsySH suggests the `--trust-project` option, use the environment variable below instead; Artisan does not expose this option.
+
+If Tinker only runs from a trusted working directory, you may set the `trust_project` option in your `tinker.php` configuration file to `always`. You may also trust the project for a single command using the `TINKER_TRUST_PROJECT` environment variable:
+
+```shell
+TINKER_TRUST_PROJECT=always php artisan tinker --execute='echo App\Models\User::count();'
+```
+
+To prevent Tinker from loading local project configuration, set `trust_project` to `never`.
 
 <a name="writing-commands"></a>
 ## Writing Commands

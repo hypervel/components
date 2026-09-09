@@ -233,6 +233,37 @@ class ValidatedInputTest extends TestCase
         $this->assertFalse($bar);
     }
 
+    public function testWhenEnumMethod(): void
+    {
+        $input = new ValidatedInput(['status' => 'Hello world', 'invalid' => 'invalid', 'age' => '']);
+
+        $status = $invalid = $age = $missing = $default = false;
+
+        $input->whenEnum('status', StringBackedEnum::class, function (StringBackedEnum $value) use (&$status): void {
+            $status = $value;
+        });
+
+        $input->whenEnum('invalid', StringBackedEnum::class, function (StringBackedEnum $value) use (&$invalid): void {
+            $invalid = $value;
+        });
+
+        $input->whenEnum('age', StringBackedEnum::class, function (StringBackedEnum $value) use (&$age): void {
+            $age = $value;
+        });
+
+        $input->whenEnum('missing', StringBackedEnum::class, function (StringBackedEnum $value) use (&$missing): void {
+            $missing = $value;
+        }, function () use (&$default): void {
+            $default = true;
+        });
+
+        $this->assertSame(StringBackedEnum::HelloWorld, $status);
+        $this->assertFalse($invalid);
+        $this->assertFalse($age);
+        $this->assertFalse($missing);
+        $this->assertTrue($default);
+    }
+
     public function testMissingMethod()
     {
         $input = new ValidatedInput(['name' => 'Fatih', 'surname' => 'AYDIN', 'foo' => ['bar' => null, 'baz' => '']]);

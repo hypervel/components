@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Database;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\Listeners\DatabaseConnectionLifecycleListener;
-use Hypervel\Database\Pool\PoolFactory;
+use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Database\SimpleConnectionResolver;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -50,40 +50,40 @@ class DatabaseConnectionLifecycleListenerTest extends TestCase
     {
         $container = m::mock(Container::class);
         $container->expects('resolved')->with('db.resolver')->andReturnFalse();
-        $container->expects('resolved')->with(PoolFactory::class)->andReturnFalse();
+        $container->expects('resolved')->with(PoolManager::class)->andReturnFalse();
         $container->shouldNotReceive('make');
 
         (new DatabaseConnectionLifecycleListener($container))->discardProcessConnections();
     }
 
-    public function testProcessCleanupDiscardsResolverAndFlushesPoolFactory(): void
+    public function testProcessCleanupDiscardsResolverAndPurgesPools(): void
     {
         $resolver = m::mock(ConnectionResolver::class);
         $resolver->expects('discardConnections');
-        $factory = m::mock(PoolFactory::class);
-        $factory->expects('flushAll');
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->expects('purgeAll');
         $container = m::mock(Container::class);
         $container->expects('resolved')->with('db.resolver')->andReturnTrue();
         $container->expects('make')->with('db.resolver')->andReturn($resolver);
-        $container->expects('resolved')->with(PoolFactory::class)->andReturnTrue();
-        $container->expects('make')->with(PoolFactory::class)->andReturn($factory);
+        $container->expects('resolved')->with(PoolManager::class)->andReturnTrue();
+        $container->expects('make')->with(PoolManager::class)->andReturn($poolManager);
 
         (new DatabaseConnectionLifecycleListener($container))->discardProcessConnections();
     }
 
-    public function testResolverFailureDoesNotSkipPoolFlushAndRemainsPrimary(): void
+    public function testResolverFailureDoesNotSkipPoolPurgeAndRemainsPrimary(): void
     {
         $resolverException = new RuntimeException('Resolver discard failed.');
-        $factoryException = new RuntimeException('Pool flush failed.');
+        $purgeException = new RuntimeException('Pool purge failed.');
         $resolver = m::mock(ConnectionResolver::class);
         $resolver->expects('discardConnections')->andThrow($resolverException);
-        $factory = m::mock(PoolFactory::class);
-        $factory->expects('flushAll')->andThrow($factoryException);
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->expects('purgeAll')->andThrow($purgeException);
         $container = m::mock(Container::class);
         $container->expects('resolved')->with('db.resolver')->andReturnTrue();
         $container->expects('make')->with('db.resolver')->andReturn($resolver);
-        $container->expects('resolved')->with(PoolFactory::class)->andReturnTrue();
-        $container->expects('make')->with(PoolFactory::class)->andReturn($factory);
+        $container->expects('resolved')->with(PoolManager::class)->andReturnTrue();
+        $container->expects('make')->with(PoolManager::class)->andReturn($poolManager);
 
         try {
             (new DatabaseConnectionLifecycleListener($container))->discardProcessConnections();
@@ -93,62 +93,62 @@ class DatabaseConnectionLifecycleListenerTest extends TestCase
         }
     }
 
-    public function testPoolFactoryFailurePropagatesAfterResolverCleanup(): void
+    public function testPoolPurgeFailurePropagatesAfterResolverCleanup(): void
     {
-        $exception = new RuntimeException('Pool flush failed.');
+        $exception = new RuntimeException('Pool purge failed.');
         $resolver = m::mock(ConnectionResolver::class);
         $resolver->expects('discardConnections');
-        $factory = m::mock(PoolFactory::class);
-        $factory->expects('flushAll')->andThrow($exception);
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->expects('purgeAll')->andThrow($exception);
         $container = m::mock(Container::class);
         $container->expects('resolved')->with('db.resolver')->andReturnTrue();
         $container->expects('make')->with('db.resolver')->andReturn($resolver);
-        $container->expects('resolved')->with(PoolFactory::class)->andReturnTrue();
-        $container->expects('make')->with(PoolFactory::class)->andReturn($factory);
+        $container->expects('resolved')->with(PoolManager::class)->andReturnTrue();
+        $container->expects('make')->with(PoolManager::class)->andReturn($poolManager);
 
         try {
             (new DatabaseConnectionLifecycleListener($container))->discardProcessConnections();
-            $this->fail('Expected the pool factory failure to propagate.');
+            $this->fail('Expected the pool purge failure to propagate.');
         } catch (RuntimeException $throwable) {
             $this->assertSame($exception, $throwable);
         }
     }
 
-    public function testPoolFactoryCancellationSupersedesAnOrdinaryResolverFailure(): void
+    public function testPoolPurgeCancellationSupersedesAnOrdinaryResolverFailure(): void
     {
         $resolverException = new RuntimeException('Resolver discard failed.');
-        $factoryCancellation = new CanceledException('Pool flush was canceled.');
+        $purgeCancellation = new CanceledException('Pool purge was canceled.');
         $resolver = m::mock(ConnectionResolver::class);
         $resolver->expects('discardConnections')->andThrow($resolverException);
-        $factory = m::mock(PoolFactory::class);
-        $factory->expects('flushAll')->andThrow($factoryCancellation);
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->expects('purgeAll')->andThrow($purgeCancellation);
         $container = m::mock(Container::class);
         $container->expects('resolved')->with('db.resolver')->andReturnTrue();
         $container->expects('make')->with('db.resolver')->andReturn($resolver);
-        $container->expects('resolved')->with(PoolFactory::class)->andReturnTrue();
-        $container->expects('make')->with(PoolFactory::class)->andReturn($factory);
+        $container->expects('resolved')->with(PoolManager::class)->andReturnTrue();
+        $container->expects('make')->with(PoolManager::class)->andReturn($poolManager);
 
         try {
             (new DatabaseConnectionLifecycleListener($container))->discardProcessConnections();
-            $this->fail('Expected pool flush cancellation to propagate.');
+            $this->fail('Expected pool purge cancellation to propagate.');
         } catch (CanceledException $throwable) {
-            $this->assertSame($factoryCancellation, $throwable);
+            $this->assertSame($purgeCancellation, $throwable);
         }
     }
 
-    public function testResolverCancellationRemainsPrimaryOverAnOrdinaryPoolFactoryFailure(): void
+    public function testResolverCancellationRemainsPrimaryOverAnOrdinaryPoolPurgeFailure(): void
     {
         $resolverCancellation = new CanceledException('Resolver discard was canceled.');
-        $factoryException = new RuntimeException('Pool flush failed.');
+        $purgeException = new RuntimeException('Pool purge failed.');
         $resolver = m::mock(ConnectionResolver::class);
         $resolver->expects('discardConnections')->andThrow($resolverCancellation);
-        $factory = m::mock(PoolFactory::class);
-        $factory->expects('flushAll')->andThrow($factoryException);
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->expects('purgeAll')->andThrow($purgeException);
         $container = m::mock(Container::class);
         $container->expects('resolved')->with('db.resolver')->andReturnTrue();
         $container->expects('make')->with('db.resolver')->andReturn($resolver);
-        $container->expects('resolved')->with(PoolFactory::class)->andReturnTrue();
-        $container->expects('make')->with(PoolFactory::class)->andReturn($factory);
+        $container->expects('resolved')->with(PoolManager::class)->andReturnTrue();
+        $container->expects('make')->with(PoolManager::class)->andReturn($poolManager);
 
         try {
             (new DatabaseConnectionLifecycleListener($container))->discardProcessConnections();

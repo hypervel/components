@@ -98,7 +98,7 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertArrayHasKey('test:alias', $map);
     }
 
-    public function testResolveEagerlyResolvesCommandWithoutStaticName()
+    public function testResolveEagerlyResolvesCommandWithoutStaticName(): void
     {
         $command = new SymfonyCommand('test:dynamic');
         $container = $this->createMock(Application::class);
@@ -107,11 +107,11 @@ class ConsoleApplicationResolveTest extends TestCase
             ->with(StubDynamicCommand::class)
             ->willReturn($command);
 
-        $app = $this->createApp($container);
-        $result = $app->resolve(StubDynamicCommand::class);
+        $artisan = $this->createApp($container);
+        $result = $artisan->resolve(StubDynamicCommand::class);
 
-        $this->assertInstanceOf(SymfonyCommand::class, $result);
-        $this->assertArrayNotHasKey('test:dynamic', $this->getCommandMap($app));
+        $this->assertSame($command, $result);
+        $this->assertArrayNotHasKey('test:dynamic', $this->getCommandMap($artisan));
     }
 
     public function testAsCommandAttributeTakesPriorityOverSignature()
@@ -335,36 +335,42 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertArrayNotHasKey('test:aliases-attribute-ignored', $map);
     }
 
-    public function testResolvingCommandsWithNoAliasViaAttribute()
+    public function testResolvingCommandsWithNoAliasViaAttribute(): void
     {
-        $app = $this->createApp($this->app);
-        $app->resolve(StubAttributedCommand::class);
-        $app->setContainerCommandLoader();
+        $artisan = $this->createApp($this->app);
+        $artisan->resolve(StubAttributedCommand::class);
+        $artisan->setContainerCommandLoader();
 
-        $this->assertInstanceOf(StubAttributedCommand::class, $app->get('test:attributed'));
+        $this->assertInstanceOf(StubAttributedCommand::class, $artisan->get('test:attributed'));
 
         try {
-            $app->get('some-nonexistent-alias');
+            $artisan->get('some-nonexistent-alias');
             $this->fail();
         } catch (Throwable $e) {
             $this->assertInstanceOf(CommandNotFoundException::class, $e);
         }
+
+        $this->assertArrayHasKey('test:attributed', $artisan->all());
+        $this->assertArrayNotHasKey('some-nonexistent-alias', $artisan->all());
     }
 
-    public function testResolvingCommandsWithNoAliasViaProperty()
+    public function testResolvingCommandsWithNoAliasViaProperty(): void
     {
-        $app = $this->createApp($this->app);
-        $app->resolve(StubCommandWithoutPropertyAlias::class);
-        $app->setContainerCommandLoader();
+        $artisan = $this->createApp($this->app);
+        $artisan->resolve(StubCommandWithoutPropertyAlias::class);
+        $artisan->setContainerCommandLoader();
 
-        $this->assertInstanceOf(StubCommandWithoutPropertyAlias::class, $app->get('alias-test:no-alias'));
+        $this->assertInstanceOf(StubCommandWithoutPropertyAlias::class, $artisan->get('alias-test:no-alias'));
 
         try {
-            $app->get('some-nonexistent-alias');
+            $artisan->get('some-nonexistent-alias');
             $this->fail();
         } catch (Throwable $e) {
             $this->assertInstanceOf(CommandNotFoundException::class, $e);
         }
+
+        $this->assertArrayHasKey('alias-test:no-alias', $artisan->all());
+        $this->assertArrayNotHasKey('some-nonexistent-alias', $artisan->all());
     }
 
     // ---------------------------------------------------------------
@@ -403,7 +409,7 @@ class ConsoleApplicationResolveTest extends TestCase
     // PromptsForMissingInput
     // ---------------------------------------------------------------
 
-    public function testCommandInputPromptsWhenRequiredArgumentIsMissing()
+    public function testCommandInputPromptsWhenRequiredArgumentIsMissing(): void
     {
         $artisan = $this->createApp($this->app);
         $output = new BufferedOutput;
@@ -414,10 +420,10 @@ class ConsoleApplicationResolveTest extends TestCase
         $exitCode = $artisan->call('fake-command-for-testing', [], $output);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame("foo\n", $output->fetch());
+        $this->assertSame(['prompted' => true, 'name' => 'foo'], json_decode($output->fetch(), true));
     }
 
-    public function testCommandInputDoesntPromptWhenRequiredArgumentIsPassed()
+    public function testCommandInputDoesntPromptWhenRequiredArgumentIsPassed(): void
     {
         $artisan = $this->createApp($this->app);
         $output = new BufferedOutput;
@@ -425,14 +431,14 @@ class ConsoleApplicationResolveTest extends TestCase
         $artisan->addCommands([new FakeCommandWithInputPrompting]);
 
         $exitCode = $artisan->call('fake-command-for-testing', [
-            'name' => 'bar',
+            'name' => 'foo',
         ], $output);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame("bar\n", $output->fetch());
+        $this->assertSame(['prompted' => false, 'name' => 'foo'], json_decode($output->fetch(), true));
     }
 
-    public function testCommandInputPromptsWhenRequiredArgumentsAreMissing()
+    public function testCommandInputPromptsWhenRequiredArgumentsAreMissing(): void
     {
         $artisan = $this->createApp($this->app);
         $output = new BufferedOutput;
@@ -443,10 +449,10 @@ class ConsoleApplicationResolveTest extends TestCase
         $exitCode = $artisan->call('fake-command-for-testing-array', [], $output);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame("foo\n", $output->fetch());
+        $this->assertSame(['prompted' => true, 'names' => ['foo']], json_decode($output->fetch(), true));
     }
 
-    public function testCommandInputDoesntPromptWhenRequiredArgumentsArePassed()
+    public function testCommandInputDoesntPromptWhenRequiredArgumentsArePassed(): void
     {
         $artisan = $this->createApp($this->app);
         $output = new BufferedOutput;
@@ -454,14 +460,14 @@ class ConsoleApplicationResolveTest extends TestCase
         $artisan->addCommands([new FakeCommandWithArrayInputPrompting]);
 
         $exitCode = $artisan->call('fake-command-for-testing-array', [
-            'names' => ['bar', 'baz'],
+            'names' => ['foo', 'bar', 'baz'],
         ], $output);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame("bar,baz\n", $output->fetch());
+        $this->assertSame(['prompted' => false, 'names' => ['foo', 'bar', 'baz']], json_decode($output->fetch(), true));
     }
 
-    public function testCallMethodCanCallArtisanCommandUsingCommandClassObject()
+    public function testCallMethodCanCallArtisanCommandUsingCommandClassObject(): void
     {
         $artisan = $this->createApp($this->app);
         $output = new BufferedOutput;
@@ -472,7 +478,7 @@ class ConsoleApplicationResolveTest extends TestCase
         $exitCode = $artisan->call($command, [], $output);
 
         $this->assertSame(0, $exitCode);
-        $this->assertSame("foo\n", $output->fetch());
+        $this->assertSame(['prompted' => true, 'name' => 'foo'], json_decode($output->fetch(), true));
     }
 
     public function testSequentialCallsUseFreshCommandInstances(): void

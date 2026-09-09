@@ -217,8 +217,8 @@ If you need to configure a Google Cloud Storage filesystem manually, you may use
         'max_objects' => 10,
         'wait_timeout' => 3.0,
         'max_lifetime' => 60.0,
-        'max_idle_time' => 0.0,
-        'idle_ttl' => 300.0,
+        'max_idle_time' => null,
+        'pool_idle_timeout' => 300.0,
     ],
 ],
 ```
@@ -241,13 +241,13 @@ You may configure a pool using the disk's `pool` option:
         'max_objects' => 10,
         'wait_timeout' => 3.0,
         'max_lifetime' => 60.0,
-        'max_idle_time' => 0.0,
-        'idle_ttl' => 300.0,
+        'max_idle_time' => null,
+        'pool_idle_timeout' => 300.0,
     ],
 ],
 ```
 
-`min_retained_objects` is an idle-trimming floor; it does not eagerly create clients. `max_lifetime` expires clients by absolute age, while `max_idle_time` trims individual idle clients. `idle_ttl` removes an entirely unused pool after 300 seconds by default; set it explicitly to `null` to disable whole-pool eviction. If all clients are in use and no capacity becomes available before `wait_timeout`, a `RuntimeException` is thrown.
+`min_retained_objects` is an idle-trimming floor; it does not eagerly create clients. `max_lifetime` expires clients by absolute age, while `max_idle_time` trims individual idle clients. `pool_idle_timeout` removes an entirely unused pool after 300 seconds by default. Set any of these three optional durations to `null` to disable it. If all clients are in use and no capacity becomes available before `wait_timeout`, a `RuntimeException` is thrown.
 
 An explicit pool name may be useful when multiple configurations intentionally identify the same operational resource:
 
@@ -509,7 +509,7 @@ If you would like to modify the host for URLs generated using the `Storage` faca
 'public' => [
     'driver' => 'local',
     'root' => storage_path('app/public'),
-    'url' => env('APP_URL').'/storage',
+    'url' => rtrim((string) env('APP_URL'), '/').'/storage',
     'visibility' => 'public',
     'throw' => false,
 ],

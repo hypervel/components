@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Redis;
 
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Redis\PhpRedisConnection;
-use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
@@ -310,13 +310,13 @@ class MultiExecTest extends TestCase
     private function createRedis(m\MockInterface|RedisConnection $connection): RedisProxy
     {
         $pool = m::mock(RedisPool::class);
-        $pool->shouldReceive('get')->andReturn($connection);
+        $pool->shouldReceive('borrow')->andReturn($connection);
 
-        $poolFactory = m::mock(PoolFactory::class);
-        $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->shouldReceive('pool')->with('default')->andReturn($pool);
 
         return new RedisProxy(
-            $poolFactory,
+            $poolManager,
             'default',
             m::mock(RedisSentinelFactory::class),
         );

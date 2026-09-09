@@ -160,6 +160,30 @@ class DatabaseSchemaBuilderTest extends SqliteTestCase
         $this->assertContains('example_table1_name_index', $indexes);
     }
 
+    public function testSchemaQualifiedPrefixedTablesPreserveQueryIdentifiers(): void
+    {
+        $connection = DB::connection('sqlite-with-indexed-prefix');
+        $connection->getSchemaBuilder()->create('items', function (Blueprint $table): void {
+            $table->integer('id');
+        });
+        $connection->table('items')->insert([['id' => 1], ['id' => 2]]);
+
+        $this->assertSame([
+            ['id' => 1, 'bonus' => 42],
+            ['id' => 2, 'bonus' => 42],
+        ], $connection->table('main.items', 'source')->addSelect(['bonus' => new Expression(42)])
+            ->orderBy('id')->get()->map(static fn (object $row): array => (array) $row)->all());
+
+        $query = $connection->table('main.items', 'source')
+            ->join('items as joined', 'joined.id', '=', 'source.id')
+            ->groupBy('source.id');
+
+        $this->assertSame(2, $query->getCountForPagination());
+        $this->assertNull($query->columns);
+        $this->assertSame(1, $connection->table('main.items')->delete(1));
+        $this->assertSame([2], $connection->table('items')->pluck('id')->all());
+    }
+
     public function testAlterTableAddForeignKeyWithPrefix(): void
     {
         $schema = Schema::connection('sqlite-with-prefix');

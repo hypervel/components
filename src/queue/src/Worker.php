@@ -30,6 +30,8 @@ use Hypervel\Queue\Events\Looping;
 use Hypervel\Queue\Events\WorkerIdle;
 use Hypervel\Queue\Events\WorkerInterrupted;
 use Hypervel\Queue\Events\WorkerPausing;
+use Hypervel\Queue\Events\WorkerQueuePaused;
+use Hypervel\Queue\Events\WorkerQueueResumed;
 use Hypervel\Queue\Events\WorkerResuming;
 use Hypervel\Queue\Events\WorkerStarting;
 use Hypervel\Queue\Events\WorkerStopping;
@@ -148,6 +150,23 @@ class Worker
     public bool $paused = false;
 
     /**
+     * The queues the worker last observed to be paused.
+     *
+     * @var array<int, string>
+     */
+    protected array $pausedQueues = [];
+
+    /**
+     * The connection used for the last pause-state observation.
+     */
+    protected ?string $lastPolledConnection = null;
+
+    /**
+     * The queue list used for the last pause-state observation.
+     */
+    protected ?string $lastPolledQueues = null;
+
+    /**
      * The callbacks used to pop jobs from queues.
      *
      * @var callable[]
@@ -238,6 +257,11 @@ class Worker
         $this->jobsProcessed = 0;
         $this->lastJobProcessedAt = null;
         $this->stopReason = null;
+
+        // A new daemon run must report initially paused queues even when this worker is reused.
+        $this->pausedQueues = [];
+        $this->lastPolledConnection = null;
+        $this->lastPolledQueues = null;
 
         $lifecycleWaiter = new Waiter(-1);
         $lastRestart = $lifecycleWaiter->wait(fn (): ?int => $this->withCoroutineContext(
@@ -635,9 +659,12 @@ class Worker
      */
     public function runNextJob(string $connectionName, string $queue, WorkerOptions $options): null
     {
-        $job = $this->getNextJob(
-            $this->manager->connection($connectionName),
-            $queue
+        $job = $this->withCoroutineContext(
+            $options,
+            fn (): ?JobContract => $this->getNextJob(
+                $this->manager->connection($connectionName),
+                $queue,
+            ),
         );
 
         // If we're able to pull a job off of the stack, we will process it and then return
@@ -675,7 +702,19 @@ class Worker
             }
 
             $queues = explode(',', $queue);
-            $paused = array_flip($this->getPausedQueues($connection->getConnectionName(), $queues));
+            $connectionName = $connection->getConnectionName();
+            $paused = $this->getPausedQueues($connectionName, $queues);
+
+            // A different selection says nothing about whether the old queues resumed.
+            if ($this->lastPolledConnection !== $connectionName || $this->lastPolledQueues !== $queue) {
+                $this->pausedQueues = [];
+                $this->lastPolledConnection = $connectionName;
+                $this->lastPolledQueues = $queue;
+            }
+
+            $this->raisePausedQueueEvents($connectionName, $paused);
+
+            $paused = array_flip($paused);
 
             foreach ($queues as $index => $queue) {
                 if (isset($paused[$queue])) {
@@ -718,6 +757,26 @@ class Worker
         $manager = $this->manager;
 
         return $manager->getPausedQueues($connectionName, $queues);
+    }
+
+    /**
+     * Raise events for any queues that have been paused or resumed since the last check.
+     */
+    protected function raisePausedQueueEvents(string $connectionName, array $paused): void
+    {
+        if ($this->events->hasListeners(WorkerQueuePaused::class)) {
+            foreach (array_diff($paused, $this->pausedQueues) as $queue) {
+                $this->events->dispatch(new WorkerQueuePaused($connectionName, $queue));
+            }
+        }
+
+        if ($this->events->hasListeners(WorkerQueueResumed::class)) {
+            foreach (array_diff($this->pausedQueues, $paused) as $queue) {
+                $this->events->dispatch(new WorkerQueueResumed($connectionName, $queue));
+            }
+        }
+
+        $this->pausedQueues = $paused;
     }
 
     /**

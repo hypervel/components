@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Foundation\Console;
 use Hypervel\Console\Application;
 use Hypervel\Console\Events\ArtisanStarting;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Http\Kernel as KernelContract;
 use Hypervel\Foundation\Console\RouteListCommand;
 use Hypervel\Foundation\Http\Kernel;
 use Hypervel\Routing\Router;
@@ -49,7 +50,7 @@ class RouteListCommandTest extends TestCase
 
         $kernel->prependToMiddlewarePriority('Middleware 5');
 
-        $hypervel->instance(Kernel::class, $kernel);
+        $hypervel->instance(KernelContract::class, $kernel);
 
         $router->get('/example', function () {
             return 'Hello World';
@@ -264,7 +265,7 @@ class RouteListCommandTest extends TestCase
             protected array $middlewareGroups = [];
         };
 
-        $hypervel->instance(Kernel::class, $kernel);
+        $hypervel->instance(KernelContract::class, $kernel);
 
         $router->get('/controller-route', [RouteListCommandTestController::class, 'index']);
 

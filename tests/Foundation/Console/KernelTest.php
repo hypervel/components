@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Console;
 
+use Composer\Autoload\ClassLoader;
 use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\Command;
 use Hypervel\Console\Scheduling\CacheEventMutex;
@@ -13,6 +14,7 @@ use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Events\Dispatcher;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\BootProviders;
 use Hypervel\Foundation\Console\Kernel;
@@ -24,6 +26,7 @@ use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\StringInput;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -182,6 +185,81 @@ class KernelTest extends TestCase
 
         $this->assertSame('scheduling', $this->app->make(CacheEventMutex::class)->store);
         $this->assertSame('scheduling', $this->app->make(CacheSchedulingMutex::class)->store);
+    }
+
+    public function testLoadIgnoresTestFiles(): void
+    {
+        $files = new Filesystem;
+        $directory = $this->app->path('Console/Commands/Discovery');
+        $loader = new ClassLoader;
+        $loader->addPsr4('App\Console\Commands\Discovery\\', $directory);
+
+        try {
+            $files->ensureDirectoryExists($directory);
+            $files->put($directory . '/ExampleCommand.php', <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+namespace App\Console\Commands\Discovery;
+
+use Hypervel\Console\Command;
+
+class ExampleCommand extends Command
+{
+    protected ?string $signature = 'example';
+
+    public function handle(): void {}
+}
+PHP);
+            $files->put($directory . '/ExampleCommandTest.php', <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+namespace App\Console\Commands\Discovery;
+
+use Hypervel\Console\Command;
+
+class ExampleCommandTest extends Command
+{
+    protected ?string $signature = 'example-test';
+
+    public function handle(): void {}
+}
+PHP);
+            $files->put($directory . '/ExampleCommandUnitTest.php', <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+namespace App\Console\Commands\Discovery;
+
+use Hypervel\Tests\TestCase;
+
+class ExampleCommandUnitTest extends TestCase
+{
+    public function testCommand(): void
+    {
+        $this->assertTrue(true);
+    }
+}
+PHP);
+            $loader->register();
+
+            $kernel = new Kernel($this->app, $this->app->make('events'));
+            $kernel->addCommandPaths([$directory]);
+
+            $commands = collect($kernel->getArtisan()->all())
+                ->map(static fn (SymfonyCommand $command): string => $command::class)->all();
+
+            $this->assertContains('App\Console\Commands\Discovery\ExampleCommand', $commands);
+            $this->assertContains('App\Console\Commands\Discovery\ExampleCommandTest', $commands);
+            $this->assertNotContains('App\Console\Commands\Discovery\ExampleCommandUnitTest', $commands);
+        } finally {
+            $loader->unregister();
+            $files->deleteDirectory($directory);
+        }
     }
 
     public function testSetArtisanSynchronizesTheKernelAndContainerBeforeReboundCallbacks(): void

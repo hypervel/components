@@ -64,6 +64,19 @@ class SendingMarkdownMailTest extends TestCase
         $this->assertMatchesRegularExpression('/Example App:\s*(?:\r?\n|$)/', $text);
     }
 
+    public function testMarkdownLayoutRendersHeadSlotLocaleAndStyles(): void
+    {
+        $html = (new Mailable)->markdown('layout-with-head')->locale('pt_BR')->render();
+
+        $this->assertStringContainsString('lang="pt-BR"', $html);
+        $this->assertMatchesRegularExpression(
+            '~<head>.*<meta name="custom-head" content="present"\s*/?>.*</head>~s',
+            $html
+        );
+        $this->assertMatchesRegularExpression('~<h3[^>]*style="[^"]*text-align: start;~', $html);
+        $this->assertMatchesRegularExpression('~<p[^>]*style="[^"]*text-align: start;~', $html);
+    }
+
     public function testMailMayHaveSpecificTextView(): void
     {
         $mailable = new MarkdownBasicMailableWithTextView;
@@ -85,9 +98,9 @@ class SendingMarkdownMailTest extends TestCase
 
         $email = $this->app->make('mailer')->getSymfonyTransport()->messages()[0]->getOriginalMessage()->toString();
 
-        $cid = explode(' cid:', (new Stringable($email))->explode("\r\n")
+        $cid = rtrim(explode(' cid:', (new Stringable($email))->explode("\r\n")
             ->filter(fn (string $line): bool => str_contains($line, ' content: cid:'))
-            ->first())[1];
+            ->first())[1], '=');
 
         $filename = explode('Embed file: ', (new Stringable($email))->explode("\r\n")
             ->filter(fn (string $line): bool => str_contains($line, ' file:'))

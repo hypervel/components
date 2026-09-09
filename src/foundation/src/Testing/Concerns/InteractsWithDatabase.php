@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
+use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Events\QueryExecuted;
@@ -15,6 +16,7 @@ use Hypervel\Testing\Constraints\HasInDatabase;
 use Hypervel\Testing\Constraints\NotSoftDeletedInDatabase;
 use Hypervel\Testing\Constraints\SoftDeletedInDatabase;
 use PHPUnit\Framework\Constraint\LogicalNot as ReverseConstraint;
+use UnitEnum;
 
 trait InteractsWithDatabase
 {
@@ -306,12 +308,8 @@ trait InteractsWithDatabase
 
     /**
      * Cast a JSON string to a database compatible type.
-     *
-     * @param array|object|string $value
-     * @param null|string $connection
-     * @return \Hypervel\Database\Query\Expression
      */
-    public function castAsJson($value, $connection = null)
+    public function castAsJson(array|object|string $value, UnitEnum|string|null $connection = null): Expression
     {
         if ($value instanceof Jsonable) {
             $value = $value->toJson();

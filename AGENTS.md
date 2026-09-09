@@ -783,7 +783,7 @@ Read `docs/ai/porting-hyperf.md` only when porting a Hyperf package or update.
 
 If the Hypervel version of the package doesn't exist yet, create the skeleton using an existing package as a template:
 - **Porting a Laravel first-party package:** Use the `cache` package as reference
-- **Porting a Hyperf package:** Use the `pool` package as reference
+- **Porting a Hyperf package:** Use the `websocket-server` package as reference
 - **Porting a Laravel-ecosystem third-party package:** Use the `permission` package as a reference
 
 Read the reference package's `composer.json`, `LICENSE.md`, and `README.md` and create equivalents for the new package. Every package must be wired in both places: its own `src/{package}/composer.json` for the subtree split, and the root `composer.json` for monorepo development. Update autoloading, `replace`, and Hypervel provider / alias discovery metadata as needed, and add root dependencies with `composer require` — see Providers and Listeners for where providers should be registered. Create the README using the Package READMEs format under Development Conventions.

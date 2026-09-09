@@ -567,7 +567,9 @@ class Store implements Session
     public function forget(array|UnitEnum|string $keys): void
     {
         $attributes = $this->getAttributes();
-        Arr::forget($attributes, collect((array) $keys)->map(fn ($key) => enum_value($key))->all());
+
+        // Casting an enum to an array would make its name and value separate keys to remove.
+        Arr::forget($attributes, array_map(enum_value(...), Arr::wrap($keys)));
 
         $this->setAttributes($attributes);
     }

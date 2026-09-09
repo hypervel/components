@@ -43,6 +43,20 @@ class ValidationData
     }
 
     /**
+     * Encode literal dots and asterisks in a data key.
+     */
+    public static function encodeKey(int|string $key): string
+    {
+        $placeholderHash = static::placeholderHash();
+
+        return str_replace(
+            ['.', '*'],
+            ['__dot__' . $placeholderHash, '__asterisk__' . $placeholderHash],
+            (string) $key,
+        );
+    }
+
+    /**
      * Encode literal dots and asterisks in data keys.
      */
     public static function encodeKeys(array $data): array
@@ -55,6 +69,7 @@ class ValidationData
                 $value = static::encodeKeys($value);
             }
 
+            // Keep encoding inline to avoid a method and hash lookup for every input key.
             $key = str_replace(
                 ['.', '*'],
                 ['__dot__' . $placeholderHash, '__asterisk__' . $placeholderHash],

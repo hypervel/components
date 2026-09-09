@@ -7,7 +7,6 @@ namespace Hypervel\Saloon\Http;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Telescope\TelescopeTag;
 use Hypervel\Http\Client\Factory;
-use Hypervel\Http\Client\Response as HttpResponse;
 use Psr\Http\Message\RequestInterface;
 
 class Sender
@@ -74,7 +73,6 @@ class Sender
                 return $request;
             });
 
-        /** @var HttpResponse $httpResponse */
         $httpResponse = $httpRequest->send(
             $pendingRequest->method()->value,
             (string) $pendingRequest->uri(),

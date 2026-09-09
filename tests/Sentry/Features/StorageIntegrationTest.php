@@ -6,11 +6,11 @@ namespace Hypervel\Tests\Sentry\Features;
 
 use DateTimeImmutable;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Filesystem\AwsS3V3Adapter;
 use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Filesystem\FilesystemPoolProxy;
-use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\Sentry\Features\Storage\DecoratedFilesystem;
 use Hypervel\Sentry\Features\Storage\Integration;
 use Hypervel\Sentry\Features\Storage\SentryFilesystemAdapter;

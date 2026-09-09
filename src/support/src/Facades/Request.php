@@ -195,10 +195,10 @@ namespace Hypervel\Support\Facades;
  * @method static bool wantsJson()
  * @method static bool wantsMarkdown()
  * @method static mixed when(mixed $value = null, null|callable $callback = null, null|callable $default = null)
- * @method static mixed whenEnum(string $key, string $enumClass, callable $callback, callable|null $default = null)
- * @method static mixed whenFilled(string $key, callable $callback, callable|null $default = null)
- * @method static mixed whenHas(string $key, callable $callback, callable|null $default = null)
- * @method static mixed whenMissing(string $key, callable $callback, callable|null $default = null)
+ * @method static mixed whenEnum(string $key, string $enumClass, callable $callback, null|callable $default = null)
+ * @method static mixed whenFilled(string $key, callable $callback, null|callable $default = null)
+ * @method static mixed whenHas(string $key, callable $callback, null|callable $default = null)
+ * @method static mixed whenMissing(string $key, callable $callback, null|callable $default = null)
  *
  * @see \Hypervel\Http\Request
  */

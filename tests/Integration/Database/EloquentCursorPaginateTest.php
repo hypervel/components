@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\Database;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\HasManyThrough;
+use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Pagination\Cursor;
 use Hypervel\Support\Facades\DB;
@@ -52,6 +53,17 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         TestPost::fillAndInsert($posts);
 
         $this->assertCount(15, TestPost::cursorPaginate(15, ['id', 'title']));
+    }
+
+    public function testCursorPaginationWithNumericExpressionProjection(): void
+    {
+        TestPost::fillAndInsert([['title' => 'First'], ['title' => 'Second']]);
+
+        $page = TestPost::query()->select([new Expression(1.5), 'id'])
+            ->orderBy('id')->cursorPaginate(1, cursor: new Cursor(['id' => 1]));
+
+        $this->assertSame([2], $page->getCollection()->modelKeys());
+        $this->assertEquals(1.5, array_first($page->items()[0]->getAttributes()));
     }
 
     public function testPaginationWithUnion()

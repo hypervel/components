@@ -332,7 +332,7 @@ abstract class Job implements JobContract
     {
         $payload = $this->payload();
 
-        [$class, $method] = JobName::parse($payload['job']);
+        [$class] = JobName::parse($payload['job']);
 
         if (method_exists($this->instance = $this->resolve($class), 'failed')) {
             $this->instance->failed($payload['data'], $e, $payload['uuid'] ?? '', $this);

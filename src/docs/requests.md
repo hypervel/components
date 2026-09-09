@@ -448,6 +448,31 @@ Input values containing arrays may be retrieved using the `array` method. This m
 $versions = $request->array('versions');
 ```
 
+<a name="retrieving-fluent-input-values"></a>
+#### Retrieving Fluent Input Values
+
+The `fluent` method retrieves input as a `Hypervel\Support\Fluent` instance, allowing you to access its values as properties:
+
+```php
+$user = $request->fluent('user');
+
+$name = $user->name;
+```
+
+If the input is missing or `null`, an empty instance is returned. You may pass an array of default values as the second argument:
+
+```php
+$user = $request->fluent('user', ['name' => 'Guest']);
+```
+
+You may also pass an array of keys to build the instance from only those input values:
+
+```php
+$user = $request->fluent(['name', 'role']);
+```
+
+Fluent instances also provide the input retrieval methods described on this page, such as `integer`, `boolean`, `date`, and `enum`.
+
 <a name="retrieving-date-input-values"></a>
 #### Retrieving Date Input Values
 
@@ -783,6 +808,17 @@ use Hypervel\Http\Request;
 
     $middleware->trimStrings(except: [
         fn (Request $request) => $request->is('admin/*'),
+    ]);
+})
+```
+
+You may also exclude individual attributes from trimming by passing their names to the `trimStrings` method. Use `*` to match nested attributes:
+
+```php
+->withMiddleware(function (Middleware $middleware): void {
+    $middleware->trimStrings(except: [
+        'title',
+        'users.*.name',
     ]);
 })
 ```

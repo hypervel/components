@@ -215,7 +215,7 @@ class MailSesV2TransportTest extends TestCase
         $manager = new MailManager($this->app);
 
         /** @var \Hypervel\Mail\Mailer $mailer */
-        $mailer = $manager->removePoolable('ses-v2')->mailer('ses');
+        $mailer = $manager->removePoolableDriver('ses-v2')->mailer('ses');
 
         /** @var \Hypervel\Mail\Transport\SesV2Transport $transport */
         $transport = $mailer->getSymfonyTransport();

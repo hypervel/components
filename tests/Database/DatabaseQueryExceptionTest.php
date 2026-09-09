@@ -151,6 +151,31 @@ class DatabaseQueryExceptionTest extends TestCase
         $this->assertSame([], $exception->getConnectionDetails());
     }
 
+    public function testBindingsAreEmbeddedInTheMessageByDefault(): void
+    {
+        $pdoException = new PDOException('Mock SQL error');
+        $exception = new QueryException('mysql', 'SELECT * FROM users WHERE email = ?', ['foo@example.com'], $pdoException);
+
+        $this->assertSame('Mock SQL error (Connection: mysql, SQL: SELECT * FROM users WHERE email = foo@example.com)', $exception->getMessage());
+    }
+
+    public function testBindingsCanBeMaskedInTheMessage(): void
+    {
+        $pdoException = new PDOException('Mock SQL error');
+        $exception = new QueryException('mysql', 'SELECT * FROM users WHERE email = ?', ['foo@example.com'], $pdoException, [], null, true);
+
+        $this->assertSame('Mock SQL error (Connection: mysql, SQL: SELECT * FROM users WHERE email = ?)', $exception->getMessage());
+    }
+
+    public function testMaskingBindingsDoesNotAffectTheAccessors(): void
+    {
+        $pdoException = new PDOException('Mock SQL error');
+        $exception = new QueryException('mysql', 'SELECT * FROM users WHERE email = ?', ['foo@example.com'], $pdoException, [], null, true);
+
+        $this->assertSame(['foo@example.com'], $exception->getBindings());
+        $this->assertSame('SELECT * FROM users WHERE email = ?', $exception->getSql());
+    }
+
     protected function getMockConnection()
     {
         $connection = m::mock(Connection::class);

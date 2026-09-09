@@ -14,6 +14,8 @@ use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Events\JobReleasedAfterException;
+use Hypervel\Queue\Events\WorkerQueuePaused;
+use Hypervel\Queue\Events\WorkerQueueResumed;
 use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Queue\InvalidPayloadException;
@@ -47,18 +49,18 @@ class WorkCommand extends Command
                             {--once : Only process the next job on the queue}
                             {--concurrency= : The number of jobs to process at once}
                             {--stop-when-empty : Stop when the queue is empty}
-                            {--stop-when-empty-for=0 : Stop when the queue has been empty for the given number of seconds}
+                            {--stop-when-empty-for=0 : Stop when no jobs have been processed for the given number of seconds}
                             {--delay=0 : The number of seconds to delay failed jobs (Deprecated)}
                             {--backoff=0 : The number of seconds to wait before retrying a job that encountered an uncaught exception}
                             {--max-jobs=0 : The number of jobs to process before stopping}
                             {--max-time=0 : The maximum number of seconds the worker should run}
                             {--force : Force the worker to run even in maintenance mode}
                             {--memory=128 : The memory limit in megabytes}
-                            {--sleep=3 : Number of seconds to sleep when no job is available}
-                            {--rest=0 : Number of seconds to rest between jobs}
+                            {--sleep=3 : The number of seconds to sleep when no job is available}
+                            {--rest=0 : The number of seconds to rest between jobs}
                             {--timeout=60 : The number of seconds a child process can run}
                             {--monitor-interval=1 : The time interval of seconds for monitoring timeout jobs}
-                            {--tries=1 : Number of times to attempt a job before logging it failed}
+                            {--tries=1 : The number of times to attempt a job before logging it failed}
                             {--json : Output the queue worker information as JSON}';
 
     /**
@@ -198,6 +200,14 @@ class WorkCommand extends Command
             $command?->writeOutput($event->job, 'failed', $event->exception);
         });
 
+        $events->listen(WorkerQueuePaused::class, static function (WorkerQueuePaused $event): void {
+            static::currentCommand()?->writeQueueStatus($event->queue, 'paused');
+        });
+
+        $events->listen(WorkerQueueResumed::class, static function (WorkerQueueResumed $event): void {
+            static::currentCommand()?->writeQueueStatus($event->queue, 'resumed');
+        });
+
         $events->listen(WorkerStopping::class, static function (WorkerStopping $event): void {
             // Graceful stopping runs outside the configured job coroutine context.
             $command = $event->workerOptions?->coroutineContext[self::CURRENT_COMMAND_CONTEXT_KEY] ?? null;
@@ -222,6 +232,36 @@ class WorkCommand extends Command
         $this->outputUsingJson()
             ? $this->writeOutputAsJson($job, $status, $exception)
             : $this->writeOutputForCli($job, $status);
+    }
+
+    /**
+     * Write the status output for a paused or resumed queue.
+     */
+    protected function writeQueueStatus(string $queue, string $status): void
+    {
+        if ($this->output->isQuiet() || $this->output->isSilent()) {
+            return;
+        }
+
+        if ($this->outputUsingJson()) {
+            $this->output->writeln(json_encode([
+                'level' => 'warning',
+                'queue' => $queue,
+                'status' => $status,
+                'timestamp' => $this->now()->format('Y-m-d\TH:i:s.uP'),
+            ]));
+
+            return;
+        }
+
+        $this->output->writeln(sprintf(
+            '  <fg=gray>%s</> Queue <fg=blue>%s</> %s',
+            $this->now()->format('Y-m-d H:i:s'),
+            $queue,
+            $status === 'paused'
+                ? '<fg=yellow;options=bold>PAUSED</>'
+                : '<fg=green;options=bold>RESUMED</>',
+        ));
     }
 
     /**
@@ -425,7 +465,7 @@ class WorkCommand extends Command
     }
 
     /**
-     * Get the queue work command for the currently running job coroutine.
+     * Get the queue work command for the current coroutine.
      */
     protected static function currentCommand(): ?self
     {

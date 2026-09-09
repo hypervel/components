@@ -58,7 +58,7 @@ class Unique implements Stringable
             'unique:%s,%s,%s,%s,%s',
             $this->table,
             $this->column,
-            $this->ignore !== null ? '"' . addslashes((string) $this->ignore) . '"' : 'NULL',
+            $this->ignore !== null ? '"' . str_replace('"', '""', (string) $this->ignore) . '"' : 'NULL',
             $this->idColumn,
             $this->formatWheres()
         ), ',');

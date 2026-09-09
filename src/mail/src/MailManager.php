@@ -11,6 +11,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Mail\Factory as FactoryContract;
 use Hypervel\Contracts\Mail\Mailer as MailerContract;
+use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Log\LogManager;
@@ -19,8 +20,7 @@ use Hypervel\Mail\Transport\CloudflareTransport;
 use Hypervel\Mail\Transport\LogTransport;
 use Hypervel\Mail\Transport\ResendTransport;
 use Hypervel\Mail\Transport\SesV2Transport;
-use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
-use Hypervel\ObjectPool\Traits\HasPoolProxy;
+use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\Support\Arr;
 use Hypervel\Support\ConfigurationUrlParser;
 use Hypervel\Support\Str;
@@ -78,7 +78,7 @@ class MailManager implements FactoryContract
      */
     // These transports retain persistent connections, mutable clients, interactive
     // processes, or composite state that must not be shared by concurrent sends.
-    protected array $poolables = [
+    protected array $poolableDrivers = [
         'smtp', 'sendmail', 'mail', 'mailgun', 'ses-v2', 'postmark', 'resend', 'cloudflare', 'failover', 'roundrobin',
     ];
 
@@ -234,7 +234,7 @@ class MailManager implements FactoryContract
     protected function transportPoolConfig(string $transport, array $config, bool $poolByDefault): ?array
     {
         if (! array_key_exists('pool', $config)) {
-            return $poolByDefault && in_array($transport, $this->poolables, true) ? [] : null;
+            return $poolByDefault && in_array($transport, $this->poolableDrivers, true) ? [] : null;
         }
 
         $pool = $config['pool'];
@@ -251,7 +251,7 @@ class MailManager implements FactoryContract
             );
         }
 
-        if (! in_array($transport, $this->poolables, true)) {
+        if (! in_array($transport, $this->poolableDrivers, true)) {
             throw new InvalidArgumentException("Mail transport [{$transport}] is not registered as poolable.");
         }
 
@@ -750,7 +750,7 @@ class MailManager implements FactoryContract
                 $constructionConfig,
             );
 
-            $this->poolFactory()->remove($definition->identity);
+            $this->poolFactory()->purge($definition->identity);
         }
     }
 
@@ -766,7 +766,7 @@ class MailManager implements FactoryContract
     public function extend(string $driver, Closure $callback, bool $poolable = false): static
     {
         if ($poolable) {
-            $this->addPoolable($driver);
+            $this->addPoolableDriver($driver);
         }
 
         $this->customCreators[$driver] = $callback;

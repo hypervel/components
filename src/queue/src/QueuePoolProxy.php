@@ -7,10 +7,10 @@ namespace Hypervel\Queue;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Contracts\ObjectPool\Factory;
 use Hypervel\Contracts\Queue\IndexAwareQueue;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
-use Hypervel\ObjectPool\Contracts\Factory;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolErrorReporter;
 use Hypervel\ObjectPool\PoolProxy;
@@ -35,7 +35,7 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
      */
     public function __construct(
         PoolDefinition $definition,
-        Closure $resolver,
+        Closure $createCallback,
         Factory $pools,
         ?Closure $releaseCallback = null,
     ) {
@@ -43,7 +43,7 @@ class QueuePoolProxy extends PoolProxy implements QueueContract, IndexAwareQueue
 
         parent::__construct(
             $definition,
-            $resolver,
+            $createCallback,
             $pools,
             static function (Queue $queue) use ($releaseCallback): void {
                 $queue->setAfterCommitDispatcher(null);

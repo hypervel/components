@@ -85,12 +85,6 @@ class SessionStoreBackedEnumTest extends TestCase
         $this->assertSame('abc123', $session->get(SessionKey::Token));
     }
 
-    /**
-     * Test that put() normalizes enum keys in arrays.
-     * Note: PHP auto-converts BackedEnums to their values when used as array keys,
-     * so by the time the array reaches put(), keys are already strings.
-     * This test verifies the overall behavior works correctly.
-     */
     public function testPutWithMixedArrayKeysUsingEnumValues(): void
     {
         $session = $this->getSession();

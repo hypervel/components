@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent;
 
 use Closure;
+use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Contracts\Queue\QueueableCollection;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithDictionary;
@@ -123,7 +124,7 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @throws MissingAttributeException
      */
-    public function loadAggregate(array|string $relations, string $column, ?string $function = null): static
+    public function loadAggregate(array|string $relations, Expression|string $column, ?string $function = null): static
     {
         if ($this->isEmpty()) {
             return $this;
@@ -193,7 +194,7 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @param  array<array-key, array|(callable(\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>|string  $relations
      */
-    public function loadMax(array|string $relations, string $column): static
+    public function loadMax(array|string $relations, Expression|string $column): static
     {
         return $this->loadAggregate($relations, $column, 'max');
     }
@@ -203,7 +204,7 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @param  array<array-key, array|(callable(\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>|string  $relations
      */
-    public function loadMin(array|string $relations, string $column): static
+    public function loadMin(array|string $relations, Expression|string $column): static
     {
         return $this->loadAggregate($relations, $column, 'min');
     }
@@ -213,7 +214,7 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @param  array<array-key, array|(callable(\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>|string  $relations
      */
-    public function loadSum(array|string $relations, string $column): static
+    public function loadSum(array|string $relations, Expression|string $column): static
     {
         return $this->loadAggregate($relations, $column, 'sum');
     }
@@ -223,7 +224,7 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @param  array<array-key, array|(callable(\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>|string  $relations
      */
-    public function loadAvg(array|string $relations, string $column): static
+    public function loadAvg(array|string $relations, Expression|string $column): static
     {
         return $this->loadAggregate($relations, $column, 'avg');
     }
@@ -652,7 +653,7 @@ class Collection extends BaseCollection implements QueueableCollection
     public function mergeHidden(array|string $attributes): static
     {
         // @phpstan-ignore return.type (HigherOrderProxy returns $this, not TModel)
-        return $this->each->mergeHidden($attributes);
+        return $this->each->mergeHidden((array) $attributes);
     }
 
     /**
@@ -685,7 +686,7 @@ class Collection extends BaseCollection implements QueueableCollection
     public function mergeVisible(array|string $attributes): static
     {
         // @phpstan-ignore return.type (HigherOrderProxy returns $this, not TModel)
-        return $this->each->mergeVisible($attributes);
+        return $this->each->mergeVisible((array) $attributes);
     }
 
     /**
@@ -992,7 +993,7 @@ class Collection extends BaseCollection implements QueueableCollection
 
         $class = get_class($model);
 
-        if ($this->reject(fn ($model) => $model instanceof $class)->isNotEmpty()) {
+        if ($this->contains(fn ($model) => ! $model instanceof $class)) {
             throw new LogicException('Unable to create query for collection with mixed types.');
         }
 

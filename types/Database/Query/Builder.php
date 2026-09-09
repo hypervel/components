@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Types\Query\Builder;
 
+use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Query\Builder;
@@ -85,6 +86,30 @@ function test(Builder $query, EloquentBuilder $userQuery): void
     assertType('Hypervel\Database\Query\Builder', $query->pipe(fn () => null));
     assertType('Hypervel\Database\Query\Builder', $query->pipe(fn ($query) => $query));
     assertType('5', $query->pipe(fn ($query) => 5));
+}
+
+/**
+ * Verify contract-only expressions across connection and query forwarding.
+ */
+function testExpressionContracts(Builder $query, ConnectionInterface $connection, Expression $expression): void
+{
+    assertType('Hypervel\Contracts\Database\Query\Expression', $connection->raw(1));
+    assertType('Hypervel\Database\Query\Builder', $connection->table($expression));
+    assertType('Hypervel\Database\Query\Builder', $query->fromRaw($expression));
+    assertType('mixed', $query->value($expression));
+    assertType('mixed', $query->soleValue($expression));
+    assertType('list<string>', $query->select([$expression])->getColumns());
+
+    $query->whereColumn('id', $expression)->orWhereColumn('id', '=', $expression);
+    $query->join('users', $expression, $expression)
+        ->leftJoin('users', $expression, $expression)
+        ->rightJoin('users', $expression, $expression)
+        ->crossJoin('users', $expression, $expression)
+        ->straightJoin('users', $expression, $expression);
+    $query->joinSub($query->newQuery(), 'source', $expression, $expression)
+        ->leftJoinSub($query->newQuery(), 'source', $expression, $expression)
+        ->rightJoinSub($query->newQuery(), 'source', $expression, $expression)
+        ->straightJoinSub($query->newQuery(), 'source', $expression, $expression);
 }
 
 /** @param \Hypervel\Database\Eloquent\Builder<User> $userQuery */

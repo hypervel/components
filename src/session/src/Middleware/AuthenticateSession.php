@@ -7,6 +7,7 @@ namespace Hypervel\Session\Middleware;
 use Closure;
 use Hypervel\Auth\AuthenticationException;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
+use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Session\Middleware\AuthenticatesSessions;
 use Hypervel\Http\Request;
 
@@ -83,8 +84,9 @@ class AuthenticateSession implements AuthenticatesSessions
     /**
      * Validate the password hash against the stored value.
      *
-     * Only HMAC artifacts are valid; Hypervel has no released raw-hash
-     * session artifacts to accept.
+     * Only HMAC artifacts are valid. Custom guards must provide
+     * hashPasswordForCookie(); the raw-hash and missing-method fallbacks
+     * are intentionally omitted.
      */
     protected function validatePasswordHash(string $passwordHash, mixed $storedValue): bool
     {
@@ -113,7 +115,7 @@ class AuthenticateSession implements AuthenticatesSessions
     /**
      * Get the guard instance that should be used by the middleware.
      */
-    protected function guard(): AuthFactory
+    protected function guard(): AuthFactory|Guard
     {
         return $this->auth;
     }
