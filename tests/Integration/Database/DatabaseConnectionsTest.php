@@ -10,6 +10,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseConnectionsTest extends DatabaseTestCase
 {
@@ -183,9 +184,10 @@ class DatabaseConnectionsTest extends DatabaseTestCase
         }
     }
 
-    public function testQueryInEventListenerCannotInterfereWithReadWriteType(): void
+    #[DataProvider('readWriteExpectations')]
+    public function testQueryInEventListenerCannotInterfereWithReadWriteType(string $connectionName, array $expectedTypes, ?string $loggedType): void
     {
-        $connection = DB::connection('sqlite_readwrite');
+        $connection = DB::connection($connectionName);
 
         $events = collect();
         $connection->listen($events->push(...));
@@ -198,32 +200,42 @@ class DatabaseConnectionsTest extends DatabaseTestCase
         });
 
         $connection->statement('select 1');
-        $this->assertSame('write', $events->shift()->readWriteType);
-        $this->assertSame('read', $events->shift()->readWriteType);
+        $this->assertSame(array_shift($expectedTypes), $events->shift()->readWriteType);
+        $this->assertSame($loggedType ?? 'read', $events->shift()->readWriteType);
 
         $connection->select('select 1');
-        $this->assertSame('read', $events->shift()->readWriteType);
-        $this->assertSame('read', $events->shift()->readWriteType);
+        $this->assertSame(array_shift($expectedTypes), $events->shift()->readWriteType);
+        $this->assertSame($loggedType ?? 'read', $events->shift()->readWriteType);
 
         $connection->statement('select 1');
-        $this->assertSame('write', $events->shift()->readWriteType);
-        $this->assertSame('read', $events->shift()->readWriteType);
+        $this->assertSame(array_shift($expectedTypes), $events->shift()->readWriteType);
+        $this->assertSame($loggedType ?? 'read', $events->shift()->readWriteType);
 
         $connection->select('select 1');
-        $this->assertSame('read', $events->shift()->readWriteType);
-        $this->assertSame('read', $events->shift()->readWriteType);
+        $this->assertSame(array_shift($expectedTypes), $events->shift()->readWriteType);
+        $this->assertSame($loggedType ?? 'read', $events->shift()->readWriteType);
 
         $this->assertSame([
-            ['query' => 'select 2', 'readWriteType' => 'read'],
-            ['query' => 'select 1', 'readWriteType' => 'write'],
-            ['query' => 'select 2', 'readWriteType' => 'read'],
-            ['query' => 'select 1', 'readWriteType' => 'read'],
-            ['query' => 'select 2', 'readWriteType' => 'read'],
-            ['query' => 'select 1', 'readWriteType' => 'write'],
-            ['query' => 'select 2', 'readWriteType' => 'read'],
-            ['query' => 'select 1', 'readWriteType' => 'read'],
+            ['query' => 'select 2', 'readWriteType' => $loggedType ?? 'read'],
+            ['query' => 'select 1', 'readWriteType' => $loggedType ?? 'write'],
+            ['query' => 'select 2', 'readWriteType' => $loggedType ?? 'read'],
+            ['query' => 'select 1', 'readWriteType' => $loggedType ?? 'read'],
+            ['query' => 'select 2', 'readWriteType' => $loggedType ?? 'read'],
+            ['query' => 'select 1', 'readWriteType' => $loggedType ?? 'write'],
+            ['query' => 'select 2', 'readWriteType' => $loggedType ?? 'read'],
+            ['query' => 'select 1', 'readWriteType' => $loggedType ?? 'read'],
         ], Arr::select($connection->getQueryLog(), [
             'query', 'readWriteType',
         ]));
+    }
+
+    /**
+     * Provide the expected query roles for split connections.
+     */
+    public static function readWriteExpectations(): iterable
+    {
+        yield 'sqlite' => ['sqlite_readwrite', ['write', 'read', 'write', 'read'], null];
+        yield 'sqlite::read' => ['sqlite_readwrite::read', ['read', 'read', 'read', 'read'], 'read'];
+        yield 'sqlite::write' => ['sqlite_readwrite::write', ['write', 'write', 'write', 'write'], 'write'];
     }
 }

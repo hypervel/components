@@ -2,6 +2,7 @@
 
 - [Introduction](#introduction)
     - [Configuration](#configuration)
+        - [Masking Bindings in Exception Messages](#masking-bindings-in-exception-messages)
         - [Lock Timeouts](#lock-timeouts)
     - [Read and Write Connections](#read-and-write-connections)
     - [Connection Pooling](#connection-pooling)
@@ -53,6 +54,19 @@ By default, foreign key constraints are enabled for SQLite connections. If you w
 ```ini
 DB_FOREIGN_KEYS=false
 ```
+
+<a name="masking-bindings-in-exception-messages"></a>
+#### Masking Bindings in Exception Messages
+
+By default, database exceptions include bound values in the SQL shown in their messages. To leave placeholders in that SQL instead, set the `DB_MASK_BINDINGS` environment variable:
+
+```ini
+DB_MASK_BINDINGS=true
+```
+
+For custom connections, set `mask_bindings_in_exception_messages` to `true` in the connection's configuration. Omitting this option or setting it to `null` disables masking.
+
+This option does not change the database's original error message, query logs, or query events. The exception's binding accessors remain available, and `getRawSql()` still returns SQL with the bindings included.
 
 <a name="lock-timeouts"></a>
 #### Lock Timeouts

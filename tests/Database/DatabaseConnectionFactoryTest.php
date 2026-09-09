@@ -59,7 +59,7 @@ class DatabaseConnectionFactoryTest extends TestCase
         $this->assertInstanceOf(PDO::class, $this->db->getConnection('url')->getReadPdo());
     }
 
-    public function testConnectionFromUrlHasProperConfig()
+    public function testConnectionFromUrlHasProperConfig(): void
     {
         $this->db->addConnection([
             'url' => 'mysql://root:pass@db/local?strict=true',
@@ -86,6 +86,7 @@ class DatabaseConnectionFactoryTest extends TestCase
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => null,
+            'mask_bindings_in_exception_messages' => false,
         ], $this->db->getConnection('url-config')->getConfig());
     }
 

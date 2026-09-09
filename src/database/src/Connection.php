@@ -215,6 +215,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         $this->configuredTablePrefix = $tablePrefix;
 
         $this->config = $config;
+        $this->config['mask_bindings_in_exception_messages'] = (bool) ($config['mask_bindings_in_exception_messages'] ?? false);
 
         $this->readWriteType = $config[self::READ_WRITE_TYPE_CONFIG_KEY] ?? null;
 
@@ -616,8 +617,8 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         }
 
         // If an exception occurs when attempting to run a query, we'll format the error
-        // message to include the bindings with SQL, which will make this exception a
-        // lot more helpful to the developer instead of just the database's errors.
+        // message to include the SQL and, unless masked, its bindings. This provides
+        // more context for the developer than just the database's original error.
         catch (CanceledException $exception) {
             throw $exception;
         } catch (Exception $e) {
@@ -634,6 +635,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
                 $e,
                 $this->getConnectionDetails(),
                 $this->latestReadWriteTypeUsed(),
+                $this->getConfig('mask_bindings_in_exception_messages'),
             );
 
             if ($isUniqueConstraintError && $queryException instanceof UniqueConstraintViolationException) {
