@@ -998,6 +998,16 @@ The first argument passed to the `make` method is the data under validation. The
 
 After determining whether the request validation failed, you may use the `withErrors` method to flash the error messages to the session. When using this method, the `$errors` variable will automatically be shared with your views after redirection, allowing you to easily display them back to the user. The `withErrors` method accepts a validator, a `MessageBag`, or a PHP `array`.
 
+#### Appending Rules
+
+Before running validation, you may use the `appendRules` method to add rules to an existing validator. The new rules are added to any rules already defined for each field:
+
+```php
+$validator->appendRules([
+    'title' => 'min:5',
+]);
+```
+
 #### Stopping on First Validation Failure
 
 The `stopOnFirstFailure` method will inform the validator that it should stop validating all attributes once a single validation failure has occurred:

@@ -52,6 +52,8 @@ trait CollectsResources
      * Get the resource that this resource collects.
      *
      * @return null|class-string<\Hypervel\Http\Resources\Json\JsonResource>
+     *
+     * @throws LogicException
      */
     protected function collects(): ?string
     {

@@ -59,6 +59,9 @@ class ResourceTest extends TestCase
     public function testResourceMayBeConvertedToArray(): void
     {
         $resource = new class((new User)->forceFill(['id' => 1, 'name' => 'Taylor Otwell'])) extends JsonResource {
+            /**
+             * Transform the resource into an array.
+             */
             public function toArray(Request $request): array
             {
                 return [
@@ -80,7 +83,7 @@ class ResourceTest extends TestCase
             }
         };
 
-        $request = Request::create('GET', '/users');
+        $request = Request::create('/users', 'GET');
 
         tap($resource->toArray($request), function ($userAsArray) use ($request) {
             $this->assertSame(1, $userAsArray['id']);

@@ -16,11 +16,14 @@ class ResourceCollectionTest extends TestCase
     #[DataProvider('toArrayDataProvider')]
     public function testItCanReturnToArray(ResourceCollection $collection, mixed $expected): void
     {
-        $request = Request::create('GET', '/');
+        $request = Request::create('/', 'GET');
 
         $this->assertSame($expected, $collection->toArray($request));
     }
 
+    /**
+     * Provide resource collections and their expected arrays.
+     */
     public static function toArrayDataProvider(): iterable
     {
         yield [
@@ -49,6 +52,9 @@ class ResourceCollectionTest extends TestCase
 
         yield [
             new class(['list' => new Fluent(['id' => 1]), 'total' => 1]) extends ResourceCollection {
+                /**
+                 * Transform the resource into a JSON array.
+                 */
                 public function toArray(Request $request): array
                 {
                     return $this->resource->toArray();
