@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\ObjectPool;
 
 use Closure;
-use Hypervel\ObjectPool\Contracts\Factory;
-use Hypervel\ObjectPool\Contracts\InvalidatesPool;
-use Hypervel\ObjectPool\Contracts\ObjectPool;
+use Hypervel\Contracts\ObjectPool\Factory;
+use Hypervel\Contracts\ObjectPool\InvalidatesPool;
+use Hypervel\Contracts\ObjectPool\ObjectPool;
 use Throwable;
 
 class PoolProxy implements InvalidatesPool
@@ -17,7 +17,7 @@ class PoolProxy implements InvalidatesPool
      */
     public function __construct(
         protected PoolDefinition $definition,
-        protected Closure $resolver,
+        protected Closure $createCallback,
         protected Factory $pools,
         protected ?Closure $releaseCallback = null,
     ) {
@@ -28,7 +28,7 @@ class PoolProxy implements InvalidatesPool
      */
     protected function pool(): ObjectPool
     {
-        return $this->pools->getOrCreate($this->definition, $this->resolver);
+        return $this->pools->getOrCreate($this->definition, $this->createCallback);
     }
 
     /**
@@ -37,7 +37,7 @@ class PoolProxy implements InvalidatesPool
     protected function lease(): Lease
     {
         $pool = $this->pool();
-        $object = $pool->get();
+        $object = $pool->borrow();
         $lease = new Lease($pool, $object, $this->releaseCallback);
 
         try {
@@ -83,7 +83,7 @@ class PoolProxy implements InvalidatesPool
     }
 
     /**
-     * Get this proxy's pool identity.
+     * Return the pool's fully qualified registry name.
      */
     public function getPoolName(): string
     {
@@ -95,6 +95,6 @@ class PoolProxy implements InvalidatesPool
      */
     public function invalidatePool(): bool
     {
-        return $this->pools->remove($this->definition->identity);
+        return $this->pools->purge($this->definition->identity);
     }
 }

@@ -40,7 +40,7 @@ abstract class DatabaseStoreTestCase extends DatabaseTestCase
 
         $config->set("database.connections.{$connection}.pool.testing_enabled", true);
         $config->set("database.connections.{$connection}.pool.max_connections", 10);
-        $config->set("database.connections.{$connection}.pool.heartbeat", -1);
+        $config->set("database.connections.{$connection}.pool.heartbeat_interval", null);
     }
 
     public function testFixedWindowOperationsUseNumericDatabaseState(): void

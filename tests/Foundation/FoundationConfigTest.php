@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation;
 
 use Hypervel\Config\Repository;
+use Hypervel\ConnectionPool\PoolOptions;
 use Hypervel\Container\Container;
 use Hypervel\Foundation\Application;
-use Hypervel\Pool\PoolOption;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -160,12 +160,13 @@ class FoundationConfigTest extends TestCase
             'events',
         ];
         $visiblePoolMembers = [
-            'min_connections',
+            'min_retained_connections',
             'max_connections',
             'connect_timeout',
             'wait_timeout',
-            'heartbeat',
+            'heartbeat_interval',
             'heartbeat_timeout',
+            'idle_check_interval',
             'max_idle_time',
             'max_lifetime',
         ];
@@ -199,9 +200,9 @@ class FoundationConfigTest extends TestCase
             'REDIS_BACKOFF_ALGORITHM' => null,
             'REDIS_BACKOFF_BASE' => null,
             'REDIS_BACKOFF_CAP' => null,
-            'REDIS_MIN_CONNECTIONS' => null,
+            'REDIS_MIN_RETAINED_CONNECTIONS' => null,
             'REDIS_MAX_CONNECTIONS' => null,
-            'REDIS_HEARTBEAT' => null,
+            'REDIS_HEARTBEAT_INTERVAL' => null,
             'REDIS_HEARTBEAT_TIMEOUT' => null,
             'REDIS_MAX_IDLE_TIME' => null,
             'REDIS_MAX_LIFETIME' => null,
@@ -225,17 +226,102 @@ class FoundationConfigTest extends TestCase
             $this->assertSame($shippedConnection[$option], $effectiveConnection[$option]);
         }
 
-        $pool = new PoolOption;
+        $pool = PoolOptions::fromArray([]);
         $shippedPool = $shippedConnection['pool'];
 
-        $this->assertSame($shippedPool['min_connections'], $pool->getMinConnections());
-        $this->assertSame($shippedPool['max_connections'], $pool->getMaxConnections());
-        $this->assertSame($shippedPool['connect_timeout'], $pool->getConnectTimeout());
-        $this->assertSame($shippedPool['wait_timeout'], $pool->getWaitTimeout());
-        $this->assertSame($shippedPool['heartbeat'], $pool->getHeartbeat());
-        $this->assertSame($shippedPool['heartbeat_timeout'], $pool->getHeartbeatTimeout());
-        $this->assertSame($shippedPool['max_idle_time'], $pool->getMaxIdleTime());
-        $this->assertSame($shippedPool['max_lifetime'], $pool->getMaxLifetime());
+        $this->assertSame($shippedPool['min_retained_connections'], $pool->minRetainedConnections);
+        $this->assertSame($shippedPool['max_connections'], $pool->maxConnections);
+        $this->assertSame($shippedPool['connect_timeout'], $pool->connectTimeout);
+        $this->assertSame($shippedPool['wait_timeout'], $pool->waitTimeout);
+        $this->assertSame($shippedPool['heartbeat_interval'], $pool->heartbeatInterval);
+        $this->assertSame($shippedPool['heartbeat_timeout'], $pool->heartbeatTimeout);
+        $this->assertSame($shippedPool['idle_check_interval'], $pool->idleCheckInterval);
+        $this->assertSame($shippedPool['max_idle_time'], $pool->maxIdleTime);
+        $this->assertSame($shippedPool['max_lifetime'], $pool->maxLifetime);
+    }
+
+    #[DataProvider('nullablePoolDurations')]
+    public function testDatabasePoolDurationsPreserveNullAndNormalizeNumbers(?string $value, ?float $expected): void
+    {
+        $environment = [];
+
+        foreach (['DB', 'DB_POOLED'] as $prefix) {
+            foreach (['HEARTBEAT_INTERVAL', 'MAX_IDLE_TIME', 'MAX_LIFETIME'] as $option) {
+                $environment["{$prefix}_{$option}"] = $value;
+            }
+        }
+
+        $config = $this->withEnvironmentValues($environment, function (): array {
+            return require dirname(__DIR__, 2) . '/src/foundation/config/database.php';
+        });
+
+        foreach (['mysql', 'mariadb', 'pgsql', 'pgsql-pooled'] as $name) {
+            $options = PoolOptions::fromArray($config['connections'][$name]['pool']);
+
+            $this->assertSame($expected, $options->heartbeatInterval);
+            $this->assertSame($value === null ? 60.0 : $expected, $options->maxIdleTime);
+            $this->assertSame($expected, $options->maxLifetime);
+            $this->assertNull($options->idleCheckInterval);
+        }
+    }
+
+    /**
+     * Supply omitted, disabled and enabled environment durations.
+     */
+    public static function nullablePoolDurations(): array
+    {
+        return [
+            'omitted' => [null, null],
+            'null' => ['null', null],
+            'parenthesized null' => ['(null)', null],
+            'positive' => ['12.5', 12.5],
+        ];
+    }
+
+    #[DataProvider('inheritedPoolDurations')]
+    public function testRedisPoolDurationsPreserveInheritanceAndExplicitNull(
+        ?string $inherited,
+        ?string $override,
+        ?float $expected,
+    ): void {
+        $environment = [];
+
+        foreach (['HEARTBEAT_INTERVAL', 'MAX_IDLE_TIME', 'MAX_LIFETIME'] as $option) {
+            $environment["REDIS_{$option}"] = $inherited;
+
+            foreach (['CACHE', 'SESSION', 'QUEUE', 'REVERB'] as $prefix) {
+                $environment["REDIS_{$prefix}_{$option}"] = $override;
+            }
+        }
+
+        $config = $this->withEnvironmentValues($environment, function (): array {
+            return require dirname(__DIR__, 2) . '/src/foundation/config/database.php';
+        });
+
+        foreach (['cache', 'session', 'queue', 'reverb'] as $name) {
+            $options = PoolOptions::fromArray($config['redis'][$name]['pool']);
+
+            $this->assertSame($expected, $options->heartbeatInterval);
+            $this->assertSame($inherited === null && $override === null ? 60.0 : $expected, $options->maxIdleTime);
+            $this->assertSame($expected, $options->maxLifetime);
+            $this->assertNull($options->idleCheckInterval);
+        }
+    }
+
+    /**
+     * Supply inherited durations and connection-specific overrides.
+     */
+    public static function inheritedPoolDurations(): array
+    {
+        return [
+            'omitted' => [null, null, null],
+            'inherited positive' => ['12.5', null, 12.5],
+            'explicit null' => ['12.5', 'null', null],
+            'explicit parenthesized null' => ['12.5', '(null)', null],
+            'inherited null' => ['null', null, null],
+            'positive override' => ['12.5', '25.5', 25.5],
+            'positive override of null' => ['(null)', '25.5', 25.5],
+        ];
     }
 
     public function testShippedFilesystemDisksDeclareVisibilityAndFailurePolicy(): void

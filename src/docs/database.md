@@ -149,14 +149,15 @@ To see how read / write connections should be configured, let's look at this exa
         \Pdo\Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
     ]) : [],
     'pool' => [
-        'min_connections' => (int) env('DB_MIN_CONNECTIONS', 1),
+        'min_retained_connections' => (int) env('DB_MIN_RETAINED_CONNECTIONS', 1),
         'max_connections' => (int) env('DB_MAX_CONNECTIONS', 10),
         'connect_timeout' => 10.0,
         'wait_timeout' => 3.0,
-        'heartbeat' => (float) env('DB_HEARTBEAT', -1),
+        'heartbeat_interval' => ($duration = env('DB_HEARTBEAT_INTERVAL')) === null ? null : (float) $duration,
         'heartbeat_timeout' => (float) env('DB_HEARTBEAT_TIMEOUT', 1.0),
-        'max_idle_time' => (float) env('DB_MAX_IDLE_TIME', 60),
-        'max_lifetime' => (float) env('DB_MAX_LIFETIME', -1),
+        'idle_check_interval' => null,
+        'max_idle_time' => ($duration = env('DB_MAX_IDLE_TIME', 60)) === null ? null : (float) $duration,
+        'max_lifetime' => ($duration = env('DB_MAX_LIFETIME')) === null ? null : (float) $duration,
     ],
 ],
 ```
@@ -193,25 +194,30 @@ Each connection may define its own `pool` configuration:
     // ...
 
     'pool' => [
-        'min_connections' => (int) env('DB_MIN_CONNECTIONS', 1),
+        'min_retained_connections' => (int) env('DB_MIN_RETAINED_CONNECTIONS', 1),
         'max_connections' => (int) env('DB_MAX_CONNECTIONS', 10),
         'connect_timeout' => 10.0,
         'wait_timeout' => 3.0,
-        'heartbeat' => (float) env('DB_HEARTBEAT', -1),
+        'heartbeat_interval' => ($duration = env('DB_HEARTBEAT_INTERVAL')) === null ? null : (float) $duration,
         'heartbeat_timeout' => (float) env('DB_HEARTBEAT_TIMEOUT', 1.0),
-        'max_idle_time' => (float) env('DB_MAX_IDLE_TIME', 60),
-        'max_lifetime' => (float) env('DB_MAX_LIFETIME', -1),
+        'idle_check_interval' => null,
+        'max_idle_time' => ($duration = env('DB_MAX_IDLE_TIME', 60)) === null ? null : (float) $duration,
+        'max_lifetime' => ($duration = env('DB_MAX_LIFETIME')) === null ? null : (float) $duration,
     ],
 ],
 ```
 
-The `min_connections` option controls how far Hypervel may trim excess idle connections. It does not prewarm or automatically replenish the pool, and the pool may have no idle connections while it is under load. The coroutine that first needs each new connection therefore pays the cost of opening it. Expired, unhealthy, or discarded connections may reduce the managed connection count below this value. A failed connection attempt may do the same.
+The `min_retained_connections` option controls how many connections Hypervel keeps when trimming excess idle connections. Connections are opened only when needed, so the first operation that uses a new connection waits for it to open. This setting does not create connections in advance or replace connections that fail, expire, or are discarded. The pool may have no idle connections while they are all in use.
 
 The `max_connections` option determines the maximum number of connections that may be opened for the worker. The `connect_timeout` option controls how long Hypervel will wait while opening a new database connection, while `wait_timeout` controls how long a coroutine may wait for an available connection when the pool is exhausted.
 
-The `heartbeat` option controls how often Hypervel validates idle connections in the worker pool. Set this value to `-1` to disable heartbeats. When heartbeats are enabled, Hypervel asks the database driver to check each retained idle connection without firing query events, query logs, or query duration handlers. Hypervel's PDO drivers use a raw `SELECT 1` query, while native and HTTP drivers may use their own protocol. The `heartbeat_timeout` option controls how long a heartbeat check may run before the connection is discarded.
+You may enable background health checks by setting `heartbeat_interval` to a positive number of seconds. By default, it is null and heartbeats are disabled. These checks do not fire query events, write to query logs, or invoke query duration handlers. PDO drivers use a raw `SELECT 1` query, while other drivers use their own health checks. The `heartbeat_timeout` option limits how long a check may run before the connection is discarded.
 
-The `max_idle_time` option controls how long an idle connection may remain in the pool while the managed connection count is above `min_connections`. The `max_lifetime` option controls how long a pooled connection may live. Hypervel recycles an expired connection only while it is idle or before it is reused. To avoid synchronized reconnects, Hypervel varies each connection's effective lifetime between 90 and 100 percent of this value. Set `max_lifetime` to `-1` to disable lifetime recycling.
+The `max_idle_time` option controls how long a connection may remain unused before it expires. Background heartbeats remove idle connections above `min_retained_connections`; a connection that has expired is also refreshed before its next use. Set `max_idle_time` to null to disable idle expiry.
+
+You may use `max_lifetime` to replace connections periodically, even when they are used regularly. Hypervel replaces an expired connection only while it is idle or before it is reused. To avoid reconnecting every connection at once, each connection receives a lifetime between 90 and 100 percent of the configured value. By default, `max_lifetime` is null and lifetime expiry is disabled.
+
+For the full option reference and custom maintenance behavior, see the [pool documentation](/docs/{{version}}/pools#connection-pool-options).
 
 For a connection with separate read and write hosts, each base pool slot may lazily open one write PDO and one read PDO. It does not open one PDO per configured host. If `max_connections` is `10`, a worker may therefore hold up to roughly 20 server-side database connections for that configured connection once both sides have been used. Size your database server, PgBouncer, PgDog, or other pooler capacity with that in mind. Increase `max_connections` for more concurrent database work per worker, not simply because you configured more read hosts.
 

@@ -4,17 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis\RedisPoolHeartbeatTest;
 
+use Hypervel\ConnectionPool\Connection as BaseConnection;
+use Hypervel\ConnectionPool\PoolOptions;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\ConnectionPool\Connection;
+use Hypervel\Contracts\ConnectionPool\ConnectionPool;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
-use Hypervel\Contracts\Pool\ConnectionInterface;
-use Hypervel\Contracts\Pool\PoolInterface;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
+use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
-use Hypervel\Pool\Connection as BaseConnection;
-use Hypervel\Pool\PoolOption;
-use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisConnection;
@@ -23,6 +25,7 @@ use Hypervel\Redis\RedisSentinelFactory;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Redis;
 use RedisCluster;
 use ReflectionProperty;
@@ -54,8 +57,9 @@ class RedisPoolHeartbeatTest extends TestCase
     {
         run(function () {
             $pool = $this->createPool([
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
             ]);
+            $pool->start();
 
             $this->assertSame(0, $pool->heartbeatTimerCount());
         });
@@ -65,14 +69,87 @@ class RedisPoolHeartbeatTest extends TestCase
     {
         run(function () {
             $pool = $this->createPool([
-                'heartbeat' => 0.001,
+                'heartbeat_interval' => 60.0,
             ]);
 
-            $this->assertSame(1, $pool->heartbeatTimerCount());
+            try {
+                $this->assertSame(0, $pool->heartbeatTimerCount());
+                $pool->start();
+                $pool->start();
+                $this->assertSame(1, $pool->heartbeatTimerCount());
+            } finally {
+                $pool->close();
+            }
 
-            $pool->close();
+            $pool->start();
 
             $this->assertSame(0, $pool->heartbeatTimerCount());
+        });
+    }
+
+    public function testHeartbeatStartupCanBeRetriedAfterTimerCreationFails(): void
+    {
+        run(function (): void {
+            $pool = $this->createPool(['heartbeat_interval' => 60.0]);
+            $property = new ReflectionProperty(RedisPool::class, 'heartbeatTimer');
+            $timer = $property->getValue($pool);
+            $failure = new RuntimeException('Timer creation failed.');
+            $failingTimer = m::mock(Timer::class);
+            $failingTimer->shouldReceive('tick')->once()->andThrow($failure);
+            $property->setValue($pool, $failingTimer);
+            $caught = null;
+
+            try {
+                $pool->start();
+            } catch (Throwable $exception) {
+                $caught = $exception;
+            } finally {
+                $property->setValue($pool, $timer);
+            }
+
+            $this->assertSame($failure, $caught);
+
+            try {
+                $pool->start();
+                $this->assertSame(1, $pool->heartbeatTimerCount());
+            } finally {
+                $pool->close();
+            }
+        });
+    }
+
+    public function testReentrantHeartbeatStartupCreatesOnlyOneTimer(): void
+    {
+        run(function (): void {
+            $pool = $this->createPool(['heartbeat_interval' => 60.0]);
+            FrameworkCoroutine::afterCreated(static fn () => $pool->start());
+
+            try {
+                $pool->start();
+                $this->assertSame(1, $pool->heartbeatTimerCount());
+            } finally {
+                $pool->close();
+            }
+        });
+    }
+
+    public function testCloseDuringHeartbeatStartupClearsTheUnpublishedTimer(): void
+    {
+        run(function (): void {
+            $pool = $this->createPool(['heartbeat_interval' => 60.0]);
+            $timers = Timer::stats()['num'];
+            FrameworkCoroutine::afterCreated(static fn () => $pool->close());
+
+            try {
+                $pool->start();
+                $pool->start();
+
+                $this->assertTrue($pool->isClosed());
+                $this->assertSame(0, $pool->heartbeatTimerCount());
+                $this->assertSame($timers, Timer::stats()['num']);
+            } finally {
+                $pool->close();
+            }
         });
     }
 
@@ -80,16 +157,16 @@ class RedisPoolHeartbeatTest extends TestCase
     {
         run(function () {
             $pool = $this->createPool([
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 3,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
                 'max_idle_time' => 1.0,
             ]);
 
             $connections = [
-                $pool->get(),
-                $pool->get(),
-                $pool->get(),
+                $pool->borrow(),
+                $pool->borrow(),
+                $pool->borrow(),
             ];
 
             foreach ($connections as $connection) {
@@ -99,8 +176,8 @@ class RedisPoolHeartbeatTest extends TestCase
 
             $pool->runHeartbeatForTest();
 
-            $this->assertSame(1, $pool->getCurrentConnections());
-            $this->assertSame(1, $pool->getConnectionsInChannel());
+            $this->assertSame(1, $pool->getManagedCount());
+            $this->assertSame(1, $pool->getIdleCount());
         });
     }
 
@@ -108,13 +185,13 @@ class RedisPoolHeartbeatTest extends TestCase
     {
         run(function () {
             $pool = $this->createPool([
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 1,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
                 'max_lifetime' => 1.0,
             ]);
 
-            $connection = $pool->get();
+            $connection = $pool->borrow();
             $this->assertInstanceOf(HeartbeatRedisConnection::class, $connection);
 
             $connection->release();
@@ -123,8 +200,8 @@ class RedisPoolHeartbeatTest extends TestCase
             $pool->runHeartbeatForTest();
 
             $this->assertSame(0, $connection->heartbeatChecks);
-            $this->assertSame(0, $pool->getCurrentConnections());
-            $this->assertSame(0, $pool->getConnectionsInChannel());
+            $this->assertSame(0, $pool->getManagedCount());
+            $this->assertSame(0, $pool->getIdleCount());
         });
     }
 
@@ -132,13 +209,13 @@ class RedisPoolHeartbeatTest extends TestCase
     {
         run(function () {
             $pool = $this->createPool([
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 1,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
                 'max_lifetime' => 1.0,
             ]);
 
-            $connection = $pool->get();
+            $connection = $pool->borrow();
             $this->assertInstanceOf(HeartbeatRedisConnection::class, $connection);
 
             $client = $connection->nativeClientForTest();
@@ -149,10 +226,39 @@ class RedisPoolHeartbeatTest extends TestCase
             $connection->getConnection();
 
             $this->assertSame($client, $connection->nativeClientForTest());
-            $this->assertSame(1, $pool->getCurrentConnections());
-            $this->assertSame(0, $pool->getConnectionsInChannel());
+            $this->assertSame(1, $pool->getManagedCount());
+            $this->assertSame(0, $pool->getIdleCount());
 
             $connection->release();
+        });
+    }
+
+    public function testNullIdleTimeoutKeepsAnAgedReleasedConnection(): void
+    {
+        run(function (): void {
+            $pool = $this->createPool(['max_idle_time' => null]);
+            $connection = $pool->borrow();
+            $this->assertInstanceOf(HeartbeatRedisConnection::class, $connection);
+            $client = $connection->nativeClientForTest();
+            $connection->release();
+
+            (new ReflectionProperty(BaseConnection::class, 'lastReleaseTime'))->setValue($connection, 1.0);
+            (new ReflectionProperty(BaseConnection::class, 'lastUseTime'))->setValue($connection, 1.0);
+
+            $this->assertFalse($connection->isIdleExpired());
+            $this->assertTrue($connection->check());
+            $pool->runHeartbeatForTest();
+
+            $nextConnection = $pool->borrow();
+
+            try {
+                $nextConnection->getConnection();
+                $this->assertSame($connection, $nextConnection);
+                $this->assertSame($client, $connection->nativeClientForTest());
+                $this->assertSame(1, $connection->reconnectCount);
+            } finally {
+                $nextConnection->release();
+            }
         });
     }
 
@@ -160,20 +266,20 @@ class RedisPoolHeartbeatTest extends TestCase
     {
         run(function () {
             $pool = $this->createPool([
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 1,
-                'heartbeat' => -1,
-                'max_lifetime' => -1.0,
+                'heartbeat_interval' => null,
+                'max_lifetime' => null,
             ]);
 
-            $connection = $pool->get();
+            $connection = $pool->borrow();
             $this->assertInstanceOf(HeartbeatRedisConnection::class, $connection);
             $client = $connection->nativeClientForTest();
 
             $connection->release();
             $this->ageConnectionGeneration($connection);
 
-            $nextConnection = $pool->get();
+            $nextConnection = $pool->borrow();
             $nextConnection->getConnection();
 
             $this->assertSame($connection, $nextConnection);
@@ -188,20 +294,20 @@ class RedisPoolHeartbeatTest extends TestCase
     {
         run(function () {
             $pool = $this->createPool([
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 1,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
                 'max_idle_time' => 1.0,
             ]);
 
-            $connection = $pool->get();
+            $connection = $pool->borrow();
             $this->assertInstanceOf(HeartbeatRedisConnection::class, $connection);
             $client = $connection->nativeClientForTest();
 
             $connection->release();
             $this->ageReleaseTimeButKeepLastUseFresh($connection);
 
-            $nextConnection = $pool->get();
+            $nextConnection = $pool->borrow();
             $nextConnection->getConnection();
 
             $this->assertSame($connection, $nextConnection);
@@ -216,20 +322,20 @@ class RedisPoolHeartbeatTest extends TestCase
     {
         run(function () {
             $pool = $this->createPool([
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 1,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
                 'max_lifetime' => 1.0,
             ]);
 
-            $connection = $pool->get();
+            $connection = $pool->borrow();
             $this->assertInstanceOf(HeartbeatRedisConnection::class, $connection);
             $client = $connection->nativeClientForTest();
 
             $connection->release();
             $this->ageConnectionGeneration($connection);
 
-            $nextConnection = $pool->get();
+            $nextConnection = $pool->borrow();
             $nextConnection->getConnection();
 
             $this->assertSame($connection, $nextConnection);
@@ -244,14 +350,14 @@ class RedisPoolHeartbeatTest extends TestCase
     {
         run(function () {
             $pool = $this->createPool([
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 1,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
                 'max_lifetime' => 60.0,
             ]);
 
             $before = hrtime(true) / 1e9;
-            $connection = $pool->get();
+            $connection = $pool->borrow();
             $after = hrtime(true) / 1e9;
             $this->assertInstanceOf(HeartbeatRedisConnection::class, $connection);
 
@@ -262,7 +368,7 @@ class RedisPoolHeartbeatTest extends TestCase
             $this->assertGreaterThanOrEqual($before, $createdAt);
             $this->assertLessThanOrEqual($after, $createdAt);
             $this->assertGreaterThanOrEqual(
-                $createdAt + (60.0 * PoolOption::MIN_LIFETIME_JITTER_BASIS / PoolOption::LIFETIME_JITTER_SCALE),
+                $createdAt + (60.0 * PoolOptions::MIN_LIFETIME_JITTER_BASIS / PoolOptions::LIFETIME_JITTER_SCALE),
                 $lifetimeExpiresAt
             );
             $this->assertLessThanOrEqual($createdAt + 60.0, $lifetimeExpiresAt);
@@ -277,18 +383,18 @@ class RedisPoolHeartbeatTest extends TestCase
     {
         run(function () {
             $pool = $this->createPool([
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 1,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
             ], FailingHeartbeatRedisPool::class);
 
-            $connection = $pool->get();
+            $connection = $pool->borrow();
             $connection->release();
 
             $pool->runHeartbeatForTest();
 
-            $this->assertSame(0, $pool->getCurrentConnections());
-            $this->assertSame(0, $pool->getConnectionsInChannel());
+            $this->assertSame(0, $pool->getManagedCount());
+            $this->assertSame(0, $pool->getIdleCount());
         });
     }
 
@@ -298,13 +404,13 @@ class RedisPoolHeartbeatTest extends TestCase
             SlowHeartbeatRedisConnection::$coroutineId = null;
 
             $pool = $this->createPool([
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 1,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
                 'heartbeat_timeout' => 0.001,
             ], SlowHeartbeatRedisPool::class);
 
-            $connection = $pool->get();
+            $connection = $pool->borrow();
             $connection->release();
 
             $startedAt = microtime(true);
@@ -312,8 +418,8 @@ class RedisPoolHeartbeatTest extends TestCase
             $elapsed = microtime(true) - $startedAt;
 
             $this->assertLessThan(0.2, $elapsed);
-            $this->assertSame(0, $pool->getCurrentConnections());
-            $this->assertSame(0, $pool->getConnectionsInChannel());
+            $this->assertSame(0, $pool->getManagedCount());
+            $this->assertSame(0, $pool->getIdleCount());
             $this->assertIsInt(SlowHeartbeatRedisConnection::$coroutineId);
 
             $deadline = microtime(true) + 0.1;
@@ -325,7 +431,7 @@ class RedisPoolHeartbeatTest extends TestCase
 
             usleep(100000);
 
-            $this->assertSame(0, $pool->getConnectionsInChannel());
+            $this->assertSame(0, $pool->getIdleCount());
         });
     }
 
@@ -333,11 +439,11 @@ class RedisPoolHeartbeatTest extends TestCase
     {
         run(function (): void {
             $pool = $this->createPool([
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 1,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
             ], CancellableHeartbeatRedisPool::class);
-            $connection = $pool->get();
+            $connection = $pool->borrow();
             $this->assertInstanceOf(CancellableHeartbeatRedisConnection::class, $connection);
             $captured = null;
 
@@ -366,11 +472,11 @@ class RedisPoolHeartbeatTest extends TestCase
             $handler = m::mock(ExceptionHandlerContract::class);
             Container::getInstance()->instance(ExceptionHandlerContract::class, $handler);
             $pool = $this->createPool([
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 1,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
             ]);
-            $connection = $pool->get();
+            $connection = $pool->borrow();
             $this->assertInstanceOf(HeartbeatRedisConnection::class, $connection);
             $hookFailure = new RuntimeException('The startup hook failed.');
             $reportStarted = new Channel(1);
@@ -435,11 +541,11 @@ class RedisPoolHeartbeatTest extends TestCase
     {
         run(function (): void {
             $pool = $this->createPool([
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 1,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
             ], CancellableHeartbeatRedisPool::class);
-            $connection = $pool->get();
+            $connection = $pool->borrow();
             $this->assertInstanceOf(CancellableHeartbeatRedisConnection::class, $connection);
             $captured = null;
 
@@ -467,31 +573,147 @@ class RedisPoolHeartbeatTest extends TestCase
     {
         run(function () {
             $pool = $this->createPool([
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 1,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
             ], ClosingHeartbeatRedisPool::class);
 
-            $connection = $pool->get();
+            $connection = $pool->borrow();
             $connection->release();
 
             $pool->runHeartbeatForTest();
 
-            $this->assertSame(0, $pool->getCurrentConnections());
-            $this->assertSame(0, $pool->getConnectionsInChannel());
+            $this->assertSame(0, $pool->getManagedCount());
+            $this->assertSame(0, $pool->getIdleCount());
         });
+    }
+
+    #[DataProvider('heartbeatCancellationPaths')]
+    public function testHeartbeatCancellationDisposesOnceAndLeavesLaterIdleConnections(string $path): void
+    {
+        run(function () use ($path): void {
+            $cancellation = new CanceledException('heartbeat canceled');
+            $secondary = $path === 'evaluation with failed close'
+                ? new RuntimeException('close failed')
+                : new CanceledException('secondary close cancellation');
+            $pool = $this->createPool([], CancellableDisposalRedisPool::class);
+            $logger = m::mock(StdoutLoggerInterface::class);
+
+            if ($path === 'evaluation with failed close') {
+                $logger->shouldReceive('error')->once()->with((string) $secondary);
+            } else {
+                $logger->shouldNotReceive('error');
+            }
+
+            (new ClassInvoker($pool))->container->instance(StdoutLoggerInterface::class, $logger);
+            $first = $pool->borrow();
+            $later = $pool->borrow();
+            $this->assertInstanceOf(CancellableDisposalRedisConnection::class, $first);
+            $this->assertInstanceOf(CancellableDisposalRedisConnection::class, $later);
+
+            if ($path === 'disposal') {
+                $first->heartbeatResult = false;
+                $first->closeFailure = $cancellation;
+            } else {
+                $first->heartbeatFailure = $cancellation;
+                $first->closeFailure = $path === 'evaluation' ? null : $secondary;
+            }
+
+            $first->release();
+            $later->release();
+            $caught = null;
+
+            try {
+                $pool->runHeartbeatForTest();
+            } catch (Throwable $exception) {
+                $caught = $exception;
+            }
+
+            $this->assertSame($cancellation, $caught);
+            $this->assertSame(1, $first->closeCount);
+            $this->assertSame(0, $later->closeCount);
+            $this->assertSame(0, $later->heartbeatChecks);
+            $this->assertSame(1, $pool->getManagedCount());
+            $this->assertSame(1, $pool->getIdleCount());
+        });
+    }
+
+    public static function heartbeatCancellationPaths(): array
+    {
+        return [
+            ['evaluation'],
+            ['evaluation with canceled close'],
+            ['evaluation with failed close'],
+            ['disposal'],
+        ];
+    }
+
+    #[DataProvider('nativeCancellationModes')]
+    public function testCanceledHeartbeatSweepStopsItsChildAndPreservesRemainingIdleConnections(bool $throwException): void
+    {
+        $observed = [];
+
+        run(function () use ($throwException, &$observed): void {
+            $pool = $this->createPool([], CancellableHeartbeatRedisPool::class);
+            $first = $pool->borrow();
+            $later = $pool->borrow();
+            $first->release();
+            $later->release();
+            $caught = null;
+            $parent = Coroutine::create(static function () use ($pool, &$caught): void {
+                try {
+                    $pool->runHeartbeatForTest();
+                } catch (Throwable $exception) {
+                    $caught = $exception;
+                }
+            });
+
+            try {
+                $observed['started'] = $first->pingStarted->pop(1.0);
+                $observed['canceled'] = Coroutine::cancelById($parent->getId(), throwException: $throwException);
+                $observed['exception'] = $caught;
+                $observed['child_exception'] = $first->cancellation;
+                $observed['child_running'] = Coroutine::exists($first->coroutineId);
+                $observed['parent_running'] = Coroutine::exists($parent->getId());
+                $observed['managed'] = $pool->getManagedCount();
+                $observed['idle'] = $pool->getIdleCount();
+                $observed['later_started'] = $later->coroutineId;
+            } finally {
+                if (Coroutine::exists($parent->getId())) {
+                    Coroutine::cancelById($parent->getId(), throwException: true);
+                    FrameworkCoroutine::join([$parent->getId()], 1.0);
+                }
+
+                $pool->close();
+            }
+        });
+
+        $this->assertTrue($observed['started']);
+        $this->assertTrue($observed['canceled']);
+        $this->assertInstanceOf(CanceledException::class, $observed['exception']);
+        $this->assertInstanceOf(CanceledException::class, $observed['child_exception']);
+        $this->assertFalse($observed['child_running']);
+        $this->assertFalse($observed['parent_running']);
+        $this->assertSame(1, $observed['managed']);
+        $this->assertSame(1, $observed['idle']);
+        $this->assertNull($observed['later_started']);
+    }
+
+    public static function nativeCancellationModes(): array
+    {
+        return [[false], [true]];
     }
 
     public function testReleaseResetFailureReturnsInvalidConnectionToPool(): void
     {
         run(function () {
             $pool = $this->createPool([
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 1,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
             ]);
 
-            $connection = $pool->get();
+            $connection = $pool->borrow();
             $this->assertInstanceOf(HeartbeatRedisConnection::class, $connection);
 
             $redis = m::mock(Redis::class);
@@ -505,10 +727,10 @@ class RedisPoolHeartbeatTest extends TestCase
             $connection->release();
 
             $this->assertNull((new ReflectionProperty(RedisConnection::class, 'database'))->getValue($connection));
-            $this->assertSame(1, $pool->getCurrentConnections());
-            $this->assertSame(1, $pool->getConnectionsInChannel());
+            $this->assertSame(1, $pool->getManagedCount());
+            $this->assertSame(1, $pool->getIdleCount());
 
-            $nextConnection = $pool->get();
+            $nextConnection = $pool->borrow();
             $nextConnection->getConnection();
 
             $this->assertSame($connection, $nextConnection);
@@ -522,13 +744,13 @@ class RedisPoolHeartbeatTest extends TestCase
     {
         run(function () {
             $pool = $this->createPool([
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 1,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
                 'max_lifetime' => 1.0,
             ]);
 
-            $connection = $pool->get();
+            $connection = $pool->borrow();
             $this->assertInstanceOf(HeartbeatRedisConnection::class, $connection);
             $client = $connection->nativeClientForTest();
             $connection->release();
@@ -548,13 +770,13 @@ class RedisPoolHeartbeatTest extends TestCase
     {
         run(function () {
             $pool = $this->createPool([
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 1,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
                 'max_lifetime' => 1.0,
             ]);
 
-            $connection = $pool->get();
+            $connection = $pool->borrow();
             $this->assertInstanceOf(HeartbeatRedisConnection::class, $connection);
             $connection->release();
             $this->ageConnectionGeneration($connection);
@@ -583,9 +805,9 @@ class RedisPoolHeartbeatTest extends TestCase
     {
         run(function () {
             $pool = $this->createPool([
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 1,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
             ], ClusterHeartbeatRedisPool::class, [
                 'cluster' => [
                     'enabled' => true,
@@ -593,7 +815,7 @@ class RedisPoolHeartbeatTest extends TestCase
                 ],
             ]);
 
-            $connection = $pool->get();
+            $connection = $pool->borrow();
             $this->assertInstanceOf(ClusterHeartbeatRedisConnection::class, $connection);
             $connection->release();
 
@@ -603,8 +825,8 @@ class RedisPoolHeartbeatTest extends TestCase
                 ['127.0.0.1', 6379],
                 ['127.0.0.2', 6379],
             ], $connection->clusterClient->pingedMasters);
-            $this->assertSame(1, $pool->getCurrentConnections());
-            $this->assertSame(1, $pool->getConnectionsInChannel());
+            $this->assertSame(1, $pool->getManagedCount());
+            $this->assertSame(1, $pool->getIdleCount());
         });
     }
 
@@ -621,14 +843,14 @@ class RedisPoolHeartbeatTest extends TestCase
             'timeout' => null,
             'cluster' => ['enabled' => false],
             'pool' => [
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 2,
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
-                'heartbeat' => -1,
+                'heartbeat_interval' => null,
                 'heartbeat_timeout' => 1.0,
                 'max_idle_time' => 60.0,
-                'max_lifetime' => -1.0,
+                'max_lifetime' => null,
                 ...$poolOptions,
             ],
         ], $config);
@@ -646,11 +868,11 @@ class RedisPoolHeartbeatTest extends TestCase
 
     protected function createProxy(RedisPool $pool): RedisProxy
     {
-        $poolFactory = m::mock(PoolFactory::class);
-        $poolFactory->shouldReceive('getPool')->with('heartbeat_test')->andReturn($pool);
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->shouldReceive('pool')->with('heartbeat_test')->andReturn($pool);
 
         return new RedisProxy(
-            $poolFactory,
+            $poolManager,
             'heartbeat_test',
             m::mock(RedisSentinelFactory::class),
         );
@@ -668,7 +890,7 @@ class RedisPoolHeartbeatTest extends TestCase
 
         $lifetimeExpiresAt = new ReflectionProperty(RedisConnection::class, 'lifetimeExpiresAt');
 
-        if ($lifetimeExpiresAt->getValue($connection) > 0.0) {
+        if ($lifetimeExpiresAt->getValue($connection) !== null) {
             $lifetimeExpiresAt->setValue($connection, hrtime(true) / 1e9 - 1.0);
         }
     }
@@ -694,7 +916,7 @@ class InspectableRedisPool extends RedisPool
         return $timer === null ? 0 : count((new ClassInvoker($timer))->coroutines);
     }
 
-    protected function createConnection(): ConnectionInterface
+    protected function createConnection(): Connection
     {
         return new HeartbeatRedisConnection($this->container, $this, $this->config);
     }
@@ -710,7 +932,7 @@ class HeartbeatRedisConnection extends RedisConnection
 
     public bool $useNativeHeartbeat = false;
 
-    public function __construct(Container $container, PoolInterface $pool, array $config)
+    public function __construct(Container $container, ConnectionPool $pool, array $config)
     {
         parent::__construct($container, $pool, $config);
 
@@ -762,9 +984,49 @@ class HeartbeatRedisConnection extends RedisConnection
     }
 }
 
+class CancellableDisposalRedisPool extends InspectableRedisPool
+{
+    protected function createConnection(): Connection
+    {
+        return new CancellableDisposalRedisConnection($this->container, $this, $this->config);
+    }
+}
+
+class CancellableDisposalRedisConnection extends HeartbeatRedisConnection
+{
+    public ?Throwable $heartbeatFailure = null;
+
+    public ?Throwable $closeFailure = null;
+
+    public int $closeCount = 0;
+
+    public function heartbeatCheck(float $timeout): bool
+    {
+        ++$this->heartbeatChecks;
+
+        if ($this->heartbeatFailure !== null) {
+            throw $this->heartbeatFailure;
+        }
+
+        return $this->heartbeatResult;
+    }
+
+    public function close(): bool
+    {
+        ++$this->closeCount;
+        parent::close();
+
+        if ($this->closeFailure !== null) {
+            throw $this->closeFailure;
+        }
+
+        return true;
+    }
+}
+
 class FailingHeartbeatRedisPool extends InspectableRedisPool
 {
-    protected function createConnection(): ConnectionInterface
+    protected function createConnection(): Connection
     {
         $connection = new HeartbeatRedisConnection($this->container, $this, $this->config);
         $connection->heartbeatResult = false;
@@ -775,7 +1037,7 @@ class FailingHeartbeatRedisPool extends InspectableRedisPool
 
 class SlowHeartbeatRedisPool extends InspectableRedisPool
 {
-    protected function createConnection(): ConnectionInterface
+    protected function createConnection(): Connection
     {
         return new SlowHeartbeatRedisConnection($this->container, $this, $this->config);
     }
@@ -783,7 +1045,7 @@ class SlowHeartbeatRedisPool extends InspectableRedisPool
 
 class CancellableHeartbeatRedisPool extends InspectableRedisPool
 {
-    protected function createConnection(): ConnectionInterface
+    protected function createConnection(): Connection
     {
         return new CancellableHeartbeatRedisConnection($this->container, $this, $this->config);
     }
@@ -799,7 +1061,7 @@ class CancellableHeartbeatRedisConnection extends HeartbeatRedisConnection
 
     public ?int $coroutineId = null;
 
-    public function __construct(Container $container, PoolInterface $pool, array $config)
+    public function __construct(Container $container, ConnectionPool $pool, array $config)
     {
         parent::__construct($container, $pool, $config);
 
@@ -839,7 +1101,7 @@ class SlowHeartbeatRedisConnection extends HeartbeatRedisConnection
 
 class ClosingHeartbeatRedisPool extends InspectableRedisPool
 {
-    protected function createConnection(): ConnectionInterface
+    protected function createConnection(): Connection
     {
         return new ClosingHeartbeatRedisConnection($this->container, $this, $this->config);
     }
@@ -857,7 +1119,7 @@ class ClosingHeartbeatRedisConnection extends HeartbeatRedisConnection
 
 class ClusterHeartbeatRedisPool extends InspectableRedisPool
 {
-    protected function createConnection(): ConnectionInterface
+    protected function createConnection(): Connection
     {
         return new ClusterHeartbeatRedisConnection($this->container, $this, $this->config);
     }

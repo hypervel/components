@@ -34,7 +34,7 @@ class RetryCommandTest extends TestCase
     protected function tearDownInCoroutine(): void
     {
         foreach ($this->poolManagers as $poolManager) {
-            $poolManager->flush();
+            $poolManager->purgeAll();
         }
     }
 
@@ -345,7 +345,7 @@ class RetryCommandTest extends TestCase
     /**
      * Create a queue proxy with an isolated pool registry.
      */
-    protected function pooledQueue(string $resourceType, Closure $resolver): QueuePoolProxy
+    protected function pooledQueue(string $resourceType, Closure $createCallback): QueuePoolProxy
     {
         $this->poolManagers[] = $poolManager = new PoolManager;
 
@@ -356,7 +356,7 @@ class RetryCommandTest extends TestCase
                 "auto:retry-command-{$resourceType}",
                 PoolOptions::fromArray(['max_objects' => 1]),
             ),
-            $resolver,
+            $createCallback,
             $poolManager,
         );
     }

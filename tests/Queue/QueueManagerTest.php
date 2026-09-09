@@ -8,9 +8,9 @@ use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Encryption\Encrypter;
+use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Queue;
-use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Queue\ClearableQueuePoolProxy;
 use Hypervel\Queue\Connectors\ConnectorInterface;
@@ -132,7 +132,7 @@ class QueueManagerTest extends TestCase
         $manager->addConnector('bar', function () use ($connector) {
             return $connector;
         });
-        $manager->addPoolable('bar');
+        $manager->addPoolableDriver('bar');
 
         $this->assertInstanceOf(QueuePoolProxy::class, $manager->connection('foo'));
     }
@@ -147,7 +147,7 @@ class QueueManagerTest extends TestCase
         $manager = new QueueManager($container);
 
         if (! $poolableByDefault) {
-            $manager->addPoolable($driver);
+            $manager->addPoolableDriver($driver);
         }
 
         $connection = $manager->connection('foo');
@@ -190,7 +190,7 @@ class QueueManagerTest extends TestCase
         $config->set('queue.connections.bar', $connectionConfig);
 
         $manager = new QueueManager($container);
-        $manager->addPoolable('custom');
+        $manager->addPoolableDriver('custom');
         $connector = m::mock(ConnectorInterface::class);
         $queue = m::mock(NullQueue::class)->makePartial();
         $manager->addConnector('custom', fn () => $connector);
@@ -229,7 +229,7 @@ class QueueManagerTest extends TestCase
         ]);
 
         $manager = new QueueManager($container);
-        $manager->addPoolable('custom');
+        $manager->addPoolableDriver('custom');
         $connector = m::mock(ConnectorInterface::class);
         $queue = m::mock(NullQueue::class)->makePartial();
         $manager->addConnector('custom', fn () => $connector);
@@ -273,7 +273,7 @@ class QueueManagerTest extends TestCase
         $container->make('config')->set('queue.connections.bar', $connectionConfig);
 
         $manager = new QueueManager($container);
-        $manager->addPoolable('custom');
+        $manager->addPoolableDriver('custom');
         $connector = m::mock(ConnectorInterface::class);
         $queue = m::mock(NullQueue::class)->makePartial();
         $manager->addConnector('custom', fn () => $connector);
@@ -318,7 +318,7 @@ class QueueManagerTest extends TestCase
         ]);
 
         $manager = new QueueManager($oldContainer);
-        $manager->addPoolable('custom');
+        $manager->addPoolableDriver('custom');
         $connector = m::mock(ConnectorInterface::class);
         $queue = m::mock(NullQueue::class)->makePartial();
         $manager->addConnector('custom', fn () => $connector);

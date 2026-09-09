@@ -6,13 +6,13 @@ namespace Hypervel\Tests\Mail;
 
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Log\LogManager;
 use Hypervel\Mail\Mailable;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\Transport\LogTransport;
 use Hypervel\Mail\TransportPoolProxy;
-use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Support\Testing\Fakes\MailFake;
 use Hypervel\Testbench\TestCase;
@@ -131,7 +131,7 @@ class MailManagerTest extends TestCase
             ]);
 
         $transport = (new MailManager($this->app))
-            ->removePoolable('smtp')
+            ->removePoolableDriver('smtp')
             ->mailer('smtp_url')
             ->getSymfonyTransport(); // @phpstan-ignore-line
 
@@ -159,7 +159,7 @@ class MailManagerTest extends TestCase
             ]);
 
         $transport = (new MailManager($this->app))
-            ->removePoolable('smtp')
+            ->removePoolableDriver('smtp')
             ->mailer('smtp_url')
             ->getSymfonyTransport(); // @phpstan-ignore-line
 
@@ -187,7 +187,7 @@ class MailManagerTest extends TestCase
             ]);
 
         $transport = (new MailManager($this->app))
-            ->removePoolable('smtp')
+            ->removePoolableDriver('smtp')
             ->mailer('smtp_url')
             ->getSymfonyTransport(); // @phpstan-ignore-line
 

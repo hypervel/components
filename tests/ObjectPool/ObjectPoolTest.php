@@ -8,14 +8,19 @@ use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\ObjectPool\Channel as ObjectPoolChannel;
+use Hypervel\Coroutine\PoolChannel;
+use Hypervel\Engine\Channel;
+use Hypervel\ObjectPool\Exceptions\PoolClosedException;
+use Hypervel\ObjectPool\Exceptions\PoolExhaustedException;
 use Hypervel\ObjectPool\ObjectPool;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -30,7 +35,7 @@ class ObjectPoolTest extends TestCase
                 $destroyed[] = $object;
             },
         );
-        $objects = [$pool->get(), $pool->get()];
+        $objects = [$pool->borrow(), $pool->borrow()];
 
         foreach ($objects as $object) {
             $pool->release($object);
@@ -40,8 +45,8 @@ class ObjectPoolTest extends TestCase
         $pool->close();
 
         $this->assertTrue($pool->isClosed());
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
-        $this->assertSame(0, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getManagedCount());
+        $this->assertSame(0, $pool->getIdleCount());
         $this->assertEqualsCanonicalizing($objects, $destroyed);
     }
 
@@ -58,7 +63,7 @@ class ObjectPoolTest extends TestCase
                 throw count($destroyed) === 1 ? $firstCancellation : $secondCancellation;
             },
         );
-        $objects = [$pool->get(), $pool->get()];
+        $objects = [$pool->borrow(), $pool->borrow()];
 
         foreach ($objects as $object) {
             $pool->release($object);
@@ -73,8 +78,8 @@ class ObjectPoolTest extends TestCase
 
         $this->assertTrue($pool->isClosed());
         $this->assertSame($objects, $destroyed);
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
-        $this->assertSame(0, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getManagedCount());
+        $this->assertSame(0, $pool->getIdleCount());
     }
 
     public function testBorrowFromClosedPoolThrows(): void
@@ -82,10 +87,10 @@ class ObjectPoolTest extends TestCase
         $pool = $this->pool();
         $pool->close();
 
-        $this->expectException(RuntimeException::class);
+        $this->expectException(PoolClosedException::class);
         $this->expectExceptionMessage('Cannot borrow from a closed pool.');
 
-        $pool->get();
+        $pool->borrow();
     }
 
     public function testObjectReleasedAfterCloseIsDestroyed(): void
@@ -96,37 +101,37 @@ class ObjectPoolTest extends TestCase
                 $destroyed[] = $object;
             },
         );
-        $object = $pool->get();
+        $object = $pool->borrow();
 
         $pool->close();
         $pool->release($object);
 
         $this->assertSame([$object], $destroyed);
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
-        $this->assertSame(0, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getManagedCount());
+        $this->assertSame(0, $pool->getIdleCount());
     }
 
     public function testCloseWakesEveryParkedBorrower(): void
     {
         $pool = $this->pool(['max_objects' => 1, 'wait_timeout' => 0.2]);
-        $borrowed = $pool->get();
+        $borrowed = $pool->borrow();
         $messages = [];
 
         foreach ([0, 1] as $index) {
             Coroutine::create(function () use ($pool, &$messages, $index): void {
                 try {
-                    $pool->get();
-                } catch (RuntimeException $exception) {
+                    $pool->borrow();
+                } catch (PoolClosedException $exception) {
                     $messages[$index] = $exception->getMessage();
                 }
             });
         }
 
         usleep(5_000);
-        $this->assertSame(2, $pool->getWaiters());
+        $this->assertSame(2, $pool->getWaitingCount());
         $pool->close();
         usleep(5_000);
-        $this->assertSame(0, $pool->getWaiters());
+        $this->assertSame(0, $pool->getWaitingCount());
         $pool->release($borrowed);
 
         ksort($messages);
@@ -154,8 +159,8 @@ class ObjectPoolTest extends TestCase
 
         Coroutine::create(function () use ($pool, &$message): void {
             try {
-                $pool->get();
-            } catch (RuntimeException $exception) {
+                $pool->borrow();
+            } catch (PoolClosedException $exception) {
                 $message = $exception->getMessage();
             }
         });
@@ -166,19 +171,20 @@ class ObjectPoolTest extends TestCase
 
         $this->assertSame('Cannot borrow from a closed pool.', $message);
         $this->assertSame([$object], $destroyed);
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
+        $this->assertSame(0, $pool->getManagedCount());
     }
 
     public function testForeignAndDoubleReleasesAreRejected(): void
     {
         $pool = $this->pool();
-        $object = $pool->get();
+        $object = $pool->borrow();
         $pool->release($object);
 
         try {
             $pool->release($object);
             $this->fail('A double release must throw.');
         } catch (RuntimeException $exception) {
+            $this->assertSame(RuntimeException::class, $exception::class);
             $this->assertStringContainsString('not checked out', $exception->getMessage());
         }
 
@@ -186,18 +192,19 @@ class ObjectPoolTest extends TestCase
             $pool->release(new stdClass);
             $this->fail('A foreign release must throw.');
         } catch (RuntimeException $exception) {
+            $this->assertSame(RuntimeException::class, $exception::class);
             $this->assertStringContainsString('does not manage', $exception->getMessage());
         }
 
-        $this->assertSame(1, $pool->getCurrentObjectNumber());
-        $this->assertSame(1, $pool->getObjectNumberInPool());
+        $this->assertSame(1, $pool->getManagedCount());
+        $this->assertSame(1, $pool->getIdleCount());
         $pool->close();
     }
 
     public function testDoubleDestroyIsRejectedBeforeStateChanges(): void
     {
         $pool = $this->pool();
-        $object = $pool->get();
+        $object = $pool->borrow();
         $pool->discard($object);
 
         try {
@@ -207,7 +214,7 @@ class ObjectPoolTest extends TestCase
             $this->assertSame('Cannot destroy an object this pool does not manage.', $exception->getMessage());
         }
 
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
+        $this->assertSame(0, $pool->getManagedCount());
     }
 
     public function testDuplicateFactoryOutputIsRejectedAndWakesAWaiter(): void
@@ -232,12 +239,12 @@ class ObjectPoolTest extends TestCase
                 return new stdClass;
             },
         );
-        $first = $pool->get();
+        $first = $pool->borrow();
 
         $results = parallel([
             function () use ($pool): string {
                 try {
-                    $pool->get();
+                    $pool->borrow();
                 } catch (RuntimeException $exception) {
                     return $exception->getMessage();
                 }
@@ -245,7 +252,7 @@ class ObjectPoolTest extends TestCase
                 return 'unexpected';
             },
             function () use ($pool): string {
-                $object = $pool->get();
+                $object = $pool->borrow();
                 $pool->release($object);
 
                 return 'borrowed';
@@ -277,7 +284,7 @@ class ObjectPoolTest extends TestCase
         );
 
         $results = parallel(array_fill(0, 8, function () use ($pool): bool {
-            $object = $pool->get();
+            $object = $pool->borrow();
             usleep(2_000);
             $pool->release($object);
 
@@ -286,7 +293,7 @@ class ObjectPoolTest extends TestCase
 
         $this->assertSame(array_fill(0, 8, true), $results);
         $this->assertSame(2, $maximumFactoriesRunning);
-        $this->assertSame(2, $pool->getCurrentObjectNumber());
+        $this->assertSame(2, $pool->getManagedCount());
         $pool->close();
     }
 
@@ -310,7 +317,7 @@ class ObjectPoolTest extends TestCase
         $results = parallel([
             function () use ($pool): string {
                 try {
-                    $pool->get();
+                    $pool->borrow();
                 } catch (RuntimeException $exception) {
                     return $exception->getMessage();
                 }
@@ -318,7 +325,7 @@ class ObjectPoolTest extends TestCase
                 return 'unexpected';
             },
             function () use ($pool): string {
-                $object = $pool->get();
+                $object = $pool->borrow();
                 $pool->release($object);
 
                 return 'borrowed';
@@ -332,11 +339,11 @@ class ObjectPoolTest extends TestCase
     public function testDiscardWakesAWaitingBorrowerToCreateAReplacement(): void
     {
         $pool = $this->pool(['max_objects' => 1, 'wait_timeout' => 0.2]);
-        $borrowed = $pool->get();
+        $borrowed = $pool->borrow();
         $replacement = null;
 
         Coroutine::create(function () use ($pool, &$replacement): void {
-            $replacement = $pool->get();
+            $replacement = $pool->borrow();
             $pool->release($replacement);
         });
 
@@ -360,7 +367,7 @@ class ObjectPoolTest extends TestCase
                 $destroying = false;
             },
         );
-        $expired = $pool->get();
+        $expired = $pool->borrow();
         $pool->release($expired);
         $pool->ageCreation($expired, 2.0);
         $replacement = null;
@@ -373,7 +380,7 @@ class ObjectPoolTest extends TestCase
         $this->assertTrue($destroying);
 
         Coroutine::create(function () use ($pool, &$replacement): void {
-            $replacement = $pool->get();
+            $replacement = $pool->borrow();
             $pool->release($replacement);
         });
 
@@ -386,24 +393,29 @@ class ObjectPoolTest extends TestCase
     public function testExhaustedPoolUsesOneWaitTimeoutFailurePath(): void
     {
         $pool = $this->pool(['max_objects' => 1, 'wait_timeout' => 0.001]);
-        $pool->get();
+        $borrowed = $pool->borrow();
 
-        $this->expectException(RuntimeException::class);
+        $this->expectException(PoolExhaustedException::class);
         $this->expectExceptionMessage('Object pool exhausted. Cannot create new object before wait_timeout.');
 
-        $pool->get();
+        try {
+            $pool->borrow();
+        } finally {
+            $pool->release($borrowed);
+            $pool->close();
+        }
     }
 
     public function testCheckoutPerformsOneFinalPassAfterADeadlineRelease(): void
     {
         $pool = $this->pool(['max_objects' => 1, 'wait_timeout' => 0.001]);
-        $borrowed = $pool->get();
+        $borrowed = $pool->borrow();
         $channel = new DeadlineObjectPoolChannel(function () use ($borrowed, $pool): void {
             $pool->release($borrowed);
         });
         $pool->replaceChannel($channel);
 
-        $this->assertSame($borrowed, $returned = $pool->get());
+        $this->assertSame($borrowed, $returned = $pool->borrow());
         $this->assertSame(1, $channel->waitCount);
 
         $pool->release($returned);
@@ -413,13 +425,13 @@ class ObjectPoolTest extends TestCase
     public function testCheckoutPerformsOneFinalPassAfterADeadlineDiscard(): void
     {
         $pool = $this->pool(['max_objects' => 1, 'wait_timeout' => 0.001]);
-        $borrowed = $pool->get();
+        $borrowed = $pool->borrow();
         $channel = new DeadlineObjectPoolChannel(function () use ($borrowed, $pool): void {
             $pool->discard($borrowed);
         });
         $pool->replaceChannel($channel);
 
-        $this->assertNotSame($borrowed, $replacement = $pool->get());
+        $this->assertNotSame($borrowed, $replacement = $pool->borrow());
         $this->assertSame(1, $channel->waitCount);
 
         $pool->release($replacement);
@@ -433,14 +445,14 @@ class ObjectPoolTest extends TestCase
             'max_objects' => 1,
             'max_lifetime' => 1,
         ]);
-        $object = $pool->get();
+        $object = $pool->borrow();
         $pool->release($object);
         $pool->ageCreation($object, 2.0);
 
         $pool->sweepExpired();
 
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
-        $this->assertSame(0, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getManagedCount());
+        $this->assertSame(0, $pool->getIdleCount());
         $pool->close();
     }
 
@@ -451,7 +463,7 @@ class ObjectPoolTest extends TestCase
             'max_objects' => 3,
             'max_idle_time' => 1,
         ]);
-        $objects = [$pool->get(), $pool->get(), $pool->get()];
+        $objects = [$pool->borrow(), $pool->borrow(), $pool->borrow()];
 
         foreach ($objects as $object) {
             $pool->release($object);
@@ -460,28 +472,51 @@ class ObjectPoolTest extends TestCase
 
         $pool->trimIdle();
 
-        $this->assertSame(1, $pool->getCurrentObjectNumber());
-        $this->assertSame(1, $pool->getObjectNumberInPool());
+        $this->assertSame(1, $pool->getManagedCount());
+        $this->assertSame(1, $pool->getIdleCount());
         $pool->close();
+    }
+
+    public function testNullLifetimeDisablesSweepingAndCheckoutReplacement(): void
+    {
+        $pool = $this->pool(['max_lifetime' => null]);
+        $object = $pool->borrow();
+        $pool->release($object);
+        $pool->ageCreation($object, 10_000.0);
+        $borrowed = null;
+
+        try {
+            $pool->sweepExpired();
+
+            $this->assertSame(1, $pool->getIdleCount());
+            $borrowed = $pool->borrow();
+            $this->assertSame($object, $borrowed);
+        } finally {
+            if ($borrowed !== null) {
+                $pool->release($borrowed);
+            }
+
+            $pool->close();
+        }
     }
 
     public function testIdleTrimmingCanBeDisabled(): void
     {
-        $pool = $this->pool(['max_idle_time' => 0]);
-        $object = $pool->get();
+        $pool = $this->pool(['max_idle_time' => null]);
+        $object = $pool->borrow();
         $pool->release($object);
         $pool->ageRelease($object, 10_000.0);
 
         $pool->trimIdle();
 
-        $this->assertSame(1, $pool->getObjectNumberInPool());
+        $this->assertSame(1, $pool->getIdleCount());
         $pool->close();
     }
 
     public function testMaintenanceRequeuesPreserveReleaseTimestamps(): void
     {
         $pool = $this->pool(['max_lifetime' => 60, 'max_idle_time' => 60]);
-        $object = $pool->get();
+        $object = $pool->borrow();
         $pool->release($object);
         $pool->ageRelease($object, 10.0);
         $releasedAt = $pool->releaseTime($object);
@@ -493,23 +528,123 @@ class ObjectPoolTest extends TestCase
         $pool->close();
     }
 
-    public function testPoolIdleTtlRequiresNoBorrowedOrInFlightObjects(): void
+    #[DataProvider('maintenanceMethods')]
+    public function testMaintenanceDestroysHealthyObjectsWhileCloseIsStillDraining(string $method): void
     {
-        $pool = $this->pool(['idle_ttl' => 0.001]);
-        $pool->agePool(1.0);
-        $this->assertTrue($pool->isIdle());
+        $maintenanceStarted = new Channel(1);
+        $closeStarted = new Channel(1);
+        $resumeMaintenance = new Channel(1);
+        $resumeClose = new Channel(1);
+        $maintenanceDone = new Channel(1);
+        $closeDone = new Channel(1);
+        $objects = [];
+        $destroyed = [];
+        $pool = $this->pool(
+            ['max_objects' => 3, 'min_retained_objects' => 1, 'max_lifetime' => 60, 'max_idle_time' => 60],
+            destroyCallback: function (object $object) use (
+                &$objects,
+                &$destroyed,
+                $maintenanceStarted,
+                $closeStarted,
+                $resumeMaintenance,
+                $resumeClose,
+            ): void {
+                $destroyed[] = $object;
 
-        $object = $pool->get();
+                if ($object === $objects[0]) {
+                    $maintenanceStarted->push(true);
+                    $resumeMaintenance->pop(1.0);
+                } elseif ($object === $objects[1]) {
+                    $closeStarted->push(true);
+                    $resumeClose->pop(1.0);
+                }
+            },
+        );
+        $objects = [$pool->borrow(), $pool->borrow(), $pool->borrow()];
+
+        foreach ($objects as $object) {
+            $pool->release($object);
+        }
+
+        if ($method === 'sweepExpired') {
+            $pool->ageCreation($objects[0], 120.0);
+        } else {
+            $pool->ageRelease($objects[0], 120.0);
+        }
+
+        $coroutineIds = [];
+
+        try {
+            $coroutineIds[] = Coroutine::create(function () use ($pool, $method, $maintenanceDone): void {
+                try {
+                    $pool->{$method}();
+                    $maintenanceDone->push(true);
+                } catch (Throwable $exception) {
+                    $maintenanceDone->push($exception);
+                }
+            });
+            $this->assertTrue($maintenanceStarted->pop(1.0));
+
+            $coroutineIds[] = Coroutine::create(function () use ($pool, $closeDone): void {
+                try {
+                    $pool->close();
+                    $closeDone->push(true);
+                } catch (Throwable $exception) {
+                    $closeDone->push($exception);
+                }
+            });
+            $this->assertTrue($closeStarted->pop(1.0));
+            $this->assertTrue($pool->isClosed());
+            $this->assertTrue($closeDone->isEmpty());
+
+            $resumeMaintenance->push(true);
+            $this->assertTrue($maintenanceDone->pop(1.0));
+            $this->assertTrue($closeDone->isEmpty());
+            $this->assertSame($objects, $destroyed);
+            $this->assertSame(1, $pool->getManagedCount());
+
+            $resumeClose->push(true);
+            $this->assertTrue($closeDone->pop(1.0));
+            $this->assertSame([
+                'managed' => 0, 'borrowed' => 0, 'idle' => 0, 'waiting' => 0, 'closed' => true,
+            ], $pool->getStats());
+            $this->assertSame($objects, $destroyed);
+        } finally {
+            $resumeMaintenance->close();
+            $resumeClose->close();
+            Coroutine::join($coroutineIds, 1.0);
+            $pool->close();
+        }
+    }
+
+    /**
+     * Provide maintenance operations that requeue healthy objects.
+     */
+    public static function maintenanceMethods(): array
+    {
+        return [
+            'lifetime sweep' => ['sweepExpired'],
+            'idle trim' => ['trimIdle'],
+        ];
+    }
+
+    public function testPoolIdleTimeoutRequiresNoBorrowedOrInFlightObjects(): void
+    {
+        $pool = $this->pool(['pool_idle_timeout' => 0.001]);
         $pool->agePool(1.0);
-        $this->assertFalse($pool->isIdle());
+        $this->assertTrue($pool->isIdleExpired());
+
+        $object = $pool->borrow();
+        $pool->agePool(1.0);
+        $this->assertFalse($pool->isIdleExpired());
 
         $pool->release($object);
         $pool->agePool(1.0);
-        $this->assertTrue($pool->isIdle());
+        $this->assertTrue($pool->isIdleExpired());
         $pool->close();
 
         $suspended = $this->pool(
-            ['idle_ttl' => 0.001],
+            ['pool_idle_timeout' => 0.001],
             function (): object {
                 usleep(10_000);
 
@@ -518,24 +653,24 @@ class ObjectPoolTest extends TestCase
         );
         Coroutine::create(function () use ($suspended): void {
             try {
-                $suspended->get();
+                $suspended->borrow();
             } catch (RuntimeException) {
             }
         });
 
         usleep(2_000);
         $suspended->agePool(1.0);
-        $this->assertFalse($suspended->isIdle());
+        $this->assertFalse($suspended->isIdleExpired());
         $suspended->close();
         usleep(12_000);
     }
 
-    public function testPoolIdleTtlCanBeDisabled(): void
+    public function testPoolIdleTimeoutCanBeDisabled(): void
     {
-        $pool = $this->pool(['idle_ttl' => null]);
+        $pool = $this->pool(['pool_idle_timeout' => null]);
         $pool->agePool(10_000.0);
 
-        $this->assertFalse($pool->isIdle());
+        $this->assertFalse($pool->isIdleExpired());
         $pool->close();
     }
 
@@ -548,19 +683,19 @@ class ObjectPoolTest extends TestCase
                 $destroyed[] = $object;
             },
         );
-        $expired = [$pool->get(), $pool->get()];
+        $expired = [$pool->borrow(), $pool->borrow()];
 
         foreach ($expired as $object) {
             $pool->release($object);
             $pool->ageCreation($object, 2.0);
         }
 
-        $replacement = $pool->get();
+        $replacement = $pool->borrow();
 
         $this->assertEqualsCanonicalizing($expired, $destroyed);
         $this->assertFalse(in_array($replacement, $expired, true));
-        $this->assertSame(1, $pool->getCurrentObjectNumber());
-        $this->assertSame(1, $pool->getBorrowedObjectNumber());
+        $this->assertSame(1, $pool->getManagedCount());
+        $this->assertSame(1, $pool->getBorrowedCount());
         $pool->release($replacement);
         $pool->close();
     }
@@ -577,12 +712,12 @@ class ObjectPoolTest extends TestCase
             },
         );
 
-        $first = $pool->get();
+        $first = $pool->borrow();
 
         $this->assertSame(1, $creations);
 
         $pool->release($first);
-        $second = $pool->get();
+        $second = $pool->borrow();
 
         $this->assertSame(2, $creations);
         $this->assertNotSame($first, $second);
@@ -605,16 +740,16 @@ class ObjectPoolTest extends TestCase
                 throw $failure;
             },
         );
-        $discarded = $pool->get();
-        $idle = $pool->get();
+        $discarded = $pool->borrow();
+        $idle = $pool->borrow();
         $pool->release($idle);
 
         $pool->discard($discarded);
         $pool->close();
 
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
-        $this->assertSame(0, $pool->getObjectNumberInPool());
+        $this->assertSame(0, $pool->getManagedCount());
+        $this->assertSame(0, $pool->getBorrowedCount());
+        $this->assertSame(0, $pool->getIdleCount());
     }
 
     public function testDestroyCancellationEscapesAfterReleasingPoolCapacity(): void
@@ -625,7 +760,7 @@ class ObjectPoolTest extends TestCase
                 throw $cancellation;
             },
         );
-        $object = $pool->get();
+        $object = $pool->borrow();
 
         try {
             $pool->discard($object);
@@ -634,22 +769,49 @@ class ObjectPoolTest extends TestCase
             $this->assertSame($cancellation, $exception);
         }
 
-        $this->assertSame(0, $pool->getCurrentObjectNumber());
-        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+        $this->assertSame(0, $pool->getManagedCount());
+        $this->assertSame(0, $pool->getBorrowedCount());
+    }
+
+    public function testManagedCountExcludesReservedCreationCapacity(): void
+    {
+        $pool = null;
+        $duringCreation = null;
+        $pool = $this->pool(factory: function () use (&$pool, &$duringCreation): object {
+            $duringCreation = [$pool->getManagedCount(), $pool->getStats()];
+
+            return new stdClass;
+        });
+        $borrowed = $pool->borrow();
+
+        try {
+            $this->assertSame([0, [
+                'managed' => 0,
+                'borrowed' => 0,
+                'idle' => 0,
+                'waiting' => 0,
+                'closed' => false,
+            ]], $duringCreation);
+            $this->assertSame(1, $pool->getManagedCount());
+            $this->assertSame(1, $pool->getBorrowedCount());
+        } finally {
+            $pool->release($borrowed);
+            $pool->close();
+        }
     }
 
     public function testStatsUseTrackedOwnershipState(): void
     {
         $pool = $this->pool(['max_objects' => 2]);
-        $borrowed = $pool->get();
-        $idle = $pool->get();
+        $borrowed = $pool->borrow();
+        $idle = $pool->borrow();
         $pool->release($idle);
 
         $this->assertSame([
-            'total' => 2,
-            'idle' => 1,
+            'managed' => 2,
             'borrowed' => 1,
-            'waiters' => 0,
+            'idle' => 1,
+            'waiting' => 0,
             'closed' => false,
         ], $pool->getStats());
 
@@ -657,10 +819,10 @@ class ObjectPoolTest extends TestCase
         $pool->close();
 
         $this->assertSame([
-            'total' => 0,
-            'idle' => 0,
+            'managed' => 0,
             'borrowed' => 0,
-            'waiters' => 0,
+            'idle' => 0,
+            'waiting' => 0,
             'closed' => true,
         ], $pool->getStats());
     }
@@ -674,7 +836,7 @@ class ObjectPoolTest extends TestCase
                 'wait_timeout' => PHP_INT_MAX,
                 'max_lifetime' => PHP_INT_MAX,
                 'max_idle_time' => PHP_INT_MAX,
-                'idle_ttl' => PHP_INT_MAX,
+                'pool_idle_timeout' => PHP_INT_MAX,
             ],
             factory: function () use (&$creations): object {
                 if (++$creations > 1) {
@@ -688,15 +850,15 @@ class ObjectPoolTest extends TestCase
         $this->assertSame(PHP_INT_MAX, $pool->nanosecondsForTest((float) PHP_INT_MAX));
         $this->assertSame(PHP_INT_MAX, $pool->deadlineForTest((float) PHP_INT_MAX));
 
-        $object = $pool->get();
+        $object = $pool->borrow();
         $pool->release($object);
         $pool->sweepExpired();
         $pool->trimIdle();
 
         $this->assertSame(1, $creations);
-        $this->assertSame(1, $pool->getCurrentObjectNumber());
-        $this->assertSame(1, $pool->getObjectNumberInPool());
-        $this->assertFalse($pool->isIdle());
+        $this->assertSame(1, $pool->getManagedCount());
+        $this->assertSame(1, $pool->getIdleCount());
+        $this->assertFalse($pool->isIdleExpired());
         $pool->close();
     }
 
@@ -766,7 +928,7 @@ class InspectableObjectPool extends ObjectPool
         $this->lastUsedAt = hrtime(true) - (int) ($seconds * 1e9);
     }
 
-    public function replaceChannel(ObjectPoolChannel $channel): void
+    public function replaceChannel(PoolChannel $channel): void
     {
         $this->channel = $channel;
     }
@@ -777,7 +939,7 @@ class InspectableObjectPool extends ObjectPool
     }
 }
 
-class DeadlineObjectPoolChannel extends ObjectPoolChannel
+class DeadlineObjectPoolChannel extends PoolChannel
 {
     public int $waitCount = 0;
 

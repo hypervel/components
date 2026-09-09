@@ -12,7 +12,7 @@ use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder;
 use Hypervel\Redis\Limiters\DurationLimiterBuilder;
-use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\PoolManager;
 use InvalidArgumentException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -37,7 +37,7 @@ class RedisManager implements FactoryContract, ConnectionContract
      */
     public function __construct(
         protected ContainerContract $app,
-        protected PoolFactory $factory,
+        protected PoolManager $poolManager,
         protected RedisConfig $config,
         protected RedisSentinelFactory $sentinelFactory,
     ) {
@@ -63,7 +63,7 @@ class RedisManager implements FactoryContract, ConnectionContract
         $this->config->connectionConfig($name);
 
         return $this->connections[$name] = new RedisProxy(
-            $this->factory,
+            $this->poolManager,
             $name,
             $this->sentinelFactory,
         );
@@ -102,7 +102,7 @@ class RedisManager implements FactoryContract, ConnectionContract
         }
 
         try {
-            $this->factory->flushPool($poolName);
+            $this->poolManager->purge($poolName);
         } catch (Throwable $throwable) {
             if ($exception === null || ($throwable instanceof CanceledException && ! $exception instanceof CanceledException)) {
                 $exception = $throwable;
@@ -153,7 +153,7 @@ class RedisManager implements FactoryContract, ConnectionContract
      */
     protected function refreshEventPools(bool $eventsEnabled): void
     {
-        foreach ($this->factory->pools() as $name => $pool) {
+        foreach ($this->poolManager->getPools() as $name => $pool) {
             if ($pool->getConfig()['events'] === $eventsEnabled) {
                 continue;
             }

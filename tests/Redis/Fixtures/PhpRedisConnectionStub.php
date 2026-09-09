@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis\Fixtures;
 
+use Hypervel\Contracts\ConnectionPool\ConnectionPool;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Redis\PhpRedisConnection;
 use Mockery as m;
 use Redis;
@@ -21,7 +21,7 @@ class PhpRedisConnectionStub extends PhpRedisConnection
      * Can be called with no arguments (for simple tests that inject via setActiveConnection()),
      * or with container/pool/config for tests that need full behavior.
      */
-    public function __construct(?Container $container = null, ?PoolInterface $pool = null, array $config = [])
+    public function __construct(?Container $container = null, ?ConnectionPool $pool = null, array $config = [])
     {
         if ($container !== null && $pool !== null) {
             // Call the grandparent to store config without reconnecting.

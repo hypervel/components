@@ -11,7 +11,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\PhpRedisConnection;
-use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisManager;
@@ -35,7 +35,7 @@ class RedisManagerTest extends TestCase
         CoroutineContext::forget(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default');
     }
 
-    public function testConnectionReturnsRedisProxy()
+    public function testConnectionReturnsRedisProxy(): void
     {
         $manager = $this->createManager(['default']);
 
@@ -44,7 +44,7 @@ class RedisManagerTest extends TestCase
         $this->assertInstanceOf(RedisProxy::class, $connection);
     }
 
-    public function testConnectionReturnsSameInstanceOnRepeatedCalls()
+    public function testConnectionReturnsSameInstanceOnRepeatedCalls(): void
     {
         $manager = $this->createManager(['default']);
 
@@ -54,7 +54,7 @@ class RedisManagerTest extends TestCase
         $this->assertSame($first, $second);
     }
 
-    public function testConnectionThrowsForUnconfiguredConnection()
+    public function testConnectionThrowsForUnconfiguredConnection(): void
     {
         $manager = $this->createManager(['default']);
 
@@ -63,7 +63,7 @@ class RedisManagerTest extends TestCase
         $manager->connection('nonexistent');
     }
 
-    public function testConnectionDefaultsToDefault()
+    public function testConnectionDefaultsToDefault(): void
     {
         $manager = $this->createManager(['default']);
 
@@ -78,10 +78,10 @@ class RedisManagerTest extends TestCase
 
     public function testIntegerBackedEnumConnectionNameIsNormalizedForResolutionAndPurge(): void
     {
-        $poolFactory = m::mock(PoolFactory::class);
-        $poolFactory->shouldReceive('flushPool')->once()->with('0');
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->shouldReceive('purge')->once()->with('0');
 
-        $manager = $this->createManager(['0'], poolFactory: $poolFactory);
+        $manager = $this->createManager(['0'], poolManager: $poolManager);
         $connection = $manager->connection(RedisConnectionName::Zero);
 
         $this->assertSame('0', $connection->getName());
@@ -93,12 +93,12 @@ class RedisManagerTest extends TestCase
         $this->assertFalse(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . '0'));
     }
 
-    public function testPurgeClearsProxyContextAndPool()
+    public function testPurgeClearsProxyContextAndPool(): void
     {
-        $poolFactory = m::mock(PoolFactory::class);
-        $poolFactory->shouldReceive('flushPool')->once()->with('default');
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->shouldReceive('purge')->once()->with('default');
 
-        $manager = $this->createManager(['default'], poolFactory: $poolFactory);
+        $manager = $this->createManager(['default'], poolManager: $poolManager);
 
         $first = $manager->connection('default');
 
@@ -117,9 +117,9 @@ class RedisManagerTest extends TestCase
         $pinnedConnection = m::mock(PhpRedisConnection::class);
         $pinnedConnection->expects('discard');
 
-        $poolFactory = m::mock(PoolFactory::class);
-        $poolFactory->expects('flushPool')->with('default');
-        $manager = $this->createManager(['default'], poolFactory: $poolFactory);
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->expects('purge')->with('default');
+        $manager = $this->createManager(['default'], poolManager: $poolManager);
         $manager->connection('default');
         CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default', $pinnedConnection);
 
@@ -191,16 +191,16 @@ class RedisManagerTest extends TestCase
         $manager->discardConnections();
     }
 
-    public function testPurgeFlushesPoolAfterDiscardFailureAndPreservesFirstFailure(): void
+    public function testPurgeClosesPoolAfterDiscardFailureAndPreservesFirstFailure(): void
     {
         $discardException = new RuntimeException('Discard failed.');
         $connection = m::mock(PhpRedisConnection::class);
         $connection->expects('discard')->andThrow($discardException);
-        $poolFactory = m::mock(PoolFactory::class);
-        $poolFactory->expects('flushPool')
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->expects('purge')
             ->with('alias')
-            ->andThrow(new RuntimeException('Flush failed.'));
-        $manager = $this->createManager(['alias'], poolFactory: $poolFactory);
+            ->andThrow(new RuntimeException('Purge failed.'));
+        $manager = $this->createManager(['alias'], poolManager: $poolManager);
         $manager->connection('alias');
         CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'alias', $connection);
 
@@ -214,16 +214,16 @@ class RedisManagerTest extends TestCase
         $this->assertSame([], $manager->connections());
     }
 
-    public function testPurgeFlushesPoolAndLetsCancellationSupersedeDiscardFailure(): void
+    public function testPurgeClosesPoolAndLetsCancellationSupersedeDiscardFailure(): void
     {
-        $cancellation = new CanceledException('Flush canceled.');
+        $cancellation = new CanceledException('Purge canceled.');
         $connection = m::mock(PhpRedisConnection::class);
         $connection->expects('discard')->andThrow(new RuntimeException('Discard failed.'));
-        $poolFactory = m::mock(PoolFactory::class);
-        $poolFactory->expects('flushPool')
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->expects('purge')
             ->with('alias')
             ->andThrow($cancellation);
-        $manager = $this->createManager(['alias'], poolFactory: $poolFactory);
+        $manager = $this->createManager(['alias'], poolManager: $poolManager);
         $manager->connection('alias');
         CoroutineContext::set(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'alias', $connection);
 
@@ -260,23 +260,23 @@ class RedisManagerTest extends TestCase
             ->globally()
             ->ordered();
 
-        $poolFactory = m::mock(PoolFactory::class);
-        $poolFactory->expects('getPool')->never();
-        $poolFactory->expects('pools')
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->expects('pool')->never();
+        $poolManager->expects('getPools')
             ->globally()
             ->ordered()
             ->andReturn([
                 'disabled' => $disabledPool,
                 'enabled' => $enabledPool,
             ]);
-        $poolFactory->expects('flushPool')
+        $poolManager->expects('purge')
             ->with('disabled')
             ->globally()
             ->ordered();
 
         $manager = new RedisManager(
             $app,
-            $poolFactory,
+            $poolManager,
             $config,
             m::mock(RedisSentinelFactory::class),
         );
@@ -297,23 +297,23 @@ class RedisManagerTest extends TestCase
             ->globally()
             ->ordered();
 
-        $poolFactory = m::mock(PoolFactory::class);
-        $poolFactory->expects('getPool')->never();
-        $poolFactory->expects('pools')
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->expects('pool')->never();
+        $poolManager->expects('getPools')
             ->globally()
             ->ordered()
             ->andReturn([
                 'enabled' => $enabledPool,
                 'disabled' => $disabledPool,
             ]);
-        $poolFactory->expects('flushPool')
+        $poolManager->expects('purge')
             ->with('enabled')
             ->globally()
             ->ordered();
 
         $manager = new RedisManager(
             $app,
-            $poolFactory,
+            $poolManager,
             $config,
             m::mock(RedisSentinelFactory::class),
         );
@@ -321,7 +321,7 @@ class RedisManagerTest extends TestCase
         $manager->disableEvents();
     }
 
-    public function testCallDelegatesToDefaultConnection()
+    public function testCallDelegatesToDefaultConnection(): void
     {
         $manager = $this->createManager(['default']);
 
@@ -330,7 +330,7 @@ class RedisManagerTest extends TestCase
         $this->assertSame('default', $manager->getName());
     }
 
-    public function testListenRegistersCommandExecutedListener()
+    public function testListenRegistersCommandExecutedListener(): void
     {
         $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('listen')
@@ -343,7 +343,7 @@ class RedisManagerTest extends TestCase
 
         $manager = new RedisManager(
             $app,
-            m::mock(PoolFactory::class),
+            m::mock(PoolManager::class),
             $this->createRedisConfig(['default']),
             m::mock(RedisSentinelFactory::class),
         );
@@ -351,7 +351,7 @@ class RedisManagerTest extends TestCase
         $manager->listen(function () {});
     }
 
-    public function testListenForFailuresRegistersCommandFailedListener()
+    public function testListenForFailuresRegistersCommandFailedListener(): void
     {
         $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('listen')
@@ -364,7 +364,7 @@ class RedisManagerTest extends TestCase
 
         $manager = new RedisManager(
             $app,
-            m::mock(PoolFactory::class),
+            m::mock(PoolManager::class),
             $this->createRedisConfig(['default']),
             m::mock(RedisSentinelFactory::class),
         );
@@ -372,7 +372,7 @@ class RedisManagerTest extends TestCase
         $manager->listenForFailures(function () {});
     }
 
-    public function testConnectionsReturnsAllCachedProxies()
+    public function testConnectionsReturnsAllCachedProxies(): void
     {
         $manager = $this->createManager(['default', 'cache']);
 
@@ -395,15 +395,15 @@ class RedisManagerTest extends TestCase
      */
     private function createManager(
         array $configuredConnections,
-        ?PoolFactory $poolFactory = null
+        ?PoolManager $poolManager = null
     ): RedisManager {
         $app = m::mock(ContainerContract::class);
-        $poolFactory ??= m::mock(PoolFactory::class);
+        $poolManager ??= m::mock(PoolManager::class);
         $config = $this->createRedisConfig($configuredConnections);
 
         return new RedisManager(
             $app,
-            $poolFactory,
+            $poolManager,
             $config,
             m::mock(RedisSentinelFactory::class),
         );

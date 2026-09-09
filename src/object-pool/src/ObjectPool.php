@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\ObjectPool;
 
 use Closure;
-use Hypervel\ObjectPool\Contracts\ObjectPool as ObjectPoolContract;
+use Hypervel\Contracts\ObjectPool\ObjectPool as ObjectPoolContract;
+use Hypervel\Coroutine\PoolChannel;
+use Hypervel\ObjectPool\Exceptions\PoolClosedException;
+use Hypervel\ObjectPool\Exceptions\PoolExhaustedException;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -15,7 +18,8 @@ use Throwable;
  */
 abstract class ObjectPool implements ObjectPoolContract
 {
-    protected Channel $channel;
+    /** @var PoolChannel<T> */
+    protected PoolChannel $channel;
 
     /** @var array<int, true> */
     protected array $managed = [];
@@ -33,9 +37,9 @@ abstract class ObjectPool implements ObjectPoolContract
 
     protected bool $closed = false;
 
-    protected int $acquiring = 0;
+    protected int $acquiringCount = 0;
 
-    protected int $creating = 0;
+    protected int $creatingCount = 0;
 
     protected ?Closure $destroyCallback;
 
@@ -47,24 +51,24 @@ abstract class ObjectPool implements ObjectPoolContract
         ?Closure $destroyCallback = null,
     ) {
         $this->destroyCallback = $destroyCallback;
-        $this->channel = new Channel($options->maxObjects);
+        $this->channel = new PoolChannel($options->maxObjects);
         $this->lastUsedAt = hrtime(true);
     }
 
     /**
-     * Retrieve an object from the pool.
+     * Borrow an object from the pool.
      *
      * @return T
      */
-    public function get(): object
+    public function borrow(): object
     {
         if ($this->closed) {
-            throw new RuntimeException('Cannot borrow from a closed pool.');
+            throw new PoolClosedException('Cannot borrow from a closed pool.');
         }
 
         $this->lastUsedAt = hrtime(true);
         $deadline = $this->deadline($this->options->waitTimeout);
-        ++$this->acquiring;
+        ++$this->acquiringCount;
 
         try {
             $object = $this->getObject($deadline);
@@ -73,12 +77,14 @@ abstract class ObjectPool implements ObjectPoolContract
 
             return $object;
         } finally {
-            --$this->acquiring;
+            --$this->acquiringCount;
         }
     }
 
     /**
      * Release an object back to the pool.
+     *
+     * @param T $object
      */
     public function release(object $object): void
     {
@@ -114,7 +120,7 @@ abstract class ObjectPool implements ObjectPoolContract
      */
     public function sweepExpired(): void
     {
-        if ($this->options->maxLifetime <= 0.0) {
+        if ($this->options->maxLifetime === null) {
             return;
         }
 
@@ -134,7 +140,7 @@ abstract class ObjectPool implements ObjectPoolContract
      */
     public function trimIdle(): void
     {
-        if ($this->options->maxIdleTime <= 0.0) {
+        if ($this->options->maxIdleTime === null) {
             return;
         }
 
@@ -192,20 +198,20 @@ abstract class ObjectPool implements ObjectPoolContract
     }
 
     /**
-     * Determine if the entire pool has exceeded its idle TTL.
+     * Determine if the entire pool has exceeded its idle timeout.
      */
-    public function isIdle(): bool
+    public function isIdleExpired(): bool
     {
-        return $this->options->idleTtl !== null
-            && $this->acquiring === 0
-            && $this->getBorrowedObjectNumber() === 0
-            && (hrtime(true) - $this->lastUsedAt) > $this->nanoseconds($this->options->idleTtl);
+        return $this->options->poolIdleTimeout !== null
+            && $this->acquiringCount === 0
+            && $this->getBorrowedCount() === 0
+            && (hrtime(true) - $this->lastUsedAt) > $this->nanoseconds($this->options->poolIdleTimeout);
     }
 
     /**
      * Return the number of objects currently checked out.
      */
-    public function getBorrowedObjectNumber(): int
+    public function getBorrowedCount(): int
     {
         return count($this->borrowed);
     }
@@ -213,7 +219,7 @@ abstract class ObjectPool implements ObjectPoolContract
     /**
      * Return the current number of objects managed by the pool.
      */
-    public function getCurrentObjectNumber(): int
+    public function getManagedCount(): int
     {
         return count($this->managed);
     }
@@ -221,7 +227,7 @@ abstract class ObjectPool implements ObjectPoolContract
     /**
      * Return the number of objects currently available in the pool.
      */
-    public function getObjectNumberInPool(): int
+    public function getIdleCount(): int
     {
         return $this->channel->length();
     }
@@ -229,7 +235,7 @@ abstract class ObjectPool implements ObjectPoolContract
     /**
      * Return the number of coroutines waiting for an object.
      */
-    public function getWaiters(): int
+    public function getWaitingCount(): int
     {
         return $this->channel->waiters();
     }
@@ -245,15 +251,15 @@ abstract class ObjectPool implements ObjectPoolContract
     /**
      * Return statistics about the pool's current state.
      *
-     * @return array{total: int, idle: int, borrowed: int, waiters: int, closed: bool}
+     * @return array{managed: int, borrowed: int, idle: int, waiting: int, closed: bool}
      */
     public function getStats(): array
     {
         return [
-            'total' => count($this->managed),
-            'idle' => $this->getObjectNumberInPool(),
+            'managed' => count($this->managed),
             'borrowed' => count($this->borrowed),
-            'waiters' => $this->getWaiters(),
+            'idle' => $this->getIdleCount(),
+            'waiting' => $this->getWaitingCount(),
             'closed' => $this->closed,
         ];
     }
@@ -287,11 +293,16 @@ abstract class ObjectPool implements ObjectPoolContract
     }
 
     /**
-     * Return an object to the idle channel without recording user activity.
+     * Return an object to the idle channel without recording activity, or destroy it when the pool has closed.
+     *
+     * @param T $object
      */
     protected function requeue(object $object): void
     {
-        $this->channel->push($object);
+        // Maintenance may resume while a concurrent close is still draining the channel.
+        if (! $this->channel->push($object)) {
+            $this->destroyObject($object);
+        }
     }
 
     /**
@@ -329,7 +340,7 @@ abstract class ObjectPool implements ObjectPoolContract
      */
     protected function exceedsMaxLifetime(object $object): bool
     {
-        if ($this->options->maxLifetime <= 0.0) {
+        if ($this->options->maxLifetime === null) {
             return false;
         }
 
@@ -349,7 +360,7 @@ abstract class ObjectPool implements ObjectPoolContract
 
         while (true) {
             if ($this->closed) {
-                throw new RuntimeException('Cannot borrow from a closed pool.');
+                throw new PoolClosedException('Cannot borrow from a closed pool.');
             }
 
             if (($object = $this->channel->pop()) !== false) {
@@ -362,19 +373,19 @@ abstract class ObjectPool implements ObjectPoolContract
                 return $object;
             }
 
-            if (count($this->managed) + $this->creating < $this->options->maxObjects) {
-                ++$this->creating;
+            if (count($this->managed) + $this->creatingCount < $this->options->maxObjects) {
+                ++$this->creatingCount;
 
                 try {
                     $object = $this->createObject();
                 } catch (Throwable $exception) {
-                    --$this->creating;
+                    --$this->creatingCount;
                     $this->channel->signal();
 
                     throw $exception;
                 }
 
-                --$this->creating;
+                --$this->creatingCount;
                 $id = spl_object_id($object);
 
                 if (isset($this->managed[$id])) {
@@ -392,14 +403,14 @@ abstract class ObjectPool implements ObjectPoolContract
                 if ($this->closed) {
                     $this->destroyObject($object);
 
-                    throw new RuntimeException('Cannot borrow from a closed pool.');
+                    throw new PoolClosedException('Cannot borrow from a closed pool.');
                 }
 
                 return $object;
             }
 
             if ($timedOut) {
-                throw new RuntimeException('Object pool exhausted. Cannot create new object before wait_timeout.');
+                throw new PoolExhaustedException('Object pool exhausted. Cannot create new object before wait_timeout.');
             }
 
             $timedOut = ! $this->waitForStateChange($deadline);

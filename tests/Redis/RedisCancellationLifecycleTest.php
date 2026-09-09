@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
+use Hypervel\ConnectionPool\Exceptions\ConnectionException;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
-use Hypervel\Pool\Exceptions\ConnectionException;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Events\CommandFailed;
-use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\Facades\Redis as RedisFacade;
 use Hypervel\Testbench\TestCase;
@@ -46,10 +46,10 @@ class RedisCancellationLifecycleTest extends TestCase
             ++$failed;
         });
         $connection = RedisFacade::connection($connectionName);
-        $pool = $this->app->make(PoolFactory::class)->getPool($connectionName);
+        $pool = $this->app->make(PoolManager::class)->pool($connectionName);
         // The one-connection pool establishes the only socket accepted by the test server,
         // then the canceled command reuses it.
-        $eventConnection = $pool->get();
+        $eventConnection = $pool->borrow();
 
         try {
             $this->assertInstanceOf(RedisConnection::class, $eventConnection);
@@ -71,9 +71,9 @@ class RedisCancellationLifecycleTest extends TestCase
             $this->assertSame(0, $failed);
 
             // The pool already owns this lease, so cancellation returns it invalidated.
-            $this->assertSame(1, $pool->getCurrentConnections());
-            $this->assertSame(1, $pool->getConnectionsInChannel());
-            $pooledConnection = $pool->get();
+            $this->assertSame(1, $pool->getManagedCount());
+            $this->assertSame(1, $pool->getIdleCount());
+            $pooledConnection = $pool->borrow();
 
             try {
                 $this->assertInstanceOf(RedisConnection::class, $pooledConnection);
@@ -87,7 +87,7 @@ class RedisCancellationLifecycleTest extends TestCase
             try {
                 $server->wait();
             } finally {
-                $this->app->make(PoolFactory::class)->flushPool($connectionName);
+                $this->app->make(PoolManager::class)->purge($connectionName);
             }
         }
     }
@@ -110,7 +110,7 @@ class RedisCancellationLifecycleTest extends TestCase
         $connectionName = 'canceled_select';
         $this->configureConnection($connectionName, $host, $port, ['database' => 1]);
         $connection = RedisFacade::connection($connectionName);
-        $pool = $this->app->make(PoolFactory::class)->getPool($connectionName);
+        $pool = $this->app->make(PoolManager::class)->pool($connectionName);
 
         try {
             try {
@@ -124,8 +124,8 @@ class RedisCancellationLifecycleTest extends TestCase
                 $this->assertInstanceOf(RedisException::class, $exception->getPrevious());
 
                 // Initial SELECT was canceled before admission, so the pool discards the lease.
-                $this->assertSame(0, $pool->getCurrentConnections());
-                $this->assertSame(0, $pool->getConnectionsInChannel());
+                $this->assertSame(0, $pool->getManagedCount());
+                $this->assertSame(0, $pool->getIdleCount());
             } finally {
                 $releaseServer->push(true);
                 $server->wait();
@@ -134,7 +134,7 @@ class RedisCancellationLifecycleTest extends TestCase
             $capacityFailure = null;
 
             try {
-                $pool->get();
+                $pool->borrow();
             } catch (Throwable $throwable) {
                 $capacityFailure = $throwable;
             }
@@ -147,7 +147,7 @@ class RedisCancellationLifecycleTest extends TestCase
                 ),
             );
         } finally {
-            $this->app->make(PoolFactory::class)->flushPool($connectionName);
+            $this->app->make(PoolManager::class)->purge($connectionName);
         }
     }
 
@@ -173,14 +173,14 @@ class RedisCancellationLifecycleTest extends TestCase
             'max_retries' => 0,
             'options' => ['prefix' => ''],
             'pool' => [
-                'min_connections' => 0,
+                'min_retained_connections' => 0,
                 'max_connections' => 1,
                 'connect_timeout' => 0.5,
                 'wait_timeout' => 0.1,
-                'heartbeat' => -1.0,
+                'heartbeat_interval' => null,
                 'heartbeat_timeout' => 0.1,
                 'max_idle_time' => 60.0,
-                'max_lifetime' => -1.0,
+                'max_lifetime' => null,
             ],
         ];
 

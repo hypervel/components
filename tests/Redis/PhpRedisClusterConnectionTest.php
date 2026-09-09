@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
+use Hypervel\ConnectionPool\Exceptions\ConnectionException;
+use Hypervel\ConnectionPool\PoolOptions;
+use Hypervel\Contracts\ConnectionPool\ConnectionPool;
 use Hypervel\Contracts\Container\Container as ContainerContract;
-use Hypervel\Contracts\Pool\PoolInterface;
-use Hypervel\Pool\Exceptions\ConnectionException;
-use Hypervel\Pool\PoolOption;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\PhpRedisClusterConnection;
 use Hypervel\Tests\Redis\Fixtures\FakeRedisClusterClient;
@@ -34,7 +34,7 @@ class PhpRedisClusterConnectionTest extends TestCase
             new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig(), $cancellation) extends PhpRedisClusterConnection {
                 public function __construct(
                     ContainerContract $container,
-                    PoolInterface $pool,
+                    ConnectionPool $pool,
                     array $config,
                     private CanceledException $cancellation,
                 ) {
@@ -61,7 +61,7 @@ class PhpRedisClusterConnectionTest extends TestCase
             new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig(), $failure) extends PhpRedisClusterConnection {
                 public function __construct(
                     ContainerContract $container,
-                    PoolInterface $pool,
+                    ConnectionPool $pool,
                     array $config,
                     private RuntimeException $failure,
                 ) {
@@ -679,7 +679,7 @@ class PhpRedisClusterConnectionTest extends TestCase
              */
             public function __construct(
                 ContainerContract $container,
-                PoolInterface $pool,
+                ConnectionPool $pool,
                 array $config,
                 private array $clients,
             ) {
@@ -712,8 +712,8 @@ class PhpRedisClusterConnectionTest extends TestCase
 
     public function testReconnectClearsCachedDefaultNode(): void
     {
-        $pool = m::mock(PoolInterface::class);
-        $pool->shouldReceive('getOption')->andReturn(new PoolOption);
+        $pool = m::mock(ConnectionPool::class);
+        $pool->shouldReceive('getOptions')->andReturn(PoolOptions::fromArray([]));
 
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->andReturn(false);
@@ -735,7 +735,7 @@ class PhpRedisClusterConnectionTest extends TestCase
         $connection = new class($container, $pool, $this->clusterConfig(['cluster' => ['enabled' => true, 'seeds' => ['tcp://10.0.0.1:6379']]]), $clientA, $clientB, $callCount) extends PhpRedisClusterConnection {
             public function __construct(
                 ContainerContract $container,
-                PoolInterface $pool,
+                ConnectionPool $pool,
                 array $config,
                 private RedisCluster $clientA,
                 private RedisCluster $clientB,
@@ -789,14 +789,14 @@ class PhpRedisClusterConnectionTest extends TestCase
             'backoff_base' => 100,
             'backoff_cap' => 1000,
             'pool' => [
-                'min_connections' => 1,
+                'min_retained_connections' => 1,
                 'max_connections' => 10,
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
-                'heartbeat' => -1.0,
+                'heartbeat_interval' => null,
                 'heartbeat_timeout' => 1.0,
                 'max_idle_time' => 60.0,
-                'max_lifetime' => -1.0,
+                'max_lifetime' => null,
             ],
             'cluster' => [
                 'enabled' => true,
@@ -821,10 +821,10 @@ class PhpRedisClusterConnectionTest extends TestCase
     /**
      * Get a mocked Redis pool.
      */
-    private function getMockedPool(): PoolInterface
+    private function getMockedPool(): ConnectionPool
     {
-        $pool = m::mock(PoolInterface::class);
-        $pool->shouldReceive('getOption')->andReturn(new PoolOption);
+        $pool = m::mock(ConnectionPool::class);
+        $pool->shouldReceive('getOptions')->andReturn(PoolOptions::fromArray([]));
 
         return $pool;
     }

@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Broadcasting\Broadcasters;
 
 use Hypervel\Broadcasting\BroadcastException;
+use Hypervel\ConnectionPool\Exceptions\ConnectionException;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Http\Request;
-use Hypervel\Pool\Exceptions\ConnectionException;
 use Hypervel\Support\Arr;
 use RedisClusterException;
 use RedisException;

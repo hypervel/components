@@ -6,13 +6,13 @@ namespace Hypervel\Tests\Redis;
 
 use Closure;
 use Exception;
+use Hypervel\ConnectionPool\PoolOptions;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Pool\PoolOption;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Events\CommandFailed;
 use Hypervel\Redis\PhpRedisConnection;
-use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
@@ -262,14 +262,14 @@ class RedisEventsTest extends TestCase
     private function createRedis(m\MockInterface|RedisConnection $connection): RedisProxy
     {
         $pool = m::mock(RedisPool::class);
-        $pool->shouldReceive('get')->andReturn($connection);
-        $pool->shouldReceive('getOption')->andReturn(new PoolOption);
+        $pool->shouldReceive('borrow')->andReturn($connection);
+        $pool->shouldReceive('getOptions')->andReturn(PoolOptions::fromArray([]));
 
-        $poolFactory = m::mock(PoolFactory::class);
-        $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->shouldReceive('pool')->with('default')->andReturn($pool);
 
         return new RedisProxy(
-            $poolFactory,
+            $poolManager,
             'default',
             m::mock(RedisSentinelFactory::class),
         );

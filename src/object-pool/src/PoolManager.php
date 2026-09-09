@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\ObjectPool;
 
-use Hypervel\ObjectPool\Contracts\Factory as FactoryContract;
-use Hypervel\ObjectPool\Contracts\ObjectPool;
+use Hypervel\Contracts\ObjectPool\Factory as FactoryContract;
+use Hypervel\Contracts\ObjectPool\ObjectPool;
 use JsonException;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class PoolManager implements FactoryContract
 {
@@ -26,7 +28,7 @@ class PoolManager implements FactoryContract
      */
     public function pool(
         string $name,
-        callable $callback,
+        callable $createCallback,
         array $options = [],
     ): ObjectPool {
         return $this->getOrCreate(
@@ -36,7 +38,7 @@ class PoolManager implements FactoryContract
                 fingerprint: PoolFingerprint::fromExplicit($name),
                 options: PoolOptions::fromArray($options),
             ),
-            $callback,
+            $createCallback,
         );
     }
 
@@ -45,7 +47,7 @@ class PoolManager implements FactoryContract
      */
     public function getOrCreate(
         PoolDefinition $definition,
-        callable $callback,
+        callable $createCallback,
     ): ObjectPool {
         $identity = $definition->identity;
 
@@ -83,7 +85,7 @@ class PoolManager implements FactoryContract
             }
         }
 
-        $pool = new SimpleObjectPool($callback, $definition->options);
+        $pool = new CallbackObjectPool($createCallback, $definition->options);
 
         $this->definitions[$identity] = $definition;
 
@@ -104,6 +106,8 @@ class PoolManager implements FactoryContract
 
     /**
      * Determine if a pool is currently registered for an identity.
+     *
+     * This does not reserve registry membership across a coroutine yield.
      */
     public function has(string $identity): bool
     {
@@ -115,7 +119,7 @@ class PoolManager implements FactoryContract
      *
      * @return array<string, ObjectPool>
      */
-    public function pools(): array
+    public function getPools(): array
     {
         return $this->pools;
     }
@@ -123,7 +127,7 @@ class PoolManager implements FactoryContract
     /**
      * Get the definition currently registered for an identity.
      */
-    public function definition(string $identity): ?PoolDefinition
+    public function getDefinition(string $identity): ?PoolDefinition
     {
         return $this->definitions[$identity] ?? null;
     }
@@ -131,7 +135,7 @@ class PoolManager implements FactoryContract
     /**
      * Remove and close a pool when it still matches an optional expected instance.
      */
-    public function remove(string $identity, ?ObjectPool $expected = null): bool
+    public function purge(string $identity, ?ObjectPool $expected = null): bool
     {
         $pool = $this->pools[$identity] ?? null;
 
@@ -151,14 +155,30 @@ class PoolManager implements FactoryContract
      * Boot or tests only. This clears worker-lifetime pools shared by every
      * coroutine; use targeted removal for runtime resource recovery.
      */
-    public function flush(): void
+    public function purgeAll(): void
     {
         $pools = $this->pools;
         $this->pools = [];
         $this->definitions = [];
+        $firstException = null;
+        $firstCancellation = null;
 
         foreach ($pools as $pool) {
-            $pool->close();
+            try {
+                $pool->close();
+            } catch (CanceledException $exception) {
+                $firstCancellation ??= $exception;
+            } catch (Throwable $exception) {
+                $firstException ??= $exception;
+            }
+        }
+
+        if ($firstCancellation !== null) {
+            throw $firstCancellation;
+        }
+
+        if ($firstException !== null) {
+            throw $firstException;
         }
     }
 

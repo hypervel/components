@@ -20,8 +20,8 @@ class PoolOptionsTest extends TestCase
             'max_objects' => 10,
             'wait_timeout' => 3.0,
             'max_lifetime' => 60.0,
-            'max_idle_time' => 0.0,
-            'idle_ttl' => PoolOptions::DEFAULT_IDLE_TTL,
+            'max_idle_time' => null,
+            'pool_idle_timeout' => PoolOptions::DEFAULT_POOL_IDLE_TIMEOUT,
         ], $options->toArray());
     }
 
@@ -31,36 +31,46 @@ class PoolOptionsTest extends TestCase
             'min_retained_objects' => 0,
             'max_objects' => 20,
             'wait_timeout' => 4,
-            'max_lifetime' => 0,
+            'max_lifetime' => null,
             'max_idle_time' => 15,
-            'idle_ttl' => 600,
+            'pool_idle_timeout' => 600,
         ]);
 
         $this->assertSame([
             'min_retained_objects' => 0,
             'max_objects' => 20,
             'wait_timeout' => 4.0,
-            'max_lifetime' => 0.0,
+            'max_lifetime' => null,
             'max_idle_time' => 15.0,
-            'idle_ttl' => 600.0,
+            'pool_idle_timeout' => 600.0,
         ], $options->toArray());
     }
 
-    public function testExplicitNullDisablesIdleTtl(): void
+    public function testExplicitNullDisablesOptionalDurations(): void
     {
-        $this->assertNull(PoolOptions::fromArray(['idle_ttl' => null])->idleTtl);
+        $options = PoolOptions::fromArray([
+            'max_lifetime' => null,
+            'max_idle_time' => null,
+            'pool_idle_timeout' => null,
+        ]);
+
+        $this->assertNull($options->maxLifetime);
+        $this->assertNull($options->maxIdleTime);
+        $this->assertNull($options->poolIdleTimeout);
         $this->assertSame(
-            PoolOptions::DEFAULT_IDLE_TTL,
-            PoolOptions::fromArray([])->idleTtl
+            PoolOptions::DEFAULT_POOL_IDLE_TIMEOUT,
+            PoolOptions::fromArray([])->poolIdleTimeout
         );
+        $this->assertSame(60.0, PoolOptions::fromArray([])->maxLifetime);
+        $this->assertFalse($options->equals(PoolOptions::fromArray([])));
     }
 
     public function testEquivalentInputsCompareEqualRegardlessOfDefaultsAndKeyOrder(): void
     {
         $defaults = PoolOptions::fromArray([]);
         $explicit = PoolOptions::fromArray([
-            'idle_ttl' => 300,
-            'max_idle_time' => 0,
+            'pool_idle_timeout' => 300,
+            'max_idle_time' => null,
             'max_lifetime' => 60,
             'wait_timeout' => 3,
             'max_objects' => 10,
@@ -75,7 +85,7 @@ class PoolOptionsTest extends TestCase
     public function testUnknownOptionsAreRejectedWithTheKnownOptions(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unknown pool option(s) [typo]. Known options are [min_retained_objects, max_objects, wait_timeout, max_lifetime, max_idle_time, idle_ttl].');
+        $this->expectExceptionMessage('Unknown pool option(s) [typo]. Known options are [min_retained_objects, max_objects, wait_timeout, max_lifetime, max_idle_time, pool_idle_timeout].');
 
         PoolOptions::fromArray(['typo' => true]);
     }
@@ -120,12 +130,10 @@ class PoolOptionsTest extends TestCase
             ['wait_timeout', null],
             ['max_lifetime', '60'],
             ['max_lifetime', false],
-            ['max_lifetime', null],
             ['max_idle_time', '1'],
             ['max_idle_time', true],
-            ['max_idle_time', null],
-            ['idle_ttl', '300'],
-            ['idle_ttl', false],
+            ['pool_idle_timeout', '300'],
+            ['pool_idle_timeout', false],
         ];
     }
 
@@ -142,7 +150,7 @@ class PoolOptionsTest extends TestCase
     {
         $cases = [];
 
-        foreach (['wait_timeout', 'max_lifetime', 'max_idle_time', 'idle_ttl'] as $name) {
+        foreach (['wait_timeout', 'max_lifetime', 'max_idle_time', 'pool_idle_timeout'] as $name) {
             foreach ([NAN, INF, -INF] as $value) {
                 $cases[] = [$name, $value];
             }
@@ -171,10 +179,12 @@ class PoolOptionsTest extends TestCase
             ],
             [['wait_timeout' => 0], 'Pool option [wait_timeout] must be greater than 0.'],
             [['wait_timeout' => -1], 'Pool option [wait_timeout] must be greater than 0.'],
-            [['max_lifetime' => -1], 'Pool option [max_lifetime] must be at least 0.'],
-            [['max_idle_time' => -1], 'Pool option [max_idle_time] must be at least 0.'],
-            [['idle_ttl' => 0], 'Pool option [idle_ttl] must be null or greater than 0.'],
-            [['idle_ttl' => -1], 'Pool option [idle_ttl] must be null or greater than 0.'],
+            [['max_lifetime' => 0], 'Pool option [max_lifetime] must be null or greater than 0.'],
+            [['max_lifetime' => -1], 'Pool option [max_lifetime] must be null or greater than 0.'],
+            [['max_idle_time' => 0], 'Pool option [max_idle_time] must be null or greater than 0.'],
+            [['max_idle_time' => -1], 'Pool option [max_idle_time] must be null or greater than 0.'],
+            [['pool_idle_timeout' => 0], 'Pool option [pool_idle_timeout] must be null or greater than 0.'],
+            [['pool_idle_timeout' => -1], 'Pool option [pool_idle_timeout] must be null or greater than 0.'],
         ];
     }
 }
