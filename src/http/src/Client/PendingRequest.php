@@ -136,6 +136,8 @@ class PendingRequest implements Transient
 
     /**
      * The number of milliseconds to wait between retries.
+     *
+     * @var (Closure(int, Throwable): int)|int
      */
     protected Closure|int $retryDelay = 100;
 
@@ -147,7 +149,7 @@ class PendingRequest implements Transient
     /**
      * The callback that will determine if the request should be retried.
      *
-     * @var null|callable
+     * @var null|(callable(null|Throwable, static, null|string): bool)
      */
     protected $retryWhenCallback;
 
@@ -580,7 +582,7 @@ class PendingRequest implements Transient
     /**
      * Specify the number of times the request should be attempted.
      *
-     * @param (Closure(int, mixed): int)|int $sleepMilliseconds
+     * @param (Closure(int, Throwable): int)|int $sleepMilliseconds
      * @param null|(callable(null|Throwable, static, null|string): bool) $when
      */
     public function retry(
@@ -591,8 +593,8 @@ class PendingRequest implements Transient
     ): static {
         $this->tries = $times;
         $this->retryDelay = $sleepMilliseconds;
-        $this->retryThrow = $throw;
         $this->retryWhenCallback = $when;
+        $this->retryThrow = $throw;
 
         return $this;
     }
@@ -1154,9 +1156,11 @@ class PendingRequest implements Transient
         }
 
         try {
+            $exception = $response instanceof Response ? $response->toException() : $response;
+
             $shouldRetry = $this->retryWhenCallback ? call_user_func(
                 $this->retryWhenCallback,
-                $response instanceof Response ? $response->toException() : $response,
+                $exception,
                 $this,
                 $this->request?->toPsrRequest()->getMethod()
             ) : true;
@@ -1166,9 +1170,8 @@ class PendingRequest implements Transient
             return $exception;
         }
 
-        $exception = $response instanceof Response ? $response->toException() : $response;
-
-        if ($attempt < $this->getMaximumAttempts() && $shouldRetry) {
+        // Non-error responses have no exception to retry, just as on the synchronous path.
+        if ($exception !== null && $attempt < $this->getMaximumAttempts() && $shouldRetry) {
             $options['delay'] = $this->retryDelayInMilliseconds($attempt, $exception);
 
             return $this->makePromise($method, $url, $options, $attempt + 1);
@@ -1187,7 +1190,7 @@ class PendingRequest implements Transient
         }
 
         if ($this->getMaximumAttempts() > 1 && $this->retryThrow) {
-            return $response instanceof Response ? $response->toException() : $response;
+            return $exception ?? $response;
         }
 
         return $response;

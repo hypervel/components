@@ -355,9 +355,9 @@ $response = Http::retry(3, 100)->post(/* ... */);
 If you would like to manually calculate the number of milliseconds to sleep between attempts, you may pass a closure as the second argument to the `retry` method:
 
 ```php
-use Exception;
+use Throwable;
 
-$response = Http::retry(3, function (int $attempt, Exception $exception) {
+$response = Http::retry(3, function (int $attempt, Throwable $exception) {
     return $attempt * 100;
 })->post(/* ... */);
 ```
@@ -368,9 +368,10 @@ For convenience, you may also provide an array as the first argument to the `ret
 $response = Http::retry([100, 200])->post(/* ... */);
 ```
 
-If needed, you may pass a third argument to the `retry` method. The third argument should be a callable that determines if the retries should actually be attempted. For example, you may wish to only retry the request if the initial request encounters an `ConnectionException`:
+If needed, you may pass a third argument to the `retry` method. The third argument should be a callable that determines if the retries should actually be attempted. For example, you may wish to only retry the request if the initial request encounters a `ConnectionException`:
 
 ```php
+use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\PendingRequest;
 use Throwable;
 
