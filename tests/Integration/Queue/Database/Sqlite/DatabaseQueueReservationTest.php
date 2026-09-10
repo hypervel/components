@@ -9,6 +9,7 @@ use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DeadlockException;
+use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Events\TransactionCommitted;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Grammars\SQLiteGrammar;
@@ -159,6 +160,59 @@ class DatabaseQueueReservationTest extends TestCase
         } finally {
             $database->rollBack();
         }
+    }
+
+    #[TestWith(['before'])]
+    #[TestWith(['executed'])]
+    #[TestWith(['duration'])]
+    public function testQueryObserverFailureKeepsTheJobAvailable(string $observer): void
+    {
+        [$queue, $events] = $this->createQueue();
+        $database = $queue->getDatabase();
+        $id = $queue->pushRaw(json_encode(['job' => stdClass::class, 'data' => []]));
+        $failure = new RuntimeException('Query observer failed.');
+        $callback = static function (string $query) use ($failure): void {
+            if (str_starts_with($query, 'update ')) {
+                throw $failure;
+            }
+        };
+        $failed = false;
+        $events->listen(JobFailed::class, static function () use (&$failed): void {
+            $failed = true;
+        });
+
+        if ($observer === 'before') {
+            $database->beforeExecuting($callback);
+        } elseif ($observer === 'executed') {
+            $events->listen(QueryExecuted::class, static function (QueryExecuted $event) use ($callback): void {
+                $callback($event->sql);
+            });
+        } else {
+            // A negative threshold fires even at zero measured duration. Selection runs
+            // first, so re-arm the one-shot handler for the reservation update.
+            $database->whenQueryingForLongerThan(-1, static function (PdoConnection $connection, QueryExecuted $event) use ($callback): void {
+                $callback($event->sql);
+            });
+
+            $database->beforeExecuting(static function (string $query) use ($database): void {
+                if (str_starts_with($query, 'update ')) {
+                    $database->allowQueryDurationHandlersToRunAgain();
+                }
+            });
+        }
+
+        try {
+            $queue->pop();
+            $this->fail('Expected the query observer failure.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $record = $database->table('jobs')->find($id);
+        $this->assertNotNull($record);
+        $this->assertSame(0, $record->attempts);
+        $this->assertNull($record->reserved_at);
+        $this->assertFalse($failed);
     }
 
     public function testCommittedListenerFailureKeepsTheReservedJob(): void

@@ -18,6 +18,7 @@ use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Database\QueryException;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Events\Dispatcher;
@@ -130,8 +131,8 @@ class QueueDatabaseQueueUnitTest extends TestCase
     public static function transientReservationFailureProvider(): array
     {
         return [
-            'concurrency' => [new PDOException('deadlock detected', 40001)],
-            'lost connection' => [new PDOException('server has gone away')],
+            'concurrency' => [new QueryException('database', 'update jobs', [], new PDOException('deadlock detected', 40001))],
+            'lost connection' => [new QueryException('database', 'update jobs', [], new PDOException('server has gone away'))],
             'cancellation' => [new CanceledException('Reservation canceled.')],
         ];
     }
@@ -139,7 +140,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     #[DataProvider('reservationCleanupFailureProvider')]
     public function testReservationRecoveryPreservesFailureOrPropagatesCancellation(Throwable $cleanupFailure): void
     {
-        $failure = new RuntimeException('Reservation failed.');
+        $failure = new QueryException('database', 'update jobs', [], new PDOException('Reservation failed.'));
         [$queue, $events] = $this->createFailingReservationQueue($failure);
         $queue->shouldReceive('deleteReserved')->once()->with('default', '1')->andThrow($cleanupFailure);
 

@@ -16,6 +16,7 @@ use Hypervel\Database\DetectsConcurrencyErrors;
 use Hypervel\Database\DetectsLostConnections;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Database\QueryException;
 use Hypervel\Queue\Concerns\InsertsDatabaseRows;
 use Hypervel\Queue\Jobs\DatabaseJob;
 use Hypervel\Queue\Jobs\DatabaseJobRecord;
@@ -499,11 +500,10 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
                     return $job;
                 }
             });
-        } catch (CanceledException $exception) {
-            throw $exception;
-        } catch (Throwable $exception) {
+        } catch (QueryException $exception) {
             // Recovery requires our transaction to have unwound. Transient database
             // failures leave the job available for another reservation attempt.
+            // Non-query callback failures do not establish an invalid job record.
             if ($jobRecord !== null
                 && $database->transactionLevel() === $transactionLevel
                 && ! $this->causedByConcurrencyError($exception)
