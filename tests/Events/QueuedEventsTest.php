@@ -231,7 +231,7 @@ class QueuedEventsTest extends TestCase
         ]);
     }
 
-    public function testQueueIsSetUsingQueueRoutes()
+    public function testQueueIsSetUsingQueueRoutes(): void
     {
         $container = new Container;
         $d = new Dispatcher($container);
@@ -240,18 +240,20 @@ class QueuedEventsTest extends TestCase
         $queueRoutes->set(TestDispatcherQueueRoutes::class, 'event-queue', 'event-connection');
         $container->instance('queue.routes', $queueRoutes);
 
-        $fakeQueue = new QueueFake($container);
+        $factory = m::mock(QueueFactory::class);
+        $queue = m::mock(Queue::class);
+
+        $factory->shouldReceive('connection')->once()->with('event-connection')->andReturn($queue);
+        $queue->shouldReceive('pushOn')->once()->with('event-queue', m::type(CallQueuedListener::class));
 
         Container::setInstance($container);
 
-        $d->setQueueResolver(function () use ($fakeQueue) {
-            return $fakeQueue;
+        $d->setQueueResolver(function () use ($factory): QueueFactory {
+            return $factory;
         });
 
         $d->listen('some.event', TestDispatcherQueueRoutes::class . '@handle');
         $d->dispatch('some.event', ['foo', 'bar']);
-
-        $fakeQueue->connection('event-connection')->assertPushedOn('event-queue', CallQueuedListener::class);
     }
 
     public function testDelayIsSetByWithDelayDynamically()

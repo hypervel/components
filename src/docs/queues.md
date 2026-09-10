@@ -1655,9 +1655,9 @@ In addition to routing specific job classes, you may also pass an interface, tra
 Typically, you should call the `route` method from the `boot` method of a service provider:
 
 ```php
+use App\Concerns\RequiresVideo;
 use App\Jobs\ProcessPodcast;
 use App\Jobs\ProcessVideo;
-use App\Traits\RequiresVideo;
 use Hypervel\Support\Facades\Queue;
 
 /**
@@ -1681,7 +1681,7 @@ You may also route multiple job classes at once by passing an array to the `rout
 ```php
 Queue::route([
     ProcessPodcast::class => ['redis', 'podcasts'], // Connection and queue
-    ProcessVideo::class => [null, 'videos'], // Queue only (uses default connection)
+    ProcessVideo::class => 'videos', // Queue only (uses default connection)
 ]);
 ```
 

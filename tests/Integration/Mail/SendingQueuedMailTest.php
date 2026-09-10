@@ -10,7 +10,9 @@ use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Queue\Middleware\RateLimited;
 use Hypervel\Support\Facades\Mail;
 use Hypervel\Support\Facades\Queue;
+use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
+use Mockery as m;
 
 class SendingQueuedMailTest extends TestCase
 {
@@ -39,13 +41,16 @@ class SendingQueuedMailTest extends TestCase
 
     public function testMailIsSentWhenRoutingQueue(): void
     {
-        Queue::fake();
+        // QueueFake ignores connection names, so verify selection separately from its push assertions.
+        $queue = m::mock(QueueFake::class, [$this->app])->makePartial();
+        $queue->shouldReceive('connection')->once()->with('mail-connection')->andReturnSelf();
+        Queue::swap($queue);
 
         Queue::route(Mailable::class, 'mail-queue', 'mail-connection');
 
         Mail::to('test@mail.com')->queue(new SendingQueuedMailTestMail);
 
-        Queue::connection('mail-connection')->assertPushedOn('mail-queue', SendQueuedMailable::class);
+        Queue::assertPushedOn('mail-queue', SendQueuedMailable::class);
     }
 
     public function testMailIsSentWithDelay(): void

@@ -73,6 +73,31 @@ class QueueRoutesTest extends TestCase
         $this->assertNull($defaults->getConnection(new Payment));
     }
 
+    public function testStringRouteDefaultsToQueueNotConnection(): void
+    {
+        $defaults = new QueueRoutes;
+
+        $defaults->set([BaseNotification::class => 'notifications']);
+
+        $this->assertSame('notifications', $defaults->getQueue(new FinanceNotification));
+        $this->assertNull($defaults->getConnection(new FinanceNotification));
+    }
+
+    public function testEnumsAreResolved(): void
+    {
+        $defaults = new QueueRoutes;
+
+        $defaults->set(SomeJob::class, QueueName::Payments, ConnectionName::Redis);
+
+        $this->assertSame('payments', $defaults->getQueue(new SomeJob));
+        $this->assertSame('redis', $defaults->getConnection(new SomeJob));
+
+        $defaults->set([SomeJob::class => [ConnectionName::Redis, QueueName::Payments]]);
+
+        $this->assertSame('payments', $defaults->getQueue(new SomeJob));
+        $this->assertSame('redis', $defaults->getConnection(new SomeJob));
+    }
+
     public function testEnumRoutesAreNormalizedAndScalarRoutesRemainQueueOnly(): void
     {
         $defaults = new QueueRoutes;
@@ -90,6 +115,16 @@ class QueueRoutesTest extends TestCase
         $this->assertSame('Connection', $defaults->getConnection(new FinanceNotification));
         $this->assertSame('1', $defaults->getQueue(new FinanceNotification));
     }
+}
+
+enum QueueName: string
+{
+    case Payments = 'payments';
+}
+
+enum ConnectionName: string
+{
+    case Redis = 'redis';
 }
 
 trait CustomTrait

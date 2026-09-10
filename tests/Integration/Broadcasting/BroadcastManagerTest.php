@@ -42,6 +42,7 @@ use Hypervel\Routing\Route;
 use Hypervel\Support\Facades\Broadcast;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\Queue;
+use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -120,13 +121,16 @@ class BroadcastManagerTest extends TestCase
     public function testEventsCanBeBroadcastUsingQueueRoutes(): void
     {
         Bus::fake();
-        Queue::fake();
+        // QueueFake ignores connection names, so verify selection separately from its push assertions.
+        $queue = m::mock(QueueFake::class, [$this->app])->makePartial();
+        $queue->shouldReceive('connection')->once()->with('broadcast-connection')->andReturnSelf();
+        Queue::swap($queue);
 
         Queue::route(TestEvent::class, 'broadcast-queue', 'broadcast-connection');
 
         Broadcast::queue(new TestEvent);
         Bus::assertNotDispatched(BroadcastEvent::class);
-        Queue::connection('broadcast-connection')->assertPushedOn('broadcast-queue', BroadcastEvent::class);
+        Queue::assertPushedOn('broadcast-queue', BroadcastEvent::class);
     }
 
     public function testEventsCanBeRescued(): void
