@@ -1711,7 +1711,7 @@ A forward scoped to a `failover` connection requires an explicit queue name; oth
 
 After forwarding queues, update your worker queue lists to avoid listing multiple names that resolve to the same queue. Before forwarding a queue to a different name, drain its existing jobs. Workers using the forwarding configuration will consume the destination queue instead.
 
-Clearing a forwarded queue clears its destination, including jobs sent through other queue names that forward to the same destination.
+When a forward specifies a connection, pass that connection to `queue:clear`; using another connection clears the source queue instead. Clearing a forwarded queue on the matching connection clears its destination, including jobs sent through other queue names that forward to the same destination.
 
 <a name="max-job-attempts-and-timeout"></a>
 ### Specifying Max Job Attempts / Timeout Values
