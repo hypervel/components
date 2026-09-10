@@ -26,7 +26,7 @@ use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactoryContract;
  * @method static \Pusher\Pusher pusher(array $config)
  * @method static void queue(mixed $event)
  * @method static \Hypervel\Broadcasting\BroadcastManager removePoolableDriver(string $driver)
- * @method static string|null resolveConnectionFromQueueRoute(object $queueable, \UnitEnum|string|null $queue = null)
+ * @method static string|null resolveConnectionFromQueueRoute(object $queueable, null|string|\UnitEnum $queue = null)
  * @method static string|null resolveQueueFromQueueRoute(object $queueable)
  * @method static void routes(array|null $attributes = null)
  * @method static \Hypervel\Broadcasting\BroadcastManager setApplication(\Hypervel\Contracts\Container\Container $app)

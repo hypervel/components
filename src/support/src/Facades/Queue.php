@@ -32,7 +32,7 @@ use Hypervel\Support\Testing\Fakes\QueueFake;
  * @method static void pauseFor(string $connection, string $queue, \DateInterval|\DateTimeInterface|int $ttl)
  * @method static void purge(string|null $name = null)
  * @method static \Hypervel\Queue\QueueManager removePoolableDriver(string $driver)
- * @method static string|null resolveConnectionFromQueueRoute(object $queueable, \UnitEnum|string|null $queue = null)
+ * @method static string|null resolveConnectionFromQueueRoute(object $queueable, null|string|\UnitEnum $queue = null)
  * @method static string|null resolveQueueFromQueueRoute(object $queueable)
  * @method static void resume(string $connection, string $queue)
  * @method static void resumeAll()
