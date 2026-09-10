@@ -352,7 +352,8 @@ class PdoConnection extends Connection
         $this->latestReadWriteTypeRetrieved = 'write';
         $pdo = $this->resolvePdo();
 
-        return static::$sessionConfigurators === []
+        // Transaction and cleanup failures can invalidate a PDO even without session configurators.
+        return static::$sessionConfigurators === [] && ! static::sessionStateIsUnknown($pdo)
             ? $pdo
             : $this->synchronizeSession($pdo, read: false);
     }
@@ -382,7 +383,7 @@ class PdoConnection extends Connection
         $this->latestReadWriteTypeRetrieved = 'read';
         $pdo = $this->resolveReadPdo();
 
-        return static::$sessionConfigurators === []
+        return static::$sessionConfigurators === [] && ! static::sessionStateIsUnknown($pdo)
             ? $pdo
             : $this->synchronizeSession($pdo, read: true);
     }

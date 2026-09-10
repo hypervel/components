@@ -17,6 +17,7 @@ use Hypervel\Database\SessionConfigurator;
 use Hypervel\Tests\TestCase;
 use PDO;
 use PDOException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Throwable;
 
@@ -335,10 +336,15 @@ class DatabaseSessionConfiguratorTest extends TestCase
         }
     }
 
-    public function testUnknownWriteSessionIsReplacedOnceAndTheReplacementIsConfigured(): void
+    #[DataProvider('sessionConfigurationProvider')]
+    public function testUnknownWriteSessionIsReplacedOnce(bool $configureSession): void
     {
         $configurator = $this->configurator();
-        PdoConnection::configureSessionUsing($configurator);
+
+        if ($configureSession) {
+            PdoConnection::configureSessionUsing($configurator);
+        }
+
         $oldPdo = $this->pdo();
         $newPdo = $this->pdo();
         $connection = $this->connection($oldPdo);
@@ -352,14 +358,19 @@ class DatabaseSessionConfiguratorTest extends TestCase
 
         $this->assertSame($newPdo, $connection->getPdo());
         $this->assertSame(1, $reconnects);
-        $this->assertSame(2, $configurator->applyCalls);
+        $this->assertSame($configureSession ? 2 : 0, $configurator->applyCalls);
         $this->assertFalse(TestSessionConnection::sessionStateIsUnknownForTest($newPdo));
     }
 
-    public function testUnknownReadSessionRecoveryKeepsTheReadRoute(): void
+    #[DataProvider('sessionConfigurationProvider')]
+    public function testUnknownReadSessionRecoveryKeepsTheReadRoute(bool $configureSession): void
     {
         $configurator = $this->configurator();
-        PdoConnection::configureSessionUsing($configurator);
+
+        if ($configureSession) {
+            PdoConnection::configureSessionUsing($configurator);
+        }
+
         $writePdo = $this->pdo();
         $oldReadPdo = $this->pdo();
         $newReadPdo = $this->pdo();
@@ -373,7 +384,7 @@ class DatabaseSessionConfiguratorTest extends TestCase
 
         $this->assertSame($newReadPdo, $connection->getReadPdo());
         $this->assertSame($writePdo, $connection->getRawPdo());
-        $this->assertSame(2, $configurator->applyCalls);
+        $this->assertSame($configureSession ? 2 : 0, $configurator->applyCalls);
     }
 
     public function testUnknownReadFallbackRecoveryUsesTheReplacementWritePdo(): void
@@ -440,9 +451,13 @@ class DatabaseSessionConfiguratorTest extends TestCase
         }
     }
 
-    public function testUnknownSessionInsideTransactionFailsWithoutReconnect(): void
+    #[DataProvider('sessionConfigurationProvider')]
+    public function testUnknownSessionInsideTransactionFailsWithoutReconnect(bool $configureSession): void
     {
-        PdoConnection::configureSessionUsing($this->configurator());
+        if ($configureSession) {
+            PdoConnection::configureSessionUsing($this->configurator());
+        }
+
         $pdo = $this->pdo();
         $connection = $this->connection($pdo);
         $connection->beginTransaction();
@@ -462,6 +477,17 @@ class DatabaseSessionConfiguratorTest extends TestCase
         }
 
         $this->assertSame(0, $reconnects);
+    }
+
+    /**
+     * Provide session configurator registration states.
+     */
+    public static function sessionConfigurationProvider(): array
+    {
+        return [
+            'configured' => [true],
+            'unconfigured' => [false],
+        ];
     }
 
     public function testUnknownSessionWithoutAReconnectorPreservesTheExistingFailure(): void
