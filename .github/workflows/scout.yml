@@ -23,8 +23,6 @@ jobs:
         env:
           MEILI_MASTER_KEY: secret
           MEILI_NO_ANALYTICS: true
-        ports:
-          - 7700:7700
         options: >-
           --health-cmd "curl -f http://localhost:7700/health"
           --health-interval 10s
@@ -78,8 +76,6 @@ jobs:
         env:
           TYPESENSE_API_KEY: secret
           TYPESENSE_DATA_DIR: /tmp
-        ports:
-          - 8108:8108
 
     container:
       image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2
