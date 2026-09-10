@@ -41,6 +41,8 @@ class Response implements ArrayAccess, Stringable
 
     /**
      * The flags that were used when decoding the JSON response.
+     *
+     * @var int-mask<JSON_BIGINT_AS_STRING, JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_OBJECT_AS_ARRAY, JSON_THROW_ON_ERROR>
      */
     protected int $decodingFlags = 0;
 
@@ -91,6 +93,8 @@ class Response implements ArrayAccess, Stringable
 
     /**
      * Get the JSON decoded body of the response as an array or scalar value.
+     *
+     * @param null|int-mask<JSON_BIGINT_AS_STRING, JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_OBJECT_AS_ARRAY, JSON_THROW_ON_ERROR> $flags
      */
     public function json(?string $key = null, mixed $default = null, ?int $flags = null): mixed
     {
@@ -123,6 +127,8 @@ class Response implements ArrayAccess, Stringable
      *
      *  This method will return an array of objects. Scalar JSON values remain
      *  their decoded scalar type.
+     *
+     * @param null|int-mask<JSON_BIGINT_AS_STRING, JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_OBJECT_AS_ARRAY, JSON_THROW_ON_ERROR> $flags
      */
     public function object(?int $flags = null): mixed
     {
@@ -152,6 +158,8 @@ class Response implements ArrayAccess, Stringable
 
     /**
      * Decode the given response body.
+     *
+     * @param int-mask<JSON_BIGINT_AS_STRING, JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_OBJECT_AS_ARRAY, JSON_THROW_ON_ERROR> $flags
      */
     protected function decode(string $body, bool $asObject = false, int $flags = 0): mixed
     {
@@ -164,6 +172,8 @@ class Response implements ArrayAccess, Stringable
 
     /**
      * Get the JSON decoded body of the response as a collection.
+     *
+     * @param null|int-mask<JSON_BIGINT_AS_STRING, JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_OBJECT_AS_ARRAY, JSON_THROW_ON_ERROR> $flags
      */
     public function collect(?string $key = null, ?int $flags = null): Collection
     {
@@ -172,6 +182,8 @@ class Response implements ArrayAccess, Stringable
 
     /**
      * Get the JSON decoded body of the response as a fluent object.
+     *
+     * @param null|int-mask<JSON_BIGINT_AS_STRING, JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_OBJECT_AS_ARRAY, JSON_THROW_ON_ERROR> $flags
      */
     public function fluent(?string $key = null, ?int $flags = null): Fluent
     {
