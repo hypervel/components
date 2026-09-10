@@ -22,6 +22,7 @@
 - [Configuration](#configuration)
 - [Other API Differences](#other-api-differences)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
+    - [CSRF Protection](#csrf-protection)
     - [Scout](#scout)
     - [JSON Schema](#json-schema)
     - [Validation](#validation)
@@ -473,6 +474,11 @@ Many Laravel APIs have direct Hypervel equivalents under the `Hypervel` namespac
 For concurrent HTTP requests, replace Laravel's `Http::pool` and `Http::batch` patterns with Hypervel's coroutine helpers, typically `parallel` from `Hypervel\Coroutine`. See the [HTTP client documentation](/docs/{{version}}/http-client#concurrent-requests) for examples.
 
 Hypervel's `Concurrency` facade provides `coroutine`, `process`, and `sync` drivers. Laravel's `fork` driver is not available because coroutines are Hypervel's native lightweight execution model. Use the default `coroutine` driver for normal concurrent application work and reserve `process` for work that requires operating system process isolation. See the [concurrency documentation](/docs/{{version}}/concurrency#choosing-a-driver).
+
+<a name="csrf-protection"></a>
+### CSRF Protection
+
+Replace references to Laravel's deprecated `VerifyCsrfToken` and `ValidateCsrfToken` middleware with `Hypervel\Foundation\Http\Middleware\PreventRequestForgery`. If your application extends either class, extend `PreventRequestForgery` instead and declare any overridden exclusions as `protected array $except`. Replace `validateCsrfTokens()` configuration calls with `preventRequestForgery()`. See the [CSRF protection documentation](/docs/{{version}}/csrf).
 
 <a name="scout"></a>
 ### Scout
