@@ -12,6 +12,8 @@ trait ResolvesQueueRoutes
 {
     /**
      * Resolve the default connection name for a given queueable instance.
+     *
+     * @param null|string|UnitEnum $queue the caller-selected queue, overriding the queueable's queue when resolving a forwarded connection
      */
     public function resolveConnectionFromQueueRoute(object $queueable, UnitEnum|string|null $queue = null): ?string
     {

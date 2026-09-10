@@ -30,6 +30,8 @@ class QueueRoutes
 
     /**
      * Get the queue connection that a given queueable instance should be routed to.
+     *
+     * @param null|string|UnitEnum $queue the caller-selected queue, overriding the queueable's queue when resolving a forwarded connection
      */
     public function getConnection(object $queueable, UnitEnum|string|null $queue = null): ?string
     {
