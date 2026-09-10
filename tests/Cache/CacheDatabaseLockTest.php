@@ -138,37 +138,20 @@ class CacheDatabaseLockTest extends TestCase
         [$lock, $table] = $this->getLock();
         $owner = $lock->owner();
 
-        // Check ownership
-        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturn($table);
-        $table->shouldReceive('first')->once()->andReturn((object) ['owner' => $owner]);
-
-        // Delete
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
         $table->shouldReceive('where')->once()->with('owner', $owner)->andReturn($table);
-        $table->shouldReceive('delete')->once();
+        $table->shouldReceive('delete')->once()->andReturn(1);
 
         $this->assertTrue($lock->release());
     }
 
-    public function testLockCannotBeReleasedIfNotOwned(): void
+    public function testReleaseReturnsFalseWhenNoOwnedRowMatches(): void
     {
         [$lock, $table] = $this->getLock();
 
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturn($table);
-        $table->shouldReceive('first')->once()->andReturn((object) ['owner' => 'different-owner']);
-
-        $this->assertFalse($lock->release());
-    }
-
-    public function testLockCannotBeReleasedIfNotExists(): void
-    {
-        [$lock, $table] = $this->getLock();
-
-        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturn($table);
-        $table->shouldReceive('first')->once()->andReturn(null);
+        $table->shouldReceive('where')->once()->with('owner', $lock->owner())->andReturn($table);
+        $table->shouldReceive('delete')->once()->andReturn(0);
 
         $this->assertFalse($lock->release());
     }
