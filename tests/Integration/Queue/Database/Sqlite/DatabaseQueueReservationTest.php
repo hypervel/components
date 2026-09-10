@@ -163,18 +163,33 @@ class DatabaseQueueReservationTest extends TestCase
         }
     }
 
-    #[TestWith(['before'])]
-    #[TestWith(['executed'])]
-    #[TestWith(['duration'])]
-    public function testQueryObserverFailureKeepsTheJobAvailable(string $observer): void
+    #[TestWith(['before', false])]
+    #[TestWith(['executed', false])]
+    #[TestWith(['duration', false])]
+    #[TestWith(['before', true])]
+    #[TestWith(['executed', true])]
+    #[TestWith(['duration', true])]
+    public function testQueryObserverFailureKeepsTheJobAvailable(string $observer, bool $queryFailure): void
     {
         [$queue, $events] = $this->createQueue();
         $database = $queue->getDatabase();
         $id = $queue->pushRaw(json_encode(['job' => stdClass::class, 'data' => []]));
-        $failure = new RuntimeException('Query observer failed.');
-        $callback = static function (string $query) use ($failure): void {
-            if (str_starts_with($query, 'update ')) {
+        $failure = $queryFailure ? null : new RuntimeException('Query observer failed.');
+        $callback = static function (string $query) use ($database, $queryFailure, &$failure): void {
+            if (! str_starts_with($query, 'update ')) {
+                return;
+            }
+
+            if (! $queryFailure) {
                 throw $failure;
+            }
+
+            try {
+                $database->statement('insert into missing_query_audit (message) values (?)', ['query observed']);
+            } catch (QueryException $exception) {
+                $failure = $exception;
+
+                throw $exception;
             }
         };
         $failed = false;
@@ -207,6 +222,53 @@ class DatabaseQueueReservationTest extends TestCase
             $this->fail('Expected the query observer failure.');
         } catch (RuntimeException $exception) {
             $this->assertSame($failure, $exception);
+        }
+
+        $record = $database->table('jobs')->find($id);
+        $this->assertNotNull($record);
+        $this->assertSame(0, $record->attempts);
+        $this->assertNull($record->reserved_at);
+        $this->assertFalse($failed);
+    }
+
+    public function testObserverFailureUpdatingAnotherJobKeepsTheJobAvailable(): void
+    {
+        [$queue, $events] = $this->createQueue();
+        $database = $queue->getDatabase();
+        $payload = json_encode(['job' => stdClass::class, 'data' => []]);
+        $id = $queue->pushRaw($payload);
+        $otherId = $queue->pushRaw($payload);
+        $failure = null;
+        $reservationSql = null;
+        $failed = false;
+        $events->listen(JobFailed::class, static function () use (&$failed): void {
+            $failed = true;
+        });
+        $events->listen(QueryExecuted::class, static function (QueryExecuted $event) use ($database, $otherId, &$failure, &$reservationSql): void {
+            if ($reservationSql !== null || ! str_starts_with($event->sql, 'update ')) {
+                return;
+            }
+
+            $reservationSql = $event->sql;
+
+            try {
+                $database->table('jobs')->where('id', $otherId)->update([
+                    'reserved_at' => 1,
+                    'attempts' => 65536,
+                ]);
+            } catch (QueryException $exception) {
+                $failure = $exception;
+
+                throw $exception;
+            }
+        });
+
+        try {
+            $queue->pop();
+            $this->fail('Expected the observer update to fail.');
+        } catch (QueryException $exception) {
+            $this->assertSame($failure, $exception);
+            $this->assertSame($reservationSql, $exception->getSql());
         }
 
         $record = $database->table('jobs')->find($id);
@@ -281,7 +343,8 @@ class DatabaseQueueReservationTest extends TestCase
      */
     private function createQueue(?PDO $pdo = null): array
     {
-        $database = new PdoConnection($pdo ?? new PDO('sqlite::memory:'));
+        // Distinguish the storage connection from the queue name and default resolver key.
+        $database = new PdoConnection($pdo ?? new PDO('sqlite::memory:'), config: ['name' => 'queue-storage']);
         $database->setQueryGrammar(new SQLiteGrammar($database));
 
         // SQLite ignores integer widths, so enforce the migration's unsignedSmallInteger ceiling explicitly.

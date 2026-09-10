@@ -504,10 +504,12 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
             // Recovery requires our transaction to have unwound. Transient database
             // failures leave the job available for another reservation attempt.
             // Non-query callback failures do not establish an invalid job record.
+            // Observers can run their own failing SQL, so match the reservation update.
             if ($jobRecord !== null
                 && $database->transactionLevel() === $transactionLevel
                 && ! $this->causedByConcurrencyError($exception)
-                && ! $this->causedByLostConnection($exception)) {
+                && ! $this->causedByLostConnection($exception)
+                && $this->causedByReservationQuery($exception, $database, $jobRecord)) {
                 try {
                     (new DatabaseJob(
                         $this->container,
@@ -607,6 +609,30 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
         ]);
 
         return $job;
+    }
+
+    /**
+     * Determine whether the exception matches this job's reservation update.
+     *
+     * Override this alongside markJobAsReserved when changing its SQL or bindings.
+     */
+    protected function causedByReservationQuery(
+        QueryException $exception,
+        ConnectionInterface $database,
+        DatabaseJobRecord $jobRecord
+    ): bool {
+        if ($exception->getConnectionName() !== $database->getName()) {
+            return false;
+        }
+
+        $query = $database->table($this->table)->where('id', $jobRecord->id);
+        $values = ['reserved_at' => $jobRecord->reserved_at, 'attempts' => $jobRecord->attempts];
+        $grammar = $query->getGrammar();
+
+        return $exception->getSql() === $grammar->compileUpdate($query, $values)
+            && $exception->getBindings() === $database->prepareBindings($query->cleanBindings(
+                $grammar->prepareBindingsForUpdate($query->getRawBindings(), $values)
+            ));
     }
 
     /**

@@ -142,6 +142,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
     {
         $failure = new QueryException('database', 'update jobs', [], new PDOException('Reservation failed.'));
         [$queue, $events] = $this->createFailingReservationQueue($failure);
+        $queue->shouldReceive('causedByReservationQuery')->once()->andReturn(true);
         $queue->shouldReceive('deleteReserved')->once()->with('default', '1')->andThrow($cleanupFailure);
 
         if ($cleanupFailure instanceof CanceledException) {

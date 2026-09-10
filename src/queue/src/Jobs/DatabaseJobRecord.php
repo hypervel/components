@@ -11,6 +11,7 @@ use stdClass;
  * @property int $id
  * @property string $payload
  * @property int $attempts
+ * @property null|int $reserved_at
  */
 class DatabaseJobRecord
 {
