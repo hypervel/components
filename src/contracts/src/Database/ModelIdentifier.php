@@ -8,15 +8,12 @@ use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Relations\Relation;
 
 /**
- * NOTE: Do not use constructor property promotion here.
+ * Do not use constructor property promotion here.
  *
  * The order these properties are declared in is part of the serialized output,
  * and Laravel expects that exact order. If this class is switched to constructor
  * property promotion, PHP will change the property declaration order and the
  * serialized string will no longer match Laravel.
- *
- * Keep these properties explicitly declared in this exact order:
- * class, id, relations, connection, collectionClass.
  */
 class ModelIdentifier
 {
@@ -26,9 +23,9 @@ class ModelIdentifier
     protected static bool $useMorphMap = false;
 
     /**
-     * The class name of the model, or its morph-map alias when enabled.
+     * The class name of the model, or its string or integer morph-map alias when enabled.
      */
-    public ?string $class;
+    public int|string|null $class;
 
     /**
      * The unique identifier of the model.
@@ -67,7 +64,7 @@ class ModelIdentifier
     public function __construct(?string $class, mixed $id, array $relations, ?string $connection = null)
     {
         if ($class !== null && static::$useMorphMap) {
-            $class = (string) Relation::getMorphAlias($class);
+            $class = Relation::getMorphAlias($class);
         }
 
         $this->class = $class;
@@ -93,11 +90,14 @@ class ModelIdentifier
      */
     public function getClass(): ?string
     {
-        if ($this->class === null) {
-            return null;
+        $class = $this->class;
+
+        if (static::$useMorphMap && $class !== null) {
+            $class = Relation::getMorphedModel($class) ?? $class;
         }
 
-        return Relation::getMorphedModel($this->class) ?? $this->class;
+        // Unmapped integer aliases still follow the nullable-string getter contract.
+        return $class === null ? null : (string) $class;
     }
 
     /**
