@@ -30,7 +30,7 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\Http\Request dump(mixed $keys = [])
  * @method static \Hypervel\Http\Request duplicate(array|null $query = null, array|null $request = null, array|null $attributes = null, array|null $cookies = null, array|null $files = null, array|null $server = null)
  * @method static void enableHttpMethodParameterOverride()
- * @method static null|\BackedEnum enum(string $key, string $enumClass, null|\BackedEnum $default = null)
+ * @method static \BackedEnum|null enum(string $key, string $enumClass, \BackedEnum|null $default = null)
  * @method static \BackedEnum[] enums(string $key, string $enumClass)
  * @method static array except(mixed $keys)
  * @method static bool exists(array|string $key)

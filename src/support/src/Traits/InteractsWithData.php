@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Traits;
 
+use BackedEnum;
 use Carbon\CarbonInterface;
 use Carbon\CarbonInterval;
 use Carbon\Unit;
@@ -168,7 +169,7 @@ trait InteractsWithData
     /**
      * Apply the callback if the instance contains a valid enum value for the given key.
      *
-     * @template TEnum of \BackedEnum
+     * @template TEnum of BackedEnum
      * @template TReturn
      * @template TReturnDefault = never
      *
@@ -335,11 +336,12 @@ trait InteractsWithData
     /**
      * Retrieve data from the instance as an enum.
      *
-     * @template TEnum of \BackedEnum
+     * @template TEnum of BackedEnum
+     * @template TDefault of TEnum|null
      *
      * @param class-string<TEnum> $enumClass
-     * @param null|TEnum $default
-     * @return null|TEnum
+     * @param TDefault $default
+     * @return TDefault|TEnum
      */
     public function enum(string $key, string $enumClass, mixed $default = null): mixed
     {
@@ -353,7 +355,7 @@ trait InteractsWithData
     /**
      * Retrieve data from the instance as an array of enums.
      *
-     * @template TEnum of \BackedEnum
+     * @template TEnum of BackedEnum
      *
      * @param class-string<TEnum> $enumClass
      * @return TEnum[]
