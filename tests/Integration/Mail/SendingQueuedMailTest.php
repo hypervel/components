@@ -63,6 +63,7 @@ class SendingQueuedMailTest extends TestCase
 
         Mail::to('test@mail.com')->queue(new SendingQueuedForwardedMailTestMail);
 
+        // The fake records the logical queue; storage drivers apply the destination forward.
         Queue::assertPushedOn('mail-queue', SendQueuedMailable::class);
     }
 
