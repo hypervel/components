@@ -472,6 +472,40 @@ class SupportStrTest extends TestCase
         $this->assertSame('yvette', Str::beforeLast("yvette\tyv0et0te", "\t"));
     }
 
+    public function testStringBoundariesRespectInternalEncoding(): void
+    {
+        $encoding = mb_internal_encoding();
+
+        try {
+            mb_internal_encoding('SJIS');
+
+            $subject = mb_convert_encoding('日本語と日本語', 'SJIS', 'UTF-8');
+            $search = mb_convert_encoding('日本', 'SJIS', 'UTF-8');
+            $wrapper = mb_convert_encoding('語', 'SJIS', 'UTF-8');
+            $wrapped = mb_convert_encoding('語日本語', 'SJIS', 'UTF-8');
+
+            $this->assertSame(mb_convert_encoding('日本語と', 'SJIS', 'UTF-8'), Str::beforeLast($subject, $search));
+            $this->assertSame($wrapper, Str::afterLast($subject, $search));
+            $this->assertSame($search, Str::unwrap($wrapped, $wrapper));
+
+            // 表 ends with byte 0x5c in SJIS, but contains no backslash character.
+            $leadingSubject = mb_convert_encoding('表計算', 'SJIS', 'UTF-8');
+            $trailingSubject = mb_convert_encoding('計算表', 'SJIS', 'UTF-8');
+
+            $this->assertSame($leadingSubject, Str::afterLast($leadingSubject, '\\'));
+            $this->assertSame($trailingSubject, Str::chopEnd($trailingSubject, '\\'));
+            $this->assertSame($trailingSubject, Str::unwrap($trailingSubject, '\\'));
+            $this->assertSame($trailingSubject, Str::chopEnd($trailingSubject . '\\', '\\'));
+            $this->assertSame($trailingSubject, Str::unwrap($trailingSubject . '\\', '\\'));
+            $this->assertSame(
+                mb_convert_encoding('計算', 'SJIS', 'UTF-8'),
+                Str::chopEnd($trailingSubject, ['\\', mb_convert_encoding('表', 'SJIS', 'UTF-8')]),
+            );
+        } finally {
+            mb_internal_encoding($encoding);
+        }
+    }
+
     public function testStrBetween(): void
     {
         $this->assertSame('abc', Str::between('abc', '', 'c'));
@@ -1505,6 +1539,12 @@ class SupportStrTest extends TestCase
         $this->assertSame('maria@email.co*', Str::mask('maria@email.com', '*', -1));
         $this->assertSame('***************', Str::mask('maria@email.com', '*', -15));
         $this->assertSame('***************', Str::mask('maria@email.com', '*', 0));
+
+        // the trailing portion of the string must respect a non-default encoding
+        $latin1 = mb_convert_encoding('José Pérez García', 'ISO-8859-1', 'UTF-8');
+        $expected = mb_convert_encoding('José ***** García', 'ISO-8859-1', 'UTF-8');
+        $this->assertSame($expected, Str::mask($latin1, '*', 5, 5, 'ISO-8859-1'));
+        $this->assertSame($expected, Str::mask($latin1, '*', -12, 5, 'ISO-8859-1'));
     }
 
     public function testMatch(): void

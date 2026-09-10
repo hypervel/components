@@ -90,13 +90,13 @@ class Str
             return $subject;
         }
 
-        $position = strrpos($subject, $search);
+        $position = mb_strrpos($subject, $search);
 
         if ($position === false) {
             return $subject;
         }
 
-        return substr($subject, $position + strlen($search));
+        return mb_substr($subject, $position + mb_strlen($search));
     }
 
     /**
@@ -148,7 +148,8 @@ class Str
             return $subject;
         }
 
-        return static::substr($subject, 0, $pos);
+        // Character offsets use the internal encoding, which can differ from Str::substr's UTF-8 default.
+        return mb_substr($subject, 0, $pos);
     }
 
     /**
@@ -230,7 +231,12 @@ class Str
     {
         foreach ((array) $needle as $n) {
             if ($n !== '' && str_ends_with($subject, $n)) {
-                return mb_substr($subject, 0, -mb_strlen($n));
+                $length = mb_strlen($n);
+
+                // A byte suffix match can start inside a multibyte character.
+                if (mb_substr($subject, -$length) === $n) {
+                    return mb_substr($subject, 0, -$length);
+                }
             }
         }
 
@@ -440,11 +446,16 @@ class Str
     public static function unwrap(string $value, string $before, ?string $after = null): string
     {
         if (static::startsWith($value, $before)) {
-            $value = static::substr($value, static::length($before));
+            $value = mb_substr($value, mb_strlen($before));
         }
 
         if (static::endsWith($value, $after ??= $before)) {
-            $value = static::substr($value, 0, -static::length($after));
+            $length = mb_strlen($after);
+
+            // Unlike a prefix, a byte suffix match can start inside a character.
+            if (mb_substr($value, -$length) === $after) {
+                $value = mb_substr($value, 0, -$length);
+            }
         }
 
         return $value;
@@ -724,7 +735,7 @@ class Str
     }
 
     /**
-     * Masks a portion of a string with a repeated character.
+     * Mask a portion of a string with a repeated character.
      */
     public static function mask(string $string, string|BaseStringable $character, int $index, ?int $length = null, string $encoding = 'UTF-8'): string
     {
@@ -749,7 +760,7 @@ class Str
 
         $start = mb_substr($string, 0, $startIndex, $encoding);
         $segmentLen = mb_strlen($segment, $encoding);
-        $end = mb_substr($string, $startIndex + $segmentLen);
+        $end = mb_substr($string, $startIndex + $segmentLen, null, $encoding);
 
         return $start . str_repeat(mb_substr($character, 0, 1, $encoding), $segmentLen) . $end;
     }
