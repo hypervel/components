@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Schema;
 
 use Closure;
-use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Connection;
 
 /**
@@ -17,6 +17,13 @@ class SchemaProxy
      * @var null|(Closure(Connection, string, null|Closure): Blueprint)
      */
     protected ?Closure $resolver = null;
+
+    /**
+     * Create a new schema proxy.
+     */
+    public function __construct(protected Container $app)
+    {
+    }
 
     /**
      * Forward a schema operation to the current connection's builder.
@@ -34,7 +41,7 @@ class SchemaProxy
      */
     public function connection(?string $name = null): Builder
     {
-        $builder = Container::getInstance()
+        $builder = $this->app
             ->make('db')
             ->connection($name)
             ->getSchemaBuilder();

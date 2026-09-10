@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Closure;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Schema\Blueprint;
@@ -59,6 +60,22 @@ class DatabaseSchemaProxyTest extends TestCase
         $this->assertTrue(Schema::hasColumn('users', 'name'));
         $this->assertFalse(Schema::hasTable('posts'));
         $this->assertTrue(Schema::connection('secondary')->hasTable('posts'));
+    }
+
+    public function testFacadeUsesItsApplicationWhenTheGlobalContainerDiffers(): void
+    {
+        $primary = DB::connection('primary');
+        $secondary = DB::connection('secondary');
+        $container = Container::getInstance();
+
+        Container::setInstance(new Container);
+
+        try {
+            $this->assertSame($secondary, Schema::connection('secondary')->getConnection());
+            $this->assertSame($primary, Schema::getConnection());
+        } finally {
+            Container::setInstance($container);
+        }
     }
 
     public function testBuilderResolverOverridesRemainLocal(): void
