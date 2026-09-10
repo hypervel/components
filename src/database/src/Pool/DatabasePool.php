@@ -10,6 +10,7 @@ use Hypervel\Contracts\ConnectionPool\Connection as PoolConnection;
 use Hypervel\Contracts\ConnectionPool\UsageTracker;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Coordinator\Timer;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionName;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\SQLiteDatabase;
@@ -60,23 +61,32 @@ class DatabasePool extends ConnectionPool
         /** @var ConnectionFactory $factory */
         $factory = $container->make('db.factory');
         $config = $factory->parseConfig($config, $connectionName->base);
+        $poolConfig = $config;
 
         if ($connectionName->isRead() && $factory->hasReadConfig($config)) {
-            $config = $factory->configForRead($config);
-            $this->ensureNotDerivedInMemorySqlitePool($connectionName, $config);
+            $poolConfig = $factory->configForRead($config);
+            $this->ensureNotDerivedInMemorySqlitePool($connectionName, $poolConfig);
+
+            if ($factory->getExtension($config, $connectionName->base) === null) {
+                $config = $poolConfig;
+            } else {
+                // Extensions own endpoint selection, but the pool still uses
+                // the selected read record's pool options and SQLite metadata.
+                $config[Connection::READ_WRITE_TYPE_CONFIG_KEY] = ConnectionName::READ;
+            }
         }
 
         $this->config = $config;
 
         $poolOptions = Arr::except(
-            Arr::get($this->config, 'pool', []),
+            Arr::get($poolConfig, 'pool', []),
             ['testing_enabled'],
         );
 
         $minimum = array_key_exists('min_retained_connections', $poolOptions) ? $poolOptions['min_retained_connections'] : 1;
         $maximum = array_key_exists('max_connections', $poolOptions) ? $poolOptions['max_connections'] : 10;
 
-        if ($this->isInMemorySqlite()
+        if ($this->isInMemorySqlite($poolConfig)
             && is_int($minimum)
             && is_int($maximum)
             && $minimum >= 0
@@ -93,7 +103,7 @@ class DatabasePool extends ConnectionPool
         $this->heartbeatTimer = new Timer($this->getLogger());
 
         // The sole managed wrapper must retain one PDO for the database lifetime.
-        if ($this->isInMemorySqlite()) {
+        if ($this->isInMemorySqlite($poolConfig)) {
             $this->sharedInMemorySqlitePdo = $this->createSharedInMemorySqlitePdo();
         }
     }
@@ -156,13 +166,13 @@ class DatabasePool extends ConnectionPool
     /**
      * Check if this pool is for an in-memory SQLite database.
      */
-    protected function isInMemorySqlite(): bool
+    protected function isInMemorySqlite(array $config): bool
     {
-        if (($this->config['driver'] ?? '') !== 'sqlite') {
+        if (($config['driver'] ?? '') !== 'sqlite') {
             return false;
         }
 
-        $database = $this->config['database'] ?? '';
+        $database = $config['database'] ?? '';
 
         return SQLiteDatabase::isInMemory($database);
     }

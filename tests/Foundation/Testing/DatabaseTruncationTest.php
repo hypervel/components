@@ -10,7 +10,6 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\PdoConnection;
-use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Database\Schema\PostgresBuilder;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
@@ -23,6 +22,7 @@ use Hypervel\Tests\TestCase;
 use LogicException;
 use Mockery as m;
 use PDO;
+use RuntimeException;
 
 class DatabaseTruncationTest extends TestCase
 {
@@ -193,6 +193,23 @@ class DatabaseTruncationTest extends TestCase
         $this->truncateTablesForConnection($connection, 'test');
 
         $this->assertEquals(['public.foo', 'public.bar', 'my_schema.foo', 'my_schema.baz'], $truncatedTables);
+    }
+
+    public function testTruncationRestoresTheDispatcherWhenItFails(): void
+    {
+        $failure = new RuntimeException('Truncation failed.');
+        $connection = $this->arrangeConnection($truncatedTables, [
+            ['schema' => 'public', 'name' => 'foo', 'schema_qualified_name' => 'public.foo'],
+        ], failure: $failure);
+
+        try {
+            $this->truncateTablesForConnection($connection, 'test');
+            $this->fail('Expected the truncation failure to be rethrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $this->assertSame(['public.foo'], $truncatedTables);
     }
 
     public function testRestoreSkipsDatabaseResolutionWhenNoInMemoryConnectionIsCached(): void
@@ -446,7 +463,8 @@ class DatabaseTruncationTest extends TestCase
         array $allTables,
         string $prefix = '',
         ?string $builder = null,
-        ?array $schemas = []
+        ?array $schemas = [],
+        ?RuntimeException $failure = null
     ): Connection {
         $actual = [];
 
@@ -457,26 +475,35 @@ class DatabaseTruncationTest extends TestCase
                 : array_filter($allTables, fn ($table) => in_array($table['schema'], $schemas))
         );
         $schema->shouldReceive('getCurrentSchemaListing')->once()->andReturn($schemas);
+        $withoutPrefix = false;
+        $schema->shouldReceive('truncateTables')->once()->andReturnUsing(
+            function (array $tables) use (&$actual, &$withoutPrefix, $failure): void {
+                $this->assertTrue($withoutPrefix);
+                $actual = $tables;
+
+                if ($failure !== null) {
+                    throw $failure;
+                }
+            }
+        );
 
         $connection = m::mock(Connection::class);
         $connection->shouldReceive('getTablePrefix')->andReturn($prefix);
         $connection->shouldReceive('getEventDispatcher')->once()->andReturn($dispatcher = m::mock(Dispatcher::class));
         $connection->shouldReceive('unsetEventDispatcher')->once();
         $connection->shouldReceive('setEventDispatcher')->once()->with($dispatcher);
-        $connection->shouldReceive('getSchemaBuilder')->once()->andReturn($schema);
-        $connection->shouldReceive('withoutTablePrefix')->andReturnUsing(function ($callback) use ($connection) {
-            $callback($connection);
-        });
-        $connection->shouldReceive('table')
-            ->andReturnUsing(function (string $tableName) use (&$actual) {
-                $actual[] = $tableName;
+        $connection->shouldReceive('getSchemaBuilder')->twice()->andReturn($schema);
+        $connection->shouldReceive('withoutTablePrefix')->once()->andReturnUsing(
+            function ($callback) use ($connection, &$withoutPrefix): void {
+                $withoutPrefix = true;
 
-                $table = m::mock(QueryBuilder::class);
-                $table->shouldReceive('exists')->andReturnTrue();
-                $table->shouldReceive('truncate');
-
-                return $table;
-            });
+                try {
+                    $callback($connection);
+                } finally {
+                    $withoutPrefix = false;
+                }
+            }
+        );
 
         return $connection;
     }

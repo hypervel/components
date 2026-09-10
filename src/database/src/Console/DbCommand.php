@@ -6,6 +6,8 @@ namespace Hypervel\Database\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Database\ConfigurationUrlParser;
+use Hypervel\Database\DatabaseCliConfiguration;
+use Hypervel\Database\DatabaseCliManager;
 use Hypervel\Support\Arr;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Process\Exception\ProcessFailedException;
@@ -33,27 +35,38 @@ class DbCommand extends Command
     public function handle(): int
     {
         $connection = $this->getConnection();
+        $configuration = $this->hypervel->make(DatabaseCliManager::class)->resolve($connection);
 
-        if (! isset($connection['host']) && $connection['driver'] !== 'sqlite') {
-            $this->components->error('No host specified for this database connection.');
-            $this->line('  Use the <options=bold>[--read]</> and <options=bold>[--write]</> options to specify a read or write connection.');
-            $this->newLine();
+        if ($configuration === null) {
+            $command = $this->getCommand($connection);
 
-            return Command::FAILURE;
+            if (! isset($connection['host']) && $connection['driver'] !== 'sqlite') {
+                $this->components->error('No host specified for this database connection.');
+                $this->line('  Use the <options=bold>[--read]</> and <options=bold>[--write]</> options to specify a read or write connection.');
+                $this->newLine();
+
+                return Command::FAILURE;
+            }
+
+            $configuration = new DatabaseCliConfiguration(
+                $command,
+                $this->commandArguments($connection),
+                $this->commandEnvironment($connection) ?? [],
+            );
         }
 
         try {
             (new Process(
-                array_merge([$command = $this->getCommand($connection)], $this->commandArguments($connection)),
+                array_merge([$configuration->command], $configuration->arguments),
                 null,
-                $this->commandEnvironment($connection)
+                $configuration->environment
             ))->setTimeout(null)->setTty(true)->mustRun(function ($type, $buffer) {
                 $this->output->write($buffer);
             });
         } catch (ProcessFailedException $e) {
             throw_unless($e->getProcess()->getExitCode() === 127, $e);
 
-            $this->error("{$command} not found in path.");
+            $this->error("{$configuration->command} not found in path.");
 
             return Command::FAILURE;
         }
@@ -86,6 +99,10 @@ class DbCommand extends Command
             $connection = $this->mergeConnectionConfiguration($connection, 'write');
         }
 
+        if (is_array($connection['host'] ?? null)) {
+            $connection['host'] = $connection['host'][0] ?? null;
+        }
+
         return $connection;
     }
 
@@ -104,14 +121,18 @@ class DbCommand extends Command
             $merge = $merge[0];
         }
 
+        if (! empty($merge['url'])) {
+            $merge = (new ConfigurationUrlParser)->parseConfiguration($merge);
+        }
+
         if (is_array($merge['host'] ?? null)) {
-            $merge['host'] = $merge['host'][0];
+            $merge['host'] = $merge['host'][0] ?? null;
         }
 
         $connection = array_merge($connection, $merge);
 
         if (is_array($connection['host'] ?? null)) {
-            $connection['host'] = $connection['host'][0];
+            $connection['host'] = $connection['host'][0] ?? null;
         }
 
         return Arr::except($connection, ['read', 'write']);
@@ -146,12 +167,15 @@ class DbCommand extends Command
      */
     public function getCommand(array $connection): string
     {
-        return [
+        return match ($connection['driver']) {
             'mysql' => 'mysql',
             'mariadb' => 'mariadb',
             'pgsql' => 'psql',
             'sqlite' => 'sqlite3',
-        ][$connection['driver']];
+            default => throw new UnexpectedValueException(
+                "Unsupported database CLI driver [{$connection['driver']}]. Register a resolver using DatabaseCliManager::extend()."
+            ),
+        };
     }
 
     /**
@@ -164,10 +188,6 @@ class DbCommand extends Command
             'unix_socket' => '--socket=' . ($connection['unix_socket'] ?? ''),
             'charset' => '--default-character-set=' . ($connection['charset'] ?? ''),
         ];
-
-        if (! $connection['password']) {
-            unset($optionalArguments['password']);
-        }
 
         return array_merge([
             '--host=' . $connection['host'],
@@ -219,7 +239,7 @@ class DbCommand extends Command
     protected function getOptionalArguments(array $args, array $connection): array
     {
         return array_values(array_filter($args, function ($key) use ($connection) {
-            return ! empty($connection[$key]);
+            return isset($connection[$key]) && $connection[$key] !== '';
         }, ARRAY_FILTER_USE_KEY));
     }
 }

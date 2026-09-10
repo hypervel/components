@@ -63,6 +63,8 @@ Hypervel application tests run inside a coroutine by default. When a transaction
 
 If you would like to totally reset the database, you may use the `Hypervel\Foundation\Testing\DatabaseMigrations` or `Hypervel\Foundation\Testing\DatabaseTruncation` traits instead. However, both of these options are significantly slower than the `RefreshDatabase` trait.
 
+Transaction-based traits require a connection with real transaction support. `DatabaseTruncation` uses the connection's schema builder to reset the selected tables, allowing custom database drivers to provide their own reset behavior without replacing the native testing traits. Driver authors should follow the [schema-builder extension contracts](/docs/{{version}}/database#extending-database-connections).
+
 <a name="combining-database-reset-traits"></a>
 ### Combining Database Reset Traits
 

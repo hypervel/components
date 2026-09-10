@@ -371,16 +371,10 @@ class PdoConnection extends Connection
      */
     public function getReadPdo(): PDO
     {
-        if ($this->transactions > 0) {
+        if ($this->resolveReadWriteType() === 'write') {
             return $this->getPdo();
         }
 
-        if ($this->readOnWriteConnection
-            || ($this->recordsModified && $this->getConfig('sticky'))) {
-            return $this->getPdo();
-        }
-
-        $this->latestReadWriteTypeRetrieved = 'read';
         $pdo = $this->resolveReadPdo();
 
         return static::$sessionConfigurators === [] && ! static::sessionStateIsUnknown($pdo)

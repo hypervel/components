@@ -1621,6 +1621,73 @@ class PooledConnectionTest extends DatabaseTestCase
         }
     }
 
+    public function testReadExtensionRetainsCompleteConfigurationAndReadPoolOptionsThroughReconnect(): void
+    {
+        $readPoolOptions = [
+            'min_retained_connections' => 1,
+            'max_connections' => 2,
+            'connect_timeout' => 1.25,
+            'heartbeat_interval' => null,
+        ];
+        $config = [
+            'driver' => 'neutral',
+            'database' => 'analytics',
+            'host' => 'base.test',
+            'read' => [
+                ['host' => 'read-one.test', 'username' => 'reader-one', 'pool' => $readPoolOptions],
+                ['host' => 'read-two.test', 'username' => 'reader-two', 'pool' => $readPoolOptions],
+            ],
+            'write' => ['host' => 'write.test'],
+            'pool' => [
+                'min_retained_connections' => 1,
+                'max_connections' => 5,
+                'connect_timeout' => 10.0,
+                'heartbeat_interval' => null,
+            ],
+        ];
+        config(['database.connections.neutral_read_pool_test' => $config]);
+
+        /** @var ConnectionFactory $factory */
+        $factory = $this->app->make('db.factory');
+        $receivedConfigurations = [];
+        $factory->extend('neutral', static function (array $config) use (&$receivedConfigurations): NeutralPoolConnection {
+            $receivedConfigurations[] = $config;
+
+            return new NeutralPoolConnection(count($receivedConfigurations), $config['database'], $config['prefix'], $config);
+        });
+        $pool = new DatabasePool($this->app, 'neutral_read_pool_test::read');
+        $pooledConnection = null;
+        $expected = $config + [
+            'prefix' => '',
+            'name' => 'neutral_read_pool_test',
+            Connection::READ_WRITE_TYPE_CONFIG_KEY => 'read',
+            'connect_timeout' => 1.25,
+        ];
+
+        try {
+            $this->assertSame(2, $pool->getOptions()->maxConnections);
+            $this->assertSame(1.25, $pool->getOptions()->connectTimeout);
+
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->borrow();
+            $connection = $pooledConnection->getConnection();
+
+            $this->assertInstanceOf(NeutralPoolConnection::class, $connection);
+            $this->assertSame([$expected], $receivedConfigurations);
+            $this->assertSame($expected + ['mask_bindings_in_exception_messages' => false], $connection->getConfig());
+
+            $connection->dropResources();
+            $connection->reconnectIfMissingConnection();
+
+            $this->assertSame($connection, $pooledConnection->getConnection());
+            $this->assertSame(2, $connection->generation);
+            $this->assertSame([$expected, $expected], $receivedConfigurations);
+        } finally {
+            $pooledConnection?->release();
+            $pool->close();
+        }
+    }
+
     public function testReleaseClearsCapturedMySqlInsertIdBeforeReborrow(): void
     {
         $this->app->make('config')->set('database.connections.mysql_insert_id_pool_test', [

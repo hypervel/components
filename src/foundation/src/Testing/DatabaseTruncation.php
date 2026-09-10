@@ -222,29 +222,30 @@ trait DatabaseTruncation
 
         $connection->unsetEventDispatcher();
 
-        (new Collection($this->getAllTablesForConnection($connection, $name)))
-            ->when(
-                $this->tablesToTruncate($connection, $name),
-                function (Collection $tables, array $tablesToTruncate) {
-                    return $tables->filter(fn (array $table) => $this->tableExistsIn($table, $tablesToTruncate));
-                },
-                function (Collection $tables) use ($connection, $name) {
-                    $exceptTables = $this->exceptTables($connection, $name);
+        try {
+            $tables = (new Collection($this->getAllTablesForConnection($connection, $name)))
+                ->when(
+                    $this->tablesToTruncate($connection, $name),
+                    function (Collection $tables, array $tablesToTruncate) {
+                        return $tables->filter(fn (array $table) => $this->tableExistsIn($table, $tablesToTruncate));
+                    },
+                    function (Collection $tables) use ($connection, $name) {
+                        $exceptTables = $this->exceptTables($connection, $name);
 
-                    return $tables->reject(fn (array $table) => $this->tableExistsIn($table, $exceptTables));
-                }
-            )
-            ->each(function (array $table) use ($connection) {
-                $connection->withoutTablePrefix(function ($connection) use ($table) {
-                    $table = $connection->table($table['schema_qualified_name']);
-
-                    if ($table->exists()) {
-                        $table->truncate();
+                        return $tables->reject(fn (array $table) => $this->tableExistsIn($table, $exceptTables));
                     }
-                });
-            });
+                )
+                ->pluck('schema_qualified_name')
+                ->all();
 
-        $connection->setEventDispatcher($dispatcher);
+            $connection->withoutTablePrefix(
+                fn ($connection) => $connection->getSchemaBuilder()->truncateTables($tables)
+            );
+        } finally {
+            if ($dispatcher !== null) {
+                $connection->setEventDispatcher($dispatcher);
+            }
+        }
     }
 
     /**

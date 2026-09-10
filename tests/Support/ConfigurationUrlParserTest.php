@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
+use Generator;
 use Hypervel\Support\ConfigurationUrlParser;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -412,6 +413,81 @@ class ConfigurationUrlParserTest extends TestCase
                     'username' => 'h',
                     'password' => 'asdfqwer1234asdf',
                 ],
+            ],
+        ];
+    }
+
+    #[DataProvider('literalUrlComponents')]
+    public function testUrlComponentsPreserveLiteralValues(string $url, array $expected): void
+    {
+        $this->assertSame($expected, (new ConfigurationUrlParser)->parseConfiguration($url));
+    }
+
+    /**
+     * Provide literal URL components and typed query options.
+     */
+    public static function literalUrlComponents(): Generator
+    {
+        foreach ([
+            'true' => 'true',
+            'false' => 'false',
+            'null' => 'null',
+            'zero' => '0',
+            'integer' => '123',
+            'exponent' => '1e3',
+            'wide integer' => '18446744073709551615',
+            'quoted text' => '"quoted"',
+            'array text' => '[1,2]',
+            'object text' => '{"key":1}',
+            'percent encoding' => 'reader:secret%3A/@+ ',
+        ] as $name => $credential) {
+            $encoded = rawurlencode($credential);
+
+            yield $name => [
+                "mysql://{$encoded}:{$encoded}@true:3306/analytics?sticky=true&timeout=5&options[persistent]=false",
+                [
+                    'driver' => 'mysql',
+                    'database' => 'analytics',
+                    'host' => 'true',
+                    'port' => 3306,
+                    'username' => $credential,
+                    'password' => $credential,
+                    'sticky' => true,
+                    'timeout' => 5,
+                    'options' => ['persistent' => false],
+                ],
+            ];
+        }
+
+        yield 'missing credentials' => [
+            'mysql://localhost/analytics',
+            ['driver' => 'mysql', 'database' => 'analytics', 'host' => 'localhost'],
+        ];
+
+        yield 'empty credentials' => [
+            'mysql://:@localhost/analytics',
+            [
+                'driver' => 'mysql',
+                'database' => 'analytics',
+                'host' => 'localhost',
+                'username' => '',
+                'password' => '',
+            ],
+        ];
+
+        yield 'omitted host sentinel' => [
+            'mysql://null/analytics',
+            ['driver' => 'mysql', 'database' => 'analytics'],
+        ];
+
+        yield 'typed query override' => [
+            'mysql://reader:original@localhost/analytics?password=%22null%22',
+            [
+                'driver' => 'mysql',
+                'database' => 'analytics',
+                'host' => 'localhost',
+                'username' => 'reader',
+                'password' => 'null',
             ],
         ];
     }

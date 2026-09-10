@@ -608,6 +608,22 @@ class PoolManagerTest extends TestCase
         $this->assertTrue($poolManager->has('default::read'));
     }
 
+    public function testReadConnectionUsesSeparatePoolWhenReadConfigComesFromUrl(): void
+    {
+        $container = $this->mockContainerWithPools([
+            'default' => $this->connectionConfig([
+                'url' => 'mysql://root:@null/db?read[host][]=replica.test&write[host][]=primary.test',
+            ]),
+        ]);
+        $manager = new PoolManager($container);
+        $pool = $manager->pool('default::read');
+
+        $this->assertSame('default::read', $pool->getName());
+        $this->assertNotSame($manager->pool('default'), $pool);
+        $this->assertInstanceOf(PoolManagerTestPool::class, $pool);
+        $this->assertSame(['replica.test'], $pool->configForTest()['host']);
+    }
+
     public function testReadConnectionUsesBasePoolWhenReadConfigIsMissingOrNull(): void
     {
         $container = $this->mockContainerWithPools([

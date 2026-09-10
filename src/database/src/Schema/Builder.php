@@ -483,6 +483,21 @@ class Builder
     }
 
     /**
+     * Create the migration repository table for this database driver.
+     */
+    public function createMigrationRepositoryTable(string $table): void
+    {
+        $this->create($table, function (Blueprint $blueprint): void {
+            // The migrations table is responsible for keeping track of which of the
+            // migrations have actually run for the application. We'll create the
+            // table to hold the migration name as well as the batch ID.
+            $blueprint->increments('id');
+            $blueprint->string('migration');
+            $blueprint->integer('batch');
+        });
+    }
+
+    /**
      * Drop a table from the schema.
      */
     public function drop(string $table): void
@@ -542,6 +557,23 @@ class Builder
     public function dropAllTypes(): void
     {
         throw new LogicException('This database driver does not support dropping all types.');
+    }
+
+    /**
+     * Truncate the given tables if they contain rows.
+     *
+     * @param list<string> $tables
+     */
+    public function truncateTables(array $tables): void
+    {
+        foreach ($tables as $table) {
+            // A stale read replica must not skip cleanup of rows on the write connection.
+            $query = $this->connection->table($table)->useWritePdo();
+
+            if ($query->exists()) {
+                $query->truncate();
+            }
+        }
     }
 
     /**

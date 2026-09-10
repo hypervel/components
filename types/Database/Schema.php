@@ -6,8 +6,37 @@ namespace Hypervel\Types\Database\Schema;
 
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Builder;
+use Hypervel\Database\Schema\ColumnDefinition;
 
 use function PHPStan\Testing\assertType;
+
+/**
+ * Verify the default column definition type.
+ */
+function testColumnDefinitionsUseTheDefaultType(Blueprint $table): void
+{
+    assertType('Hypervel\Database\Schema\ColumnDefinition', $table->string('name'));
+    assertType('Hypervel\Database\Schema\ColumnDefinition', $table->softDeletes()->nullable());
+    assertType('Hypervel\Support\Collection<int, Hypervel\Database\Schema\ColumnDefinition>', $table->timestamps());
+}
+
+/**
+ * Verify factory-created returns without narrowing heterogeneous column storage.
+ */
+function testCustomColumnDefinitionsUseTheFactoryType(CustomBlueprint $table): void
+{
+    assertType('Hypervel\Types\Database\Schema\CustomColumnDefinition', $table->string('name')->nullable()->label('Display name'));
+    assertType('Hypervel\Types\Database\Schema\CustomColumnDefinition', $table->unsignedBigInteger('count'));
+    assertType('Hypervel\Types\Database\Schema\CustomColumnDefinition', $table->softDeletes());
+    assertType('Hypervel\Types\Database\Schema\CustomColumnDefinition', $table->addColumn('string', 'title'));
+    assertType('Hypervel\Support\Collection<int, Hypervel\Types\Database\Schema\CustomColumnDefinition>', $table->timestamps());
+    assertType('Hypervel\Support\Collection<int, Hypervel\Types\Database\Schema\CustomColumnDefinition>', $table->datetimes());
+    assertType('Hypervel\Database\Schema\ForeignIdColumnDefinition', $table->foreignId('author_id'));
+    assertType('Hypervel\Database\Schema\ForeignIdColumnDefinition', $table->foreignUuid('owner_id'));
+    assertType('Hypervel\Database\Schema\ForeignKeyDefinition', $table->foreignId('team_id')->constrained());
+    assertType('list<Hypervel\Database\Schema\ColumnDefinition>', $table->getColumns());
+    assertType('array<int, Hypervel\Database\Schema\ColumnDefinition>', $table->getAddedColumns());
+}
 
 function testIndexDefinitionsUseConcreteTypes(Blueprint $table): void
 {
@@ -59,4 +88,31 @@ function testDdlLockTypes(Blueprint $table): void
         'Closure(array<string>|string): Hypervel\Database\Schema\ForeignKeyDefinition',
         $table->foreign('user_id')->references(...),
     );
+}
+
+class CustomColumnDefinition extends ColumnDefinition
+{
+    /**
+     * Set the column's display label.
+     */
+    public function label(string $label): static
+    {
+        return $this->set('label', $label);
+    }
+}
+
+/**
+ * @extends Blueprint<CustomColumnDefinition>
+ */
+class CustomBlueprint extends Blueprint
+{
+    /**
+     * Create a new column definition.
+     *
+     * @param array<array-key, mixed> $attributes
+     */
+    protected function newColumnDefinition(array $attributes): CustomColumnDefinition
+    {
+        return new CustomColumnDefinition($attributes);
+    }
 }
