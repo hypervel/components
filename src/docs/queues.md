@@ -325,6 +325,25 @@ In this example, note that we were able to pass an [Eloquent model](/docs/{{vers
 
 If your queued job accepts an Eloquent model in its constructor, only the identifier for the model will be serialized onto the queue. When the job is actually handled, the queue system will automatically re-retrieve the full model instance and its loaded relationships from the database. This approach to model serialization allows for much smaller job payloads to be sent to your queue driver.
 
+<a name="serializing-models-using-morph-maps"></a>
+#### Serializing Models Using Morph Maps
+
+By default, queued models are identified by their fully qualified class names. A stable morph alias lets queued models be restored after their class is renamed or moved, provided the morph map points to the new class. If you have defined a [morph map](/docs/{{version}}/eloquent-relationships#custom-polymorphic-types), you may use its aliases instead by calling `ModelIdentifier::useMorphMap` in the `boot` method of your application's `AppServiceProvider`:
+
+```php
+use Hypervel\Contracts\Database\ModelIdentifier;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    ModelIdentifier::useMorphMap();
+}
+```
+
+Applications that dispatch or process the same jobs must use the same morph map and enable this setting. Keep the aliases and setting in place while jobs using them remain queued.
+
 <a name="handle-method-dependency-injection"></a>
 #### `handle` Method Dependency Injection
 
@@ -383,7 +402,7 @@ public function __construct(
 ) {}
 ```
 
-For convenience, if you wish to serialize all models without relationships, you may apply the `WithoutRelations` attribute to the entire class instead of applying the attribute to each model:
+For convenience, if you wish to serialize all models without relationships, you may apply the `WithoutRelations` attribute to the entire class instead of applying the attribute to each model. The attribute may also be applied to a parent job class:
 
 ```php
 <?php
@@ -411,7 +430,9 @@ class ProcessPodcast implements ShouldQueue
 }
 ```
 
-If a job receives a collection or array of Eloquent models instead of a single model, the models within that collection will not have their relationships restored when the job is deserialized and executed. This is to prevent excessive resource usage on jobs that deal with large numbers of models.
+If a job receives an Eloquent collection, relationships loaded on every model in the collection are restored when the job is deserialized. Relationships loaded on only some models are not restored. To queue a collection without its relationships, apply the `WithoutRelations` attribute to the property or job class.
+
+When models are passed in a plain PHP array, their full attributes and loaded relationships are stored in the job payload instead of being reloaded from the database.
 
 <a name="unique-jobs"></a>
 ### Unique Jobs
