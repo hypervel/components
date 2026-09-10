@@ -417,6 +417,19 @@ $orders = DB::table('orders')
     ->get();
 ```
 
+<a name="selectexpression"></a>
+#### `selectExpression`
+
+The `selectExpression` method adds a raw SQL expression with an alias. It accepts a string or an expression created by `DB::raw`, wraps the expression in parentheses, and quotes the alias as a single identifier:
+
+```php
+$orders = DB::table('orders')
+    ->selectExpression('price * 1.0825', 'price_with_tax')
+    ->get();
+```
+
+This method does not accept parameter bindings. Use `selectRaw` when you need bindings or want to insert the SQL expression as written.
+
 <a name="whereraw-orwhereraw"></a>
 #### `whereRaw / orWhereRaw`
 
