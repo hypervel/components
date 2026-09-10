@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Connection;
+use Hypervel\Database\MultipleColumnsSelectedException;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Processors\Processor;
@@ -14,10 +15,80 @@ use Hypervel\Database\Schema\Grammars\Grammar;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PDO;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
 class DatabaseSchemaBuilderTest extends TestCase
 {
+    #[DataProvider('metadataMethods')]
+    public function testMetadataReadsUseTheOverridableWriterHook(string $method, array $arguments, string $compile, array $compileArguments, string $process): void
+    {
+        $connection = m::mock(Connection::class);
+        $grammar = m::mock(Grammar::class);
+        $processor = m::mock(Processor::class);
+        $rows = [(object) ['name' => 'id']];
+        $processed = [['name' => 'id']];
+        $connection->shouldReceive('getSchemaGrammar')->andReturn($grammar);
+        $connection->shouldReceive('getPostProcessor')->andReturn($processor);
+        $connection->shouldReceive('getTablePrefix')->andReturn('prefix_');
+        $grammar->shouldReceive($compile)->once()->with(...$compileArguments)->andReturn('metadata sql');
+        $connection->shouldReceive('selectFromWriteConnection')->once()->with('metadata sql')->andReturn($rows);
+        $processor->shouldReceive($process)->once()->with($rows)->andReturn($processed);
+        $builder = new DatabaseSchemaMetadataBuilder($connection);
+
+        $this->assertSame($method === 'hasColumn' ? true : $processed, $builder->{$method}(...$arguments));
+        $this->assertSame(['metadata sql'], $builder->metadataQueries);
+    }
+
+    public static function metadataMethods(): array
+    {
+        return [
+            'schemas' => ['getSchemas', [], 'compileSchemas', [], 'processSchemas'],
+            'tables' => ['getTables', ['public'], 'compileTables', ['public'], 'processTables'],
+            'views' => ['getViews', ['public'], 'compileViews', ['public'], 'processViews'],
+            'types' => ['getTypes', ['public'], 'compileTypes', ['public'], 'processTypes'],
+            'columns' => ['getColumns', ['public.users'], 'compileColumns', ['public', 'prefix_users'], 'processColumns'],
+            'indexes' => ['getIndexes', ['public.users'], 'compileIndexes', ['public', 'prefix_users'], 'processIndexes'],
+            'foreign keys' => ['getForeignKeys', ['public.users'], 'compileForeignKeys', ['public', 'prefix_users'], 'processForeignKeys'],
+            'derived column check' => ['hasColumn', ['public.users', 'ID'], 'compileColumns', ['public', 'prefix_users'], 'processColumns'],
+        ];
+    }
+
+    #[DataProvider('tableExistenceResults')]
+    public function testTableExistenceUsesTheMetadataHookAndPreservesScalarValidation(array $rows, ?bool $expected): void
+    {
+        $connection = m::mock(Connection::class);
+        $grammar = m::mock(Grammar::class);
+        $connection->shouldReceive('getSchemaGrammar')->andReturn($grammar);
+        $connection->shouldReceive('getTablePrefix')->andReturn('prefix_');
+        $grammar->shouldReceive('compileTableExists')->once()->with('public', 'prefix_users')->andReturn('exists sql');
+        $connection->shouldReceive('selectFromWriteConnection')->once()->with('exists sql')->andReturn($rows);
+        $builder = new DatabaseSchemaMetadataBuilder($connection);
+
+        if ($expected === null) {
+            $this->expectException(MultipleColumnsSelectedException::class);
+        }
+
+        try {
+            $this->assertSame($expected, $builder->hasTable('public.users'));
+        } finally {
+            $this->assertSame(['exists sql'], $builder->metadataQueries);
+        }
+    }
+
+    public static function tableExistenceResults(): array
+    {
+        return [
+            'true object' => [[(object) ['exists' => 1]], true],
+            'false object' => [[(object) ['exists' => 0]], false],
+            'true array' => [[['exists' => 1]], true],
+            'first row only' => [[['exists' => 0], ['exists' => 1]], false],
+            'empty' => [[], false],
+            'null value' => [[['exists' => null]], false],
+            'invalid columns' => [[(object) ['exists' => 1, 'unexpected' => 2]], null],
+        ];
+    }
+
     public function testCreateDatabase()
     {
         $connection = m::mock(Connection::class);
@@ -242,5 +313,17 @@ class DatabaseSchemaBuilderTest extends TestCase
         $connection->shouldReceive('selectFromWriteConnection')->once()->with('sql')->andReturn([['name' => 'id', 'type_name' => 'integer']]);
 
         $this->assertSame('integer', $builder->getColumnType('users', 'id'));
+    }
+}
+
+class DatabaseSchemaMetadataBuilder extends Builder
+{
+    public array $metadataQueries = [];
+
+    protected function selectMetadata(string $query): array
+    {
+        $this->metadataQueries[] = $query;
+
+        return parent::selectMetadata($query);
     }
 }

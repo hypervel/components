@@ -124,7 +124,7 @@ class SQLiteBuilder extends Builder
             $tables = [];
 
             foreach (Arr::wrap($schema) as $name) {
-                $tables = array_merge($tables, $this->connection->selectFromWriteConnection(
+                $tables = array_merge($tables, $this->selectMetadata(
                     $this->grammar->compileLegacyTables($name, $withSize)
                 ));
             }
@@ -133,7 +133,7 @@ class SQLiteBuilder extends Builder
         }
 
         return $this->connection->getPostProcessor()->processTables(
-            $this->connection->selectFromWriteConnection(
+            $this->selectMetadata(
                 $this->grammar->compileTables($schema, $withSize)
             )
         );
@@ -147,7 +147,7 @@ class SQLiteBuilder extends Builder
         $views = [];
 
         foreach (Arr::wrap($schema) as $name) {
-            $views = array_merge($views, $this->connection->selectFromWriteConnection(
+            $views = array_merge($views, $this->selectMetadata(
                 $this->grammar->compileViews($name)
             ));
         }
@@ -172,7 +172,7 @@ class SQLiteBuilder extends Builder
         [$schema, $table] = $this->parseSchemaAndTable($table);
 
         $table = $this->connection->getTablePrefix() . $table;
-        $columns = $this->connection->selectFromWriteConnection($this->grammar->compileColumns($schema, $table));
+        $columns = $this->selectMetadata($this->grammar->compileColumns($schema, $table));
         // Rebuild guards must inspect the stored definition on the same write PDO as the columns.
         $sql = $this->connection->scalar($this->grammar->compileSqlCreateStatement($schema, $table), [], false) ?? '';
 
@@ -201,7 +201,7 @@ class SQLiteBuilder extends Builder
         $processor = $this->connection->getPostProcessor();
 
         return $processor->processIndexesForSchemaState(
-            $this->connection->selectFromWriteConnection(
+            $this->selectMetadata(
                 $this->grammar->compileIndexes($schema, $table)
             )
         );
