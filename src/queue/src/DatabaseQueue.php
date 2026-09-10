@@ -12,6 +12,8 @@ use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Database\DetectsConcurrencyErrors;
+use Hypervel\Database\DetectsLostConnections;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Queue\Concerns\InsertsDatabaseRows;
@@ -25,6 +27,8 @@ use Throwable;
 
 class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
 {
+    use DetectsConcurrencyErrors;
+    use DetectsLostConnections;
     use InsertsDatabaseRows;
 
     public const int DEFAULT_RETRY_AFTER = 60;
@@ -478,12 +482,48 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     public function pop(?string $queue = null): ?Job
     {
         $queue = $this->getQueue($queue);
+        $database = $this->getDatabase();
+        $transactionLevel = $database->transactionLevel();
+        /** @var null|DatabaseJobRecord $jobRecord */
+        $jobRecord = null;
 
-        return $this->getDatabase()->transaction(function () use ($queue) {
-            if ($job = $this->getNextAvailableJob($queue)) {
-                return $this->marshalJob($queue, $job);
+        try {
+            return $database->transaction(function () use ($queue, &$jobRecord) {
+                if ($jobRecord = $this->getNextAvailableJob($queue)) {
+                    $job = $this->marshalJob($queue, $jobRecord);
+
+                    // A commit or completion callback failure does not make this job invalid.
+                    $jobRecord = null;
+
+                    return $job;
+                }
+            });
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            // Recovery requires our transaction to have unwound. Transient database
+            // failures leave the job available for another reservation attempt.
+            if ($jobRecord !== null
+                && $database->transactionLevel() === $transactionLevel
+                && ! $this->causedByConcurrencyError($exception)
+                && ! $this->causedByLostConnection($exception)) {
+                try {
+                    (new DatabaseJob(
+                        $this->container,
+                        $this,
+                        $jobRecord,
+                        $this->connectionName,
+                        $queue
+                    ))->fail($exception);
+                } catch (CanceledException $cancellation) {
+                    throw $cancellation;
+                } catch (Throwable) {
+                    // Preserve the original reservation failure if failing the job also fails.
+                }
             }
-        });
+
+            throw $exception;
+        }
     }
 
     /**

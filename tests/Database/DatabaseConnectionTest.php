@@ -36,6 +36,7 @@ use LogicException;
 use Mockery as m;
 use PDO;
 use PDOException;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -666,6 +667,45 @@ class DatabaseConnectionTest extends TestCase
         $mock->transaction(function () {
             throw new QueryException('conn', '', [], new Exception('Deadlock found when trying to get lock'));
         }, 3);
+    }
+
+    #[TestWith(['40001'])]
+    #[TestWith(['55P03'])]
+    public function testTransactionRetriesNestedConcurrencyFailuresWithDriverMetadata(string $sqlState): void
+    {
+        $connection = new SQLiteConnection(new PDO('sqlite::memory:'));
+        $previous = new PDOExceptionStub('Concurrent update could not complete.', $sqlState);
+        $previous->errorInfo = [$sqlState, 7, $previous->getMessage()];
+        $failure = new QueryException('test', 'update records set value = 1', [], $previous);
+        $attempts = 0;
+        $wrappedExceptions = 0;
+
+        $result = $connection->transaction(function () use ($connection, $failure, &$attempts, &$wrappedExceptions): string {
+            ++$attempts;
+
+            try {
+                return $connection->transaction(static function () use ($failure, $attempts): string {
+                    if ($attempts === 1) {
+                        throw $failure;
+                    }
+
+                    return 'success';
+                });
+            } catch (DeadlockException $exception) {
+                ++$wrappedExceptions;
+
+                $this->assertSame($failure->getCode(), $exception->getCode());
+                $this->assertSame($failure->errorInfo, $exception->errorInfo);
+                $this->assertSame($failure, $exception->getPrevious());
+
+                throw $exception;
+            }
+        }, 2);
+
+        $this->assertSame('success', $result);
+        $this->assertSame(2, $attempts);
+        $this->assertSame(1, $wrappedExceptions);
+        $this->assertSame(0, $connection->transactionLevel());
     }
 
     public function testTransactionMethodRollsbackAndThrows()
