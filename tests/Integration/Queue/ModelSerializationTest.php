@@ -24,12 +24,14 @@ use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use LogicException;
-use Override;
 
 class ModelSerializationTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * Define the additional database connection.
+     */
     protected function defineEnvironment(ApplicationContract $app): void
     {
         $app->make('config')->set('database.connections.custom', [
@@ -39,56 +41,50 @@ class ModelSerializationTest extends TestCase
         ]);
     }
 
+    /**
+     * Set up the model serialization tables.
+     */
     protected function setUp(): void
     {
         parent::setUp();
 
         Model::preventLazyLoading(false);
 
-        Schema::create('users', function (Blueprint $table) {
+        Schema::create('users', function (Blueprint $table): void {
             $table->increments('id');
             $table->string('email');
         });
 
-        Schema::connection('custom')->create('users', function (Blueprint $table) {
+        Schema::connection('custom')->create('users', function (Blueprint $table): void {
             $table->increments('id');
             $table->string('email');
         });
 
-        Schema::create('orders', function (Blueprint $table) {
+        Schema::create('orders', function (Blueprint $table): void {
             $table->increments('id');
         });
 
-        Schema::create('lines', function (Blueprint $table) {
+        Schema::create('lines', function (Blueprint $table): void {
             $table->increments('id');
             $table->unsignedInteger('order_id');
             $table->unsignedInteger('product_id');
         });
 
-        Schema::create('products', function (Blueprint $table) {
+        Schema::create('products', function (Blueprint $table): void {
             $table->increments('id');
         });
 
-        Schema::create('roles', function (Blueprint $table) {
+        Schema::create('roles', function (Blueprint $table): void {
             $table->increments('id');
         });
 
-        Schema::create('role_user', function (Blueprint $table) {
+        Schema::create('role_user', function (Blueprint $table): void {
             $table->unsignedInteger('user_id');
             $table->unsignedInteger('role_id');
         });
     }
 
-    #[Override]
-    protected function tearDown(): void
-    {
-        Relation::morphMap([], false);
-        ModelIdentifier::useMorphMap(false);
-
-        parent::tearDown();
-    }
-
-    public function testItSerializeUserOnDefaultConnection()
+    public function testItSerializeUserOnDefaultConnection(): void
     {
         $defaultConnection = config('database.default');
 
@@ -117,7 +113,7 @@ class ModelSerializationTest extends TestCase
         $this->assertSame('taylor@laravel.com', $unSerialized->users[1]->email);
     }
 
-    public function testItSerializeUserOnDifferentConnection()
+    public function testItSerializeUserOnDifferentConnection(): void
     {
         $user = ModelSerializationTestUser::on('custom')->create([
             'email' => 'mohamed@laravel.com',
@@ -144,7 +140,7 @@ class ModelSerializationTest extends TestCase
         $this->assertSame('taylor@laravel.com', $unSerialized->users[1]->email);
     }
 
-    public function testItFailsIfModelsOnMultiConnections()
+    public function testItFailsIfModelsOnMultiConnections(): void
     {
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Queueing collections with multiple model connections is not supported.');
@@ -164,9 +160,9 @@ class ModelSerializationTest extends TestCase
         unserialize($serialized);
     }
 
-    public function testItReloadsRelationships()
+    public function testItReloadsRelationships(): void
     {
-        $order = tap(Order::create(), function (Order $order) {
+        $order = tap(Order::create(), function (Order $order): void {
             $order->wasRecentlyCreated = false;
         });
 
@@ -184,9 +180,9 @@ class ModelSerializationTest extends TestCase
         $this->assertEquals($unSerialized->order->getRelations(), $order->getRelations());
     }
 
-    public function testItReloadsRelationshipsOnlyOnce()
+    public function testItReloadsRelationshipsOnlyOnce(): void
     {
-        $order = tap(ModelSerializationTestCustomOrder::create(), function (ModelSerializationTestCustomOrder $order) {
+        $order = tap(ModelSerializationTestCustomOrder::create(), function (ModelSerializationTestCustomOrder $order): void {
             $order->wasRecentlyCreated = false;
         });
 
@@ -206,9 +202,9 @@ class ModelSerializationTest extends TestCase
         $this->assertEquals($unSerialized->order->getRelations(), $order->getRelations());
     }
 
-    public function testItReloadsNestedRelationships()
+    public function testItReloadsNestedRelationships(): void
     {
-        $order = tap(Order::create(), function (Order $order) {
+        $order = tap(Order::create(), function (Order $order): void {
             $order->wasRecentlyCreated = false;
         });
 
@@ -226,13 +222,13 @@ class ModelSerializationTest extends TestCase
         $this->assertEquals($nestedUnSerialized->order->getRelations(), $order->getRelations());
     }
 
-    public function testItReloadsRelationshipsForCollections()
+    public function testItReloadsRelationshipsForCollections(): void
     {
-        $order1 = tap(Order::create(), function (Order $order) {
+        $order1 = tap(Order::create(), function (Order $order): void {
             $order->wasRecentlyCreated = false;
         });
 
-        $order2 = tap(Order::create(), function (Order $order) {
+        $order2 = tap(Order::create(), function (Order $order): void {
             $order->wasRecentlyCreated = false;
         });
 
@@ -256,13 +252,13 @@ class ModelSerializationTest extends TestCase
         $this->assertTrue($unSerialized->orders[1]->relationLoaded('products'));
     }
 
-    public function testItReloadsNestedRelationshipsForCollections()
+    public function testItReloadsNestedRelationshipsForCollections(): void
     {
-        $order1 = tap(Order::create(), function (Order $order) {
+        $order1 = tap(Order::create(), function (Order $order): void {
             $order->wasRecentlyCreated = false;
         });
 
-        $order2 = tap(Order::create(), function (Order $order) {
+        $order2 = tap(Order::create(), function (Order $order): void {
             $order->wasRecentlyCreated = false;
         });
 
@@ -288,7 +284,7 @@ class ModelSerializationTest extends TestCase
         $this->assertTrue($unSerialized->orders[1]->lines->first()->relationLoaded('product'));
     }
 
-    public function testItCanRunModelBootsAndTraitInitializations()
+    public function testItCanRunModelBootsAndTraitInitializations(): void
     {
         $model = new ModelBootTestWithTraitInitialization;
 
@@ -318,11 +314,11 @@ class ModelSerializationTest extends TestCase
     /**
      * Regression test for https://github.com/laravel/framework/issues/23068.
      */
-    public function testItCanUnserializeNestedRelationshipsWithoutPivot()
+    public function testItCanUnserializeNestedRelationshipsWithoutPivot(): void
     {
         $user = tap(User::create([
             'email' => 'taylor@laravel.com',
-        ]), function (User $user) {
+        ]), function (User $user): void {
             $user->wasRecentlyCreated = false;
         });
 
@@ -332,7 +328,7 @@ class ModelSerializationTest extends TestCase
         RoleUser::create(['user_id' => $user->id, 'role_id' => $role1->id]);
         RoleUser::create(['user_id' => $user->id, 'role_id' => $role2->id]);
 
-        $user->roles->each(function ($role) {
+        $user->roles->each(function (Role $role): void {
             $role->pivot->load('user', 'role');
         });
 
@@ -340,7 +336,7 @@ class ModelSerializationTest extends TestCase
         unserialize($serialized);
     }
 
-    public function testItSerializesAnEmptyCollection()
+    public function testItSerializesAnEmptyCollection(): void
     {
         $serialized = serialize(new CollectionSerializationTestClass(
             new Collection([])
@@ -349,7 +345,7 @@ class ModelSerializationTest extends TestCase
         unserialize($serialized);
     }
 
-    public function testItSerializesACollectionInCorrectOrder()
+    public function testItSerializesACollectionInCorrectOrder(): void
     {
         ModelSerializationTestUser::create(['email' => 'mohamed@laravel.com']);
         ModelSerializationTestUser::create(['email' => 'taylor@laravel.com']);
@@ -364,7 +360,7 @@ class ModelSerializationTest extends TestCase
         $this->assertSame('mohamed@laravel.com', $unserialized->users->last()->email);
     }
 
-    public function testItCanUnserializeACollectionInCorrectOrderAndHandleDeletedModels()
+    public function testItCanUnserializeACollectionInCorrectOrderAndHandleDeletedModels(): void
     {
         ModelSerializationTestUser::create(['email' => '2@laravel.com']);
         ModelSerializationTestUser::create(['email' => '3@laravel.com']);
@@ -384,7 +380,7 @@ class ModelSerializationTest extends TestCase
         $this->assertSame('1@laravel.com', $unserialized->users->last()->email);
     }
 
-    public function testItCanUnserializeCustomCollection()
+    public function testItCanUnserializeCustomCollection(): void
     {
         ModelSerializationTestCustomUser::create(['email' => 'mohamed@laravel.com']);
         ModelSerializationTestCustomUser::create(['email' => 'taylor@laravel.com']);
@@ -398,7 +394,7 @@ class ModelSerializationTest extends TestCase
         $this->assertInstanceOf(ModelSerializationTestCustomUserCollection::class, $unserialized->users);
     }
 
-    public function testItSerializesTypedProperties()
+    public function testItSerializesTypedProperties(): void
     {
         require_once __DIR__ . '/typed-properties.php';
 
@@ -432,7 +428,7 @@ class ModelSerializationTest extends TestCase
     }
 
     #[WithConfig('database.default', 'testing')]
-    public function testModelSerializationStructure()
+    public function testModelSerializationStructure(): void
     {
         $user = ModelSerializationTestUser::create([
             'email' => 'taylor@laravel.com',
@@ -444,7 +440,7 @@ class ModelSerializationTest extends TestCase
     }
 
     #[WithConfig('database.default', 'testing')]
-    public function testItRespectsWithoutRelationsAttribute()
+    public function testItRespectsWithoutRelationsAttribute(): void
     {
         $user = User::create([
             'email' => 'taylor@laravel.com',
@@ -456,7 +452,7 @@ class ModelSerializationTest extends TestCase
     }
 
     #[WithConfig('database.default', 'testing')]
-    public function testItRespectsWithoutRelationsAttributeAppliedToClass()
+    public function testItRespectsWithoutRelationsAttributeAppliedToClass(): void
     {
         $user = User::create([
             'email' => 'taylor@laravel.com',
@@ -470,10 +466,26 @@ class ModelSerializationTest extends TestCase
         $unserialized = unserialize($serialized);
 
         $this->assertFalse($unserialized->user->relationLoaded('roles'));
-        $this->assertEquals('hello', $unserialized->value->value);
+        $this->assertSame('hello', $unserialized->value->value);
     }
 
-    public function testSerializationTypesEmptyCustomEloquentCollection()
+    #[WithConfig('database.default', 'testing')]
+    public function testItRespectsWithoutRelationsAttributeAppliedToParentClass(): void
+    {
+        $user = User::create([
+            'email' => 'taylor@laravel.com',
+        ])->load(['roles']);
+
+        $serialized = serialize(new ModelSerializationAttributeTargetsParentClassTestClass($user, new DataValueObject('hello')));
+
+        /** @var ModelSerializationAttributeTargetsParentClassTestClass $unserialized */
+        $unserialized = unserialize($serialized);
+
+        $this->assertFalse($unserialized->user->relationLoaded('roles'));
+        $this->assertSame('hello', $unserialized->value->value);
+    }
+
+    public function testSerializationTypesEmptyCustomEloquentCollection(): void
     {
         $class = new ModelSerializationTypedCustomCollectionTestClass(
             new ModelSerializationTestCustomUserCollection
@@ -512,7 +524,42 @@ class ModelSerializationTest extends TestCase
     }
 
     #[WithConfig('database.default', 'testing')]
-    public function testItUsesMorphMapForCollectionSerialization(): void
+    public function testItUsesMorphMapForSerializationOfCollection(): void
+    {
+        Relation::morphMap([
+            'user' => User::class,
+        ]);
+
+        ModelIdentifier::useMorphMap();
+
+        $user = User::create([
+            'email' => 'taylor@laravel.com',
+        ]);
+
+        $serialized = serialize(new CollectionSerializationTestClass(
+            new Collection([$user]),
+        ));
+
+        $this->assertSame(
+            sprintf(
+                'O:%d:"%s":1:{s:5:"users";O:%d:"%s":5:{s:5:"class";s:4:"user";s:2:"id";a:1:{i:0;i:1;}s:9:"relations";a:0:{}s:10:"connection";s:7:"testing";s:15:"collectionClass";N;}}',
+                strlen(CollectionSerializationTestClass::class),
+                CollectionSerializationTestClass::class,
+                strlen(ModelIdentifier::class),
+                ModelIdentifier::class,
+            ),
+            $serialized
+        );
+
+        /** @var CollectionSerializationTestClass $unserialized */
+        $unserialized = unserialize($serialized);
+
+        $this->assertInstanceOf(Collection::class, $unserialized->users);
+        $this->assertTrue($unserialized->users->sole()->is($user));
+    }
+
+    #[WithConfig('database.default', 'testing')]
+    public function testItRestoresMorphMappedCollectionsInOrder(): void
     {
         Relation::morphMap([
             'user' => User::class,
@@ -540,6 +587,9 @@ class ModelSerializationTest extends TestCase
         $this->assertSame('mohamed@laravel.com', $unserialized->users[1]->email);
     }
 
+    /**
+     * Get the expected serialization of accessible parent properties.
+     */
     private function expectedParentAccessibleSerialization(): string
     {
         $class = ModelSerializationParentAccessibleTestClass::class;
@@ -562,6 +612,9 @@ class ModelSerializationTest extends TestCase
         );
     }
 
+    /**
+     * Get the expected serialization without relationships.
+     */
     private function expectedWithoutRelationsSerialization(): string
     {
         $class = ModelSerializationWithoutRelations::class;
@@ -579,6 +632,9 @@ class ModelSerializationTest extends TestCase
         );
     }
 
+    /**
+     * Get the expected serialization for class-level relation exclusion.
+     */
     private function expectedAttributeTargetsClassSerialization(string $userClass = User::class): string
     {
         $class = ModelSerializationAttributeTargetsClassTestClass::class;
@@ -605,24 +661,36 @@ trait TraitBootsAndInitializersTest
 
     public bool $fooBar = false;
 
+    /**
+     * Toggle the trait initialization state.
+     */
     public function initializeTraitBootsAndInitializersTest(): void
     {
         $this->fooBar = ! $this->fooBar;
     }
 
+    /**
+     * Register the trait's global scope.
+     */
     public static function bootTraitBootsAndInitializersTest(): void
     {
-        static::addGlobalScope('foo_bar', function () {
+        static::addGlobalScope('foo_bar', function (): void {
         });
     }
 
+    /**
+     * Register the attributed trait's global scope.
+     */
     #[Boot]
     public static function nonConventionalBootFunctionInTrait(): void
     {
-        static::addGlobalScope('booted_attr_in_trait', function () {
+        static::addGlobalScope('booted_attr_in_trait', function (): void {
         });
     }
 
+    /**
+     * Toggle the attributed trait initialization state.
+     */
     #[Initialize]
     public function nonConventionalInitFunctionInTrait(): void
     {
@@ -638,13 +706,19 @@ class ModelBootTestWithTraitInitialization extends Model
 
     public bool $initializedViaAttributeInClass = false;
 
+    /**
+     * Register the attributed model's global scope.
+     */
     #[Boot]
     public static function nonConventionalBootFunctionInClass(): void
     {
-        static::addGlobalScope('booted_attr_in_class', function () {
+        static::addGlobalScope('booted_attr_in_class', function (): void {
         });
     }
 
+    /**
+     * Toggle the attributed model initialization state.
+     */
     #[Initialize]
     public function nonConventionalInitFunctionInClass(): void
     {
@@ -671,6 +745,9 @@ class ModelSerializationTypedCustomCollectionTestClass
 
     public ModelSerializationTestCustomUserCollection $collection;
 
+    /**
+     * Create a fixture containing a custom collection.
+     */
     public function __construct(ModelSerializationTestCustomUserCollection $collection)
     {
         $this->collection = $collection;
@@ -685,6 +762,9 @@ class ModelSerializationTestCustomUser extends Model
 
     public bool $timestamps = false;
 
+    /**
+     * Create the model's custom collection.
+     */
     public function newCollection(array $models = []): ModelSerializationTestCustomUserCollection
     {
         return new ModelSerializationTestCustomUserCollection($models);
@@ -701,16 +781,25 @@ class ModelSerializationTestCustomOrder extends Model
 
     protected array $with = ['line', 'lines', 'products'];
 
+    /**
+     * Get the order's first line.
+     */
     public function line(): HasOne
     {
         return $this->hasOne(Line::class, 'order_id');
     }
 
+    /**
+     * Get the order's lines.
+     */
     public function lines(): HasMany
     {
         return $this->hasMany(Line::class, 'order_id');
     }
 
+    /**
+     * Get the order's products.
+     */
     public function products(): BelongsToMany
     {
         return $this->belongsToMany(Product::class, 'lines', 'order_id');
@@ -723,16 +812,25 @@ class Order extends Model
 
     public bool $timestamps = false;
 
+    /**
+     * Get the order's first line.
+     */
     public function line(): HasOne
     {
         return $this->hasOne(Line::class);
     }
 
+    /**
+     * Get the order's lines.
+     */
     public function lines(): HasMany
     {
         return $this->hasMany(Line::class);
     }
 
+    /**
+     * Get the order's products.
+     */
     public function products(): BelongsToMany
     {
         return $this->belongsToMany(Product::class, 'lines');
@@ -745,6 +843,9 @@ class Line extends Model
 
     public bool $timestamps = false;
 
+    /**
+     * Get the line's product.
+     */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
@@ -764,6 +865,9 @@ class User extends Model
 
     public bool $timestamps = false;
 
+    /**
+     * Get the user's roles.
+     */
     public function roles(): BelongsToMany
     {
         return $this->belongsToMany(Role::class)
@@ -777,6 +881,9 @@ class Role extends Model
 
     public bool $timestamps = false;
 
+    /**
+     * Get the role's users.
+     */
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class)
@@ -790,11 +897,17 @@ class RoleUser extends Pivot
 
     public bool $timestamps = false;
 
+    /**
+     * Get the pivot's user.
+     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * Get the pivot's role.
+     */
     public function role(): BelongsTo
     {
         return $this->belongsTo(Role::class);
@@ -807,6 +920,9 @@ class ModelSerializationTestClass
 
     public ModelSerializationTestUser|User $user;
 
+    /**
+     * Create a fixture containing a user.
+     */
     public function __construct(ModelSerializationTestUser|User $user)
     {
         $this->user = $user;
@@ -823,6 +939,9 @@ class ModelSerializationAccessibleTestClass
 
     private ModelSerializationTestUser $user3;
 
+    /**
+     * Create a fixture with public, protected and private model properties.
+     */
     public function __construct(ModelSerializationTestUser $user, ModelSerializationTestUser $user2, ModelSerializationTestUser $user3)
     {
         $this->user = $user;
@@ -842,6 +961,9 @@ class ModelSerializationWithoutRelations
     #[WithoutRelations]
     public User $user;
 
+    /**
+     * Create a fixture whose model excludes relationships.
+     */
     public function __construct(User $user)
     {
         $this->user = $user;
@@ -853,9 +975,16 @@ class ModelSerializationAttributeTargetsClassTestClass
 {
     use SerializesModels;
 
+    /**
+     * Create a fixture with class-level relation exclusion.
+     */
     public function __construct(public User $user, public DataValueObject $value)
     {
     }
+}
+
+class ModelSerializationAttributeTargetsParentClassTestClass extends ModelSerializationAttributeTargetsClassTestClass
+{
 }
 
 class ModelRelationSerializationTestClass
@@ -864,6 +993,9 @@ class ModelRelationSerializationTestClass
 
     public Order|ModelSerializationTestCustomOrder $order;
 
+    /**
+     * Create a fixture containing an order.
+     */
     public function __construct(Order|ModelSerializationTestCustomOrder $order)
     {
         $this->order = $order;
@@ -876,6 +1008,9 @@ class CollectionSerializationTestClass
 
     public Collection $users;
 
+    /**
+     * Create a fixture containing users.
+     */
     public function __construct(Collection $users)
     {
         $this->users = $users;
@@ -888,6 +1023,9 @@ class CollectionRelationSerializationTestClass
 
     public Collection $orders;
 
+    /**
+     * Create a fixture containing orders.
+     */
     public function __construct(Collection $orders)
     {
         $this->orders = $orders;
@@ -896,6 +1034,9 @@ class CollectionRelationSerializationTestClass
 
 class DataValueObject
 {
+    /**
+     * Create a value object for serialization.
+     */
     public function __construct(public string|int $value = 1)
     {
     }
