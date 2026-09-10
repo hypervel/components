@@ -7765,11 +7765,15 @@ SQL;
         $this->assertSame('select * from "users" where "foo" ??& "_foo"', $builder->toSql());
     }
 
-    public function testUseIndexMySql()
+    public function testUseIndexMySql(): void
     {
         $builder = $this->getMySqlBuilder();
         $builder->select('foo')->from('users')->useIndex('test_index');
         $this->assertSame('select `foo` from `users` use index (test_index)', $builder->toSql());
+
+        $builder = $this->getMySqlBuilder();
+        $builder->select('foo')->from('users')->useIndex('test_index, second_index');
+        $this->assertSame('select `foo` from `users` use index (test_index, second_index)', $builder->toSql());
     }
 
     public function testForceIndexMySql()

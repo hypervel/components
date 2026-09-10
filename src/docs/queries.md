@@ -376,6 +376,15 @@ $users = DB::table('users')
     ->get();
 ```
 
+When using MariaDB or MySQL, you may specify multiple indexes by separating their names with commas:
+
+```php
+$users = DB::table('users')
+    ->useIndex('users_email_index, users_name_index')
+    ->where('email', 'taylor@example.com')
+    ->get();
+```
+
 SQLite supports the `forceIndex` method, which compiles to SQLite's `indexed by` clause:
 
 ```php
