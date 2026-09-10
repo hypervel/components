@@ -7,9 +7,10 @@ namespace Hypervel\Queue\Capsule;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Queue\Concerns\RegistersQueueConnectors;
 use Hypervel\Queue\QueueManager;
-use Hypervel\Queue\QueueServiceProvider;
 use Hypervel\Support\Traits\CapsuleManagerTrait;
 
 /**
@@ -19,6 +20,7 @@ use Hypervel\Support\Traits\CapsuleManagerTrait;
 class Manager
 {
     use CapsuleManagerTrait;
+    use RegistersQueueConnectors;
 
     /**
      * The queue manager instance.
@@ -60,13 +62,15 @@ class Manager
      */
     protected function registerConnectors(): void
     {
-        // Capsule intentionally reuses the provider's connector registration logic with its
-        // standalone container; this works in practice and only differs from the provider's
-        // stricter application constructor type.
-        /** @phpstan-ignore-next-line */
-        $provider = new QueueServiceProvider($this->container);
+        $this->registerDefaultConnectors($this->manager);
+    }
 
-        $provider->registerConnectors($this->manager);
+    /**
+     * Get the container used to resolve connector dependencies.
+     */
+    protected function connectorContainer(): ContainerContract
+    {
+        return $this->container;
     }
 
     /**
