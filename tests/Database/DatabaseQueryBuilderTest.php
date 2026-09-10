@@ -165,29 +165,29 @@ class DatabaseQueryBuilderTest extends TestCase
     public function testDefaultSelectionUsesTheLogicalSourceAlias(): void
     {
         $builder = $this->getBuilder(prefix: 'prefix_');
-        $builder->from('users', '0')->addSelect(['bonus' => new Raw(42)]);
+        $builder->from('users', '0')->addSelect(['bonus' => $this->getBuilder()->selectRaw('42')]);
 
-        $this->assertSame('select "prefix_0".*, (42) as "bonus" from "prefix_users" as "prefix_0"', $builder->toSql());
+        $this->assertSame('select "prefix_0".*, (select 42) as "bonus" from "prefix_users" as "prefix_0"', $builder->toSql());
 
         $builder = $this->getBuilder(prefix: 'prefix_');
-        $builder->from('users AS people')->addSelect(['bonus' => new Raw(42)]);
+        $builder->from('users AS people')->addSelect(['bonus' => $this->getBuilder()->selectRaw('42')]);
 
-        $this->assertSame('select "prefix_people".*, (42) as "bonus" from "prefix_users" as "prefix_people"', $builder->toSql());
+        $this->assertSame('select "prefix_people".*, (select 42) as "bonus" from "prefix_users" as "prefix_people"', $builder->toSql());
     }
 
     public function testReplacingTheSourceResetsItsDefaultSelectionAlias(): void
     {
         $builder = $this->getBuilder(prefix: 'prefix_')->fromSub('select 1 as id', 'old');
 
-        $plain = (clone $builder)->from('users')->addSelect(['bonus' => new Raw(42)]);
-        $this->assertSame('select "prefix_users".*, (42) as "bonus" from "prefix_users"', $plain->toSql());
+        $plain = (clone $builder)->from('users')->addSelect(['bonus' => $this->getBuilder()->selectRaw('42')]);
+        $this->assertSame('select "prefix_users".*, (select 42) as "bonus" from "prefix_users"', $plain->toSql());
 
-        $subquery = (clone $builder)->fromSub('select 2 as id', 'new')->addSelect(['bonus' => new Raw(42)]);
-        $this->assertSame('select "prefix_new".*, (42) as "bonus" from (select 2 as id) as "prefix_new"', $subquery->toSql());
+        $subquery = (clone $builder)->fromSub('select 2 as id', 'new')->addSelect(['bonus' => $this->getBuilder()->selectRaw('42')]);
+        $this->assertSame('select "prefix_new".*, (select 42) as "bonus" from (select 2 as id) as "prefix_new"', $subquery->toSql());
 
         $this->expectException(TypeError::class);
 
-        $builder->fromRaw('users')->addSelect(['bonus' => new Raw(42)]);
+        $builder->fromRaw('users')->addSelect(['bonus' => $this->getBuilder()->selectRaw('42')]);
     }
 
     public function testContractExpressionsAreAcceptedAsQuerySources(): void
@@ -204,8 +204,8 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame('select * from "prefix_users"', $builder->toSql());
         $this->assertSame($expression, $builder->from);
 
-        $builder->from($expression, 'people')->addSelect(['bonus' => new Raw(42)]);
-        $this->assertSame('select "prefix_people".*, (42) as "bonus" from "prefix_users" as "prefix_people"', $builder->toSql());
+        $builder->from($expression, 'people')->addSelect(['bonus' => $this->getBuilder()->selectRaw('42')]);
+        $this->assertSame('select "prefix_people".*, (select 42) as "bonus" from "prefix_users" as "prefix_people"', $builder->toSql());
 
         $builder->from($expression);
         $this->assertSame($expression, $builder->from);
@@ -6177,12 +6177,14 @@ SQL;
         $this->assertEquals([], $builder->getBindings());
     }
 
-    public function testSelectExpression()
+    public function testSelectExpression(): void
     {
         $builder = $this->getBuilder();
-        $builder->from('one')->selectExpression(new Raw('1 + 1'), 'expr');
+        $builder->from('one')
+            ->selectExpression(new Raw('1 + 1'), 'expr')
+            ->selectExpression('2 + 2', 'expr2');
 
-        $this->assertSame('select (1 + 1) as "expr" from "one"', $builder->toSql());
+        $this->assertSame('select (1 + 1) as "expr", (2 + 2) as "expr2" from "one"', $builder->toSql());
     }
 
     public function testSelectionAliasesAreSingleIdentifiers(): void
@@ -6204,31 +6206,23 @@ SQL;
         }
     }
 
-    public function testSelectWithAliasedExpression()
+    public function testSelectPreservesKeyedRawExpressions(): void
     {
         $builder = $this->getBuilder();
-        $builder->from('users')->select(['is_admin' => new Raw('role = 1')]);
+        $builder->from('users')->select(['is_admin' => new Raw('role = 1 as is_admin')]);
 
-        $this->assertSame('select (role = 1) as "is_admin" from "users"', $builder->toSql());
+        $this->assertSame('select role = 1 as is_admin from "users"', $builder->toSql());
     }
 
-    public function testAddSelectWithAliasedExpression()
+    public function testAddSelectPreservesKeyedRawExpressions(): void
     {
         $builder = $this->getBuilder();
-        $builder->from('users')->select('*')->addSelect(['is_admin' => new Raw('role = 1')]);
+        $builder->from('users')->addSelect(['is_admin' => new Raw('role = 1 as is_admin')]);
 
-        $this->assertSame('select *, (role = 1) as "is_admin" from "users"', $builder->toSql());
+        $this->assertSame('select role = 1 as is_admin from "users"', $builder->toSql());
     }
 
-    public function testAddSelectWithAliasedExpressionPreservesDefaultColumns()
-    {
-        $builder = $this->getBuilder();
-        $builder->from('users')->addSelect(['is_admin' => new Raw('role = 1')]);
-
-        $this->assertSame('select "users".*, (role = 1) as "is_admin" from "users"', $builder->toSql());
-    }
-
-    public function testSelect()
+    public function testSelect(): void
     {
         $builder = $this->getBuilder();
         $builder->from('one')->select([
@@ -6238,7 +6232,7 @@ SQL;
             'five' => new Raw('1 + 1'),
         ]);
 
-        $this->assertSame('select "two", "threee" as "threeee", (select "col" from "tbl") as "four", (1 + 1) as "five" from "one"', $builder->toSql());
+        $this->assertSame('select "two", "threee" as "threeee", (select "col" from "tbl") as "four", 1 + 1 from "one"', $builder->toSql());
     }
 
     public function testUppercaseLeadingBooleansAreRemoved()

@@ -11,6 +11,7 @@ use Hypervel\Cache\ModelCacheStoreValidator;
 use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
@@ -135,9 +136,19 @@ class AuthServiceProvider extends ServiceProvider
             $casts = [];
 
             foreach ($resolvedAbilities as [$ability, $alias]) {
-                $this->addSelect([
-                    $alias => $queryGate->select($ability, $this),
-                ]);
+                $selection = $queryGate->select($ability, $this);
+
+                if ($selection instanceof ExpressionContract) {
+                    // Raw authorization selections must retain the model columns, like subqueries do.
+                    if ($this->getQuery()->columns === null) {
+                        $this->select($this->getQuery()->getDefaultSelectColumn());
+                    }
+
+                    $this->selectExpression($selection, $alias);
+                } else {
+                    $this->addSelect([$alias => $selection]);
+                }
+
                 $casts[$alias] = 'bool';
             }
 

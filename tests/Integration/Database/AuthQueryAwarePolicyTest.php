@@ -147,6 +147,7 @@ class AuthQueryAwarePolicyTest extends DatabaseTestCase
             ->withCan(['policy-before-allowed', 'policy-before-denied'], $this->user())
             ->findOrFail('owned');
 
+        $this->assertSame('owned', $post->id);
         $this->assertTrue($post->can_policy_before_allowed);
         $this->assertFalse($post->can_policy_before_denied);
     }

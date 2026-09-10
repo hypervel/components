@@ -149,6 +149,24 @@ class AuthEloquentBuilderCanTest extends TestCase
         }
     }
 
+    public function testWithCanPreservesExplicitColumnsAndSelectionBindings(): void
+    {
+        $this->gate()->before(fn (): bool => true);
+
+        $post = Post::query()
+            ->select('id')
+            ->selectRaw('? as title', ['Selected title'])
+            ->withCan('edit', $this->user(1))
+            ->orderBy('id')
+            ->firstOrFail();
+
+        $this->assertSame([
+            'id' => 1,
+            'title' => 'Selected title',
+            'can_edit' => true,
+        ], $post->toArray());
+    }
+
     public function testWithCanGeneratesDashedCamelExplicitAndDottedAliases(): void
     {
         $user = $this->user(1);
