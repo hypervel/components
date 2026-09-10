@@ -3853,6 +3853,8 @@ Hypervel dispatches a `JobQueueing` event immediately before a job is sent to it
 
 The `JobPayloadFinalizing` event runs immediately before `JobQueueing` and may replace its encoded `payload`. It also provides the connection, queue, job, and normalized delay. Use this event for last-mile payload changes that must reach the queue backend. Listening to both events deliberately runs both listeners for each asynchronous job.
 
+When a worker releases a job back onto the queue after an exception, the `JobReleasedAfterException` event provides the `connectionName`, `job`, `backoff` delay in seconds, and the original `exception`.
+
 Using the `looping` method on the `Queue` [facade](/docs/{{version}}/facades), you may specify callbacks that execute before the worker attempts to fetch a job from a queue. For example, you might register a closure to rollback any transactions that were left open by a previously failed job:
 
 ```php
@@ -3865,6 +3867,10 @@ Queue::looping(function () {
     }
 });
 ```
+
+The `JobPopping` event is dispatched before a worker attempts to retrieve a job. Its `connectionName` and `queue` properties identify the configured connection and queue selection, which may be a comma-separated list. After a job is retrieved, the `JobPopped` event provides the `connectionName` and `job`.
+
+Long-running queue workers dispatch a `WorkerStarting` event when they start. Its `connectionName`, `queue`, and `workerOptions` properties describe the worker. You may register a listener using `Queue::starting` in the `boot` method of a service provider.
 
 Hypervel also dispatches a `Hypervel\Queue\Events\WorkerIdle` event when a queue worker is unable to retrieve a job from the queue:
 
@@ -3881,4 +3887,4 @@ Event::listen(function (WorkerIdle $event) {
 
 When an interrupting signal is delivered to running jobs, Hypervel dispatches a `Hypervel\Queue\Events\JobInterrupted` event once for each job that was notified. Its `connectionName`, `job`, and `signal` properties identify the interrupted work.
 
-Queue workers also dispatch a `WorkerStopping` event before they stop. Its `connectionName` and `queue` properties identify the worker, while `terminatesImmediately` is `true` when the process will be terminated as soon as the listeners return. In that case, listeners should not start cleanup that must finish after the listener returns.
+Queue workers also dispatch a `WorkerStopping` event before they stop. You may register a listener using `Queue::stopping` in the `boot` method of a service provider. Its `connectionName` and `queue` properties identify the worker, while `terminatesImmediately` is `true` when the process will be terminated as soon as the listeners return. In that case, listeners should not start cleanup that must finish after the listener returns.
