@@ -8,6 +8,7 @@ use Hypervel\Console\Command;
 use Hypervel\Foundation\DevCommand;
 use Hypervel\Foundation\DevCommands;
 use Hypervel\Prompts\Prompt;
+use Hypervel\Support\Stringable;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
@@ -75,7 +76,7 @@ class DevListCommand extends Command
                 );
 
                 $source = $availableSourceWidth >= 2
-                    ? str($source)->limit($availableSourceWidth - 1, '…')->toString()
+                    ? (new Stringable($source))->limit($availableSourceWidth - 1, '…')->value()
                     : '';
             }
 

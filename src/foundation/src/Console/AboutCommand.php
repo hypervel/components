@@ -140,7 +140,7 @@ class AboutCommand extends Command
             'Composer Version' => $this->composer->getVersion() ?? '<fg=yellow;options=bold>-</>',
             'Environment' => $this->hypervel->environment(),
             'Debug Mode' => static::format(config()->boolean('app.debug'), console: $formatEnabledStatus),
-            'URL' => Str::of(config('app.url'))->replace(['http://', 'https://'], ''),
+            'URL' => (new Stringable(config('app.url')))->replace(['http://', 'https://'], ''),
             'Maintenance Mode' => static::format($this->hypervel->isDownForMaintenance(), console: $formatEnabledStatus),
             'Timezone' => config()->string('app.timezone'),
             'Locale' => config()->string('app.locale'),

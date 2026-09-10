@@ -11,7 +11,6 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Number;
-use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use stdClass;
 use Stringable as BaseStringable;
@@ -249,7 +248,7 @@ trait InteractsWithData
      */
     public function string(string $key, mixed $default = null): Stringable
     {
-        return Str::of($this->data($key, $default));
+        return new Stringable($this->data($key, $default));
     }
 
     /**
