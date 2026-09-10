@@ -30,13 +30,13 @@ use LogicException;
  * @method $this spatialIndex(bool|string $indexName = null) Add a spatial index
  * @method $this vectorIndex(bool|string $indexName = null) Add a vector index
  * @method $this startingValue(int $startingValue) Set the starting value of an auto-incrementing field (MySQL/PostgreSQL)
- * @method $this storedAs(\Hypervel\Contracts\Database\Query\Expression|string $expression) Create a stored generated column (MySQL/PostgreSQL/SQLite)
+ * @method $this storedAs(null|\Hypervel\Contracts\Database\Query\Expression|string $expression) Create a stored generated column (MySQL/PostgreSQL/SQLite)
  * @method $this type(string $type) Specify a type for the column
  * @method $this unique(bool|string $indexName = null) Add a unique index
  * @method $this unsigned() Set the INTEGER column as UNSIGNED (MySQL)
  * @method $this useCurrent() Set the TIMESTAMP column to use CURRENT_TIMESTAMP as default value
  * @method $this useCurrentOnUpdate() Set the TIMESTAMP column to use CURRENT_TIMESTAMP when updating (MySQL)
- * @method $this virtualAs(\Hypervel\Contracts\Database\Query\Expression|string $expression) Create a virtual generated column (MySQL/PostgreSQL/SQLite)
+ * @method $this virtualAs(null|\Hypervel\Contracts\Database\Query\Expression|string $expression) Create a virtual generated column (MySQL/PostgreSQL/SQLite)
  */
 class ColumnDefinition extends Fluent
 {

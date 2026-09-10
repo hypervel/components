@@ -139,10 +139,10 @@ class DatabaseSchemaBlueprintTest extends SqliteTestCase
 
         $this->assertEquals([
             'alter table "users" '
+            . 'alter column "added_at" drop expression if exists, '
             . 'alter column "added_at" type timestamp(2) without time zone, '
             . 'alter column "added_at" set not null, '
             . 'alter column "added_at" set default CURRENT_TIMESTAMP, '
-            . 'alter column "added_at" drop expression if exists, '
             . 'alter column "added_at" drop identity if exists',
             'comment on column "users"."added_at" is NULL',
         ], $blueprint->toSql());

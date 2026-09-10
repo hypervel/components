@@ -17,6 +17,10 @@ function testColumnDefinitionsUseTheDefaultType(Blueprint $table): void
     assertType('Hypervel\Database\Schema\ColumnDefinition', $table->string('name'));
     assertType('Hypervel\Database\Schema\ColumnDefinition', $table->softDeletes()->nullable());
     assertType('Hypervel\Support\Collection<int, Hypervel\Database\Schema\ColumnDefinition>', $table->timestamps());
+    assertType('Hypervel\Database\Schema\ColumnDefinition', $table->timestamp('created_at')->useCurrent()->storedAs(null));
+    assertType('Hypervel\Database\Schema\ColumnDefinition', $table->timestamp('created_at')->useCurrent()->storedAs(null)->change());
+    assertType('Hypervel\Database\Schema\ColumnDefinition', $table->integer('value')->virtualAs(null));
+    assertType('Hypervel\Database\Schema\ColumnDefinition', $table->integer('value')->virtualAs(null)->change());
 }
 
 /**
@@ -27,6 +31,8 @@ function testCustomColumnDefinitionsUseTheFactoryType(CustomBlueprint $table): v
     assertType('Hypervel\Types\Database\Schema\CustomColumnDefinition', $table->string('name')->nullable()->label('Display name'));
     assertType('Hypervel\Types\Database\Schema\CustomColumnDefinition', $table->unsignedBigInteger('count'));
     assertType('Hypervel\Types\Database\Schema\CustomColumnDefinition', $table->softDeletes());
+    assertType('Hypervel\Types\Database\Schema\CustomColumnDefinition', $table->timestamp('created_at')->storedAs(null)->change()->label('Created'));
+    assertType('Hypervel\Types\Database\Schema\CustomColumnDefinition', $table->integer('value')->virtualAs(null)->change()->label('Value'));
     assertType('Hypervel\Types\Database\Schema\CustomColumnDefinition', $table->addColumn('string', 'title'));
     assertType('Hypervel\Support\Collection<int, Hypervel\Types\Database\Schema\CustomColumnDefinition>', $table->timestamps());
     assertType('Hypervel\Support\Collection<int, Hypervel\Types\Database\Schema\CustomColumnDefinition>', $table->datetimes());
