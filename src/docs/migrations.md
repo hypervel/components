@@ -1554,7 +1554,7 @@ Hypervel's schema builder blueprint class provides methods for creating each typ
 
 </div>
 
-When using PostgreSQL, chaining `index` onto a `vector` column definition will create a vector index instead of a regular index.
+Chaining `index` onto a `vector` column definition will create a vector index instead of a regular index.
 
 <a name="online-index-creation"></a>
 #### Online Index Creation

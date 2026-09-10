@@ -21,7 +21,6 @@ use Hypervel\Database\Concerns\ExplainsQueries;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Relations\Relation;
-use Hypervel\Database\PostgresConnection;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Pagination\Cursor;
@@ -30,11 +29,12 @@ use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
-use Hypervel\Support\Str;
 use Hypervel\Support\StrCache;
+use Hypervel\Support\Stringable;
 use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
+use JsonException;
 use LogicException;
 use RuntimeException;
 use SortDirection;
@@ -293,7 +293,7 @@ class Builder implements BuilderContract
         [$query, $bindings] = $this->createSub($query);
 
         return $this->selectRaw(
-            '(' . $query . ') as ' . $this->grammar->wrap($as),
+            '(' . $query . ') as ' . $this->grammar->wrapIdentifier($as),
             $bindings
         );
     }
@@ -304,7 +304,7 @@ class Builder implements BuilderContract
     public function selectExpression(ExpressionContract $expression, string $as): static
     {
         return $this->selectRaw(
-            '(' . $expression->getValue($this->grammar) . ') as ' . $this->grammar->wrap($as)
+            '(' . $expression->getValue($this->grammar) . ') as ' . $this->grammar->wrapIdentifier($as)
         );
     }
 
@@ -469,14 +469,16 @@ class Builder implements BuilderContract
     /**
      * Add a vector-similarity selection to the query.
      *
-     * @param array<int, float>|\Hypervel\Contracts\Support\Arrayable|\Hypervel\Support\Collection<int, float>|string $vector
+     * @param array<int, float>|Arrayable<int, float>|Collection<int, float>|string $vector
+     *
+     * @throws JsonException
      */
     public function selectVectorDistance(ExpressionContract|string $column, Collection|Arrayable|array|string $vector, ?string $as = null): static
     {
         $this->ensureConnectionSupportsVectors();
 
         if (is_string($vector)) {
-            $vector = Str::of($vector)->toEmbeddings(cache: true); // @phpstan-ignore method.notFound (optional AI SDK macro, matching Laravel)
+            $vector = (new Stringable($vector))->toEmbeddings(cache: true); // @phpstan-ignore method.notFound (optional AI SDK macro, matching Laravel)
         }
 
         $this->addBinding(
@@ -489,10 +491,13 @@ class Builder implements BuilderContract
             'select',
         );
 
-        $as = $this->getGrammar()->wrap($as ?? $column . '_distance');
+        // An alias is a single identifier, even when derived from a qualified column or expression.
+        $as = $this->getGrammar()->wrapIdentifier(
+            $as ?? last(explode('.', (string) $this->getGrammar()->getValue($column))) . '_distance'
+        );
 
         return $this->addSelect(
-            new Expression("({$this->getGrammar()->wrap($column)} <=> ?) as {$as}")
+            new Expression("{$this->getGrammar()->compileVectorDistanceExpression($column)} as {$as}")
         );
     }
 
@@ -1043,13 +1048,17 @@ class Builder implements BuilderContract
     /**
      * Add a vector similarity clause to the query, filtering by minimum similarity and ordering by similarity.
      *
-     * @param array<int, float>|\Hypervel\Contracts\Support\Arrayable|\Hypervel\Support\Collection<int, float>|string $vector
+     * @param array<int, float>|Arrayable<int, float>|Collection<int, float>|string $vector
      * @param float $minSimilarity A value between 0.0 and 1.0, where 1.0 is identical.
+     *
+     * @throws JsonException
      */
     public function whereVectorSimilarTo(ExpressionContract|string $column, Collection|Arrayable|array|string $vector, float $minSimilarity = 0.6, bool $order = true): static
     {
+        $this->ensureConnectionSupportsVectors();
+
         if (is_string($vector)) {
-            $vector = Str::of($vector)->toEmbeddings(cache: true); // @phpstan-ignore method.notFound (optional AI SDK macro, matching Laravel)
+            $vector = (new Stringable($vector))->toEmbeddings(cache: true); // @phpstan-ignore method.notFound (optional AI SDK macro, matching Laravel)
         }
 
         $this->whereVectorDistanceLessThan($column, $vector, 1 - $minSimilarity);
@@ -1064,18 +1073,20 @@ class Builder implements BuilderContract
     /**
      * Add a vector distance "where" clause to the query.
      *
-     * @param array<int, float>|\Hypervel\Contracts\Support\Arrayable|\Hypervel\Support\Collection<int, float>|string $vector
+     * @param array<int, float>|Arrayable<int, float>|Collection<int, float>|string $vector
+     *
+     * @throws JsonException
      */
     public function whereVectorDistanceLessThan(ExpressionContract|string $column, Collection|Arrayable|array|string $vector, float $maxDistance, string $boolean = 'and'): static
     {
         $this->ensureConnectionSupportsVectors();
 
         if (is_string($vector)) {
-            $vector = Str::of($vector)->toEmbeddings(cache: true); // @phpstan-ignore method.notFound (optional AI SDK macro, matching Laravel)
+            $vector = (new Stringable($vector))->toEmbeddings(cache: true); // @phpstan-ignore method.notFound (optional AI SDK macro, matching Laravel)
         }
 
         return $this->whereRaw(
-            "({$this->getGrammar()->wrap($column)} <=> ?) <= ?",
+            "{$this->getGrammar()->compileVectorDistanceExpression($column)} <= ?",
             [
                 json_encode(
                     $vector instanceof Arrayable
@@ -1092,7 +1103,9 @@ class Builder implements BuilderContract
     /**
      * Add a vector distance "or where" clause to the query.
      *
-     * @param array<int, float>|\Hypervel\Contracts\Support\Arrayable|\Hypervel\Support\Collection<int, float>|string $vector
+     * @param array<int, float>|Arrayable<int, float>|Collection<int, float>|string $vector
+     *
+     * @throws JsonException
      */
     public function orWhereVectorDistanceLessThan(ExpressionContract|string $column, Collection|Arrayable|array|string $vector, float $maxDistance): static
     {
@@ -2533,13 +2546,15 @@ class Builder implements BuilderContract
      * Add a vector-distance "order by" clause to the query.
      *
      * @param array<int, float>|Arrayable<int, float>|Collection<int, float>|string $vector
+     *
+     * @throws JsonException
      */
     public function orderByVectorDistance(ExpressionContract|string $column, Collection|Arrayable|array|string $vector): static
     {
         $this->ensureConnectionSupportsVectors();
 
         if (is_string($vector)) {
-            $vector = Str::of($vector)->toEmbeddings(cache: true); // @phpstan-ignore method.notFound (optional AI SDK macro, matching Laravel)
+            $vector = (new Stringable($vector))->toEmbeddings(cache: true); // @phpstan-ignore method.notFound (optional AI SDK macro, matching Laravel)
         }
 
         $this->addBinding(
@@ -2553,7 +2568,7 @@ class Builder implements BuilderContract
         );
 
         $this->{$this->unions ? 'unionOrders' : 'orders'}[] = [
-            'column' => new Expression("({$this->getGrammar()->wrap($column)} <=> ?)"),
+            'column' => new Expression($this->getGrammar()->compileVectorDistanceExpression($column)),
             'direction' => 'asc',
         ];
 
@@ -4197,8 +4212,8 @@ class Builder implements BuilderContract
      */
     protected function ensureConnectionSupportsVectors(): void
     {
-        if (! $this->connection instanceof PostgresConnection) {
-            throw new RuntimeException('Vector distance queries are only supported by Postgres.');
+        if (! $this->getGrammar()->supportsVectorDistance()) {
+            throw new RuntimeException('Vector distance queries are only supported by Postgres and MariaDB.');
         }
     }
 

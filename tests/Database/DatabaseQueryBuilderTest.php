@@ -6185,6 +6185,25 @@ SQL;
         $this->assertSame('select (1 + 1) as "expr" from "one"', $builder->toSql());
     }
 
+    public function testSelectionAliasesAreSingleIdentifiers(): void
+    {
+        foreach (['a.b', 'x as y', 'data->x'] as $alias) {
+            $builder = $this->getPostgresBuilder('prefix_');
+            $builder->from('one')->selectSub(function ($query): void {
+                $query->select('value')->from('two')->where('id', 1);
+            }, $alias);
+
+            $this->assertSame('select (select "value" from "prefix_two" where "id" = ?) as "' . $alias . '" from "prefix_one"', $builder->toSql());
+            $this->assertSame([1], $builder->getBindings());
+
+            $builder = $this->getPostgresBuilder('prefix_');
+            $builder->from('one')->selectExpression(new Raw('1 + 1'), $alias);
+
+            $this->assertSame('select (1 + 1) as "' . $alias . '" from "prefix_one"', $builder->toSql());
+            $this->assertSame([], $builder->getBindings());
+        }
+    }
+
     public function testSelectWithAliasedExpression()
     {
         $builder = $this->getBuilder();
@@ -7826,6 +7845,129 @@ SQL;
 
         $this->assertSame('select * from "users" order by "email" asc', $clone->toSql());
         $this->assertEquals([], $clone->getBindings());
+    }
+
+    public function testWhereVectorSimilarToOnPostgres(): void
+    {
+        $builder = $this->getPostgresBuilder();
+        $builder->select('*')->from('documents')->whereVectorSimilarTo('embedding', [1, 2, 3], minSimilarity: 0.4)->limit(10);
+
+        $this->assertSame(
+            'select * from "documents" where ("embedding" <=> ?) <= ? order by ("embedding" <=> ?) asc limit 10',
+            $builder->toSql()
+        );
+        $this->assertSame(['[1,2,3]', 0.6, '[1,2,3]'], $builder->getBindings());
+    }
+
+    public function testWhereVectorSimilarToOnMariaDb(): void
+    {
+        $builder = $this->getMariaDbBuilder();
+        $builder->select('*')->from('documents')->whereVectorSimilarTo('embedding', [1, 2, 3], minSimilarity: 0.4)->limit(10);
+
+        $this->assertSame(
+            'select * from `documents` where vec_distance_cosine(`embedding`, vec_fromtext(?)) <= ? order by vec_distance_cosine(`embedding`, vec_fromtext(?)) asc limit 10',
+            $builder->toSql()
+        );
+        $this->assertSame(['[1,2,3]', 0.6, '[1,2,3]'], $builder->getBindings());
+    }
+
+    public function testWhereVectorSimilarToThrowsOnUnsupportedGrammar(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Vector distance queries are only supported by Postgres and MariaDB.');
+
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('documents')->whereVectorSimilarTo('embedding', [1, 2, 3]);
+    }
+
+    public function testWhereVectorSimilarToRejectsUnsupportedGrammarBeforeGeneratingEmbeddings(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Vector distance queries are only supported by Postgres and MariaDB.');
+
+        $builder = $this->getMySqlBuilder();
+        $builder->from('documents')->whereVectorSimilarTo('embedding', 'best wineries in Napa Valley');
+    }
+
+    public function testWhereVectorDistanceLessThanOnPostgres(): void
+    {
+        $builder = $this->getPostgresBuilder();
+        $builder->select('*')->from('documents')->whereVectorDistanceLessThan('embedding', [1, 2, 3], 0.5);
+
+        $this->assertSame('select * from "documents" where ("embedding" <=> ?) <= ?', $builder->toSql());
+        $this->assertSame(['[1,2,3]', 0.5], $builder->getBindings());
+    }
+
+    public function testWhereVectorDistanceLessThanOnMariaDb(): void
+    {
+        $builder = $this->getMariaDbBuilder();
+        $builder->select('*')->from('documents')->whereVectorDistanceLessThan('embedding', [1, 2, 3], 0.5);
+
+        $this->assertSame('select * from `documents` where vec_distance_cosine(`embedding`, vec_fromtext(?)) <= ?', $builder->toSql());
+        $this->assertSame(['[1,2,3]', 0.5], $builder->getBindings());
+    }
+
+    public function testOrderByVectorDistanceOnMariaDb(): void
+    {
+        $builder = $this->getMariaDbBuilder();
+        $builder->select('*')->from('documents')->orderByVectorDistance('embedding', [1, 2, 3]);
+
+        $this->assertSame('select * from `documents` order by vec_distance_cosine(`embedding`, vec_fromtext(?)) asc', $builder->toSql());
+        $this->assertSame(['[1,2,3]'], $builder->getBindings());
+    }
+
+    public function testSelectVectorDistanceOnMariaDb(): void
+    {
+        $builder = $this->getMariaDbBuilder();
+        $builder->from('documents')->selectVectorDistance('embedding', [1, 2, 3]);
+
+        $this->assertSame('select vec_distance_cosine(`embedding`, vec_fromtext(?)) as `embedding_distance` from `documents`', $builder->toSql());
+        $this->assertSame(['[1,2,3]'], $builder->getBindings());
+    }
+
+    public function testSelectVectorDistanceWithQualifiedColumnsAndExpressions(): void
+    {
+        foreach ([
+            ['documents.embedding', '"documents"."embedding"', '`documents`.`embedding`'],
+            [new Raw('embedding'), 'embedding', 'embedding'],
+            [new Raw('documents.embedding'), 'documents.embedding', 'documents.embedding'],
+        ] as [$column, $postgresColumn, $mariaDbColumn]) {
+            $builder = $this->getPostgresBuilder();
+            $builder->from('documents')->selectVectorDistance($column, [1, 2, 3]);
+
+            $this->assertSame('select (' . $postgresColumn . ' <=> ?) as "embedding_distance" from "documents"', $builder->toSql());
+            $this->assertSame(['[1,2,3]'], $builder->getBindings());
+
+            $builder = $this->getMariaDbBuilder();
+            $builder->from('documents')->selectVectorDistance($column, [1, 2, 3]);
+
+            $this->assertSame('select vec_distance_cosine(' . $mariaDbColumn . ', vec_fromtext(?)) as `embedding_distance` from `documents`', $builder->toSql());
+            $this->assertSame(['[1,2,3]'], $builder->getBindings());
+        }
+    }
+
+    public function testSelectVectorDistanceWithCastExpression(): void
+    {
+        $builder = $this->getPostgresBuilder();
+        $builder->from('documents')->selectVectorDistance(new Raw('CAST(documents.embedding AS vector)'), [1, 2, 3]);
+
+        $this->assertSame('select (CAST(documents.embedding AS vector) <=> ?) as "embedding AS vector)_distance" from "documents"', $builder->toSql());
+        $this->assertSame(['[1,2,3]'], $builder->getBindings());
+    }
+
+    public function testSelectVectorDistanceWithExplicitAlias(): void
+    {
+        $builder = $this->getPostgresBuilder('prefix_');
+        $builder->from('documents')->selectVectorDistance('embedding', [1, 2, 3], 'a.b');
+
+        $this->assertSame('select ("embedding" <=> ?) as "a.b" from "prefix_documents"', $builder->toSql());
+        $this->assertSame(['[1,2,3]'], $builder->getBindings());
+
+        $builder = $this->getMariaDbBuilder('prefix_');
+        $builder->from('documents')->selectVectorDistance('embedding', [1, 2, 3], 'a.b');
+
+        $this->assertSame('select vec_distance_cosine(`embedding`, vec_fromtext(?)) as `a.b` from `prefix_documents`', $builder->toSql());
+        $this->assertSame(['[1,2,3]'], $builder->getBindings());
     }
 
     public function testToRawSql()

@@ -1762,6 +1762,18 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select "model_parent_stubs".*, (select count(*) from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "foo_bar" from "model_parent_stubs"', $builder->toSql());
     }
 
+    public function testWithCountWithConstrainedDottedAlias(): void
+    {
+        $model = new ModelParentStub;
+
+        $builder = $model->withCount(['foo as a.b' => function ($query): void {
+            $query->where('active', true);
+        }]);
+
+        $this->assertSame('select "model_parent_stubs".*, (select count(*) from "model_close_related_stubs" where ("model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") and ("active" = ?)) as "a.b" from "model_parent_stubs"', $builder->toSql());
+        $this->assertSame([true], $builder->getBindings());
+    }
+
     public function testWithCountMultipleAndPartialRename()
     {
         $model = new ModelParentStub;
@@ -1907,6 +1919,18 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder = $model->withExists('foo as foo_bar');
 
         $this->assertSame('select "model_parent_stubs".*, exists(select * from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "foo_bar" from "model_parent_stubs"', $builder->toSql());
+    }
+
+    public function testWithExistsWithLiteralAliases(): void
+    {
+        foreach (['a.b', 'data->x'] as $alias) {
+            $model = new ModelParentStub;
+
+            $builder = $model->withExists('foo as ' . $alias);
+
+            $this->assertSame('select "model_parent_stubs".*, exists(select * from "model_close_related_stubs" where "model_parent_stubs"."foo_id" = "model_close_related_stubs"."id") as "' . $alias . '" from "model_parent_stubs"', $builder->toSql());
+            $this->assertSame([], $builder->getBindings());
+        }
     }
 
     public function testWithExistsMultipleAndPartialRename()
