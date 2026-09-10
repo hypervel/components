@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support\Queue\Concerns;
 
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Queue\QueueRoutes;
 use UnitEnum;
 
@@ -33,10 +34,19 @@ trait ResolvesQueueRoutes
      */
     protected function queueRoutes(): QueueRoutes
     {
-        $container = Container::getInstance();
+        $container = $this->queueRoutesContainer();
 
+        // Standalone managers must share the container's registry even without a provider binding.
         return $container->bound('queue.routes')
             ? $container->make('queue.routes')
-            : new QueueRoutes;
+            : $container->make(QueueRoutes::class);
+    }
+
+    /**
+     * Get the container that owns the queue routes.
+     */
+    protected function queueRoutesContainer(): ContainerContract
+    {
+        return Container::getInstance();
     }
 }

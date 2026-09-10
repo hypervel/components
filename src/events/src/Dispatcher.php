@@ -1125,6 +1125,14 @@ class Dispatcher implements DispatcherContract
     }
 
     /**
+     * Get the container that owns the queue routes.
+     */
+    protected function queueRoutesContainer(): ContainerContract
+    {
+        return $this->container;
+    }
+
+    /**
      * Set the queue resolver implementation.
      *
      * Boot-only. The resolver persists on the singleton Dispatcher for the

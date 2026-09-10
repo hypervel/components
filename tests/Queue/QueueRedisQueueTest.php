@@ -291,7 +291,7 @@ class QueueRedisQueueTest extends TestCase
 
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
-        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
         $queue->setConnectionName('default');
         $redisProxy = m::mock(RedisProxy::class);
         $redisProxy->shouldAllowMockingMethod('evalWithShaCache');
@@ -312,7 +312,7 @@ class QueueRedisQueueTest extends TestCase
 
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
-        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
         $queue->setConnectionName('default');
         $redisProxy = m::mock(RedisProxy::class);
         $redisProxy->shouldAllowMockingMethod('evalWithShaCache');
@@ -339,7 +339,7 @@ class QueueRedisQueueTest extends TestCase
 
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
-        $queue->setContainer($container = m::mock(Container::class));
+        $queue->setContainer($container = m::mock(Container::class)->makePartial());
         $queue->setConnectionName('default');
 
         $redisProxy = m::mock(RedisProxy::class);
@@ -457,7 +457,7 @@ class QueueRedisQueueTest extends TestCase
 
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
-        $queue->setContainer($container = m::mock(Container::class));
+        $queue->setContainer($container = m::mock(Container::class)->makePartial());
         $queue->setConnectionName('default');
 
         $redisProxy = m::mock(RedisProxy::class);
@@ -510,7 +510,7 @@ class QueueRedisQueueTest extends TestCase
 
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
-        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
         $queue->setConnectionName('default');
         $redisProxy = m::mock(RedisProxy::class);
         $redisProxy->shouldAllowMockingMethod('evalWithShaCache');
@@ -540,7 +540,7 @@ class QueueRedisQueueTest extends TestCase
         $uuid = $this->mockUuid();
 
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
-        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
         $queue->setConnectionName('default');
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
 
@@ -567,7 +567,7 @@ class QueueRedisQueueTest extends TestCase
 
         $date = CarbonImmutable::createFromTimestampUTC('1001.100000');
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
-        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
         $queue->setConnectionName('default');
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
 
@@ -593,7 +593,7 @@ class QueueRedisQueueTest extends TestCase
         $delay = new DateInterval('PT1S');
 
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
-        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
         $queue->setConnectionName('default');
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
 
@@ -696,7 +696,7 @@ class QueueRedisQueueTest extends TestCase
             ->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])
             ->getMock();
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
-        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
         $queue->setConnectionName('default');
 
         $redisProxy = m::mock(RedisProxy::class);
@@ -724,7 +724,7 @@ class QueueRedisQueueTest extends TestCase
             ->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])
             ->getMock();
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
-        $queue->setContainer(m::spy(Container::class));
+        $queue->setContainer(m::spy(Container::class)->makePartial());
         $queue->setConnectionName('default');
 
         $redisProxy = m::mock(RedisProxy::class);
@@ -760,7 +760,7 @@ class QueueRedisQueueTest extends TestCase
             ->onlyMethods(['availableAt', 'getRandomId'])
             ->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])
             ->getMock();
-        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
         $queue->setConnectionName('default');
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
         $queue->expects($this->once())->method('availableAt')->with(1)->willReturn(2);

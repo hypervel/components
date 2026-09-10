@@ -183,6 +183,14 @@ class QueueManager implements FactoryContract, MonitorContract
     }
 
     /**
+     * Get the container that owns the queue routes.
+     */
+    protected function queueRoutesContainer(): Container
+    {
+        return $this->app;
+    }
+
+    /**
      * Pause a queue by its connection and name.
      */
     public function pause(string $connection, string $queue): void

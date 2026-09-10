@@ -288,6 +288,14 @@ class Dispatcher implements QueueingDispatcher
     }
 
     /**
+     * Get the container that owns the queue routes.
+     */
+    protected function queueRoutesContainer(): Container
+    {
+        return $this->container;
+    }
+
+    /**
      * Set the pipes through which commands should be piped before dispatching.
      *
      * Boot-only. The pipes persist on the singleton dispatcher for the worker

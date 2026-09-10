@@ -37,7 +37,7 @@ class DatabaseQueueReservationTest extends TestCase
         [$database, $events] = $this->createQueue();
         $routes = new QueueRoutes;
         $routes->forward(['reports' => 'processing', 'processing' => 'archive'], connection: $connection);
-        Container::getInstance()->instance('queue.routes', $routes);
+        $database->getContainer()->instance('queue.routes', $routes);
         $payload = json_encode(['job' => stdClass::class, 'data' => []]);
         $primary = m::mock(QueueContract::class);
         $primary->shouldReceive('pushRaw')->once()->with($payload, $delegatedQueue)->andThrow(new RuntimeException('Primary unavailable.'));
@@ -45,6 +45,7 @@ class DatabaseQueueReservationTest extends TestCase
         $manager->shouldReceive('connection')->once()->with('primary')->andReturn($primary);
         $manager->shouldReceive('connection')->once()->with('database')->andReturn($database);
         $queue = new FailoverQueue($manager, $events, ['primary', 'database']);
+        $queue->setContainer($database->getContainer());
         $queue->setConnectionName('failover');
 
         $id = $queue->pushRaw($payload, 'reports');
@@ -58,7 +59,7 @@ class DatabaseQueueReservationTest extends TestCase
         [$queue] = $this->createQueue();
         $routes = new QueueRoutes;
         $routes->forward(['reports' => 'processing', 'processing' => 'archive']);
-        Container::getInstance()->instance('queue.routes', $routes);
+        $queue->getContainer()->instance('queue.routes', $routes);
         $id = $queue->pushRaw(json_encode(['job' => stdClass::class, 'data' => []]), 'reports');
 
         $this->assertSame('processing', $queue->getDatabase()->table('jobs')->find($id)->queue);

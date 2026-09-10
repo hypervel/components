@@ -8,6 +8,7 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Bus\DispatchLockContext;
+use Hypervel\Container\Container as GlobalContainer;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
@@ -670,6 +671,14 @@ abstract class Queue
     protected function resolveQueue(string $queue): string
     {
         return $this->queueRoutes()->forwardedQueue($queue, $this->connectionName ?? null);
+    }
+
+    /**
+     * Get the container that owns the queue routes.
+     */
+    protected function queueRoutesContainer(): Container
+    {
+        return $this->container ?? GlobalContainer::getInstance();
     }
 
     /**

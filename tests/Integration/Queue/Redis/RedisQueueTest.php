@@ -487,7 +487,7 @@ class RedisQueueTest extends TestCase
             return true;
         })->andReturnNull()->once();
 
-        $container = m::mock(Container::class);
+        $container = m::mock(Container::class)->makePartial();
         $container->shouldReceive('bound')->with('events')->andReturn(true)->times(3);
         $container->shouldReceive('make')->with('events')->andReturn($events)->times(3);
 
@@ -507,7 +507,7 @@ class RedisQueueTest extends TestCase
         $events->shouldReceive('dispatch')->with(m::type(JobQueueing::class))->andReturnNull()->times(3);
         $events->shouldReceive('dispatch')->with(m::type(JobQueued::class))->andReturnNull()->times(3);
 
-        $container = m::mock(Container::class);
+        $container = m::mock(Container::class)->makePartial();
         $container->shouldReceive('has')->with('db.transactions')->andReturnFalse()->once();
         $container->shouldReceive('bound')->with('events')->andReturn(true)->times(9);
         $container->shouldReceive('make')->with('events')->andReturn($events)->times(9);

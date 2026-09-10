@@ -253,6 +253,14 @@ class BroadcastManager implements BroadcastingFactoryContract
     }
 
     /**
+     * Get the container that owns the queue routes.
+     */
+    protected function queueRoutesContainer(): Container
+    {
+        return $this->app;
+    }
+
+    /**
      * Determine if the broadcastable event must be unique and determine if we can acquire the necessary lock.
      */
     protected function mustBeUniqueAndCannotAcquireLock(object $event): bool

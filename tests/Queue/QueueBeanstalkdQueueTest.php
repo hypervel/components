@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hypervel\Container\Container as Application;
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Queue\BeanstalkdQueue;
 use Hypervel\Queue\Events\JobQueued;
@@ -33,7 +33,7 @@ class QueueBeanstalkdQueueTest extends TestCase
     private $queue;
 
     /**
-     * @var Container
+     * @var ContainerContract
      */
     private $container;
 
@@ -190,7 +190,7 @@ class QueueBeanstalkdQueueTest extends TestCase
             $queuedEvent = $event;
         });
 
-        $container = new Application;
+        $container = new Container;
         $container->instance('events', $events);
         $this->queue->setContainer($container);
 
@@ -269,6 +269,9 @@ class QueueBeanstalkdQueueTest extends TestCase
         $this->queue->deleteMessage('default', 1);
     }
 
+    /**
+     * Configure the queue and its container.
+     */
     private function setQueue(string $default, int $timeToRun, int $blockFor = 0): void
     {
         $this->queue = new BeanstalkdQueue(
@@ -278,7 +281,7 @@ class QueueBeanstalkdQueueTest extends TestCase
             $blockFor
         );
         $this->queue->setConnectionName('beanstalkd');
-        $this->container = m::spy(Container::class);
+        $this->container = m::spy(Container::class)->makePartial();
         $this->queue->setContainer($this->container);
     }
 }

@@ -181,7 +181,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             default: 'default',
             currentTime: 1732502704,
         );
-        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
         $resolver->shouldReceive('connection')->andReturn($connection = m::mock(ConnectionInterface::class));
         $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
         $query->shouldReceive('insertGetId')->once()->andReturnUsing(function ($array) use ($uuid, $displayNameStartsWith, $jobStartsWith) {
@@ -231,7 +231,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             default: 'default',
             currentTime: 1000,
         );
-        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
         $connection = m::mock(ConnectionInterface::class);
         $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
         $resolver->shouldReceive('connection')->andReturn($connection);
@@ -275,7 +275,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             default: 'default',
             currentTime: 1732502704,
         );
-        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
         $resolver->shouldReceive('connection')->andReturn($connection = m::mock(ConnectionInterface::class));
         $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
         $query->shouldReceive('insertGetId')->once()->andReturnUsing(function ($array) {
