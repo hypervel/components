@@ -170,6 +170,45 @@ class NotificationChannelManagerTest extends TestCase
         $manager->send(new NotificationChannelManagerTestNotifiable, new NotificationChannelManagerTestNotification);
     }
 
+    public function testNotificationFailedDispatchedOnlyOnceWhenMultipleFailed(): void
+    {
+        $container = $this->getContainer();
+        $events = $container->make(Dispatcher::class);
+        $manager = new ChannelManager($container);
+        $manager->extend('test', function () {
+            return new class {
+                private int $count = 0;
+
+                /**
+                 * Fail after two successful sends.
+                 */
+                public function send(mixed $notifiable, Notification $notification): void
+                {
+                    if ($this->count > 1) {
+                        throw new Exception('Channel failed.');
+                    }
+
+                    ++$this->count;
+                }
+            };
+        });
+
+        // The provider owns the listener; sending must not register additional listeners.
+        $events->shouldNotReceive('listen');
+        $events->shouldReceive('until')->times(3)->with(m::type(NotificationSending::class))->andReturn(true);
+        $events->shouldReceive('dispatch')->once()->with(m::type(NotificationFailed::class));
+        $events->shouldReceive('dispatch')->twice()->with(m::type(NotificationDelivered::class));
+        $events->shouldReceive('dispatch')->twice()->with(m::type(NotificationSent::class));
+
+        $manager->send(new NotificationChannelManagerTestNotifiable, new NotificationChannelManagerTestNotification);
+        $manager->send(new NotificationChannelManagerTestNotifiable, new NotificationChannelManagerTestNotification);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('Channel failed.');
+
+        $manager->send(new NotificationChannelManagerTestNotifiable, new NotificationChannelManagerTestNotification);
+    }
+
     public function testNotificationCanBeQueued(): void
     {
         $container = $this->getContainer();
