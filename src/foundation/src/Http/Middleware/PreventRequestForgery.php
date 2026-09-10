@@ -20,6 +20,7 @@ use Hypervel\Support\InteractsWithTime;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Response;
 
+// REMOVED: Deprecated VerifyCsrfToken and ValidateCsrfToken aliases; use this middleware directly.
 class PreventRequestForgery
 {
     use ExcludesPaths;
@@ -66,8 +67,8 @@ class PreventRequestForgery
     /**
      * Handle an incoming request.
      *
-     * @throws \Hypervel\Session\TokenMismatchException
-     * @throws \Hypervel\Http\Exceptions\OriginMismatchException
+     * @throws TokenMismatchException
+     * @throws OriginMismatchException
      */
     public function handle(Request $request, Closure $next): Response
     {
@@ -93,7 +94,7 @@ class PreventRequestForgery
      */
     protected function isReading(Request $request): bool
     {
-        return in_array($request->method(), ['HEAD', 'GET', 'OPTIONS']);
+        return in_array($request->method(), ['HEAD', 'GET', 'OPTIONS'], true);
     }
 
     /**
@@ -107,7 +108,7 @@ class PreventRequestForgery
     /**
      * Determine if the request has a valid origin based on the Sec-Fetch-Site header.
      *
-     * @throws \Hypervel\Http\Exceptions\OriginMismatchException
+     * @throws OriginMismatchException
      */
     protected function hasValidOrigin(Request $request): bool
     {
@@ -142,8 +143,10 @@ class PreventRequestForgery
 
     /**
      * Get the CSRF token from the request.
+     *
+     * Preserve raw input so tokensMatch can reject non-string tokens.
      */
-    protected function getTokenFromRequest(Request $request): ?string
+    protected function getTokenFromRequest(Request $request): mixed
     {
         $token = $request->input('_token') ?: $request->header('X-CSRF-TOKEN');
 
