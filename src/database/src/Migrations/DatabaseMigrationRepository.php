@@ -26,6 +26,8 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
 
     /**
      * Get the completed migrations.
+     *
+     * @return string[]
      */
     public function getRan(): array
     {
@@ -37,6 +39,8 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
 
     /**
      * Get the list of migrations.
+     *
+     * @return object{id: int, migration: string, batch: int}[]
      */
     public function getMigrations(int $steps): array
     {
@@ -51,6 +55,8 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
 
     /**
      * Get the list of the migrations by batch number.
+     *
+     * @return object{id: int, migration: string, batch: int}[]
      */
     public function getMigrationsByBatch(int $batch): array
     {
@@ -63,6 +69,8 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
 
     /**
      * Get the last migration batch.
+     *
+     * @return object{id: int, migration: string, batch: int}[]
      */
     public function getLast(): array
     {
@@ -73,6 +81,8 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
 
     /**
      * Get the completed migrations with their batch numbers.
+     *
+     * @return array<string, int>
      */
     public function getMigrationBatches(): array
     {
@@ -94,6 +104,8 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
 
     /**
      * Remove a migration from the log.
+     *
+     * @param object{id?: int, migration: string, batch?: int} $migration
      */
     public function delete(object $migration): void
     {

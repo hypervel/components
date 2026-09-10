@@ -853,3 +853,11 @@ You may provide the `queue` option to delete jobs from a specific queue:
 ```shell
 php artisan horizon:clear --queue=emails
 ```
+
+To clear a queue on a specific connection, pass the connection name to the command:
+
+```shell
+php artisan horizon:clear redis --queue=emails
+```
+
+If multiple connections share the same Redis queue, clearing it removes all jobs from that queue. Horizon removes dashboard records for the selected connection; records for the other connections remain until they expire and are trimmed.

@@ -170,6 +170,27 @@ class QueueManager implements FactoryContract, MonitorContract
     }
 
     /**
+     * Forward the given queue to another queue and/or connection.
+     *
+     * Boot-only. Forwards persist on the singleton QueueRoutes registry for
+     * the worker lifetime and affect every subsequent dispatch and queue operation.
+     *
+     * @param array<array-key, string|UnitEnum>|string|UnitEnum $queue
+     */
+    public function forward(array|string|UnitEnum $queue, UnitEnum|string|null $to = null, UnitEnum|string|null $connection = null): void
+    {
+        $this->queueRoutes()->forward($queue, $to, $connection);
+    }
+
+    /**
+     * Get the container that owns the queue routes.
+     */
+    protected function queueRoutesContainer(): Container
+    {
+        return $this->app;
+    }
+
+    /**
      * Pause a queue by its connection and name.
      */
     public function pause(string $connection, string $queue): void

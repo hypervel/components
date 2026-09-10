@@ -23,7 +23,7 @@ use Hypervel\Support\Testing\Fakes\BusFake;
  * @method static bool hasCommandHandler(mixed $command)
  * @method static \Hypervel\Bus\Dispatcher map(array $map)
  * @method static \Hypervel\Bus\Dispatcher pipeThrough(array $pipes)
- * @method static string|null resolveConnectionFromQueueRoute(object $queueable)
+ * @method static string|null resolveConnectionFromQueueRoute(object $queueable, null|string|\UnitEnum $queue = null)
  * @method static string|null resolveQueueFromQueueRoute(object $queueable)
  * @method static \Hypervel\Bus\Dispatcher withDispatchingAfterResponses()
  * @method static \Hypervel\Bus\Dispatcher withoutDispatchingAfterResponses()

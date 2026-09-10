@@ -11,17 +11,20 @@ use Hypervel\Bus\Batchable;
 use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
+use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Database\QueryException;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\DatabaseQueue;
+use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobPayloadFinalizing;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
@@ -34,11 +37,13 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 use TypeError;
 
 class QueueDatabaseQueueUnitTest extends TestCase
@@ -105,6 +110,66 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertTrue($queue->lockForPopping());
     }
 
+    #[DataProvider('transientReservationFailureProvider')]
+    public function testTransientReservationFailuresDoNotFailTheJob(Throwable $failure): void
+    {
+        [$queue, $events] = $this->createFailingReservationQueue($failure);
+        $queue->shouldReceive('deleteReserved')->never();
+        $events->shouldReceive('dispatch')->never();
+
+        try {
+            $queue->pop();
+            $this->fail('Expected the reservation failure.');
+        } catch (Throwable $exception) {
+            $this->assertSame($failure, $exception);
+        }
+    }
+
+    /**
+     * Provide reservation failures that do not indicate an invalid job.
+     */
+    public static function transientReservationFailureProvider(): array
+    {
+        return [
+            'concurrency' => [new QueryException('database', 'update jobs', [], new PDOException('deadlock detected', 40001))],
+            'lost connection' => [new QueryException('database', 'update jobs', [], new PDOException('server has gone away'))],
+            'cancellation' => [new CanceledException('Reservation canceled.')],
+        ];
+    }
+
+    #[DataProvider('reservationCleanupFailureProvider')]
+    public function testReservationRecoveryPreservesFailureOrPropagatesCancellation(Throwable $cleanupFailure): void
+    {
+        $failure = new QueryException('database', 'update jobs', [], new PDOException('Reservation failed.'));
+        [$queue, $events] = $this->createFailingReservationQueue($failure);
+        $queue->shouldReceive('causedByReservationQuery')->once()->andReturn(true);
+        $queue->shouldReceive('deleteReserved')->once()->with('default', '1')->andThrow($cleanupFailure);
+
+        if ($cleanupFailure instanceof CanceledException) {
+            $events->shouldReceive('dispatch')->never();
+        } else {
+            $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturn(false);
+        }
+
+        try {
+            $queue->pop();
+            $this->fail('Expected the reservation or cancellation failure.');
+        } catch (Throwable $exception) {
+            $this->assertSame($cleanupFailure instanceof CanceledException ? $cleanupFailure : $failure, $exception);
+        }
+    }
+
+    /**
+     * Provide failures while deleting a job that could not be reserved.
+     */
+    public static function reservationCleanupFailureProvider(): array
+    {
+        return [
+            'ordinary failure' => [new RuntimeException('Deletion failed.')],
+            'cancellation' => [new CanceledException('Deletion canceled.')],
+        ];
+    }
+
     #[DataProvider('pushJobsDataProvider')]
     public function testPushProperlyPushesJobOntoDatabase($uuid, $job, $displayNameStartsWith, $jobStartsWith)
     {
@@ -117,7 +182,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             default: 'default',
             currentTime: 1732502704,
         );
-        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
         $resolver->shouldReceive('connection')->andReturn($connection = m::mock(ConnectionInterface::class));
         $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
         $query->shouldReceive('insertGetId')->once()->andReturnUsing(function ($array) use ($uuid, $displayNameStartsWith, $jobStartsWith) {
@@ -167,7 +232,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             default: 'default',
             currentTime: 1000,
         );
-        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
         $connection = m::mock(ConnectionInterface::class);
         $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
         $resolver->shouldReceive('connection')->andReturn($connection);
@@ -211,7 +276,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
             default: 'default',
             currentTime: 1732502704,
         );
-        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
         $resolver->shouldReceive('connection')->andReturn($connection = m::mock(ConnectionInterface::class));
         $connection->shouldReceive('table')->with('table')->andReturn($query = m::mock(Builder::class));
         $query->shouldReceive('insertGetId')->once()->andReturnUsing(function ($array) {
@@ -953,6 +1018,36 @@ class QueueDatabaseQueueUnitTest extends TestCase
             $this->assertStringContainsString('on queue [emails] with record ID [99]', $exception->getMessage());
             $this->assertSame('not-json', $exception->value);
         }
+    }
+
+    /**
+     * Create a queue whose selected job cannot be reserved.
+     */
+    private function createFailingReservationQueue(Throwable $failure): array
+    {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $connection = m::mock(ConnectionInterface::class);
+        $resolver->shouldReceive('connection')->with(null)->andReturn($connection);
+        $connection->shouldReceive('transactionLevel')->andReturn(0);
+        $connection->shouldReceive('transaction')->once()->andReturnUsing(static fn (Closure $callback) => $callback());
+
+        $container = new Container;
+        $events = m::mock(DispatcherContract::class);
+        $container->instance(DispatcherContract::class, $events);
+        $queue = m::mock(DatabaseQueue::class, [$resolver, null, 'jobs'])
+            ->makePartial()
+            ->shouldAllowMockingProtectedMethods();
+        $queue->setContainer($container);
+        $queue->setConnectionName('database');
+        $record = new DatabaseJobRecord((object) [
+            'id' => 1,
+            'payload' => json_encode(['job' => stdClass::class, 'data' => []]),
+            'attempts' => 255,
+        ]);
+        $queue->shouldReceive('getNextAvailableJob')->once()->with('default')->andReturn($record);
+        $queue->shouldReceive('marshalJob')->once()->with('default', $record)->andThrow($failure);
+
+        return [$queue, $events];
     }
 
     private function createInspectionQueue(): array

@@ -123,7 +123,7 @@ trait ManagesTransactions
 
             $exception = new DeadlockException(
                 $e->getMessage(),
-                is_int($e->getCode()) ? $e->getCode() : 0,
+                $e->getCode(),
                 $e
             );
 

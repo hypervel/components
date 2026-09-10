@@ -9,7 +9,9 @@ use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Support\Facades\Queue;
+use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
+use Mockery as m;
 
 class JobSchedulingTest extends TestCase
 {
@@ -105,7 +107,11 @@ class JobSchedulingTest extends TestCase
 
     public function testJobQueuingRespectsQueueRoutes(): void
     {
-        Queue::fake();
+        // QueueFake ignores connection names, so verify selection separately from its push assertions.
+        $queue = m::mock(QueueFake::class, [$this->app])->makePartial();
+        $queue->shouldReceive('connection')->twice()->with(null)->andReturnSelf();
+        $queue->shouldReceive('connection')->once()->with('some-connection')->andReturnSelf();
+        Queue::swap($queue);
 
         Queue::route(JobWithDefaultQueue::class, 'default-queue');
         Queue::route(JobWithoutDefaultQueue::class, 'fallback-queue');
@@ -126,7 +132,7 @@ class JobSchedulingTest extends TestCase
         // Own queue takes precedence over default
         Queue::assertPushedOn('test-queue', JobWithDefaultQueue::class);
         Queue::assertPushedOn('fallback-queue', JobWithoutDefaultQueue::class);
-        Queue::connection('some-queue')->assertPushedOn('some-queue', JobWithoutDefaultConnection::class);
+        Queue::assertPushedOn('some-queue', JobWithoutDefaultConnection::class);
     }
 }
 

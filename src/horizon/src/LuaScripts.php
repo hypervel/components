@@ -43,12 +43,14 @@ class LuaScripts
      * ARGV[1] - The prefix of the Horizon keys
      * ARGV[2] - The name of the queue to purge
      * ARGV[3] - The cursor position
+     * ARGV[4] - The optional connection name to purge
      */
     public static function purge(): string
     {
         return <<<'LUA'
             local count = 0
             local cursor = ARGV[3]
+            local connection = ARGV[4]
 
             -- Iterate over the recent jobs sorted set
             local scanner = redis.call('zscan', KEYS[1], cursor)
@@ -57,11 +59,12 @@ class LuaScripts
             for i = 1, #scanner[2], 2 do
                 local jobid = scanner[2][i]
                 local hashkey = ARGV[1] .. jobid
-                local job = redis.call('hmget', hashkey, 'status', 'queue')
+                local job = redis.call('hmget', hashkey, 'status', 'queue', 'connection')
 
                 -- Delete the pending/reserved jobs, that match the queue
-                -- name, from the sorted sets as well as the job hash
-                if((job[1] == 'reserved' or job[1] == 'pending') and job[2] == ARGV[2]) then
+                -- and optional connection, from the sorted sets and job hash.
+                if((job[1] == 'reserved' or job[1] == 'pending') and job[2] == ARGV[2]
+                    and (connection == nil or job[3] == connection)) then
                     redis.call('zrem', KEYS[1], jobid)
                     redis.call('zrem', KEYS[2], jobid)
                     redis.call('del', hashkey)

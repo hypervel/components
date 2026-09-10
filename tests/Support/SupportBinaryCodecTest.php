@@ -63,19 +63,22 @@ class SupportBinaryCodecTest extends TestCase
     }
 
     #[DataProvider('nullAndBlankProvider')]
-    public function testEncodeReturnsNullForNullAndBlank(mixed $value): void
+    public function testEncodeReturnsNullForNullAndBlank(?string $value): void
     {
         $this->assertNull(BinaryCodec::encode($value, 'uuid'));
         $this->assertNull(BinaryCodec::encode($value, 'ulid'));
     }
 
     #[DataProvider('nullAndBlankProvider')]
-    public function testDecodeReturnsNullForNullAndBlank(mixed $value): void
+    public function testDecodeReturnsNullForNullAndBlank(?string $value): void
     {
         $this->assertNull(BinaryCodec::decode($value, 'uuid'));
         $this->assertNull(BinaryCodec::decode($value, 'ulid'));
     }
 
+    /**
+     * Provide null and blank values.
+     */
     public static function nullAndBlankProvider(): array
     {
         return [
@@ -209,6 +212,9 @@ class SupportBinaryCodecTest extends TestCase
         $this->assertSame($binary, BinaryCodec::encode($text, $format));
     }
 
+    /**
+     * Provide binary identifiers whose bytes are blank strings.
+     */
     public static function blankBuiltInBinaryProvider(): array
     {
         return [

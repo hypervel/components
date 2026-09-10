@@ -231,7 +231,7 @@ class QueuedEventsTest extends TestCase
         ]);
     }
 
-    public function testQueueIsSetUsingQueueRoutes()
+    public function testQueueIsSetUsingQueueRoutes(): void
     {
         $container = new Container;
         $d = new Dispatcher($container);
@@ -240,18 +240,58 @@ class QueuedEventsTest extends TestCase
         $queueRoutes->set(TestDispatcherQueueRoutes::class, 'event-queue', 'event-connection');
         $container->instance('queue.routes', $queueRoutes);
 
-        $fakeQueue = new QueueFake($container);
+        $factory = m::mock(QueueFactory::class);
+        $queue = m::mock(Queue::class);
+
+        $factory->shouldReceive('connection')->once()->with('event-connection')->andReturn($queue);
+        $queue->shouldReceive('pushOn')->once()->with('event-queue', m::type(CallQueuedListener::class));
 
         Container::setInstance($container);
 
-        $d->setQueueResolver(function () use ($fakeQueue) {
-            return $fakeQueue;
+        $d->setQueueResolver(function () use ($factory): QueueFactory {
+            return $factory;
         });
 
         $d->listen('some.event', TestDispatcherQueueRoutes::class . '@handle');
         $d->dispatch('some.event', ['foo', 'bar']);
+    }
 
-        $fakeQueue->connection('event-connection')->assertPushedOn('event-queue', CallQueuedListener::class);
+    public function testConnectionIsSetUsingForwardedQueue(): void
+    {
+        $container = new Container;
+        $d = new Dispatcher($container);
+
+        $queueRoutes = new QueueRoutes;
+        $queueRoutes->forward('reports', 'processing', 'cloud');
+        $container->instance('queue.routes', $queueRoutes);
+
+        $factory = m::mock(QueueFactory::class);
+        $queue = m::mock(Queue::class);
+        $factory->shouldReceive('connection')->once()->with('cloud')->andReturn($queue);
+        $queue->shouldReceive('pushOn')->once()->with('reports', m::type(CallQueuedListener::class));
+
+        Container::setInstance($container);
+        $d->setQueueResolver(fn (): QueueFactory => $factory);
+        $d->listen('some.event', TestDispatcherForwardedQueue::class . '@handle');
+        $d->dispatch('some.event', ['foo', 'bar']);
+    }
+
+    public function testForwardedConnectionUsesTheDynamicallySelectedQueue(): void
+    {
+        Container::setInstance($container = new Container);
+        $dispatcher = new Dispatcher($container);
+        $routes = new QueueRoutes;
+        $routes->forward('my_queue', 'unused', 'wrong-connection');
+        $routes->forward('some_other_queue', 'processing', 'cloud');
+        $container->instance('queue.routes', $routes);
+        $factory = m::mock(QueueFactory::class);
+        $queue = m::mock(Queue::class);
+        $factory->shouldReceive('connection')->once()->with('cloud')->andReturn($queue);
+        $queue->shouldReceive('pushOn')->once()->with('some_other_queue', m::type(CallQueuedListener::class));
+
+        $dispatcher->setQueueResolver(fn (): QueueFactory => $factory);
+        $dispatcher->listen('some.event', TestDispatcherGetQueue::class . '@handle');
+        $dispatcher->dispatch('some.event', ['foo', 'bar']);
     }
 
     public function testDelayIsSetByWithDelayDynamically()
@@ -1197,6 +1237,18 @@ class TestDispatcherViaQueueSupportsEnum implements ShouldQueue
 class TestDispatcherQueueRoutes implements ShouldQueue
 {
     public function handle()
+    {
+    }
+}
+
+class TestDispatcherForwardedQueue implements ShouldQueue
+{
+    public string $queue = 'reports';
+
+    /**
+     * Handle the queued event.
+     */
+    public function handle(): void
     {
     }
 }

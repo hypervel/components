@@ -1671,10 +1671,12 @@ class Validator implements ValidatorContract
 
     /**
      * Parse the given rules and merge them into current rules.
+     *
+     * @internal
      */
     public function addRules(array $rules): void
     {
-        // The primary purpose of this parser is to expand any "*" rules to the all
+        // The primary purpose of this parser is to expand any "*" rules to all
         // of the explicit rules needed for the given data. For example the rule
         // names.* would get expanded to names.0, names.1, etc. for this data.
         $response = (new ValidationRuleParser($this->data))

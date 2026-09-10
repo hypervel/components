@@ -1331,9 +1331,9 @@ class Builder implements BuilderContract
     /**
      * Add a "where between" statement to the query.
      *
-     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|string  $column
+     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|string  $column
      */
-    public function whereBetween(self|EloquentBuilder|Relation|ExpressionContract|string $column, iterable $values, string $boolean = 'and', bool $not = false): static
+    public function whereBetween(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column, iterable $values, string $boolean = 'and', bool $not = false): static
     {
         $type = 'between';
 
@@ -1360,9 +1360,9 @@ class Builder implements BuilderContract
     /**
      * Add a "where between" statement using columns to the query.
      *
-     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|string  $column
+     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|string  $column
      */
-    public function whereBetweenColumns(self|EloquentBuilder|Relation|ExpressionContract|string $column, array $values, string $boolean = 'and', bool $not = false): static
+    public function whereBetweenColumns(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column, array $values, string $boolean = 'and', bool $not = false): static
     {
         $type = 'betweenColumns';
 
@@ -1381,9 +1381,9 @@ class Builder implements BuilderContract
     /**
      * Add an "or where between" statement to the query.
      *
-     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|string  $column
+     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|string  $column
      */
-    public function orWhereBetween(self|EloquentBuilder|Relation|ExpressionContract|string $column, iterable $values): static
+    public function orWhereBetween(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column, iterable $values): static
     {
         return $this->whereBetween($column, $values, 'or');
     }
@@ -1391,7 +1391,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where between" statement using columns to the query.
      */
-    public function orWhereBetweenColumns(self|EloquentBuilder|Relation|ExpressionContract|string $column, array $values): static
+    public function orWhereBetweenColumns(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column, array $values): static
     {
         return $this->whereBetweenColumns($column, $values, 'or');
     }
@@ -1399,9 +1399,9 @@ class Builder implements BuilderContract
     /**
      * Add a "where not between" statement to the query.
      *
-     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|string  $column
+     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|string  $column
      */
-    public function whereNotBetween(self|EloquentBuilder|Relation|ExpressionContract|string $column, iterable $values, string $boolean = 'and'): static
+    public function whereNotBetween(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column, iterable $values, string $boolean = 'and'): static
     {
         return $this->whereBetween($column, $values, $boolean, true);
     }
@@ -1409,7 +1409,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where not between" statement using columns to the query.
      */
-    public function whereNotBetweenColumns(self|EloquentBuilder|Relation|ExpressionContract|string $column, array $values, string $boolean = 'and'): static
+    public function whereNotBetweenColumns(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column, array $values, string $boolean = 'and'): static
     {
         return $this->whereBetweenColumns($column, $values, $boolean, true);
     }
@@ -1417,9 +1417,9 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not between" statement to the query.
      *
-     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|string  $column
+     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|string  $column
      */
-    public function orWhereNotBetween(self|EloquentBuilder|Relation|ExpressionContract|string $column, iterable $values): static
+    public function orWhereNotBetween(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column, iterable $values): static
     {
         return $this->whereNotBetween($column, $values, 'or');
     }
@@ -1427,7 +1427,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not between" statement using columns to the query.
      */
-    public function orWhereNotBetweenColumns(self|EloquentBuilder|Relation|ExpressionContract|string $column, array $values): static
+    public function orWhereNotBetweenColumns(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column, array $values): static
     {
         return $this->whereNotBetweenColumns($column, $values, 'or');
     }

@@ -609,9 +609,9 @@ class RedisJobRepository implements JobRepository
     }
 
     /**
-     * Delete pending and reserved jobs for a queue.
+     * Delete pending and reserved jobs for a queue, optionally on one connection.
      */
-    public function purge(string $queue): int
+    public function purge(string $queue, ?string $connection = null): int
     {
         $count = 0;
         $cursor = 0;
@@ -625,6 +625,7 @@ class RedisJobRepository implements JobRepository
                 config()->string('horizon.prefix'),
                 $queue,
                 $cursor,
+                ...($connection === null ? [] : [$connection]),
             );
 
             $count += $result[0];

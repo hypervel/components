@@ -1225,6 +1225,8 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
     }
 
     /**
+     * Split a collection into a certain number of groups.
+     *
      * @throws InvalidArgumentException
      */
     #[Override]

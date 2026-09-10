@@ -3232,38 +3232,46 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame([1, true, 5, true, 0, true, 3], $builder->getBindings());
     }
 
-    public function testBetweenForwardersAcceptQueryBuilderSubqueries(): void
+    public function testBetweenForwardersAcceptQueryableSubqueries(): void
     {
-        $subquery = $this->getBuilder()->select('score')->from('scores')->where('active', true);
-        $builder = $this->getBuilder()
-            ->from('parents')
-            ->whereBetween($subquery, [1, 2])
-            ->orWhereBetween($subquery, [3, 4])
-            ->whereNotBetween($subquery, [5, 6])
-            ->orWhereNotBetween($subquery, [7, 8]);
+        foreach ([
+            $this->getBuilder()->select('score')->from('scores')->where('active', true),
+            static fn (Builder $query): Builder => $query->select('score')->from('scores')->where('active', true),
+        ] as $subquery) {
+            $builder = $this->getBuilder()
+                ->from('parents')
+                ->whereBetween($subquery, [1, 2])
+                ->orWhereBetween($subquery, [3, 4])
+                ->whereNotBetween($subquery, [5, 6])
+                ->orWhereNotBetween($subquery, [7, 8]);
 
-        $this->assertSame(
-            'select * from "parents" where (select "score" from "scores" where "active" = ?) between ? and ? or (select "score" from "scores" where "active" = ?) between ? and ? and (select "score" from "scores" where "active" = ?) not between ? and ? or (select "score" from "scores" where "active" = ?) not between ? and ?',
-            $builder->toSql()
-        );
-        $this->assertSame([true, 1, 2, true, 3, 4, true, 5, 6, true, 7, 8], $builder->getBindings());
+            $this->assertSame(
+                'select * from "parents" where (select "score" from "scores" where "active" = ?) between ? and ? or (select "score" from "scores" where "active" = ?) between ? and ? and (select "score" from "scores" where "active" = ?) not between ? and ? or (select "score" from "scores" where "active" = ?) not between ? and ?',
+                $builder->toSql()
+            );
+            $this->assertSame([true, 1, 2, true, 3, 4, true, 5, 6, true, 7, 8], $builder->getBindings());
+        }
     }
 
-    public function testBetweenColumnsForwardersAcceptQueryBuilderSubqueries(): void
+    public function testBetweenColumnsForwardersAcceptQueryableSubqueries(): void
     {
-        $subquery = $this->getBuilder()->select('score')->from('scores')->where('active', true);
-        $builder = $this->getBuilder()
-            ->from('parents')
-            ->whereBetweenColumns($subquery, ['minimum', 'maximum'])
-            ->orWhereBetweenColumns($subquery, ['minimum', 'maximum'])
-            ->whereNotBetweenColumns($subquery, ['minimum', 'maximum'])
-            ->orWhereNotBetweenColumns($subquery, ['minimum', 'maximum']);
+        foreach ([
+            $this->getBuilder()->select('score')->from('scores')->where('active', true),
+            static fn (Builder $query): Builder => $query->select('score')->from('scores')->where('active', true),
+        ] as $subquery) {
+            $builder = $this->getBuilder()
+                ->from('parents')
+                ->whereBetweenColumns($subquery, ['minimum', 'maximum'])
+                ->orWhereBetweenColumns($subquery, ['minimum', 'maximum'])
+                ->whereNotBetweenColumns($subquery, ['minimum', 'maximum'])
+                ->orWhereNotBetweenColumns($subquery, ['minimum', 'maximum']);
 
-        $this->assertSame(
-            'select * from "parents" where (select "score" from "scores" where "active" = ?) between "minimum" and "maximum" or (select "score" from "scores" where "active" = ?) between "minimum" and "maximum" and (select "score" from "scores" where "active" = ?) not between "minimum" and "maximum" or (select "score" from "scores" where "active" = ?) not between "minimum" and "maximum"',
-            $builder->toSql()
-        );
-        $this->assertSame([true, true, true, true], $builder->getBindings());
+            $this->assertSame(
+                'select * from "parents" where (select "score" from "scores" where "active" = ?) between "minimum" and "maximum" or (select "score" from "scores" where "active" = ?) between "minimum" and "maximum" and (select "score" from "scores" where "active" = ?) not between "minimum" and "maximum" or (select "score" from "scores" where "active" = ?) not between "minimum" and "maximum"',
+                $builder->toSql()
+            );
+            $this->assertSame([true, true, true, true], $builder->getBindings());
+        }
     }
 
     public function testOrderForwardersAcceptQueryableSubqueries(): void

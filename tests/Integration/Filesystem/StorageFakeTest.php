@@ -8,10 +8,63 @@ use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Support\Facades\ParallelTesting;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Testbench\TestCase;
+use League\Flysystem\UnableToReadFile;
 
 class StorageFakeTest extends TestCase
 {
-    public function testFakePreservesOriginalDiskThrowConfig()
+    public function testFakeWhenDiskNotConfiguredDoesNotThrowExceptionOnError(): void
+    {
+        $result = Storage::fake('test')->get('nonExistentFile');
+
+        $this->assertNull($result);
+    }
+
+    public function testFakeWhenThrowSetToDiskThrowsExceptionOnError(): void
+    {
+        config(['filesystems.disks.test' => ['throw' => true]]);
+
+        $this->expectException(UnableToReadFile::class);
+        Storage::fake('test')->get('nonExistentFile');
+    }
+
+    public function testFakeWhenThrowOverwrittenUsesOverwrite(): void
+    {
+        config(['filesystems.disks.test' => ['throw' => true]]);
+
+        $result = Storage::fake('test', ['throw' => false])->get('nonExistentFile');
+        $this->assertNull($result);
+    }
+
+    public function testPersistentFakeWhenDiskNotConfiguredDoesNotThrowExceptionOnError(): void
+    {
+        $result = Storage::persistentFake('test')->get('nonExistentFile');
+
+        $this->assertNull($result);
+    }
+
+    public function testPersistentFakeWhenThrowSetToDiskThrowsExceptionOnError(): void
+    {
+        config(['filesystems.disks.test' => ['throw' => true]]);
+
+        $this->expectException(UnableToReadFile::class);
+        Storage::persistentFake('test')->get('nonExistentFile');
+    }
+
+    public function testPersistentFakeWhenThrowOverwrittenUsesOverwrite(): void
+    {
+        config(['filesystems.disks.test' => ['throw' => true]]);
+
+        $result = Storage::persistentFake('test', ['throw' => false])->get('nonExistentFile');
+        $this->assertNull($result);
+    }
+
+    public function testStorageFakeMethodsWithEnums(): void
+    {
+        $this->assertNull(Storage::persistentFake(StorageFakeStringDisk::Test)->get('nonExistentFile'));
+        $this->assertNull(Storage::fake(StorageFakeStringDisk::Public)->get('nonExistentFile'));
+    }
+
+    public function testFakePreservesOriginalDiskThrowConfig(): void
     {
         config(['filesystems.disks.local.throw' => true]);
 
@@ -21,7 +74,7 @@ class StorageFakeTest extends TestCase
         $this->assertTrue($fake->getConfig()['throw']);
     }
 
-    public function testFakeDefaultsThrowToFalseWhenNotConfigured()
+    public function testFakeDefaultsThrowToFalseWhenNotConfigured(): void
     {
         config(['filesystems.disks.local' => ['driver' => 'local', 'root' => storage_path('app')]]);
 
@@ -31,7 +84,7 @@ class StorageFakeTest extends TestCase
         $this->assertFalse($fake->getConfig()['throw']);
     }
 
-    public function testFakeRegistersTemporaryUploadUrlBuilder()
+    public function testFakeRegistersTemporaryUploadUrlBuilder(): void
     {
         $fake = Storage::fake('local');
 
@@ -40,7 +93,7 @@ class StorageFakeTest extends TestCase
         $this->assertTrue($fake->providesTemporaryUploadUrls());
     }
 
-    public function testFakeTemporaryUploadUrlReturnsArrayWithUrlAndHeaders()
+    public function testFakeTemporaryUploadUrlReturnsArrayWithUrlAndHeaders(): void
     {
         $fake = Storage::fake('local');
 
@@ -52,7 +105,7 @@ class StorageFakeTest extends TestCase
         $this->assertArrayHasKey('headers', $result);
     }
 
-    public function testFakeUsesParallelTestingTokenSuffix()
+    public function testFakeUsesParallelTestingTokenSuffix(): void
     {
         ParallelTesting::resolveTokenUsing(fn () => '42');
 
@@ -68,7 +121,7 @@ class StorageFakeTest extends TestCase
         }
     }
 
-    public function testPersistentFakePreservesOriginalDiskThrowConfig()
+    public function testPersistentFakePreservesOriginalDiskThrowConfig(): void
     {
         config(['filesystems.disks.local.throw' => true]);
 
@@ -110,4 +163,10 @@ class StorageFakeTest extends TestCase
 enum StorageFakeDisk: int
 {
     case Zero = 0;
+}
+
+enum StorageFakeStringDisk: string
+{
+    case Test = 'test';
+    case Public = 'public';
 }

@@ -134,6 +134,52 @@ class BusDispatcherTest extends TestCase
         Container::setInstance(null);
     }
 
+    public function testCommandsAreForwardedToConnectionByQueueName(): void
+    {
+        Container::setInstance($container = new Container);
+        $queueRoutes = new QueueRoutes;
+        $queueRoutes->forward('reports', 'processing', 'cloud');
+        $container->instance('queue.routes', $queueRoutes);
+
+        $mock = m::mock(Queue::class);
+        $mock->expects('push')->with(m::type(BusDispatcherQueueable::class), '', 'reports');
+
+        $usedConnection = false;
+
+        $dispatcher = new Dispatcher($container, function (?string $connection) use ($mock, &$usedConnection): Queue {
+            $usedConnection = $connection;
+
+            return $mock;
+        });
+
+        $dispatcher->dispatch((new BusDispatcherQueueable)->onQueue('reports'));
+
+        $this->assertSame('cloud', $usedConnection);
+    }
+
+    public function testExplicitConnectionWinsOverForwardedQueue(): void
+    {
+        Container::setInstance($container = new Container);
+        $queueRoutes = new QueueRoutes;
+        $queueRoutes->forward('reports', 'processing', 'cloud');
+        $container->instance('queue.routes', $queueRoutes);
+
+        $mock = m::mock(Queue::class);
+        $mock->expects('push')->with(m::type(BusDispatcherQueueable::class), '', 'reports');
+
+        $usedConnection = false;
+
+        $dispatcher = new Dispatcher($container, function (?string $connection) use ($mock, &$usedConnection): Queue {
+            $usedConnection = $connection;
+
+            return $mock;
+        });
+
+        $dispatcher->dispatch((new BusDispatcherQueueable)->onConnection('redis')->onQueue('reports'));
+
+        $this->assertSame('redis', $usedConnection);
+    }
+
     public function testDispatchNowShouldNeverQueue()
     {
         $container = new Container;

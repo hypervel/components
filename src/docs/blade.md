@@ -586,7 +586,7 @@ To include the first view that exists from a given array of views, you may use t
 @includeFirst(['custom.admin', 'admin'], ['status' => 'complete'])
 ```
 
-If you would like to include a view without inheriting any variables from the parent view, you may use the `@includeIsolated` directive. The included view will only have access to variables you explicitly pass:
+If you would like to include a view without inheriting any variables from the parent view, you may use the `@includeIsolated` directive. Variables shared with all views remain available, and you may pass additional data as the second argument:
 
 ```blade
 @includeIsolated('view.name', ['user' => $user])

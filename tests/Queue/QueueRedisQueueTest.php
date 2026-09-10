@@ -21,6 +21,7 @@ use Hypervel\Queue\Events\JobQueueingFailed;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Queue\LuaScripts;
 use Hypervel\Queue\Queue;
+use Hypervel\Queue\QueueRoutes;
 use Hypervel\Queue\RedisQueue;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\CarbonImmutable;
@@ -35,8 +36,11 @@ use Symfony\Component\Uid\Uuid;
 class QueueRedisQueueTest extends TestCase
 {
     #[DataProvider('totalSizeMethods')]
-    public function testTotalsUseQueueSizeOverridesInsidePinnedConnection(string $totalMethod, string $sizeMethod): void
+    public function testTotalsCountPhysicalQueuesInsidePinnedConnection(string $totalMethod, string $command, array $firstArguments, array $secondArguments): void
     {
+        $routes = new QueueRoutes;
+        $routes->forward('emails', 'reports:high');
+        Container::getInstance()->instance('queue.routes', $routes);
         $pinned = false;
         $connection = m::mock(RedisProxy::class);
         $connection->expects('withPinnedConnection')->andReturnUsing(function (callable $callback) use (&$pinned): int {
@@ -48,8 +52,19 @@ class QueueRedisQueueTest extends TestCase
                 $pinned = false;
             }
         });
+        $connection->shouldReceive('isCluster')->once()->andReturnFalse();
+        $connection->shouldReceive($command)->once()->with(...$firstArguments)->andReturnUsing(function () use (&$pinned): int {
+            $this->assertTrue($pinned);
+
+            return 5;
+        });
+        $connection->shouldReceive($command)->once()->with(...$secondArguments)->andReturnUsing(function () use (&$pinned): int {
+            $this->assertTrue($pinned);
+
+            return 7;
+        });
         $redis = m::mock(Redis::class);
-        $redis->expects('connection')->with(null)->andReturn($connection);
+        $redis->shouldReceive('connection')->with(null)->andReturn($connection);
         $queue = m::mock(RedisQueue::class, [$redis, 'default'])
             ->makePartial()
             ->shouldAllowMockingProtectedMethods();
@@ -58,28 +73,23 @@ class QueueRedisQueueTest extends TestCase
 
             return new Collection(['emails', 'reports:high']);
         });
-        $queue->shouldReceive($sizeMethod)->twice()->andReturnUsing(function (string $name) use (&$pinned): int {
-            $this->assertTrue($pinned);
-
-            return match ($name) {
-                'emails' => 5,
-                'reports:high' => 7,
-            };
-        });
-
         $this->assertSame(12, $queue->{$totalMethod}());
     }
 
     /**
-     * Provide aggregate methods and their per-queue extension points.
+     * Provide aggregate methods and their physical Redis commands.
      */
     public static function totalSizeMethods(): array
     {
         return [
-            'all jobs' => ['totalSize', 'size'],
-            'pending jobs' => ['totalPendingSize', 'pendingSize'],
-            'delayed jobs' => ['totalDelayedSize', 'delayedSize'],
-            'reserved jobs' => ['totalReservedSize', 'reservedSize'],
+            'all jobs' => [
+                'totalSize', 'eval',
+                [LuaScripts::size(), 3, 'queues:emails', 'queues:emails:delayed', 'queues:emails:reserved'],
+                [LuaScripts::size(), 3, 'queues:reports:high', 'queues:reports:high:delayed', 'queues:reports:high:reserved'],
+            ],
+            'pending jobs' => ['totalPendingSize', 'llen', ['queues:emails'], ['queues:reports:high']],
+            'delayed jobs' => ['totalDelayedSize', 'zcard', ['queues:emails:delayed'], ['queues:reports:high:delayed']],
+            'reserved jobs' => ['totalReservedSize', 'zcard', ['queues:emails:reserved'], ['queues:reports:high:reserved']],
         ];
     }
 
@@ -281,7 +291,7 @@ class QueueRedisQueueTest extends TestCase
 
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
-        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
         $queue->setConnectionName('default');
         $redisProxy = m::mock(RedisProxy::class);
         $redisProxy->shouldAllowMockingMethod('evalWithShaCache');
@@ -302,7 +312,7 @@ class QueueRedisQueueTest extends TestCase
 
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
-        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
         $queue->setConnectionName('default');
         $redisProxy = m::mock(RedisProxy::class);
         $redisProxy->shouldAllowMockingMethod('evalWithShaCache');
@@ -329,7 +339,7 @@ class QueueRedisQueueTest extends TestCase
 
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
-        $queue->setContainer($container = m::mock(Container::class));
+        $queue->setContainer($container = m::mock(Container::class)->makePartial());
         $queue->setConnectionName('default');
 
         $redisProxy = m::mock(RedisProxy::class);
@@ -447,7 +457,7 @@ class QueueRedisQueueTest extends TestCase
 
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
-        $queue->setContainer($container = m::mock(Container::class));
+        $queue->setContainer($container = m::mock(Container::class)->makePartial());
         $queue->setConnectionName('default');
 
         $redisProxy = m::mock(RedisProxy::class);
@@ -500,7 +510,7 @@ class QueueRedisQueueTest extends TestCase
 
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
-        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
         $queue->setConnectionName('default');
         $redisProxy = m::mock(RedisProxy::class);
         $redisProxy->shouldAllowMockingMethod('evalWithShaCache');
@@ -530,7 +540,7 @@ class QueueRedisQueueTest extends TestCase
         $uuid = $this->mockUuid();
 
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
-        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
         $queue->setConnectionName('default');
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
 
@@ -557,7 +567,7 @@ class QueueRedisQueueTest extends TestCase
 
         $date = CarbonImmutable::createFromTimestampUTC('1001.100000');
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
-        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
         $queue->setConnectionName('default');
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
 
@@ -583,7 +593,7 @@ class QueueRedisQueueTest extends TestCase
         $delay = new DateInterval('PT1S');
 
         $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
-        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
         $queue->setConnectionName('default');
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
 
@@ -686,7 +696,7 @@ class QueueRedisQueueTest extends TestCase
             ->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])
             ->getMock();
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
-        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
         $queue->setConnectionName('default');
 
         $redisProxy = m::mock(RedisProxy::class);
@@ -714,7 +724,7 @@ class QueueRedisQueueTest extends TestCase
             ->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])
             ->getMock();
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
-        $queue->setContainer(m::spy(Container::class));
+        $queue->setContainer(m::spy(Container::class)->makePartial());
         $queue->setConnectionName('default');
 
         $redisProxy = m::mock(RedisProxy::class);
@@ -750,7 +760,7 @@ class QueueRedisQueueTest extends TestCase
             ->onlyMethods(['availableAt', 'getRandomId'])
             ->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])
             ->getMock();
-        $queue->setContainer($container = m::spy(Container::class));
+        $queue->setContainer($container = m::spy(Container::class)->makePartial());
         $queue->setConnectionName('default');
         $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
         $queue->expects($this->once())->method('availableAt')->with(1)->willReturn(2);

@@ -128,8 +128,8 @@ class DatabaseServiceProvider extends ServiceProvider
             return $app->make('db')->connection();
         });
 
-        $this->app->singleton('db.schema', function () {
-            return new SchemaProxy;
+        $this->app->singleton('db.schema', function ($app) {
+            return new SchemaProxy($app);
         });
 
         $this->app->singleton('db.transactions', function () {

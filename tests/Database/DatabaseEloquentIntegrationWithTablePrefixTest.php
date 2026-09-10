@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\DatabaseEloquentIntegrationWithTablePrefixTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Connection;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\Relations\Relation;
+use Hypervel\Database\Schema\Builder;
 use Hypervel\Testbench\TestCase;
 
 class DatabaseEloquentIntegrationWithTablePrefixTest extends TestCase
@@ -34,7 +36,10 @@ class DatabaseEloquentIntegrationWithTablePrefixTest extends TestCase
         $this->createSchema();
     }
 
-    protected function createSchema()
+    /**
+     * Create the database schema.
+     */
+    protected function createSchema(): void
     {
         $this->schema('default')->create('users', function ($table) {
             $table->increments('id');
@@ -80,7 +85,7 @@ class DatabaseEloquentIntegrationWithTablePrefixTest extends TestCase
         parent::tearDown();
     }
 
-    public function testBasicModelHydration()
+    public function testBasicModelHydration(): void
     {
         User::create(['email' => 'taylorotwell@gmail.com']);
         User::create(['email' => 'abigailotwell@gmail.com']);
@@ -93,7 +98,7 @@ class DatabaseEloquentIntegrationWithTablePrefixTest extends TestCase
         $this->assertCount(1, $models);
     }
 
-    public function testTablePrefixWithClonedConnection()
+    public function testTablePrefixWithClonedConnection(): void
     {
         $originalConnection = $this->connection();
         $originalPrefix = $originalConnection->getTablePrefix();
@@ -116,7 +121,7 @@ class DatabaseEloquentIntegrationWithTablePrefixTest extends TestCase
         $clonedConnection->getSchemaBuilder()->drop('test_table');
     }
 
-    public function testQueryGrammarUsesCorrectPrefixAfterCloning()
+    public function testQueryGrammarUsesCorrectPrefixAfterCloning(): void
     {
         $originalConnection = $this->connection();
 
@@ -126,14 +131,17 @@ class DatabaseEloquentIntegrationWithTablePrefixTest extends TestCase
         $selectSql = $clonedConnection->table('users')->toSql();
         $this->assertStringContainsString('new_prefix_users', $selectSql);
 
-        $insertSql = $clonedConnection->table('users')->toSql();
-        $this->assertStringContainsString('new_prefix_users', $insertSql);
+        $queries = $clonedConnection->pretend(function (Connection $connection): void {
+            $connection->table('users')->insert(['email' => 'taylor@example.com']);
+            $connection->table('users')->where('id', 1)->update(['email' => 'abigail@example.com']);
+            $connection->table('users')->where('id', 1)->delete();
+        });
 
-        $updateSql = $clonedConnection->table('users')->where('id', 1)->toSql();
-        $this->assertStringContainsString('new_prefix_users', $updateSql);
-
-        $deleteSql = $clonedConnection->table('users')->where('id', 1)->toSql();
-        $this->assertStringContainsString('new_prefix_users', $deleteSql);
+        $this->assertSame([
+            'insert into "new_prefix_users" ("email") values (\'taylor@example.com\')',
+            'update "new_prefix_users" set "email" = \'abigail@example.com\' where "id" = 1',
+            'delete from "new_prefix_users" where "id" = 1',
+        ], array_column($queries, 'query'));
 
         $originalSql = $originalConnection->table('users')->toSql();
         $this->assertStringContainsString('prefix_users', $originalSql);
@@ -141,27 +149,17 @@ class DatabaseEloquentIntegrationWithTablePrefixTest extends TestCase
     }
 
     /**
-     * Helpers...
-     * @param mixed $connection
-     */
-
-    /**
      * Get a database connection instance.
-     *
-     * @return \Illuminate\Database\Connection
      */
-    protected function connection($connection = 'default')
+    protected function connection(string $connection = 'default'): Connection
     {
         return Eloquent::getConnectionResolver()->connection($connection);
     }
 
     /**
      * Get a schema builder instance.
-     *
-     * @param mixed $connection
-     * @return \Illuminate\Database\Schema\Builder
      */
-    protected function schema($connection = 'default')
+    protected function schema(string $connection = 'default'): Builder
     {
         return $this->connection($connection)->getSchemaBuilder();
     }

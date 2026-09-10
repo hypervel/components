@@ -847,7 +847,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
      */
     protected function resolveQueueName(?string $queue): string
     {
-        return $queue === null || $queue === '' ? $this->default : $queue;
+        return $this->resolveQueue($queue === null || $queue === '' ? $this->default : $queue);
     }
 
     /**

@@ -172,6 +172,9 @@ class RedisQueue extends BaseQueue
 
     /**
      * Migrate the delayed jobs that are ready to the regular queue.
+     *
+     * @param string $from the formatted Redis source key, already resolved through queue forwarding
+     * @param string $to the formatted Redis destination key, already resolved through queue forwarding
      */
     #[Override]
     public function migrateExpiredJobs(string $from, string $to): array
