@@ -28,7 +28,7 @@ use Hypervel\Support\Testing\Fakes\EventFake;
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static void observe(array|string $events, object|array|string $observer)
  * @method static void push(string $event, mixed $payload = [])
- * @method static string|null resolveConnectionFromQueueRoute(object $queueable)
+ * @method static string|null resolveConnectionFromQueueRoute(object $queueable, \UnitEnum|string|null $queue = null)
  * @method static string|null resolveQueueFromQueueRoute(object $queueable)
  * @method static \Hypervel\Events\Dispatcher setQueueResolver(callable $resolver)
  * @method static \Hypervel\Events\Dispatcher setTransactionManagerResolver(callable $resolver)

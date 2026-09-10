@@ -6,6 +6,8 @@ namespace Hypervel\Tests\Notifications;
 
 use Closure;
 use Hypervel\Bus\Queueable;
+use Hypervel\Config\Repository as Config;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
@@ -22,8 +24,10 @@ use Hypervel\Notifications\NotificationSender;
 use Hypervel\Notifications\SendQueuedNotifications;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\Queue;
+use Hypervel\Queue\QueueRoutes;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use stdClass;
 use Symfony\Component\Mailer\Exception\HttpTransportException;
@@ -396,6 +400,42 @@ class NotificationSenderTest extends TestCase
         $sender = new NotificationSender($manager, $bus, $events);
 
         $sender->send($notifiable, new DummyQueuedNotificationWithStringVia);
+    }
+
+    #[TestWith([null, 'cloud'])]
+    #[TestWith(['explicit', 'explicit'])]
+    public function testForwardedConnectionsUseTheSelectedChannelQueue(?string $connection, string $expectedConnection): void
+    {
+        $container = Container::getInstance();
+        $container->instance('config', new Config);
+        $routes = new QueueRoutes;
+        $routes->forward('dummy', 'unused', 'wrong-connection');
+        $routes->forward('admin_notifications', 'notifications', 'cloud');
+        $container->instance('queue.routes', $routes);
+        $notification = new class extends DummyNotificationWithViaQueues {
+            /**
+             * Select an explicit connection for the database channel.
+             */
+            public function viaConnections(): array
+            {
+                return ['database' => 'database-connection'];
+            }
+        };
+        $notification->onConnection($connection);
+        $bus = m::mock(BusDispatcherContract::class);
+        $bus->shouldReceive('dispatch')->once()->with(m::on(
+            fn (SendQueuedNotifications $job): bool => $job->channels === ['mail']
+                && $job->queue === 'admin_notifications'
+                && $job->connection === $expectedConnection
+        ));
+        $bus->shouldReceive('dispatch')->once()->with(m::on(
+            fn (SendQueuedNotifications $job): bool => $job->channels === ['database']
+                && $job->queue === 'dummy'
+                && $job->connection === 'database-connection'
+        ));
+
+        (new NotificationSender(new ChannelManager($container), $bus, m::mock(Dispatcher::class)))
+            ->send(new AnonymousNotifiable, $notification);
     }
 
     public function testItCanSendQueuedNotificationsWithDelayAttribute(): void

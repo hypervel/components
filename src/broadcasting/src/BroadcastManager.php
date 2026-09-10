@@ -217,8 +217,7 @@ class BroadcastManager implements BroadcastingFactoryContract
 
         if (is_null($queue)) {
             $queue = $this->getAttributeValue($event, QueueAttribute::class, 'queue')
-                ?? $this->resolveQueueFromQueueRoute($event)
-                ?? null;
+                ?? $this->resolveQueueFromQueueRoute($event);
         }
 
         $broadcastEvent = $event instanceof ShouldBeUnique
@@ -233,8 +232,7 @@ class BroadcastManager implements BroadcastingFactoryContract
             ->connection(
                 $event->connection
                     ?? $this->getAttributeValue($event, ConnectionAttribute::class, 'connection')
-                    ?? $this->resolveConnectionFromQueueRoute($event)
-                    ?? null
+                    ?? $this->resolveConnectionFromQueueRoute($event, $queue)
             )
             ->pushOn($queue, $broadcastEvent);
 

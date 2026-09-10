@@ -7,12 +7,16 @@ namespace Hypervel\Tests\Integration\Horizon\Feature;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Horizon\Contracts\JobRepository;
+use Hypervel\Horizon\Events\JobDeleted;
 use Hypervel\Horizon\Events\JobPending;
 use Hypervel\Horizon\Events\JobPushed;
+use Hypervel\Horizon\Events\JobReleased;
 use Hypervel\Horizon\Events\JobReserved;
 use Hypervel\Horizon\Events\JobsMigrated;
+use Hypervel\Horizon\Events\RedisEvent;
 use Hypervel\Horizon\RedisQueue;
 use Hypervel\Queue\InvalidPayloadException;
+use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Queue\Queue as BaseQueue;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Support\CarbonImmutable;
@@ -86,6 +90,36 @@ class QueueProcessingTest extends IntegrationTestCase
 
         $payload = json_decode(Redis::connection('horizon')->hget('raw-id', 'payload'), true);
         $this->assertSame([], $payload['tags']);
+    }
+
+    public function testForwardedJobsKeepTheirWorkerQueueAndReportTheirDestination(): void
+    {
+        Queue::forward(['default' => 'processing', 'processing' => 'archive']);
+        $events = [];
+
+        Event::listen([JobPushed::class, JobReserved::class, JobReleased::class, JobDeleted::class], function (RedisEvent $event) use (&$events): void {
+            $events[] = [$event::class, $event->queue];
+        });
+
+        $id = Queue::push(new Jobs\BasicJob);
+        $job = Queue::pop();
+        $this->assertInstanceOf(RedisJob::class, $job);
+        $this->assertSame('default', $job->getQueue());
+        $this->assertSame('processing', Redis::connection('horizon')->hget($id, 'queue'));
+
+        $job->release(0);
+        $options = $this->workerOptions();
+        $options->maxTries = 2;
+        $this->worker()->runNextJob('redis', 'default', $options);
+
+        $this->assertSame('completed', Redis::connection('horizon')->hget($id, 'status'));
+        $this->assertSame([
+            [JobPushed::class, 'processing'],
+            [JobReserved::class, 'processing'],
+            [JobReleased::class, 'processing'],
+            [JobReserved::class, 'processing'],
+            [JobDeleted::class, 'processing'],
+        ], $events);
     }
 
     public function testDirectRawPushPreservesExistingHorizonClassification(): void

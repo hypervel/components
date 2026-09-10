@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Queue\Database\Sqlite;
 
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
+use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DeadlockException;
 use Hypervel\Database\Events\TransactionCommitted;
@@ -15,6 +16,9 @@ use Hypervel\Database\QueryException;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Queue\DatabaseQueue;
 use Hypervel\Queue\Events\JobFailed;
+use Hypervel\Queue\FailoverQueue;
+use Hypervel\Queue\QueueManager;
+use Hypervel\Queue\QueueRoutes;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PDO;
@@ -25,6 +29,54 @@ use stdClass;
 
 class DatabaseQueueReservationTest extends TestCase
 {
+    #[TestWith([null, 'reports'])]
+    #[TestWith(['failover', 'processing'])]
+    public function testFailoverForwardsOnceBeforeStoringOnTheFallbackConnection(?string $connection, string $delegatedQueue): void
+    {
+        [$database, $events] = $this->createQueue();
+        $routes = new QueueRoutes;
+        $routes->forward(['reports' => 'processing', 'processing' => 'archive'], connection: $connection);
+        Container::getInstance()->instance('queue.routes', $routes);
+        $payload = json_encode(['job' => stdClass::class, 'data' => []]);
+        $primary = m::mock(QueueContract::class);
+        $primary->shouldReceive('pushRaw')->once()->with($payload, $delegatedQueue)->andThrow(new RuntimeException('Primary unavailable.'));
+        $manager = m::mock(QueueManager::class);
+        $manager->shouldReceive('connection')->once()->with('primary')->andReturn($primary);
+        $manager->shouldReceive('connection')->once()->with('database')->andReturn($database);
+        $queue = new FailoverQueue($manager, $events, ['primary', 'database']);
+        $queue->setConnectionName('failover');
+
+        $id = $queue->pushRaw($payload, 'reports');
+
+        $this->assertSame('processing', $database->getDatabase()->table('jobs')->find($id)->queue);
+        $this->assertSame(1, $database->getDatabase()->table('jobs')->count());
+    }
+
+    public function testForwardedQueueReservesAndReleasesUsingTheLogicalName(): void
+    {
+        [$queue] = $this->createQueue();
+        $routes = new QueueRoutes;
+        $routes->forward(['reports' => 'processing', 'processing' => 'archive']);
+        Container::getInstance()->instance('queue.routes', $routes);
+        $id = $queue->pushRaw(json_encode(['job' => stdClass::class, 'data' => []]), 'reports');
+
+        $this->assertSame('processing', $queue->getDatabase()->table('jobs')->find($id)->queue);
+
+        $job = $queue->pop('reports');
+
+        $this->assertSame((string) $id, $job?->getJobId());
+        $this->assertSame('reports', $job->getQueue());
+        $this->assertSame(1, $job->attempts());
+
+        $job->release();
+
+        $record = $queue->getDatabase()->table('jobs')->sole();
+        $this->assertSame('processing', $record->queue);
+        $this->assertSame(1, $record->attempts);
+        $this->assertNull($record->reserved_at);
+        $this->assertSame(2, $queue->pop('reports')?->attempts());
+    }
+
     #[TestWith([0])]
     #[TestWith([1])]
     public function testFailedReservationDoesNotBlockTheNextJob(int $transactionLevel): void

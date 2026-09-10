@@ -1688,6 +1688,31 @@ Queue::route([
 > [!NOTE]
 > Queue routing can still be overridden by the job on a per-job basis.
 
+You may use the `forward` method to forward jobs from one queue to another queue and / or connection. This is useful when you need to change queue infrastructure without modifying individual jobs or dispatch locations. Register forwarding in a service provider's `boot` method:
+
+```php
+Queue::forward('reports', 'reports.fifo', 'sqs');
+Queue::forward('payments', connection: 'sqs');
+Queue::forward('updates', 'notifications');
+```
+
+You may also forward multiple queues at once by passing an array:
+
+```php
+Queue::forward([
+    'reports' => 'reports.fifo',
+    'emails' => 'emails.fifo',
+], connection: 'sqs');
+```
+
+An explicit connection configured on a job takes precedence over a forwarded connection.
+
+A forward scoped to a `failover` connection requires an explicit queue name; otherwise, each child connection uses its own default queue.
+
+After forwarding queues, update your worker queue lists to avoid listing multiple names that resolve to the same queue. Before forwarding a queue to a different name, drain its existing jobs. Workers using the forwarding configuration will consume the destination queue instead.
+
+Clearing a forwarded queue clears its destination, including jobs sent through other queue names that forward to the same destination.
+
 <a name="max-job-attempts-and-timeout"></a>
 ### Specifying Max Job Attempts / Timeout Values
 

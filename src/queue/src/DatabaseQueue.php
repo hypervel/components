@@ -481,7 +481,8 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      */
     public function pop(?string $queue = null): ?Job
     {
-        $queue = $this->getQueue($queue);
+        // Keep the logical name on the job so reservation and release each forward it once.
+        $queue = $queue === null || $queue === '' ? $this->default : $queue;
         $database = $this->getDatabase();
         $transactionLevel = $database->transactionLevel();
         /** @var null|DatabaseJobRecord $jobRecord */
@@ -651,7 +652,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      */
     public function getQueue(?string $queue): string
     {
-        return $queue === null || $queue === '' ? $this->default : $queue;
+        return $this->resolveQueue($queue === null || $queue === '' ? $this->default : $queue);
     }
 
     /**

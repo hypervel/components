@@ -53,6 +53,19 @@ class SendingQueuedMailTest extends TestCase
         Queue::assertPushedOn('mail-queue', SendQueuedMailable::class);
     }
 
+    public function testMailIsSentWhenForwardingQueue(): void
+    {
+        $queue = m::mock(QueueFake::class, [$this->app])->makePartial();
+        $queue->shouldReceive('connection')->once()->with('mail-connection')->andReturnSelf();
+        Queue::swap($queue);
+
+        Queue::forward('mail-queue', 'main', 'mail-connection');
+
+        Mail::to('test@mail.com')->queue(new SendingQueuedForwardedMailTestMail);
+
+        Queue::assertPushedOn('mail-queue', SendQueuedMailable::class);
+    }
+
     public function testMailIsSentWithDelay(): void
     {
         Queue::fake();
@@ -80,5 +93,18 @@ class SendingQueuedMailTestMail extends Mailable
     public function middleware(): array
     {
         return [new RateLimited('limiter')];
+    }
+}
+
+class SendingQueuedForwardedMailTestMail extends Mailable
+{
+    public string $queue = 'mail-queue';
+
+    /**
+     * Build the message.
+     */
+    public function build(): static
+    {
+        return $this->view('view');
     }
 }

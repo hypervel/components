@@ -69,7 +69,7 @@ class RedisJobRepositoryTest extends IntegrationTestCase
         }
     }
 
-    public function testItRemovesRecentJobsWhenQueueIsPurged()
+    public function testItRemovesRecentJobsWhenQueueIsPurged(): void
     {
         $repository = $this->app->make(JobRepository::class);
 
@@ -77,7 +77,7 @@ class RedisJobRepositoryTest extends IntegrationTestCase
         $repository->pushed('horizon', 'email-processing', new JobPayload(json_encode(['id' => '2', 'displayName' => 'second'])));
         $repository->pushed('horizon', 'email-processing', new JobPayload(json_encode(['id' => '3', 'displayName' => 'third'])));
         $repository->pushed('horizon', 'email-processing', new JobPayload(json_encode(['id' => '4', 'displayName' => 'fourth'])));
-        $repository->pushed('horizon', 'email-processing', new JobPayload(json_encode(['id' => '5', 'displayName' => 'fifth'])));
+        $repository->pushed('other', 'email-processing', new JobPayload(json_encode(['id' => '5', 'displayName' => 'fifth'])));
 
         $repository->completed(new JobPayload(json_encode(['id' => '1', 'displayName' => 'first'])));
         $repository->completed(new JobPayload(json_encode(['id' => '2', 'displayName' => 'second'])));
@@ -91,6 +91,24 @@ class RedisJobRepositoryTest extends IntegrationTestCase
         $this->assertNotNull($recent->firstWhere('id', 1));
         $this->assertNotNull($recent->firstWhere('id', 2));
         $this->assertCount(2, $repository->getJobs(['1', '2', '3', '4', '5']));
+    }
+
+    public function testPurgingOneConnectionPreservesOtherConnectionsAndCompletedJobs(): void
+    {
+        $repository = $this->app->make(JobRepository::class);
+        $payloads = [];
+
+        foreach (['pending' => '0', 'reserved' => '0', 'completed' => '0', 'other' => '1'] as $id => $connection) {
+            $payloads[$id] = new JobPayload(json_encode(['id' => $id, 'displayName' => $id]));
+            $repository->pushed($connection, 'email-processing', $payloads[$id]);
+        }
+
+        $repository->reserved('0', 'email-processing', $payloads['reserved']);
+        $repository->completed($payloads['completed']);
+
+        $this->assertSame(2, $repository->purge('email-processing', '0'));
+        $this->assertSame(['completed', 'other'], $repository->getRecent()->pluck('id')->sort()->values()->all());
+        $this->assertSame(['other'], $repository->getPending()->pluck('id')->all());
     }
 
     public function testItWillDeleteAFailedJob()

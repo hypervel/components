@@ -878,6 +878,60 @@ class RedisQueueTest extends TestCase
         $this->assertSame(2, $this->queue->totalReservedSize());
     }
 
+    public function testGlobalInspectionAndTotalsDoNotForwardPhysicalQueueNames(): void
+    {
+        $this->setQueue();
+
+        foreach (['reports' => 1, 'archive' => 2] as $name => $count) {
+            for ($index = 0; $index < $count; ++$index) {
+                $this->queue->pushOn($name, new RedisQueueIntegrationTestJob($index));
+                $this->queue->pop($name);
+            }
+
+            for ($index = 0; $index < $count; ++$index) {
+                $this->queue->pushOn($name, new RedisQueueIntegrationTestJob($index));
+                $this->queue->laterOn($name, 60, new RedisQueueIntegrationTestJob($index));
+            }
+        }
+
+        $this->app->make('queue.routes')->forward('reports', 'archive');
+
+        $this->assertSame(9, $this->queue->totalSize());
+        $this->assertSame(3, $this->queue->totalPendingSize());
+        $this->assertSame(3, $this->queue->totalDelayedSize());
+        $this->assertSame(3, $this->queue->totalReservedSize());
+
+        foreach (['pendingJobs', 'delayedJobs', 'reservedJobs'] as $method) {
+            $jobs = $this->queue->{'all' . ucfirst($method)}();
+
+            $this->assertSame(['archive', 'archive', 'reports'], $jobs->pluck('queue')->sort()->values()->all());
+            $this->assertCount(3, $jobs->unique('uuid'));
+            $this->assertSame(['reports', 'reports'], $this->queue->{$method}('reports')->pluck('queue')->all());
+        }
+    }
+
+    public function testForwardedJobIsReleasedToTheSameDestination(): void
+    {
+        $this->setQueue('reports');
+        $destinationKey = $this->getQueueRedisKey('processing');
+        $otherKey = $this->getQueueRedisKey('archive');
+        $this->app->make('queue.routes')->forward(['reports' => 'processing', 'processing' => 'archive']);
+
+        $this->queue->push(new RedisQueueIntegrationTestJob(10));
+        $job = $this->queue->pop();
+
+        $this->assertInstanceOf(RedisJob::class, $job);
+        $this->assertSame('reports', $job->getQueue());
+        $job->release(0);
+
+        $this->assertSame(1, $this->redisConnection()->zcard($destinationKey . ':delayed'));
+        $this->assertSame(0, $this->redisConnection()->zcard($otherKey . ':delayed'));
+        $retried = $this->queue->pop();
+        $this->assertInstanceOf(RedisJob::class, $retried);
+        $this->assertSame($job->getJobId(), $retried->getJobId());
+        $this->assertSame(2, $retried->attempts());
+    }
+
     public function testInvalidInspectedPayloadRetainsItsRedisRemovalMember(): void
     {
         $this->setQueue('poison');

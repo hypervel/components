@@ -107,7 +107,18 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     public function totalSize(): int
     {
         return $this->getConnection()->withPinnedConnection(
-            fn (): int => $this->allQueueNames()->sum(fn (string $name): int => $this->size($name)),
+            fn (): int => $this->allQueueNames()->sum(function (string $name): int {
+                // Discovered names identify storage; forwarding them again would count the destination twice.
+                $queue = $this->formatQueueRedisKey($name);
+
+                return $this->getConnection()->eval(
+                    LuaScripts::size(),
+                    3,
+                    $queue,
+                    $queue . ':delayed',
+                    $queue . ':reserved',
+                );
+            }),
         );
     }
 
@@ -117,7 +128,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     public function totalPendingSize(): int
     {
         return $this->getConnection()->withPinnedConnection(
-            fn (): int => $this->allQueueNames()->sum(fn (string $name): int => $this->pendingSize($name)),
+            fn (): int => $this->allQueueNames()->sum(fn (string $name): int => $this->getConnection()->llen($this->formatQueueRedisKey($name))),
         );
     }
 
@@ -127,7 +138,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     public function totalDelayedSize(): int
     {
         return $this->getConnection()->withPinnedConnection(
-            fn (): int => $this->allQueueNames()->sum(fn (string $name): int => $this->delayedSize($name)),
+            fn (): int => $this->allQueueNames()->sum(fn (string $name): int => $this->getConnection()->zcard($this->formatQueueRedisKey($name) . ':delayed')),
         );
     }
 
@@ -137,7 +148,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     public function totalReservedSize(): int
     {
         return $this->getConnection()->withPinnedConnection(
-            fn (): int => $this->allQueueNames()->sum(fn (string $name): int => $this->reservedSize($name)),
+            fn (): int => $this->allQueueNames()->sum(fn (string $name): int => $this->getConnection()->zcard($this->formatQueueRedisKey($name) . ':reserved')),
         );
     }
 
@@ -276,9 +287,10 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
      */
     protected function inspectAllQueues(string $suffix = ''): Collection
     {
+        // Scan results already name physical queues, including backlogs left before forwarding was configured.
         return $this->getConnection()->withConnection(
             fn (RedisConnection $connection): Collection => $this->allQueueNamesUsing($connection)
-                ->flatMap(fn (string $name): Collection => $this->inspectJobsUsing($connection, $name, $suffix)),
+                ->flatMap(fn (string $name): Collection => $this->inspectJobsAtKey($connection, $this->formatQueueRedisKey($name), $name, $suffix)),
             transform: false,
         );
     }
@@ -290,7 +302,17 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
      */
     protected function inspectJobsUsing(RedisConnection $connection, string $name, string $suffix): Collection
     {
-        $key = $this->getQueueRedisKey($name) . $suffix;
+        return $this->inspectJobsAtKey($connection, $this->getQueueRedisKey($name), $name, $suffix);
+    }
+
+    /**
+     * Inspect a formatted storage key while retaining the requested queue identity.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    protected function inspectJobsAtKey(RedisConnection $connection, string $key, string $name, string $suffix): Collection
+    {
+        $key .= $suffix;
         $payloads = $suffix === ''
             ? $connection->lrange($key, 0, -1)
             : $connection->zRange($key, 0, -1);
@@ -687,23 +709,30 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
      */
     public function getQueue(?string $queue): string
     {
-        return 'queues:' . ($queue === null || $queue === '' ? $this->default : $queue);
+        return 'queues:' . $this->resolveQueue($queue === null || $queue === '' ? $this->default : $queue);
     }
 
     /**
      * Get the cluster-safe Redis key for the given queue.
      *
-     * Redis Cluster requires every key passed to a multi-key Lua script to live
-     * on the same hash slot. Queue payloads keep the logical queue name via
-     * getQueue(); only storage keys are hash-tagged here.
+     * Queue names are forwarded once before adding the storage prefix and hash tag.
      */
     protected function getQueueRedisKey(?string $queue = null): string
     {
-        $queue = $queue === null || $queue === '' ? $this->default : $queue;
+        return $this->formatQueueRedisKey($this->resolveQueue($queue === null || $queue === '' ? $this->default : $queue));
+    }
 
+    /**
+     * Format a physical queue name as a cluster-safe Redis key.
+     *
+     * Redis Cluster requires every key passed to a multi-key Lua script to live
+     * on the same hash slot. Only storage keys are hash-tagged here.
+     */
+    protected function formatQueueRedisKey(string $queue): string
+    {
         return $this->isClusterConnection() && ! RedisConnection::hasHashTag($queue)
-            ? $this->getQueue('{' . $queue . '}')
-            : $this->getQueue($queue);
+            ? 'queues:{' . $queue . '}'
+            : 'queues:' . $queue;
     }
 
     /**

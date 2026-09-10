@@ -437,6 +437,43 @@ class QueueSqsQueueTest extends TestCase
         $this->assertEquals($queueUrl, $queue->getQueue('test.fifo'));
     }
 
+    public function testForwardedQueueNameIsUsedWhenPushing(): void
+    {
+        Container::setInstance($container = new Container);
+        $routes = new QueueRoutes;
+        $routes->forward('jobs', 'processing', 'sqs');
+        $container->instance('queue.routes', $routes);
+
+        $queue = new SqsQueue($this->sqs, 'default', $this->prefix);
+        $queue->setConnectionName('sqs');
+
+        $this->sqs->expects('sendMessage')->with([
+            'QueueUrl' => $this->prefix . 'processing',
+            'MessageBody' => 'payload',
+        ])->andReturn($this->mockedSendMessageResponseModel);
+
+        $queue->pushRaw('payload', 'jobs');
+    }
+
+    public function testForwardedFifoQueueControlsOptionsAndDelayValidation(): void
+    {
+        $routes = new QueueRoutes;
+        $routes->forward(['jobs' => 'processing.fifo', 'processing.fifo' => 'archive'], connection: 'sqs');
+        Container::getInstance()->instance('queue.routes', $routes);
+        $queue = new SqsQueue($this->sqs, 'default', $this->prefix);
+        $queue->setConnectionName('sqs');
+
+        $this->assertSame($this->prefix . 'processing.fifo', $queue->getQueue('jobs'));
+        $options = $queue->getQueueableOptions('job', 'jobs', 'payload');
+        $this->assertSame('processing.fifo', $options['MessageGroupId']);
+        $this->assertArrayHasKey('MessageDeduplicationId', $options);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('SQS FIFO queues do not support per-message delays.');
+
+        $queue->later(10, 'job', '', 'jobs');
+    }
+
     public function testGetQueueEnsuresTheQueueIsOnlySuffixedOnce()
     {
         $queue = new SqsQueue($this->sqs, "{$this->queueName}-staging", $this->prefix, $suffix = '-staging');

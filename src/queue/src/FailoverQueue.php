@@ -50,7 +50,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function size(?string $queue = null): int
     {
-        return $this->manager->connection($this->connections[0])->size($queue);
+        return $this->manager->connection($this->connections[0])->size($this->resolveForwardedQueue($queue));
     }
 
     /**
@@ -58,7 +58,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function pendingSize(?string $queue = null): int
     {
-        return $this->manager->connection($this->connections[0])->pendingSize($queue);
+        return $this->manager->connection($this->connections[0])->pendingSize($this->resolveForwardedQueue($queue));
     }
 
     /**
@@ -66,7 +66,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function delayedSize(?string $queue = null): int
     {
-        return $this->manager->connection($this->connections[0])->delayedSize($queue);
+        return $this->manager->connection($this->connections[0])->delayedSize($this->resolveForwardedQueue($queue));
     }
 
     /**
@@ -74,7 +74,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function reservedSize(?string $queue = null): int
     {
-        return $this->manager->connection($this->connections[0])->reservedSize($queue);
+        return $this->manager->connection($this->connections[0])->reservedSize($this->resolveForwardedQueue($queue));
     }
 
     /**
@@ -116,7 +116,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
     public function pendingJobs(?string $queue = null): Collection
     {
         // Inspection remains an optional concrete capability, not part of the core Queue contract.
-        return $this->manager->connection($this->connections[0])->pendingJobs($queue); // @phpstan-ignore method.notFound
+        return $this->manager->connection($this->connections[0])->pendingJobs($this->resolveForwardedQueue($queue)); // @phpstan-ignore method.notFound
     }
 
     /**
@@ -124,7 +124,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function delayedJobs(?string $queue = null): Collection
     {
-        return $this->manager->connection($this->connections[0])->delayedJobs($queue); // @phpstan-ignore method.notFound
+        return $this->manager->connection($this->connections[0])->delayedJobs($this->resolveForwardedQueue($queue)); // @phpstan-ignore method.notFound
     }
 
     /**
@@ -132,7 +132,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function reservedJobs(?string $queue = null): Collection
     {
-        return $this->manager->connection($this->connections[0])->reservedJobs($queue); // @phpstan-ignore method.notFound
+        return $this->manager->connection($this->connections[0])->reservedJobs($this->resolveForwardedQueue($queue)); // @phpstan-ignore method.notFound
     }
 
     /**
@@ -166,7 +166,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
     {
         return $this->manager
             ->connection($this->connections[0])
-            ->creationTimeOfOldestPendingJob($queue);
+            ->creationTimeOfOldestPendingJob($this->resolveForwardedQueue($queue));
     }
 
     /**
@@ -174,6 +174,8 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
     {
+        $queue = $this->resolveForwardedQueue($queue);
+
         return $this->attemptOnAllConnections(__FUNCTION__, func_get_args(), $job);
     }
 
@@ -182,6 +184,8 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed
     {
+        $queue = $this->resolveForwardedQueue($queue);
+
         return $this->attemptOnAllConnections(__FUNCTION__, func_get_args());
     }
 
@@ -190,6 +194,8 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
     {
+        $queue = $this->resolveForwardedQueue($queue);
+
         return $this->attemptOnAllConnections(__FUNCTION__, func_get_args(), $job);
     }
 
@@ -198,11 +204,21 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
      */
     public function pop(?string $queue = null, int $index = 0): ?JobContract
     {
+        $queue = $this->resolveForwardedQueue($queue);
         $connection = $this->manager->connection($this->connections[0]);
 
         return $connection instanceof IndexAwareQueue
             ? $connection->pop($queue, $index)
             : $connection->pop($queue);
+    }
+
+    /**
+     * Resolve forwards owned by this failover connection.
+     */
+    protected function resolveForwardedQueue(?string $queue): ?string
+    {
+        // Unscoped forwards belong to the storage driver; applying them here would forward twice.
+        return $queue === null ? null : $this->queueRoutes()->forwardedQueueForConnection($queue, $this->connectionName ?? null);
     }
 
     /**

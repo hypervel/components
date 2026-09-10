@@ -28,6 +28,7 @@ use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Events\QueueFailedOver;
 use Hypervel\Queue\FailoverQueue;
 use Hypervel\Queue\QueueManager;
+use Hypervel\Queue\QueueRoutes;
 use Hypervel\Queue\RedisQueue;
 use Hypervel\Queue\SyncQueue;
 use Hypervel\Support\Collection;
@@ -44,6 +45,44 @@ use function Hypervel\Support\enum_value;
 
 class FailoverQueueTest extends TestCase
 {
+    #[DataProvider('forwardedQueueOperations')]
+    public function testConnectionScopedForwardsApplyBeforeDelegating(string $method, array $arguments, array $expectedArguments, Collection|int|string|null $result): void
+    {
+        $routes = new QueueRoutes;
+        $routes->forward(['default' => 'processing', 'reports' => 'processing', 'processing' => 'archive'], connection: 'failover');
+        Container::getInstance()->instance('queue.routes', $routes);
+        $manager = m::mock(QueueManager::class);
+        $redis = m::mock(RedisQueue::class);
+        $manager->shouldReceive('connection')->once()->with('redis')->andReturn($redis);
+        $redis->shouldReceive($method)->once()->with(...$expectedArguments)->andReturn($result);
+        $queue = new FailoverQueue($manager, m::mock(DispatcherContract::class), ['redis']);
+        $queue->setConnectionName('failover');
+
+        $this->assertSame($result, $queue->{$method}(...$arguments));
+    }
+
+    /**
+     * Provide each queue-name boundary owned by the failover driver.
+     */
+    public static function forwardedQueueOperations(): array
+    {
+        return [
+            'push' => ['push', ['job', '', 'reports'], ['job', '', 'processing'], 'id'],
+            'push without queue' => ['push', ['job'], ['job'], 'id'],
+            'pushRaw' => ['pushRaw', ['payload', 'reports'], ['payload', 'processing'], 'id'],
+            'later' => ['later', [10, 'job', '', 'reports'], [10, 'job', '', 'processing'], 'id'],
+            'pop' => ['pop', ['reports', 2], ['processing', 2], null],
+            'size' => ['size', ['reports'], ['processing'], 7],
+            'pendingSize' => ['pendingSize', ['reports'], ['processing'], 7],
+            'delayedSize' => ['delayedSize', ['reports'], ['processing'], 7],
+            'reservedSize' => ['reservedSize', ['reports'], ['processing'], 7],
+            'pendingJobs' => ['pendingJobs', ['reports'], ['processing'], new Collection],
+            'delayedJobs' => ['delayedJobs', ['reports'], ['processing'], new Collection],
+            'reservedJobs' => ['reservedJobs', ['reports'], ['processing'], new Collection],
+            'oldest pending' => ['creationTimeOfOldestPendingJob', ['reports'], ['processing'], 7],
+        ];
+    }
+
     public function testPushFailsOverOnException()
     {
         $failover = new FailoverQueue($queue = m::mock(QueueManager::class), $events = m::mock(DispatcherContract::class), [

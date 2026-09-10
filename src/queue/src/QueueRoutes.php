@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
+use Hypervel\Queue\Attributes\Queue as QueueAttribute;
+use Hypervel\Support\Traits\ReadsClassAttributes;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
 class QueueRoutes
 {
+    use ReadsClassAttributes;
+
     /**
      * The mapping of class names to their default routes.
      *
@@ -18,19 +22,43 @@ class QueueRoutes
     protected array $routes = [];
 
     /**
+     * The queues that have been forwarded to another queue and/or connection.
+     *
+     * @var array<array-key, array{null|string, null|string}>
+     */
+    protected array $forwards = [];
+
+    /**
      * Get the queue connection that a given queueable instance should be routed to.
      */
-    public function getConnection(object $queueable): ?string
+    public function getConnection(object $queueable, UnitEnum|string|null $queue = null): ?string
     {
         $route = $this->getRoute($queueable);
 
-        if (is_null($route)) {
+        if (is_array($route) && $route[0] !== null) {
+            return $route[0];
+        }
+
+        if (empty($this->forwards)) {
             return null;
         }
 
-        return is_string($route)
-            ? null
-            : $route[0];
+        return $this->forwardedConnection(
+            $queue ?? $this->getAttributeValue($queueable, QueueAttribute::class, 'queue')
+                ?? (is_string($route) ? $route : ($route[1] ?? null))
+        );
+    }
+
+    /**
+     * Get the connection the given queue has been forwarded to.
+     */
+    protected function forwardedConnection(UnitEnum|string|null $queue): ?string
+    {
+        if (is_null($queue)) {
+            return null;
+        }
+
+        return $this->forwards[enum_value($queue)][0] ?? null;
     }
 
     /**
@@ -47,6 +75,32 @@ class QueueRoutes
         return is_string($route)
             ? $route
             : $route[1];
+    }
+
+    /**
+     * Get the queue the given queue has been forwarded to.
+     */
+    public function forwardedQueue(string $queue, ?string $connection = null): string
+    {
+        if (! isset($this->forwards[$queue])) {
+            return $queue;
+        }
+
+        [$forwardConnection, $forwardQueue] = $this->forwards[$queue];
+
+        return is_null($forwardConnection) || $forwardConnection === $connection
+            ? $forwardQueue ?? $queue
+            : $queue;
+    }
+
+    /**
+     * Apply only forwards explicitly scoped to the given connection.
+     */
+    public function forwardedQueueForConnection(string $queue, ?string $connection): string
+    {
+        return isset($this->forwards[$queue][0])
+            ? $this->forwardedQueue($queue, $connection)
+            : $queue;
     }
 
     /**
@@ -95,6 +149,26 @@ class QueueRoutes
                     $to
                 )
                 : ($to instanceof UnitEnum ? (string) enum_value($to) : $to);
+        }
+    }
+
+    /**
+     * Register a forward for the given queue.
+     *
+     * Boot-only. Forwards persist on the singleton registry for the worker
+     * lifetime and affect every subsequent dispatch and queue operation.
+     *
+     * @param array<array-key, string|UnitEnum>|string|UnitEnum $queue
+     */
+    public function forward(UnitEnum|array|string $queue, UnitEnum|string|null $to = null, UnitEnum|string|null $connection = null): void
+    {
+        $forwards = is_array($queue) ? $queue : [enum_value($queue) => $to];
+
+        foreach ($forwards as $from => $destination) {
+            $this->forwards[$from] = [
+                $connection instanceof UnitEnum ? (string) enum_value($connection) : $connection,
+                $destination instanceof UnitEnum ? (string) enum_value($destination) : $destination,
+            ];
         }
     }
 

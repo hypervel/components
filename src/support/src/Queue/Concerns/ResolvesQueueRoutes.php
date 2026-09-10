@@ -6,15 +6,16 @@ namespace Hypervel\Support\Queue\Concerns;
 
 use Hypervel\Container\Container;
 use Hypervel\Queue\QueueRoutes;
+use UnitEnum;
 
 trait ResolvesQueueRoutes
 {
     /**
      * Resolve the default connection name for a given queueable instance.
      */
-    public function resolveConnectionFromQueueRoute(object $queueable): ?string
+    public function resolveConnectionFromQueueRoute(object $queueable, UnitEnum|string|null $queue = null): ?string
     {
-        return $this->queueRoutes()->getConnection($queueable);
+        return $this->queueRoutes()->getConnection($queueable, $queue);
     }
 
     /**
