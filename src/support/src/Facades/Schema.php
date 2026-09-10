@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Database\Schema\Builder;
 
 /**
@@ -77,10 +76,7 @@ class Schema extends Facade
      */
     public static function connection(?string $name = null): Builder
     {
-        /** @var ContainerContract $app */
-        $app = static::$app;
-
-        return $app->make('db')->connection($name)->getSchemaBuilder();
+        return static::getFacadeRoot()->connection($name);
     }
 
     /**
