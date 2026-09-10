@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Database;
 
+use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Relations\Relation;
 
 /**
@@ -51,7 +52,7 @@ class ModelIdentifier
     /**
      * The class name of the model collection.
      *
-     * @var null|class-string<\Hypervel\Database\Eloquent\Collection>
+     * @var null|class-string<Collection>
      */
     public ?string $collectionClass = null;
 
@@ -78,7 +79,7 @@ class ModelIdentifier
     /**
      * Specify the collection class that should be used when serializing / restoring collections.
      *
-     * @param null|class-string $collectionClass
+     * @param null|class-string<Collection> $collectionClass
      */
     public function useCollectionClass(?string $collectionClass): static
     {
