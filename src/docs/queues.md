@@ -1730,7 +1730,7 @@ Queue::forward([
 
 An explicit connection configured on a job takes precedence over a forwarded connection.
 
-A forward scoped to a `failover` connection requires an explicit queue name; otherwise, each child connection uses its own default queue.
+When dispatching through a `failover` connection, specify a queue to apply forwards scoped to that connection. Jobs without a queue use each child connection's default. Omitting the destination queue from `Queue::forward` preserves the original queue name.
 
 After forwarding queues, update your worker queue lists to avoid listing multiple names that resolve to the same queue. Before forwarding a queue to a different name, drain its existing jobs. Workers using the forwarding configuration will consume the destination queue instead.
 
