@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
+use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\FileBasedMaintenanceMode;
+use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Support\Json;
 use Hypervel\Testbench\TestCase;
 use JsonException;
@@ -61,6 +63,42 @@ class FoundationFileBasedMaintenanceModeTest extends TestCase
         $this->assertSame(503, $data['status']);
         $this->assertSame('abc123', $data['secret']);
         $this->assertNull($data['retry']);
+    }
+
+    public function testDataReturnsEmptyPayloadWhenFileDoesNotExist(): void
+    {
+        $this->assertSame([], (new FileBasedMaintenanceMode)->data());
+    }
+
+    public function testCachedActivityReturnsFalseWhenFileDisappearsDuringRead(): void
+    {
+        $path = storage_path('framework/down');
+        $files = m::mock(Filesystem::class);
+        $files->shouldReceive('exists')->with($path)->andReturn(true, false);
+        $files->shouldReceive('get')->once()->with($path)
+            ->andThrow(new FileNotFoundException('removed'));
+
+        $mode = new WorkerCachedMaintenanceMode(new FileBasedMaintenanceMode($files));
+
+        $this->assertFalse($mode->active());
+        $this->assertSame([], $mode->data());
+    }
+
+    public function testDataRethrowsReadFailureWhenFileStillExists(): void
+    {
+        $path = storage_path('framework/down');
+        $exception = new FileNotFoundException('unreadable');
+        $files = m::mock(Filesystem::class);
+        $files->shouldReceive('exists')->once()->with($path)->andReturnTrue();
+        $files->shouldReceive('get')->once()->with($path)->andThrow($exception);
+
+        try {
+            (new FileBasedMaintenanceMode($files))->data();
+
+            $this->fail('Expected the read failure to be rethrown.');
+        } catch (FileNotFoundException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
     }
 
     public function testDeactivateDeletesFile(): void
