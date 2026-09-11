@@ -15,9 +15,15 @@ use Symfony\Component\Console\Attribute\AsCommand;
 #[AsCommand(name: 'about')]
 class AboutCommand extends Command
 {
+    /**
+     * The console command signature.
+     */
     protected ?string $signature = 'about {--only= : The section to display}
                 {--json : Output the information as JSON}';
 
+    /**
+     * The console command description.
+     */
     protected string $description = 'Display basic information about your application';
 
     /**
@@ -76,7 +82,7 @@ class AboutCommand extends Command
 
         $this->newLine();
 
-        return 0;
+        return self::SUCCESS;
     }
 
     /**

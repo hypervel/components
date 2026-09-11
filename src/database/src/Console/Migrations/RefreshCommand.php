@@ -36,8 +36,7 @@ class RefreshCommand extends Command
      */
     public function handle(): int
     {
-        if ($this->isProhibited()
-            || ! $this->confirmToProceed()) {
+        if ($this->isProhibited() || ! $this->confirmToProceed()) {
             return self::FAILURE;
         }
 

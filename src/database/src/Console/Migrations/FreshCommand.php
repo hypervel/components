@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Console\Migrations;
 
-use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Console\Prohibitable;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -46,7 +45,7 @@ class FreshCommand extends BaseCommand
     public function handle(): int
     {
         if ($this->isProhibited()) {
-            return Command::FAILURE;
+            return self::FAILURE;
         }
 
         $database = $this->input->getOption('database');
@@ -66,7 +65,7 @@ class FreshCommand extends BaseCommand
         }
 
         if (! $this->confirmToProceed()) {
-            return Command::FAILURE;
+            return self::FAILURE;
         }
 
         $this->createMissingDatabases($missingDatabases);
@@ -78,7 +77,7 @@ class FreshCommand extends BaseCommand
                     '--drop-views' => $this->option('drop-views'),
                     '--drop-types' => $this->option('drop-types'),
                     '--force' => true,
-                ])) !== Command::SUCCESS) {
+                ])) !== self::SUCCESS) {
                     throw new RuntimeException("Database wipe failed for connection [{$connection}].");
                 }
 
@@ -95,7 +94,7 @@ class FreshCommand extends BaseCommand
             '--schema-path' => $this->input->getOption('schema-path'),
             '--force' => true,
             '--step' => $this->option('step'),
-        ])) !== Command::SUCCESS) {
+        ])) !== self::SUCCESS) {
             throw new RuntimeException('Migration command failed while refreshing the databases.');
         }
 
@@ -111,7 +110,7 @@ class FreshCommand extends BaseCommand
             $this->runSeeder($database);
         }
 
-        return Command::SUCCESS;
+        return self::SUCCESS;
     }
 
     /**
@@ -131,7 +130,7 @@ class FreshCommand extends BaseCommand
             '--database' => $database,
             '--class' => $this->option('seeder') ?: 'Database\Seeders\DatabaseSeeder',
             '--force' => true,
-        ])) !== Command::SUCCESS) {
+        ])) !== self::SUCCESS) {
             throw new RuntimeException('Database seeding failed after the databases were refreshed.');
         }
     }

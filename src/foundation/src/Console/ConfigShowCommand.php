@@ -12,17 +12,29 @@ use Symfony\Component\Console\Attribute\AsCommand;
 #[AsCommand(name: 'config:show')]
 class ConfigShowCommand extends Command
 {
+    /**
+     * The console command signature.
+     */
     protected ?string $signature = 'config:show {config : The configuration file or key to show}';
 
+    /**
+     * The console command description.
+     */
     protected string $description = 'Display all of the values for a given configuration file or key';
 
+    /**
+     * Create a new command instance.
+     */
     public function __construct(
         protected Repository $config
     ) {
         parent::__construct();
     }
 
-    public function handle()
+    /**
+     * Execute the console command.
+     */
+    public function handle(): int
     {
         $config = $this->argument('config');
 
@@ -34,7 +46,7 @@ class ConfigShowCommand extends Command
         $this->render($config);
         $this->newLine();
 
-        return Command::SUCCESS;
+        return self::SUCCESS;
     }
 
     /**
@@ -78,7 +90,7 @@ class ConfigShowCommand extends Command
     {
         return preg_replace_callback(
             '/(.*)\.(.*)$/',
-            fn ($matches) => sprintf(
+            fn (array $matches): string => sprintf(
                 '<fg=gray>%s ⇁</> %s',
                 str_replace('.', ' ⇁ ', $matches[1]),
                 $matches[2]

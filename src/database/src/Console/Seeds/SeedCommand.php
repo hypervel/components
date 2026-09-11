@@ -56,9 +56,8 @@ class SeedCommand extends Command
      */
     public function handle(): int
     {
-        if ($this->isProhibited()
-            || ! $this->confirmToProceed()) {
-            return Command::FAILURE;
+        if ($this->isProhibited() || ! $this->confirmToProceed()) {
+            return self::FAILURE;
         }
 
         $this->components->info('Seeding database.');
@@ -79,7 +78,7 @@ class SeedCommand extends Command
             }
         }
 
-        return 0;
+        return self::SUCCESS;
     }
 
     /**
