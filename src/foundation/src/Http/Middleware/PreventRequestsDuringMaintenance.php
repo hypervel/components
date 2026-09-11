@@ -56,6 +56,11 @@ class PreventRequestsDuringMaintenance
             }
 
             $data = $this->app->maintenanceMode()->data();
+
+            // Maintenance may end between reads; an empty payload alone does not mean it ended.
+            if ($data === [] && ! $this->app->maintenanceMode()->active()) {
+                return $next($request);
+            }
         } catch (FileNotFoundException) {
             return $next($request);
         }
