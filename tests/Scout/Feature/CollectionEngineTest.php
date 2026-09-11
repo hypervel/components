@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Scout\Feature;
 
 use Hypervel\Scout\Engines\CollectionEngine;
-use Hypervel\Tests\Scout\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 
 class CollectionEngineTest extends ScoutTestCase

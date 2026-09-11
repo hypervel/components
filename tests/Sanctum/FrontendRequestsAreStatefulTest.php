@@ -16,6 +16,7 @@ use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Sanctum\Fixtures\User;
+use Symfony\Component\HttpFoundation\Cookie;
 
 class FrontendRequestsAreStatefulTest extends TestCase
 {
@@ -23,17 +24,23 @@ class FrontendRequestsAreStatefulTest extends TestCase
 
     protected bool $migrateRefresh = true;
 
+    /**
+     * Get the migration options.
+     */
     protected function migrateFreshUsing(): array
     {
         return [
             '--realpath' => true,
             '--path' => [
                 __DIR__ . '/../../src/sanctum/database/migrations',
-                __DIR__ . '/migrations',
+                __DIR__ . '/Fixtures/migrations',
             ],
         ];
     }
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -41,6 +48,9 @@ class FrontendRequestsAreStatefulTest extends TestCase
         $this->registerRoutes();
     }
 
+    /**
+     * Get the package providers.
+     */
     protected function getPackageProviders(ApplicationContract $app): array
     {
         return [
@@ -48,6 +58,9 @@ class FrontendRequestsAreStatefulTest extends TestCase
         ];
     }
 
+    /**
+     * Define the test environment.
+     */
     protected function defineEnvironment(ApplicationContract $app): void
     {
         $app->make('config')->set([
@@ -61,6 +74,9 @@ class FrontendRequestsAreStatefulTest extends TestCase
         ]);
     }
 
+    /**
+     * Register the test routes.
+     */
     protected function registerRoutes(): void
     {
         $router = $this->app->make(Router::class);
@@ -75,33 +91,33 @@ class FrontendRequestsAreStatefulTest extends TestCase
             Authenticate::class . ':sanctum',
         ];
 
-        $router->get('/sanctum/api/user', function (Request $request) {
+        $router->get('/sanctum/api/user', function (Request $request): string {
             abort_if(is_null($request->user()), 401);
 
             return $request->user()->email;
         }, ['middleware' => $apiMiddleware]);
 
-        $router->post('/sanctum/api/password', function (Request $request) {
+        $router->post('/sanctum/api/password', function (Request $request): string {
             abort_if(is_null($request->user()), 401);
 
-            $request->user()->update(['password' => bcrypt('laravel')]);
+            $request->user()->update(['password' => bcrypt('hypervel')]);
 
             return $request->user()->email;
         }, ['middleware' => $apiMiddleware]);
 
-        $router->get('/sanctum/web/user', function (Request $request) {
+        $router->get('/sanctum/web/user', function (Request $request): string {
             abort_if(is_null($request->user()), 401);
 
             return $request->user()->email;
         }, ['middleware' => $apiMiddleware]);
 
-        $router->get('web/user', function (Request $request) {
+        $router->get('web/user', function (Request $request): string {
             abort_if(is_null($request->user()), 401);
 
             return $request->user()->email;
         }, ['middleware' => $webMiddleware]);
 
-        $router->get('/sanctum/api/logout', function () {
+        $router->get('/sanctum/api/logout', function (): string {
             auth()->guard('web')->logout();
             session()->flush();
 
@@ -132,10 +148,10 @@ class FrontendRequestsAreStatefulTest extends TestCase
         ])->assertNoContent();
         $cookies = Collection::make($response->headers->getCookies());
 
-        $csrfToken = $cookies->where(function ($cookie) {
+        $csrfToken = $cookies->where(function (Cookie $cookie): bool {
             return $cookie->getName() === 'XSRF-TOKEN';
         })->firstOrFail();
-        $sessionCookie = $cookies->where(function ($cookie) {
+        $sessionCookie = $cookies->where(function (Cookie $cookie): bool {
             return $cookie->getName() === 'hypervel_session';
         })->firstOrFail();
 
@@ -152,6 +168,9 @@ class FrontendRequestsAreStatefulTest extends TestCase
             ->assertSee($user->email);
     }
 
+    /**
+     * Create a user.
+     */
     protected function createUser(array $attributes = []): User
     {
         return User::factory()->create($attributes);

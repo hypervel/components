@@ -13,7 +13,7 @@ use Swoole\WebSocket\Frame;
  * Base test case for Reverb integration tests.
  *
  * Requires a running Reverb test server on port 19510.
- * Start it with: php tests/Integration/Reverb/server.php
+ * Start it with: php tests/Integration/Reverb/Fixtures/server.php
  *
  * Tests skip unless TEST_SERVER_HOST is set.
  */
@@ -48,8 +48,8 @@ abstract class ReverbIntegrationTestCase extends TestCase
      * Set per-worker app credentials for parallel test isolation.
      *
      * Each parallel worker gets a unique app ID, key, and secret derived
-     * from TEST_TOKEN. The test servers pre-register matching apps for
-     * each possible worker. In sequential mode this is a no-op.
+     * from TEST_TOKEN. The test server resolves matching apps on demand.
+     * In sequential mode this is a no-op.
      */
     protected function configureParallelAppCredentials(): void
     {

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Scout\Algolia;
 
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
-use Hypervel\Tests\Scout\Models\SoftDeleteSearchableModel;
+use Hypervel\Tests\Integration\Scout\Fixtures\Models\SoftDeleteSearchableModel;
 use Throwable;
 
 /**

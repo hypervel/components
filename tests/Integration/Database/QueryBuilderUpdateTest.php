@@ -8,9 +8,8 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Tests\Database\Fixtures\Enums\StringStatus;
 use PHPUnit\Framework\Attributes\DataProvider;
-
-require_once 'Enums.php';
 
 class QueryBuilderUpdateTest extends DatabaseTestCase
 {

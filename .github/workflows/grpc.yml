@@ -42,8 +42,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: tests/Integration/Grpc/Interop/go.mod
-          cache-dependency-path: tests/Integration/Grpc/Interop/go.sum
+          go-version-file: tests/Integration/Grpc/Fixtures/Interop/go.mod
+          cache-dependency-path: tests/Integration/Grpc/Fixtures/Interop/go.sum
 
       - name: Cache Composer dependencies
         uses: actions/cache@v5

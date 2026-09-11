@@ -8,8 +8,8 @@ use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Jobs\MakeSearchable;
-use Hypervel\Tests\Scout\Models\FilteringSearchableModel;
-use Hypervel\Tests\Scout\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\FilteringSearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 use Mockery as m;
 

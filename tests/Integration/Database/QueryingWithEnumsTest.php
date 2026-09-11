@@ -7,8 +7,9 @@ namespace Hypervel\Tests\Integration\Database;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
-
-include_once 'Enums.php';
+use Hypervel\Tests\Database\Fixtures\Enums\IntegerStatus;
+use Hypervel\Tests\Database\Fixtures\Enums\NonBackedStatus;
+use Hypervel\Tests\Database\Fixtures\Enums\StringStatus;
 
 class QueryingWithEnumsTest extends DatabaseTestCase
 {

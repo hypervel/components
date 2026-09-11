@@ -9,22 +9,26 @@ use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Tests\Integration\Database\Fixtures\Models\Comment;
 
 class EloquentMorphConstrainTest extends DatabaseTestCase
 {
+    /**
+     * Create the test tables and related models.
+     */
     protected function afterRefreshingDatabase(): void
     {
-        Schema::create('posts', function (Blueprint $table) {
+        Schema::create('posts', function (Blueprint $table): void {
             $table->increments('id');
             $table->boolean('post_visible');
         });
 
-        Schema::create('videos', function (Blueprint $table) {
+        Schema::create('videos', function (Blueprint $table): void {
             $table->increments('id');
             $table->boolean('video_visible');
         });
 
-        Schema::create('comments', function (Blueprint $table) {
+        Schema::create('comments', function (Blueprint $table): void {
             $table->increments('id');
             $table->string('commentable_type');
             $table->integer('commentable_id');
@@ -43,10 +47,10 @@ class EloquentMorphConstrainTest extends DatabaseTestCase
         (new Comment)->commentable()->associate($video2)->save();
     }
 
-    public function testMorphConstraints()
+    public function testMorphConstraints(): void
     {
         $comments = Comment::query()
-            ->with(['commentable' => function (MorphTo $morphTo) {
+            ->with(['commentable' => function (MorphTo $morphTo): void {
                 $morphTo->constrain([
                     Post::class => function ($query) {
                         $query->where('post_visible', true);
@@ -62,16 +66,6 @@ class EloquentMorphConstrainTest extends DatabaseTestCase
         $this->assertNull($comments[1]->commentable);
         $this->assertTrue($comments[2]->commentable->video_visible);
         $this->assertNull($comments[3]->commentable);
-    }
-}
-
-class Comment extends Model
-{
-    public bool $timestamps = false;
-
-    public function commentable(): MorphTo
-    {
-        return $this->morphTo();
     }
 }
 

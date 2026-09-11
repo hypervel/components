@@ -15,6 +15,7 @@ use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Events\Dispatchable;
 use Hypervel\Tests\Events\Fixtures\CacheInvalidationEvent;
 use Hypervel\Tests\Events\Fixtures\ChildListenerEvent;
+use Hypervel\Tests\Events\Fixtures\ExampleEvent;
 use Hypervel\Tests\Events\Fixtures\InterfaceListenerEvent;
 use Hypervel\Tests\Events\Fixtures\ListenerContract;
 use Hypervel\Tests\Events\Fixtures\ParentListenerEvent;
@@ -1636,10 +1637,6 @@ class TestListenerInvokey
 
         return false;
     }
-}
-
-class ExampleEvent
-{
 }
 
 interface SomeEventInterface

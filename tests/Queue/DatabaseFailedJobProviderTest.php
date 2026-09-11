@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Queue;
 
 use Exception;
 use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\Failed\DatabaseFailedJobProvider;
 use Hypervel\Support\CarbonImmutable;
@@ -24,6 +25,9 @@ class DatabaseFailedJobProviderTest extends TestCase
 
     protected bool $migrateRefresh = true;
 
+    /**
+     * Set up the test environment.
+     */
     public function setUp(): void
     {
         parent::setUp();
@@ -35,17 +39,20 @@ class DatabaseFailedJobProviderTest extends TestCase
         );
     }
 
+    /**
+     * Get the migration options.
+     */
     protected function migrateFreshUsing(): array
     {
         return [
             '--seed' => $this->shouldSeed(),
             '--database' => $this->getRefreshConnection(),
             '--realpath' => true,
-            '--path' => __DIR__ . '/migrations',
+            '--path' => __DIR__ . '/Fixtures/migrations',
         ];
     }
 
-    public function testCanGetAllFailedJobIds()
+    public function testCanGetAllFailedJobIds(): void
     {
         $this->assertEmpty($this->provider->ids());
 
@@ -55,7 +62,7 @@ class DatabaseFailedJobProviderTest extends TestCase
         $this->assertSame([4, 3, 2, 1], $this->provider->ids());
     }
 
-    public function testCanGetAllFailedJobs()
+    public function testCanGetAllFailedJobs(): void
     {
         $this->assertEmpty($this->provider->all());
 
@@ -66,7 +73,7 @@ class DatabaseFailedJobProviderTest extends TestCase
         $this->assertSame('default', $this->provider->all()[1]->queue);
     }
 
-    public function testCanRetrieveFailedJobsById()
+    public function testCanRetrieveFailedJobsById(): void
     {
         array_map(fn () => $this->createFailedJobsRecord(), range(1, 2));
 
@@ -75,7 +82,7 @@ class DatabaseFailedJobProviderTest extends TestCase
         $this->assertNull($this->provider->find(3));
     }
 
-    public function testCanRemoveFailedJobsById()
+    public function testCanRemoveFailedJobsById(): void
     {
         $this->createFailedJobsRecord();
 
@@ -116,7 +123,7 @@ class DatabaseFailedJobProviderTest extends TestCase
         $this->assertSame(0, $this->failedJobsTable()->count());
     }
 
-    public function testCanFlushFailedJobs()
+    public function testCanFlushFailedJobs(): void
     {
         Date::setTestNow(Date::now());
 
@@ -133,7 +140,7 @@ class DatabaseFailedJobProviderTest extends TestCase
         $this->assertSame(0, $this->failedJobsTable()->count());
     }
 
-    public function testCanProperlyLogFailedJob()
+    public function testCanProperlyLogFailedJob(): void
     {
         $uuid = Str::uuid();
         $exception = new Exception(mb_convert_encoding('ÐÑÙ0E\xE2\x�98\xA0World��7B¹!þÿ', 'ISO-8859-1', 'UTF-8'));
@@ -146,7 +153,7 @@ class DatabaseFailedJobProviderTest extends TestCase
         $this->assertSame($exception, $this->failedJobsTable()->first()->exception);
     }
 
-    public function testJobsCanBeCounted()
+    public function testJobsCanBeCounted(): void
     {
         $this->assertSame(0, $this->provider->count());
 
@@ -158,7 +165,7 @@ class DatabaseFailedJobProviderTest extends TestCase
         $this->assertSame(3, $this->provider->count());
     }
 
-    public function testJobsCanBeCountedByConnection()
+    public function testJobsCanBeCountedByConnection(): void
     {
         $this->provider->log('connection-1', 'default', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
         $this->provider->log('connection-2', 'default', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
@@ -170,7 +177,7 @@ class DatabaseFailedJobProviderTest extends TestCase
         $this->assertSame(1, $this->provider->count('connection-2'));
     }
 
-    public function testJobsCanBeCountedByQueue()
+    public function testJobsCanBeCountedByQueue(): void
     {
         $this->provider->log('database', 'queue-1', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
         $this->provider->log('database', 'queue-2', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
@@ -182,7 +189,7 @@ class DatabaseFailedJobProviderTest extends TestCase
         $this->assertSame(1, $this->provider->count(queue: 'queue-2'));
     }
 
-    public function testJobsCanBeCountedByQueueAndConnection()
+    public function testJobsCanBeCountedByQueueAndConnection(): void
     {
         $this->provider->log('connection-1', 'queue-99', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
         $this->provider->log('connection-1', 'queue-99', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
@@ -205,12 +212,18 @@ class DatabaseFailedJobProviderTest extends TestCase
         $this->assertSame(1, $this->provider->count('0', '0'));
     }
 
-    protected function failedJobsTable()
+    /**
+     * Get the failed jobs query builder.
+     */
+    protected function failedJobsTable(): Builder
     {
         return $this->resolver->connection()->table('failed_jobs');
     }
 
-    protected function createFailedJobsRecord(array $overrides = [])
+    /**
+     * Create a failed job record.
+     */
+    protected function createFailedJobsRecord(array $overrides = []): bool
     {
         return $this->failedJobsTable()
             ->insert(array_merge([

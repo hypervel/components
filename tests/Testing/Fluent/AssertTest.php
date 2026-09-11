@@ -8,6 +8,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Testing\Fluent\AssertableJson;
 use Hypervel\Tests\TestCase;
 use Hypervel\Tests\Testing\Fixtures\ArrayableStubObject;
+use Hypervel\Tests\Testing\Fixtures\BackedEnum;
 use PHPUnit\Framework\AssertionFailedError;
 use RuntimeException;
 use TypeError;

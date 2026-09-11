@@ -4,14 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\EloquentModelLoadMinTest;
 
-use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Tests\Integration\Database\Fixtures\Models\LoadAggregate\BaseModel;
+use Hypervel\Tests\Integration\Database\Fixtures\Models\LoadAggregate\Related1;
+use Hypervel\Tests\Integration\Database\Fixtures\Models\LoadAggregate\Related2;
 
 class EloquentModelLoadMinTest extends DatabaseTestCase
 {
+    /**
+     * Set up the database after refreshing it.
+     */
     protected function afterRefreshingDatabase(): void
     {
         Schema::create('base_models', function (Blueprint $table) {
@@ -38,7 +43,7 @@ class EloquentModelLoadMinTest extends DatabaseTestCase
         Related2::create(['base_model_id' => 1, 'number' => 13]);
     }
 
-    public function testLoadMinSingleRelation()
+    public function testLoadMinSingleRelation(): void
     {
         $model = BaseModel::first();
 
@@ -50,7 +55,7 @@ class EloquentModelLoadMinTest extends DatabaseTestCase
         $this->assertEquals(10, $model->related1_min_number);
     }
 
-    public function testLoadMinMultipleRelations()
+    public function testLoadMinMultipleRelations(): void
     {
         $model = BaseModel::first();
 
@@ -61,46 +66,5 @@ class EloquentModelLoadMinTest extends DatabaseTestCase
         $this->assertCount(1, DB::getQueryLog());
         $this->assertEquals(10, $model->related1_min_number);
         $this->assertEquals(12, $model->related2_min_number);
-    }
-}
-
-class BaseModel extends Model
-{
-    public bool $timestamps = false;
-
-    protected array $guarded = [];
-
-    public function related1()
-    {
-        return $this->hasMany(Related1::class);
-    }
-
-    public function related2()
-    {
-        return $this->hasMany(Related2::class);
-    }
-}
-
-class Related1 extends Model
-{
-    public bool $timestamps = false;
-
-    protected array $fillable = ['base_model_id', 'number'];
-
-    public function parent()
-    {
-        return $this->belongsTo(BaseModel::class);
-    }
-}
-
-class Related2 extends Model
-{
-    public bool $timestamps = false;
-
-    protected array $fillable = ['base_model_id', 'number'];
-
-    public function parent()
-    {
-        return $this->belongsTo(BaseModel::class);
     }
 }

@@ -10,6 +10,7 @@ use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\Repositories\RedisJobRepository;
 use Hypervel\Horizon\WaitTimeCalculator;
+use Hypervel\Tests\Integration\Horizon\Controller\Fixtures\User;
 use Hypervel\Tests\Integration\Horizon\ControllerTestCase;
 use Mockery as m;
 
@@ -58,7 +59,7 @@ class DashboardStatsControllerTest extends ControllerTestCase
 
         $config->set('horizon.trim', ['failed' => 120]);
 
-        $response = $this->actingAs(new Fakes\User)
+        $response = $this->actingAs(new User)
             ->get('/horizon/api/stats');
 
         $response->assertJson([
@@ -90,7 +91,7 @@ class DashboardStatsControllerTest extends ControllerTestCase
         ]);
         $this->app->instance(MasterSupervisorRepository::class, $masters);
 
-        $response = $this->actingAs(new Fakes\User)
+        $response = $this->actingAs(new User)
             ->get('/horizon/api/stats');
 
         $response->assertJson([
@@ -111,7 +112,7 @@ class DashboardStatsControllerTest extends ControllerTestCase
         ]);
         $this->app->instance(MasterSupervisorRepository::class, $masters);
 
-        $response = $this->actingAs(new Fakes\User)
+        $response = $this->actingAs(new User)
             ->get('/horizon/api/stats');
 
         $response->assertJson([

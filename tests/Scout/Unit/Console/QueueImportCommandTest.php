@@ -7,8 +7,8 @@ namespace Hypervel\Tests\Scout\Unit\Console;
 use Hypervel\Scout\Exceptions\ScoutException;
 use Hypervel\Scout\Jobs\MakeRangeSearchable;
 use Hypervel\Support\Facades\Bus;
-use Hypervel\Tests\Scout\Models\SearchableModel;
-use Hypervel\Tests\Scout\Models\UuidSearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\UuidSearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 
 class QueueImportCommandTest extends ScoutTestCase

@@ -11,7 +11,7 @@ use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Http\Request;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Scout\Engines\AlgoliaEngine;
-use Hypervel\Tests\Scout\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Psr\Log\AbstractLogger;
 use Stringable;
 

@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Integration\View;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\Blade;
-use Hypervel\Support\Facades\Config;
 use Hypervel\Support\Facades\View;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\TestCase;
@@ -23,6 +22,9 @@ use function Hypervel\Filesystem\join_paths;
 
 class BladeTest extends TestCase
 {
+    /**
+     * Clear compiled views after the test.
+     */
     #[Override]
     protected function tearDown(): void
     {
@@ -247,7 +249,7 @@ class BladeTest extends TestCase
         View::addExtension('sh', 'blade');
         $this->artisan('view:cache');
 
-        $compiledFiles = Finder::create()->in(Config::get('view.compiled'))->files();
+        $compiledFiles = Finder::create()->in(config('view.compiled'))->files();
         $found = collect($compiledFiles)
             ->contains(fn (SplFileInfo $file) => str_contains($file->getContents(), 'echo "<?php echo e($scriptMessage); ?>" > output.log'));
         $this->assertTrue($found);
@@ -263,7 +265,7 @@ class BladeTest extends TestCase
 
         $this->assertSame('Parent: parent-value, Explicit: explicit-value', trim($regularInclude));
 
-        // @includeIsolated does NOT pass parent scope variables
+        // @includeIsolated does not pass parent scope variables.
         $scopedInclude = View::make('uses-include-scoped', [
             'parentVar' => 'parent-value',
             'explicitVar' => 'explicit-value',
@@ -274,28 +276,37 @@ class BladeTest extends TestCase
 
     public function testViewCacheCommandDeduplicatesPathsBeforeCompiling(): void
     {
-        View::addNamespace('templates', join_paths(__DIR__, 'templates'));
-        View::addNamespace('components', join_paths(__DIR__, 'templates', 'components'));
+        View::addNamespace('templates', join_paths(__DIR__, 'Fixtures', 'templates'));
+        View::addNamespace('components', join_paths(__DIR__, 'Fixtures', 'templates', 'components'));
 
         $compiler = m::mock(app('blade.compiler'))->makePartial();
-        $compiler->shouldReceive('compile')->with(realpath(__DIR__ . '/templates/components/panel.blade.php'))->once();
+        $compiler->shouldReceive('compile')->with(realpath(__DIR__ . '/Fixtures/templates/components/panel.blade.php'))->once();
 
         $this->instance('blade.compiler', $compiler);
 
         $this->artisan('view:cache');
     }
 
+    /**
+     * Configure the Blade fixture templates.
+     */
     #[Override]
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app->make('config')->set('view.paths', [__DIR__ . '/templates']);
+        $app->make('config')->set('view.paths', [__DIR__ . '/Fixtures/templates']);
     }
 
+    /**
+     * Enable compiled view caching.
+     */
     protected function withViewCacheEnabled(ApplicationContract $app): void
     {
         $app->make('config')->set('view.cache', true);
     }
 
+    /**
+     * Disable compiled view caching.
+     */
     protected function withViewCacheDisabled(ApplicationContract $app): void
     {
         $app->make('config')->set('view.cache', false);
@@ -306,11 +317,17 @@ class HelloComponent extends Component
 {
     public string $name;
 
+    /**
+     * Create a greeting component.
+     */
     public function __construct(string $name)
     {
         $this->name = $name;
     }
 
+    /**
+     * Get the greeting template.
+     */
     public function render(): string
     {
         return 'Hello {{ $name }}';

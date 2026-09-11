@@ -5,15 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database\EloquentMorphToGlobalScopesTest;
 
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Eloquent\SoftDeletingScope;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Tests\Integration\Database\Fixtures\Models\Comment;
 
 class EloquentMorphToGlobalScopesTest extends DatabaseTestCase
 {
+    /**
+     * Create the test tables and related models.
+     */
     protected function afterRefreshingDatabase(): void
     {
         Schema::create('posts', function (Blueprint $table) {
@@ -34,7 +37,7 @@ class EloquentMorphToGlobalScopesTest extends DatabaseTestCase
         (new Comment)->commentable()->associate($post)->save();
     }
 
-    public function testWithGlobalScopes()
+    public function testWithGlobalScopes(): void
     {
         $comments = Comment::with('commentable')->get();
 
@@ -42,7 +45,7 @@ class EloquentMorphToGlobalScopesTest extends DatabaseTestCase
         $this->assertNull($comments[1]->commentable);
     }
 
-    public function testWithoutGlobalScope()
+    public function testWithoutGlobalScope(): void
     {
         $comments = Comment::with(['commentable' => function ($query) {
             $query->withoutGlobalScopes([SoftDeletingScope::class]);
@@ -52,7 +55,7 @@ class EloquentMorphToGlobalScopesTest extends DatabaseTestCase
         $this->assertNotNull($comments[1]->commentable);
     }
 
-    public function testWithoutGlobalScopes()
+    public function testWithoutGlobalScopes(): void
     {
         $comments = Comment::with(['commentable' => function ($query) {
             $query->withoutGlobalScopes();
@@ -62,22 +65,12 @@ class EloquentMorphToGlobalScopesTest extends DatabaseTestCase
         $this->assertNotNull($comments[1]->commentable);
     }
 
-    public function testLazyLoading()
+    public function testLazyLoading(): void
     {
         $comment = Comment::latest('id')->first();
         $post = $comment->commentable()->withoutGlobalScopes()->first();
 
         $this->assertNotNull($post);
-    }
-}
-
-class Comment extends Model
-{
-    public bool $timestamps = false;
-
-    public function commentable(): MorphTo
-    {
-        return $this->morphTo();
     }
 }
 

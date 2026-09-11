@@ -7,10 +7,10 @@ namespace Hypervel\Tests\Integration\Console\Scheduling\ScheduleGroupTest;
 use Carbon\CarbonInterface;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\Schedule as ScheduleClass;
-use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Schedule;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Queue\Fixtures\JobToTestWithSchedule;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class ScheduleGroupTest extends TestCase
@@ -306,8 +306,4 @@ class ScheduleGroupTest extends TestCase
 
         $this->assertSame(2, $calls);
     }
-}
-
-class JobToTestWithSchedule implements ShouldQueue
-{
 }

@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Validation;
 
 use Hypervel\Tests\TestCase;
+use Hypervel\Tests\Validation\Fixtures\ArrayKeys;
+use Hypervel\Tests\Validation\Fixtures\ArrayKeysBacked;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\Validator;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\TestWith;
-
-include_once 'Enums.php';
 
 class ValidationArrayKeysRuleTest extends TestCase
 {

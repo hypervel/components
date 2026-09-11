@@ -8,9 +8,9 @@ use Hypervel\Scout\Jobs\MakeRangeSearchable;
 use Hypervel\Scout\Jobs\MakeSearchable;
 use Hypervel\Scout\Scout;
 use Hypervel\Support\Facades\Bus;
-use Hypervel\Tests\Scout\Models\ConditionalSearchableModel;
-use Hypervel\Tests\Scout\Models\SearchableModel;
-use Hypervel\Tests\Scout\Models\UuidSearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\ConditionalSearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\UuidSearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 
 /**

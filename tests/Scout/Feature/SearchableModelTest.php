@@ -10,8 +10,8 @@ use Hypervel\Scout\EngineManager;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Scout;
 use Hypervel\Support\Collection as BaseCollection;
-use Hypervel\Tests\Scout\Models\SearchableModel;
-use Hypervel\Tests\Scout\Models\SoftDeletableSearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SoftDeletableSearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 use LogicException;
 use Mockery as m;
@@ -111,7 +111,7 @@ class SearchableModelTest extends ScoutTestCase
             ->firstOrFail();
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Model [Hypervel\Tests\Scout\Models\SearchableModel] has no Scout key.');
+        $this->expectExceptionMessage('Model [Hypervel\Tests\Scout\Fixtures\Models\SearchableModel] has no Scout key.');
 
         $partialModel->getScoutKey();
     }

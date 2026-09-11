@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Integration\Scout\Typesense;
 
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Scout\Jobs\RemoveFromSearch;
-use Hypervel\Tests\Scout\Models\TypesenseSearchableModel;
+use Hypervel\Tests\Integration\Scout\Typesense\Fixtures\Models\TypesenseSearchableModel;
 
 /**
  * Integration tests for TypesenseEngine core operations.

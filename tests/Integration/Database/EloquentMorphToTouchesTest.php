@@ -10,9 +10,13 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Tests\Integration\Database\Fixtures\Models\MorphToTarget\Post;
 
 class EloquentMorphToTouchesTest extends DatabaseTestCase
 {
+    /**
+     * Create the test tables and related models.
+     */
     protected function afterRefreshingDatabase(): void
     {
         Schema::create('posts', function (Blueprint $table) {
@@ -28,7 +32,7 @@ class EloquentMorphToTouchesTest extends DatabaseTestCase
         Post::create();
     }
 
-    public function testNotNull()
+    public function testNotNull(): void
     {
         $comment = (new Comment)->commentable()->associate(Post::first());
 
@@ -39,7 +43,7 @@ class EloquentMorphToTouchesTest extends DatabaseTestCase
         $this->assertCount(2, DB::getQueryLog());
     }
 
-    public function testNull()
+    public function testNull(): void
     {
         DB::enableQueryLog();
 
@@ -55,12 +59,11 @@ class Comment extends Model
 
     protected array $touches = ['commentable'];
 
+    /**
+     * Get the model that owns the comment.
+     */
     public function commentable(): MorphTo
     {
         return $this->morphTo(null, null, null, 'id');
     }
-}
-
-class Post extends Model
-{
 }

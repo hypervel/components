@@ -3,7 +3,7 @@
 `test_service.proto` is the shared schema for Hypervel client/server tests and the
 independent grpc-go peers. The generated PHP message classes live beside the
 schema, while the generated Go messages and service bindings live under
-`tests/Integration/Grpc/Interop/testingpb`.
+`tests/Integration/Grpc/Fixtures/Interop/testingpb`.
 
 Keep generated fixture proto, message, and service names from ending in `Test`.
 Protoc would otherwise create a `*Test.php` file that PHPUnit mistakes for a
@@ -26,9 +26,9 @@ trap 'rm -rf "$grpc_php_out"' EXIT
 protoc \
   --proto_path=tests/Grpc/Fixtures \
   --php_out="$grpc_php_out" \
-  --go_out=tests/Integration/Grpc/Interop \
+  --go_out=tests/Integration/Grpc/Fixtures/Interop \
   --go_opt=module=hypervel.dev/components/grpc-interop \
-  --go-grpc_out=tests/Integration/Grpc/Interop \
+  --go-grpc_out=tests/Integration/Grpc/Fixtures/Interop \
   --go-grpc_opt=module=hypervel.dev/components/grpc-interop \
   tests/Grpc/Fixtures/test_service.proto
 

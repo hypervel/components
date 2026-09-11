@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Integration\Scout\Algolia;
 
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Scout\Jobs\RemoveFromSearch;
-use Hypervel\Tests\Scout\Models\CustomScoutKeyModel;
-use Hypervel\Tests\Scout\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\CustomScoutKeyModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Throwable;
 
 /**

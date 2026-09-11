@@ -9,6 +9,8 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Sentry\SentryServiceProvider;
 use Hypervel\Support\Arr;
+use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Sentry\Fixtures\TestCaseExceptionHandler;
 use ReflectionMethod;
 use ReflectionProperty;
 use Sentry\Breadcrumb;
@@ -21,7 +23,7 @@ use Sentry\State\Scope;
 use Sentry\Tracing\Transaction;
 use Sentry\Tracing\TransactionContext;
 
-class SentryTestCase extends \Hypervel\Testbench\TestCase
+class SentryTestCase extends TestCase
 {
     protected static bool $hasSetupGlobalEventProcessor = false;
 
@@ -32,30 +34,36 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
     /** @var array<int, array{0: Event, 1: null|EventHint}> */
     protected static array $lastSentryEvents = [];
 
+    /**
+     * Define the test environment.
+     */
     protected function defineEnvironment(ApplicationContract $app): void
     {
         self::$lastSentryEvents = [];
         $this->setupGlobalEventProcessor();
 
-        tap($app->make('config'), function (Repository $config) {
-            $config->set('sentry.before_send', static function (Event $event, ?EventHint $hint) {
+        tap($app->make('config'), function (Repository $config): void {
+            $config->set('sentry.before_send', static function (Event $event, ?EventHint $hint): null {
                 self::$lastSentryEvents[] = [$event, $hint];
 
                 return null;
             });
 
-            $config->set('sentry.before_send_transaction', static function (Event $event, ?EventHint $hint) {
+            $config->set('sentry.before_send_transaction', static function (Event $event, ?EventHint $hint): null {
                 self::$lastSentryEvents[] = [$event, $hint];
 
                 return null;
             });
         });
 
-        $app->extend(ExceptionHandler::class, function (ExceptionHandler $handler) {
+        $app->extend(ExceptionHandler::class, function (ExceptionHandler $handler): TestCaseExceptionHandler {
             return new TestCaseExceptionHandler($handler);
         });
     }
 
+    /**
+     * Configure the application without a DSN.
+     */
     protected function envWithoutDsnSet(ApplicationContract $app): void
     {
         $config = $app->make('config');
@@ -64,11 +72,17 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         $config->set('sentry_test.override_dsn', true);
     }
 
+    /**
+     * Configure sampling for all transactions.
+     */
     protected function envSamplingAllTransactions(ApplicationContract $app): void
     {
         $app->make('config')->set('sentry.traces_sample_rate', 1.0);
     }
 
+    /**
+     * Get the package providers.
+     */
     protected function getPackageProviders(ApplicationContract $app): array
     {
         $config = $app->make('config');
@@ -90,6 +104,9 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         ];
     }
 
+    /**
+     * Get the package aliases.
+     */
     protected function getPackageAliases(ApplicationContract $app): array
     {
         return [
@@ -97,6 +114,9 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         ];
     }
 
+    /**
+     * Reload the application with the given configuration.
+     */
     protected function resetApplicationWithConfig(array $config): void
     {
         $this->setupConfig = $config;
@@ -122,21 +142,33 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         return $config;
     }
 
+    /**
+     * Dispatch a framework event.
+     */
     protected function dispatchHypervelEvent(object $event, array $payload = []): void
     {
         $this->app->make('events')->dispatch($event, $payload);
     }
 
+    /**
+     * Get the Sentry hub.
+     */
     protected function getSentryHubFromContainer(): HubInterface
     {
         return $this->app->make('sentry');
     }
 
+    /**
+     * Get the Sentry client.
+     */
     protected function getSentryClientFromContainer(): ClientInterface
     {
         return $this->getSentryHubFromContainer()->getClient();
     }
 
+    /**
+     * Get the current Sentry scope.
+     */
     protected function getCurrentSentryScope(): Scope
     {
         $hub = $this->getSentryHubFromContainer();
@@ -147,6 +179,8 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
     }
 
     /**
+     * Get the current Sentry breadcrumbs.
+     *
      * @return array<array-key, Breadcrumb>
      */
     protected function getCurrentSentryBreadcrumbs(): array
@@ -158,6 +192,9 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         return $property->getValue($scope);
     }
 
+    /**
+     * Get the last Sentry breadcrumb.
+     */
     protected function getLastSentryBreadcrumb(): ?Breadcrumb
     {
         $breadcrumbs = $this->getCurrentSentryBreadcrumbs();
@@ -169,6 +206,9 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         return end($breadcrumbs);
     }
 
+    /**
+     * Get the last Sentry event.
+     */
     protected function getLastSentryEvent(): ?Event
     {
         if (empty(self::$lastSentryEvents)) {
@@ -178,6 +218,9 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         return end(self::$lastSentryEvents)[0];
     }
 
+    /**
+     * Get the last Sentry event hint.
+     */
     protected function getLastEventSentryHint(): ?EventHint
     {
         if (empty(self::$lastSentryEvents)) {
@@ -187,7 +230,11 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         return end(self::$lastSentryEvents)[1];
     }
 
-    /** @return array<int, array{0: Event, 1: null|EventHint}> */
+    /**
+     * Get the captured Sentry events.
+     *
+     * @return array<int, array{0: Event, 1: null|EventHint}>
+     */
     protected function getCapturedSentryEvents(): array
     {
         return self::$lastSentryEvents;
@@ -206,21 +253,33 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         ));
     }
 
+    /**
+     * Assert the number of captured events.
+     */
     protected function assertSentryEventCount(int $count): void
     {
         $this->assertCount($count, $this->getCapturedSentryEventsOfType(EventType::event()));
     }
 
+    /**
+     * Assert the number of captured check-ins.
+     */
     protected function assertSentryCheckInCount(int $count): void
     {
         $this->assertCount($count, $this->getCapturedSentryEventsOfType(EventType::checkIn()));
     }
 
+    /**
+     * Assert the number of captured transactions.
+     */
     protected function assertSentryTransactionCount(int $count): void
     {
         $this->assertCount($count, $this->getCapturedSentryEventsOfType(EventType::transaction()));
     }
 
+    /**
+     * Start a sampled transaction.
+     */
     protected function startTransaction(): Transaction
     {
         $hub = $this->getSentryHubFromContainer();
@@ -237,13 +296,16 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         return $transaction;
     }
 
+    /**
+     * Register the global test event processor once.
+     */
     protected function setupGlobalEventProcessor(): void
     {
         if (self::$hasSetupGlobalEventProcessor) {
             return;
         }
 
-        Scope::addGlobalEventProcessor(static function (Event $event, ?EventHint $hint) {
+        Scope::addGlobalEventProcessor(static function (Event $event, ?EventHint $hint): ?Event {
             // Regular events and transactions are handled by the `before_send` and `before_send_transaction` callbacks
             if (in_array($event->getType(), [EventType::event(), EventType::transaction()], true)) {
                 return $event;

@@ -10,9 +10,10 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Database\Fixtures\Enums\ArrayableStatus;
+use Hypervel\Tests\Database\Fixtures\Enums\IntegerStatus;
+use Hypervel\Tests\Database\Fixtures\Enums\StringStatus;
 use ValueError;
-
-include_once 'Enums.php';
 
 class EloquentModelEnumCastingTest extends DatabaseTestCase
 {

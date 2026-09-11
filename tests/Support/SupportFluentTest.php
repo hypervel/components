@@ -9,13 +9,14 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\Stringable;
+use Hypervel\Tests\Support\Fixtures\TestBackedEnum;
+use Hypervel\Tests\Support\Fixtures\TestEnum;
+use Hypervel\Tests\Support\Fixtures\TestStringBackedEnum;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use IteratorAggregate;
 use JsonException;
 use ReflectionObject;
-
-include_once __DIR__ . '/Enums.php';
 
 class SupportFluentTest extends TestCase
 {

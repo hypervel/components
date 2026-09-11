@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\DeferredCallbacksTest;
 
+use Hypervel\Bus\Queueable;
 use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\Command;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Job;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Bus\Dispatchable;
+use Hypervel\Foundation\Http\Middleware\InvokeDeferredCallbacks;
 use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\Route;
@@ -59,6 +63,25 @@ class DeferredCallbacksTest extends TestCase
 
         $this->assertSame(['always'], DeferredCallbacksTestState::$calls);
         $this->assertCount(0, $this->app->make(DeferredCallbackCollection::class));
+    }
+
+    public function testDeferredCallbackIsNotDiscardedBySyncJob(): void
+    {
+        config(['queue.default' => 'sync']);
+
+        $executed = false;
+
+        Route::get('/test', function () use (&$executed): void {
+            defer(function () use (&$executed): void {
+                $executed = true;
+            });
+
+            dispatch(new TestSyncJob);
+        })->middleware(InvokeDeferredCallbacks::class);
+
+        $this->get('/test');
+
+        $this->assertTrue($executed);
     }
 
     public function testHttpRequestOwnsCallbacksRegisteredByNestedCommand(): void
@@ -180,6 +203,19 @@ class DeferredCallbacksTest extends TestCase
             $this->app->make('events'),
             '1.0',
         );
+    }
+}
+
+class TestSyncJob implements ShouldQueue
+{
+    use Dispatchable;
+    use Queueable;
+
+    /**
+     * Handle the job.
+     */
+    public function handle(): void
+    {
     }
 }
 

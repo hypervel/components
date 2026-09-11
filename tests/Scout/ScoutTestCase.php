@@ -18,6 +18,9 @@ class ScoutTestCase extends TestCase
 
     protected bool $migrateRefresh = true;
 
+    /**
+     * Get the package providers.
+     */
     protected function getPackageProviders(ApplicationContract $app): array
     {
         return [
@@ -25,6 +28,9 @@ class ScoutTestCase extends TestCase
         ];
     }
 
+    /**
+     * Define the test environment.
+     */
     protected function defineEnvironment(ApplicationContract $app): void
     {
         $app->make('config')
@@ -46,6 +52,9 @@ class ScoutTestCase extends TestCase
             ]);
     }
 
+    /**
+     * Get the migration options.
+     */
     protected function migrateFreshUsing(): array
     {
         return [
@@ -53,7 +62,7 @@ class ScoutTestCase extends TestCase
             '--database' => $this->getRefreshConnection(),
             '--realpath' => true,
             '--path' => [
-                __DIR__ . '/migrations',
+                __DIR__ . '/Fixtures/migrations',
             ],
         ];
     }

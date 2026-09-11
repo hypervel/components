@@ -4,17 +4,25 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\EloquentWhereHasTest;
 
+use Closure;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Eloquent\Relations\MorphMany;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Tests\Integration\Database\Fixtures\Models\Comment;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class EloquentWhereHasTest extends DatabaseTestCase
 {
+    /**
+     * Set up the database after refreshing it.
+     */
     protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function (Blueprint $table) {
@@ -54,7 +62,7 @@ class EloquentWhereHasTest extends DatabaseTestCase
      * Check that the 'whereRelation' callback function works.
      */
     #[DataProvider('dataProviderWhereRelationCallback')]
-    public function testWhereRelationCallback($callbackEloquent, $callbackQuery)
+    public function testWhereRelationCallback(Closure $callbackEloquent, Closure $callbackQuery): void
     {
         $userWhereRelation = User::whereRelation('posts', $callbackEloquent);
         $userWhereHas = User::whereHas('posts', $callbackEloquent);
@@ -73,7 +81,7 @@ class EloquentWhereHasTest extends DatabaseTestCase
      * Check that the 'orWhereRelation' callback function works.
      */
     #[DataProvider('dataProviderWhereRelationCallback')]
-    public function testOrWhereRelationCallback($callbackEloquent, $callbackQuery)
+    public function testOrWhereRelationCallback(Closure $callbackEloquent, Closure $callbackQuery): void
     {
         $userOrWhereRelation = User::orWhereRelation('posts', $callbackEloquent);
         $userOrWhereHas = User::orWhereHas('posts', $callbackEloquent);
@@ -92,7 +100,7 @@ class EloquentWhereHasTest extends DatabaseTestCase
      * Check that the 'whereDoesntHaveRelation' callback function works.
      */
     #[DataProvider('dataProviderWhereRelationCallback')]
-    public function testWhereDoesntRelationCallback($callbackEloquent, $callbackQuery)
+    public function testWhereDoesntRelationCallback(Closure $callbackEloquent, Closure $callbackQuery): void
     {
         $userWhereDoesntRelation = User::whereDoesntHaveRelation('posts', $callbackEloquent);
         $userWhereHas = User::whereDoesntHave('posts', $callbackEloquent);
@@ -111,7 +119,7 @@ class EloquentWhereHasTest extends DatabaseTestCase
      * Check that the 'orWhereDoesntRelation' callback function works.
      */
     #[DataProvider('dataProviderWhereRelationCallback')]
-    public function testOrWhereDoesntRelationCallback($callbackEloquent, $callbackQuery)
+    public function testOrWhereDoesntRelationCallback(Closure $callbackEloquent, Closure $callbackQuery): void
     {
         $userOrWhereDoesntRelation = User::orWhereDoesntHaveRelation('posts', $callbackEloquent);
         $userOrWhereHas = User::orWhereDoesntHave('posts', $callbackEloquent);
@@ -126,7 +134,10 @@ class EloquentWhereHasTest extends DatabaseTestCase
         $this->assertEquals($userOrWhereHas->first()->id, $query->first()->id);
     }
 
-    public static function dataProviderWhereRelationCallback()
+    /**
+     * Provide equivalent Eloquent and query builder callbacks.
+     */
+    public static function dataProviderWhereRelationCallback(): array
     {
         $callbackArray = function ($value) {
             $callbackEloquent = function (EloquentBuilder $builder) use ($value) {
@@ -159,42 +170,42 @@ class EloquentWhereHasTest extends DatabaseTestCase
         ];
     }
 
-    public function testWhereRelation()
+    public function testWhereRelation(): void
     {
         $users = User::whereRelation('posts', 'public', true)->get();
 
         $this->assertEquals([1], $users->pluck('id')->all());
     }
 
-    public function testOrWhereRelation()
+    public function testOrWhereRelation(): void
     {
         $users = User::whereRelation('posts', 'public', true)->orWhereRelation('posts', 'public', false)->get();
 
         $this->assertEquals([1, 2], $users->pluck('id')->all());
     }
 
-    public function testNestedWhereRelation()
+    public function testNestedWhereRelation(): void
     {
         $texts = User::whereRelation('posts.texts', 'content', 'test')->get();
 
         $this->assertEquals([1], $texts->pluck('id')->all());
     }
 
-    public function testNestedOrWhereRelation()
+    public function testNestedOrWhereRelation(): void
     {
         $texts = User::whereRelation('posts.texts', 'content', 'test')->orWhereRelation('posts.texts', 'content', 'test2')->get();
 
         $this->assertEquals([1, 2], $texts->pluck('id')->all());
     }
 
-    public function testWhereMorphRelation()
+    public function testWhereMorphRelation(): void
     {
         $comments = Comment::whereMorphRelation('commentable', '*', 'public', true)->get();
 
         $this->assertEquals([1], $comments->pluck('id')->all());
     }
 
-    public function testOrWhereMorphRelation()
+    public function testOrWhereMorphRelation(): void
     {
         $comments = Comment::whereMorphRelation('commentable', '*', 'public', true)
             ->orWhereMorphRelation('commentable', '*', 'public', false)
@@ -203,42 +214,42 @@ class EloquentWhereHasTest extends DatabaseTestCase
         $this->assertEquals([1, 2], $comments->pluck('id')->all());
     }
 
-    public function testWhereDoesntHaveRelation()
+    public function testWhereDoesntHaveRelation(): void
     {
         $users = User::whereDoesntHaveRelation('posts', 'public', true)->get();
 
         $this->assertEquals([2], $users->pluck('id')->all());
     }
 
-    public function testOrWhereDoesntHaveRelation()
+    public function testOrWhereDoesntHaveRelation(): void
     {
         $users = User::whereDoesntHaveRelation('posts', 'public', true)->orWhereDoesntHaveRelation('posts', 'public', false)->get();
 
         $this->assertEquals([1, 2], $users->pluck('id')->all());
     }
 
-    public function testNestedWhereDoesntHaveRelation()
+    public function testNestedWhereDoesntHaveRelation(): void
     {
         $texts = User::whereDoesntHaveRelation('posts.texts', 'content', 'test')->get();
 
         $this->assertEquals([2], $texts->pluck('id')->all());
     }
 
-    public function testNestedOrWhereDoesntHaveRelation()
+    public function testNestedOrWhereDoesntHaveRelation(): void
     {
         $texts = User::whereDoesntHaveRelation('posts.texts', 'content', 'test')->orWhereDoesntHaveRelation('posts.texts', 'content', 'test2')->get();
 
         $this->assertEquals([1, 2], $texts->pluck('id')->all());
     }
 
-    public function testWhereMorphDoesntHaveRelation()
+    public function testWhereMorphDoesntHaveRelation(): void
     {
         $comments = Comment::whereMorphDoesntHaveRelation('commentable', '*', 'public', true)->get();
 
         $this->assertEquals([2], $comments->pluck('id')->all());
     }
 
-    public function testOrWhereMorphDoesntHaveRelation()
+    public function testOrWhereMorphDoesntHaveRelation(): void
     {
         $comments = Comment::whereMorphDoesntHaveRelation('commentable', '*', 'public', true)
             ->orWhereMorphDoesntHaveRelation('commentable', '*', 'public', false)
@@ -247,23 +258,13 @@ class EloquentWhereHasTest extends DatabaseTestCase
         $this->assertEquals([1, 2], $comments->pluck('id')->all());
     }
 
-    public function testWithCount()
+    public function testWithCount(): void
     {
         $users = User::whereHas('posts', function ($query) {
             $query->where('public', true);
         })->get();
 
         $this->assertEquals([1], $users->pluck('id')->all());
-    }
-}
-
-class Comment extends Model
-{
-    public bool $timestamps = false;
-
-    public function commentable()
-    {
-        return $this->morphTo();
     }
 }
 
@@ -275,17 +276,26 @@ class Post extends Model
 
     protected array $withCount = ['comments'];
 
-    public function comments()
+    /**
+     * Get the comments for the post.
+     */
+    public function comments(): MorphMany
     {
         return $this->morphMany(Comment::class, 'commentable');
     }
 
-    public function texts()
+    /**
+     * Get the texts for the post.
+     */
+    public function texts(): HasMany
     {
         return $this->hasMany(Text::class);
     }
 
-    public function user()
+    /**
+     * Get the user that owns the post.
+     */
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
@@ -297,7 +307,10 @@ class Text extends Model
 
     protected array $guarded = [];
 
-    public function post()
+    /**
+     * Get the post that owns the text.
+     */
+    public function post(): BelongsTo
     {
         return $this->belongsTo(Post::class);
     }
@@ -307,7 +320,10 @@ class User extends Model
 {
     public bool $timestamps = false;
 
-    public function posts()
+    /**
+     * Get the posts for the user.
+     */
+    public function posts(): HasMany
     {
         return $this->hasMany(Post::class);
     }

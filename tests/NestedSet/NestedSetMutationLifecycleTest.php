@@ -7,7 +7,7 @@ namespace Hypervel\Tests\NestedSet;
 use Hypervel\Foundation\Testing\DatabaseTruncation;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\NestedSet\Models\Category;
+use Hypervel\Tests\NestedSet\Fixtures\Models\Category;
 use RuntimeException;
 
 use function Hypervel\Coroutine\parallel;
@@ -16,15 +16,21 @@ class NestedSetMutationLifecycleTest extends TestCase
 {
     use DatabaseTruncation;
 
+    /**
+     * Get the migration options.
+     */
     protected function migrateFreshUsing(): array
     {
         return [
             '--seed' => false,
             '--realpath' => true,
-            '--path' => __DIR__ . '/migrations',
+            '--path' => __DIR__ . '/Fixtures/migrations',
         ];
     }
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();

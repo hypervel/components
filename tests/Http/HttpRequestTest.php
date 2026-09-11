@@ -29,8 +29,6 @@ use Symfony\Component\HttpFoundation\InputBag;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
 
-include_once __DIR__ . '/Fixtures/Enums.php';
-
 class HttpRequestTest extends TestCase
 {
     public function testInstanceMethod(): void

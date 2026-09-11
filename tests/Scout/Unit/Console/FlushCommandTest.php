@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Scout\Unit\Console;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Scout;
-use Hypervel\Tests\Scout\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 
 class FlushCommandTest extends ScoutTestCase

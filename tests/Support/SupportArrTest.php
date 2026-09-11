@@ -13,6 +13,14 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\ItemNotFoundException;
 use Hypervel\Support\Json;
 use Hypervel\Support\MultipleItemsFoundException;
+use Hypervel\Tests\Support\Fixtures\TestArrayableObject;
+use Hypervel\Tests\Support\Fixtures\TestBackedEnum;
+use Hypervel\Tests\Support\Fixtures\TestEnum;
+use Hypervel\Tests\Support\Fixtures\TestJsonableObject;
+use Hypervel\Tests\Support\Fixtures\TestJsonSerializeObject;
+use Hypervel\Tests\Support\Fixtures\TestJsonSerializeWithScalarValueObject;
+use Hypervel\Tests\Support\Fixtures\TestStringBackedEnum;
+use Hypervel\Tests\Support\Fixtures\TestTraversableAndJsonSerializableObject;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\IgnoreDeprecations;
@@ -21,9 +29,6 @@ use RuntimeException;
 use SortDirection;
 use stdClass;
 use WeakMap;
-
-include_once 'Common.php';
-include_once 'Enums.php';
 
 class SupportArrTest extends TestCase
 {

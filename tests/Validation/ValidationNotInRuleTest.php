@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Validation;
 
 use Hypervel\Tests\TestCase;
+use Hypervel\Tests\Validation\Fixtures\IntegerStatus;
+use Hypervel\Tests\Validation\Fixtures\PureEnum;
+use Hypervel\Tests\Validation\Fixtures\StringStatus;
 use Hypervel\Tests\Validation\Fixtures\Values;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
@@ -13,8 +16,6 @@ use Hypervel\Validation\Rules\In;
 use Hypervel\Validation\Rules\NotIn;
 use Hypervel\Validation\Validator;
 use ReflectionMethod;
-
-include_once 'Enums.php';
 
 class ValidationNotInRuleTest extends TestCase
 {

@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Integration\Horizon\Feature\Fixtures;
 use Hypervel\Horizon\Supervisor;
 use Hypervel\Horizon\SupervisorFactory;
 use Hypervel\Horizon\SupervisorOptions;
-use Hypervel\Tests\Integration\Horizon\Feature\Fakes\SupervisorWithFakeMonitor;
 
 class FakeSupervisorFactory extends SupervisorFactory
 {
@@ -15,6 +14,9 @@ class FakeSupervisorFactory extends SupervisorFactory
 
     public int $monitorStatus = 0;
 
+    /**
+     * Create a supervisor with a fake monitor.
+     */
     public function make(SupervisorOptions $options): Supervisor
     {
         $this->supervisor = new SupervisorWithFakeMonitor($options);

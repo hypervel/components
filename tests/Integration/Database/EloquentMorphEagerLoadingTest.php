@@ -11,9 +11,14 @@ use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Tests\Integration\Database\Fixtures\Models\Comment;
+use Hypervel\Tests\Integration\Database\Fixtures\Models\MorphEagerLoading\Video;
 
 class EloquentMorphEagerLoadingTest extends DatabaseTestCase
 {
+    /**
+     * Create the test tables and related models.
+     */
     protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function (Blueprint $table) {
@@ -56,7 +61,7 @@ class EloquentMorphEagerLoadingTest extends DatabaseTestCase
         (new Action)->target()->associate($user2)->save();
     }
 
-    public function testWithMorphLoading()
+    public function testWithMorphLoading(): void
     {
         $comments = Comment::query()
             ->with(['commentable' => function (MorphTo $morphTo) {
@@ -73,7 +78,7 @@ class EloquentMorphEagerLoadingTest extends DatabaseTestCase
         $this->assertInstanceOf(Video::class, $comments[1]->getRelation('commentable'));
     }
 
-    public function testWithMorphLoadingWithSingleRelation()
+    public function testWithMorphLoadingWithSingleRelation(): void
     {
         $comments = Comment::query()
             ->with(['commentable' => function (MorphTo $morphTo) {
@@ -85,7 +90,7 @@ class EloquentMorphEagerLoadingTest extends DatabaseTestCase
         $this->assertTrue($comments[0]->commentable->relationLoaded('user'));
     }
 
-    public function testMorphLoadingMixedWithTrashedRelations()
+    public function testMorphLoadingMixedWithTrashedRelations(): void
     {
         $action = Action::query()
             ->with('target')
@@ -99,7 +104,7 @@ class EloquentMorphEagerLoadingTest extends DatabaseTestCase
         $this->assertInstanceOf(User::class, $action[1]->getRelation('target'));
     }
 
-    public function testMorphWithTrashedRelationLazyLoading()
+    public function testMorphWithTrashedRelationLazyLoading(): void
     {
         $deletedUser = User::forceCreate(['deleted_at' => now()]);
 
@@ -119,19 +124,12 @@ class Action extends Model
 {
     public bool $timestamps = false;
 
+    /**
+     * Get the action's target, including trashed models.
+     */
     public function target(): MorphTo
     {
         return $this->morphTo()->withTrashed();
-    }
-}
-
-class Comment extends Model
-{
-    public bool $timestamps = false;
-
-    public function commentable(): MorphTo
-    {
-        return $this->morphTo();
     }
 }
 
@@ -141,6 +139,9 @@ class Post extends Model
 
     protected string $primaryKey = 'post_id';
 
+    /**
+     * Get the post's user.
+     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
@@ -152,11 +153,4 @@ class User extends Model
     use SoftDeletes;
 
     public bool $timestamps = false;
-}
-
-class Video extends Model
-{
-    public bool $timestamps = false;
-
-    protected string $primaryKey = 'video_id';
 }

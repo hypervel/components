@@ -9,17 +9,21 @@ use Hypervel\Database\Eloquent\Relations\MorphOne;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Tests\Integration\Database\Fixtures\Models\Attachment;
 
 class EloquentMorphOneIsTest extends DatabaseTestCase
 {
+    /**
+     * Create the test tables and related models.
+     */
     protected function afterRefreshingDatabase(): void
     {
-        Schema::create('posts', function (Blueprint $table) {
+        Schema::create('posts', function (Blueprint $table): void {
             $table->increments('id');
             $table->timestamps();
         });
 
-        Schema::create('attachments', function (Blueprint $table) {
+        Schema::create('attachments', function (Blueprint $table): void {
             $table->increments('id');
             $table->string('attachable_type')->nullable();
             $table->integer('attachable_id')->nullable();
@@ -29,7 +33,7 @@ class EloquentMorphOneIsTest extends DatabaseTestCase
         $post->attachment()->create();
     }
 
-    public function testChildIsNotNull()
+    public function testChildIsNotNull(): void
     {
         $parent = Post::first();
         $child = null;
@@ -38,7 +42,7 @@ class EloquentMorphOneIsTest extends DatabaseTestCase
         $this->assertTrue($parent->attachment()->isNot($child));
     }
 
-    public function testChildIsModel()
+    public function testChildIsModel(): void
     {
         $parent = Post::first();
         $child = Attachment::first();
@@ -47,7 +51,7 @@ class EloquentMorphOneIsTest extends DatabaseTestCase
         $this->assertFalse($parent->attachment()->isNot($child));
     }
 
-    public function testChildIsNotAnotherModel()
+    public function testChildIsNotAnotherModel(): void
     {
         $parent = Post::first();
         $child = new Attachment;
@@ -57,7 +61,7 @@ class EloquentMorphOneIsTest extends DatabaseTestCase
         $this->assertTrue($parent->attachment()->isNot($child));
     }
 
-    public function testNullChildIsNotModel()
+    public function testNullChildIsNotModel(): void
     {
         $parent = Post::first();
         $child = Attachment::first();
@@ -68,7 +72,7 @@ class EloquentMorphOneIsTest extends DatabaseTestCase
         $this->assertTrue($parent->attachment()->isNot($child));
     }
 
-    public function testChildIsNotModelWithAnotherTable()
+    public function testChildIsNotModelWithAnotherTable(): void
     {
         $parent = Post::first();
         $child = Attachment::first();
@@ -78,7 +82,7 @@ class EloquentMorphOneIsTest extends DatabaseTestCase
         $this->assertTrue($parent->attachment()->isNot($child));
     }
 
-    public function testChildIsNotModelWithAnotherConnection()
+    public function testChildIsNotModelWithAnotherConnection(): void
     {
         $parent = Post::first();
         $child = Attachment::first();
@@ -89,13 +93,11 @@ class EloquentMorphOneIsTest extends DatabaseTestCase
     }
 }
 
-class Attachment extends Model
-{
-    public bool $timestamps = false;
-}
-
 class Post extends Model
 {
+    /**
+     * Get the post's attachment.
+     */
     public function attachment(): MorphOne
     {
         return $this->morphOne(Attachment::class, 'attachable');
