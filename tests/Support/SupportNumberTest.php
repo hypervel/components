@@ -6,22 +6,23 @@ namespace Hypervel\Tests\Support;
 
 use Hypervel\Support\Number;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
 class SupportNumberTest extends TestCase
 {
-    public function testDefaultLocale()
+    public function testDefaultLocale(): void
     {
         $this->assertSame('en', Number::defaultLocale());
     }
 
-    public function testDefaultCurrency()
+    public function testDefaultCurrency(): void
     {
         $this->assertSame('USD', Number::defaultCurrency());
     }
 
     #[RequiresPhpExtension('intl')]
-    public function testFormat()
+    public function testFormat(): void
     {
         $this->assertSame('0', Number::format(0));
         $this->assertSame('0', Number::format(0.0));
@@ -53,7 +54,7 @@ class SupportNumberTest extends TestCase
     }
 
     #[RequiresPhpExtension('intl')]
-    public function testFormatWithDifferentLocale()
+    public function testFormatWithDifferentLocale(): void
     {
         $this->assertSame('123,456,789', Number::format(123456789, locale: 'en'));
         $this->assertSame('123.456.789', Number::format(123456789, locale: 'de'));
@@ -63,7 +64,7 @@ class SupportNumberTest extends TestCase
     }
 
     #[RequiresPhpExtension('intl')]
-    public function testFormatWithAppLocale()
+    public function testFormatWithAppLocale(): void
     {
         $this->assertSame('123,456,789', Number::format(123456789));
 
@@ -75,20 +76,20 @@ class SupportNumberTest extends TestCase
     }
 
     #[RequiresPhpExtension('intl')]
-    public function testSpellout()
+    public function testSpellout(): void
     {
         $this->assertSame('ten', Number::spell(10));
         $this->assertSame('one point two', Number::spell(1.2));
     }
 
     #[RequiresPhpExtension('intl')]
-    public function testSpelloutWithLocale()
+    public function testSpelloutWithLocale(): void
     {
         $this->assertSame('trois', Number::spell(3, 'fr'));
     }
 
     #[RequiresPhpExtension('intl')]
-    public function testSpelloutWithThreshold()
+    public function testSpelloutWithThreshold(): void
     {
         $this->assertSame('9', Number::spell(9, after: 10));
         $this->assertSame('10', Number::spell(10, after: 10));
@@ -103,7 +104,7 @@ class SupportNumberTest extends TestCase
     }
 
     #[RequiresPhpExtension('intl')]
-    public function testOrdinal()
+    public function testOrdinal(): void
     {
         $this->assertSame('1st', Number::ordinal(1));
         $this->assertSame('2nd', Number::ordinal(2));
@@ -111,7 +112,7 @@ class SupportNumberTest extends TestCase
     }
 
     #[RequiresPhpExtension('intl')]
-    public function testSpellOrdinal()
+    public function testSpellOrdinal(): void
     {
         $this->assertSame('first', Number::spellOrdinal(1));
         $this->assertSame('second', Number::spellOrdinal(2));
@@ -119,7 +120,7 @@ class SupportNumberTest extends TestCase
     }
 
     #[RequiresPhpExtension('intl')]
-    public function testToPercent()
+    public function testToPercent(): void
     {
         $this->assertSame('0%', Number::percentage(0, precision: 0));
         $this->assertSame('0%', Number::percentage(0));
@@ -142,7 +143,7 @@ class SupportNumberTest extends TestCase
     }
 
     #[RequiresPhpExtension('intl')]
-    public function testToCurrency()
+    public function testToCurrency(): void
     {
         $this->assertSame('$0.00', Number::currency(0));
         $this->assertSame('$1.00', Number::currency(1));
@@ -162,7 +163,7 @@ class SupportNumberTest extends TestCase
     }
 
     #[RequiresPhpExtension('intl')]
-    public function testToCurrencyWithDifferentLocale()
+    public function testToCurrencyWithDifferentLocale(): void
     {
         $this->assertSame('1,00 €', Number::currency(1, 'EUR', 'de'));
         $this->assertSame('1,00 $', Number::currency(1, 'USD', 'de'));
@@ -174,7 +175,7 @@ class SupportNumberTest extends TestCase
     }
 
     #[RequiresPhpExtension('intl')]
-    public function testBytesToHuman()
+    public function testBytesToHuman(): void
     {
         $this->assertSame('0 B', Number::fileSize(0));
         $this->assertSame('0.00 B', Number::fileSize(0, precision: 2));
@@ -191,9 +192,19 @@ class SupportNumberTest extends TestCase
         $this->assertSame('1 ZB', Number::fileSize(1024 ** 7));
         $this->assertSame('1 YB', Number::fileSize(1024 ** 8));
         $this->assertSame('1,024 YB', Number::fileSize(1024 ** 9));
+
+        $this->assertSame('-1 B', Number::fileSize(-1));
+        $this->assertSame('-2 KB', Number::fileSize(-2048));
+        $this->assertSame('-2.00 KB', Number::fileSize(-2048, precision: 2));
+        $this->assertSame('-1.23 KB', Number::fileSize(-1264, precision: 2));
+        $this->assertSame('-5 GB', Number::fileSize(-1024 * 1024 * 1024 * 5));
+
+        $this->assertSame('∞ B', Number::fileSize(INF));
+        $this->assertSame('-∞ B', Number::fileSize(-INF));
+        $this->assertSame('NaN B', Number::fileSize(NAN));
     }
 
-    public function testClamp()
+    public function testClamp(): void
     {
         $this->assertSame(2, Number::clamp(1, 2, 3));
         $this->assertSame(3, Number::clamp(5, 2, 3));
@@ -203,7 +214,7 @@ class SupportNumberTest extends TestCase
     }
 
     #[RequiresPhpExtension('intl')]
-    public function testToHuman()
+    public function testToHuman(): void
     {
         $this->assertSame('1', Number::forHumans(1));
         $this->assertSame('1.00', Number::forHumans(1, precision: 2));
@@ -257,10 +268,39 @@ class SupportNumberTest extends TestCase
         $this->assertSame('-1.1 trillion', Number::forHumans(-1100000000000, maxPrecision: 1));
         $this->assertSame('-1 quadrillion', Number::forHumans(-1000000000000000));
         $this->assertSame('-1 thousand quadrillion', Number::forHumans(-1000000000000000000));
+
+        // A negative magnitude that rounds down to zero must not keep the sign.
+        $this->assertSame('0', Number::forHumans(-0.4));
+        $this->assertSame('0', Number::forHumans(-0.05));
+        $this->assertSame('0', Number::forHumans(-0.4999));
+        $this->assertSame('-0.40', Number::forHumans(-0.4, precision: 2));
+
+        // Fractions with magnitude below 0.01 must not be scaled up by a negative display exponent.
+        $this->assertSame('0', Number::forHumans(0.005));
+        $this->assertSame('0', Number::forHumans(0.001));
+        $this->assertSame('0', Number::forHumans(0.009));
+        $this->assertSame('0', Number::forHumans(-0.005));
+        $this->assertSame('0.005', Number::forHumans(0.005, precision: 3));
+        $this->assertSame('-0.005', Number::forHumans(-0.005, precision: 3));
+
+        // Request Arabic-Indic digits explicitly because ICU versions use different defaults for ar.
+        Number::withLocale('ar@numbers=arab', function () {
+            $this->assertSame('٠', Number::forHumans(0));
+            $this->assertSame('٠', Number::forHumans(-0.004));
+            $this->assertSame('٠', Number::forHumans(-0.004, maxPrecision: 2));
+        });
+
+        $this->assertSame('999 thousand', Number::forHumans(999499));
+        $this->assertSame('1 million', Number::forHumans(999500));
+        $this->assertSame('1 million', Number::forHumans(999999));
+
+        $this->assertSame('∞', Number::forHumans(INF));
+        $this->assertSame('-∞', Number::forHumans(-INF));
+        $this->assertSame('NaN', Number::forHumans(NAN));
     }
 
     #[RequiresPhpExtension('intl')]
-    public function testSummarize()
+    public function testSummarize(): void
     {
         $this->assertSame('1', Number::abbreviate(1));
         $this->assertSame('1.00', Number::abbreviate(1, precision: 2));
@@ -314,9 +354,39 @@ class SupportNumberTest extends TestCase
         $this->assertSame('-1.1T', Number::abbreviate(-1100000000000, maxPrecision: 1));
         $this->assertSame('-1Q', Number::abbreviate(-1000000000000000));
         $this->assertSame('-1KQ', Number::abbreviate(-1000000000000000000));
+
+        // A negative magnitude that rounds down to zero must not keep the sign.
+        $this->assertSame('0', Number::abbreviate(-0.4));
+        $this->assertSame('0', Number::abbreviate(-0.05));
+
+        // Fractions with magnitude below 0.01 must not be scaled up by a negative display exponent.
+        $this->assertSame('0', Number::abbreviate(0.005));
+        $this->assertSame('0', Number::abbreviate(0.001));
+        $this->assertSame('0', Number::abbreviate(-0.005));
+        $this->assertSame('0.005', Number::abbreviate(0.005, precision: 3));
+
+        // Request Arabic-Indic digits explicitly because ICU versions use different defaults for ar.
+        Number::withLocale('ar@numbers=arab', function () {
+            $this->assertSame('٠', Number::abbreviate(0));
+            $this->assertSame('٠', Number::abbreviate(-0.004));
+            $this->assertSame('٠', Number::abbreviate(-0.004, maxPrecision: 2));
+        });
+
+        $this->assertSame('999K', Number::abbreviate(999499));
+        $this->assertSame('1M', Number::abbreviate(999500));
+        $this->assertSame('1M', Number::abbreviate(999999));
+        $this->assertSame('1B', Number::abbreviate(999500000));
+        $this->assertSame('1B', Number::abbreviate(999999999));
+
+        Number::withLocale('de', fn () => $this->assertSame('1M', Number::abbreviate(999500)));
+        Number::withLocale('fr', fn () => $this->assertSame('1M', Number::abbreviate(999500)));
+
+        $this->assertSame('∞', Number::abbreviate(INF));
+        $this->assertSame('-∞', Number::abbreviate(-INF));
+        $this->assertSame('NaN', Number::abbreviate(NAN));
     }
 
-    public function testPairs()
+    public function testPairs(): void
     {
         $this->assertSame([[0, 10], [10, 20], [20, 25]], Number::pairs(25, 10, 0, 0));
         $this->assertSame([[0, 9], [10, 19], [20, 25]], Number::pairs(25, 10, 0, 1));
@@ -332,7 +402,19 @@ class SupportNumberTest extends TestCase
         $this->assertSame([[0.5, 2.5], [3.0, 5.0], [5.5, 7.5], [8.0, 10.0]], Number::pairs(10, 2.5, 0.5, 0.5));
     }
 
-    public function testTrim()
+    public function testPairsThrowsWhenByIsZero(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        Number::pairs(100, 0);
+    }
+
+    public function testPairsWithNegativeByWorksLikePositive(): void
+    {
+        $this->assertSame(Number::pairs(100, 10), Number::pairs(100, -10));
+    }
+
+    public function testTrim(): void
     {
         $this->assertSame(12, Number::trim(12));
         $this->assertSame(120, Number::trim(120));
@@ -341,10 +423,13 @@ class SupportNumberTest extends TestCase
         $this->assertSame(12.3, Number::trim(12.30));
         $this->assertSame(12.3456789, Number::trim(12.3456789));
         $this->assertSame(12.3456789, Number::trim(12.34567890000));
+        $this->assertSame(INF, Number::trim(INF));
+        $this->assertSame(-INF, Number::trim(-INF));
+        $this->assertNan(Number::trim(NAN));
     }
 
     #[RequiresPhpExtension('intl')]
-    public function testParse()
+    public function testParse(): void
     {
         $this->assertSame(1234.0, Number::parse('1,234'));
         $this->assertSame(1234.5, Number::parse('1,234.5'));
@@ -356,7 +441,7 @@ class SupportNumberTest extends TestCase
     }
 
     #[RequiresPhpExtension('intl')]
-    public function testParseInt()
+    public function testParseInt(): void
     {
         $this->assertSame(1234, Number::parseInt('1,234'));
         $this->assertSame(1234, Number::parseInt('1,234.5'));
@@ -367,7 +452,7 @@ class SupportNumberTest extends TestCase
     }
 
     #[RequiresPhpExtension('intl')]
-    public function testParseFloat()
+    public function testParseFloat(): void
     {
         $this->assertSame(1234.0, Number::parseFloat('1,234'));
         $this->assertSame(1234.5, Number::parseFloat('1,234.5'));
@@ -378,7 +463,7 @@ class SupportNumberTest extends TestCase
         $this->assertSame(1234.56, Number::parseFloat('1 234,56', locale: 'fr'));
     }
 
-    public function testFlushStateClearsMacros()
+    public function testFlushStateClearsMacros(): void
     {
         Number::macro('foo', fn () => 'bar');
         $this->assertTrue(Number::hasMacro('foo'));

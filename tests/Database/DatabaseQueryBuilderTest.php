@@ -165,29 +165,29 @@ class DatabaseQueryBuilderTest extends TestCase
     public function testDefaultSelectionUsesTheLogicalSourceAlias(): void
     {
         $builder = $this->getBuilder(prefix: 'prefix_');
-        $builder->from('users', '0')->addSelect(['bonus' => new Raw(42)]);
+        $builder->from('users', '0')->addSelect(['bonus' => $this->getBuilder()->selectRaw('42')]);
 
-        $this->assertSame('select "prefix_0".*, (42) as "bonus" from "prefix_users" as "prefix_0"', $builder->toSql());
+        $this->assertSame('select "prefix_0".*, (select 42) as "bonus" from "prefix_users" as "prefix_0"', $builder->toSql());
 
         $builder = $this->getBuilder(prefix: 'prefix_');
-        $builder->from('users AS people')->addSelect(['bonus' => new Raw(42)]);
+        $builder->from('users AS people')->addSelect(['bonus' => $this->getBuilder()->selectRaw('42')]);
 
-        $this->assertSame('select "prefix_people".*, (42) as "bonus" from "prefix_users" as "prefix_people"', $builder->toSql());
+        $this->assertSame('select "prefix_people".*, (select 42) as "bonus" from "prefix_users" as "prefix_people"', $builder->toSql());
     }
 
     public function testReplacingTheSourceResetsItsDefaultSelectionAlias(): void
     {
         $builder = $this->getBuilder(prefix: 'prefix_')->fromSub('select 1 as id', 'old');
 
-        $plain = (clone $builder)->from('users')->addSelect(['bonus' => new Raw(42)]);
-        $this->assertSame('select "prefix_users".*, (42) as "bonus" from "prefix_users"', $plain->toSql());
+        $plain = (clone $builder)->from('users')->addSelect(['bonus' => $this->getBuilder()->selectRaw('42')]);
+        $this->assertSame('select "prefix_users".*, (select 42) as "bonus" from "prefix_users"', $plain->toSql());
 
-        $subquery = (clone $builder)->fromSub('select 2 as id', 'new')->addSelect(['bonus' => new Raw(42)]);
-        $this->assertSame('select "prefix_new".*, (42) as "bonus" from (select 2 as id) as "prefix_new"', $subquery->toSql());
+        $subquery = (clone $builder)->fromSub('select 2 as id', 'new')->addSelect(['bonus' => $this->getBuilder()->selectRaw('42')]);
+        $this->assertSame('select "prefix_new".*, (select 42) as "bonus" from (select 2 as id) as "prefix_new"', $subquery->toSql());
 
         $this->expectException(TypeError::class);
 
-        $builder->fromRaw('users')->addSelect(['bonus' => new Raw(42)]);
+        $builder->fromRaw('users')->addSelect(['bonus' => $this->getBuilder()->selectRaw('42')]);
     }
 
     public function testContractExpressionsAreAcceptedAsQuerySources(): void
@@ -204,8 +204,8 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame('select * from "prefix_users"', $builder->toSql());
         $this->assertSame($expression, $builder->from);
 
-        $builder->from($expression, 'people')->addSelect(['bonus' => new Raw(42)]);
-        $this->assertSame('select "prefix_people".*, (42) as "bonus" from "prefix_users" as "prefix_people"', $builder->toSql());
+        $builder->from($expression, 'people')->addSelect(['bonus' => $this->getBuilder()->selectRaw('42')]);
+        $this->assertSame('select "prefix_people".*, (select 42) as "bonus" from "prefix_users" as "prefix_people"', $builder->toSql());
 
         $builder->from($expression);
         $this->assertSame($expression, $builder->from);
@@ -3232,38 +3232,46 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame([1, true, 5, true, 0, true, 3], $builder->getBindings());
     }
 
-    public function testBetweenForwardersAcceptQueryBuilderSubqueries(): void
+    public function testBetweenForwardersAcceptQueryableSubqueries(): void
     {
-        $subquery = $this->getBuilder()->select('score')->from('scores')->where('active', true);
-        $builder = $this->getBuilder()
-            ->from('parents')
-            ->whereBetween($subquery, [1, 2])
-            ->orWhereBetween($subquery, [3, 4])
-            ->whereNotBetween($subquery, [5, 6])
-            ->orWhereNotBetween($subquery, [7, 8]);
+        foreach ([
+            $this->getBuilder()->select('score')->from('scores')->where('active', true),
+            static fn (Builder $query): Builder => $query->select('score')->from('scores')->where('active', true),
+        ] as $subquery) {
+            $builder = $this->getBuilder()
+                ->from('parents')
+                ->whereBetween($subquery, [1, 2])
+                ->orWhereBetween($subquery, [3, 4])
+                ->whereNotBetween($subquery, [5, 6])
+                ->orWhereNotBetween($subquery, [7, 8]);
 
-        $this->assertSame(
-            'select * from "parents" where (select "score" from "scores" where "active" = ?) between ? and ? or (select "score" from "scores" where "active" = ?) between ? and ? and (select "score" from "scores" where "active" = ?) not between ? and ? or (select "score" from "scores" where "active" = ?) not between ? and ?',
-            $builder->toSql()
-        );
-        $this->assertSame([true, 1, 2, true, 3, 4, true, 5, 6, true, 7, 8], $builder->getBindings());
+            $this->assertSame(
+                'select * from "parents" where (select "score" from "scores" where "active" = ?) between ? and ? or (select "score" from "scores" where "active" = ?) between ? and ? and (select "score" from "scores" where "active" = ?) not between ? and ? or (select "score" from "scores" where "active" = ?) not between ? and ?',
+                $builder->toSql()
+            );
+            $this->assertSame([true, 1, 2, true, 3, 4, true, 5, 6, true, 7, 8], $builder->getBindings());
+        }
     }
 
-    public function testBetweenColumnsForwardersAcceptQueryBuilderSubqueries(): void
+    public function testBetweenColumnsForwardersAcceptQueryableSubqueries(): void
     {
-        $subquery = $this->getBuilder()->select('score')->from('scores')->where('active', true);
-        $builder = $this->getBuilder()
-            ->from('parents')
-            ->whereBetweenColumns($subquery, ['minimum', 'maximum'])
-            ->orWhereBetweenColumns($subquery, ['minimum', 'maximum'])
-            ->whereNotBetweenColumns($subquery, ['minimum', 'maximum'])
-            ->orWhereNotBetweenColumns($subquery, ['minimum', 'maximum']);
+        foreach ([
+            $this->getBuilder()->select('score')->from('scores')->where('active', true),
+            static fn (Builder $query): Builder => $query->select('score')->from('scores')->where('active', true),
+        ] as $subquery) {
+            $builder = $this->getBuilder()
+                ->from('parents')
+                ->whereBetweenColumns($subquery, ['minimum', 'maximum'])
+                ->orWhereBetweenColumns($subquery, ['minimum', 'maximum'])
+                ->whereNotBetweenColumns($subquery, ['minimum', 'maximum'])
+                ->orWhereNotBetweenColumns($subquery, ['minimum', 'maximum']);
 
-        $this->assertSame(
-            'select * from "parents" where (select "score" from "scores" where "active" = ?) between "minimum" and "maximum" or (select "score" from "scores" where "active" = ?) between "minimum" and "maximum" and (select "score" from "scores" where "active" = ?) not between "minimum" and "maximum" or (select "score" from "scores" where "active" = ?) not between "minimum" and "maximum"',
-            $builder->toSql()
-        );
-        $this->assertSame([true, true, true, true], $builder->getBindings());
+            $this->assertSame(
+                'select * from "parents" where (select "score" from "scores" where "active" = ?) between "minimum" and "maximum" or (select "score" from "scores" where "active" = ?) between "minimum" and "maximum" and (select "score" from "scores" where "active" = ?) not between "minimum" and "maximum" or (select "score" from "scores" where "active" = ?) not between "minimum" and "maximum"',
+                $builder->toSql()
+            );
+            $this->assertSame([true, true, true, true], $builder->getBindings());
+        }
     }
 
     public function testOrderForwardersAcceptQueryableSubqueries(): void
@@ -6169,39 +6177,52 @@ SQL;
         $this->assertEquals([], $builder->getBindings());
     }
 
-    public function testSelectExpression()
+    public function testSelectExpression(): void
     {
         $builder = $this->getBuilder();
-        $builder->from('one')->selectExpression(new Raw('1 + 1'), 'expr');
+        $builder->from('one')
+            ->selectExpression(new Raw('1 + 1'), 'expr')
+            ->selectExpression('2 + 2', 'expr2');
 
-        $this->assertSame('select (1 + 1) as "expr" from "one"', $builder->toSql());
+        $this->assertSame('select (1 + 1) as "expr", (2 + 2) as "expr2" from "one"', $builder->toSql());
     }
 
-    public function testSelectWithAliasedExpression()
+    public function testSelectionAliasesAreSingleIdentifiers(): void
+    {
+        foreach (['a.b', 'x as y', 'data->x'] as $alias) {
+            $builder = $this->getPostgresBuilder('prefix_');
+            $builder->from('one')->selectSub(function ($query): void {
+                $query->select('value')->from('two')->where('id', 1);
+            }, $alias);
+
+            $this->assertSame('select (select "value" from "prefix_two" where "id" = ?) as "' . $alias . '" from "prefix_one"', $builder->toSql());
+            $this->assertSame([1], $builder->getBindings());
+
+            $builder = $this->getPostgresBuilder('prefix_');
+            $builder->from('one')->selectExpression(new Raw('1 + 1'), $alias);
+
+            $this->assertSame('select (1 + 1) as "' . $alias . '" from "prefix_one"', $builder->toSql());
+            $this->assertSame([], $builder->getBindings());
+        }
+    }
+
+    public function testSelectPreservesKeyedRawExpressions(): void
     {
         $builder = $this->getBuilder();
-        $builder->from('users')->select(['is_admin' => new Raw('role = 1')]);
+        $builder->from('users')->select(['is_admin' => new Raw('role = 1 as is_admin')]);
 
-        $this->assertSame('select (role = 1) as "is_admin" from "users"', $builder->toSql());
+        $this->assertSame('select role = 1 as is_admin from "users"', $builder->toSql());
     }
 
-    public function testAddSelectWithAliasedExpression()
+    public function testAddSelectPreservesKeyedRawExpressions(): void
     {
         $builder = $this->getBuilder();
-        $builder->from('users')->select('*')->addSelect(['is_admin' => new Raw('role = 1')]);
+        $builder->from('users')->addSelect(['is_admin' => new Raw('role = 1 as is_admin')]);
 
-        $this->assertSame('select *, (role = 1) as "is_admin" from "users"', $builder->toSql());
+        $this->assertSame('select role = 1 as is_admin from "users"', $builder->toSql());
     }
 
-    public function testAddSelectWithAliasedExpressionPreservesDefaultColumns()
-    {
-        $builder = $this->getBuilder();
-        $builder->from('users')->addSelect(['is_admin' => new Raw('role = 1')]);
-
-        $this->assertSame('select "users".*, (role = 1) as "is_admin" from "users"', $builder->toSql());
-    }
-
-    public function testSelect()
+    public function testSelect(): void
     {
         $builder = $this->getBuilder();
         $builder->from('one')->select([
@@ -6211,7 +6232,7 @@ SQL;
             'five' => new Raw('1 + 1'),
         ]);
 
-        $this->assertSame('select "two", "threee" as "threeee", (select "col" from "tbl") as "four", (1 + 1) as "five" from "one"', $builder->toSql());
+        $this->assertSame('select "two", "threee" as "threeee", (select "col" from "tbl") as "four", 1 + 1 from "one"', $builder->toSql());
     }
 
     public function testUppercaseLeadingBooleansAreRemoved()
@@ -7744,11 +7765,15 @@ SQL;
         $this->assertSame('select * from "users" where "foo" ??& "_foo"', $builder->toSql());
     }
 
-    public function testUseIndexMySql()
+    public function testUseIndexMySql(): void
     {
         $builder = $this->getMySqlBuilder();
         $builder->select('foo')->from('users')->useIndex('test_index');
         $this->assertSame('select `foo` from `users` use index (test_index)', $builder->toSql());
+
+        $builder = $this->getMySqlBuilder();
+        $builder->select('foo')->from('users')->useIndex('test_index, second_index');
+        $this->assertSame('select `foo` from `users` use index (test_index, second_index)', $builder->toSql());
     }
 
     public function testForceIndexMySql()
@@ -7818,6 +7843,129 @@ SQL;
 
         $this->assertSame('select * from "users" order by "email" asc', $clone->toSql());
         $this->assertEquals([], $clone->getBindings());
+    }
+
+    public function testWhereVectorSimilarToOnPostgres(): void
+    {
+        $builder = $this->getPostgresBuilder();
+        $builder->select('*')->from('documents')->whereVectorSimilarTo('embedding', [1, 2, 3], minSimilarity: 0.4)->limit(10);
+
+        $this->assertSame(
+            'select * from "documents" where ("embedding" <=> ?) <= ? order by ("embedding" <=> ?) asc limit 10',
+            $builder->toSql()
+        );
+        $this->assertSame(['[1,2,3]', 0.6, '[1,2,3]'], $builder->getBindings());
+    }
+
+    public function testWhereVectorSimilarToOnMariaDb(): void
+    {
+        $builder = $this->getMariaDbBuilder();
+        $builder->select('*')->from('documents')->whereVectorSimilarTo('embedding', [1, 2, 3], minSimilarity: 0.4)->limit(10);
+
+        $this->assertSame(
+            'select * from `documents` where vec_distance_cosine(`embedding`, vec_fromtext(?)) <= ? order by vec_distance_cosine(`embedding`, vec_fromtext(?)) asc limit 10',
+            $builder->toSql()
+        );
+        $this->assertSame(['[1,2,3]', 0.6, '[1,2,3]'], $builder->getBindings());
+    }
+
+    public function testWhereVectorSimilarToThrowsOnUnsupportedGrammar(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Vector distance queries are only supported by Postgres and MariaDB.');
+
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('documents')->whereVectorSimilarTo('embedding', [1, 2, 3]);
+    }
+
+    public function testWhereVectorSimilarToRejectsUnsupportedGrammarBeforeGeneratingEmbeddings(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Vector distance queries are only supported by Postgres and MariaDB.');
+
+        $builder = $this->getMySqlBuilder();
+        $builder->from('documents')->whereVectorSimilarTo('embedding', 'best wineries in Napa Valley');
+    }
+
+    public function testWhereVectorDistanceLessThanOnPostgres(): void
+    {
+        $builder = $this->getPostgresBuilder();
+        $builder->select('*')->from('documents')->whereVectorDistanceLessThan('embedding', [1, 2, 3], 0.5);
+
+        $this->assertSame('select * from "documents" where ("embedding" <=> ?) <= ?', $builder->toSql());
+        $this->assertSame(['[1,2,3]', 0.5], $builder->getBindings());
+    }
+
+    public function testWhereVectorDistanceLessThanOnMariaDb(): void
+    {
+        $builder = $this->getMariaDbBuilder();
+        $builder->select('*')->from('documents')->whereVectorDistanceLessThan('embedding', [1, 2, 3], 0.5);
+
+        $this->assertSame('select * from `documents` where vec_distance_cosine(`embedding`, vec_fromtext(?)) <= ?', $builder->toSql());
+        $this->assertSame(['[1,2,3]', 0.5], $builder->getBindings());
+    }
+
+    public function testOrderByVectorDistanceOnMariaDb(): void
+    {
+        $builder = $this->getMariaDbBuilder();
+        $builder->select('*')->from('documents')->orderByVectorDistance('embedding', [1, 2, 3]);
+
+        $this->assertSame('select * from `documents` order by vec_distance_cosine(`embedding`, vec_fromtext(?)) asc', $builder->toSql());
+        $this->assertSame(['[1,2,3]'], $builder->getBindings());
+    }
+
+    public function testSelectVectorDistanceOnMariaDb(): void
+    {
+        $builder = $this->getMariaDbBuilder();
+        $builder->from('documents')->selectVectorDistance('embedding', [1, 2, 3]);
+
+        $this->assertSame('select vec_distance_cosine(`embedding`, vec_fromtext(?)) as `embedding_distance` from `documents`', $builder->toSql());
+        $this->assertSame(['[1,2,3]'], $builder->getBindings());
+    }
+
+    public function testSelectVectorDistanceWithQualifiedColumnsAndExpressions(): void
+    {
+        foreach ([
+            ['documents.embedding', '"documents"."embedding"', '`documents`.`embedding`'],
+            [new Raw('embedding'), 'embedding', 'embedding'],
+            [new Raw('documents.embedding'), 'documents.embedding', 'documents.embedding'],
+        ] as [$column, $postgresColumn, $mariaDbColumn]) {
+            $builder = $this->getPostgresBuilder();
+            $builder->from('documents')->selectVectorDistance($column, [1, 2, 3]);
+
+            $this->assertSame('select (' . $postgresColumn . ' <=> ?) as "embedding_distance" from "documents"', $builder->toSql());
+            $this->assertSame(['[1,2,3]'], $builder->getBindings());
+
+            $builder = $this->getMariaDbBuilder();
+            $builder->from('documents')->selectVectorDistance($column, [1, 2, 3]);
+
+            $this->assertSame('select vec_distance_cosine(' . $mariaDbColumn . ', vec_fromtext(?)) as `embedding_distance` from `documents`', $builder->toSql());
+            $this->assertSame(['[1,2,3]'], $builder->getBindings());
+        }
+    }
+
+    public function testSelectVectorDistanceWithCastExpression(): void
+    {
+        $builder = $this->getPostgresBuilder();
+        $builder->from('documents')->selectVectorDistance(new Raw('CAST(documents.embedding AS vector)'), [1, 2, 3]);
+
+        $this->assertSame('select (CAST(documents.embedding AS vector) <=> ?) as "embedding AS vector)_distance" from "documents"', $builder->toSql());
+        $this->assertSame(['[1,2,3]'], $builder->getBindings());
+    }
+
+    public function testSelectVectorDistanceWithExplicitAlias(): void
+    {
+        $builder = $this->getPostgresBuilder('prefix_');
+        $builder->from('documents')->selectVectorDistance('embedding', [1, 2, 3], 'a.b');
+
+        $this->assertSame('select ("embedding" <=> ?) as "a.b" from "prefix_documents"', $builder->toSql());
+        $this->assertSame(['[1,2,3]'], $builder->getBindings());
+
+        $builder = $this->getMariaDbBuilder('prefix_');
+        $builder->from('documents')->selectVectorDistance('embedding', [1, 2, 3], 'a.b');
+
+        $this->assertSame('select vec_distance_cosine(`embedding`, vec_fromtext(?)) as `a.b` from `prefix_documents`', $builder->toSql());
+        $this->assertSame(['[1,2,3]'], $builder->getBindings());
     }
 
     public function testToRawSql()

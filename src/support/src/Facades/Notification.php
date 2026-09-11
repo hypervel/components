@@ -25,7 +25,7 @@ use Hypervel\Support\Testing\Fakes\NotificationFake;
  * @method static \Hypervel\Notifications\ChannelManager locale(string $locale)
  * @method static void macro(string $name, callable|object $macro)
  * @method static void mixin(object $mixin, bool $replace = true)
- * @method static string|null resolveConnectionFromQueueRoute(object $queueable)
+ * @method static string|null resolveConnectionFromQueueRoute(object $queueable, null|string|\UnitEnum $queue = null)
  * @method static string|null resolveQueueFromQueueRoute(object $queueable)
  * @method static void send(mixed $notifiables, mixed $notification)
  * @method static void sendNow(mixed $notifiables, mixed $notification, array|null $channels = null)

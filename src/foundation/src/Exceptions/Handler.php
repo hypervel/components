@@ -41,7 +41,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Lottery;
 use Hypervel\Support\Reflector;
-use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 use Hypervel\Support\Traits\ReflectsClosures;
 use Hypervel\Support\ViewErrorBag;
 use Hypervel\Validation\ValidationException;
@@ -1160,7 +1160,7 @@ class Handler implements ExceptionHandlerContract
         }
 
         if ($e instanceof CommandNotFoundException) {
-            $message = Str::of($e->getMessage())->explode('.')->first();
+            $message = (new Stringable($e->getMessage()))->explode('.')->first();
 
             if (! empty($alternatives = $e->getAlternatives())) {
                 $message .= '. Did you mean one of these?';

@@ -2175,6 +2175,22 @@ $users = User::with(['posts' => function ($query) {
 }])->get();
 ```
 
+<a name="preserving-related-collection-keys"></a>
+#### Preserving Related Collection Keys
+
+The `afterQuery` method registers a callback that receives the query results after they have been retrieved. You may return a collection from the callback to replace those results. For example, you may key the posts by their unique slugs:
+
+```php
+use App\Models\User;
+use Hypervel\Database\Eloquent\Collection;
+
+$users = User::with(['posts' => function ($query) {
+    $query->afterQuery(fn (Collection $posts) => $posts->keyBy('slug'));
+}])->get();
+```
+
+The associative keys are preserved in each user's related `posts` collection when the relationship is eager loaded.
+
 <a name="constraining-eager-loading-of-morph-to-relationships"></a>
 #### Constraining Eager Loading of `morphTo` Relationships
 

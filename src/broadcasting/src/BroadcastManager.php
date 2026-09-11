@@ -217,8 +217,7 @@ class BroadcastManager implements BroadcastingFactoryContract
 
         if (is_null($queue)) {
             $queue = $this->getAttributeValue($event, QueueAttribute::class, 'queue')
-                ?? $this->resolveQueueFromQueueRoute($event)
-                ?? null;
+                ?? $this->resolveQueueFromQueueRoute($event);
         }
 
         $broadcastEvent = $event instanceof ShouldBeUnique
@@ -233,8 +232,7 @@ class BroadcastManager implements BroadcastingFactoryContract
             ->connection(
                 $event->connection
                     ?? $this->getAttributeValue($event, ConnectionAttribute::class, 'connection')
-                    ?? $this->resolveConnectionFromQueueRoute($event)
-                    ?? null
+                    ?? $this->resolveConnectionFromQueueRoute($event, $queue)
             )
             ->pushOn($queue, $broadcastEvent);
 
@@ -252,6 +250,14 @@ class BroadcastManager implements BroadcastingFactoryContract
         $event instanceof ShouldRescue
             ? $this->rescue($push)
             : $push();
+    }
+
+    /**
+     * Get the container that owns the queue routes.
+     */
+    protected function queueRoutesContainer(): Container
+    {
+        return $this->app;
     }
 
     /**

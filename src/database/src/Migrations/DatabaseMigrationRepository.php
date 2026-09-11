@@ -26,6 +26,8 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
 
     /**
      * Get the completed migrations.
+     *
+     * @return string[]
      */
     public function getRan(): array
     {
@@ -37,6 +39,10 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
 
     /**
      * Get the list of migrations.
+     *
+     * Driver-owned migration schemas may omit id and return numeric-string batches.
+     *
+     * @return object{migration: string, batch: int|numeric-string}[]
      */
     public function getMigrations(int $steps): array
     {
@@ -51,6 +57,8 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
 
     /**
      * Get the list of the migrations by batch number.
+     *
+     * @return object{migration: string, batch: int|numeric-string}[]
      */
     public function getMigrationsByBatch(int $batch): array
     {
@@ -63,6 +71,8 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
 
     /**
      * Get the last migration batch.
+     *
+     * @return object{migration: string, batch: int|numeric-string}[]
      */
     public function getLast(): array
     {
@@ -73,6 +83,8 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
 
     /**
      * Get the completed migrations with their batch numbers.
+     *
+     * @return array<string, int|numeric-string>
      */
     public function getMigrationBatches(): array
     {
@@ -94,6 +106,8 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
 
     /**
      * Remove a migration from the log.
+     *
+     * @param object{migration: string} $migration
      */
     public function delete(object $migration): void
     {

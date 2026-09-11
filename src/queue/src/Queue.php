@@ -8,6 +8,7 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Bus\DispatchLockContext;
+use Hypervel\Container\Container as GlobalContainer;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
@@ -31,6 +32,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Context;
 use Hypervel\Support\InteractsWithTime;
+use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use Hypervel\Support\Str;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -42,6 +44,7 @@ abstract class Queue
 {
     use InteractsWithTime;
     use ReadsQueueAttributes;
+    use ResolvesQueueRoutes;
 
     /**
      * The IoC container instance.
@@ -660,6 +663,22 @@ abstract class Queue
 
             $events->dispatch(new JobQueued($this->connectionName, $queue, $jobId, $job, $payload, $delay));
         }
+    }
+
+    /**
+     * Get the routed queue name for the given queue.
+     */
+    protected function resolveQueue(string $queue): string
+    {
+        return $this->queueRoutes()->forwardedQueue($queue, $this->connectionName ?? null);
+    }
+
+    /**
+     * Get the container that owns the queue routes.
+     */
+    protected function queueRoutesContainer(): Container
+    {
+        return $this->container ?? GlobalContainer::getInstance();
     }
 
     /**

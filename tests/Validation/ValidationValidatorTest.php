@@ -7782,7 +7782,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
-    public function testParsingArrayKeysWithDot()
+    public function testParsingArrayKeysWithDot(): void
     {
         $trans = $this->getArrayTranslator();
         // Interpreted dot fails on empty value
@@ -7791,7 +7791,7 @@ class ValidationValidatorTest extends TestCase
         // Escaped dot fails on empty value
         $v = new Validator($trans, ['foo' => ['bar' => 'valid'], 'foo.bar' => ''], ['foo\.bar' => 'required']);
         $this->assertTrue($v->fails());
-        // Interpreted dot succeeds
+        // Escaped dot succeeds
         $v = new Validator($trans, ['foo' => ['bar' => 'valid'], 'foo.bar' => 'zxc'], ['foo\.bar' => 'required']);
         $this->assertFalse($v->fails());
         // Interpreted dot followed by escaped dot fails on empty value
@@ -7799,6 +7799,22 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->fails());
         // Interpreted dot followed by escaped dot fails on empty value
         $v = new Validator($trans, ['foo' => [['bar.baz' => ''], ['bar.baz' => '']]], ['foo.*.bar\.baz' => 'required']);
+        $this->assertTrue($v->fails());
+
+        $v = new Validator($trans, ['foo.bar' => 'valid'], ['foo\.bar' => 'required']);
+        $this->assertFalse($v->fails());
+
+        $v = new Validator($trans, ['foo.bar' => 'valid'], []);
+        $v->appendRules(['foo\.bar' => 'required']);
+        $this->assertFalse($v->fails());
+
+        $v = new Validator($trans, ['foo.bar' => 'valid'], []);
+        $v->sometimes('foo\.bar', 'required', fn (): bool => true);
+        $this->assertFalse($v->fails());
+
+        $v = new Validator($trans, ['name' => 'ab'], ['name' => 'required']);
+        $v->appendRules(['name' => 'string']);
+        $v->appendRules(['name' => 'min:5|max:255']);
         $this->assertTrue($v->fails());
     }
 

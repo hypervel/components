@@ -6,6 +6,7 @@ namespace Hypervel\Notifications;
 
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Notifications\Dispatcher as DispatcherContract;
@@ -69,6 +70,14 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
             $this->container->make(EventDispatcher::class),
             $this->getLocale()
         ))->sendNow($notifiables, $notification, $channels);
+    }
+
+    /**
+     * Get the container that owns the queue routes.
+     */
+    protected function queueRoutesContainer(): Container
+    {
+        return $this->container;
     }
 
     /**

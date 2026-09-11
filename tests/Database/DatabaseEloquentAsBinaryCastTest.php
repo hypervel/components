@@ -122,6 +122,9 @@ class TestModel extends Model
 {
     protected array $guarded = [];
 
+    /**
+     * Get the attributes that should be cast.
+     */
     protected function casts(): array
     {
         return [

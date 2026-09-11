@@ -91,6 +91,8 @@ class Blueprint
 
     /**
      * Create a new schema blueprint.
+     *
+     * @param null|(Closure(self): void) $callback
      */
     public function __construct(Connection $connection, string $table, ?Closure $callback = null)
     {
@@ -1647,6 +1649,8 @@ class Blueprint
 
     /**
      * Add the columns from the callback after the given column.
+     *
+     * @param Closure(self): void $callback
      */
     public function after(string $column, Closure $callback): void
     {

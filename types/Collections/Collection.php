@@ -57,6 +57,11 @@ assertType('Hypervel\Support\LazyCollection<int, 1|2|3>', $lazy->random(2));
 assertType('Hypervel\Support\LazyCollection<string, 1|2|3>', $lazy->random(2, true));
 assertType('Hypervel\Support\LazyCollection<string, int>', LazyCollection::make($lazySource));
 
+assertType('Hypervel\Support\Collection<int, int|string>', $collection::make([1])->merge(['string']));
+assertType('Hypervel\Support\Collection<int, int|string>', $collection::make(['string'])->merge([1]));
+assertType('Hypervel\Support\LazyCollection<int, int|string>', $lazy::make([1])->merge(['string']));
+assertType('Hypervel\Support\LazyCollection<int, int|string>', $lazy::make(['string'])->merge([1]));
+
 /**
  * Check shared enumerable return and callback types.
  *

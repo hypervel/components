@@ -49,9 +49,10 @@ The `get` method returns an instance of `Hypervel\Http\Client\Response`, which p
 ```php
 $response->body() : string;
 $response->json($key = null, $default = null, $flags = null) : mixed;
-$response->object() : array|object|null;
-$response->collect($key = null) : Hypervel\Support\Collection;
-$response->fluent($key = null) : Hypervel\Support\Fluent;
+$response->object($flags = null) : mixed;
+$response->collect($key = null, $flags = null) : Hypervel\Support\Collection;
+$response->fluent($key = null, $flags = null) : Hypervel\Support\Fluent;
+$response->decodeUsing($callback) : Hypervel\Http\Client\Response;
 $response->resource() : resource;
 $response->status() : int;
 $response->successful() : bool;
@@ -74,11 +75,29 @@ The `Hypervel\Http\Client\Response` object also implements the PHP `ArrayAccess`
 return Http::get('http://example.com/users/1')['name'];
 ```
 
-The optional third argument accepted by the `json` method is passed to `json_decode` as its decoding flags:
+The `json`, `object`, `collect`, and `fluent` methods accept an optional `flags` argument, which is passed to `json_decode`:
 
 ```php
 $value = $response->json('value', flags: JSON_BIGINT_AS_STRING);
 ```
+
+When `flags` is omitted or `null`, these methods use `Response::$defaultJsonDecodingFlags`. You may configure this default in a service provider's `boot` method:
+
+```php
+use Hypervel\Http\Client\Response;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    Response::$defaultJsonDecodingFlags = JSON_BIGINT_AS_STRING;
+}
+```
+
+The default is shared by all requests handled by the worker, so configure it only during startup. Pass `flags: 0` to use no flags for an individual call.
+
+If you set a custom decoder using `decodeUsing`, that callback replaces JSON decoding and the flags do not apply. The callback receives the response body and a boolean indicating whether `object` was called.
 
 In addition to the response methods listed above, the following methods may be used to determine if the response has a specific status code:
 
@@ -355,9 +374,9 @@ $response = Http::retry(3, 100)->post(/* ... */);
 If you would like to manually calculate the number of milliseconds to sleep between attempts, you may pass a closure as the second argument to the `retry` method:
 
 ```php
-use Exception;
+use Throwable;
 
-$response = Http::retry(3, function (int $attempt, Exception $exception) {
+$response = Http::retry(3, function (int $attempt, Throwable $exception) {
     return $attempt * 100;
 })->post(/* ... */);
 ```
@@ -368,9 +387,10 @@ For convenience, you may also provide an array as the first argument to the `ret
 $response = Http::retry([100, 200])->post(/* ... */);
 ```
 
-If needed, you may pass a third argument to the `retry` method. The third argument should be a callable that determines if the retries should actually be attempted. For example, you may wish to only retry the request if the initial request encounters an `ConnectionException`:
+If needed, you may pass a third argument to the `retry` method. The third argument should be a callable that determines if the retries should actually be attempted. For example, you may wish to only retry the request if the initial request encounters a `ConnectionException`:
 
 ```php
+use Hypervel\Http\Client\ConnectionException;
 use Hypervel\Http\Client\PendingRequest;
 use Throwable;
 

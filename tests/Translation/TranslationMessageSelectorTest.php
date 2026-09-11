@@ -20,6 +20,8 @@ class TranslationMessageSelectorTest extends TestCase
     }
 
     /**
+     * Provide translation choices.
+     *
      * @return array<int, array{string, string, float|int}>
      */
     public static function chooseTestData(): array
@@ -39,6 +41,7 @@ class TranslationMessageSelectorTest extends TestCase
             ['first', '{9}first|{10}second', 1],
             ['', '{0}|{1}second', 0],
             ['', '{0}first|{1}', 1],
+            ['second', '{1.3}first|{2.3}second', .3],
             ['first', '{1.3}first|{2.3}second', 1.3],
             ['second', '{1.3}first|{2.3}second', 2.3],
             ['first', '{1.}first|{2.}second', 1],
@@ -113,6 +116,7 @@ class TranslationMessageSelectorTest extends TestCase
         }, E_DEPRECATED);
 
         try {
+            $this->assertSame('many', $selector->choose('{0} zero|{1} one|[2,*] many', 2.75, 'pl'));
             $this->assertSame('few', $selector->choose('one|few|many', 2.75, 'pl'));
         } finally {
             restore_error_handler();
@@ -123,6 +127,7 @@ class TranslationMessageSelectorTest extends TestCase
     {
         $selector = new MessageSelector;
 
+        $this->assertSame('plural', $selector->choose('singular|plural', 0.5, 'en'));
         $this->assertSame('plural', $selector->choose('singular|plural', 1.5, 'en'));
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Traits;
 
+use BackedEnum;
 use Carbon\CarbonInterface;
 use Carbon\CarbonInterval;
 use Carbon\Unit;
@@ -11,7 +12,6 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Number;
-use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use stdClass;
 use Stringable as BaseStringable;
@@ -169,7 +169,7 @@ trait InteractsWithData
     /**
      * Apply the callback if the instance contains a valid enum value for the given key.
      *
-     * @template TEnum of \BackedEnum
+     * @template TEnum of BackedEnum
      * @template TReturn
      * @template TReturnDefault = never
      *
@@ -249,7 +249,7 @@ trait InteractsWithData
      */
     public function string(string $key, mixed $default = null): Stringable
     {
-        return Str::of($this->data($key, $default));
+        return new Stringable($this->data($key, $default));
     }
 
     /**
@@ -336,11 +336,12 @@ trait InteractsWithData
     /**
      * Retrieve data from the instance as an enum.
      *
-     * @template TEnum of \BackedEnum
+     * @template TEnum of BackedEnum
+     * @template TDefault of TEnum|null
      *
      * @param class-string<TEnum> $enumClass
-     * @param null|TEnum $default
-     * @return null|TEnum
+     * @param TDefault $default
+     * @return TDefault|TEnum
      */
     public function enum(string $key, string $enumClass, mixed $default = null): mixed
     {
@@ -354,7 +355,7 @@ trait InteractsWithData
     /**
      * Retrieve data from the instance as an array of enums.
      *
-     * @template TEnum of \BackedEnum
+     * @template TEnum of BackedEnum
      *
      * @param class-string<TEnum> $enumClass
      * @return TEnum[]

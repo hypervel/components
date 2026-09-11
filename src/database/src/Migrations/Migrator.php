@@ -35,6 +35,8 @@ class Migrator
 {
     /**
      * The custom connection resolver callback.
+     *
+     * @var null|(Closure(Resolver, ?string): Connection)
      */
     protected static ?Closure $connectionResolverCallback = null;
 
@@ -263,6 +265,7 @@ class Migrator
      * Get the migrations for a rollback operation.
      *
      * @param array<string, mixed> $options
+     * @return object{migration: string, batch: int|numeric-string}[]
      */
     protected function getMigrationsForRollback(array $options): array
     {
@@ -280,6 +283,7 @@ class Migrator
     /**
      * Rollback the given migrations.
      *
+     * @param object{migration: string}[] $migrations
      * @param string|string[] $paths
      * @param array<string, mixed> $options
      * @return string[]
@@ -799,6 +803,8 @@ class Migrator
      *
      * Boot-only. The callback persists in a static property for the worker
      * lifetime and runs on every migration's connection resolution.
+     *
+     * @param Closure(Resolver, ?string): Connection $callback
      */
     public static function resolveConnectionsUsing(Closure $callback): void
     {

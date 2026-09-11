@@ -376,6 +376,15 @@ $users = DB::table('users')
     ->get();
 ```
 
+When using MariaDB or MySQL, you may specify multiple indexes by separating their names with commas:
+
+```php
+$users = DB::table('users')
+    ->useIndex('users_email_index, users_name_index')
+    ->where('email', 'taylor@example.com')
+    ->get();
+```
+
 SQLite supports the `forceIndex` method, which compiles to SQLite's `indexed by` clause:
 
 ```php
@@ -416,6 +425,19 @@ $orders = DB::table('orders')
     ->selectRaw('price * ? as price_with_tax', [1.0825])
     ->get();
 ```
+
+<a name="selectexpression"></a>
+#### `selectExpression`
+
+The `selectExpression` method adds a raw SQL expression with an alias. It accepts a string or an expression created by `DB::raw`, wraps the expression in parentheses, and quotes the alias as a single identifier:
+
+```php
+$orders = DB::table('orders')
+    ->selectExpression('price * 1.0825', 'price_with_tax')
+    ->get();
+```
+
+This method does not accept parameter bindings. Use `selectRaw` when you need bindings or want to insert the SQL expression as written.
 
 <a name="whereraw-orwhereraw"></a>
 #### `whereRaw / orWhereRaw`
@@ -964,6 +986,22 @@ $users = DB::table('users')
     ->get();
 ```
 
+You may also pass a query builder or closure as the first argument to compare a subquery's result to the given values. For example, the following query retrieves users whose most recent score is between 50 and 100:
+
+```php
+use Hypervel\Database\Query\Builder;
+
+$users = DB::table('users')
+    ->whereBetween(function (Builder $query) {
+        $query->select('score')
+            ->from('scores')
+            ->whereColumn('scores.user_id', 'users.id')
+            ->orderByDesc('scores.created_at')
+            ->limit(1);
+    }, [50, 100])
+    ->get();
+```
+
 **whereNotBetween / orWhereNotBetween**
 
 The `whereNotBetween` method verifies that a column's value lies outside of two values:
@@ -991,6 +1029,8 @@ $patients = DB::table('patients')
     ->whereNotBetweenColumns('weight', ['minimum_allowed_weight', 'maximum_allowed_weight'])
     ->get();
 ```
+
+Like `whereBetween`, these methods also accept a query builder or closure as the first argument to compare a subquery's result to the two column values.
 
 **whereValueBetween / whereValueNotBetween / orWhereValueBetween / orWhereValueNotBetween**
 
@@ -1284,7 +1324,7 @@ $users = DB::table('users')
 ### Vector Similarity Clauses
 
 > [!NOTE]
-> Vector similarity clauses are currently only supported on PostgreSQL connections using the `pgvector` extension. For information on defining vector columns and indexes, consult the [migration documentation](/docs/{{version}}/migrations#available-column-types).
+> Vector similarity clauses are currently supported on PostgreSQL connections using the `pgvector` extension and MariaDB 11.7 or later. For information on defining vector columns and indexes, consult the [migration documentation](/docs/{{version}}/migrations#available-column-types).
 
 The `whereVectorSimilarTo` method filters results by cosine similarity to a given vector and orders the results by relevance. The `minSimilarity` threshold should be a value between `0.0` and `1.0`, where `1.0` is identical:
 
@@ -1450,6 +1490,8 @@ $report = DB::table('orders')
     ->havingBetween('number_of_orders', [5, 15])
     ->get();
 ```
+
+The `havingNotBetween` method excludes results within the given range. You may use `orHavingBetween` and `orHavingNotBetween` to join these conditions to the previous having clause using `or`.
 
 You may pass multiple arguments to the `groupBy` method to group by multiple columns:
 

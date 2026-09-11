@@ -965,10 +965,6 @@ class Dispatcher implements DispatcherContract
                 $connectionName = (string) enum_value($connectionName);
             }
 
-            $connection = $this->resolveQueue()->connection(
-                $connectionName ?? $this->resolveConnectionFromQueueRoute($listener) ?? null
-            );
-
             $queue = method_exists($listener, 'viaQueue')
                 ? (isset($arguments[0]) ? $listener->viaQueue($arguments[0]) : $listener->viaQueue())
                 : $this->getAttributeValue($listener, QueueAttribute::class, 'queue');
@@ -978,12 +974,16 @@ class Dispatcher implements DispatcherContract
                 : $this->getAttributeValue($listener, Delay::class, 'delay');
 
             if (is_null($queue)) {
-                $queue = $this->resolveQueueFromQueueRoute($listener) ?? null;
+                $queue = $this->resolveQueueFromQueueRoute($listener);
             }
 
             if ($queue instanceof UnitEnum) {
                 $queue = (string) enum_value($queue);
             }
+
+            $connection = $this->resolveQueue()->connection(
+                $connectionName ?? $this->resolveConnectionFromQueueRoute($listener, $queue)
+            );
 
             if ($debounceFor !== null) {
                 $debounce = (new DebounceLock($this->container->make(Cache::class)))->acquireForDispatch(
@@ -1122,6 +1122,14 @@ class Dispatcher implements DispatcherContract
     protected function resolveQueue(): QueueFactory
     {
         return call_user_func($this->queueResolver);
+    }
+
+    /**
+     * Get the container that owns the queue routes.
+     */
+    protected function queueRoutesContainer(): ContainerContract
+    {
+        return $this->container;
     }
 
     /**

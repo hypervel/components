@@ -42,10 +42,12 @@ use Hypervel\Routing\Route;
 use Hypervel\Support\Facades\Broadcast;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\Queue;
+use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Pusher\Pusher;
 use RuntimeException;
 
@@ -120,13 +122,57 @@ class BroadcastManagerTest extends TestCase
     public function testEventsCanBeBroadcastUsingQueueRoutes(): void
     {
         Bus::fake();
-        Queue::fake();
+        // QueueFake ignores connection names, so verify selection separately from its push assertions.
+        $queue = m::mock(QueueFake::class, [$this->app])->makePartial();
+        $queue->shouldReceive('connection')->once()->with('broadcast-connection')->andReturnSelf();
+        Queue::swap($queue);
 
         Queue::route(TestEvent::class, 'broadcast-queue', 'broadcast-connection');
 
         Broadcast::queue(new TestEvent);
         Bus::assertNotDispatched(BroadcastEvent::class);
-        Queue::connection('broadcast-connection')->assertPushedOn('broadcast-queue', BroadcastEvent::class);
+        Queue::assertPushedOn('broadcast-queue', BroadcastEvent::class);
+    }
+
+    public function testEventsCanBeBroadcastWhenForwardingQueue(): void
+    {
+        Bus::fake();
+        $queue = m::mock(QueueFake::class, [$this->app])->makePartial();
+        $queue->shouldReceive('connection')->once()->with('broadcast-connection')->andReturnSelf();
+        Queue::swap($queue);
+
+        Queue::forward('broadcast-queue', 'events', 'broadcast-connection');
+
+        Broadcast::queue(new TestForwardedEvent);
+        Bus::assertNotDispatched(BroadcastEvent::class);
+        Queue::assertPushedOn('broadcast-queue', BroadcastEvent::class);
+    }
+
+    #[TestWith([null, 'cloud'])]
+    #[TestWith(['explicit', 'explicit'])]
+    public function testForwardedConnectionUsesTheBroadcastQueue(?string $connection, string $expectedConnection): void
+    {
+        $queue = m::mock(QueueFake::class, [$this->app])->makePartial();
+        $queue->shouldReceive('connection')->once()->with($expectedConnection)->andReturnSelf();
+        Queue::swap($queue);
+        Queue::forward('broadcast-queue', 'unused', 'wrong-connection');
+        Queue::forward('updates', 'events', 'cloud');
+        $event = new class extends TestForwardedEvent {
+            public ?string $connection = null;
+
+            /**
+             * Select the queue used to broadcast this event.
+             */
+            public function broadcastQueue(): string
+            {
+                return 'updates';
+            }
+        };
+        $event->connection = $connection;
+
+        Broadcast::queue($event);
+
+        Queue::assertPushedOn('updates', BroadcastEvent::class);
     }
 
     public function testEventsCanBeRescued(): void
@@ -813,6 +859,21 @@ class BroadcastManagerTest extends TestCase
 
 class TestEvent implements ShouldBroadcast
 {
+    /**
+     * Get the channels the event should broadcast on.
+     *
+     * @return Channel[]|string[]
+     */
+    public function broadcastOn(): array
+    {
+        return [];
+    }
+}
+
+class TestForwardedEvent implements ShouldBroadcast
+{
+    public string $queue = 'broadcast-queue';
+
     /**
      * Get the channels the event should broadcast on.
      *

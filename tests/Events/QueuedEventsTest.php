@@ -231,7 +231,7 @@ class QueuedEventsTest extends TestCase
         ]);
     }
 
-    public function testQueueIsSetUsingQueueRoutes()
+    public function testQueueIsSetUsingQueueRoutes(): void
     {
         $container = new Container;
         $d = new Dispatcher($container);
@@ -240,18 +240,58 @@ class QueuedEventsTest extends TestCase
         $queueRoutes->set(TestDispatcherQueueRoutes::class, 'event-queue', 'event-connection');
         $container->instance('queue.routes', $queueRoutes);
 
-        $fakeQueue = new QueueFake($container);
+        $factory = m::mock(QueueFactory::class);
+        $queue = m::mock(Queue::class);
+
+        $factory->shouldReceive('connection')->once()->with('event-connection')->andReturn($queue);
+        $queue->shouldReceive('pushOn')->once()->with('event-queue', m::type(CallQueuedListener::class));
 
         Container::setInstance($container);
 
-        $d->setQueueResolver(function () use ($fakeQueue) {
-            return $fakeQueue;
+        $d->setQueueResolver(function () use ($factory): QueueFactory {
+            return $factory;
         });
 
         $d->listen('some.event', TestDispatcherQueueRoutes::class . '@handle');
         $d->dispatch('some.event', ['foo', 'bar']);
+    }
 
-        $fakeQueue->connection('event-connection')->assertPushedOn('event-queue', CallQueuedListener::class);
+    public function testConnectionIsSetUsingForwardedQueue(): void
+    {
+        $container = new Container;
+        $d = new Dispatcher($container);
+
+        $queueRoutes = new QueueRoutes;
+        $queueRoutes->forward('reports', 'processing', 'cloud');
+        $container->instance('queue.routes', $queueRoutes);
+
+        $factory = m::mock(QueueFactory::class);
+        $queue = m::mock(Queue::class);
+        $factory->shouldReceive('connection')->once()->with('cloud')->andReturn($queue);
+        $queue->shouldReceive('pushOn')->once()->with('reports', m::type(CallQueuedListener::class));
+
+        Container::setInstance($container);
+        $d->setQueueResolver(fn (): QueueFactory => $factory);
+        $d->listen('some.event', TestDispatcherForwardedQueue::class . '@handle');
+        $d->dispatch('some.event', ['foo', 'bar']);
+    }
+
+    public function testForwardedConnectionUsesTheDynamicallySelectedQueue(): void
+    {
+        Container::setInstance($container = new Container);
+        $dispatcher = new Dispatcher($container);
+        $routes = new QueueRoutes;
+        $routes->forward('my_queue', 'unused', 'wrong-connection');
+        $routes->forward('some_other_queue', 'processing', 'cloud');
+        $container->instance('queue.routes', $routes);
+        $factory = m::mock(QueueFactory::class);
+        $queue = m::mock(Queue::class);
+        $factory->shouldReceive('connection')->once()->with('cloud')->andReturn($queue);
+        $queue->shouldReceive('pushOn')->once()->with('some_other_queue', m::type(CallQueuedListener::class));
+
+        $dispatcher->setQueueResolver(fn (): QueueFactory => $factory);
+        $dispatcher->listen('some.event', TestDispatcherGetQueue::class . '@handle');
+        $dispatcher->dispatch('some.event', ['foo', 'bar']);
     }
 
     public function testDelayIsSetByWithDelayDynamically()
@@ -676,30 +716,25 @@ class QueuedEventsTest extends TestCase
         $handler->call($job, ['command' => serialize($listener)]);
     }
 
-    public function testUniqueUntilProcessingLockIsReleasedBeforeHandling()
+    public function testUniqueUntilProcessingLockIsReleasedBeforeHandling(): void
     {
         $container = new Container;
-        $cache = m::mock(Cache::class);
-        $lock = m::mock(Lock::class);
+        $cache = new Repository(new ArrayStore);
+        $expectedKey = 'laravel_unique_job:' . hash('xxh128', TestDispatcherShouldBeUniqueUntilProcessing::class) . ':until-processing-id';
 
         $container->instance(Cache::class, $cache);
         $container->instance(BusDispatcher::class, new BusDispatcher($container));
 
         TestDispatcherShouldBeUniqueUntilProcessing::$lockReleasedBeforeHandling = null;
         TestDispatcherShouldBeUniqueUntilProcessing::$cache = $cache;
-        TestDispatcherShouldBeUniqueUntilProcessing::$expectedLockKey = 'laravel_unique_job:' . hash('xxh128', TestDispatcherShouldBeUniqueUntilProcessing::class) . ':until-processing-id';
+        TestDispatcherShouldBeUniqueUntilProcessing::$expectedLockKey = $expectedKey;
 
         $listener = new CallQueuedListener(TestDispatcherShouldBeUniqueUntilProcessing::class, 'handle', ['foo', 'bar']);
         $listener->shouldBeUnique = true;
         $listener->shouldBeUniqueUntilProcessing = true;
         $listener->uniqueId = 'until-processing-id';
 
-        $expectedKey = 'laravel_unique_job:' . hash('xxh128', TestDispatcherShouldBeUniqueUntilProcessing::class) . ':until-processing-id';
-
-        $cache->shouldReceive('lock')
-            ->with($expectedKey)
-            ->andReturn($lock);
-        $lock->shouldReceive('forceRelease')->once();
+        $this->assertTrue($cache->lock($expectedKey, 10)->get());
 
         $job = m::mock(Job::class);
         $job->shouldReceive('hasFailed')->andReturn(false);
@@ -713,6 +748,9 @@ class QueuedEventsTest extends TestCase
         $handler->call($job, ['command' => serialize($listener)]);
 
         $this->assertTrue(TestDispatcherShouldBeUniqueUntilProcessing::$lockReleasedBeforeHandling);
+
+        // A replacement dispatch's lock must survive the first listener's cleanup.
+        $this->assertFalse($cache->lock($expectedKey)->get());
     }
 
     public function testQueuePropagatesDebounceOptions(): void
@@ -1201,6 +1239,18 @@ class TestDispatcherQueueRoutes implements ShouldQueue
     }
 }
 
+class TestDispatcherForwardedQueue implements ShouldQueue
+{
+    public string $queue = 'reports';
+
+    /**
+     * Handle the queued event.
+     */
+    public function handle(): void
+    {
+    }
+}
+
 class TestDispatcherShouldBeUnique implements ShouldQueue, ShouldBeUnique
 {
     public string $uniqueId = 'unique-listener-id';
@@ -1222,14 +1272,11 @@ class TestDispatcherShouldBeUniqueUntilProcessing implements ShouldQueue, Should
 
     public static string $expectedLockKey = '';
 
-    public function handle()
+    /**
+     * Attempt to acquire the unique lock during handling.
+     */
+    public function handle(): void
     {
-        $lock = m::mock(Lock::class);
-        $lock->shouldReceive('get')->andReturn(true);
-        static::$cache->shouldReceive('lock')
-            ->with(static::$expectedLockKey, 10)
-            ->andReturn($lock);
-
         static::$lockReleasedBeforeHandling = static::$cache->lock(static::$expectedLockKey, 10)->get();
     }
 }

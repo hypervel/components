@@ -325,6 +325,25 @@ In this example, note that we were able to pass an [Eloquent model](/docs/{{vers
 
 If your queued job accepts an Eloquent model in its constructor, only the identifier for the model will be serialized onto the queue. When the job is actually handled, the queue system will automatically re-retrieve the full model instance and its loaded relationships from the database. This approach to model serialization allows for much smaller job payloads to be sent to your queue driver.
 
+<a name="serializing-models-using-morph-maps"></a>
+#### Serializing Models Using Morph Maps
+
+By default, queued models are identified by their fully qualified class names. A stable morph alias lets queued models be restored after their class is renamed or moved, provided the morph map points to the new class. If you have defined a [morph map](/docs/{{version}}/eloquent-relationships#custom-polymorphic-types), you may use its aliases instead by calling `ModelIdentifier::useMorphMap` in the `boot` method of your application's `AppServiceProvider`:
+
+```php
+use Hypervel\Contracts\Database\ModelIdentifier;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    ModelIdentifier::useMorphMap();
+}
+```
+
+Applications that dispatch or process the same jobs must use the same morph map and enable this setting. Keep the aliases and setting in place while jobs using them remain queued.
+
 <a name="handle-method-dependency-injection"></a>
 #### `handle` Method Dependency Injection
 
@@ -383,7 +402,7 @@ public function __construct(
 ) {}
 ```
 
-For convenience, if you wish to serialize all models without relationships, you may apply the `WithoutRelations` attribute to the entire class instead of applying the attribute to each model:
+For convenience, if you wish to serialize all models without relationships, you may apply the `WithoutRelations` attribute to the entire class instead of applying the attribute to each model. The attribute may also be applied to a parent job class:
 
 ```php
 <?php
@@ -411,7 +430,9 @@ class ProcessPodcast implements ShouldQueue
 }
 ```
 
-If a job receives a collection or array of Eloquent models instead of a single model, the models within that collection will not have their relationships restored when the job is deserialized and executed. This is to prevent excessive resource usage on jobs that deal with large numbers of models.
+If a job receives an Eloquent collection, relationships loaded on every model in the collection are restored when the job is deserialized. Relationships loaded on only some models are not restored. To queue a collection without its relationships, apply the `WithoutRelations` attribute to the property or job class.
+
+When models are passed in a plain PHP array, their full attributes and loaded relationships are stored in the job payload instead of being reloaded from the database.
 
 <a name="unique-jobs"></a>
 ### Unique Jobs
@@ -499,6 +520,8 @@ Behind the scenes, when a `ShouldBeUnique` job is dispatched, Hypervel attempts 
 
 ```php
 use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Contracts\Queue\ShouldBeUnique;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Support\Facades\Cache;
 
 class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
@@ -1655,9 +1678,9 @@ In addition to routing specific job classes, you may also pass an interface, tra
 Typically, you should call the `route` method from the `boot` method of a service provider:
 
 ```php
+use App\Concerns\RequiresVideo;
 use App\Jobs\ProcessPodcast;
 use App\Jobs\ProcessVideo;
-use App\Traits\RequiresVideo;
 use Hypervel\Support\Facades\Queue;
 
 /**
@@ -1681,12 +1704,37 @@ You may also route multiple job classes at once by passing an array to the `rout
 ```php
 Queue::route([
     ProcessPodcast::class => ['redis', 'podcasts'], // Connection and queue
-    ProcessVideo::class => [null, 'videos'], // Queue only (uses default connection)
+    ProcessVideo::class => 'videos', // Queue only (uses default connection)
 ]);
 ```
 
 > [!NOTE]
 > Queue routing can still be overridden by the job on a per-job basis.
+
+You may use the `forward` method to forward jobs from one queue to another queue and / or connection. This is useful when you need to change queue infrastructure without modifying individual jobs or dispatch locations. Register forwarding in a service provider's `boot` method:
+
+```php
+Queue::forward('reports', 'reports.fifo', 'sqs');
+Queue::forward('payments', connection: 'sqs');
+Queue::forward('updates', 'notifications');
+```
+
+You may also forward multiple queues at once by passing an array:
+
+```php
+Queue::forward([
+    'reports' => 'reports.fifo',
+    'emails' => 'emails.fifo',
+], connection: 'sqs');
+```
+
+An explicit connection configured on a job takes precedence over a forwarded connection.
+
+When dispatching through a `failover` connection, specify a queue to apply forwards scoped to that connection. Jobs without a queue use each child connection's default. Omitting the destination queue from `Queue::forward` preserves the original queue name.
+
+After forwarding queues, update your worker queue lists to avoid listing multiple names that resolve to the same queue. Before forwarding a queue to a different name, drain its existing jobs. Workers using the forwarding configuration will consume the destination queue instead.
+
+When a forward specifies a connection, pass that connection to `queue:clear`; using another connection clears the source queue instead. Clearing a forwarded queue on the matching connection clears its destination, including jobs sent through other queue names that forward to the same destination.
 
 <a name="max-job-attempts-and-timeout"></a>
 ### Specifying Max Job Attempts / Timeout Values
@@ -1730,6 +1778,7 @@ You may take a more granular approach by defining the maximum number of times a 
 
 namespace App\Jobs;
 
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\Attributes\Tries;
 
 #[Tries(5)]
@@ -1869,6 +1918,7 @@ You may also define the maximum number of seconds a job should be allowed to run
 
 namespace App\Jobs;
 
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\Attributes\Timeout;
 
 #[Timeout(120)]
@@ -1893,6 +1943,7 @@ If you would like to indicate that a job should be marked as [failed](#dealing-w
 
 namespace App\Jobs;
 
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\Attributes\FailOnTimeout;
 
 #[FailOnTimeout]
@@ -3049,6 +3100,7 @@ If you would like to configure how many seconds Hypervel should wait before retr
 
 namespace App\Jobs;
 
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\Attributes\Backoff;
 
 #[Backoff(3)]
@@ -3077,6 +3129,7 @@ You may easily configure "exponential" backoffs by defining an array of backoff 
 
 namespace App\Jobs;
 
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\Attributes\Backoff;
 
 #[Backoff([1, 5, 10])]
@@ -3228,6 +3281,7 @@ For convenience, you may choose to automatically delete jobs with missing models
 
 namespace App\Jobs;
 
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 
 #[DeleteWhenMissingModels]
@@ -3828,6 +3882,8 @@ Hypervel dispatches a `JobQueueing` event immediately before a job is sent to it
 
 The `JobPayloadFinalizing` event runs immediately before `JobQueueing` and may replace its encoded `payload`. It also provides the connection, queue, job, and normalized delay. Use this event for last-mile payload changes that must reach the queue backend. Listening to both events deliberately runs both listeners for each asynchronous job.
 
+When a worker releases a job back onto the queue after an exception, the `JobReleasedAfterException` event provides the `connectionName`, `job`, `backoff` delay in seconds, and the original `exception`.
+
 Using the `looping` method on the `Queue` [facade](/docs/{{version}}/facades), you may specify callbacks that execute before the worker attempts to fetch a job from a queue. For example, you might register a closure to rollback any transactions that were left open by a previously failed job:
 
 ```php
@@ -3840,6 +3896,10 @@ Queue::looping(function () {
     }
 });
 ```
+
+The `JobPopping` event is dispatched before a worker attempts to retrieve a job. Its `connectionName` and `queue` properties identify the configured connection and queue selection, which may be a comma-separated list. After a job is retrieved, the `JobPopped` event provides the `connectionName` and `job`.
+
+Long-running queue workers dispatch a `WorkerStarting` event when they start. Its `connectionName`, `queue`, and `workerOptions` properties describe the worker. You may register a listener using `Queue::starting` in the `boot` method of a service provider.
 
 Hypervel also dispatches a `Hypervel\Queue\Events\WorkerIdle` event when a queue worker is unable to retrieve a job from the queue:
 
@@ -3856,4 +3916,4 @@ Event::listen(function (WorkerIdle $event) {
 
 When an interrupting signal is delivered to running jobs, Hypervel dispatches a `Hypervel\Queue\Events\JobInterrupted` event once for each job that was notified. Its `connectionName`, `job`, and `signal` properties identify the interrupted work.
 
-Queue workers also dispatch a `WorkerStopping` event before they stop. Its `connectionName` and `queue` properties identify the worker, while `terminatesImmediately` is `true` when the process will be terminated as soon as the listeners return. In that case, listeners should not start cleanup that must finish after the listener returns.
+Queue workers also dispatch a `WorkerStopping` event before they stop. You may register a listener using `Queue::stopping` in the `boot` method of a service provider. Its `connectionName` and `queue` properties identify the worker, while `terminatesImmediately` is `true` when the process will be terminated as soon as the listeners return. In that case, listeners should not start cleanup that must finish after the listener returns.

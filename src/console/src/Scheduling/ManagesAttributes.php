@@ -80,7 +80,7 @@ trait ManagesAttributes
     protected array $rejects = [];
 
     /**
-     * The human readable description of the event.
+     * The human-readable description of the event.
      */
     public ?string $description = null;
 

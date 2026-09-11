@@ -273,7 +273,7 @@ class QueryBuilderTest extends DatabaseTestCase
         $expected = DB::table('posts')->orderBy('id')->get()->all();
 
         foreach ([DB::table('posts', 'source'), DB::table('posts AS source'), DB::table('posts', '0')] as $query) {
-            $rows = $query->addSelect(['bonus' => new Expression(42)])->orderBy('id')->get();
+            $rows = $query->addSelect(['bonus' => DB::query()->selectRaw('42')])->orderBy('id')->get();
 
             $this->assertCount(2, $rows);
             foreach ($rows as $index => $row) {
@@ -286,7 +286,7 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertEquals([
             (object) ['id' => 1, 'bonus' => 42],
             (object) ['id' => 2, 'bonus' => 42],
-        ], (clone $query)->addSelect(['bonus' => new Expression(42)])->orderBy('id')->get()->all());
+        ], (clone $query)->addSelect(['bonus' => DB::query()->selectRaw('42')])->orderBy('id')->get()->all());
 
         $this->assertEquals([
             (object) ['id' => 1, 'bonus' => 7],

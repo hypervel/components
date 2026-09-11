@@ -8,6 +8,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Events\DiagnosingHealth;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Facades\Blade;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\Attributes\WithConfig;
@@ -43,6 +44,16 @@ class RouteServiceProviderHealthTest extends TestCase
             ->assertOk()
             ->assertSee('<title>Hypervel</title>', false)
             ->assertSee('Application up');
+    }
+
+    #[WithConfig('view.cache', false)]
+    public function testItPreservesTheCssThemeWhenACustomDirectiveIsRegistered(): void
+    {
+        Blade::directive('theme', static fn (): string => '/* Application theme directive */');
+
+        $this->get('/up')
+            ->assertOk()
+            ->assertSee('@theme {', false);
     }
 
     public function testItRendersTheCurrentRequestDuration(): void

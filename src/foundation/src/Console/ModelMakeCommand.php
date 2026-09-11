@@ -8,6 +8,7 @@ use Hypervel\Console\Concerns\CreatesMatchingTest;
 use Hypervel\Console\GeneratorCommand;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -236,7 +237,7 @@ class ModelMakeCommand extends GeneratorCommand
         $replacements = [];
 
         if ($this->option('factory') || $this->option('all')) {
-            $modelPath = Str::of($this->argument('name'))->studly()->replace('/', '\\')->toString();
+            $modelPath = (new Stringable($this->argument('name')))->studly()->replace('/', '\\')->toString();
 
             $factoryNamespace = '\Database\Factories\\' . $modelPath . 'Factory';
 

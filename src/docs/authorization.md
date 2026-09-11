@@ -765,6 +765,8 @@ $selection = Gate::select('edit', $query);
 
 Both methods use the same symmetric fallback behavior as the fluent builder methods.
 
+`Gate::select` returns either a database expression or a query builder. For an expression, select any model columns you need before calling `$query->selectExpression($selection, 'can_edit')`; for a query builder, use `$query->addSelect(['can_edit' => $selection])`. The `withCan` method handles both forms for you.
+
 <a name="query-aware-policy-behavior"></a>
 #### Query-Aware Policy Behavior
 

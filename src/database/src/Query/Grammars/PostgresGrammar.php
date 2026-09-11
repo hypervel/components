@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Query\Grammars;
 
+use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\JoinLateralClause;
 use Hypervel\Support\Arr;
@@ -195,6 +196,22 @@ class PostgresGrammar extends Grammar
             'tamil',
             'turkish',
         ];
+    }
+
+    /**
+     * Compile a vector distance expression for the given column.
+     */
+    public function compileVectorDistanceExpression(Expression|string $column): string
+    {
+        return "({$this->wrap($column)} <=> ?)";
+    }
+
+    /**
+     * Determine if the grammar supports vector distance queries.
+     */
+    public function supportsVectorDistance(): bool
+    {
+        return true;
     }
 
     /**

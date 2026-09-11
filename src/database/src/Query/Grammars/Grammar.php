@@ -698,6 +698,24 @@ class Grammar extends BaseGrammar
     }
 
     /**
+     * Compile a vector distance expression for the given column.
+     *
+     * @throws RuntimeException
+     */
+    public function compileVectorDistanceExpression(Expression|string $column): string
+    {
+        throw new RuntimeException('This database engine does not support vector distance queries.');
+    }
+
+    /**
+     * Determine if the grammar supports vector distance queries.
+     */
+    public function supportsVectorDistance(): bool
+    {
+        return false;
+    }
+
+    /**
      * Compile the "group by" portions of the query.
      */
     protected function compileGroups(Builder $query, array $groups): string

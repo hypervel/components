@@ -95,7 +95,7 @@ class Number
     /**
      * Spell out the given number in the given locale.
      */
-    public static function spell(float|int $number, ?string $locale = null, ?int $after = null, ?int $until = null): string
+    public static function spell(float|int $number, ?string $locale = null, ?int $after = null, ?int $until = null): false|string
     {
         static::ensureIntlExtensionIsInstalled();
 
@@ -115,7 +115,7 @@ class Number
     /**
      * Spell out the given number in the given locale in ordinal form.
      */
-    public static function spellOrdinal(float|int $number, ?string $locale = null): string
+    public static function spellOrdinal(float|int $number, ?string $locale = null): false|string
     {
         static::ensureIntlExtensionIsInstalled();
 
@@ -129,7 +129,7 @@ class Number
     /**
      * Convert the given number to ordinal form.
      */
-    public static function ordinal(float|int $number, ?string $locale = null): string
+    public static function ordinal(float|int $number, ?string $locale = null): false|string
     {
         static::ensureIntlExtensionIsInstalled();
 
@@ -195,7 +195,7 @@ class Number
     /**
      * Convert the number to its human-readable equivalent.
      */
-    public static function abbreviate(float|int $number, int $precision = 0, ?int $maxPrecision = null): bool|string
+    public static function abbreviate(float|int $number, int $precision = 0, ?int $maxPrecision = null): false|string
     {
         return static::forHumans($number, $precision, $maxPrecision, abbreviate: true);
     }
@@ -223,7 +223,7 @@ class Number
     /**
      * Convert the number to its human-readable equivalent.
      *
-     * @phpstan-return ($number is INF ? '∞' : ($number is NAN ? 'NaN' : ($number is 0 ? ($precision is non-positive-int ? '0' : non-empty-string|false) : non-empty-string|false)))
+     * @phpstan-return non-empty-string|false
      */
     protected static function summarize(float|int $number, int $precision = 0, ?int $maxPrecision = null, array $units = []): false|string
     {
@@ -243,16 +243,22 @@ class Number
 
         switch (true) {
             case (float) $number === 0.0:
-                return $precision > 0 ? static::format(0, $precision, $maxPrecision) : '0';
+                return static::format(0, $precision, $maxPrecision);
             case $number < 0:
-                return sprintf('-%s', static::summarize(abs($number), $precision, $maxPrecision, $units));
+                $summary = static::summarize(abs($number), $precision, $maxPrecision, $units);
+
+                // Compare with zero at the same precision and locale so a magnitude
+                // that rounds to zero does not retain its minus sign.
+                return $summary === static::summarize(0, $precision, $maxPrecision, $units)
+                    ? $summary
+                    : sprintf('-%s', $summary);
             case $number >= 1e15:
                 return sprintf('%s' . end($units), static::summarize($number / 1e15, $precision, $maxPrecision, $units));
         }
 
         $numberExponent = (int) floor(log10($number));
-        $displayExponent = $numberExponent - ($numberExponent % 3);
-        $number /= pow(10, $displayExponent);
+        $displayExponent = max(0, $numberExponent - ($numberExponent % 3));
+        $number /= 10 ** $displayExponent;
 
         $formatted = static::format($number, $precision, $maxPrecision);
 
@@ -275,6 +281,8 @@ class Number
 
     /**
      * Split the given number into pairs of min/max values.
+     *
+     * @return list<array{float|int, float|int}>
      */
     public static function pairs(float|int $to, float|int $by, float|int $start = 0, float|int $offset = 1): array
     {
@@ -313,6 +321,11 @@ class Number
 
     /**
      * Execute the given callback using the given locale.
+     *
+     * @template TReturn
+     *
+     * @param callable(): TReturn $callback
+     * @return TReturn
      */
     public static function withLocale(string $locale, callable $callback): mixed
     {
@@ -333,6 +346,11 @@ class Number
 
     /**
      * Execute the given callback using the given currency.
+     *
+     * @template TReturn
+     *
+     * @param callable(): TReturn $callback
+     * @return TReturn
      */
     public static function withCurrency(string $currency, callable $callback): mixed
     {

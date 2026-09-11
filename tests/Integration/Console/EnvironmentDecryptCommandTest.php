@@ -107,7 +107,7 @@ class EnvironmentDecryptCommandTest extends TestCase
             ->once()
             ->andReturn(
                 (new Encrypter($key = Encrypter::generateKey('AES-256-CBC'), 'AES-256-CBC'))
-                    ->encrypt('APP_NAME=Laravel')
+                    ->encrypt('APP_NAME=Hypervel')
             );
 
         $this->artisan('env:decrypt', ['--force' => true, '--key' => 'base64:' . base64_encode($key)])
@@ -115,7 +115,7 @@ class EnvironmentDecryptCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->filesystem->shouldHaveReceived('replace')
-            ->with(base_path('.env'), 'APP_NAME=Laravel', 0640);
+            ->with(base_path('.env'), 'APP_NAME=Hypervel', 0640);
     }
 
     public function testItGeneratesTheEnvironmentFileWithUserProvidedKey(): void
@@ -130,7 +130,7 @@ class EnvironmentDecryptCommandTest extends TestCase
             ->once()
             ->andReturn(
                 (new Encrypter('abcdefghijklmnop', 'aes-128-gcm'))
-                    ->encrypt('APP_NAME="Laravel Two"')
+                    ->encrypt('APP_NAME="Hypervel Two"')
             );
 
         $this->artisan('env:decrypt', ['--cipher' => 'aes-128-gcm', '--key' => 'abcdefghijklmnop'])
@@ -138,7 +138,7 @@ class EnvironmentDecryptCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->filesystem->shouldHaveReceived('replace')
-            ->with(base_path('.env'), 'APP_NAME="Laravel Two"', 0600);
+            ->with(base_path('.env'), 'APP_NAME="Hypervel Two"', 0600);
     }
 
     public function testItGeneratesTheEnvironmentFileWithKeyFromEnvironment(): void
@@ -158,7 +158,7 @@ class EnvironmentDecryptCommandTest extends TestCase
                 ->once()
                 ->andReturn(
                     (new Encrypter('ponmlkjihgfedcbaponmlkjihgfedcba', 'AES-256-CBC'))
-                        ->encrypt('APP_NAME="Laravel Three"')
+                        ->encrypt('APP_NAME="Hypervel Three"')
                 );
 
             $this->artisan('env:decrypt')
@@ -166,7 +166,7 @@ class EnvironmentDecryptCommandTest extends TestCase
                 ->assertExitCode(0);
 
             $this->filesystem->shouldHaveReceived('replace')
-                ->with(base_path('.env'), 'APP_NAME="Laravel Three"', 0600);
+                ->with(base_path('.env'), 'APP_NAME="Hypervel Three"', 0600);
         } finally {
             if ($hadEncryptionKey) {
                 $_SERVER['HYPERVEL_ENV_ENCRYPTION_KEY'] = $previousEncryptionKey;
@@ -188,7 +188,7 @@ class EnvironmentDecryptCommandTest extends TestCase
             ->once()
             ->andReturn(
                 (new Encrypter('abcdefghijklmnop', 'aes-128-gcm'))
-                    ->encrypt('APP_NAME="Laravel Two"')
+                    ->encrypt('APP_NAME="Hypervel Two"')
             );
 
         $this->artisan('env:decrypt', ['--force' => true, '--key' => 'abcdefghijklmnop', '--cipher' => 'aes-128-gcm'])
@@ -196,13 +196,13 @@ class EnvironmentDecryptCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->filesystem->shouldHaveReceived('replace')
-            ->with(base_path('.env'), 'APP_NAME="Laravel Two"', 0640);
+            ->with(base_path('.env'), 'APP_NAME="Hypervel Two"', 0640);
     }
 
     public function testItDecryptsMultiLineEnvironmentCorrectly(): void
     {
         $contents = <<<'Text'
-        APP_NAME=Laravel
+        APP_NAME=Hypervel
         APP_ENV=local
         APP_DEBUG=true
         APP_URL=http://localhost
@@ -214,7 +214,7 @@ class EnvironmentDecryptCommandTest extends TestCase
         DB_CONNECTION=mysql
         DB_HOST=127.0.0.1
         DB_PORT=3306
-        DB_DATABASE=laravel
+        DB_DATABASE=hypervel
         DB_USERNAME=root
         DB_PASSWORD=
         Text;
@@ -252,7 +252,7 @@ class EnvironmentDecryptCommandTest extends TestCase
             ->once()
             ->andReturn(
                 (new Encrypter('abcdefghijklmnopabcdefghijklmnop', 'AES-256-CBC'))
-                    ->encrypt('APP_NAME="Laravel Two"')
+                    ->encrypt('APP_NAME="Hypervel Two"')
             );
 
         $this->artisan('env:decrypt', ['--env' => 'production', '--key' => 'abcdefghijklmnopabcdefghijklmnop', '--filename' => '.env'])
@@ -260,7 +260,7 @@ class EnvironmentDecryptCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->filesystem->shouldHaveReceived('replace')
-            ->with(base_path('.env'), 'APP_NAME="Laravel Two"', 0600);
+            ->with(base_path('.env'), 'APP_NAME="Hypervel Two"', 0600);
     }
 
     public function testItWritesTheEnvironmentFileCustomPath(): void
@@ -275,7 +275,7 @@ class EnvironmentDecryptCommandTest extends TestCase
             ->once()
             ->andReturn(
                 (new Encrypter('abcdefghijklmnopabcdefghijklmnop', 'AES-256-CBC'))
-                    ->encrypt('APP_NAME="Laravel Two"')
+                    ->encrypt('APP_NAME="Hypervel Two"')
             );
 
         $this->artisan('env:decrypt', ['--env' => 'production', '--key' => 'abcdefghijklmnopabcdefghijklmnop', '--path' => '/tmp'])
@@ -283,7 +283,7 @@ class EnvironmentDecryptCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->filesystem->shouldHaveReceived('replace')
-            ->with('/tmp' . DIRECTORY_SEPARATOR . '.env.production', 'APP_NAME="Laravel Two"', 0600);
+            ->with('/tmp' . DIRECTORY_SEPARATOR . '.env.production', 'APP_NAME="Hypervel Two"', 0600);
     }
 
     public function testItWritesTheEnvironmentFileCustomPathAndFilename(): void
@@ -298,7 +298,7 @@ class EnvironmentDecryptCommandTest extends TestCase
             ->once()
             ->andReturn(
                 (new Encrypter('abcdefghijklmnopabcdefghijklmnop', 'AES-256-CBC'))
-                    ->encrypt('APP_NAME="Laravel Two"')
+                    ->encrypt('APP_NAME="Hypervel Two"')
             );
 
         $this->artisan('env:decrypt', ['--env' => 'production', '--key' => 'abcdefghijklmnopabcdefghijklmnop', '--filename' => '.env', '--path' => '/tmp'])
@@ -306,7 +306,7 @@ class EnvironmentDecryptCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->filesystem->shouldHaveReceived('replace')
-            ->with('/tmp' . DIRECTORY_SEPARATOR . '.env', 'APP_NAME="Laravel Two"', 0600);
+            ->with('/tmp' . DIRECTORY_SEPARATOR . '.env', 'APP_NAME="Hypervel Two"', 0600);
     }
 
     public function testItCannotOverwriteEncryptedFiles(): void
@@ -332,7 +332,7 @@ class EnvironmentDecryptCommandTest extends TestCase
             ->once()
             ->andReturn(
                 (new Encrypter($key = 'abcdefghijklmnop', 'aes-128-gcm'))
-                    ->encrypt('APP_NAME="Laravel Two"')
+                    ->encrypt('APP_NAME="Hypervel Two"')
             );
 
         $this->artisan('env:decrypt', ['--cipher' => 'aes-128-gcm'])
@@ -341,7 +341,7 @@ class EnvironmentDecryptCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->filesystem->shouldHaveReceived('replace')
-            ->with(base_path('.env'), 'APP_NAME="Laravel Two"', 0600);
+            ->with(base_path('.env'), 'APP_NAME="Hypervel Two"', 0600);
     }
 
     public function testItAutoDetectsAndDecryptsReadableFormat(): void
@@ -350,7 +350,7 @@ class EnvironmentDecryptCommandTest extends TestCase
         $encrypter = new Encrypter($key, 'AES-256-CBC');
 
         // Create readable format encrypted content
-        $encryptedContent = 'APP_NAME=' . $encrypter->encryptString('Laravel') . "\n"
+        $encryptedContent = 'APP_NAME=' . $encrypter->encryptString('Hypervel') . "\n"
                            . 'APP_ENV=' . $encrypter->encryptString('local');
 
         $this->filesystem->shouldReceive('exists')
@@ -368,7 +368,7 @@ class EnvironmentDecryptCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->filesystem->shouldHaveReceived('replace')
-            ->with(base_path('.env'), "APP_NAME=Laravel\nAPP_ENV=local\n", 0600);
+            ->with(base_path('.env'), "APP_NAME=Hypervel\nAPP_ENV=local\n", 0600);
     }
 
     public function testItStillDecryptsBlobFormat(): void
@@ -377,7 +377,7 @@ class EnvironmentDecryptCommandTest extends TestCase
         $encrypter = new Encrypter($key, 'AES-256-CBC');
 
         // Create blob format (entire file encrypted as one)
-        $originalContent = "APP_NAME=Laravel\nAPP_ENV=local";
+        $originalContent = "APP_NAME=Hypervel\nAPP_ENV=local";
         $encryptedContent = $encrypter->encrypt($originalContent);
 
         $this->filesystem->shouldReceive('exists')
@@ -404,7 +404,7 @@ class EnvironmentDecryptCommandTest extends TestCase
         $encrypter = new Encrypter($key, 'AES-256-CBC');
 
         // Create blob format and inject a newline (simulating wrapped base64)
-        $originalContent = "APP_NAME=Laravel\nAPP_ENV=local";
+        $originalContent = "APP_NAME=Hypervel\nAPP_ENV=local";
         $encryptedContent = $encrypter->encrypt($originalContent);
 
         // Insert a newline in the middle of the base64 string

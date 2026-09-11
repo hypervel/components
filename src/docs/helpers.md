@@ -452,7 +452,7 @@ $filtered = Arr::except($array, ['price']);
 <a name="method-array-except-values"></a>
 #### `Arr::exceptValues()` {.collection-method}
 
-The `Arr::exceptValues` method removes the specified values from an array:
+The `Arr::exceptValues` method removes the specified values from an array, preserving the original keys:
 
 ```php
 use Hypervel\Support\Arr;
@@ -461,7 +461,7 @@ $array = ['foo', 'bar', 'baz', 'qux'];
 
 $filtered = Arr::exceptValues($array, ['foo', 'baz']);
 
-// ['bar', 'qux']
+// [1 => 'bar', 3 => 'qux']
 ```
 
 You may also pass `true` to the `strict` argument to use strict type comparisons when filtering:
@@ -473,7 +473,7 @@ $array = [1, '1', 2, '2'];
 
 $filtered = Arr::exceptValues($array, [1, 2], strict: true);
 
-// ['1', '2']
+// [1 => '1', 3 => '2']
 ```
 
 <a name="method-array-exists"></a>
@@ -889,7 +889,7 @@ $slice = Arr::only($array, ['name', 'price']);
 <a name="method-array-only-values"></a>
 #### `Arr::onlyValues()` {.collection-method}
 
-The `Arr::onlyValues` method returns only the specified values from an array:
+The `Arr::onlyValues` method returns only the specified values from an array, preserving the original keys:
 
 ```php
 use Hypervel\Support\Arr;
@@ -898,7 +898,7 @@ $array = ['foo', 'bar', 'baz', 'qux'];
 
 $filtered = Arr::onlyValues($array, ['foo', 'baz']);
 
-// ['foo', 'baz']
+// [0 => 'foo', 2 => 'baz']
 ```
 
 You may also pass `true` to the `strict` argument to use strict type comparisons when filtering:
@@ -910,7 +910,7 @@ $array = [1, '1', 2, '2'];
 
 $filtered = Arr::onlyValues($array, [1, 2], strict: true);
 
-// [1, 2]
+// [0 => 1, 2 => 2]
 ```
 
 <a name="method-array-partition"></a>

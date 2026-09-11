@@ -12,8 +12,11 @@ use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Database\DetectsConcurrencyErrors;
+use Hypervel\Database\DetectsLostConnections;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Database\QueryException;
 use Hypervel\Queue\Concerns\InsertsDatabaseRows;
 use Hypervel\Queue\Jobs\DatabaseJob;
 use Hypervel\Queue\Jobs\DatabaseJobRecord;
@@ -25,6 +28,8 @@ use Throwable;
 
 class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
 {
+    use DetectsConcurrencyErrors;
+    use DetectsLostConnections;
     use InsertsDatabaseRows;
 
     public const int DEFAULT_RETRY_AFTER = 60;
@@ -477,13 +482,51 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      */
     public function pop(?string $queue = null): ?Job
     {
-        $queue = $this->getQueue($queue);
+        // Keep the logical name on the job so reservation and release each forward it once.
+        $queue = $queue === null || $queue === '' ? $this->default : $queue;
+        $database = $this->getDatabase();
+        $transactionLevel = $database->transactionLevel();
+        /** @var null|DatabaseJobRecord $jobRecord */
+        $jobRecord = null;
 
-        return $this->getDatabase()->transaction(function () use ($queue) {
-            if ($job = $this->getNextAvailableJob($queue)) {
-                return $this->marshalJob($queue, $job);
+        try {
+            return $database->transaction(function () use ($queue, &$jobRecord) {
+                if ($jobRecord = $this->getNextAvailableJob($queue)) {
+                    $job = $this->marshalJob($queue, $jobRecord);
+
+                    // A commit or completion callback failure does not make this job invalid.
+                    $jobRecord = null;
+
+                    return $job;
+                }
+            });
+        } catch (QueryException $exception) {
+            // Recovery requires our transaction to have unwound. Transient database
+            // failures leave the job available for another reservation attempt.
+            // Non-query callback failures do not establish an invalid job record.
+            // Observers can run their own failing SQL, so match the reservation update.
+            if ($jobRecord !== null
+                && $database->transactionLevel() === $transactionLevel
+                && ! $this->causedByConcurrencyError($exception)
+                && ! $this->causedByLostConnection($exception)
+                && $this->causedByReservationQuery($exception, $database, $jobRecord)) {
+                try {
+                    (new DatabaseJob(
+                        $this->container,
+                        $this,
+                        $jobRecord,
+                        $this->connectionName,
+                        $queue
+                    ))->fail($exception);
+                } catch (CanceledException $cancellation) {
+                    throw $cancellation;
+                } catch (Throwable) {
+                    // Preserve the original reservation failure if failing the job also fails.
+                }
             }
-        });
+
+            throw $exception;
+        }
     }
 
     /**
@@ -569,6 +612,30 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     }
 
     /**
+     * Determine whether the exception matches this job's reservation update.
+     *
+     * Override this alongside markJobAsReserved when changing its SQL or bindings.
+     */
+    protected function causedByReservationQuery(
+        QueryException $exception,
+        ConnectionInterface $database,
+        DatabaseJobRecord $jobRecord
+    ): bool {
+        if ($exception->getConnectionName() !== $database->getName()) {
+            return false;
+        }
+
+        $query = $database->table($this->table)->where('id', $jobRecord->id);
+        $values = ['reserved_at' => $jobRecord->reserved_at, 'attempts' => $jobRecord->attempts];
+        $grammar = $query->getGrammar();
+
+        return $exception->getSql() === $grammar->compileUpdate($query, $values)
+            && $exception->getBindings() === $database->prepareBindings($query->cleanBindings(
+                $grammar->prepareBindingsForUpdate($query->getRawBindings(), $values)
+            ));
+    }
+
+    /**
      * Delete a reserved job from the queue.
      *
      * @throws Throwable
@@ -611,7 +678,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      */
     public function getQueue(?string $queue): string
     {
-        return $queue === null || $queue === '' ? $this->default : $queue;
+        return $this->resolveQueue($queue === null || $queue === '' ? $this->default : $queue);
     }
 
     /**

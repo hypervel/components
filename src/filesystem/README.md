@@ -3,7 +3,7 @@ Filesystem for Hypervel
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/hypervel/filesystem)
 
-Ported from: https://github.com/laravel/framework (illuminate/filesystem)
+Documentation: https://hypervel.org/docs/filesystem
 
 ## Differences From Laravel
 
@@ -18,3 +18,5 @@ Filesystem construction differs from Laravel in how it carries logical disk iden
 Hypervel registers signed file-serving routes for any configured disk whose `serve` option is exactly `true`, while Laravel limits these routes to local disks and accepts truthy values. Every served disk must use a unique URL or application boot will fail. Custom drivers that opt in must provide the filesystem response methods used by these routes.
 
 Hypervel also provides `ScopedFilesystemProxy` and `ScopedCloudFilesystemProxy` for prefixes resolved independently on every operation. The underlying disk may be fixed or resolved once per operation when its configuration varies with the current context. These decorators fail closed on empty prefixes and reject unmapped calls so request- or tenant-scoped boundaries cannot be bypassed.
+
+Ported from: https://github.com/laravel/framework (illuminate/filesystem)
