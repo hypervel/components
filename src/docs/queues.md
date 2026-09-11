@@ -520,6 +520,8 @@ Behind the scenes, when a `ShouldBeUnique` job is dispatched, Hypervel attempts 
 
 ```php
 use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Contracts\Queue\ShouldBeUnique;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Support\Facades\Cache;
 
 class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
@@ -1776,6 +1778,7 @@ You may take a more granular approach by defining the maximum number of times a 
 
 namespace App\Jobs;
 
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\Attributes\Tries;
 
 #[Tries(5)]
@@ -1915,6 +1918,7 @@ You may also define the maximum number of seconds a job should be allowed to run
 
 namespace App\Jobs;
 
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\Attributes\Timeout;
 
 #[Timeout(120)]
@@ -1939,6 +1943,7 @@ If you would like to indicate that a job should be marked as [failed](#dealing-w
 
 namespace App\Jobs;
 
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\Attributes\FailOnTimeout;
 
 #[FailOnTimeout]
@@ -3095,6 +3100,7 @@ If you would like to configure how many seconds Hypervel should wait before retr
 
 namespace App\Jobs;
 
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\Attributes\Backoff;
 
 #[Backoff(3)]
@@ -3123,6 +3129,7 @@ You may easily configure "exponential" backoffs by defining an array of backoff 
 
 namespace App\Jobs;
 
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\Attributes\Backoff;
 
 #[Backoff([1, 5, 10])]
@@ -3274,6 +3281,7 @@ For convenience, you may choose to automatically delete jobs with missing models
 
 namespace App\Jobs;
 
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 
 #[DeleteWhenMissingModels]

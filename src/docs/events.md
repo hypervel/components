@@ -600,7 +600,7 @@ class AcquireProductKey implements ShouldQueue, ShouldBeUnique
 }
 ```
 
-In the example above, the `AcquireProductKey` listener is unique. So, the listener will not be queued if another instance of the listener is already on the queue and has not finished processing. This ensures that only one product key is acquired for each license, even if the license is saved multiple times in quick succession.
+In the example above, the `AcquireProductKey` listener is unique. So, the listener will not be queued if another instance of the listener is already on the queue and has not finished processing. This applies to all instances of the listener, regardless of which license triggered the event.
 
 In certain cases, you may want to define a specific "key" that makes the listener unique or you may want to specify a timeout beyond which the listener no longer stays unique. To accomplish this, you may define `uniqueId` and `uniqueFor` properties or methods on your listener class. The methods receive the event instance, allowing you to use event data to construct the return value:
 
@@ -674,6 +674,8 @@ namespace App\Listeners;
 
 use App\Events\LicenseSaved;
 use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Contracts\Queue\ShouldBeUnique;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Support\Facades\Cache;
 
 class AcquireProductKey implements ShouldQueue, ShouldBeUnique
