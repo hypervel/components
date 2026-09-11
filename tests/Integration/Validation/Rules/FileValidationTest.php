@@ -94,7 +94,7 @@ class FileValidationTest extends TestCase
         ], $validator->messages()->all());
     }
 
-    public function testFileMimesCustomValidationMessages()
+    public function testFileMimesCustomValidationMessages(): void
     {
         $validator = Validator::make(
             ['document' => UploadedFile::fake()->create('file.pdf')],
@@ -106,7 +106,7 @@ class FileValidationTest extends TestCase
         $this->assertSame(['Wrong file type'], $validator->messages()->all());
     }
 
-    public function testFileMinSizeCustomValidationMessages()
+    public function testFileMinSizeCustomValidationMessages(): void
     {
         $validator = Validator::make(
             ['upload' => UploadedFile::fake()->create('small.pdf', 50)],
@@ -118,7 +118,7 @@ class FileValidationTest extends TestCase
         $this->assertSame(['File too small'], $validator->messages()->all());
     }
 
-    public function testFileMaxSizeCustomValidationMessages()
+    public function testFileMaxSizeCustomValidationMessages(): void
     {
         $validator = Validator::make(
             ['upload' => UploadedFile::fake()->create('large.pdf', 2000)],
@@ -130,7 +130,7 @@ class FileValidationTest extends TestCase
         $this->assertSame(['File exceeds limit'], $validator->messages()->all());
     }
 
-    public function testFileDimensionCustomValidationMessages()
+    public function testFileDimensionCustomValidationMessages(): void
     {
         $validator = Validator::make(
             ['image' => UploadedFile::fake()->image('foo.jpg', 100, 100)],
@@ -142,7 +142,7 @@ class FileValidationTest extends TestCase
         $this->assertSame(['Invalid dimensions'], $validator->messages()->all());
     }
 
-    public function testFileBetweenCustomValidationMessages()
+    public function testFileBetweenCustomValidationMessages(): void
     {
         $validator = Validator::make(
             ['file' => UploadedFile::fake()->create('foo.pdf', 10)],
@@ -154,7 +154,7 @@ class FileValidationTest extends TestCase
         $this->assertSame(['Size out of range'], $validator->messages()->all());
     }
 
-    public function testImageCustomValidationMessages()
+    public function testImageCustomValidationMessages(): void
     {
         $validator = Validator::make(
             ['avatar' => UploadedFile::fake()->create('foo.txt')],
@@ -166,7 +166,7 @@ class FileValidationTest extends TestCase
         $this->assertSame(['Not an image'], $validator->messages()->all());
     }
 
-    public function testFileMultipleCustomValidationMessages()
+    public function testFileMultipleCustomValidationMessages(): void
     {
         $validator = Validator::make(
             ['photo' => UploadedFile::fake()->create('foo.pdf', 5000)],
@@ -185,7 +185,7 @@ class FileValidationTest extends TestCase
         $this->assertContains('Too large', $messages);
     }
 
-    public function testFileSizeCustomValidationMessages()
+    public function testFileSizeCustomValidationMessages(): void
     {
         $validator = Validator::make(
             ['file' => UploadedFile::fake()->create('doc.pdf', 500)],
@@ -197,7 +197,7 @@ class FileValidationTest extends TestCase
         $this->assertSame(['File must be exactly 100KB'], $validator->messages()->all());
     }
 
-    public function testFileExtensionsCustomValidationMessages()
+    public function testFileExtensionsCustomValidationMessages(): void
     {
         $validator = Validator::make(
             ['file' => UploadedFile::fake()->create('foo.pdf')],
@@ -209,7 +209,7 @@ class FileValidationTest extends TestCase
         $this->assertSame(['Invalid file extension'], $validator->messages()->all());
     }
 
-    public function testFileEncodingCustomValidationMessages()
+    public function testFileEncodingCustomValidationMessages(): void
     {
         $validator = Validator::make(
             ['file' => UploadedFile::fake()->createWithContent('foo.txt', "\xf0\x28\x8c\x28")],
