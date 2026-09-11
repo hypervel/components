@@ -16,6 +16,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseEloquentAsVectorCastTest extends TestCase
 {
@@ -142,6 +143,47 @@ class DatabaseEloquentAsVectorCastTest extends TestCase
         $model->embedding = [0.5, -1.25, 3];
 
         $this->assertSame([0.5, -1.25, 3.0], $model->embedding);
+    }
+
+    #[DataProvider('storedVectorProvider')]
+    public function testDirtyTrackingUsesStoredVectorPrecision(string $grammar, string $stored): void
+    {
+        $this->useGrammar($grammar);
+
+        $model = new AsVectorTestModel;
+        $model->setRawAttributes(['embedding' => $stored], true);
+
+        $model->embedding = $model->embedding;
+        $this->assertFalse($model->isDirty('embedding'));
+
+        // Recomputing the same embedding must compare at the database's float32 precision.
+        $model->embedding = [0.1, 0.2, 0.30000001];
+        $this->assertFalse($model->isDirty('embedding'));
+
+        // The next representable float32 value must still count as a change.
+        $model->embedding = [0.1000000089407, 0.2, 0.30000001];
+        $this->assertTrue($model->isDirty('embedding'));
+
+        $model->embedding = [0.1, 0.2];
+        $this->assertTrue($model->isDirty('embedding'));
+
+        $model->embedding = null;
+        $this->assertTrue($model->isDirty('embedding'));
+
+        $model->syncOriginal();
+        $model->embedding = [0.1, 0.2, 0.30000001];
+        $this->assertTrue($model->isDirty('embedding'));
+    }
+
+    /**
+     * Provide the database representations of the same vector.
+     */
+    public static function storedVectorProvider(): array
+    {
+        return [
+            'MariaDB' => [MariaDbGrammar::class, pack('g*', 0.1, 0.2, 0.30000001)],
+            'PostgreSQL' => [PostgresGrammar::class, '[0.1,0.2,0.3]'],
+        ];
     }
 
     /**

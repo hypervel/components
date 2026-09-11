@@ -6,6 +6,7 @@ namespace Hypervel\Database\Eloquent\Casts;
 
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Contracts\Database\Eloquent\ComparesCastableAttributes;
 use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Eloquent\Model;
@@ -24,7 +25,7 @@ class AsVector implements Castable
      */
     public static function castUsing(array $arguments): CastsAttributes
     {
-        return new class implements CastsAttributes {
+        return new class implements CastsAttributes, ComparesCastableAttributes {
             // Eloquent otherwise caches an assigned Arrayable and returns it instead of a float array.
             public bool $withoutObjectCaching = true;
 
@@ -91,6 +92,24 @@ class AsVector implements Castable
                         ? new Expression("vec_fromtext('{$vector}')")
                         : $vector,
                 ];
+            }
+
+            /**
+             * Determine if the given values are equal.
+             *
+             * @throws JsonException
+             */
+            public function compare(Model $model, string $key, mixed $firstValue, mixed $secondValue): bool
+            {
+                $first = $this->get($model, $key, $firstValue, []);
+                $second = $this->get($model, $key, $secondValue, []);
+
+                if ($first === null || $second === null) {
+                    return $first === $second;
+                }
+
+                // Both supported engines store 32-bit floats, so compare the values as they are stored.
+                return pack('g*', ...$first) === pack('g*', ...$second);
             }
         };
     }

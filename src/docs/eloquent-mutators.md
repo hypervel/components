@@ -302,7 +302,7 @@ $user->mergeCasts([
 ```
 
 > [!WARNING]
-> Attributes that are `null` will not be cast. In addition, you should never define a cast (or an attribute) that has the same name as a relationship or assign a cast to the model's primary key.
+> Attributes that are `null` remain `null` when using casts such as `integer`, `boolean`, or `array`. Custom cast classes handle `null` values themselves. In addition, you should never define a cast (or an attribute) that has the same name as a relationship or assign a cast to the model's primary key.
 
 <a name="stringable-casting"></a>
 #### Stringable Casting
@@ -603,7 +603,7 @@ protected function casts(): array
 }
 ```
 
-When setting the attribute, the cast accepts a PHP array or an `Arrayable` instance, such as a Hypervel collection. When retrieving the attribute, the cast returns an array of floats.
+When setting the attribute, the cast accepts a PHP array, an `Arrayable` instance such as a Hypervel collection, or `null`. When retrieving the attribute, the cast returns an array of floats, or `null` if the stored value is `null`.
 
 <a name="binary-casting"></a>
 ### Binary Casting
