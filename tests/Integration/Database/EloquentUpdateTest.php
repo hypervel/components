@@ -49,12 +49,8 @@ class EloquentUpdateTest extends DatabaseTestCase
         $this->assertCount(0, TestUpdateModel1::all());
     }
 
-    public function testUpdateWithLimitsAndOrders()
+    public function testUpdateWithLimitsAndOrders(): void
     {
-        if ($this->driver === 'sqlsrv') {
-            $this->markTestSkipped('The limit keyword is not supported on MSSQL.');
-        }
-
         for ($i = 1; $i <= 10; ++$i) {
             TestUpdateModel1::create();
         }

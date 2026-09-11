@@ -11,7 +11,6 @@ use Hypervel\Database\Schema\ColumnDefinition;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
 use Override;
-use RuntimeException;
 
 /**
  * @property MySqlConnection $connection
@@ -942,15 +941,7 @@ class MySqlGrammar extends Grammar
         return $this->typeGeometry($column);
     }
 
-    /**
-     * Create the column definition for a generated, computed column type.
-     *
-     * @throws RuntimeException
-     */
-    protected function typeComputed(Fluent $column): void
-    {
-        throw new RuntimeException('This database driver requires a type, see the virtualAs / storedAs modifiers.');
-    }
+    // REMOVED: typeComputed(); the SQL Server-only Blueprint::computed() column type was removed.
 
     /**
      * Create the column definition for a vector type.

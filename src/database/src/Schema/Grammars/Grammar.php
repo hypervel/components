@@ -279,13 +279,7 @@ abstract class Grammar extends BaseGrammar
         return $this->{'type' . ucfirst($column->type)}($column);
     }
 
-    /**
-     * Create the column definition for a generated, computed column type.
-     */
-    protected function typeComputed(Fluent $column): void
-    {
-        throw new RuntimeException('This database driver does not support the computed type.');
-    }
+    // REMOVED: typeComputed(); the SQL Server-only Blueprint::computed() column type was removed.
 
     /**
      * Create the column definition for a vector type.

@@ -215,12 +215,8 @@ class SchemaBuilderTest extends DatabaseTestCase
         $this->assertTrue(Schema::hasIndex('test', ['id', 'uuid'], 'primary'));
     }
 
-    public function testModifyingAutoIncrementColumn()
+    public function testModifyingAutoIncrementColumn(): void
     {
-        if ($this->driver === 'sqlsrv') {
-            $this->markTestSkipped('Changing a primary column is not supported on SQL Server.');
-        }
-
         Schema::create('test', function (Blueprint $table) {
             $table->increments('id');
         });
@@ -236,10 +232,10 @@ class SchemaBuilderTest extends DatabaseTestCase
         $this->assertTrue(Schema::hasIndex('test', ['id'], 'primary'));
     }
 
-    public function testModifyingColumnToAutoIncrementColumn()
+    public function testModifyingColumnToAutoIncrementColumn(): void
     {
-        if (in_array($this->driver, ['pgsql', 'sqlsrv'])) {
-            $this->markTestSkipped('Changing a column to auto increment is not supported on PostgreSQL and SQL Server.');
+        if ($this->driver === 'pgsql') {
+            $this->markTestSkipped('Changing a column to auto increment is not supported on PostgreSQL.');
         }
 
         Schema::create('test', function (Blueprint $table) {
@@ -800,19 +796,17 @@ class SchemaBuilderTest extends DatabaseTestCase
         ));
     }
 
-    #[RequiresDatabase('pgsql', '>=18')]
-    public function testGettingGeneratedColumns()
+    public function testGettingGeneratedColumns(): void
     {
+        if ($this->driver === 'pgsql' && version_compare($this->getConnection()->getServerVersion(), '18', '<')) {
+            $this->markTestSkipped('Test requires a PostgreSQL connection >= 18');
+        }
+
         Schema::create('test', function (Blueprint $table) {
             $table->integer('price');
 
-            if ($this->driver === 'sqlsrv') {
-                $table->computed('virtual_price', 'price - 5');
-                $table->computed('stored_price', 'price - 10')->persisted();
-            } else {
-                $table->integer('virtual_price')->virtualAs('price - 5');
-                $table->integer('stored_price')->storedAs('price - 10');
-            }
+            $table->integer('virtual_price')->virtualAs('price - 5');
+            $table->integer('stored_price')->storedAs('price - 10');
         });
 
         $columns = Schema::getColumns('test');
@@ -826,7 +820,6 @@ class SchemaBuilderTest extends DatabaseTestCase
                 && match ($this->driver) {
                     'mysql' => $column['generation']['expression'] === '(`price` - 5)',
                     'mariadb' => $column['generation']['expression'] === '`price` - 5',
-                    'sqlsrv' => $column['generation']['expression'] === '([price]-(5))',
                     'pgsql' => $column['generation']['expression'] === '(price - 5)',
                     default => $column['generation']['expression'] === 'price - 5',
                 }
@@ -837,7 +830,6 @@ class SchemaBuilderTest extends DatabaseTestCase
                 && match ($this->driver) {
                     'mysql' => $column['generation']['expression'] === '(`price` - 10)',
                     'mariadb' => $column['generation']['expression'] === '`price` - 10',
-                    'sqlsrv' => $column['generation']['expression'] === '([price]-(10))',
                     'pgsql' => $column['generation']['expression'] === '(price - 10)',
                     default => $column['generation']['expression'] === 'price - 10',
                 }

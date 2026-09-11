@@ -1110,15 +1110,7 @@ class SQLiteGrammar extends Grammar
         return $this->typeGeometry($column);
     }
 
-    /**
-     * Create the column definition for a generated, computed column type.
-     *
-     * @throws RuntimeException
-     */
-    protected function typeComputed(Fluent $column): void
-    {
-        throw new RuntimeException('This database driver requires a type, see the virtualAs / storedAs modifiers.');
-    }
+    // REMOVED: typeComputed(); the SQL Server-only Blueprint::computed() column type was removed.
 
     /**
      * Get the SQL for a generated virtual column modifier.

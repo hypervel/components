@@ -62,12 +62,8 @@ class QueryBuilderWhereLikeTest extends DatabaseTestCase
         $this->assertSame('Dale.Doe@example.com', $users[1]->email);
     }
 
-    public function testWhereLikeCaseSensitive()
+    public function testWhereLikeCaseSensitive(): void
     {
-        if ($this->driver === 'sqlsrv') {
-            $this->markTestSkipped('The case-sensitive whereLike clause is not supported on MSSQL.');
-        }
-
         $users = DB::table('users')->whereLike('email', 'john.doe@example.com', true)->get();
         $this->assertCount(0, $users);
 
@@ -77,12 +73,8 @@ class QueryBuilderWhereLikeTest extends DatabaseTestCase
         $this->assertSame(5, DB::table('users')->whereNotLike('email', 'john.doe@example.com', true)->count());
     }
 
-    public function testWhereLikeWithPercentWildcardCaseSensitive()
+    public function testWhereLikeWithPercentWildcardCaseSensitive(): void
     {
-        if ($this->driver === 'sqlsrv') {
-            $this->markTestSkipped('The case-sensitive whereLike clause is not supported on MSSQL.');
-        }
-
         $this->assertSame(2, DB::table('users')->whereLike('email', '%Doe@example.com', true)->count());
         $this->assertSame(4, DB::table('users')->whereNotLike('email', '%smith%', true)->count());
 
@@ -92,12 +84,8 @@ class QueryBuilderWhereLikeTest extends DatabaseTestCase
         $this->assertSame('Dale.Doe@example.com', $users[1]->email);
     }
 
-    public function testWhereLikeWithUnderscoreWildcardCaseSensitive()
+    public function testWhereLikeWithUnderscoreWildcardCaseSensitive(): void
     {
-        if ($this->driver === 'sqlsrv') {
-            $this->markTestSkipped('The case-sensitive whereLike clause is not supported on MSSQL.');
-        }
-
         $users = DB::table('users')->whereLike('email', 'j__edoe@example.com', true)->get();
         $this->assertCount(1, $users);
         $this->assertSame('janedoe@example.com', $users[0]->email);

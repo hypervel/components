@@ -1366,15 +1366,7 @@ class Blueprint
         return $this->addColumn('geography', $column, compact('subtype', 'srid'));
     }
 
-    /**
-     * Create a new generated, computed column on the table.
-     *
-     * @return TColumnDefinition
-     */
-    public function computed(string $column, string $expression): ColumnDefinition
-    {
-        return $this->addColumn('computed', $column, compact('expression'));
-    }
+    // REMOVED: SQL Server-only computed(); use virtualAs() or storedAs() on a typed column.
 
     /**
      * Create a new vector column on the table.
