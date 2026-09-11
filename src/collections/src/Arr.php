@@ -111,7 +111,7 @@ class Arr
         $results = [];
 
         foreach ($array as $values) {
-            if ($values instanceof Collection) {
+            if ($values instanceof Enumerable) {
                 $results[] = $values->all();
             } elseif (is_array($values)) {
                 $results[] = $values;
@@ -364,7 +364,7 @@ class Arr
         $result = [];
 
         foreach ($array as $item) {
-            $item = $item instanceof Collection ? $item->all() : $item;
+            $item = $item instanceof Enumerable ? $item->all() : $item;
 
             if (! is_array($item)) {
                 $result[] = $item;
@@ -839,11 +839,9 @@ class Arr
      * Run a map over each nested chunk of items.
      *
      * @template TKey
-     * @template TValue
      *
      * @param array<TKey, array> $array
-     * @param callable(mixed...): TValue $callback
-     * @return array<TKey, TValue>
+     * @return array<TKey, mixed>
      */
     public static function mapSpread(array $array, callable $callback): array
     {

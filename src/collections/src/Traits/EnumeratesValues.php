@@ -28,38 +28,38 @@ use function Hypervel\Support\enum_value;
  *
  * @template-covariant TValue
  *
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $average
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $avg
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $contains
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $doesntContain
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $each
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $every
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $filter
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $first
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $flatMap
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $groupBy
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $hasMany
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $hasSole
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $keyBy
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $last
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $map
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $max
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $min
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $partition
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $percentage
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $reject
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $skipUntil
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $skipWhile
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $some
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $sortBy
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $sortByDesc
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $sum
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $takeUntil
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $takeWhile
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $unique
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $unless
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $until
- * @property-read HigherOrderCollectionProxy<TKey, TValue> $when
+ * @property-read HigherOrderCollectionProxy<'average', TValue, static> $average
+ * @property-read HigherOrderCollectionProxy<'avg', TValue, static> $avg
+ * @property-read HigherOrderCollectionProxy<'contains', TValue, static> $contains
+ * @property-read HigherOrderCollectionProxy<'doesntContain', TValue, static> $doesntContain
+ * @property-read HigherOrderCollectionProxy<'each', TValue, static> $each
+ * @property-read HigherOrderCollectionProxy<'every', TValue, static> $every
+ * @property-read HigherOrderCollectionProxy<'filter', TValue, static> $filter
+ * @property-read HigherOrderCollectionProxy<'first', TValue, static> $first
+ * @property-read HigherOrderCollectionProxy<'flatMap', TValue, static> $flatMap
+ * @property-read HigherOrderCollectionProxy<'groupBy', TValue, static> $groupBy
+ * @property-read HigherOrderCollectionProxy<'hasMany', TValue, static> $hasMany
+ * @property-read HigherOrderCollectionProxy<'hasSole', TValue, static> $hasSole
+ * @property-read HigherOrderCollectionProxy<'keyBy', TValue, static> $keyBy
+ * @property-read HigherOrderCollectionProxy<'last', TValue, static> $last
+ * @property-read HigherOrderCollectionProxy<'map', TValue, static> $map
+ * @property-read HigherOrderCollectionProxy<'max', TValue, static> $max
+ * @property-read HigherOrderCollectionProxy<'min', TValue, static> $min
+ * @property-read HigherOrderCollectionProxy<'partition', TValue, static> $partition
+ * @property-read HigherOrderCollectionProxy<'percentage', TValue, static> $percentage
+ * @property-read HigherOrderCollectionProxy<'reject', TValue, static> $reject
+ * @property-read HigherOrderCollectionProxy<'skipUntil', TValue, static> $skipUntil
+ * @property-read HigherOrderCollectionProxy<'skipWhile', TValue, static> $skipWhile
+ * @property-read HigherOrderCollectionProxy<'some', TValue, static> $some
+ * @property-read HigherOrderCollectionProxy<'sortBy', TValue, static> $sortBy
+ * @property-read HigherOrderCollectionProxy<'sortByDesc', TValue, static> $sortByDesc
+ * @property-read HigherOrderCollectionProxy<'sum', TValue, static> $sum
+ * @property-read HigherOrderCollectionProxy<'takeUntil', TValue, static> $takeUntil
+ * @property-read HigherOrderCollectionProxy<'takeWhile', TValue, static> $takeWhile
+ * @property-read HigherOrderCollectionProxy<'unique', TValue, static> $unique
+ * @property-read HigherOrderCollectionProxy<'unless', TValue, static> $unless
+ * @property-read HigherOrderCollectionProxy<'until', TValue, static> $until
+ * @property-read HigherOrderCollectionProxy<'when', TValue, static> $when
  */
 trait EnumeratesValues
 {
@@ -147,11 +147,12 @@ trait EnumeratesValues
     /**
      * Get the underlying items from the given collection if applicable.
      *
-     * @template TUnwrapKey of array-key
-     * @template TUnwrapValue
+     * @template TUnwrapKey of array-key = array-key
+     * @template TUnwrapValue = mixed
+     * @template TUnwrapInput = mixed
      *
-     * @param array<TUnwrapKey, TUnwrapValue>|static<TUnwrapKey, TUnwrapValue>|TUnwrapValue $value
-     * @return (array<TUnwrapKey, TUnwrapValue>|TUnwrapValue)
+     * @param array<TUnwrapKey, TUnwrapValue>|Enumerable<TUnwrapKey, TUnwrapValue>|TUnwrapInput $value
+     * @return ($value is array<array-key, mixed>|Enumerable<array-key, mixed> ? array<TUnwrapKey, TUnwrapValue> : TUnwrapInput)
      */
     public static function unwrap(mixed $value): mixed
     {
@@ -172,9 +173,9 @@ trait EnumeratesValues
      * @template TTimesValue
      *
      * @param null|(callable(int): TTimesValue) $callback
-     * @return ($callback is null ? static<int, int> : static<int, TTimesValue>)
+     * @return ($callback is null ? static<int, int> : Collection<int, TTimesValue>|static<int, TTimesValue>)
      */
-    public static function times(int $number, ?callable $callback = null, mixed ...$args): static
+    public static function times(int $number, ?callable $callback = null, mixed ...$args): Collection|static
     {
         if ($number < 1) {
             return new static([], ...$args);
@@ -273,15 +274,11 @@ trait EnumeratesValues
 
     /**
      * Execute a callback over each nested chunk of items.
-     *
-     * @param callable(mixed...): mixed $callback
      */
     public function eachSpread(callable $callback): static
     {
         return $this->each(function ($chunk, $key) use ($callback) {
-            $chunk[] = $key;
-
-            return $callback(...$chunk);
+            return $callback(...[...$chunk, $key]);
         });
     }
 
@@ -399,17 +396,12 @@ trait EnumeratesValues
     /**
      * Run a map over each nested chunk of items.
      *
-     * @template TMapSpreadValue
-     *
-     * @param callable(mixed...): TMapSpreadValue $callback
-     * @return static<TKey, TMapSpreadValue>
+     * @return Collection<TKey, mixed>|static<TKey, mixed>
      */
-    public function mapSpread(callable $callback): static
+    public function mapSpread(callable $callback): Collection|static
     {
         return $this->map(function ($chunk, $key) use ($callback) {
-            $chunk[] = $key;
-
-            return $callback(...$chunk);
+            return $callback(...[...$chunk, $key]);
         });
     }
 
@@ -422,9 +414,9 @@ trait EnumeratesValues
      * @template TMapToGroupsValue
      *
      * @param callable(TValue, TKey): array<TMapToGroupsKey, TMapToGroupsValue> $callback
-     * @return static<TMapToGroupsKey, static<int, TMapToGroupsValue>>
+     * @return Collection<TMapToGroupsKey, static<int, TMapToGroupsValue>>|static<TMapToGroupsKey, static<int, TMapToGroupsValue>>
      */
-    public function mapToGroups(callable $callback): static
+    public function mapToGroups(callable $callback): Collection|static
     {
         $groups = $this->mapToDictionary($callback);
 
@@ -437,7 +429,7 @@ trait EnumeratesValues
      * @template TFlatMapKey of array-key
      * @template TFlatMapValue
      *
-     * @param callable(TValue, TKey): (array<TFlatMapKey, TFlatMapValue>|Collection<TFlatMapKey, TFlatMapValue>) $callback
+     * @param callable(TValue, TKey): (array<TFlatMapKey, TFlatMapValue>|Enumerable<TFlatMapKey, TFlatMapValue>) $callback
      * @return Collection<TFlatMapKey, TFlatMapValue>|static<TFlatMapKey, TFlatMapValue>
      */
     public function flatMap(callable $callback): Collection|static
@@ -671,6 +663,8 @@ trait EnumeratesValues
      */
     public function whereBetween(string $key, Arrayable|iterable $values): static
     {
+        $values = $this->getArrayableItems($values);
+
         return $this->where($key, '>=', reset($values))->where($key, '<=', end($values));
     }
 
@@ -679,9 +673,15 @@ trait EnumeratesValues
      */
     public function whereNotBetween(string $key, Arrayable|iterable $values): static
     {
-        return $this->filter(
-            fn ($item) => data_get($item, $key) < reset($values) || data_get($item, $key) > end($values)
-        );
+        $values = $this->getArrayableItems($values);
+        $minimum = reset($values);
+        $maximum = end($values);
+
+        return $this->filter(function ($item) use ($key, $minimum, $maximum) {
+            $retrieved = data_get($item, $key);
+
+            return $retrieved < $minimum || $retrieved > $maximum;
+        });
     }
 
     /**
@@ -859,6 +859,22 @@ trait EnumeratesValues
                 ? ! $callback($value, $key)
                 : $value != $callback;
         });
+    }
+
+    /**
+     * Chunk the collection into chunks by comparing adjacent values using the given key or callback.
+     *
+     * @param (callable(TValue, TKey): mixed)|string $key
+     * @return static<int, static<TKey, TValue>>
+     */
+    public function chunkBy(callable|string $key): static
+    {
+        $callback = $this->valueRetriever($key);
+
+        // Read the last key without rebuilding the growing chunk's entire key list.
+        return $this->chunkWhile(
+            fn ($value, $key, $chunk) => $callback($value, $key) == $callback($chunk->last(), array_key_last($chunk->all()))
+        );
     }
 
     /**

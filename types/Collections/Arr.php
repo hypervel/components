@@ -222,6 +222,8 @@ assertType('array<int<0, max>, int>', Arr::whereNotNull($arr));
 assertType('mixed', Arr::random($array));
 assertType('array', Arr::random($array, 2));
 
+assertType('array<0|1, mixed>', Arr::mapSpread([[0, 1], [2, 3]], fn (int $even, int $odd): int => $even + $odd));
+
 // Numeric prefixes can produce integer array keys.
 assertType('array<User>', Arr::prependKeysWith($array, 'user_'));
 

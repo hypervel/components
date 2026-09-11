@@ -809,7 +809,7 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertArrayNotHasKey('appended_field', $c->toArray()[0]);
     }
 
-    public function testNonModelRelatedMethods()
+    public function testNonModelRelatedMethods(): void
     {
         $a = new Collection([['foo' => 'bar'], ['foo' => 'baz']]);
         $b = new Collection(['a', 'b', 'c']);
@@ -822,6 +822,29 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertEquals(BaseCollection::class, get_class($b->flip()));
         $this->assertEquals(BaseCollection::class, get_class($a->partition('foo', '=', 'bar')));
         $this->assertEquals(BaseCollection::class, get_class($a->partition('foo', 'bar')));
+
+        $models = new Collection([
+            (new CollectionModel)->forceFill(['team' => 'a', 'name' => 'bar']),
+            (new CollectionModel)->forceFill(['team' => 'a', 'name' => 'baz']),
+        ]);
+
+        $groups = $models->mapToGroups(fn (CollectionModel $model) => ['values' => $model->name]);
+        $this->assertSame(BaseCollection::class, get_class($groups));
+        $this->assertSame(['bar', 'baz'], $groups->get('values')->all());
+
+        $values = $models->chunk(1)->mapSpread(fn (CollectionModel $model) => $model->name);
+        $this->assertSame(BaseCollection::class, get_class($values));
+        $this->assertSame(['bar', 'baz'], $values->all());
+
+        $windows = $models->sliding(2);
+        $this->assertSame(BaseCollection::class, get_class($windows));
+        $this->assertSame(Collection::class, get_class($windows->first()));
+        $this->assertSame(['bar', 'baz'], $windows->first()->pluck('name')->all());
+
+        $groups = $models->groupBy(['team', 'name']);
+        $this->assertSame(BaseCollection::class, get_class($groups));
+        $this->assertSame(Collection::class, get_class($groups->get('a')->get('bar')));
+        $this->assertSame(['bar'], $groups->get('a')->get('bar')->pluck('name')->all());
     }
 
     public function testMakeVisibleRemovesHiddenAndIncludesVisible()

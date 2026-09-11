@@ -50,9 +50,9 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @template TTimesValue
      *
      * @param null|(callable(int): TTimesValue) $callback
-     * @return ($callback is null ? static<int, int> : static<int, TTimesValue>)
+     * @return ($callback is null ? static<int, int> : Collection<int, TTimesValue>|static<int, TTimesValue>)
      */
-    public static function times(int $number, ?callable $callback = null): static;
+    public static function times(int $number, ?callable $callback = null): Collection|static;
 
     /**
      * Create a collection with the given range.
@@ -440,14 +440,16 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @template TGroupKey of array-key|bool|null|UnitEnum|BaseStringable
      *
      * @param array|(callable(TValue, TKey): (array<array-key, TGroupKey>|TGroupKey))|string $groupBy
-     * @return static<
-     *  ($groupBy is (array|string)
-     *      ? array-key
-     *      : (TGroupKey is array-key ? TGroupKey : (TGroupKey is bool ? int : (TGroupKey is (BaseStringable|null) ? string : array-key)))),
-     *  Collection<($preserveKeys is true ? TKey : int), ($groupBy is array ? mixed : TValue)>
-     * >
+     * @return ($groupBy is array
+     *  ? Collection<array-key, Collection<array-key, mixed>>|static<array-key, Collection<array-key, mixed>>
+     *  : static<
+     *      ($groupBy is string
+     *          ? array-key
+     *          : (TGroupKey is array-key ? TGroupKey : (TGroupKey is bool ? int : (TGroupKey is (BaseStringable|null) ? string : array-key)))),
+     *      Collection<($preserveKeys is true ? TKey : int), TValue>
+     *  >)
      */
-    public function groupBy(callable|array|string $groupBy, bool $preserveKeys = false): static;
+    public function groupBy(callable|array|string $groupBy, bool $preserveKeys = false): Collection|static;
 
     /**
      * Key an associative array by a field or using a callback.
@@ -576,8 +578,10 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
 
     /**
      * Run a map over each nested chunk of items.
+     *
+     * @return Collection<TKey, mixed>|static<TKey, mixed>
      */
-    public function mapSpread(callable $callback): static;
+    public function mapSpread(callable $callback): Collection|static;
 
     /**
      * Run a dictionary map over the items.
@@ -601,9 +605,9 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @template TMapToGroupsValue
      *
      * @param callable(TValue, TKey): array<TMapToGroupsKey, TMapToGroupsValue> $callback
-     * @return static<TMapToGroupsKey, static<int, TMapToGroupsValue>>
+     * @return Collection<TMapToGroupsKey, static<int, TMapToGroupsValue>>|static<TMapToGroupsKey, static<int, TMapToGroupsValue>>
      */
-    public function mapToGroups(callable $callback): static;
+    public function mapToGroups(callable $callback): Collection|static;
 
     /**
      * Run an associative map over each of the items.
@@ -624,7 +628,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @template TFlatMapKey of array-key
      * @template TFlatMapValue
      *
-     * @param callable(TValue, TKey): (array<TFlatMapKey, TFlatMapValue>|Collection<TFlatMapKey, TFlatMapValue>) $callback
+     * @param callable(TValue, TKey): (array<TFlatMapKey, TFlatMapValue>|Enumerable<TFlatMapKey, TFlatMapValue>) $callback
      * @return static<TFlatMapKey, TFlatMapValue>
      */
     public function flatMap(callable $callback): Collection|static;
@@ -823,9 +827,9 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Create chunks representing a "sliding window" view of the items in the collection.
      *
-     * @return static<int, static>
+     * @return Collection<int, static>|static<int, static>
      */
-    public function sliding(int $size = 2, int $step = 1): static;
+    public function sliding(int $size = 2, int $step = 1): Collection|static;
 
     /**
      * Skip the first {$count} items.
@@ -893,6 +897,14 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @return static<int, static<TKey, TValue>>
      */
     public function chunkWhile(callable $callback): static;
+
+    /**
+     * Chunk the collection into chunks by comparing adjacent values using the given key or callback.
+     *
+     * @param (callable(TValue, TKey): mixed)|string $key
+     * @return static<int, static<TKey, TValue>>
+     */
+    public function chunkBy(callable|string $key): static;
 
     /**
      * Split a collection into a certain number of groups, and fill the first groups completely.
@@ -984,7 +996,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Pass the collection to the given callback and then return it.
      *
-     * @param callable(TValue): mixed $callback
+     * @param callable($this): mixed $callback
      */
     public function tap(callable $callback): static;
 

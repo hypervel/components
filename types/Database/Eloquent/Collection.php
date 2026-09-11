@@ -156,6 +156,9 @@ assertType(
 
 assertType('Hypervel\Support\Collection<int, stdClass>', $collection->mapInto(stdClass::class));
 
+assertType('Hypervel\Database\Eloquent\Collection<(int|string), Hypervel\Database\Eloquent\Collection<int, User>>', $collection->groupBy('name'));
+assertType('Hypervel\Support\Collection<(int|string), Hypervel\Support\Collection<(int|string), mixed>>', $collection->groupBy(['name', 'email']));
+
 assertType(
     'Hypervel\Database\Eloquent\Collection<int, User>',
     $collection->fresh()

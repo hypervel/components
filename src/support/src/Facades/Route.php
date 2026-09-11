@@ -83,7 +83,7 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\Routing\Route substituteBindings(\Hypervel\Routing\Route $route)
  * @method static mixed substituteImplicitBindings(\Hypervel\Routing\Route $route)
  * @method static \Hypervel\Routing\Router substituteImplicitBindingsUsing(callable $callback)
- * @method static ($callback is null ? \Hypervel\Support\HigherOrderTapProxy : \Hypervel\Routing\Router) tap(null|callable $callback = null)
+ * @method static ($callback is null ? \Hypervel\Support\HigherOrderTapProxy<\Hypervel\Routing\Router> : \Hypervel\Routing\Router) tap(null|callable $callback = null)
  * @method static \Symfony\Component\HttpFoundation\Response toResponse(\Hypervel\Http\Request $request, mixed $response)
  * @method static array uniqueMiddleware(array $middleware)
  * @method static bool uses(array|string ...$patterns)

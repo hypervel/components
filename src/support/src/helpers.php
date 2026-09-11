@@ -273,7 +273,7 @@ if (! function_exists('optional')) {
      *
      * @param TValue $value
      * @param null|(callable(TValue): TReturn) $callback
-     * @return ($callback is null ? \Hypervel\Support\Optional : ($value is null ? null : TReturn))
+     * @return ($callback is null ? Optional : ($value is null ? null : TReturn))
      */
     function optional($value = null, ?callable $callback = null)
     {
@@ -355,7 +355,7 @@ if (! function_exists('str')) {
      * Get a new stringable object from the given string.
      *
      * @param null|string $string
-     * @return ($string is null ? object : \Hypervel\Support\Stringable)
+     * @return ($string is null ? object : SupportStringable)
      */
     function str($string = null)
     {
@@ -385,7 +385,7 @@ if (! function_exists('tap')) {
      *
      * @param TValue $value
      * @param null|(callable(TValue): mixed) $callback
-     * @return ($callback is null ? \Hypervel\Support\HigherOrderTapProxy : TValue)
+     * @return ($callback is null ? HigherOrderTapProxy<TValue> : TValue)
      */
     function tap($value, $callback = null)
     {

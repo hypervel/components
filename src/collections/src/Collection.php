@@ -179,7 +179,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
         $results = [];
 
         foreach ($this->items as $key => $values) {
-            if ($values instanceof Collection) {
+            if ($values instanceof Enumerable) {
                 $values = $values->all();
             } elseif (! is_array($values)) {
                 continue;
@@ -511,15 +511,17 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @template TGroupKey of array-key|bool|null|UnitEnum|BaseStringable
      *
      * @param array|(callable(TValue, TKey): (array<array-key, TGroupKey>|TGroupKey))|string $groupBy
-     * @return static<
-     *  ($groupBy is (array|string)
-     *      ? array-key
-     *      : (TGroupKey is array-key ? TGroupKey : (TGroupKey is bool ? int : (TGroupKey is (BaseStringable|null) ? string : array-key)))),
-     *  static<($preserveKeys is true ? TKey : int), ($groupBy is array ? mixed : TValue)>
-     * >
+     * @return ($groupBy is array
+     *  ? Collection<array-key, Collection<array-key, mixed>>|static<array-key, Collection<array-key, mixed>>
+     *  : static<
+     *      ($groupBy is string
+     *          ? array-key
+     *          : (TGroupKey is array-key ? TGroupKey : (TGroupKey is bool ? int : (TGroupKey is (BaseStringable|null) ? string : array-key)))),
+     *      static<($preserveKeys is true ? TKey : int), TValue>
+     *  >)
      */
     #[Override]
-    public function groupBy(callable|array|string $groupBy, bool $preserveKeys = false): static
+    public function groupBy(callable|array|string $groupBy, bool $preserveKeys = false): Collection|static
     {
         if (! $this->useAsCallable($groupBy) && is_array($groupBy)) {
             $nextGroups = $groupBy;
@@ -558,7 +560,6 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
         $result = $this->newInstance($results);
 
         if (! empty($nextGroups)) {
-            // @phpstan-ignore return.type (recursive groupBy returns Enumerable, PHPStan can't verify it matches static)
             return $result->map->groupBy($nextGroups, $preserveKeys);
         }
 
@@ -1244,11 +1245,11 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      *
      * @param positive-int $size
      * @param positive-int $step
-     * @return static<int, static>
+     * @return Collection<int, static>|static<int, static>
      *
      * @throws InvalidArgumentException
      */
-    public function sliding(int $size = 2, int $step = 1): static
+    public function sliding(int $size = 2, int $step = 1): Collection|static
     {
         if ($size < 1) {
             throw new InvalidArgumentException('Size value must be at least 1.');
