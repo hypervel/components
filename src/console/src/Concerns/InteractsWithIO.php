@@ -10,7 +10,9 @@ use Hypervel\Console\OutputStyle;
 use Hypervel\Console\View\Components\Factory;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Support\Str;
+use Stringable;
 use Symfony\Component\Console\Formatter\OutputFormatterStyle;
+use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Helper\TableStyle;
 use Symfony\Component\Console\Input\InputInterface;
@@ -25,8 +27,14 @@ trait InteractsWithIO
      */
     protected ?Factory $components = null;
 
+    /**
+     * The input interface implementation.
+     */
     protected ?InputInterface $input = null;
 
+    /**
+     * The output interface implementation.
+     */
     protected ?OutputStyle $output = null;
 
     /**
@@ -36,6 +44,8 @@ trait InteractsWithIO
 
     /**
      * The mapping between human-readable verbosity levels and Symfony's OutputInterface.
+     *
+     * @var array<string, int>
      */
     protected array $verbosityMap = [
         'v' => OutputInterface::VERBOSITY_VERBOSE,
@@ -58,7 +68,7 @@ trait InteractsWithIO
     }
 
     /**
-     * Determine if the given argument is present.
+     * Determine whether the argument is defined in the command signature.
      */
     public function hasArgument(int|string $name): bool
     {
@@ -67,6 +77,8 @@ trait InteractsWithIO
 
     /**
      * Get the value of a command argument.
+     *
+     * @return ($key is null ? array : mixed)
      */
     public function argument(?string $key = null): mixed
     {
@@ -86,7 +98,7 @@ trait InteractsWithIO
     }
 
     /**
-     * Determine if the given option is present.
+     * Determine whether the option is defined in the command signature.
      */
     public function hasOption(string $name): bool
     {
@@ -95,6 +107,8 @@ trait InteractsWithIO
 
     /**
      * Get the value of a command option.
+     *
+     * @return ($key is null ? array : mixed)
      */
     public function option(?string $key = null): mixed
     {
@@ -131,6 +145,8 @@ trait InteractsWithIO
 
     /**
      * Prompt the user for input with auto completion.
+     *
+     * @param (callable(string): string[])|iterable $choices
      */
     public function anticipate(string $question, iterable|callable $choices, ?string $default = null): mixed
     {
@@ -139,6 +155,8 @@ trait InteractsWithIO
 
     /**
      * Prompt the user for input with auto completion.
+     *
+     * @param (callable(string): string[])|iterable $choices
      */
     public function askWithCompletion(string $question, iterable|callable $choices, ?string $default = null): mixed
     {
@@ -165,6 +183,9 @@ trait InteractsWithIO
 
     /**
      * Give the user a single choice from an array of answers.
+     *
+     * @param array<bool|float|int|string|Stringable> $choices
+     * @param null|positive-int $attempts
      */
     public function choice(string $question, array $choices, int|string|null $default = null, ?int $attempts = null, bool $multiple = false): array|string
     {
@@ -177,6 +198,8 @@ trait InteractsWithIO
 
     /**
      * Format input to textual table.
+     *
+     * @param array<int, string|TableStyle> $columnStyles
      */
     public function table(array $headers, array|Arrayable $rows, string|TableStyle $tableStyle = 'default', array $columnStyles = []): void
     {
@@ -197,6 +220,14 @@ trait InteractsWithIO
 
     /**
      * Execute a given callback while advancing a progress bar.
+     *
+     * @template TKey of array-key
+     * @template TValue
+     * @template TIterable of iterable<TKey, TValue>
+     *
+     * @param int|TIterable $totalSteps
+     * @param Closure(ProgressBar): mixed|Closure(TValue, ProgressBar, TKey): mixed $callback
+     * @return ($totalSteps is iterable ? TIterable : null)
      */
     public function withProgressBar(iterable|int $totalSteps, Closure $callback): mixed
     {

@@ -13,6 +13,8 @@ class ContainerCommandLoader implements CommandLoaderInterface
 {
     /**
      * Create a new command loader instance.
+     *
+     * @param array<string, string> $commandMap
      */
     public function __construct(
         protected Container $container,

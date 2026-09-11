@@ -15,15 +15,22 @@ use function Hypervel\Coroutine\parallel;
 class SignalRegistry
 {
     /**
-     * @var array<int, callable[]>
+     * The callbacks registered for each signal.
+     *
+     * @var array<int, array<int, callable(int): mixed>>
      */
     protected array $signalHandlers = [];
 
     /**
-     * @var int[]
+     * The waiting coroutine ID for each signal.
+     *
+     * @var array<int, int>
      */
     protected array $handling = [];
 
+    /**
+     * Create a new signal registry.
+     */
     public function __construct(
         protected int $timeout = 1,
         protected int $concurrentLimit = 0,
@@ -34,7 +41,7 @@ class SignalRegistry
      * Register a signal handler for one or more signals.
      *
      * @param int|int[] $signo
-     * @param (callable(int $signo): void) $signalHandler
+     * @param (callable(int $signo): mixed) $signalHandler
      */
     public function register(int|array $signo, callable $signalHandler): void
     {
@@ -101,7 +108,7 @@ class SignalRegistry
     /**
      * Add a signal handler to the stack for the given signal.
      *
-     * @param (callable(int $signo): void) $signalHandler
+     * @param (callable(int $signo): mixed) $signalHandler
      */
     protected function pushSignalHandler(int $signo, callable $signalHandler): void
     {

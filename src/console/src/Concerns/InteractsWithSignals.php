@@ -9,13 +9,16 @@ use Hypervel\Coroutine\Coroutine;
 
 trait InteractsWithSignals
 {
+    /**
+     * The signal registry instance.
+     */
     protected ?SignalRegistry $signalRegistry = null;
 
     /**
      * Define a callback to be run when the given signal(s) occurs.
      *
      * @param int|int[] $signo
-     * @param (callable(int $signo): void) $callback
+     * @param (callable(int $signo): mixed) $callback
      */
     public function trap(array|int $signo, callable $callback): void
     {
