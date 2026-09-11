@@ -205,6 +205,8 @@ abstract class HasOneOrManyThrough extends Relation
      */
     public function firstOrCreate(array $attributes = [], Closure|array $values = []): Model
     {
+        $this->getQuery()->ensureCanCreateOrFirst();
+
         if (! is_null($instance = (clone $this)->where($attributes)->first())) {
             return $instance;
         }
@@ -219,6 +221,8 @@ abstract class HasOneOrManyThrough extends Relation
      */
     public function createOrFirst(array $attributes = [], Closure|array $values = []): Model
     {
+        $this->getQuery()->ensureCanCreateOrFirst();
+
         try {
             return $this->getQuery()->withSavepointIfNeeded(fn () => $this->create(array_merge($attributes, value($values))));
         } catch (UniqueConstraintViolationException $exception) {

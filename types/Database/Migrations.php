@@ -16,18 +16,23 @@ function testMigrationRepositoryTypes(MigrationRepositoryInterface $repository, 
 {
     assertType('array<string>', $repository->getRan());
     assertType('array<string>', $database->getRan());
-    assertType('array<string, int>', $repository->getMigrationBatches());
-    assertType('array<string, int>', $database->getMigrationBatches());
+    assertType('array<string, int|numeric-string>', $repository->getMigrationBatches());
+    assertType('array<string, int|numeric-string>', $database->getMigrationBatches());
 
-    assertType('array<object{id: int, migration: string, batch: int}>', $repository->getMigrations(1));
-    assertType('array<object{id: int, migration: string, batch: int}>', $database->getMigrations(1));
-    assertType('array<object{id: int, migration: string, batch: int}>', $repository->getMigrationsByBatch(1));
-    assertType('array<object{id: int, migration: string, batch: int}>', $database->getMigrationsByBatch(1));
-    assertType('array<object{id: int, migration: string, batch: int}>', $repository->getLast());
-    assertType('array<object{id: int, migration: string, batch: int}>', $database->getLast());
+    assertType('array<object{migration: string, batch: int|numeric-string}>', $repository->getMigrations(1));
+    assertType('array<object{migration: string, batch: int|numeric-string}>', $database->getMigrations(1));
+    assertType('array<object{migration: string, batch: int|numeric-string}>', $repository->getMigrationsByBatch(1));
+    assertType('array<object{migration: string, batch: int|numeric-string}>', $database->getMigrationsByBatch(1));
+    assertType('array<object{migration: string, batch: int|numeric-string}>', $repository->getLast());
+    assertType('array<object{migration: string, batch: int|numeric-string}>', $database->getLast());
 
     $repository->delete((object) ['migration' => 'create_users_table']);
     $database->delete((object) ['migration' => 'create_users_table']);
+
+    $repository->delete((object) ['migration' => 'create_users_table', 'batch' => '1']);
+    $database->delete((object) ['migration' => 'create_users_table', 'batch' => '1']);
+    $repository->delete((object) ['id' => 1, 'migration' => 'create_users_table', 'batch' => 1]);
+    $database->delete((object) ['id' => 1, 'migration' => 'create_users_table', 'batch' => 1]);
 }
 
 function testMigrationCallbackTypes(MigrationCreator $creator, Connection $connection): void

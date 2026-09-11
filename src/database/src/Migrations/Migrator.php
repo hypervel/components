@@ -265,7 +265,7 @@ class Migrator
      * Get the migrations for a rollback operation.
      *
      * @param array<string, mixed> $options
-     * @return object{id: int, migration: string, batch: int}[]
+     * @return object{migration: string, batch: int|numeric-string}[]
      */
     protected function getMigrationsForRollback(array $options): array
     {
@@ -283,6 +283,7 @@ class Migrator
     /**
      * Rollback the given migrations.
      *
+     * @param object{migration: string}[] $migrations
      * @param string|string[] $paths
      * @param array<string, mixed> $options
      * @return string[]

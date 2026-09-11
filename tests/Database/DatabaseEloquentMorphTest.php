@@ -478,6 +478,7 @@ class DatabaseEloquentMorphTest extends TestCase
     {
         $queryBuilder = m::mock(QueryBuilder::class);
         $builder = m::mock(Builder::class, [$queryBuilder]);
+        $builder->shouldReceive('ensureCanCreateOrFirst')->passthru();
         $builder->shouldReceive('whereNotNull')->once()->with('table.morph_id');
         $builder->shouldReceive('where')->once()->with('table.morph_id', '=', 1);
         $related = m::mock(Model::class);

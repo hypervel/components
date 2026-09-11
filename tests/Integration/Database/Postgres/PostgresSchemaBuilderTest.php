@@ -13,6 +13,7 @@ use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
+use PHPUnit\Framework\Attributes\TestWith;
 
 #[RequiresOperatingSystem('Linux|Darwin')]
 #[RequiresPhpExtension('pdo_pgsql')]
@@ -178,6 +179,138 @@ class PostgresSchemaBuilderTest extends PostgresTestCase
         });
 
         $this->assertEquals('This is a new comment', DB::selectOne("select obj_description('public.posts'::regclass, 'pg_class')")->obj_description);
+    }
+
+    #[RequiresDatabase('pgsql', '>=13')]
+    #[TestWith(['storedAs'])]
+    #[TestWith(['virtualAs'])]
+    public function testRemovingStoredExpressionsPreservesRowsAndAllowsOrdinaryWrites(string $modifier): void
+    {
+        Schema::create('generated_records', function (Blueprint $table): void {
+            $table->integer('source');
+            $table->integer('value')->storedAs('source * 2');
+            $table->integer('label')->storedAs('source * 3');
+        });
+        DB::table('generated_records')->insert(['source' => 2]);
+
+        Schema::table('generated_records', function (Blueprint $table) use ($modifier): void {
+            $table->integer('value')->{$modifier}(null)->change();
+            $table->text('label')->{$modifier}(null)->default('new')->change();
+        });
+
+        $this->assertSame(['source' => 2, 'value' => 4, 'label' => '6'], (array) DB::table('generated_records')->first());
+        $columns = collect(Schema::getColumns('generated_records'))->keyBy('name');
+        $this->assertNull($columns['value']['generation']);
+        $this->assertNull($columns['value']['default']);
+        $this->assertNull($columns['label']['generation']);
+        $this->assertSame('text', $columns['label']['type_name']);
+
+        DB::table('generated_records')->insert(['source' => 3, 'value' => 11]);
+        $this->assertSame(['source' => 3, 'value' => 11, 'label' => 'new'], (array) DB::table('generated_records')->where('source', 3)->first());
+        DB::table('generated_records')->where('source', 2)->update(['value' => 12, 'label' => 'changed']);
+        $this->assertSame(['source' => 2, 'value' => 12, 'label' => 'changed'], (array) DB::table('generated_records')->where('source', 2)->first());
+    }
+
+    #[RequiresDatabase('pgsql', '>=13')]
+    public function testRemovingAnAbsentExpressionAllowsANewDefault(): void
+    {
+        Schema::create('ordinary_records', function (Blueprint $table): void {
+            $table->integer('value')->default(1);
+        });
+        DB::table('ordinary_records')->insert(['value' => 2]);
+
+        Schema::table('ordinary_records', function (Blueprint $table): void {
+            $table->integer('value')->storedAs(null)->default(7)->change();
+        });
+
+        DB::statement('insert into ordinary_records default values');
+        $this->assertSame([2, 7], DB::table('ordinary_records')->orderBy('value')->pluck('value')->all());
+    }
+
+    #[RequiresDatabase('pgsql', '>=17')]
+    #[TestWith(['storedAs', 'stored', false])]
+    #[TestWith(['virtualAs', 'virtual', false])]
+    #[TestWith(['storedAs', 'stored', true])]
+    #[TestWith(['virtualAs', 'virtual', true])]
+    public function testChangingGeneratedExpressionsRecalculatesValues(string $modifier, string $generation, bool $nullable): void
+    {
+        if ($generation === 'virtual' && version_compare($this->getConnection()->getServerVersion(), '18', '<')) {
+            $this->markTestSkipped('Virtual generated columns require PostgreSQL 18.');
+        }
+
+        if (! $nullable && version_compare($this->getConnection()->getServerVersion(), '18', '>=')) {
+            // @TODO Enable after the PostgreSQL double constraint-cleanup fix ships and is verified:
+            // https://www.postgresql.org/message-id/CACJufxHZsgn3zM5g-x7YmtFGzNDnRwR07S%2BGYfiUs%2BtZ45MDDw@mail.gmail.com
+            $this->markTestSkipped('PostgreSQL cannot combine expression and type changes with an existing NOT NULL constraint.');
+        }
+
+        Schema::create('generated_records', function (Blueprint $table) use ($modifier, $nullable): void {
+            $table->integer('source');
+            $table->integer('value')->nullable($nullable)->{$modifier}('source * 2');
+        });
+        DB::table('generated_records')->insert(['source' => 2]);
+
+        Schema::table('generated_records', function (Blueprint $table) use ($modifier, $nullable): void {
+            $table->integer('value')->nullable($nullable)->{$modifier}('source * 10')->change();
+        });
+        $this->assertSame(20, DB::table('generated_records')->value('value'));
+
+        Schema::table('generated_records', function (Blueprint $table) use ($modifier, $nullable): void {
+            $table->bigInteger('value')->nullable($nullable)->{$modifier}(DB::raw('source * 20'))->change();
+        });
+        DB::table('generated_records')->insert(['source' => 3]);
+
+        $this->assertSame([40, 60], DB::table('generated_records')->orderBy('source')->pluck('value')->all());
+        $column = collect(Schema::getColumns('generated_records'))->firstWhere('name', 'value');
+        $this->assertSame('int8', $column['type_name']);
+        $this->assertSame($generation, $column['generation']['type']);
+        $this->assertNull($column['default']);
+    }
+
+    #[RequiresDatabase('pgsql', '>=17')]
+    public function testChangingGeneratedExpressionsPreservesCheckConstraints(): void
+    {
+        // @TODO Enable after the PostgreSQL double constraint-cleanup fix ships and is verified:
+        // https://www.postgresql.org/message-id/CACJufxHZsgn3zM5g-x7YmtFGzNDnRwR07S%2BGYfiUs%2BtZ45MDDw@mail.gmail.com
+        $this->markTestSkipped('PostgreSQL cannot combine expression and type changes with an existing CHECK constraint.');
+
+        DB::statement('create table generated_records (source integer, value integer generated always as (source * 2) stored check (value > 0))');
+        DB::table('generated_records')->insert(['source' => 2]);
+
+        Schema::table('generated_records', function (Blueprint $table): void {
+            $table->bigInteger('value')->nullable()->storedAs('source * 10')->change();
+        });
+
+        $this->assertSame(20, DB::table('generated_records')->value('value'));
+        $this->expectException(QueryException::class);
+        $this->expectExceptionMessage('violates check constraint');
+        DB::table('generated_records')->insert(['source' => -1]);
+    }
+
+    #[RequiresDatabase('pgsql', '>=17')]
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testInvalidGeneratedExpressionChangesRetainNativeErrors(bool $generated): void
+    {
+        Schema::create('generated_records', function (Blueprint $table) use ($generated): void {
+            $table->integer('source');
+            $column = $table->integer('value')->nullable();
+
+            if ($generated) {
+                $column->storedAs('source * 2');
+            }
+        });
+
+        $this->expectException(QueryException::class);
+        $this->expectExceptionMessage($generated ? 'is a generated column' : 'is not a generated column');
+
+        Schema::table('generated_records', function (Blueprint $table) use ($generated): void {
+            $column = $table->integer('value')->storedAs('source * 10')->change();
+
+            if ($generated) {
+                $column->default(5);
+            }
+        });
     }
 
     public function testWithoutForeignKeyConstraintsNestsUntilTheOuterScopeRestoresImmediateChecks(): void

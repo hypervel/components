@@ -7,6 +7,7 @@ namespace Hypervel\Database\Schema;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Database\Connection;
+use Hypervel\Database\MultipleColumnsSelectedException;
 use Hypervel\Database\PostgresConnection;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
@@ -157,7 +158,7 @@ class Builder
     public function getSchemas(): array
     {
         return $this->connection->getPostProcessor()->processSchemas(
-            $this->connection->selectFromWriteConnection($this->grammar->compileSchemas())
+            $this->selectMetadata($this->grammar->compileSchemas())
         );
     }
 
@@ -171,8 +172,7 @@ class Builder
         $table = $this->connection->getTablePrefix() . $table;
 
         if ($sql = $this->grammar->compileTableExists($schema, $table)) {
-            // Schema existence must be read from the same write connection that migrations mutate.
-            return (bool) $this->connection->scalar($sql, [], false);
+            return (bool) $this->scalarMetadata($sql);
         }
 
         foreach ($this->getTables($schema ?? $this->getCurrentSchemaName()) as $value) {
@@ -211,7 +211,7 @@ class Builder
     public function getTables(array|string|null $schema = null): array
     {
         return $this->connection->getPostProcessor()->processTables(
-            $this->connection->selectFromWriteConnection($this->grammar->compileTables($schema))
+            $this->selectMetadata($this->grammar->compileTables($schema))
         );
     }
 
@@ -236,7 +236,7 @@ class Builder
     public function getViews(array|string|null $schema = null): array
     {
         return $this->connection->getPostProcessor()->processViews(
-            $this->connection->selectFromWriteConnection($this->grammar->compileViews($schema))
+            $this->selectMetadata($this->grammar->compileViews($schema))
         );
     }
 
@@ -248,7 +248,7 @@ class Builder
     public function getTypes(array|string|null $schema = null): array
     {
         return $this->connection->getPostProcessor()->processTypes(
-            $this->connection->selectFromWriteConnection($this->grammar->compileTypes($schema))
+            $this->selectMetadata($this->grammar->compileTypes($schema))
         );
     }
 
@@ -359,7 +359,7 @@ class Builder
         $table = $this->connection->getTablePrefix() . $table;
 
         return $this->connection->getPostProcessor()->processColumns(
-            $this->connection->selectFromWriteConnection(
+            $this->selectMetadata(
                 $this->grammar->compileColumns($schema, $table)
             )
         );
@@ -377,7 +377,7 @@ class Builder
         $table = $this->connection->getTablePrefix() . $table;
 
         return $this->connection->getPostProcessor()->processIndexes(
-            $this->connection->selectFromWriteConnection(
+            $this->selectMetadata(
                 $this->grammar->compileIndexes($schema, $table)
             )
         );
@@ -456,7 +456,7 @@ class Builder
         $table = $this->connection->getTablePrefix() . $table;
 
         return $this->connection->getPostProcessor()->processForeignKeys(
-            $this->connection->selectFromWriteConnection(
+            $this->selectMetadata(
                 $this->grammar->compileForeignKeys($schema, $table)
             )
         );
@@ -732,6 +732,30 @@ class Builder
                 throw new RuntimeException("Failed to execute schema statement [{$statement}].");
             }
         }
+    }
+
+    /**
+     * Read schema metadata from the same write connection that migrations mutate.
+     */
+    protected function selectMetadata(string $query): array
+    {
+        return $this->connection->selectFromWriteConnection($query);
+    }
+
+    /**
+     * Read a scalar result through the metadata execution hook.
+     *
+     * @throws MultipleColumnsSelectedException
+     */
+    protected function scalarMetadata(string $query): mixed
+    {
+        $record = (array) ($this->selectMetadata($query)[0] ?? []);
+
+        if (count($record) > 1) {
+            throw new MultipleColumnsSelectedException;
+        }
+
+        return array_first($record);
     }
 
     /**

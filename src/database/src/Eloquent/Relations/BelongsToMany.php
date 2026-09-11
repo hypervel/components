@@ -596,6 +596,8 @@ class BelongsToMany extends Relation
      */
     public function firstOrCreate(array $attributes = [], Closure|array $values = [], array $joining = [], bool $touch = true): Model
     {
+        $this->getQuery()->ensureCanCreateOrFirst();
+
         if (is_null($instance = (clone $this)->where($attributes)->first())) {
             if (is_null($instance = $this->related->where($attributes)->first())) {
                 $instance = $this->createOrFirst($attributes, $values, $joining, $touch);
@@ -620,6 +622,8 @@ class BelongsToMany extends Relation
      */
     public function createOrFirst(array $attributes = [], Closure|array $values = [], array $joining = [], bool $touch = true): Model
     {
+        $this->getQuery()->ensureCanCreateOrFirst();
+
         try {
             return $this->getQuery()->withSavepointIfNeeded(fn () => $this->create(array_merge($attributes, value($values)), $joining, $touch));
         } catch (UniqueConstraintViolationException $exception) {

@@ -1181,6 +1181,66 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         ], $statements);
     }
 
+    #[TestWith(['storedAs'])]
+    #[TestWith(['virtualAs'])]
+    public function testRemovingGeneratedExpressionsPrecedesDefaultChanges(string $modifier): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->integer('value')->{$modifier}(null)->change();
+
+        $this->assertSame([
+            'alter table "users" alter column "value" drop expression if exists, alter column "value" type integer, alter column "value" set not null, alter column "value" drop default, alter column "value" drop identity if exists',
+            'comment on column "users"."value" is NULL',
+        ], $blueprint->toSql());
+
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->integer('value')->{$modifier}(null)->default(7)->nullable()->change();
+
+        $this->assertSame([
+            'alter table "users" alter column "value" drop expression if exists, alter column "value" type integer, alter column "value" drop not null, alter column "value" set default \'7\', alter column "value" drop identity if exists',
+            'comment on column "users"."value" is NULL',
+        ], $blueprint->toSql());
+    }
+
+    #[TestWith(['storedAs'])]
+    #[TestWith(['virtualAs'])]
+    public function testChangingGeneratedExpressionsDoesNotDropDefaults(string $modifier): void
+    {
+        foreach (['source * 10', new Expression('source * 10')] as $expression) {
+            $blueprint = new Blueprint($this->getConnection(), 'users');
+            $blueprint->bigInteger('value')->{$modifier}($expression)->change();
+
+            $this->assertSame([
+                'alter table "users" alter column "value" set expression as (source * 10), alter column "value" type bigint, alter column "value" set not null, alter column "value" drop identity if exists',
+                'comment on column "users"."value" is NULL',
+            ], $blueprint->toSql());
+        }
+    }
+
+    #[TestWith(['storedAs'])]
+    #[TestWith(['virtualAs'])]
+    public function testGeneratedExpressionChangesDoNotDiscardExplicitDefaults(string $modifier): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->integer('value')->{$modifier}('source * 10')->default(7)->change();
+
+        $this->assertSame([
+            'alter table "users" alter column "value" set expression as (source * 10), alter column "value" type integer, alter column "value" set not null, alter column "value" set default \'7\', alter column "value" drop identity if exists',
+            'comment on column "users"."value" is NULL',
+        ], $blueprint->toSql());
+    }
+
+    public function testOrdinaryChangesKeepDefaultRemovalAndClauseOrder(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->integer('value')->change();
+
+        $this->assertSame([
+            'alter table "users" alter column "value" type integer, alter column "value" set not null, alter column "value" drop default, alter column "value" drop identity if exists',
+            'comment on column "users"."value" is NULL',
+        ], $blueprint->toSql());
+    }
+
     public function testAddingIpAddress()
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');

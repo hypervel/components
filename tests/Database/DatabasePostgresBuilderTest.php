@@ -187,7 +187,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $grammar = m::mock(PostgresGrammar::class);
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $grammar->shouldReceive('compileTableExists')->andReturn('sql');
-        $connection->shouldReceive('scalar')->with('sql', [], false)->andReturn(1);
+        $connection->shouldReceive('selectFromWriteConnection')->with('sql')->andReturn([['exists' => 1]]);
         $connection->shouldReceive('getTablePrefix');
         $builder = $this->getBuilder($connection);
 
@@ -202,7 +202,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $grammar = m::mock(PostgresGrammar::class);
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $grammar->shouldReceive('compileTableExists')->andReturn('sql');
-        $connection->shouldReceive('scalar')->with('sql', [], false)->andReturn(1);
+        $connection->shouldReceive('selectFromWriteConnection')->with('sql')->andReturn([['exists' => 1]]);
         $connection->shouldReceive('getTablePrefix');
         $builder = $this->getBuilder($connection);
 
@@ -218,7 +218,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $grammar = m::mock(PostgresGrammar::class);
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $grammar->shouldReceive('compileTableExists')->andReturn('sql');
-        $connection->shouldReceive('scalar')->with('sql', [], false)->andReturn(1);
+        $connection->shouldReceive('selectFromWriteConnection')->with('sql')->andReturn([['exists' => 1]]);
         $connection->shouldReceive('getTablePrefix');
         $builder = $this->getBuilder($connection);
 
@@ -234,7 +234,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $grammar = m::mock(PostgresGrammar::class);
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $grammar->shouldReceive('compileTableExists')->andReturn('sql');
-        $connection->shouldReceive('scalar')->with('sql', [], false)->andReturn(1);
+        $connection->shouldReceive('selectFromWriteConnection')->with('sql')->andReturn([['exists' => 1]]);
         $connection->shouldReceive('getTablePrefix');
         $builder = $this->getBuilder($connection);
 
@@ -249,7 +249,7 @@ class DatabasePostgresBuilderTest extends TestCase
         $grammar = m::mock(PostgresGrammar::class);
         $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
         $grammar->shouldReceive('compileTableExists')->andReturn('sql');
-        $connection->shouldReceive('scalar')->with('sql', [], false)->andReturn(1);
+        $connection->shouldReceive('selectFromWriteConnection')->with('sql')->andReturn([['exists' => 1]]);
         $connection->shouldReceive('getTablePrefix');
         $builder = $this->getBuilder($connection);
 

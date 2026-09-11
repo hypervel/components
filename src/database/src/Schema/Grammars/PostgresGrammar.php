@@ -8,7 +8,6 @@ use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
-use LogicException;
 use Override;
 
 class PostgresGrammar extends Grammar
@@ -260,7 +259,12 @@ class PostgresGrammar extends Grammar
                 $constraints = (array) $this->{$method}($blueprint, $column);
 
                 foreach ($constraints as $constraint) {
-                    $changes[] = $constraint;
+                    // Keep generated clauses first so DROP EXPRESSION precedes SET/DROP DEFAULT.
+                    if ($modifier === 'VirtualAs' || $modifier === 'StoredAs') {
+                        array_unshift($changes, $constraint);
+                    } else {
+                        $changes[] = $constraint;
+                    }
                 }
             }
         }
@@ -992,6 +996,11 @@ class PostgresGrammar extends Grammar
     protected function modifyDefault(Blueprint $blueprint, Fluent $column): ?string
     {
         if ($column->change) {
+            // A restated generated expression cannot have an implicit DROP DEFAULT.
+            if ($column->default === null && ($column->storedAs !== null || $column->virtualAs !== null)) {
+                return null;
+            }
+
             if (! $column->autoIncrement || ! is_null($column->generatedAs)) {
                 return is_null($column->default) ? 'drop default' : 'set default ' . $this->getDefaultValue($column->default);
             }
@@ -1030,7 +1039,7 @@ class PostgresGrammar extends Grammar
             if (array_key_exists('virtualAs', $column->getAttributes())) {
                 return is_null($column->virtualAs)
                     ? 'drop expression if exists'
-                    : throw new LogicException('This database driver does not support modifying generated columns.');
+                    : "set expression as ({$this->getValue($column->virtualAs)})";
             }
 
             return null;
@@ -1052,7 +1061,7 @@ class PostgresGrammar extends Grammar
             if (array_key_exists('storedAs', $column->getAttributes())) {
                 return is_null($column->storedAs)
                     ? 'drop expression if exists'
-                    : throw new LogicException('This database driver does not support modifying generated columns.');
+                    : "set expression as ({$this->getValue($column->storedAs)})";
             }
 
             return null;

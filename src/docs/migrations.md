@@ -1330,7 +1330,7 @@ The following table contains all of the available column modifiers. This list do
 | `->unsigned()`                      | Set `INTEGER` columns as `UNSIGNED` (MariaDB / MySQL).                                         |
 | `->useCurrent()`                    | Set `TIMESTAMP` columns to use `CURRENT_TIMESTAMP` as default value.                           |
 | `->useCurrentOnUpdate()`            | Set `TIMESTAMP` columns to use `CURRENT_TIMESTAMP` when a record is updated (MariaDB / MySQL). |
-| `->virtualAs($expression)`          | Create a virtual generated column (MariaDB / MySQL / SQLite).                                  |
+| `->virtualAs($expression)`          | Create a virtual generated column (MariaDB / MySQL / PostgreSQL 18+ / SQLite).                 |
 | `->generatedAs($expression)`        | Create an identity column with specified sequence options (PostgreSQL).                        |
 | `->always()`                        | Defines the precedence of sequence values over input for an identity column (PostgreSQL).      |
 
@@ -1435,6 +1435,13 @@ $table->bigIncrements('id')->primary()->change();
 // Drop an index...
 $table->char('postal_code', 10)->unique(false)->change();
 ```
+
+On PostgreSQL 17 and later, you may change a stored generated expression using `storedAs($expression)->change()`. Virtual generated expressions may be changed using `virtualAs($expression)->change()` on PostgreSQL 18 and later. Changing a stored expression recalculates the column's existing values.
+
+> [!WARNING]
+> A [PostgreSQL bug](https://www.postgresql.org/message-id/CACJufxHZsgn3zM5g-x7YmtFGzNDnRwR07S%2BGYfiUs%2BtZ45MDDw@mail.gmail.com) can make these expression changes fail on columns with CHECK constraints, or NOT NULL constraints on PostgreSQL 18. For affected columns, issue `ALTER TABLE ... ALTER COLUMN ... SET EXPRESSION AS (...)` separately through `DB::statement()` instead of `change()`.
+
+To turn a stored generated column into an ordinary column on PostgreSQL 13 and later, use `storedAs(null)->change()`. Existing values are preserved, and you may specify a new default in the same definition. PostgreSQL does not support removing a virtual column's expression.
 
 <a name="renaming-columns"></a>
 ### Renaming Columns
