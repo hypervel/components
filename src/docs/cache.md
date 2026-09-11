@@ -367,6 +367,21 @@ Cache::put(CacheKey::Visits, 10, 600);
 $visits = Cache::get(CacheKey::Visits);
 ```
 
+<a name="retrieving-typed-values"></a>
+#### Retrieving Typed Values
+
+You may use the `string`, `integer`, `float`, `boolean`, and `array` methods to retrieve a cache item as a specific type:
+
+```php
+$name = Cache::string('user:display_name', 'Guest');
+$attempts = Cache::integer('login:attempts', 0);
+$rating = Cache::float('product:rating', 0.0);
+$active = Cache::boolean('user:active', false);
+$settings = Cache::array('user:settings', []);
+```
+
+Like `get`, these methods accept a default value or a closure that returns the default when the item is missing. An `InvalidArgumentException` is thrown if the retrieved value has an incompatible type, or if the item is missing and no suitable default is provided. The `integer` and `float` methods also accept numeric strings that represent valid integer or float values, respectively.
+
 <a name="determining-item-existence"></a>
 #### Determining Item Existence
 
