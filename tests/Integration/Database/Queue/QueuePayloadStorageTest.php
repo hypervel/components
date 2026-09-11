@@ -29,7 +29,7 @@ class QueuePayloadStorageTest extends DatabaseTestCase
 
         foreach ([
             [null, '{invalid'],
-            // PostgreSQL enforces native UUIDs; MySQL accepts this ID even in char(36).
+            // A native UUID column would reject this supported identifier on PostgreSQL.
             ['uuid-1', '{ "uuid": "uuid-1", "job": "ExampleJob", "data": {"b":2,"a":1} }'],
         ] as [$identifier, $payload]) {
             $queue->pushRaw($payload);
