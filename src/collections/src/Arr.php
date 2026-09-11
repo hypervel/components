@@ -687,6 +687,11 @@ class Arr
 
     /**
      * Prepend the key names of an associative array.
+     *
+     * @template TValue
+     *
+     * @param array<TValue> $array
+     * @return array<array-key, TValue>
      */
     public static function prependKeysWith(array $array, string $prependWith): array
     {
@@ -1024,7 +1029,7 @@ class Arr
      * @template TValue
      *
      * @param iterable<TKey, TValue> $array
-     * @param null|array<int, (0|1|callable(TValue, TValue): -1)|array{string, 'asc'|'desc'|SortDirection}>|callable|int|string $callback
+     * @param null|array<array-key, array{int|string, 'asc'|'desc'|bool|SortDirection}|(callable(TValue, TValue): mixed)|int|string>|(callable(TValue, TKey): mixed)|int|string $callback
      * @return array<TKey, TValue>
      */
     public static function sort(iterable $array, callable|array|int|string|null $callback = null): array
@@ -1045,7 +1050,7 @@ class Arr
      * @template TValue
      *
      * @param iterable<TKey, TValue> $array
-     * @param null|array<int, (0|1|callable(TValue, TValue): -1)|array{string, 'asc'|'desc'|SortDirection}>|callable|int|string $callback
+     * @param null|array<array-key, array{int|string, 'asc'|'desc'|bool|SortDirection}|(callable(TValue, TValue): mixed)|int|string>|(callable(TValue, TKey): mixed)|int|string $callback
      * @return array<TKey, TValue>
      */
     public static function sortDesc(iterable $array, callable|array|int|string|null $callback = null): array
@@ -1128,8 +1133,7 @@ class Arr
     /**
      * Conditionally compile classes from an array into a CSS class list.
      *
-     * @param array<int, int|string>|array<string, bool>|string $array
-     * @return ($array is array<string, false> ? '' : ($array is '' ? '' : ($array is array{} ? '' : non-empty-string)))
+     * @param array<array-key, mixed>|string $array
      */
     public static function toCssClasses(array|string $array): string
     {
@@ -1151,8 +1155,7 @@ class Arr
     /**
      * Conditionally compile styles from an array into a style list.
      *
-     * @param array<int, int|string>|array<string, bool>|string $array
-     * @return ($array is array<string, false> ? '' : ($array is '' ? '' : ($array is array{} ? '' : non-empty-string)))
+     * @param array<array-key, mixed>|string $array
      */
     public static function toCssStyles(array|string $array): string
     {

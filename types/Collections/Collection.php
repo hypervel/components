@@ -13,6 +13,8 @@ use function PHPStan\Testing\assertType;
 $collection = new Collection(['first' => 1, 'second' => 2, 'third' => 3]);
 $lazy = new LazyCollection(['first' => 1, 'second' => 2, 'third' => 3]);
 
+LazyCollection::make([['name' => 'b'], ['name' => 'a']])->sortBy([['name', false]]);
+
 /** @return Generator<string, int, mixed, void> */
 $lazySource = static function (): Generator {
     yield 'first' => 1;
