@@ -14,13 +14,15 @@ use Hypervel\Database\Events\DatabaseRefreshed;
 use Hypervel\Foundation\Application;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
 class DatabaseMigrationRefreshCommandTest extends TestCase
 {
-    public function testRefreshCommandCallsCommandsWithProperArguments()
+    public function testRefreshCommandCallsCommandsWithProperArguments(): void
     {
         $app = new ApplicationDatabaseRefreshStub(['path.database' => __DIR__]);
         $dispatcher = $app->instance(Dispatcher::class, $events = m::mock(Dispatcher::class)->shouldIgnoreMissing());
@@ -49,7 +51,7 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
         $this->runCommand($command);
     }
 
-    public function testRefreshCommandCallsCommandsWithStep()
+    public function testRefreshCommandCallsCommandsWithStep(): void
     {
         $app = new ApplicationDatabaseRefreshStub(['path.database' => __DIR__]);
         $dispatcher = $app->instance(Dispatcher::class, $events = m::mock(Dispatcher::class)->shouldIgnoreMissing());
@@ -75,10 +77,65 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
         $migrateCommand->shouldReceive('setHypervel')->once()->with($app);
         $migrateCommand->shouldReceive('run')->with(new InputMatcher('--force=1 migrate'), m::any());
 
-        $this->runCommand($command, ['--step' => 2]);
+        $this->runCommand($command, ['--step' => '2']);
     }
 
-    public function testRefreshCommandExitsWhenProhibited()
+    #[DataProvider('failedCommandProvider')]
+    public function testChildFailureStopsRefresh(string $failedCommand, array $options, array $expectedOperations, string $message): void
+    {
+        $app = new ApplicationDatabaseRefreshStub(['path.database' => __DIR__]);
+        $dispatcher = $app->instance(Dispatcher::class, m::mock(Dispatcher::class));
+        $dispatcher->shouldReceive('hasListeners')->byDefault()->andReturnFalse();
+        $command = $this->getMockBuilder(RefreshCommand::class)->onlyMethods(['call'])->getMock();
+        $command->setHypervel($app);
+        $operations = [];
+        $command->expects($this->atLeastOnce())->method('call')->willReturnCallback(function (string $name) use ($failedCommand, &$operations): int {
+            $operations[] = $name;
+
+            return $name === $failedCommand ? 1 : 0;
+        });
+        $dispatcher->shouldReceive('hasListeners')->with(DatabaseRefreshed::class)->andReturnTrue();
+        $dispatcher->shouldReceive('dispatch')->with(m::type(DatabaseRefreshed::class))->andReturnUsing(function () use (&$operations): void {
+            $operations[] = 'event';
+        });
+        $caught = null;
+
+        try {
+            $this->runCommand($command, $options + ['--seed' => true]);
+        } catch (RuntimeException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($message, $caught?->getMessage());
+        $this->assertSame($expectedOperations, $operations);
+    }
+
+    /**
+     * Get the failed refresh command scenarios.
+     */
+    public static function failedCommandProvider(): array
+    {
+        return [
+            'reset' => [
+                'migrate:reset', [], ['migrate:reset'],
+                'Migration reset failed while refreshing the database.',
+            ],
+            'rollback' => [
+                'migrate:rollback', ['--step' => '2'], ['migrate:rollback'],
+                'Migration rollback failed while refreshing the database.',
+            ],
+            'migrate' => [
+                'migrate', [], ['migrate:reset', 'migrate'],
+                'Migration command failed while refreshing the database.',
+            ],
+            'seed' => [
+                'db:seed', [], ['migrate:reset', 'migrate', 'event', 'db:seed'],
+                'Database seeding failed after the database was refreshed.',
+            ],
+        ];
+    }
+
+    public function testRefreshCommandExitsWhenProhibited(): void
     {
         $app = new ApplicationDatabaseRefreshStub(['path.database' => __DIR__]);
         $dispatcher = $app->instance(Dispatcher::class, $events = m::mock(Dispatcher::class)->shouldIgnoreMissing());
@@ -98,7 +155,10 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
         $dispatcher->shouldNotReceive('dispatch');
     }
 
-    protected function runCommand($command, $input = [])
+    /**
+     * Run the refresh command.
+     */
+    protected function runCommand(RefreshCommand $command, array $input = []): int
     {
         return $command->run(new ArrayInput($input), new NullOutput);
     }
@@ -107,13 +167,18 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
 class InputMatcher extends m\Matcher\MatcherAbstract
 {
     /**
-     * @param \Symfony\Component\Console\Input\ArrayInput $actual
+     * Match the command input.
+     *
+     * @param ArrayInput $actual
      */
-    public function match(&$actual): bool
+    public function match(mixed &$actual): bool
     {
         return (string) $actual === $this->_expected;
     }
 
+    /**
+     * Get the string representation of the matcher.
+     */
     public function __toString(): string
     {
         return '';
@@ -122,6 +187,9 @@ class InputMatcher extends m\Matcher\MatcherAbstract
 
 class ApplicationDatabaseRefreshStub extends Application
 {
+    /**
+     * Create a new test application instance.
+     */
     public function __construct(array $data = [])
     {
         $mutex = m::mock(CommandMutex::class);
@@ -137,7 +205,10 @@ class ApplicationDatabaseRefreshStub extends Application
         static::setInstance($this);
     }
 
-    public function environment(...$environments): bool|string
+    /**
+     * Get the application environment.
+     */
+    public function environment(array|string ...$environments): bool|string
     {
         return 'development';
     }
