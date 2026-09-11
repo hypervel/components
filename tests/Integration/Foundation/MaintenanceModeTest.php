@@ -11,11 +11,13 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\CacheBasedMaintenanceMode;
 use Hypervel\Foundation\Console\DownCommand;
 use Hypervel\Foundation\Console\UpCommand;
 use Hypervel\Foundation\Events\MaintenanceModeDisabled;
 use Hypervel\Foundation\Events\MaintenanceModeEnabled;
+use Hypervel\Foundation\FileBasedMaintenanceMode;
 use Hypervel\Foundation\Http\MaintenanceModeBypassCookie;
 use Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
 use Hypervel\Support\CarbonImmutable;
@@ -114,10 +116,12 @@ class MaintenanceModeTest extends TestCase
 
     public function testConcurrentMaintenanceFileRemovalAllowsTheRequestToProceed(): void
     {
-        $mode = m::mock(MaintenanceModeContract::class);
-        $mode->shouldReceive('active')->twice()->andReturnTrue();
-        $mode->shouldReceive('data')->twice()->andThrow(new FileNotFoundException('removed'));
-        $this->app->instance(MaintenanceModeContract::class, $mode);
+        $path = storage_path('framework/down');
+        $files = m::mock(Filesystem::class);
+        $files->shouldReceive('exists')->with($path)->andReturn(true, false);
+        $files->shouldReceive('get')->once()->with($path)
+            ->andThrow(new FileNotFoundException('removed'));
+        $this->app->instance(MaintenanceModeContract::class, new FileBasedMaintenanceMode($files));
 
         Route::get('/foo', fn (): string => 'Hello World')->middleware(PreventRequestsDuringMaintenance::class);
 
@@ -125,6 +129,28 @@ class MaintenanceModeTest extends TestCase
 
         $response->assertOk();
         $this->assertSame('Hello World', $response->original);
+    }
+
+    public function testUnreadableMaintenanceFileDoesNotAllowTheRequestToProceed(): void
+    {
+        $this->withoutExceptionHandling();
+
+        $path = storage_path('framework/down');
+        $exception = new FileNotFoundException('unreadable');
+        $files = m::mock(Filesystem::class);
+        $files->shouldReceive('exists')->with($path)->andReturnTrue();
+        $files->shouldReceive('get')->once()->with($path)->andThrow($exception);
+        $this->app->instance(MaintenanceModeContract::class, new FileBasedMaintenanceMode($files));
+
+        Route::get('/foo', fn (): string => 'Hello World')->middleware(PreventRequestsDuringMaintenance::class);
+
+        try {
+            $this->get('/foo');
+
+            $this->fail('Expected the read failure to be rethrown.');
+        } catch (FileNotFoundException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
     }
 
     public function testMaintenanceModeCanHaveCustomStatus(): void
