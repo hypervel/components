@@ -172,13 +172,7 @@ class Builder
         $table = $this->connection->getTablePrefix() . $table;
 
         if ($sql = $this->grammar->compileTableExists($schema, $table)) {
-            $record = (array) ($this->selectMetadata($sql)[0] ?? []);
-
-            if (count($record) > 1) {
-                throw new MultipleColumnsSelectedException;
-            }
-
-            return (bool) array_first($record);
+            return (bool) $this->scalarMetadata($sql);
         }
 
         foreach ($this->getTables($schema ?? $this->getCurrentSchemaName()) as $value) {
@@ -746,6 +740,22 @@ class Builder
     protected function selectMetadata(string $query): array
     {
         return $this->connection->selectFromWriteConnection($query);
+    }
+
+    /**
+     * Read a scalar result through the metadata execution hook.
+     *
+     * @throws MultipleColumnsSelectedException
+     */
+    protected function scalarMetadata(string $query): mixed
+    {
+        $record = (array) ($this->selectMetadata($query)[0] ?? []);
+
+        if (count($record) > 1) {
+            throw new MultipleColumnsSelectedException;
+        }
+
+        return array_first($record);
     }
 
     /**

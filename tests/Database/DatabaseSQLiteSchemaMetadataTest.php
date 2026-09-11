@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Connection;
+use Hypervel\Database\MultipleColumnsSelectedException;
 use Hypervel\Database\Query\Processors\SQLiteProcessor;
 use Hypervel\Database\Schema\Grammars\SQLiteGrammar;
 use Hypervel\Database\Schema\SQLiteBuilder;
@@ -47,7 +48,8 @@ class DatabaseSQLiteSchemaMetadataTest extends TestCase
         $grammar->shouldReceive('compileColumns')->once()->with('main', 'app_users')->andReturn('columns sql');
         $grammar->shouldReceive('compileIndexes')->once()->with('main', 'app_users')->andReturn('indexes sql');
         $grammar->shouldReceive('compileSqlCreateStatement')->once()->with('main', 'app_users')->andReturn('definition sql');
-        $connection->shouldReceive('scalar')->once()->with('definition sql', [], false)->andReturn('create table app_users (id integer)');
+        $connection->shouldNotReceive('scalar');
+        $connection->shouldReceive('selectFromWriteConnection')->once()->with('definition sql')->andReturn([(object) ['sql' => 'create table app_users (id integer)']]);
 
         foreach (['views', 'columns', 'indexes'] as $kind) {
             $connection->shouldReceive('selectFromWriteConnection')->once()->with($kind . ' sql')->andReturn([(object) ['name' => $kind]]);
@@ -60,7 +62,48 @@ class DatabaseSQLiteSchemaMetadataTest extends TestCase
         $this->assertSame([['name' => 'active_users']], $builder->getViews('main'));
         $this->assertSame(['columns' => [['name' => 'id']], 'sql' => 'create table app_users (id integer)'], $builder->getColumnsForSchemaState('main.users'));
         $this->assertSame([['name' => 'primary']], $builder->getIndexesForSchemaState('main.users'));
-        $this->assertSame(['views sql', 'columns sql', 'indexes sql'], $builder->metadataQueries);
+        $this->assertSame(['views sql', 'columns sql', 'definition sql', 'indexes sql'], $builder->metadataQueries);
+    }
+
+    #[DataProvider('storedDefinitions')]
+    public function testStoredDefinitionRetainsScalarResultHandling(array $rows, string $sql): void
+    {
+        [$builder, $connection, $grammar, $processor] = $this->builder();
+        $connection->shouldReceive('getTablePrefix')->andReturn('');
+        $grammar->shouldReceive('compileColumns')->once()->with('main', 'users')->andReturn('columns sql');
+        $grammar->shouldReceive('compileSqlCreateStatement')->once()->with('main', 'users')->andReturn('definition sql');
+        $connection->shouldReceive('selectFromWriteConnection')->once()->with('columns sql')->andReturn([]);
+        $connection->shouldReceive('selectFromWriteConnection')->once()->with('definition sql')->andReturn($rows);
+        $connection->shouldNotReceive('scalar');
+        $processor->shouldReceive('processColumns')->once()->with([], $sql)->andReturn([]);
+
+        $this->assertSame(['columns' => [], 'sql' => $sql], $builder->getColumnsForSchemaState('main.users'));
+        $this->assertSame(['columns sql', 'definition sql'], $builder->metadataQueries);
+    }
+
+    public static function storedDefinitions(): array
+    {
+        return [
+            'no row' => [[], ''],
+            'null definition' => [[(object) ['sql' => null]], ''],
+            'array row' => [[['sql' => 'create table users (id integer)']], 'create table users (id integer)'],
+        ];
+    }
+
+    public function testStoredDefinitionRejectsMultipleColumns(): void
+    {
+        [$builder, $connection, $grammar, $processor] = $this->builder();
+        $connection->shouldReceive('getTablePrefix')->andReturn('');
+        $grammar->shouldReceive('compileColumns')->once()->with('main', 'users')->andReturn('columns sql');
+        $grammar->shouldReceive('compileSqlCreateStatement')->once()->with('main', 'users')->andReturn('definition sql');
+        $connection->shouldReceive('selectFromWriteConnection')->once()->with('columns sql')->andReturn([]);
+        $connection->shouldReceive('selectFromWriteConnection')->once()->with('definition sql')->andReturn([(object) ['sql' => 'create table users (id integer)', 'extra' => 1]]);
+        $connection->shouldNotReceive('scalar');
+        $processor->shouldNotReceive('processColumns');
+
+        $this->expectException(MultipleColumnsSelectedException::class);
+
+        $builder->getColumnsForSchemaState('main.users');
     }
 
     protected function builder(): array

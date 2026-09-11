@@ -173,8 +173,8 @@ class SQLiteBuilder extends Builder
 
         $table = $this->connection->getTablePrefix() . $table;
         $columns = $this->selectMetadata($this->grammar->compileColumns($schema, $table));
-        // Rebuild guards must inspect the stored definition on the same write PDO as the columns.
-        $sql = $this->connection->scalar($this->grammar->compileSqlCreateStatement($schema, $table), [], false) ?? '';
+        // Columns and their stored definition must share metadata execution policy.
+        $sql = $this->scalarMetadata($this->grammar->compileSqlCreateStatement($schema, $table)) ?? '';
 
         return [
             'columns' => $this->connection->getPostProcessor()->processColumns(
