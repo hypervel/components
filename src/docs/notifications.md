@@ -1997,3 +1997,5 @@ public function via(object $notifiable): array
     return ['voice'];
 }
 ```
+
+The `Notification::channel` method resolves a channel instance by name. It also accepts an enum whose value is a channel name or a custom channel class.

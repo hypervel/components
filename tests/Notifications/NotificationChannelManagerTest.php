@@ -107,6 +107,25 @@ class NotificationChannelManagerTest extends TestCase
         $manager->send(new NotificationChannelManagerTestNotifiable, new NotificationChannelManagerTestNotification);
     }
 
+    public function testChannelCanBeResolvedUsingBackedEnum(): void
+    {
+        $container = $this->getContainer();
+
+        $manager = new ChannelManager($container);
+        $manager->extend('test', fn () => new NotificationChannelManagerTestCustomChannel);
+
+        $this->assertInstanceOf(NotificationChannelManagerTestCustomChannel::class, $manager->channel(NotificationChannelManagerTestChannelEnum::Test));
+    }
+
+    public function testDriverCanBeResolvedUsingBackedEnum(): void
+    {
+        $container = $this->getContainer();
+
+        $manager = new ChannelManager($container);
+
+        $this->assertInstanceOf(NotificationChannelManagerTestCustomChannel::class, $manager->driver(NotificationChannelManagerTestChannelEnum::Custom));
+    }
+
     public function testNotificationNotSentOnHalt(): void
     {
         $container = $this->getContainer();
@@ -194,6 +213,7 @@ class NotificationChannelManagerTest extends TestCase
         });
 
         // The provider owns the listener; sending must not register additional listeners.
+        // NotificationFailedEventTest covers channel-owned failure deduplication through the real provider.
         $events->shouldNotReceive('listen');
         $events->shouldReceive('until')->times(3)->with(m::type(NotificationSending::class))->andReturn(true);
         $events->shouldReceive('dispatch')->once()->with(m::type(NotificationFailed::class));
@@ -702,4 +722,14 @@ class NotificationChannelManagerWithAfterSendingMethodNotification extends Notif
         static::$afterSendingChannel = $channel;
         static::$afterSendingResponse = $response;
     }
+}
+
+enum NotificationChannelManagerTestChannelEnum: string
+{
+    case Test = 'test';
+    case Custom = NotificationChannelManagerTestCustomChannel::class;
+}
+
+class NotificationChannelManagerTestCustomChannel
+{
 }
