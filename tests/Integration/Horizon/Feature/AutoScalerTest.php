@@ -11,12 +11,13 @@ use Hypervel\Horizon\RedisQueue;
 use Hypervel\Horizon\Supervisor;
 use Hypervel\Horizon\SupervisorOptions;
 use Hypervel\Horizon\SystemProcessCounter;
+use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\FakePool;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
 
 class AutoScalerTest extends IntegrationTestCase
 {
-    public function testScalerAttemptsToGetCloserToProperBalanceOnEachIteration()
+    public function testScalerAttemptsToGetCloserToProperBalanceOnEachIteration(): void
     {
         [$scaler, $supervisor] = $this->with_scaling_scenario(20, [
             'first' => ['current' => 10, 'size' => 20, 'runtime' => 10],
@@ -45,7 +46,7 @@ class AutoScalerTest extends IntegrationTestCase
         $this->assertSame(7, $supervisor->processPools['second']->totalProcessCount());
     }
 
-    public function testBalanceStaysEvenWhenQueueIsEmpty()
+    public function testBalanceStaysEvenWhenQueueIsEmpty(): void
     {
         [$scaler, $supervisor] = $this->with_scaling_scenario(10, [
             'first' => ['current' => 5, 'size' => 0, 'runtime' => 0],
@@ -73,7 +74,7 @@ class AutoScalerTest extends IntegrationTestCase
         $this->assertSame(1, $supervisor->processPools['second']->totalProcessCount());
     }
 
-    public function testBalancerAssignsMoreProcessesOnBusyQueue()
+    public function testBalancerAssignsMoreProcessesOnBusyQueue(): void
     {
         [$scaler, $supervisor] = $this->with_scaling_scenario(10, [
             'first' => ['current' => 1, 'size' => 50, 'runtime' => 50],
@@ -106,7 +107,7 @@ class AutoScalerTest extends IntegrationTestCase
         $this->assertSame(1, $supervisor->processPools['second']->totalProcessCount());
     }
 
-    public function testBalancingASingleQueueAssignsItTheMinWorkersWithEmptyQueue()
+    public function testBalancingASingleQueueAssignsItTheMinWorkersWithEmptyQueue(): void
     {
         [$scaler, $supervisor] = $this->with_scaling_scenario(5, [
             'first' => ['current' => 2, 'size' => 0, 'runtime' => 0],
@@ -116,7 +117,7 @@ class AutoScalerTest extends IntegrationTestCase
         $this->assertSame(1, $supervisor->processPools['first']->totalProcessCount());
     }
 
-    public function testScalerWillNotScalePastMaxProcessThresholdUnderHighLoad()
+    public function testScalerWillNotScalePastMaxProcessThresholdUnderHighLoad(): void
     {
         [$scaler, $supervisor] = $this->with_scaling_scenario(20, [
             'first' => ['current' => 10, 'size' => 100, 'runtime' => 50],
@@ -129,7 +130,7 @@ class AutoScalerTest extends IntegrationTestCase
         $this->assertSame(10, $supervisor->processPools['second']->totalProcessCount());
     }
 
-    public function testScalerWillNotScaleBelowMinimumWorkerThreshold()
+    public function testScalerWillNotScaleBelowMinimumWorkerThreshold(): void
     {
         $external = m::mock(SystemProcessCounter::class);
         $external->shouldReceive('get')->with('name')->andReturn(5);
@@ -152,10 +153,11 @@ class AutoScalerTest extends IntegrationTestCase
     }
 
     /**
-     * @param mixed $maxProcesses
+     * Create an autoscaler and supervisor for the given queue loads.
+     *
      * @return array{0: AutoScaler, 1: Supervisor}
      */
-    protected function with_scaling_scenario($maxProcesses, array $pools, array $extraOptions = [])
+    protected function with_scaling_scenario(int $maxProcesses, array $pools, array $extraOptions = []): array
     {
         // Mock dependencies...
         $queueFactory = m::mock(QueueFactory::class);
@@ -175,7 +177,7 @@ class AutoScalerTest extends IntegrationTestCase
 
         // Create process pools...
         $supervisor->processPools = collect($pools)->mapWithKeys(function ($pool, $name) {
-            return [$name => new Fakes\FakePool($name, $pool['current'])];
+            return [$name => new FakePool($name, $pool['current'])];
         });
 
         // Set stats per pool...
@@ -189,7 +191,7 @@ class AutoScalerTest extends IntegrationTestCase
         return [$scaler, $supervisor];
     }
 
-    public function testScalerConsidersMaxShiftAndAttemptsToGetCloserToProperBalanceOnEachIteration()
+    public function testScalerConsidersMaxShiftAndAttemptsToGetCloserToProperBalanceOnEachIteration(): void
     {
         [$scaler, $supervisor] = $this->with_scaling_scenario(150, [
             'first' => ['current' => 75, 'size' => 600, 'runtime' => 75],
@@ -226,7 +228,7 @@ class AutoScalerTest extends IntegrationTestCase
         $this->assertEquals(50, $supervisor->processPools['second']->totalProcessCount());
     }
 
-    public function testScalerDoesNotPermitGoingToZeroProcessesDespiteExceedingMaxProcesses()
+    public function testScalerDoesNotPermitGoingToZeroProcessesDespiteExceedingMaxProcesses(): void
     {
         $external = m::mock(SystemProcessCounter::class);
         $external->shouldReceive('get')->with('name')->andReturn(5);
@@ -248,7 +250,7 @@ class AutoScalerTest extends IntegrationTestCase
         $this->assertSame(1, $supervisor->processPools['second']->totalProcessCount());
     }
 
-    public function testScalerAssignsMoreProcessesToQueueWithMoreJobsWhenUsingSizeStrategy()
+    public function testScalerAssignsMoreProcessesToQueueWithMoreJobsWhenUsingSizeStrategy(): void
     {
         [$scaler, $supervisor] = $this->with_scaling_scenario(100, [
             'first' => ['current' => 50, 'size' => 1000, 'runtime' => 10],
@@ -266,7 +268,7 @@ class AutoScalerTest extends IntegrationTestCase
         $this->assertSame(48, $supervisor->processPools['second']->totalProcessCount());
     }
 
-    public function testScalerWorksWithASingleProcessPool()
+    public function testScalerWorksWithASingleProcessPool(): void
     {
         [$scaler, $supervisor] = $this->with_scaling_scenario(10, [
             'default' => ['current' => 10, 'size' => 1, 'runtime' => 0],

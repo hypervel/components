@@ -77,7 +77,7 @@ class AutoScaler
     /**
      * Get the number of workers needed per queue for proper balance.
      *
-     * @return Collection<string, float>
+     * @return Collection<string, float|int>
      */
     protected function numberOfWorkersPerQueue(Supervisor $supervisor, Collection $queues): Collection
     {
@@ -127,7 +127,7 @@ class AutoScaler
 
         $totalProcessCount = $pool->totalProcessCount();
 
-        $desiredProcessCount = ceil($workers);
+        $desiredProcessCount = (int) ceil($workers);
 
         if ($desiredProcessCount > $totalProcessCount) {
             $maxUpShift = min(
