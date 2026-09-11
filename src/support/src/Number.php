@@ -223,7 +223,7 @@ class Number
     /**
      * Convert the number to its human-readable equivalent.
      *
-     * @phpstan-return ($number is INF ? '∞' : ($number is NAN ? 'NaN' : ($number is 0 ? ($precision is non-positive-int ? '0' : non-empty-string|false) : non-empty-string|false)))
+     * @phpstan-return non-empty-string|false
      */
     protected static function summarize(float|int $number, int $precision = 0, ?int $maxPrecision = null, array $units = []): false|string
     {
@@ -243,7 +243,7 @@ class Number
 
         switch (true) {
             case (float) $number === 0.0:
-                return $precision > 0 ? static::format(0, $precision, $maxPrecision) : '0';
+                return static::format(0, $precision, $maxPrecision);
             case $number < 0:
                 $summary = static::summarize(abs($number), $precision, $maxPrecision, $units);
 

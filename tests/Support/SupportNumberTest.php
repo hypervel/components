@@ -283,6 +283,12 @@ class SupportNumberTest extends TestCase
         $this->assertSame('0.005', Number::forHumans(0.005, precision: 3));
         $this->assertSame('-0.005', Number::forHumans(-0.005, precision: 3));
 
+        Number::withLocale('ar', function () {
+            $this->assertSame('٠', Number::forHumans(0));
+            $this->assertSame('٠', Number::forHumans(-0.004));
+            $this->assertSame('٠', Number::forHumans(-0.004, maxPrecision: 2));
+        });
+
         $this->assertSame('999 thousand', Number::forHumans(999499));
         $this->assertSame('1 million', Number::forHumans(999500));
         $this->assertSame('1 million', Number::forHumans(999999));
@@ -357,6 +363,12 @@ class SupportNumberTest extends TestCase
         $this->assertSame('0', Number::abbreviate(0.001));
         $this->assertSame('0', Number::abbreviate(-0.005));
         $this->assertSame('0.005', Number::abbreviate(0.005, precision: 3));
+
+        Number::withLocale('ar', function () {
+            $this->assertSame('٠', Number::abbreviate(0));
+            $this->assertSame('٠', Number::abbreviate(-0.004));
+            $this->assertSame('٠', Number::abbreviate(-0.004, maxPrecision: 2));
+        });
 
         $this->assertSame('999K', Number::abbreviate(999499));
         $this->assertSame('1M', Number::abbreviate(999500));
