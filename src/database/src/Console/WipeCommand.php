@@ -32,9 +32,8 @@ class WipeCommand extends Command
      */
     public function handle(): int
     {
-        if ($this->isProhibited()
-            || ! $this->confirmToProceed()) {
-            return Command::FAILURE;
+        if ($this->isProhibited() || ! $this->confirmToProceed()) {
+            return self::FAILURE;
         }
 
         $database = Migrator::resolveMigrationConnectionName(
@@ -59,7 +58,7 @@ class WipeCommand extends Command
 
         $this->flushDatabaseConnection($database);
 
-        return 0;
+        return self::SUCCESS;
     }
 
     /**

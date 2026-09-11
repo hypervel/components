@@ -46,7 +46,7 @@ class CacheTableCommand extends MigrationGeneratorCommand
 
         $this->components->info('Migrations created successfully.');
 
-        return 0;
+        return self::SUCCESS;
     }
 
     /**

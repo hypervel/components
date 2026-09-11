@@ -2731,6 +2731,23 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertContains('bar', $model->getAppends());
     }
 
+    public function testHasAppendedReturnsTrueWhenAttributeIsAppended(): void
+    {
+        $model = new AppendsStub;
+
+        $this->assertTrue($model->hasAppended('is_admin'));
+        $this->assertTrue($model->hasAppended('camelCased'));
+        $this->assertTrue($model->hasAppended('StudlyCased'));
+    }
+
+    public function testHasAppendedReturnsFalseWhenAttributeIsNotAppended(): void
+    {
+        $model = new AppendsStub;
+
+        $this->assertFalse($model->hasAppended('foo'));
+        $this->assertFalse($model->hasAppended('bar'));
+    }
+
     public function testWithoutAppendsRemovesAppends()
     {
         $model = new AppendsStub;

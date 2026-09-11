@@ -187,20 +187,22 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Get the first related model record matching the attributes or instantiate it.
      *
+     * @param array|(Closure(): array) $values
      * @return TRelatedModel
      */
-    public function firstOrNew(array $attributes = [], array $values = []): Model
+    public function firstOrNew(array $attributes = [], Closure|array $values = []): Model
     {
         if (! is_null($instance = $this->where($attributes)->first())) {
             return $instance;
         }
 
-        return $this->related->newInstance(array_merge($attributes, $values));
+        return $this->related->newInstance(array_merge($attributes, value($values)));
     }
 
     /**
      * Get the first record matching the attributes. If the record is not found, create it.
      *
+     * @param array|(Closure(): array) $values
      * @return TRelatedModel
      */
     public function firstOrCreate(array $attributes = [], Closure|array $values = []): Model
@@ -211,13 +213,16 @@ abstract class HasOneOrManyThrough extends Relation
             return $instance;
         }
 
-        return $this->createOrFirst(array_merge($attributes, value($values)));
+        return $this->createOrFirst($attributes, $values);
     }
 
     /**
      * Attempt to create the record. If a unique constraint violation occurs, attempt to find the matching record.
      *
+     * @param array|(Closure(): array) $values
      * @return TRelatedModel
+     *
+     * @throws UniqueConstraintViolationException
      */
     public function createOrFirst(array $attributes = [], Closure|array $values = []): Model
     {
@@ -233,13 +238,14 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Create or update a related record matching the attributes, and fill it with values.
      *
+     * @param array|(Closure(): array) $values
      * @return TRelatedModel
      */
-    public function updateOrCreate(array $attributes, array $values = []): Model
+    public function updateOrCreate(array $attributes, Closure|array $values = []): Model
     {
         return tap($this->firstOrCreate($attributes, $values), function ($instance) use ($values) {
             if (! $instance->wasRecentlyCreated) {
-                $instance->fill($values)->save();
+                $instance->fill(value($values))->save();
             }
         });
     }

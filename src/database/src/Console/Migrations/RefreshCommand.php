@@ -9,6 +9,7 @@ use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Console\Prohibitable;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Events\DatabaseRefreshed;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputOption;
 
@@ -30,12 +31,13 @@ class RefreshCommand extends Command
 
     /**
      * Execute the console command.
+     *
+     * @throws RuntimeException
      */
     public function handle(): int
     {
-        if ($this->isProhibited()
-            || ! $this->confirmToProceed()) {
-            return Command::FAILURE;
+        if ($this->isProhibited() || ! $this->confirmToProceed()) {
+            return self::FAILURE;
         }
 
         // Next we'll gather some of the options so that we can have the right options
@@ -48,7 +50,7 @@ class RefreshCommand extends Command
         // If the "step" option is specified it means we only want to rollback a small
         // number of migrations before migrating again. For example, the user might
         // only rollback and remigrate the latest four migrations instead of all.
-        $step = $this->input->getOption('step') ?: 0;
+        $step = (int) $this->input->getOption('step');
 
         if ($step > 0) {
             $this->runRollback($database, $path, $step);
@@ -59,12 +61,14 @@ class RefreshCommand extends Command
         // The refresh command is essentially just a brief aggregate of a few other of
         // the migration commands and just provides a convenient wrapper to execute
         // them in succession. We'll also see if we need to re-seed the database.
-        $this->call('migrate', array_filter([
+        if ($this->call('migrate', array_filter([
             '--database' => $database,
             '--path' => $path,
             '--realpath' => $this->input->getOption('realpath'),
             '--force' => true,
-        ]));
+        ])) !== self::SUCCESS) {
+            throw new RuntimeException('Migration command failed while refreshing the database.');
+        }
 
         if ($this->hypervel->bound(Dispatcher::class)) {
             $events = $this->hypervel->make(Dispatcher::class);
@@ -78,34 +82,42 @@ class RefreshCommand extends Command
             $this->runSeeder($database);
         }
 
-        return 0;
+        return self::SUCCESS;
     }
 
     /**
      * Run the rollback command.
+     *
+     * @throws RuntimeException
      */
     protected function runRollback(?string $database, array|string|null $path, int $step): void
     {
-        $this->call('migrate:rollback', array_filter([
+        if ($this->call('migrate:rollback', array_filter([
             '--database' => $database,
             '--path' => $path,
             '--realpath' => $this->input->getOption('realpath'),
             '--step' => $step,
             '--force' => true,
-        ]));
+        ])) !== self::SUCCESS) {
+            throw new RuntimeException('Migration rollback failed while refreshing the database.');
+        }
     }
 
     /**
      * Run the reset command.
+     *
+     * @throws RuntimeException
      */
     protected function runReset(?string $database, array|string|null $path): void
     {
-        $this->call('migrate:reset', array_filter([
+        if ($this->call('migrate:reset', array_filter([
             '--database' => $database,
             '--path' => $path,
             '--realpath' => $this->input->getOption('realpath'),
             '--force' => true,
-        ]));
+        ])) !== self::SUCCESS) {
+            throw new RuntimeException('Migration reset failed while refreshing the database.');
+        }
     }
 
     /**
@@ -118,14 +130,18 @@ class RefreshCommand extends Command
 
     /**
      * Run the database seeder command.
+     *
+     * @throws RuntimeException
      */
     protected function runSeeder(?string $database): void
     {
-        $this->call('db:seed', array_filter([
+        if ($this->call('db:seed', array_filter([
             '--database' => $database,
             '--class' => $this->option('seeder') ?: 'Database\Seeders\DatabaseSeeder',
             '--force' => true,
-        ]));
+        ])) !== self::SUCCESS) {
+            throw new RuntimeException('Database seeding failed after the database was refreshed.');
+        }
     }
 
     /**

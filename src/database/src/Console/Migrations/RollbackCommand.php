@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Console\Migrations;
 
-use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Console\Prohibitable;
 use Hypervel\Database\Migrations\Migrator;
@@ -42,9 +41,8 @@ class RollbackCommand extends BaseCommand
      */
     public function handle(): int
     {
-        if ($this->isProhibited()
-            || ! $this->confirmToProceed()) {
-            return Command::FAILURE;
+        if ($this->isProhibited() || ! $this->confirmToProceed()) {
+            return self::FAILURE;
         }
 
         $this->migrator->usingConnection($this->option('database'), function () {
@@ -58,7 +56,7 @@ class RollbackCommand extends BaseCommand
             );
         });
 
-        return 0;
+        return self::SUCCESS;
     }
 
     /**

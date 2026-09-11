@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Console\Migrations;
 
-use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Console\Prohibitable;
 use Hypervel\Database\Migrations\Migrator;
@@ -42,9 +41,8 @@ class ResetCommand extends BaseCommand
      */
     public function handle(): int
     {
-        if ($this->isProhibited()
-            || ! $this->confirmToProceed()) {
-            return Command::FAILURE;
+        if ($this->isProhibited() || ! $this->confirmToProceed()) {
+            return self::FAILURE;
         }
 
         return $this->migrator->usingConnection($this->option('database'), function () {
@@ -54,7 +52,7 @@ class ResetCommand extends BaseCommand
             if (! $this->migrator->repositoryExists()) {
                 $this->components->warn('Migration table not found.');
 
-                return Command::SUCCESS;
+                return self::SUCCESS;
             }
 
             $this->migrator->setOutput($this->output)->reset(
@@ -62,7 +60,7 @@ class ResetCommand extends BaseCommand
                 $this->option('pretend')
             );
 
-            return Command::SUCCESS;
+            return self::SUCCESS;
         });
     }
 

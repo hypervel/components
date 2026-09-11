@@ -37,7 +37,7 @@ class UpCommand extends Command
             if (! $this->hypervel->maintenanceMode()->active()) {
                 $this->components->info('Application is already up.');
 
-                return 0;
+                return self::SUCCESS;
             }
 
             $this->hypervel->maintenanceMode()->deactivate();
@@ -80,9 +80,9 @@ class UpCommand extends Command
                 $e->getMessage(),
             ));
 
-            return 1;
+            return self::FAILURE;
         }
 
-        return 0;
+        return self::SUCCESS;
     }
 }

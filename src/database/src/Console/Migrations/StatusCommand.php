@@ -42,7 +42,7 @@ class StatusCommand extends BaseCommand
             if (! $this->migrator->repositoryExists()) {
                 $this->components->error('Migration table not found.');
 
-                return 1;
+                return self::FAILURE;
             }
 
             $ran = $this->migrator->getRepository()->getRan();
@@ -75,7 +75,7 @@ class StatusCommand extends BaseCommand
                 return (int) $this->option('pending');
             }
 
-            return 0;
+            return self::SUCCESS;
         });
     }
 

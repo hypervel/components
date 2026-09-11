@@ -45,7 +45,7 @@ class DbCommand extends Command
                 $this->line('  Use the <options=bold>[--read]</> and <options=bold>[--write]</> options to specify a read or write connection.');
                 $this->newLine();
 
-                return Command::FAILURE;
+                return self::FAILURE;
             }
 
             $configuration = new DatabaseCliConfiguration(
@@ -68,10 +68,10 @@ class DbCommand extends Command
 
             $this->error("{$configuration->command} not found in path.");
 
-            return Command::FAILURE;
+            return self::FAILURE;
         }
 
-        return 0;
+        return self::SUCCESS;
     }
 
     /**

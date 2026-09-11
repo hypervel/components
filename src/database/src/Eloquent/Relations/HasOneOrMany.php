@@ -220,6 +220,7 @@ abstract class HasOneOrMany extends Relation
     /**
      * Get the first related model record matching the attributes or instantiate it.
      *
+     * @param array|(Closure(): array) $values
      * @return TRelatedModel
      */
     public function firstOrNew(array $attributes = [], Closure|array $values = []): Model
@@ -236,6 +237,7 @@ abstract class HasOneOrMany extends Relation
     /**
      * Get the first record matching the attributes. If the record is not found, create it.
      *
+     * @param array|(Closure(): array) $values
      * @return TRelatedModel
      */
     public function firstOrCreate(array $attributes = [], Closure|array $values = []): Model
@@ -252,7 +254,10 @@ abstract class HasOneOrMany extends Relation
     /**
      * Attempt to create the record. If a unique constraint violation occurs, attempt to find the matching record.
      *
+     * @param array|(Closure(): array) $values
      * @return TRelatedModel
+     *
+     * @throws UniqueConstraintViolationException
      */
     public function createOrFirst(array $attributes = [], Closure|array $values = []): Model
     {
@@ -268,6 +273,7 @@ abstract class HasOneOrMany extends Relation
     /**
      * Create or update a related record matching the attributes, and fill it with values.
      *
+     * @param array|(Closure(): array) $values
      * @return TRelatedModel
      */
     public function updateOrCreate(array $attributes, Closure|array $values = []): Model

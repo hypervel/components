@@ -508,7 +508,7 @@ class BusBatchTest extends TestCase
         $this->assertTrue($batch->cancelled());
     }
 
-    public function testBatchCancelledEventIsDispatched()
+    public function testBatchCancelledEventIsDispatched(): void
     {
         $this->app->instance(EventDispatcher::class, $events = m::mock(EventDispatcher::class));
 
@@ -518,7 +518,7 @@ class BusBatchTest extends TestCase
         $exception = new RuntimeException('Something went wrong.');
 
         $events->shouldReceive('hasListeners')->once()->with(BatchCanceled::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->once()->with(m::on(function ($event) use ($batch, $exception) {
+        $events->shouldReceive('dispatch')->once()->with(m::on(function (object $event) use ($batch, $exception): bool {
             return $event instanceof BatchCanceled
                 && $event->batch->id === $batch->id
                 && $event->exception === $exception;

@@ -732,7 +732,7 @@ Route::get('/api/flights/{id}', function (string $id) {
 <a name="retrieving-or-creating-models"></a>
 ### Retrieving or Creating Models
 
-The `firstOrCreate` method will attempt to locate a database record using the given column / value pairs. If the model cannot be found in the database, a record will be inserted with the attributes resulting from merging the first array argument with the optional second array argument.
+The `firstOrCreate` method will attempt to locate a database record using the given column / value pairs. If the model cannot be found in the database, a record will be inserted with the attributes resulting from merging the first array argument with the optional second argument.
 
 The `firstOrNew` method, like `firstOrCreate`, will attempt to locate a record in the database matching the given attributes. However, if a model is not found, a new model instance will be returned. Note that the model returned by `firstOrNew` has not yet been persisted to the database. You will need to manually call the `save` method to persist it:
 
@@ -762,8 +762,21 @@ $flight = Flight::firstOrNew(
 );
 ```
 
+You may pass a closure as the second argument to `firstOrCreate` or `firstOrNew`. The closure should return an array of attributes and will only be invoked when no matching model is found:
+
+```php
+use Hypervel\Support\Str;
+
+$flight = Flight::firstOrCreate(
+    ['name' => 'London to Paris'],
+    fn () => ['reference' => Str::uuid()->toString()]
+);
+```
+
+The `createOrFirst` method attempts to create the model first, then retrieves a matching record if the insert violates a unique constraint. Ensure the attributes in the first argument are protected by a unique index; otherwise, repeated calls can insert duplicates. Its second argument may also be a closure.
+
 > [!NOTE]
-> If `firstOrCreate` or `updateOrCreate` encounters a concurrent insert, it attempts to retrieve the winning row from the write connection. Inside a repeatable-read transaction (the default on MySQL and MariaDB), a row committed after the transaction's snapshot may remain invisible, in which case the original unique constraint violation is rethrown. For idempotent collision handling in this situation, retry the complete transaction from outside it.
+> If `firstOrCreate`, `createOrFirst`, or `updateOrCreate` encounters a concurrent insert, it attempts to retrieve the winning row from the write connection. Inside a repeatable-read transaction (the default on MySQL and MariaDB), a row committed after the transaction's snapshot may remain invisible, in which case the original unique constraint violation is rethrown. For idempotent collision handling in this situation, retry the complete transaction from outside it.
 
 <a name="retrieving-aggregates"></a>
 ### Retrieving Aggregates
@@ -890,6 +903,8 @@ $flight = Flight::updateOrCreate(
     ['price' => 99, 'discounted' => 1]
 );
 ```
+
+The second argument may also be a closure returning the attributes to create or update.
 
 When using methods such as `firstOrCreate` or `updateOrCreate`, you may not know whether a new model has been created or an existing one has been updated. The `wasRecentlyCreated` property indicates if the model was created during its current lifecycle:
 

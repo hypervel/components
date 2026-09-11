@@ -40,7 +40,7 @@ class DumpCommand extends Command
     public function handle(ConnectionResolverInterface $connections, Dispatcher $dispatcher): int
     {
         if ($this->isProhibited()) {
-            return Command::FAILURE;
+            return self::FAILURE;
         }
 
         /** @var Connection $connection */
@@ -72,7 +72,7 @@ class DumpCommand extends Command
 
         $this->components->info($info . ' successfully.');
 
-        return 0;
+        return self::SUCCESS;
     }
 
     /**

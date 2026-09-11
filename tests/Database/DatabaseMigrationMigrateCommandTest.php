@@ -24,10 +24,12 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PDO;
 use PDOException;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\NullOutput;
 use Throwable;
 
@@ -195,6 +197,40 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
         ]);
 
         $this->runCommand($command, ['--seed' => true, '--seeder' => 'Database\Seeders\CustomSeeder']);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testSeedFailureHonorsGracefulOption(bool $graceful): void
+    {
+        $app = new ApplicationDatabaseMigrationStub(['path.database' => __DIR__]);
+        $app->useDatabasePath(__DIR__);
+        $command = $this->getMockBuilder(MigrateCommand::class)
+            ->onlyMethods(['call'])
+            ->setConstructorArgs([$migrator = m::mock(Migrator::class), m::mock(Dispatcher::class)])
+            ->getMock();
+        $command->setHypervel($app);
+        $this->expectMigrationPreflight($migrator);
+        $migrator->shouldReceive('hasRunAnyMigrations')->andReturn(true);
+        $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
+        $migrator->shouldReceive('run')->once();
+        $command->expects($this->once())->method('call')->with('db:seed', [
+            '--class' => 'Database\Seeders\DatabaseSeeder',
+            '--force' => true,
+        ])->willReturn(1);
+
+        if (! $graceful) {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('Database seeding failed after migrations ran.');
+        }
+
+        $code = $command->run(new ArrayInput([
+            '--seed' => true,
+            '--graceful' => $graceful,
+        ]), $output = new BufferedOutput);
+
+        $this->assertSame(0, $code);
+        $this->assertStringContainsString('Database seeding failed after migrations ran.', $output->fetch());
     }
 
     public function testSeedOptionForwardsDatabaseToSeedCommand(): void

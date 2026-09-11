@@ -52,12 +52,14 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     /**
      * The console application bootstrappers.
      *
-     * @var array<array-key, Closure(static): void>
+     * @var array<array-key, Closure(static): mixed>
      */
     protected static array $bootstrappers = [];
 
     /**
      * A map of command names to classes.
+     *
+     * @var array<string, class-string<SymfonyCommand>>
      */
     protected array $commandMap = [];
 
@@ -172,7 +174,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
      * Boot-only. The bootstrapper persists in a static property for the worker
      * lifetime and runs for every subsequent console application instance.
      *
-     * @param Closure(static): void $callback
+     * @param Closure(static): mixed $callback
      */
     public static function starting(Closure $callback): void
     {
@@ -287,6 +289,8 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
 
     /**
      * Parse the incoming Artisan command and its input.
+     *
+     * @return array{?string, ArrayInput|StringInput}
      */
     protected function parseCommand(string|SymfonyCommand $command, array $parameters): array
     {

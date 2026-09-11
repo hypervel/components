@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database\EloquentHasManyThroughTest;
 
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Eloquent\Relations\HasManyThrough;
 use Hypervel\Database\Eloquent\Relations\HasOneThrough;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
@@ -49,7 +52,7 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         });
     }
 
-    public function testBasicCreateAndRetrieve()
+    public function testBasicCreateAndRetrieve(): void
     {
         $user = User::create(['name' => Str::random()]);
 
@@ -91,7 +94,7 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         );
     }
 
-    public function testGlobalScopeColumns()
+    public function testGlobalScopeColumns(): void
     {
         $user = User::create(['name' => Str::random()]);
 
@@ -106,7 +109,7 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         $this->assertEquals(['id' => 2, 'hypervel_through_key' => 1], $teamMates[0]->getAttributes());
     }
 
-    public function testHasSelf()
+    public function testHasSelf(): void
     {
         $user = User::create(['name' => Str::random()]);
 
@@ -121,7 +124,7 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         $this->assertCount(1, $users);
     }
 
-    public function testHasSelfCustomOwnerKey()
+    public function testHasSelfCustomOwnerKey(): void
     {
         $user = User::create(['slug' => Str::random(), 'name' => Str::random()]);
 
@@ -136,7 +139,7 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         $this->assertCount(1, $users);
     }
 
-    public function testHasSameParentAndThroughParentTable()
+    public function testHasSameParentAndThroughParentTable(): void
     {
         Category::create();
         Category::create();
@@ -151,7 +154,7 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         $this->assertEquals([1], $categories->pluck('id')->all());
     }
 
-    public function testFirstOrNewOnMissingRecord()
+    public function testFirstOrNewOnMissingRecord(): void
     {
         $taylor = User::create(['name' => 'Taylor', 'slug' => 'taylor']);
         $team = Team::create(['owner_id' => $taylor->id]);
@@ -167,7 +170,26 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         $this->assertSame('Tony', $user1->name);
     }
 
-    public function testFirstOrNewWhenRecordExists()
+    public function testFirstOrNewAcceptsClosureValuesOnMissingRecord(): void
+    {
+        $taylor = User::create(['name' => 'Taylor', 'slug' => 'taylor']);
+        $team = Team::create(['owner_id' => $taylor->id]);
+        $callCount = 0;
+
+        $user = $taylor->teamMates()->firstOrNew(['slug' => 'tony'], function () use (&$callCount, $team) {
+            ++$callCount;
+
+            return ['name' => 'Tony', 'team_id' => $team->id];
+        });
+
+        $this->assertSame(1, $callCount);
+        $this->assertFalse($user->exists);
+        $this->assertEquals($team->id, $user->team_id);
+        $this->assertSame('tony', $user->slug);
+        $this->assertSame('Tony', $user->name);
+    }
+
+    public function testFirstOrNewWhenRecordExists(): void
     {
         $taylor = User::create(['name' => 'Taylor', 'slug' => 'taylor']);
         $team = Team::create(['owner_id' => $taylor->id]);
@@ -188,7 +210,25 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         $this->assertSame('Tony Messias', $existingTony->name);
     }
 
-    public function testFirstOrCreateWhenModelDoesntExist()
+    public function testFirstOrNewDoesNotInvokeClosureValuesWhenRecordExists(): void
+    {
+        $taylor = User::create(['name' => 'Taylor', 'slug' => 'taylor']);
+        $team = Team::create(['owner_id' => $taylor->id]);
+        $existingTony = $team->members()->create(['name' => 'Tony Messias', 'slug' => 'tony']);
+        $callCount = 0;
+
+        $user = $taylor->teamMates()->firstOrNew(['slug' => 'tony'], function () use (&$callCount) {
+            ++$callCount;
+
+            return ['name' => 'Tony'];
+        });
+
+        $this->assertSame(0, $callCount);
+        $this->assertTrue($existingTony->is($user));
+        $this->assertSame('Tony Messias', $user->name);
+    }
+
+    public function testFirstOrCreateWhenModelDoesntExist(): void
     {
         $owner = User::create(['name' => 'Taylor']);
         Team::create(['owner_id' => $owner->id]);
@@ -201,7 +241,7 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         $this->assertEquals('adam', $mate->slug);
     }
 
-    public function testFirstOrCreateWhenModelExists()
+    public function testFirstOrCreateWhenModelExists(): void
     {
         $owner = User::create(['name' => 'Taylor']);
         $team = Team::create(['owner_id' => $owner->id]);
@@ -217,7 +257,7 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         $this->assertEquals('adam', $mate->slug);
     }
 
-    public function testFirstOrCreateRegressionIssue()
+    public function testFirstOrCreateRegressionIssue(): void
     {
         $team1 = Team::create();
         $team2 = Team::create();
@@ -244,7 +284,7 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         $this->assertSame('Jane', $jane->name);
     }
 
-    public function testCreateOrFirstWhenRecordDoesntExist()
+    public function testCreateOrFirstWhenRecordDoesntExist(): void
     {
         $team = Team::create();
         $tony = $team->members()->create(['name' => 'Tony']);
@@ -259,7 +299,7 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         $this->assertTrue($tony->is($article->user));
     }
 
-    public function testCreateOrFirstWhenRecordExists()
+    public function testCreateOrFirstWhenRecordExists(): void
     {
         $team = Team::create();
         $taylor = $team->members()->create(['name' => 'Taylor']);
@@ -280,7 +320,7 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         $this->assertTrue($existingArticle->is($newArticle));
     }
 
-    public function testCreateOrFirstWhenRecordExistsInTransaction()
+    public function testCreateOrFirstWhenRecordExistsInTransaction(): void
     {
         $team = Team::create();
         $taylor = $team->members()->create(['name' => 'Taylor']);
@@ -301,7 +341,7 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         $this->assertTrue($existingArticle->is($newArticle));
     }
 
-    public function testCreateOrFirstRegressionIssue()
+    public function testCreateOrFirstRegressionIssue(): void
     {
         $team1 = Team::create();
 
@@ -326,7 +366,7 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         $this->assertTrue($tony->is($existingTonyArticle->user));
     }
 
-    public function testUpdateOrCreateAffectingWrongModelsRegression()
+    public function testUpdateOrCreateAffectingWrongModelsRegression(): void
     {
         // On Laravel 10.21.0, a bug was introduced that would update the wrong model when using `updateOrCreate()`,
         // because the UPDATE statement would target a model based on the ID from the parent instead of the actual
@@ -355,8 +395,8 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         $this->assertSame('jane-slug', $jane->refresh()->slug);
 
         // The `updateOrCreate` method would first try to find a matching attached record with a query like:
-        // `->where($attributes)->first()`, which should return `John` of ID 1 in our case. However, it'd
-        // return the incorrect ID of 2, which caused it to update Jane's record instead of John's.
+        // `->where($attributes)->first()`, which should return `John` of ID 2 in our case. However, it'd
+        // return the incorrect ID of 1, which caused it to update Jane's record instead of John's.
 
         $taylor->teamMates()->updateOrCreate([
             'name' => 'John',
@@ -370,7 +410,7 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         $this->assertSame('jane-slug', $jane->fresh()->slug);
     }
 
-    public function testCanReplicateModelLoadedThroughHasManyThrough()
+    public function testCanReplicateModelLoadedThroughHasManyThrough(): void
     {
         $team = Team::create();
         $user = User::create(['team_id' => $team->id, 'name' => 'John']);
@@ -406,50 +446,77 @@ class User extends Model
 
     protected array $guarded = [];
 
-    public function teamMates()
+    /**
+     * Get the members of the user's teams.
+     */
+    public function teamMates(): HasManyThrough
     {
         return $this->hasManyThrough(self::class, Team::class, 'owner_id', 'team_id');
     }
 
-    public function teamMatesWithPendingRelation()
+    /**
+     * Get team members using the fluent through relationship.
+     */
+    public function teamMatesWithPendingRelation(): HasManyThrough
     {
         return $this->through($this->ownedTeams())
             ->has(fn (Team $team) => $team->members());
     }
 
-    public function teamMatesBySlug()
+    /**
+     * Get team members using the owner's slug.
+     */
+    public function teamMatesBySlug(): HasManyThrough
     {
         return $this->hasManyThrough(self::class, Team::class, 'owner_slug', 'team_id', 'slug');
     }
 
-    public function teamMatesBySlugWithPendingRelationship()
+    /**
+     * Get team members through the owner's slug using a fluent relationship.
+     */
+    public function teamMatesBySlugWithPendingRelationship(): HasManyThrough
     {
         return $this->through($this->hasMany(Team::class, 'owner_slug', 'slug'))
             ->has(fn ($team) => $team->hasMany(User::class, 'team_id'));
     }
 
-    public function teamMatesWithGlobalScope()
+    /**
+     * Get team members with the global column scope.
+     */
+    public function teamMatesWithGlobalScope(): HasManyThrough
     {
         return $this->hasManyThrough(UserWithGlobalScope::class, Team::class, 'owner_id', 'team_id');
     }
 
-    public function teamMatesWithGlobalScopeWithPendingRelation()
+    /**
+     * Get scoped team members using the fluent through relationship.
+     */
+    public function teamMatesWithGlobalScopeWithPendingRelation(): HasManyThrough
     {
         return $this->through($this->ownedTeams())
             ->has(fn (Team $team) => $team->membersWithGlobalScope());
     }
 
-    public function ownedTeams()
+    /**
+     * Get the teams owned by the user.
+     */
+    public function ownedTeams(): HasMany
     {
         return $this->hasMany(Team::class, 'owner_id');
     }
 
-    public function team()
+    /**
+     * Get the user's team.
+     */
+    public function team(): BelongsTo
     {
         return $this->belongsTo(Team::class);
     }
 
-    public function articles()
+    /**
+     * Get the user's articles.
+     */
+    public function articles(): HasMany
     {
         return $this->hasMany(Article::class);
     }
@@ -463,6 +530,9 @@ class UserWithGlobalScope extends Model
 
     protected array $guarded = [];
 
+    /**
+     * Boot the model's global column scope.
+     */
     public static function boot(): void
     {
         parent::boot();
@@ -481,21 +551,33 @@ class Team extends Model
 
     protected array $guarded = [];
 
-    public function members()
+    /**
+     * Get the team's members.
+     */
+    public function members(): HasMany
     {
         return $this->hasMany(User::class, 'team_id');
     }
 
-    public function membersWithGlobalScope()
+    /**
+     * Get team members with the global column scope.
+     */
+    public function membersWithGlobalScope(): HasMany
     {
         return $this->hasMany(UserWithGlobalScope::class, 'team_id');
     }
 
-    public function articles()
+    /**
+     * Get articles written by the team's members.
+     */
+    public function articles(): HasManyThrough
     {
         return $this->hasManyThrough(Article::class, User::class);
     }
 
+    /**
+     * Get the team's latest article.
+     */
     public function latestArticle(): HasOneThrough
     {
         return $this->articles()->one()->latest();
@@ -510,7 +592,10 @@ class Category extends Model
 
     protected array $guarded = [];
 
-    public function subProducts()
+    /**
+     * Get products in the category's child categories.
+     */
+    public function subProducts(): HasManyThrough
     {
         return $this->hasManyThrough(Product::class, self::class, 'parent_id');
     }
@@ -527,7 +612,10 @@ class Article extends Model
 {
     protected array $guarded = [];
 
-    public function user()
+    /**
+     * Get the article's author.
+     */
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }

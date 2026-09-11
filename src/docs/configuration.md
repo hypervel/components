@@ -414,6 +414,23 @@ The `retry` option may be specified as a number of seconds or as a date / time s
 php artisan down --retry="tomorrow 14:00"
 ```
 
+You may run the `down` command again to change the maintenance mode options without bringing the application back online. The new options replace the previous ones, so include any options you want to keep, such as `secret` or `redirect`.
+
+<a name="excluding-urls-from-maintenance-mode"></a>
+#### Excluding URLs From Maintenance Mode
+
+You may allow specific URLs during maintenance by configuring the `preventRequestsDuringMaintenance` method in your application's `bootstrap/app.php` file:
+
+```php
+use Hypervel\Foundation\Configuration\Middleware;
+
+->withMiddleware(function (Middleware $middleware): void {
+    $middleware->preventRequestsDuringMaintenance(except: [
+        'webhooks/*',
+    ]);
+})
+```
+
 <a name="bypassing-maintenance-mode"></a>
 #### Bypassing Maintenance Mode
 

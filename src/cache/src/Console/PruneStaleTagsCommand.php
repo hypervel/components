@@ -35,7 +35,7 @@ class PruneStaleTagsCommand extends Command
         if (! method_exists($store, 'flushStaleTags')) {
             $this->components->info('The selected cache store does not support pruning stale tags.');
 
-            return 0;
+            return self::SUCCESS;
         }
 
         $stats = $store->flushStaleTags();
@@ -54,7 +54,7 @@ class PruneStaleTagsCommand extends Command
 
         $this->components->info('Stale cache tags pruned successfully.');
 
-        return 0;
+        return self::SUCCESS;
     }
 
     /**

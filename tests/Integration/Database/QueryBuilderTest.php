@@ -928,10 +928,13 @@ class QueryBuilderTest extends DatabaseTestCase
         $config->set("database.connections.{$connection}.prefix", 'app_');
     }
 
-    protected function defineEnvironmentWouldThrowsPDOException($app): void
+    /**
+     * Expect invalid date operators to fail on PostgreSQL.
+     */
+    protected function defineEnvironmentWouldThrowsPDOException(ApplicationContract $app): void
     {
         $this->afterApplicationCreated(function () {
-            if (in_array($this->driver, ['pgsql', 'sqlsrv'])) {
+            if ($this->driver === 'pgsql') {
                 $this->expectException(PDOException::class);
             }
         });

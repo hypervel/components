@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use ArrayIterator;
+use BackedEnum;
 use Closure;
 use DateInterval;
 use DateTimeImmutable;
@@ -22,6 +23,7 @@ use IteratorIterator;
 use Override;
 use SortDirection;
 use stdClass;
+use Stringable as BaseStringable;
 use Traversable;
 use UnitEnum;
 
@@ -495,7 +497,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
             foreach ($this as $item) {
                 if (! is_array($item) && ! $item instanceof Enumerable) {
                     yield $item;
-                } elseif ($depth === 1) {
+                } elseif ((float) $depth === 1.0) {
                     yield from $item;
                 } else {
                     yield from $this->newInstance($item)->flatten($depth - 1);
@@ -547,6 +549,18 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
 
     /**
      * Group an associative array by a field or using a callback.
+     *
+     * @template TGroupKey of array-key|bool|null|UnitEnum|BaseStringable
+     *
+     * @param array|(callable(TValue, TKey): (array<array-key, TGroupKey>|TGroupKey))|string $groupBy
+     * @return ($groupBy is array
+     *  ? static<array-key, Collection<array-key, mixed>>
+     *  : static<
+     *      ($groupBy is string
+     *          ? array-key
+     *          : (TGroupKey is array-key ? TGroupKey : (TGroupKey is bool ? int : (TGroupKey is (BaseStringable|null) ? string : array-key)))),
+     *      Collection<($preserveKeys is true ? TKey : int), TValue>
+     *  >)
      */
     #[Override]
     public function groupBy(callable|array|string $groupBy, bool $preserveKeys = false): static
@@ -760,11 +774,41 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
         });
     }
 
+    /**
+     * Run a map over each nested chunk of items.
+     *
+     * @return static<TKey, mixed>
+     */
+    public function mapSpread(callable $callback): static
+    {
+        return $this->map(function ($chunk, $key) use ($callback) {
+            return $callback(...[...$chunk, $key]);
+        });
+    }
+
     #[Override]
     public function mapToDictionary(callable $callback): static
     {
         // @phpstan-ignore return.type (passthru loses generic type info)
         return $this->passthru(__FUNCTION__, func_get_args());
+    }
+
+    /**
+     * Run a grouping map over the items.
+     *
+     * The callback should return an associative array with a single key/value pair.
+     *
+     * @template TMapToGroupsKey of array-key
+     * @template TMapToGroupsValue
+     *
+     * @param callable(TValue, TKey): array<TMapToGroupsKey, TMapToGroupsValue> $callback
+     * @return static<TMapToGroupsKey, static<int, TMapToGroupsValue>>
+     */
+    public function mapToGroups(callable $callback): static
+    {
+        $groups = $this->mapToDictionary($callback);
+
+        return $groups->map($this->make(...));
     }
 
     /**
@@ -785,6 +829,37 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
                 yield from $callback($value, $key);
             }
         });
+    }
+
+    /**
+     * Map a collection and flatten the result by a single level.
+     *
+     * @template TFlatMapKey of array-key
+     * @template TFlatMapValue
+     *
+     * @param callable(TValue, TKey): (array<TFlatMapKey, TFlatMapValue>|Enumerable<TFlatMapKey, TFlatMapValue>) $callback
+     * @return static<TFlatMapKey, TFlatMapValue>
+     */
+    public function flatMap(callable $callback): static
+    {
+        return $this->map($callback)->collapse();
+    }
+
+    /**
+     * Map the values into a new class.
+     *
+     * @template TMapIntoValue
+     *
+     * @param class-string<TMapIntoValue> $class
+     * @return static<TKey, TMapIntoValue>
+     */
+    public function mapInto(string $class): static
+    {
+        if (is_subclass_of($class, BackedEnum::class)) {
+            return $this->map(fn ($value, $key) => enum_from($class, $value));
+        }
+
+        return $this->map(fn ($value, $key) => new $class($value, $key));
     }
 
     #[Override]
@@ -949,6 +1024,24 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
                 yield $result;
             }
         });
+    }
+
+    /**
+     * Partition the collection into two arrays using the given callback or key.
+     *
+     * @param (callable(TValue, TKey): bool)|string|TValue $key
+     * @return static<int<0, 1>, static<TKey, TValue>>
+     */
+    public function partition(mixed $key, mixed $operator = null, mixed $value = null): static
+    {
+        $callback = func_num_args() === 1
+            ? $this->valueRetriever($key)
+            : $this->operatorForWhere(...func_get_args());
+
+        [$passed, $failed] = Arr::partition($this->getIterator(), $callback);
+
+        // @phpstan-ignore return.type (returns exactly 2 elements with keys 0,1 but PHPStan infers int)
+        return $this->newInstance([$this->newInstance($passed), $this->newInstance($failed)]);
     }
 
     /**

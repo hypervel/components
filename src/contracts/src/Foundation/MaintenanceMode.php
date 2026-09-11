@@ -18,6 +18,8 @@ interface MaintenanceMode
 
     /**
      * Determine if the application is currently down for maintenance.
+     *
+     * @phpstan-impure Maintenance state may change between calls.
      */
     public function active(): bool;
 

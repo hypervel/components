@@ -59,7 +59,7 @@ class ShowCommand extends DatabaseInspectionCommand
 
         $this->display($data);
 
-        return 0;
+        return self::SUCCESS;
     }
 
     /**

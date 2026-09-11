@@ -43,7 +43,7 @@ class DatabaseEloquentCreateOrFirstValidationTest extends TestCase
             'belongsToMany' => $parent->belongsToMany($related, 'parent_related', 'parent_id', 'related_id', relation: 'related'),
             'morphToMany' => $parent->morphToMany($related, 'parent', 'parent_related', 'parent_id', 'related_id', relation: 'related'),
         };
-        $values = $method === 'updateOrCreate' && in_array($relation, ['hasOneThrough', 'hasManyThrough'], true) ? [] : function (): never {
+        $values = function (): never {
             $this->fail('The value callback must not run before validation.');
         };
 
@@ -52,6 +52,9 @@ class DatabaseEloquentCreateOrFirstValidationTest extends TestCase
         $query->{$method}(['id' => 2], $values);
     }
 
+    /**
+     * Provide creation helpers for each relationship type.
+     */
     public static function creationHelpers(): iterable
     {
         foreach (['direct', 'hasOne', 'hasMany', 'morphOne', 'morphMany', 'hasOneThrough', 'hasManyThrough', 'belongsToMany', 'morphToMany'] as $relation) {
@@ -76,6 +79,9 @@ class CreationValidationModel extends CreationValidationParent
 
 class CreationValidationBuilder extends Builder
 {
+    /**
+     * Reject create-or-first operations for this builder.
+     */
     public function ensureCanCreateOrFirst(): never
     {
         throw new LogicException('Create-or-first is unavailable for this builder.');

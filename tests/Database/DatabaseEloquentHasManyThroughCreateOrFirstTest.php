@@ -26,13 +26,6 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         CarbonImmutable::setTestNow('2023-01-01 00:00:00');
     }
 
-    protected function tearDown(): void
-    {
-        CarbonImmutable::setTestNow();
-
-        parent::tearDown();
-    }
-
     #[DataProvider('createOrFirstValues')]
     public function testCreateOrFirstMethodCreatesNewRecord(Closure|array $values): void
     {
@@ -55,14 +48,6 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
             'created_at' => '2023-01-01T00:00:00.000000Z',
             'updated_at' => '2023-01-01T00:00:00.000000Z',
         ], $result->toArray());
-    }
-
-    public static function createOrFirstValues(): array
-    {
-        return [
-            'array' => [['val' => 'bar']],
-            'closure' => [fn () => ['val' => 'bar']],
-        ];
     }
 
     public function testCreateOrFirstMethodRetrievesExistingRecord(): void
@@ -188,7 +173,8 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         ], $result->toArray());
     }
 
-    public function testFirstOrCreateMethodRetrievesRecordCreatedJustNow(): void
+    #[DataProvider('createOrFirstValues')]
+    public function testFirstOrCreateMethodRetrievesRecordCreatedJustNow(Closure|array $values): void
     {
         $parent = new ParentModel;
         $parent->id = 123;
@@ -218,8 +204,8 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $parent->getConnection()
             ->expects('select')
             ->with(
-                'select "child".*, "pivot"."parent_id" as "hypervel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ? and "val" = ?) limit 1',
-                [123, 'foo', 'bar'],
+                'select "child".*, "pivot"."parent_id" as "hypervel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ?) limit 1',
+                [123, 'foo'],
                 false,
                 [],
             )
@@ -228,25 +214,37 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
                 'pivot_id' => 456,
                 'hypervel_through_key' => 123,
                 'attr' => 'foo',
-                'val' => 'bar',
+                'val' => 'other',
                 'created_at' => '2023-01-01T00:00:00.000000Z',
                 'updated_at' => '2023-01-01T00:00:00.000000Z',
             ]]);
 
-        $result = $parent->children()->firstOrCreate(['attr' => 'foo'], ['val' => 'bar']);
+        $result = $parent->children()->firstOrCreate(['attr' => 'foo'], $values);
         $this->assertFalse($result->wasRecentlyCreated);
         $this->assertEquals([
             'id' => 789,
             'pivot_id' => 456,
             'hypervel_through_key' => 123,
             'attr' => 'foo',
-            'val' => 'bar',
+            'val' => 'other',
             'created_at' => '2023-01-01T00:00:00.000000Z',
             'updated_at' => '2023-01-01T00:00:00.000000Z',
         ], $result->toArray());
     }
 
-    public function testUpdateOrCreateMethodCreatesNewRecord(): void
+    /**
+     * Provide array and closure creation values.
+     */
+    public static function createOrFirstValues(): array
+    {
+        return [
+            'array' => [['val' => 'bar']],
+            'closure' => [fn () => ['val' => 'bar']],
+        ];
+    }
+
+    #[DataProvider('updateOrCreateValues')]
+    public function testUpdateOrCreateMethodCreatesNewRecord(Closure|array $values): void
     {
         $parent = new ParentModel;
         $parent->id = 123;
@@ -273,7 +271,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
             )
             ->andReturnTrue();
 
-        $result = $parent->children()->updateOrCreate(['attr' => 'foo'], ['val' => 'baz']);
+        $result = $parent->children()->updateOrCreate(['attr' => 'foo'], $values);
         $this->assertTrue($result->wasRecentlyCreated);
         $this->assertEquals([
             'id' => 789,
@@ -284,7 +282,8 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         ], $result->toArray());
     }
 
-    public function testUpdateOrCreateMethodUpdatesExistingRecord(): void
+    #[DataProvider('updateOrCreateValues')]
+    public function testUpdateOrCreateMethodUpdatesExistingRecord(Closure|array $values): void
     {
         $parent = new ParentModel;
         $parent->id = 123;
@@ -319,7 +318,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
             )
             ->andReturn(1);
 
-        $result = $parent->children()->updateOrCreate(['attr' => 'foo'], ['val' => 'baz']);
+        $result = $parent->children()->updateOrCreate(['attr' => 'foo'], $values);
         $this->assertFalse($result->wasRecentlyCreated);
         $this->assertEquals([
             'id' => 789,
@@ -332,7 +331,8 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         ], $result->toArray());
     }
 
-    public function testUpdateOrCreateMethodUpdatesRecordCreatedJustNow(): void
+    #[DataProvider('updateOrCreateValues')]
+    public function testUpdateOrCreateMethodUpdatesRecordCreatedJustNow(Closure|array $values): void
     {
         $parent = new ParentModel;
         $parent->id = 123;
@@ -352,7 +352,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
             ->andReturn([]);
 
         $sql = 'insert into "child" ("attr", "val", "updated_at", "created_at") values (?, ?, ?, ?)';
-        $bindings = ['foo', 'bar', '2023-01-01 00:00:00', '2023-01-01 00:00:00'];
+        $bindings = ['foo', 'baz', '2023-01-01 00:00:00', '2023-01-01 00:00:00'];
 
         $parent->getConnection()
             ->expects('insert')
@@ -362,8 +362,8 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $parent->getConnection()
             ->expects('select')
             ->with(
-                'select "child".*, "pivot"."parent_id" as "hypervel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ? and "val" = ?) limit 1',
-                [123, 'foo', 'bar'],
+                'select "child".*, "pivot"."parent_id" as "hypervel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ?) limit 1',
+                [123, 'foo'],
                 false,
                 [],
             )
@@ -377,19 +377,41 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
                 'updated_at' => '2023-01-01T00:00:00.000000Z',
             ]]);
 
-        $result = $parent->children()->firstOrCreate(['attr' => 'foo'], ['val' => 'bar']);
+        $parent->getConnection()
+            ->expects('update')
+            ->with(
+                'update "child" set "val" = ?, "updated_at" = ? where "id" = ?',
+                ['baz', '2023-01-01 00:00:00', 789],
+            )
+            ->andReturn(1);
+
+        $result = $parent->children()->updateOrCreate(['attr' => 'foo'], $values);
         $this->assertFalse($result->wasRecentlyCreated);
         $this->assertEquals([
             'id' => 789,
             'pivot_id' => 456,
             'hypervel_through_key' => 123,
             'attr' => 'foo',
-            'val' => 'bar',
+            'val' => 'baz',
             'created_at' => '2023-01-01T00:00:00.000000Z',
             'updated_at' => '2023-01-01T00:00:00.000000Z',
         ], $result->toArray());
     }
 
+    /**
+     * Provide array and closure update values.
+     */
+    public static function updateOrCreateValues(): array
+    {
+        return [
+            'array' => [['val' => 'baz']],
+            'closure' => [fn () => ['val' => 'baz']],
+        ];
+    }
+
+    /**
+     * Mock the model's database connection.
+     */
     protected function mockConnectionForModel(Model $model, string $database, array $lastInsertIds = []): void
     {
         $grammarClass = 'Hypervel\Database\Query\Grammars\\' . $database . 'Grammar';
@@ -445,6 +467,9 @@ class ParentModel extends Model
 
     protected array $guarded = [];
 
+    /**
+     * Get the parent's children through the pivot model.
+     */
     public function children(): HasManyThrough
     {
         return $this->hasManyThrough(

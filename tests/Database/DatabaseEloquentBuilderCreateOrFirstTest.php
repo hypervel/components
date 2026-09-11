@@ -26,7 +26,8 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
         CarbonImmutable::setTestNow('2023-01-01 00:00:00');
     }
 
-    public function testCreateOrFirstMethodCreatesNewRecord(): void
+    #[DataProvider('createOrFirstValues')]
+    public function testCreateOrFirstMethodCreatesNewRecord(Closure|array $values): void
     {
         $model = new TestModel;
         $this->mockConnectionForModel($model, 'SQLite', [123]);
@@ -38,7 +39,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
             ['foo', 'bar', '2023-01-01 00:00:00', '2023-01-01 00:00:00'],
         )->andReturnTrue();
 
-        $result = $model->newQuery()->createOrFirst(['attr' => 'foo'], ['val' => 'bar']);
+        $result = $model->newQuery()->createOrFirst(['attr' => 'foo'], $values);
         $this->assertTrue($result->wasRecentlyCreated);
         $this->assertEquals([
             'id' => 123,
@@ -614,6 +615,9 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
         $this->assertSame('bar', $result->val);
     }
 
+    /**
+     * Provide array and closure creation values.
+     */
     public static function createOrFirstValues(): array
     {
         return [
@@ -652,6 +656,9 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
         $this->assertSame('bar', $result->val);
     }
 
+    /**
+     * Mock the model's database connection.
+     */
     protected function mockConnectionForModel(Model $model, string $database, array $lastInsertIds = []): void
     {
         $grammarClass = 'Hypervel\Database\Query\Grammars\\' . $database . 'Grammar';

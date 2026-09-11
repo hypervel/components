@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Notifications;
 
+use Closure;
 use Exception;
 use Hypervel\Bus\Queueable;
 use Hypervel\Config\Repository as ConfigRepository;
@@ -423,7 +424,7 @@ class NotificationChannelManagerTest extends TestCase
         $container->make(BusDispatcherContract::class)
             ->shouldReceive('dispatch')->twice()->withArgs(function ($job) {
                 $this->assertInstanceOf(SendQueuedNotifications::class, $job);
-                $this->assertEquals($job->notification->deduplicatorResults[$job->channels[0]], call_user_func($job->deduplicator, '', null));
+                $this->assertEquals($job->notification->deduplicatorResults[$job->channels[0]], call_user_func($job->deduplicator, 'payload', 'queue'));
 
                 return true;
             });
@@ -466,11 +467,11 @@ class NotificationChannelManagerTest extends TestCase
 
         $events = $container->make(Dispatcher::class);
         $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
-        $manager->shouldReceive('driver')->andReturn($driver = m::mock());
-        $events->shouldReceive('until')->with(m::type(NotificationSending::class))->andReturn(true);
+        $manager->shouldReceive('driver')->once()->andReturn($driver = m::mock());
+        $events->shouldReceive('until')->once()->with(m::type(NotificationSending::class))->andReturn(true);
         $driver->shouldReceive('send')->once()->andReturn($response = m::mock());
-        $events->shouldReceive('dispatch')->with(m::type(NotificationDelivered::class));
-        $events->shouldReceive('dispatch')->with(m::type(NotificationSent::class));
+        $events->shouldReceive('dispatch')->once()->with(m::type(NotificationDelivered::class));
+        $events->shouldReceive('dispatch')->once()->with(m::type(NotificationSent::class));
 
         $manager->send($notifiable = new NotificationChannelManagerTestNotifiable, new NotificationChannelManagerWithAfterSendingMethodNotification);
 
@@ -520,43 +521,46 @@ class NotificationChannelManagerTestNotifiable
 
 class NotificationChannelManagerTestNotification extends Notification
 {
-    public function via()
+    /**
+     * Get the notification's delivery channels.
+     *
+     * @return list<string>
+     */
+    public function via(): array
     {
         return ['test'];
-    }
-
-    public function message()
-    {
-        return $this->line('test')->action('Text', 'url');
     }
 }
 
 class NotificationChannelManagerTestNotificationWithTwoChannels extends Notification
 {
-    public function via()
+    /**
+     * Get the notification's delivery channels.
+     *
+     * @return list<string>
+     */
+    public function via(): array
     {
         return ['test', 'test2'];
-    }
-
-    public function message()
-    {
-        return $this->line('test')->action('Text', 'url');
     }
 }
 
 class NotificationChannelManagerTestCancelledNotification extends Notification
 {
-    public function via()
+    /**
+     * Get the notification's delivery channels.
+     *
+     * @return list<string>
+     */
+    public function via(): array
     {
         return ['test'];
     }
 
-    public function message()
-    {
-        return $this->line('test')->action('Text', 'url');
-    }
-
-    public function shouldSend($notifiable, $channel)
+    /**
+     * Determine if the notification should be sent.
+     */
+    public function shouldSend(mixed $notifiable, string $channel): bool
     {
         return false;
     }
@@ -564,17 +568,20 @@ class NotificationChannelManagerTestCancelledNotification extends Notification
 
 class NotificationChannelManagerTestNotCancelledNotification extends Notification
 {
-    public function via()
+    /**
+     * Get the notification's delivery channels.
+     *
+     * @return list<string>
+     */
+    public function via(): array
     {
         return ['test'];
     }
 
-    public function message()
-    {
-        return $this->line('test')->action('Text', 'url');
-    }
-
-    public function shouldSend($notifiable, $channel)
+    /**
+     * Determine if the notification should be sent.
+     */
+    public function shouldSend(mixed $notifiable, string $channel): bool
     {
         return true;
     }
@@ -584,14 +591,14 @@ class NotificationChannelManagerTestQueuedNotification extends Notification impl
 {
     use Queueable;
 
-    public function via()
+    /**
+     * Get the notification's delivery channels.
+     *
+     * @return list<string>
+     */
+    public function via(): array
     {
         return ['test'];
-    }
-
-    public function message()
-    {
-        return $this->line('test')->action('Text', 'url');
     }
 }
 
@@ -599,14 +606,14 @@ class NotificationChannelManagerTestQueuedNotificationWithTwoChannels extends No
 {
     use Queueable;
 
-    public function via()
+    /**
+     * Get the notification's delivery channels.
+     *
+     * @return list<string>
+     */
+    public function via(): array
     {
         return ['test', 'test2'];
-    }
-
-    public function message()
-    {
-        return $this->line('test')->action('Text', 'url');
     }
 }
 
@@ -614,17 +621,20 @@ class NotificationChannelManagerTestQueuedNotificationWithMessageGroupMethod ext
 {
     use Queueable;
 
-    public function via()
+    /**
+     * Get the notification's delivery channels.
+     *
+     * @return list<string>
+     */
+    public function via(): array
     {
         return ['test', 'test2'];
     }
 
-    public function message()
-    {
-        return $this->line('test')->action('Text', 'url');
-    }
-
-    public function messageGroup()
+    /**
+     * Get the notification's message group.
+     */
+    public function messageGroup(): string
     {
         return 'group-1';
     }
@@ -634,17 +644,20 @@ class NotificationChannelManagerTestQueuedNotificationWithMessageGroups extends 
 {
     use Queueable;
 
-    public function via()
+    /**
+     * Get the notification's delivery channels.
+     *
+     * @return list<string>
+     */
+    public function via(): array
     {
         return ['test', 'test2'];
     }
 
-    public function message()
-    {
-        return $this->line('test')->action('Text', 'url');
-    }
-
-    public function withMessageGroups($notifiable, $channel)
+    /**
+     * Get the message group for the notification's channel.
+     */
+    public function withMessageGroups(mixed $notifiable, string $channel): ?string
     {
         return match ($channel) {
             'test' => 'group-1',
@@ -658,26 +671,34 @@ class NotificationChannelManagerTestQueuedNotificationWithDeduplicators extends 
 {
     use Queueable;
 
+    /**
+     * @var array<string, string>
+     */
     public array $deduplicatorResults = [
         'test' => 'deduplication-id-1',
         'test2' => 'deduplication-id-2',
     ];
 
-    public function via()
+    /**
+     * Get the notification's delivery channels.
+     *
+     * @return list<string>
+     */
+    public function via(): array
     {
         return ['test', 'test2'];
     }
 
-    public function message()
-    {
-        return $this->line('test')->action('Text', 'url');
-    }
-
-    public function withDeduplicators($notifiable, $channel)
+    /**
+     * Get the deduplicator for the notification's channel.
+     *
+     * @return null|Closure(string, string): string
+     */
+    public function withDeduplicators(mixed $notifiable, string $channel): ?Closure
     {
         return match ($channel) {
-            'test' => fn ($payload, $queue) => $this->deduplicatorResults['test'],
-            'test2' => fn ($payload, $queue) => $this->deduplicatorResults['test2'],
+            'test' => fn (string $payload, string $queue): string => $this->deduplicatorResults['test'],
+            'test2' => fn (string $payload, string $queue): string => $this->deduplicatorResults['test2'],
             default => null,
         };
     }
@@ -687,17 +708,20 @@ class NotificationChannelManagerTestQueuedNotificationWithDeduplicationId extend
 {
     use Queueable;
 
-    public function via()
+    /**
+     * Get the notification's delivery channels.
+     *
+     * @return list<string>
+     */
+    public function via(): array
     {
         return ['test', 'test2'];
     }
 
-    public function message()
-    {
-        return $this->line('test')->action('Text', 'url');
-    }
-
-    public function deduplicationId($payload, $queue)
+    /**
+     * Get the notification's deduplication ID.
+     */
+    public function deduplicationId(string $payload, string $queue): string
     {
         return 'deduplication-id-1';
     }
@@ -711,12 +735,20 @@ class NotificationChannelManagerWithAfterSendingMethodNotification extends Notif
 
     public static mixed $afterSendingResponse = null;
 
-    public function via()
+    /**
+     * Get the notification's delivery channels.
+     *
+     * @return list<string>
+     */
+    public function via(): array
     {
         return ['test'];
     }
 
-    public function afterSending($notifiable, $channel, $response)
+    /**
+     * Handle the notification after it has been sent.
+     */
+    public function afterSending(mixed $notifiable, string $channel, mixed $response): void
     {
         static::$afterSendingNotifiable = $notifiable;
         static::$afterSendingChannel = $channel;

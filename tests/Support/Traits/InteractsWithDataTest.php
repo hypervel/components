@@ -18,7 +18,6 @@ use Hypervel\Tests\TestCase;
 use ReflectionMethod;
 use stdClass;
 use Stringable;
-use TypeError;
 
 enum InteractsWithDataTestStringEnum: string
 {
@@ -336,13 +335,11 @@ class InteractsWithDataTest extends TestCase
         $this->assertSame(9.24, $instance->clamp('float', 1, 10));
     }
 
-    public function testClampMethodRejectsNonNumericValues(): void
+    public function testClampMethodUsesDefaultForNonNumericValues(): void
     {
         $instance = new TestInteractsWithDataClass(['per_page' => 'abc']);
 
-        $this->expectException(TypeError::class);
-
-        $instance->clamp('per_page', 1, 100);
+        $this->assertSame(1, $instance->clamp('per_page', 1, 100));
     }
 }
 
