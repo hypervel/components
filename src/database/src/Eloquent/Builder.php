@@ -671,6 +671,8 @@ class Builder implements BuilderContract
 
     /**
      * Validate first-or-create and create-or-first operations, including relationship calls.
+     *
+     * Helpers delegate to each other, so this may run more than once per operation; keep overrides side-effect-free.
      */
     public function ensureCanCreateOrFirst(): void
     {

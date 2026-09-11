@@ -43,7 +43,7 @@ class DatabaseEloquentCreateOrFirstValidationTest extends TestCase
             'belongsToMany' => $parent->belongsToMany($related, 'parent_related', 'parent_id', 'related_id', relation: 'related'),
             'morphToMany' => $parent->morphToMany($related, 'parent', 'parent_related', 'parent_id', 'related_id', relation: 'related'),
         };
-        $values = $method === 'updateOrCreate' ? [] : function (): never {
+        $values = $method === 'updateOrCreate' && in_array($relation, ['hasOneThrough', 'hasManyThrough'], true) ? [] : function (): never {
             $this->fail('The value callback must not run before validation.');
         };
 
