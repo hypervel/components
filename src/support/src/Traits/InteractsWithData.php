@@ -283,14 +283,15 @@ trait InteractsWithData
      */
     public function clamp(string $key, int|float $min, int|float $max, int|float $default = 0): int|float
     {
-        $number = $this->data($key, $default);
+        $value = $this->data($key, $default);
 
-        if (is_string($number) && is_numeric($number)) {
-            $number += 0;
+        if (! is_numeric($value)) {
+            $value = $default;
+        } elseif (is_string($value)) {
+            $value += 0;
         }
 
-        // Non-numeric input fails naturally in the strictly typed Number::clamp().
-        return Number::clamp($number, $min, $max); // @phpstan-ignore argument.type
+        return Number::clamp($value, $min, $max);
     }
 
     /**

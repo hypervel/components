@@ -424,7 +424,7 @@ $perPage = $request->integer('per_page');
 <a name="retrieving-clamped-input-values"></a>
 #### Retrieving Clamped Input Values
 
-To retrieve a numeric input value constrained between a minimum and maximum value, you may use the `clamp` method. If the input is not present, the default value you specify will be clamped instead:
+To retrieve a numeric input value constrained between a minimum and maximum value, you may use the `clamp` method. If the input is not present or is not numeric, the default value you specify will be clamped instead:
 
 ```php
 $perPage = $request->clamp('per_page', min: 1, max: 100, default: 15);
