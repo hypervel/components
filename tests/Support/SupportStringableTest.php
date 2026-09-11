@@ -282,12 +282,13 @@ class SupportStringableTest extends TestCase
         }));
     }
 
-    public function testDedup()
+    public function testDedup(): void
     {
         $this->assertSame(' hypervel php framework ', (string) $this->stringable(' hypervel   php  framework ')->deduplicate());
         $this->assertSame('what', (string) $this->stringable('whaaat')->deduplicate('a'));
         $this->assertSame('/some/odd/path/', (string) $this->stringable('/some//odd//path/')->deduplicate('/'));
         $this->assertSame('ムだム', (string) $this->stringable('ムだだム')->deduplicate('だ'));
+        $this->assertSame(' hypervel forever ', (string) $this->stringable(' hypervell    foreverrr  ')->deduplicate([' ', 'l', 'r']));
     }
 
     public function testDirname()

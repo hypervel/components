@@ -650,6 +650,16 @@ $result = Str::deduplicate('The---Hypervel---Framework', '-');
 // The-Hypervel-Framework
 ```
 
+You may also pass an array of characters to deduplicate each of them:
+
+```php
+use Hypervel\Support\Str;
+
+$result = Str::deduplicate('The---Hypervel   Framework', ['-', ' ']);
+
+// The-Hypervel Framework
+```
+
 <a name="method-str-doesnt-end-with"></a>
 #### `Str::doesntEndWith()` {.collection-method}
 
@@ -2533,7 +2543,7 @@ $result = Str::of('The   Hypervel   Framework')->deduplicate();
 // The Hypervel Framework
 ```
 
-You may specify a different character to deduplicate by passing it in as the second argument to the method:
+You may specify a different character to deduplicate by passing it to the method:
 
 ```php
 use Hypervel\Support\Str;
@@ -2541,6 +2551,16 @@ use Hypervel\Support\Str;
 $result = Str::of('The---Hypervel---Framework')->deduplicate('-');
 
 // The-Hypervel-Framework
+```
+
+You may also pass an array of characters to deduplicate each of them:
+
+```php
+use Hypervel\Support\Str;
+
+$result = Str::of('The---Hypervel   Framework')->deduplicate(['-', ' ']);
+
+// The-Hypervel Framework
 ```
 
 <a name="method-fluent-str-dirname"></a>
