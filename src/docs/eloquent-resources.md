@@ -264,6 +264,12 @@ Route::get('/users', function () {
 });
 ```
 
+You may also preserve keys for an individual collection by calling the `preserveKeys` method on the collection returned by `UserResource::collection`:
+
+```php
+return UserResource::collection(User::all()->keyBy->id)->preserveKeys();
+```
+
 <a name="customizing-the-underlying-resource-class"></a>
 #### Customizing the Underlying Resource Class
 

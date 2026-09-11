@@ -207,6 +207,22 @@ class BusDispatcherTest extends TestCase
         $this->assertInstanceOf(StandAloneCommand::class, $response);
     }
 
+    public function testDisabledDispatchAfterResponseUsesExplicitHandler(): void
+    {
+        $dispatcher = new Dispatcher(new Container);
+        $dispatcher->withoutDispatchingAfterResponses();
+
+        $command = new BusDispatcherImmediateCommand;
+        $handledCommand = null;
+
+        $dispatcher->dispatchAfterResponse($command, static function (BusDispatcherImmediateCommand $receivedCommand) use (&$handledCommand): void {
+            $handledCommand = $receivedCommand;
+        });
+
+        $this->assertSame($command, $handledCommand);
+        $this->assertFalse($command->handled);
+    }
+
     public function testOnConnectionOnJobWhenDispatching()
     {
         Container::setInstance($container = new Container);

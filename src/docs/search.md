@@ -30,7 +30,7 @@ When you need keyword relevance ranking — where the database scores and sorts 
 <a name="introduction-semantic-vector-search"></a>
 #### Semantic / Vector Search
 
-For semantic search that matches results by *meaning* rather than exact keywords, the `whereVectorSimilarTo` query builder method uses vector embeddings stored in PostgreSQL with the `pgvector` extension. For example, a search for "best wineries in Napa Valley" can surface an article titled "Top Vineyards to Visit" — even though the words don't overlap. Vector search requires PostgreSQL with the `pgvector` extension and pre-computed vector embeddings.
+For semantic search that matches results by *meaning* rather than exact keywords, the `whereVectorSimilarTo` query builder method uses vector embeddings stored in PostgreSQL with the `pgvector` extension or MariaDB. For example, a search for "best wineries in Napa Valley" can surface an article titled "Top Vineyards to Visit" — even though the words don't overlap. Vector search requires PostgreSQL with the `pgvector` extension or MariaDB 11.7 or later, as well as pre-computed vector embeddings.
 
 <a name="introduction-scout-search-engines"></a>
 #### Hypervel Scout Search
@@ -100,7 +100,7 @@ Full-text search relies on matching keywords — the words in the query must app
 The basic workflow for vector search is: generate an embedding (a numeric array) for each piece of content and store it alongside your data, then at search time, generate an embedding for the user's query and find the stored embeddings that are closest to it in vector space. Hypervel does not generate embeddings for you; provide pre-computed vectors from your own embedding pipeline or provider.
 
 > [!NOTE]
-> Vector search requires a PostgreSQL database with the `pgvector` extension.
+> Vector search is supported by PostgreSQL with the `pgvector` extension and MariaDB 11.7 or later.
 
 <a name="storing-and-indexing-vectors"></a>
 ### Storing and Indexing Vectors
@@ -108,7 +108,7 @@ The basic workflow for vector search is: generate an embedding (a numeric array)
 To store vector embeddings, define a `vector` column in your migration, specifying the number of dimensions in your vectors. You should also call `index` on the column to create an HNSW (Hierarchical Navigable Small World) index, which dramatically speeds up similarity searches on large datasets:
 
 ```php
-Schema::ensureVectorExtensionExists();
+Schema::ensureVectorExtensionExists(); // PostgreSQL only.
 
 Schema::create('documents', function (Blueprint $table) {
     $table->id();
@@ -119,15 +119,17 @@ Schema::create('documents', function (Blueprint $table) {
 });
 ```
 
-The `Schema::ensureVectorExtensionExists` method ensures the `pgvector` extension is enabled on your PostgreSQL database before creating the table.
+The `Schema::ensureVectorExtensionExists` method ensures the `pgvector` extension is enabled on your PostgreSQL database before creating the table. Omit this call when using MariaDB.
 
-On your Eloquent model, cast the vector column to an `array` so that Hypervel automatically handles the conversion between PHP arrays and the database's vector format:
+On your Eloquent model, use the `AsVector` cast so that Hypervel automatically handles the conversion between PHP arrays and the database's vector format:
 
 ```php
+use Hypervel\Database\Eloquent\Casts\AsVector;
+
 protected function casts(): array
 {
     return [
-        'embedding' => 'array',
+        'embedding' => AsVector::class,
     ];
 }
 ```

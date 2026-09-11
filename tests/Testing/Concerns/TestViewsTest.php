@@ -8,7 +8,6 @@ use Hypervel\Config\Repository as Config;
 use Hypervel\Container\Container;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\Facade;
-use Hypervel\Support\Facades\ParallelTesting as ParallelTestingFacade;
 use Hypervel\Testing\Concerns\TestViews;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
@@ -21,11 +20,23 @@ class TestViewsTest extends TestCase
 {
     private mixed $originalParallelTesting;
 
+    private string $tempDir;
+
+    private Filesystem $filesystem;
+
+    /**
+     * Create the isolated compiled-view directory and container bindings.
+     */
     protected function setUp(): void
     {
         $this->originalParallelTesting = $_SERVER['HYPERVEL_PARALLEL_TESTING'] ?? null;
 
         parent::setUp();
+
+        $this->filesystem = new Filesystem;
+        $this->tempDir = ParallelTesting::tempDir('TestViewsTest');
+        $this->filesystem->deleteDirectory($this->tempDir);
+        $this->filesystem->ensureDirectoryExists($this->tempDir);
 
         Container::setInstance($container = new Container);
 
@@ -38,14 +49,18 @@ class TestViewsTest extends TestCase
         ]));
 
         $container->singleton(ParallelTesting::class, fn ($app) => new ParallelTesting($app));
+        $container->instance('files', $this->filesystem);
 
         $_SERVER['HYPERVEL_PARALLEL_TESTING'] = 1;
     }
 
+    /**
+     * Remove the isolated compiled-view directory and restore the environment.
+     */
     protected function tearDown(): void
     {
-        Container::setInstance(null);
-        ParallelTestingFacade::clearResolvedInstance();
+        $this->filesystem->deleteDirectory($this->tempDir);
+
         Facade::setFacadeApplication(null);
 
         if ($this->originalParallelTesting === null) {
@@ -133,6 +148,9 @@ class TestViewsTest extends TestCase
     public function testTearDownProcessDeletesCompiledViewDirectory(): void
     {
         Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '7');
+        Container::getInstance()->make('config')->set('view.compiled', $this->tempDir);
+
+        $this->filesystem->put($this->tempDir . '/shared.php', 'shared view');
 
         $instance = $this->makeTestViewsInstance();
 
@@ -143,8 +161,24 @@ class TestViewsTest extends TestCase
         $tearDownCallbacks = (new ReflectionProperty($parallelTesting, 'tearDownProcessCallbacks'))->getValue($parallelTesting);
 
         $this->assertCount(1, $tearDownCallbacks);
+
+        $parallelTesting->callSetUpProcessCallbacks();
+
+        $this->assertDirectoryExists($this->tempDir . '/test_7');
+
+        $this->filesystem->put($this->tempDir . '/test_7/compiled.php', 'compiled view');
+
+        $parallelTesting->callSetUpTestCaseCallbacks($this);
+        $parallelTesting->callTearDownProcessCallbacks();
+
+        $this->assertDirectoryDoesNotExist($this->tempDir . '/test_7');
+        $this->assertDirectoryExists($this->tempDir);
+        $this->assertFileExists($this->tempDir . '/shared.php');
     }
 
+    /**
+     * Get the compiled view path for the current process.
+     */
     protected function getCompiledViewPath(): ?string
     {
         $instance = $this->makeTestViewsInstance();
@@ -154,6 +188,9 @@ class TestViewsTest extends TestCase
         return $method->invoke($instance);
     }
 
+    /**
+     * Switch to the given compiled view path.
+     */
     protected function switchToCompiledViewPath(string $path): void
     {
         $instance = $this->makeTestViewsInstance();
@@ -162,6 +199,9 @@ class TestViewsTest extends TestCase
         $method->invoke($instance, $path);
     }
 
+    /**
+     * Create a test views instance using the current container.
+     */
     protected function makeTestViewsInstance(): object
     {
         return new class {
@@ -169,6 +209,9 @@ class TestViewsTest extends TestCase
 
             public Container $app;
 
+            /**
+             * Create a new test views instance.
+             */
             public function __construct()
             {
                 $this->app = Container::getInstance();

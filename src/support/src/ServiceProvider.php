@@ -553,12 +553,13 @@ return [
      */
     protected function getProviderKey(?string $key = null): string
     {
-        $key ??= (string) Str::of(get_class($this))
+        $key ??= (new Stringable(get_class($this)))
             ->classBasename()
             ->before('ServiceProvider')
             ->kebab()
             ->lower()
-            ->trim();
+            ->trim()
+            ->value();
 
         if (empty($key)) {
             $key = class_basename(get_class($this));

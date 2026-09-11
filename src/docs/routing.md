@@ -32,6 +32,7 @@
 - [Form Method Spoofing](#form-method-spoofing)
 - [Accessing the Current Route](#accessing-the-current-route)
 - [Cross-Origin Resource Sharing (CORS)](#cors)
+    - [Skipping CORS Handling](#skipping-cors-handling)
     - [Dynamic CORS Configuration](#dynamic-cors-configuration)
 - [Route Caching](#route-caching)
 
@@ -1126,6 +1127,26 @@ This command will place a `cors.php` configuration file within your application'
 > [!NOTE]
 > For more information on CORS and CORS headers, please consult the [MDN web documentation on CORS](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#The_HTTP_response_headers).
 
+<a name="skipping-cors-handling"></a>
+### Skipping CORS Handling
+
+You may skip CORS handling for selected requests by calling the `HandleCors` middleware's `skipWhen` method from the `boot` method of your application's `App\Providers\AppServiceProvider` class:
+
+```php
+use Hypervel\Http\Middleware\HandleCors;
+use Hypervel\Http\Request;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    HandleCors::skipWhen(static fn (Request $request): bool => $request->is('webhooks/*'));
+}
+```
+
+If any registered callback returns `true`, the middleware skips CORS handling for that request, including the dynamic configuration resolver described below. Keep these callbacks inexpensive, since they are checked before CORS path matching.
+
 <a name="dynamic-cors-configuration"></a>
 ### Dynamic CORS Configuration
 
@@ -1151,7 +1172,7 @@ public function boot(): void
 }
 ```
 
-The closure receives the current HTTP request instance and should return the full CORS options array, including `paths`. Except for requests explicitly excluded with `skipWhen`, it runs before path matching because its returned paths determine whether CORS applies. Keep the resolver inexpensive since it runs for every request that reaches the middleware.
+The closure receives the current HTTP request instance and should return the full CORS options array, including `paths`. Except for requests explicitly excluded with [`skipWhen`](#skipping-cors-handling), it runs before path matching because its returned paths determine whether CORS applies. Keep the resolver inexpensive since it runs for every request that reaches the middleware.
 
 If you only need to override a few options, you may merge your changes with the values defined in your `cors.php` configuration file:
 

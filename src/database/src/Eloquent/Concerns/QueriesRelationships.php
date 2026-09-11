@@ -802,7 +802,8 @@ trait QueriesRelationships
 
         $relations = is_array($relations) ? $relations : [$relations];
 
-        foreach ($this->parseWithRelations($relations) as $name => $constraints) {
+        // Aggregate aliases are not relationship paths and need no eager-load parent expansion.
+        foreach ($this->prepareNestedWithRelationships($relations) as $name => $constraints) {
             // First we will determine if the name has been aliased using an "as" clause on the name
             // and if it has we will extract the actual relationship name and the desired name of
             // the resulting column. This allows multiple aggregates on the same relationships.
@@ -878,7 +879,7 @@ trait QueriesRelationships
 
             if ($function === 'exists') {
                 $this->selectRaw(
-                    sprintf('exists(%s) as %s', $query->toSql(), $this->getQuery()->grammar->wrap($alias)),
+                    sprintf('exists(%s) as %s', $query->toSql(), $this->getQuery()->grammar->wrapIdentifier($alias)),
                     $query->getBindings()
                 )->withCasts([$alias => 'bool']); // @phpstan-ignore method.notFound (selectRaw returns Eloquent\Builder $this, not Query\Builder)
             } else {

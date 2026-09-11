@@ -6,6 +6,7 @@
     - [Defining a Mutator](#defining-a-mutator)
 - [Attribute Casting](#attribute-casting)
     - [Array and JSON Casting](#array-and-json-casting)
+    - [Vector Casting](#vector-casting)
     - [Binary Casting](#binary-casting)
     - [Date Casting](#date-casting)
     - [Enum Casting](#enum-casting)
@@ -228,6 +229,7 @@ The `casts` method should return an array where the key is the name of the attri
 - `AsHtmlString::class`
 - `AsStringable::class`
 - `AsUri::class`
+- `AsVector::class`
 - `boolean`
 - `collection`
 - `date`
@@ -300,7 +302,7 @@ $user->mergeCasts([
 ```
 
 > [!WARNING]
-> Attributes that are `null` will not be cast. In addition, you should never define a cast (or an attribute) that has the same name as a relationship or assign a cast to the model's primary key.
+> Attributes that are `null` remain `null` when using casts such as `integer`, `boolean`, or `array`. Custom cast classes handle `null` values themselves. In addition, you should never define a cast (or an attribute) that has the same name as a relationship or assign a cast to the model's primary key.
 
 <a name="stringable-casting"></a>
 #### Stringable Casting
@@ -579,6 +581,29 @@ class Option implements Arrayable, JsonSerializable
     }
 }
 ```
+
+<a name="vector-casting"></a>
+### Vector Casting
+
+You may use the `Hypervel\Database\Eloquent\Casts\AsVector` cast class to cast a database vector column to and from a PHP array:
+
+```php
+use Hypervel\Database\Eloquent\Casts\AsVector;
+
+/**
+ * Get the attributes that should be cast.
+ *
+ * @return array<string, string>
+ */
+protected function casts(): array
+{
+    return [
+        'embedding' => AsVector::class,
+    ];
+}
+```
+
+When setting the attribute, the cast accepts a PHP array, an `Arrayable` instance such as a Hypervel collection, or `null`. When retrieving the attribute, the cast returns an array of floats, or `null` if the stored value is `null`.
 
 <a name="binary-casting"></a>
 ### Binary Casting

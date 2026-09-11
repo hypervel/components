@@ -256,6 +256,8 @@ class FoundationServiceProvider extends ServiceProvider
         $this->app->scoped(DeferredCallbackCollection::class);
         $events = $this->app->make('events');
 
+        // Deferred jobs use coroutine-exit callbacks, not this collection, so their
+        // JobAttempted events can drain it without recursively running the same job.
         $events->listen(function (JobAttempted $event) {
             if ($event->connectionName === 'sync'
                 || ! BaseContainer::getInstance()->resolvedScoped(DeferredCallbackCollection::class)

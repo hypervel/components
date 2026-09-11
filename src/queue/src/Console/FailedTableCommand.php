@@ -56,6 +56,7 @@ class FailedTableCommand extends MigrationGeneratorCommand
 
         foreach ([
             join_paths($this->hypervel->databasePath('migrations'), '*_*_*_*_create_' . $table . '_table.php'),
+            // Laravel applications may keep failed_jobs in the bundled jobs migration.
             join_paths($this->hypervel->databasePath('migrations'), '0001_01_01_000002_create_jobs_table.php'),
         ] as $path) {
             if ($this->matchingMigrationFiles($path) !== []) {

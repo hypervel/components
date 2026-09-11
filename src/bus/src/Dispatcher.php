@@ -263,7 +263,7 @@ class Dispatcher implements QueueingDispatcher
     public function dispatchAfterResponse(mixed $command, mixed $handler = null): void
     {
         if (! $this->allowsDispatchingAfterResponses) {
-            $this->dispatchSync($command);
+            $this->dispatchSync($command, $handler);
 
             return;
         }

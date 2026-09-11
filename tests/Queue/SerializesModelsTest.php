@@ -25,14 +25,14 @@ class SerializesModelsTest extends TestCase
         $this->assertSame([], $payload['entity']->relations);
     }
 
-    public function testInheritedClassWithoutRelationsAttributeIsNotAppliedToChild(): void
+    public function testInheritedClassWithoutRelationsAttributeIsAppliedToChild(): void
     {
         $payload = (new ChildClassInheritingWithoutRelationsSerializationFixture(
             new QueueableEntitySerializationFixture
         ))->__serialize();
 
         $this->assertInstanceOf(ModelIdentifier::class, $payload['entity']);
-        $this->assertSame(['roles'], $payload['entity']->relations);
+        $this->assertSame([], $payload['entity']->relations);
     }
 
     public function testPropertyWithoutRelationsAttributeStripsRelations(): void
@@ -82,6 +82,9 @@ class EloquentModelSerializationFixture
 {
     use SerializesModels;
 
+    /**
+     * Create a fixture containing an Eloquent model.
+     */
     public function __construct(public Model $model)
     {
     }
@@ -96,6 +99,9 @@ class ClassWithoutRelationsSerializationFixture
 {
     use SerializesModels;
 
+    /**
+     * Create a fixture with class-level relation exclusion.
+     */
     public function __construct(
         public QueueableEntitySerializationFixture $entity,
     ) {
@@ -107,6 +113,9 @@ class ParentClassWithoutRelationsSerializationFixture
 {
     use SerializesModels;
 
+    /**
+     * Create a parent fixture with relation exclusion.
+     */
     public function __construct(
         public QueueableEntitySerializationFixture $entity,
     ) {
@@ -121,6 +130,9 @@ class PropertyWithoutRelationsSerializationFixture
 {
     use SerializesModels;
 
+    /**
+     * Create a fixture with property-level relation exclusion.
+     */
     public function __construct(
         #[WithoutRelations]
         public QueueableEntitySerializationFixture $entity,
@@ -131,16 +143,25 @@ class PropertyWithoutRelationsSerializationFixture
 
 class QueueableEntitySerializationFixture extends Model
 {
+    /**
+     * Get the identifier for the fixture.
+     */
     public function getQueueableId(): int
     {
         return 1;
     }
 
+    /**
+     * Get the fixture's queueable relationships.
+     */
     public function getQueueableRelations(): array
     {
         return ['roles'];
     }
 
+    /**
+     * Get the fixture's queueable connection.
+     */
     public function getQueueableConnection(): ?string
     {
         return 'testing';
@@ -151,6 +172,9 @@ class NonEloquentQueueablesSerializationFixture
 {
     use SerializesModels;
 
+    /**
+     * Create a fixture containing non-Eloquent queueable objects.
+     */
     public function __construct(
         public NonEloquentQueueableEntitySerializationFixture $entity,
         public NonEloquentQueueableCollectionSerializationFixture $collection,
@@ -160,21 +184,33 @@ class NonEloquentQueueablesSerializationFixture
 
 class NonEloquentQueueableEntitySerializationFixture implements QueueableEntity
 {
+    /**
+     * Create a queueable entity with the given value.
+     */
     public function __construct(
         public string $value,
     ) {
     }
 
+    /**
+     * Get the queueable identifier.
+     */
     public function getQueueableId(): string
     {
         return $this->value;
     }
 
+    /**
+     * Get the queueable relationships.
+     */
     public function getQueueableRelations(): array
     {
         return [];
     }
 
+    /**
+     * Get the queueable connection.
+     */
     public function getQueueableConnection(): ?string
     {
         return null;
@@ -183,26 +219,41 @@ class NonEloquentQueueableEntitySerializationFixture implements QueueableEntity
 
 class NonEloquentQueueableCollectionSerializationFixture implements QueueableCollection
 {
+    /**
+     * Create a queueable collection with the given items.
+     */
     public function __construct(
         public array $items,
     ) {
     }
 
+    /**
+     * Get the class of the queueable entities.
+     */
     public function getQueueableClass(): ?string
     {
         return NonEloquentQueueableEntitySerializationFixture::class;
     }
 
+    /**
+     * Get the queueable identifiers.
+     */
     public function getQueueableIds(): array
     {
         return array_keys($this->items);
     }
 
+    /**
+     * Get the queueable relationships.
+     */
     public function getQueueableRelations(): array
     {
         return [];
     }
 
+    /**
+     * Get the queueable connection.
+     */
     public function getQueueableConnection(): ?string
     {
         return null;

@@ -716,30 +716,25 @@ class QueuedEventsTest extends TestCase
         $handler->call($job, ['command' => serialize($listener)]);
     }
 
-    public function testUniqueUntilProcessingLockIsReleasedBeforeHandling()
+    public function testUniqueUntilProcessingLockIsReleasedBeforeHandling(): void
     {
         $container = new Container;
-        $cache = m::mock(Cache::class);
-        $lock = m::mock(Lock::class);
+        $cache = new Repository(new ArrayStore);
+        $expectedKey = 'laravel_unique_job:' . hash('xxh128', TestDispatcherShouldBeUniqueUntilProcessing::class) . ':until-processing-id';
 
         $container->instance(Cache::class, $cache);
         $container->instance(BusDispatcher::class, new BusDispatcher($container));
 
         TestDispatcherShouldBeUniqueUntilProcessing::$lockReleasedBeforeHandling = null;
         TestDispatcherShouldBeUniqueUntilProcessing::$cache = $cache;
-        TestDispatcherShouldBeUniqueUntilProcessing::$expectedLockKey = 'laravel_unique_job:' . hash('xxh128', TestDispatcherShouldBeUniqueUntilProcessing::class) . ':until-processing-id';
+        TestDispatcherShouldBeUniqueUntilProcessing::$expectedLockKey = $expectedKey;
 
         $listener = new CallQueuedListener(TestDispatcherShouldBeUniqueUntilProcessing::class, 'handle', ['foo', 'bar']);
         $listener->shouldBeUnique = true;
         $listener->shouldBeUniqueUntilProcessing = true;
         $listener->uniqueId = 'until-processing-id';
 
-        $expectedKey = 'laravel_unique_job:' . hash('xxh128', TestDispatcherShouldBeUniqueUntilProcessing::class) . ':until-processing-id';
-
-        $cache->shouldReceive('lock')
-            ->with($expectedKey)
-            ->andReturn($lock);
-        $lock->shouldReceive('forceRelease')->once();
+        $this->assertTrue($cache->lock($expectedKey, 10)->get());
 
         $job = m::mock(Job::class);
         $job->shouldReceive('hasFailed')->andReturn(false);
@@ -753,6 +748,9 @@ class QueuedEventsTest extends TestCase
         $handler->call($job, ['command' => serialize($listener)]);
 
         $this->assertTrue(TestDispatcherShouldBeUniqueUntilProcessing::$lockReleasedBeforeHandling);
+
+        // A replacement dispatch's lock must survive the first listener's cleanup.
+        $this->assertFalse($cache->lock($expectedKey)->get());
     }
 
     public function testQueuePropagatesDebounceOptions(): void
@@ -1274,14 +1272,11 @@ class TestDispatcherShouldBeUniqueUntilProcessing implements ShouldQueue, Should
 
     public static string $expectedLockKey = '';
 
-    public function handle()
+    /**
+     * Attempt to acquire the unique lock during handling.
+     */
+    public function handle(): void
     {
-        $lock = m::mock(Lock::class);
-        $lock->shouldReceive('get')->andReturn(true);
-        static::$cache->shouldReceive('lock')
-            ->with(static::$expectedLockKey, 10)
-            ->andReturn($lock);
-
         static::$lockReleasedBeforeHandling = static::$cache->lock(static::$expectedLockKey, 10)->get();
     }
 }

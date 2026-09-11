@@ -104,6 +104,20 @@ class DatabaseLockTest extends DatabaseTestCase
         $secondLock = Cache::store('database')->restoreLock('foo', 'other_owner');
         $this->assertTrue($secondLock->isOwnedBy($firstLock->owner()));
         $this->assertFalse($secondLock->isOwnedByCurrentProcess());
+        $this->assertFalse($secondLock->release());
+        $this->assertTrue($firstLock->isOwnedByCurrentProcess());
+    }
+
+    public function testExpiredLockCanBeReleasedByItsOwner(): void
+    {
+        $lock = Cache::store('database')->lock('foo', 10);
+        $this->assertTrue($lock->get());
+
+        DB::table('cache_locks')->update(['expiration' => CarbonImmutable::now()->subDay()->getTimestamp()]);
+
+        $this->assertTrue($lock->release());
+        $this->assertSame(0, DB::table('cache_locks')->count());
+        $this->assertFalse($lock->release());
     }
 
     public function testLockCanBeRefreshed(): void
@@ -180,14 +194,9 @@ class DatabaseLockTest extends DatabaseTestCase
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
         $connection = m::mock(Connection::class);
-        $ownerBuilder = m::mock(Builder::class);
         $deleteBuilder = m::mock(Builder::class);
 
         $owner = 'owner-123';
-
-        $ownerBuilder->shouldReceive('where')->with('key', 'foo')->once()->andReturnSelf();
-        $ownerBuilder->shouldReceive('where')->with('expiration', '>', m::type('int'))->once()->andReturnSelf();
-        $ownerBuilder->shouldReceive('first')->once()->andReturn((object) ['owner' => $owner]);
 
         $deleteBuilder->shouldReceive('where')->with('key', 'foo')->once()->andReturnSelf();
         $deleteBuilder->shouldReceive('where')->with('owner', $owner)->once()->andReturnSelf();
@@ -200,7 +209,7 @@ class DatabaseLockTest extends DatabaseTestCase
             )
         );
 
-        $connection->shouldReceive('table')->with('cache_locks')->andReturn($ownerBuilder, $deleteBuilder);
+        $connection->shouldReceive('table')->with('cache_locks')->once()->andReturn($deleteBuilder);
         $resolver->shouldReceive('connection')->with(null)->andReturn($connection);
 
         $lock = new DatabaseLock($resolver, null, 'foo', 'cache_locks', 10, $owner);

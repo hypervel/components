@@ -3585,6 +3585,54 @@ class HttpClientTest extends TestCase
         $this->factory->assertSentCount(2);
     }
 
+    #[DataProvider('redirectRetryModes')]
+    public function testRetryPreservesRedirectResponses(bool $async, bool $throw): void
+    {
+        $exceptions = [];
+        $delays = 0;
+
+        $this->factory->fake([
+            '*' => $this->factory->response('Redirect body', 302),
+        ]);
+
+        $response = $this->factory->async($async)
+            ->withoutRedirecting()
+            ->retry(3, function () use (&$delays): int {
+                ++$delays;
+
+                return 0;
+            }, function (?Throwable $exception) use (&$exceptions): bool {
+                $exceptions[] = $exception;
+
+                return true;
+            }, $throw)
+            ->get('http://foo.com/get');
+
+        if ($async) {
+            $response = $response->wait();
+        }
+
+        $this->assertInstanceOf(Response::class, $response);
+        $this->assertSame(302, $response->status());
+        $this->assertSame('Redirect body', $response->body());
+        $this->factory->assertSentCount(1);
+        $this->assertSame([null], $exceptions);
+        $this->assertSame(0, $delays);
+    }
+
+    /**
+     * Provide request execution and retry exception modes.
+     */
+    public static function redirectRetryModes(): array
+    {
+        return [
+            'sync, throw' => [false, true],
+            'sync, no throw' => [false, false],
+            'async, throw' => [true, true],
+            'async, no throw' => [true, false],
+        ];
+    }
+
     #[DataProvider('requestRewritingModes')]
     public function testAsyncRetryCallbackReceivesHttpMethod(bool $rewriteMethod): void
     {

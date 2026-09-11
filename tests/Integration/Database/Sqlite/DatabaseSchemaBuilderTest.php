@@ -171,7 +171,7 @@ class DatabaseSchemaBuilderTest extends SqliteTestCase
         $this->assertSame([
             ['id' => 1, 'bonus' => 42],
             ['id' => 2, 'bonus' => 42],
-        ], $connection->table('main.items', 'source')->addSelect(['bonus' => new Expression(42)])
+        ], $connection->table('main.items', 'source')->addSelect(['bonus' => $connection->query()->selectRaw('42')])
             ->orderBy('id')->get()->map(static fn (object $row): array => (array) $row)->all());
 
         $query = $connection->table('main.items', 'source')

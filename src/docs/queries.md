@@ -376,6 +376,15 @@ $users = DB::table('users')
     ->get();
 ```
 
+When using MariaDB or MySQL, you may specify multiple indexes by separating their names with commas:
+
+```php
+$users = DB::table('users')
+    ->useIndex('users_email_index, users_name_index')
+    ->where('email', 'taylor@example.com')
+    ->get();
+```
+
 SQLite supports the `forceIndex` method, which compiles to SQLite's `indexed by` clause:
 
 ```php
@@ -416,6 +425,19 @@ $orders = DB::table('orders')
     ->selectRaw('price * ? as price_with_tax', [1.0825])
     ->get();
 ```
+
+<a name="selectexpression"></a>
+#### `selectExpression`
+
+The `selectExpression` method adds a raw SQL expression with an alias. It accepts a string or an expression created by `DB::raw`, wraps the expression in parentheses, and quotes the alias as a single identifier:
+
+```php
+$orders = DB::table('orders')
+    ->selectExpression('price * 1.0825', 'price_with_tax')
+    ->get();
+```
+
+This method does not accept parameter bindings. Use `selectRaw` when you need bindings or want to insert the SQL expression as written.
 
 <a name="whereraw-orwhereraw"></a>
 #### `whereRaw / orWhereRaw`
@@ -1302,7 +1324,7 @@ $users = DB::table('users')
 ### Vector Similarity Clauses
 
 > [!NOTE]
-> Vector similarity clauses are currently only supported on PostgreSQL connections using the `pgvector` extension. For information on defining vector columns and indexes, consult the [migration documentation](/docs/{{version}}/migrations#available-column-types).
+> Vector similarity clauses are currently supported on PostgreSQL connections using the `pgvector` extension and MariaDB 11.7 or later. For information on defining vector columns and indexes, consult the [migration documentation](/docs/{{version}}/migrations#available-column-types).
 
 The `whereVectorSimilarTo` method filters results by cosine similarity to a given vector and orders the results by relevance. The `minSimilarity` threshold should be a value between `0.0` and `1.0`, where `1.0` is identical:
 
