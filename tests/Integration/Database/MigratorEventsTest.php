@@ -12,11 +12,14 @@ use Hypervel\Database\Events\MigrationsStarted;
 use Hypervel\Database\Events\MigrationStarted;
 use Hypervel\Database\Events\NoPendingMigrations;
 use Hypervel\Database\Migrations\Migration;
+use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 
 class MigratorEventsTest extends TestCase
 {
+    use DatabaseMigrations;
+
     protected function migrateOptions()
     {
         return [
