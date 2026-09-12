@@ -214,6 +214,8 @@ public function register(): void
 
 This callback controls whether recording begins. To choose which collected entries are stored, use Telescope's [entry and batch filters](#filtering).
 
+Ordinary child coroutines inherit the parent's recording state and batch. [Detached background coroutines](/docs/{{version}}/coroutines#detached-background-work) start with recording disabled and no parent batch, unless those values were explicitly copied into the child. Recording can then begin through the usual request, command, job, or scheduled-task lifecycle.
+
 <a name="deferred-storage"></a>
 ### Deferred Storage
 
