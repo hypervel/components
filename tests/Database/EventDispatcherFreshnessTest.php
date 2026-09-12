@@ -9,6 +9,7 @@ use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\Events\TransactionBeginning;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
@@ -19,6 +20,7 @@ use Mockery as m;
  * pool exhaustion. When Event::fake() swaps the dispatcher, cached connections
  * must dispatch events through the new (fake) dispatcher, not a stale reference.
  */
+#[WithConfig('database.default', 'testing')]
 class EventDispatcherFreshnessTest extends TestCase
 {
     /**
