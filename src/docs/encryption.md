@@ -28,7 +28,7 @@ KeyGenerateCommand::prohibit($this->app->isProduction());
 <a name="gracefully-rotating-encryption-keys"></a>
 ### Gracefully Rotating Encryption Keys
 
-If you change your application's encryption key, all authenticated user sessions will be logged out of your application. This is because every cookie, including session cookies, are encrypted by Hypervel. In addition, it will no longer be possible to decrypt any data that was encrypted with your previous encryption key.
+If you change your application's encryption key, all authenticated user sessions will be logged out of your application. This is because every cookie, including session cookies, is encrypted by Hypervel. In addition, it will no longer be possible to decrypt any data that was encrypted with your previous encryption key.
 
 To mitigate this issue, Hypervel allows you to list your previous encryption keys in your application's `APP_PREVIOUS_KEYS` environment variable. This variable may contain a comma-delimited list of all of your previous encryption keys:
 
@@ -39,7 +39,7 @@ APP_PREVIOUS_KEYS="base64:2nLsGFGzyoae2ax3EF2Lyq/hH6QghBGLIq5uL+Gp8/w="
 
 When you set this environment variable, Hypervel will always use the "current" encryption key when encrypting values. However, when decrypting values, Hypervel will first try the current key, and if decryption fails using the current key, Hypervel will try all previous keys until one of the keys is able to decrypt the value.
 
-This approach to graceful decryption allows users to keep using your application uninterrupted even if your encryption key is rotated.
+Previous keys allow existing encrypted data and cookies to remain readable after key rotation. However, users who rely on remember cookies, or whose sessions are validated by the [`AuthenticateSession` middleware](/docs/{{version}}/authentication#invalidating-sessions-on-other-devices), will need to log in again.
 
 <a name="using-the-encrypter"></a>
 ## Using the Encrypter

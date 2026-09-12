@@ -22,6 +22,7 @@ use Hypervel\Cookie\CookieJar;
 use Hypervel\Support\Timebox;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Request;
@@ -618,21 +619,76 @@ class AuthGuardTest extends TestCase
         $this->assertFalse($guard->onceUsingId(11));
     }
 
-    public function testUserUsesRememberCookieIfItExists()
+    #[DataProvider('rememberCookiePasswords')]
+    public function testUserUsesRememberCookieIfItExists(?string $passwordHash): void
     {
-        $guard = $this->getGuard();
         [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();
-        $cookieRequest = Request::create('/', 'GET', [], [$guard->getRecallerName() => 'id|recaller|baz']);
-        $app->shouldReceive('make')->with('request')->andReturn($cookieRequest);
         $guard = new SessionGuard('default', $provider, $session, $app);
-        $guard->getSession()->shouldReceive('get')->once()->with($guard->getName())->andReturn(null);
+        $cookieRequest = Request::create('/', 'GET', [], [
+            $guard->getRecallerName() => 'id|recaller|' . $guard->hashPasswordForCookie($passwordHash),
+        ]);
+        $app->shouldReceive('make')->with('request')->andReturn($cookieRequest);
+        $guard->getSession()->expects('get')->with($guard->getName())->andReturn(null);
         $user = m::mock(Authenticatable::class);
-        $guard->getProvider()->shouldReceive('retrieveByToken')->once()->with('id', 'recaller')->andReturn($user);
-        $user->shouldReceive('getAuthIdentifier')->once()->andReturn('bar');
-        $guard->getSession()->shouldReceive('put')->with($guard->getName(), 'bar')->once();
-        $session->shouldReceive('regenerate')->once();
+        $guard->getProvider()->expects('retrieveByToken')->with('id', 'recaller')->andReturn($user);
+        $user->expects('getAuthIdentifier')->andReturn('bar');
+        $user->expects('getAuthPassword')->andReturn($passwordHash);
+        $guard->getSession()->expects('put')->with($guard->getName(), 'bar');
+        $session->expects('regenerate');
         $this->assertSame($user, $guard->user());
         $this->assertTrue($guard->viaRemember());
+    }
+
+    /**
+     * Provide password hashes supported by remember cookies.
+     */
+    public static function rememberCookiePasswords(): array
+    {
+        return [
+            'password hash' => ['baz'],
+            'passwordless user' => [null],
+        ];
+    }
+
+    public function testUserReturnsNullWhenRememberCookieTokenDoesNotMatchAnyUser(): void
+    {
+        [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();
+        $guard = new SessionGuard('default', $provider, $session, $app);
+        $cookieRequest = Request::create('/', 'GET', [], [$guard->getRecallerName() => 'id|recaller|baz']);
+        $app->shouldReceive('make')->with('request')->andReturn($cookieRequest);
+        $guard->getSession()->expects('get')->with($guard->getName())->andReturn(null);
+        $guard->getProvider()->expects('retrieveByToken')->with('id', 'recaller')->andReturn(null);
+        $this->assertNull($guard->user());
+        $this->assertFalse($guard->viaRemember());
+    }
+
+    #[DataProvider('invalidRememberCookieHashes')]
+    public function testUserRejectsRememberCookieWithInvalidPasswordHash(string $cookieHash): void
+    {
+        [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();
+        $guard = new SessionGuard('default', $provider, $session, $app);
+        $cookieRequest = Request::create('/', 'GET', [], [$guard->getRecallerName() => 'id|recaller|' . $cookieHash]);
+        $app->shouldReceive('make')->with('request')->andReturn($cookieRequest);
+        $session->expects('get')->with($guard->getName())->andReturn(null);
+        $user = m::mock(Authenticatable::class);
+        $provider->expects('retrieveByToken')->with('id', 'recaller')->andReturn($user);
+        $user->expects('getAuthPassword')->andReturn('baz');
+        $session->shouldNotReceive('put');
+        $session->shouldNotReceive('regenerate');
+
+        $this->assertNull($guard->user());
+        $this->assertFalse($guard->viaRemember());
+    }
+
+    /**
+     * Provide stale and unsupported legacy remember-cookie hashes.
+     */
+    public static function invalidRememberCookieHashes(): array
+    {
+        return [
+            'stale HMAC' => [hash_hmac('sha256', 'old-password-hash', 'base-key-for-password-hash-mac')],
+            'legacy raw hash' => ['baz'],
+        ];
     }
 
     public function testLoginOnceSetsUser()

@@ -198,7 +198,15 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
             $recaller->token()
         );
 
-        $this->setContextState('viaRemember', ! is_null($user));
+        // Only HMAC artifacts are valid; the legacy raw-password-hash fallback is intentionally omitted.
+        if ($user !== null && ! hash_equals(
+            $this->hashPasswordForCookie($user->getAuthPassword()),
+            $recaller->hash()
+        )) {
+            $user = null;
+        }
+
+        $this->setContextState('viaRemember', $user !== null);
 
         return $user;
     }
