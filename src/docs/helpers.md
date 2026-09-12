@@ -3711,7 +3711,7 @@ foreach ($records as $record) {
 }
 ```
 
-Class middleware is resolved when each invocation reaches it, using its normal [container lifetime](/docs/{{version}}/container). Middleware bound with `scoped` is resolved once per coroutine; `bind` creates a fresh instance each time it is resolved. Unbound classes are shared by default, and singleton bindings are shared for the worker's lifetime. Shared middleware, supplied middleware objects, and state captured by closures must not retain invocation-specific values when the closure is used concurrently. Transaction and `finally` behavior applies separately to each invocation.
+Class middleware is resolved when each invocation reaches it, using its normal [container lifetime](/docs/{{version}}/container). Scoped middleware is resolved once per coroutine. Bindings and class lifetime rules decide whether other middleware is shared or fresh; ordinary unbound classes are shared by default. Shared middleware, supplied middleware objects, and state captured by closures must not retain invocation-specific values when the closure is used concurrently. Transaction and `finally` behavior applies separately to each invocation.
 
 Configure the pipeline before calling `toClosure` and leave that pipeline's configuration unchanged while using the returned closure. Each invocation receives its own input, but the closure still uses the pipeline's container, method, transaction, and `finally` settings.
 
