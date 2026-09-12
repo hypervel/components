@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Saloon;
 
+use Hypervel\Saloon\Http\Auth\CookieAuthenticator;
 use Hypervel\Saloon\Traits\OAuth2\AuthorizationCodeGrant;
 use Hypervel\Saloon\Traits\OAuth2\CreatesOAuthAuthenticator;
 use Hypervel\Tests\TestCase;
@@ -14,7 +15,7 @@ use SensitiveParameter;
 class SensitiveParameterTest extends TestCase
 {
     #[DataProvider('sensitiveParameters')]
-    public function testOAuthTokenAndStateParametersAreSensitive(
+    public function testSecretParametersAreSensitive(
         string $class,
         string $method,
         string $parameterName,
@@ -33,13 +34,14 @@ class SensitiveParameterTest extends TestCase
     }
 
     /**
-     * Get secret-bearing OAuth parameters from internal call boundaries.
+     * Get secret-bearing authentication parameters.
      *
      * @return list<array{class-string, string, string}>
      */
     public static function sensitiveParameters(): array
     {
         return [
+            [CookieAuthenticator::class, '__construct', 'value'],
             [CreatesOAuthAuthenticator::class, 'createOAuthAuthenticatorFromResponse', 'response'],
             [CreatesOAuthAuthenticator::class, 'createOAuthAuthenticatorFromResponse', 'fallbackRefreshToken'],
             [CreatesOAuthAuthenticator::class, 'createOAuthAuthenticator', 'accessToken'],

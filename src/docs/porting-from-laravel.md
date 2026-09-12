@@ -477,6 +477,8 @@ Add `--once` to cron entries that invoke `schedule:run`, or run `schedule:run` a
 
 Replace scheduled task `user()` calls by running the scheduler as the required OS user, or by using `exec()` with an explicit command to run that task as another user. See [Scheduling Shell Commands](/docs/{{version}}/scheduling#scheduling-shell-commands).
 
+Scheduled Artisan commands share the scheduler process instead of starting a fresh process for each invocation. Use `exec('php artisan ...')` for commands that rely on process isolation. See [Scheduling Artisan Commands](/docs/{{version}}/scheduling#scheduling-artisan-commands).
+
 <a name="maintenance-mode"></a>
 ### Maintenance Mode
 

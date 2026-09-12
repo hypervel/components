@@ -9,6 +9,7 @@ use Exception;
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Cookie\CookieJar;
+use GuzzleHttp\Cookie\SetCookie;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Exception\TransferException;
@@ -497,6 +498,24 @@ class PendingRequest implements Transient
         return tap($this, function () use ($parameters) {
             $this->urlParameters = $parameters;
         });
+    }
+
+    /**
+     * Specify a cookie and its attributes for the request.
+     */
+    public function withCookie(SetCookie $cookie): static
+    {
+        if ($cookie->getDomain() === null) {
+            throw new InvalidArgumentException('An outgoing cookie must have a domain.');
+        }
+
+        if (($error = $cookie->validate()) !== true) {
+            throw new InvalidArgumentException('Invalid cookie: ' . $error);
+        }
+
+        $this->cookies->setCookie(clone $cookie);
+
+        return $this;
     }
 
     /**
@@ -1594,7 +1613,20 @@ class PendingRequest implements Transient
             $handler = $this->factory->getConnectionHandler($this->connection);
         }
 
-        return $this->pushHandlers(HandlerStack::create($handler));
+        $stack = $this->pushHandlers(HandlerStack::create($handler));
+
+        if ($this->handler === null && ! ini_get('allow_url_fopen')) {
+            // Faked responses return before reaching this transport-only guard.
+            $stack->push(static fn (callable $handler): Closure => static function (RequestInterface $request, array $options) use ($handler): PromiseInterface {
+                if ($options['stream'] ?? false) {
+                    throw new RuntimeException('Streaming responses require allow_url_fopen when using the default HTTP handler.');
+                }
+
+                return $handler($request, $options);
+            });
+        }
+
+        return $stack;
     }
 
     /**
@@ -2124,6 +2156,9 @@ class PendingRequest implements Transient
         return $this->connection;
     }
 
+    /**
+     * Get the pending request connection configuration.
+     */
     public function getConnectionConfig(): ?array
     {
         return $this->connectionConfig;

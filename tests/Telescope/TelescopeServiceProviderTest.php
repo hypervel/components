@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope;
 
+use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
@@ -118,6 +119,58 @@ class TelescopeServiceProviderTest extends FeatureTestCase
         $this->assertSame(['parent'], array_column($storedBatches[1], 'message'));
         $this->assertNotNull($storedBatches[0][0]['batch_id']);
         $this->assertSame($storedBatches[0][0]['batch_id'], $storedBatches[1][0]['batch_id']);
+    }
+
+    public function testDetachedChildStartsWithoutParentRecordingOrBatch(): void
+    {
+        CoroutineContext::set(Telescope::SHOULD_RECORD_CONTEXT_KEY, true);
+        CoroutineContext::set(Telescope::BATCH_ID_CONTEXT_KEY, 'parent-batch');
+        $observed = [];
+
+        $coroutineId = Coroutine::createOwned(
+            static function () use (&$observed): void {
+                $observed = [
+                    Telescope::isRecording(),
+                    CoroutineContext::get(Telescope::BATCH_ID_CONTEXT_KEY),
+                ];
+            },
+            static function (Closure $run): void {
+                $run();
+            },
+            detached: true,
+        );
+
+        Coroutine::join([$coroutineId]);
+
+        $this->assertSame([false, null], $observed);
+        $this->assertTrue(Telescope::isRecording());
+        $this->assertSame('parent-batch', CoroutineContext::get(Telescope::BATCH_ID_CONTEXT_KEY));
+    }
+
+    public function testDetachedForkKeepsSelectedRecordingWithoutInheritingBatch(): void
+    {
+        CoroutineContext::set(Telescope::SHOULD_RECORD_CONTEXT_KEY, true);
+        CoroutineContext::set(Telescope::BATCH_ID_CONTEXT_KEY, 'parent-batch');
+        $observed = [];
+
+        $coroutineId = Coroutine::forkOwned(
+            static function () use (&$observed): void {
+                $observed = [
+                    Telescope::isRecording(),
+                    CoroutineContext::get(Telescope::BATCH_ID_CONTEXT_KEY),
+                ];
+            },
+            static function (Closure $run): void {
+                $run();
+            },
+            [Telescope::SHOULD_RECORD_CONTEXT_KEY],
+            detached: true,
+        );
+
+        Coroutine::join([$coroutineId]);
+
+        $this->assertSame([true, null], $observed);
+        $this->assertSame('parent-batch', CoroutineContext::get(Telescope::BATCH_ID_CONTEXT_KEY));
     }
 
     public function testRouteRegistrationRequiresStringPath(): void

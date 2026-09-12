@@ -91,6 +91,8 @@ Schedule::command('emails:send Taylor --force')->daily();
 Schedule::command(SendEmailsCommand::class, ['Taylor', '--force'])->daily();
 ```
 
+Scheduled commands and closures run within the scheduler process, so static and singleton state persists between tasks. If a command needs a separate process, schedule it with `Schedule::exec('php artisan emails:send Taylor --force')` instead.
+
 <a name="scheduling-artisan-closure-commands"></a>
 #### Scheduling Artisan Closure Commands
 

@@ -47,6 +47,7 @@ use Throwable;
  * @method static withToken(string $token, string $type = 'Bearer')
  * @method static withUserAgent(bool|string $userAgent)
  * @method static withUrlParameters(array $parameters = [])
+ * @method static withCookie(\GuzzleHttp\Cookie\SetCookie $cookie)
  * @method static withCookies(array $cookies, string $domain)
  * @method static maxRedirects(int $max)
  * @method static withoutRedirecting()

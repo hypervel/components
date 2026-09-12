@@ -16,6 +16,8 @@ use Throwable;
 
 class Coroutine
 {
+    public const string DETACHED_CONTEXT_KEY = '__coroutine.detached';
+
     protected static bool $enableReportException = true;
 
     /**
@@ -39,6 +41,8 @@ class Coroutine
      * Boot-only. The callback persists in a static property for the worker
      * lifetime and runs for every subsequently created coroutine. Callbacks
      * run synchronously during child startup and must not suspend.
+     * Hooks that inherit parent context must honor DETACHED_CONTEXT_KEY while
+     * preserving values explicitly installed in the child.
      */
     public static function afterCreated(callable $callback): void
     {
@@ -100,18 +104,18 @@ class Coroutine
     }
 
     /**
-     * Create a coroutine whose lifecycle is owned by a framework wrapper.
+     * Create a coroutine whose lifecycle is owned by a wrapper.
      *
-     * The wrapper runs at native child entry. It must not suspend outside the
-     * supplied runner and must invoke that runner exactly once.
+     * The wrapper runs at native child entry and must invoke the supplied runner
+     * exactly once. Outside the runner it must not wait for I/O or other work.
+     * Finalize ownership before notifying waiters, which may run immediately.
+     * Detachment prevents implicit parent-context propagation during startup.
      *
      * @param Closure(Closure(): void): void $wrapper
-     *
-     * @internal
      */
-    public static function createOwned(callable $callable, Closure $wrapper): int
+    public static function createOwned(callable $callable, Closure $wrapper, bool $detached = false): int
     {
-        return self::createWithContext($callable, [], $wrapper);
+        return self::createWithContext($callable, $detached ? [self::DETACHED_CONTEXT_KEY => true] : [], $wrapper);
     }
 
     /**
@@ -123,23 +127,31 @@ class Coroutine
     {
         $context = CoroutineContext::captureFrom($keys);
 
+        // Forks created by startup hooks must not inherit the parent's detachment instruction.
+        unset($context[self::DETACHED_CONTEXT_KEY]);
+
         return self::createWithContext($callable, $context, null);
     }
 
     /**
      * Create an owned coroutine with a copy of the parent coroutine context.
      *
-     * The wrapper runs at native child entry. It must not suspend outside the
-     * supplied runner and must invoke that runner exactly once.
+     * The wrapper runs at native child entry and must invoke the supplied runner
+     * exactly once. Outside the runner it must not wait for I/O or other work.
+     * Finalize ownership before notifying waiters, which may run immediately.
+     * Detachment prevents parent fallback without discarding the copied context.
      *
      * @param Closure(Closure(): void): void $wrapper
      * @param array<string> $keys Context keys to copy (empty = all keys)
-     *
-     * @internal
      */
-    public static function forkOwned(callable $callable, Closure $wrapper, array $keys = []): int
+    public static function forkOwned(callable $callable, Closure $wrapper, array $keys = [], bool $detached = false): int
     {
         $context = CoroutineContext::captureFrom($keys);
+        unset($context[self::DETACHED_CONTEXT_KEY]);
+
+        if ($detached) {
+            $context[self::DETACHED_CONTEXT_KEY] = true;
+        }
 
         return self::createWithContext($callable, $context, $wrapper);
     }
@@ -184,6 +196,9 @@ class Coroutine
                 static::printLog($throwable);
             }
         }
+
+        // Detachment affects startup inheritance, not the child's own descendants.
+        CoroutineContext::forget(self::DETACHED_CONTEXT_KEY);
 
         $callable();
     }

@@ -303,7 +303,7 @@
     },
     "require-dev": {
         "ably/ably-php": "^1.0",
-        "algolia/algoliasearch-client-php": "^4.0",
+        "algolia/algoliasearch-client-php": "^4.49.0",
         "brianium/paratest": "^7.24",
         "composer/composer": "^2.10.3",
         "composer/semver": "^3.4",

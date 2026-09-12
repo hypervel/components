@@ -144,6 +144,29 @@ class ResponseTest extends TestCase
         $this->assertSame($psrRequest, $response->toPsrRequest());
     }
 
+    public function testNonSeekableBodyConsumptionLeavesLinesAtTheEnd(): void
+    {
+        $response = $this->response(200, body: new NoSeekStream(Utils::streamFor("one\ntwo\n")));
+
+        $this->assertSame("one\ntwo\n", $response->body());
+        $this->assertSame(8, $response->stream()->tell());
+        $this->assertSame([], iterator_to_array($response->lines()));
+
+        $response->stream()->rewind();
+
+        $this->assertSame(['one', 'two'], iterator_to_array($response->lines()));
+    }
+
+    public function testJsonLinesReadANonSeekableResponseFromItsCurrentPosition(): void
+    {
+        $stream = new NoSeekStream(Utils::streamFor("skip\n{\"id\":1}\n{\"id\":2}\n"));
+        $stream->read(5);
+        $response = $this->response(200, body: $stream);
+
+        $this->assertSame([['id' => 1], ['id' => 2]], iterator_to_array($response->jsonLines()));
+        $this->assertSame($stream, $response->stream());
+    }
+
     public function testBodyExportsPreservePositionsAndCallerOwnedResources(): void
     {
         $response = $this->response(200, body: 'response body');

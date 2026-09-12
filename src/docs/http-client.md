@@ -2,6 +2,7 @@
 
 - [Introduction](#introduction)
 - [Making Requests](#making-requests)
+    - [Streaming Responses](#streaming-responses)
     - [Request Data](#request-data)
         - [QUERY Requests](#query-requests)
     - [Headers](#headers)
@@ -146,6 +147,34 @@ If you would like to dump the outgoing request instance before it is sent and te
 ```php
 return Http::dd()->get('http://example.com');
 ```
+
+<a name="streaming-responses"></a>
+### Streaming Responses
+
+To process a response as it arrives, you may enable the `stream` option. The `jsonLines` method allows you to iterate over newline-delimited JSON without loading the entire response into memory:
+
+```php
+$response = Http::withOptions(['stream' => true, 'read_timeout' => 30])
+    ->get('https://example.com/events');
+
+try {
+    foreach ($response->jsonLines() as $event) {
+        // Process the event...
+    }
+} finally {
+    $response->close();
+}
+```
+
+The `jsonLines` method skips blank lines and throws a `JsonException` if a record contains invalid JSON. Like `json`, it uses `Response::$defaultJsonDecodingFlags` unless you pass `flags`. For example, `$response->jsonLines(flags: JSON_BIGINT_AS_STRING)` preserves large integers as strings. The `decodeUsing` callback applies to the whole body, not individual lines.
+
+For plain text or a custom JSON decoder, you may use the `lines` method instead. It removes LF and CRLF line endings, preserves empty lines, and includes the final line even when it has no newline. For binary data and other formats, you may read the underlying PSR-7 response body directly.
+
+Both methods continue reading from the body's current position. They do not rewind it. If you call `body` or `json` first, you must rewind the stream before reading its lines. Memory usage grows with the longest line, not the total response size.
+
+The default streaming handler requires PHP's `allow_url_fopen` setting. If this setting is disabled, real streaming requests throw a `RuntimeException`; faked requests are unaffected. Custom handlers and clients are responsible for providing their own streaming support.
+
+Unlike buffered requests, the default streaming handler does not use shared cURL connections or multiplexing. Streaming requests fail if their connection options require either feature.
 
 <a name="request-data"></a>
 ### Request Data
@@ -323,6 +352,21 @@ You may also attach cookies to a request using the `withCookies` method:
 $response = Http::withCookies([
     'session' => 'abc123',
 ], 'example.com')->get(/* ... */);
+```
+
+To specify a cookie's path or other attributes, pass a Guzzle `SetCookie` instance to `withCookie`. The cookie must include a domain:
+
+```php
+use GuzzleHttp\Cookie\SetCookie;
+
+$response = Http::withCookie(new SetCookie([
+    'Name' => 'session',
+    'Value' => 'abc123',
+    'Domain' => 'api.example.com',
+    'Path' => '/api',
+    'Secure' => true,
+    'HostOnly' => true,
+]))->get('https://api.example.com/api/users');
 ```
 
 By default, redirects will be followed. You may configure the maximum number of redirects using the `maxRedirects` method, or disable redirects entirely using the `withoutRedirecting` method:
@@ -906,7 +950,7 @@ public function boot(): void
 
 The second argument is a request-option preset. It accepts normal Guzzle request options except for options whose ownership belongs to a dedicated Hypervel API:
 
-- `cookies` is rejected. Every pending request owns an isolated cookie jar; seed it with `withCookies()`.
+- `cookies` is rejected. Every pending request owns an isolated cookie jar; add cookies using `withCookie()` or `withCookies()`.
 - `handler` is rejected. Use `setHandler()` for a request-specific handler.
 - `pool` is rejected. HTTP clients are not object-pooled.
 - `max_host_connections` and `max_total_connections` are rejected. Use bounded coroutine fan-out or the rate limiter instead.

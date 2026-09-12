@@ -54,6 +54,7 @@
 - [API Pagination](#api-pagination)
     - [Page Pagination](#page-pagination)
     - [Offset and Cursor Pagination](#offset-and-cursor-pagination)
+    - [Link Header Pagination](#link-header-pagination)
     - [Pooled Pagination](#pooled-pagination)
 - [Rate Limiting](#rate-limiting)
     - [Defining Policies](#defining-policies)
@@ -245,18 +246,15 @@ public function boot(PendingRequest $pendingRequest): void
 <a name="organizing-sdks"></a>
 ### Organizing SDKs
 
-When an integration contains many endpoints, you may group related requests behind resource classes. Type the concrete connector in each resource so its integration-specific methods and response types remain visible:
+When an integration contains many endpoints, you may group related requests into resource classes. Extend `BaseResource` and use the `@extends` annotation to specify your connector type:
 
 ```php
+use Hypervel\Saloon\Http\BaseResource;
 use Hypervel\Saloon\Http\Response;
 
-class RepositoryResource
+/** @extends BaseResource<GitHubConnector> */
+class RepositoryResource extends BaseResource
 {
-    public function __construct(
-        private readonly GitHubConnector $connector,
-    ) {
-    }
-
     public function get(string $owner, string $repository): Response
     {
         return $this->connector->send(new GetRepository($owner, $repository));
@@ -279,7 +277,7 @@ You may then call the resource from your application:
 $response = $github->repositories()->get('hypervel', 'components');
 ```
 
-Unlike Saloon's `BaseResource`, a normal resource class keeps the concrete connector type instead of narrowing it to the abstract connector.
+Your resource may access the connector through its protected, readonly `$connector` property. The annotation allows your editor and static analysis tools to recognize the connector's methods and response types.
 
 <a name="http-connections"></a>
 ### HTTP Connections
@@ -482,6 +480,16 @@ $request->withQueryParameters([
 
 Request values replace connector values with the same key. Values added later by middleware replace earlier values. Query parameters already present in the connector base URL or request endpoint are preserved unless the request contains the same top-level key.
 
+Use `withQueryString` when an API supplies an already-encoded query, including repeated parameter names:
+
+```php
+$request->withQueryString('tag=php&tag=hypervel&cursor=a%2Fb');
+```
+
+The query should not include a leading `?`. It replaces the query in the base URL and request endpoint. Passing an empty string clears that query. Parameters defined on the connector or added using `withQueryParameters`, including authentication parameters, are still applied and take precedence when names match.
+
+You may define a default query string by overriding `defaultQueryString(): ?string` on your request. Returning `null` leaves the URL's query unchanged. The `queryString` method returns this string, while `queryParameters` returns the separately configured array parameters. Middleware may also call `withQueryString` on a pending request to replace the query for that attempt.
+
 <a name="authentication"></a>
 ### Authentication
 
@@ -520,7 +528,17 @@ Apply a custom authenticator using `authenticate`, or return it from a connector
 $request->authenticate(new ApiKeyAuthenticator($key));
 ```
 
-Saloon also includes header, query, token, basic, digest, NTLM, certificate, access-token, and multi-authenticator implementations under `Hypervel\Saloon\Http\Auth`.
+Saloon also includes header, query, cookie, token, basic, digest, NTLM, certificate, access-token, and multi-authenticator implementations under `Hypervel\Saloon\Http\Auth`.
+
+For APIs that authenticate using a cookie, use `CookieAuthenticator`:
+
+```php
+use Hypervel\Saloon\Http\Auth\CookieAuthenticator;
+
+$request->authenticate(new CookieAuthenticator('session', $token));
+```
+
+By default, the cookie is sent only to the request's host, not its subdomains. For HTTPS requests, it is also marked `Secure` so it cannot be sent over HTTP. You may pass a domain such as `.example.com` as the third argument to include subdomains; an empty domain is not allowed. If you replace the authenticator using the same cookie name and domain argument, the new value is used when sending the request.
 
 Add the `RequiresAuth` trait to a request that must never be sent without an authenticator:
 
@@ -722,6 +740,20 @@ $request
 
 The `timeout` and `connectTimeout` methods accept seconds, while `delay` accepts milliseconds.
 
+To specify a cookie's path or other attributes, use `withCookie` with a Guzzle `SetCookie` instance. The cookie must include a domain:
+
+```php
+use GuzzleHttp\Cookie\SetCookie;
+
+$request->withCookie(new SetCookie([
+    'Name' => 'locale',
+    'Value' => 'en',
+    'Domain' => 'api.example.com',
+    'Path' => '/reports',
+    'Secure' => true,
+]));
+```
+
 Request-shaping options such as `headers`, `query`, `cookies`, `body`, `json`, `form_params`, `multipart`, `auth`, `delay`, and `http_errors` must be configured through Saloon's dedicated methods. Transport sharing belongs to a fixed Hypervel HTTP connection, while request handlers, object pools, and connection caps are not accepted through `withOptions`.
 
 <a name="middleware"></a>
@@ -911,6 +943,10 @@ $response->dataUrl();
 ```
 
 The `dataUrl` method returns the response body as a base64 data URL using its `Content-Type` header.
+
+You may use [`lines` and `jsonLines`](/docs/{{version}}/http-client#streaming-responses) to process a response as it arrives. Enable the `stream` request option and leave response caching and fixture recording disabled, since both read the body before returning the response.
+
+These methods continue from the body's current position. If you have already called `body`, call `$response->stream()->rewind()` before reading its lines.
 
 Saloon also provides access to the integration objects and final request:
 
@@ -1483,6 +1519,7 @@ class ListUsers extends Request implements Paginatable
     // Define the request method and endpoint...
 }
 
+/** @extends PagedPaginator<array<string, mixed>> */
 class GitHubPaginator extends PagedPaginator
 {
     protected function isLastPage(Response $response): bool
@@ -1501,10 +1538,12 @@ class GitHubPaginator extends PagedPaginator
     }
 }
 
+/** @implements HasPagination<array<string, mixed>> */
 class GitHubConnector extends Connector implements HasPagination
 {
     // Define the connector base URL and defaults...
 
+    /** @return Paginator<array<string, mixed>> */
     public function paginate(Request $request): Paginator
     {
         if ($request instanceof HasRequestPagination) {
@@ -1530,28 +1569,25 @@ foreach ($paginator->items() as $user) {
 $users = $paginator->collect();
 ```
 
-The `HasPagination` contract provides the conventional connector entry point. A request that needs its own paginator may implement `HasRequestPagination` and define `paginate(Connector $connector): Paginator`; the connector can delegate to it as shown above.
+The `HasPagination` contract provides the conventional connector entry point. A request that needs its own paginator may implement `HasRequestPagination` and define `paginate(Connector $connector): Paginator`; the connector can delegate to it as shown above. Declare the request's item type with `@implements HasRequestPagination<UserData>` and `@return Paginator<UserData>` on its `paginate` method.
 
-The `collect(false)` method returns a lazy collection of page responses instead of items. You may also inspect `totalResults`, `request`, and the zero-based iterator position returned by `currentPage`. Use `startPage` to configure the first remote page number.
+The `collect(false)` method returns a lazy collection of page responses instead of items. Declare the paginator's item type with `@extends PagedPaginator<UserData>` (or the matching base class) to preserve it through `items` and `collect`. You may also inspect `totalResults`, `request`, and the zero-based iterator position returned by `currentPage`. Use `startPage` to configure the first remote page number.
 
 Calling `count($paginator)` counts remote pages by requesting each page. It is not a metadata-only operation.
 
-`PagedPaginator`, `OffsetPaginator`, and `CursorPaginator` use the conventional `page`, `per_page`, `limit`, `offset`, and `cursor` query names. Override `applyPagination` when an API uses different parameters:
+Override the protected query-name properties when an API uses different names:
 
 ```php
-protected function applyPagination(Request $request): Request
-{
-    $parameters = ['currentPage' => $this->pageNumber];
+protected string $pageName = 'currentPage';
 
-    if ($this->perPageLimit !== null) {
-        $parameters['pageSize'] = $this->perPageLimit;
-    }
-
-    return $request->withQueryParameters($parameters);
-}
+protected string $perPageName = 'pageSize';
 ```
 
-If a request implements `MapPaginatedResponseItems`, its `mapPaginatedResponseItems` method takes precedence over the paginator's item mapping.
+`PagedPaginator` defaults to `page` and `per_page`. `OffsetPaginator` provides `$limitName` and `$offsetName`, defaulting to `limit` and `offset`; `CursorPaginator` provides `$cursorName` and `$perPageName`, defaulting to `cursor` and `per_page`. Override `applyPagination(Request $request): Request` for a protocol that needs a different request structure.
+
+During sequential pagination, Saloon throws a `PaginationException` if five consecutive pages return the same response body. Check that your paginator correctly identifies the last page. Retrying the current page does not count as another page. If your API legitimately returns identical pages, you may disable this check by declaring `protected bool $detectInfiniteLoop = false;` on your paginator.
+
+If a request implements `MapPaginatedResponseItems`, its `mapPaginatedResponseItems` method takes precedence over the paginator's item mapping. Declare `@implements MapPaginatedResponseItems<UserData>` with the same item type as its paginator. Mapping runs once per fetched page, after all response middleware, and `totalResults` counts these final items.
 
 <a name="offset-and-cursor-pagination"></a>
 ### Offset and Cursor Pagination
@@ -1559,6 +1595,32 @@ If a request implements `MapPaginatedResponseItems`, its `mapPaginatedResponseIt
 Extend `OffsetPaginator` for APIs that use `limit` and `offset`. A per-page limit must be configured before iteration. Extend `CursorPaginator` for APIs where each response supplies the next cursor, and implement `getNextCursor`.
 
 Cursor pagination is always sequential because a later request depends on the previous response. Rewinding a paginator clears its iterator state and begins again at the configured start page.
+
+<a name="link-header-pagination"></a>
+### Link Header Pagination
+
+Extend `LinkHeaderPaginator` for APIs that return pagination links in the HTTP `Link` header:
+
+```php
+use Hypervel\Saloon\Http\Request;
+use Hypervel\Saloon\Http\Response;
+use Hypervel\Saloon\Pagination\LinkHeaderPaginator;
+
+/** @extends LinkHeaderPaginator<array<string, mixed>> */
+class RepositoryPaginator extends LinkHeaderPaginator
+{
+    protected function getPageItems(Response $response, Request $request): array
+    {
+        return $response->json();
+    }
+}
+```
+
+The first request uses your configured page and per-page parameters. For each later request, the paginator follows the `next` link and uses its query string, including any page size or cursor supplied by the API. Repeated parameter names are preserved. Parameters configured separately on the request or connector, including authentication, still take precedence.
+
+Pagination links must use the same scheme, host, port, and path as the current request.
+
+Iteration ends when the response has no `next` link. If the API also supplies a `last` link containing a page number, you may use `pool` to request the remaining pages concurrently. Pooled requests use your configured page names and `perPageLimit`. Cursor-only links must be followed sequentially. Malformed header syntax or conflicting pagination links throw a `PaginationException`; invalid or contradictory last-page numbers are rejected when pooling.
 
 <a name="pooled-pagination"></a>
 ### Pooled Pagination
@@ -1575,6 +1637,8 @@ $responses = $paginator->pool(
 ```
 
 The first page is sent before the remaining range is scheduled. Response keys and callback positions use the paginator's zero-based iterator position. `maxPages` is honored, and pool failures retain the first response and all other completed work.
+
+A first-page mapping error propagates before scheduling any remaining requests. For later pages, mapping errors appear in `PoolException::callbackFailures`; those pages are not counted and their response handlers are not called. A response-handler error also appears there, but its successfully mapped page remains counted.
 
 <a name="rate-limiting"></a>
 ## Rate Limiting
@@ -2020,7 +2084,6 @@ Hypervel Saloon keeps the connector, request, middleware, authentication, respon
 - Saloon responses extend Hypervel HTTP responses rather than forwarding a selected subset of methods.
 - Test fixture settings are configured through the `Saloon` facade instead of a process-global mock configuration object.
 - Application-wide stray-request protection uses `Http::preventStrayRequests()`. Saloon mock clients separately control unmatched requests while they are active.
-- Saloon's `BaseResource` is not included. Use a normal resource class typed to the concrete connector so integration-specific methods and DTO types remain available.
 - The optional `xmlReader` response extension is not included. Use the built-in `xml` or `dom` methods instead.
 
 These differences remove framework-neutral adapter layers while retaining the public concepts needed to build complete integrations and reusable SDKs for Hypervel.

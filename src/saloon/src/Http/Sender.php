@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Saloon\Http;
 
+use GuzzleHttp\Cookie\SetCookie;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Telescope\TelescopeTag;
 use Hypervel\Http\Client\Factory;
@@ -59,8 +60,8 @@ class Sender
             $httpRequest->withBody($body, null);
         }
 
-        foreach ($pendingRequest->cookies() as $cookieGroup) {
-            $httpRequest->withCookies($cookieGroup['cookies'], $cookieGroup['domain']);
+        foreach ($pendingRequest->cookies() as $cookie) {
+            $httpRequest->withCookie(new SetCookie($cookie));
         }
 
         $httpRequest

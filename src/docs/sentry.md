@@ -25,7 +25,9 @@
 
 [Sentry](https://sentry.io) provides error tracking and performance monitoring for your Hypervel application. Hypervel's Sentry integration captures exceptions, logs, requests, database queries, cache operations, queued jobs, notifications, Redis commands, scheduled tasks, and filesystem operations.
 
-The integration is designed for Hypervel's long-running Swoole workers. Sentry state is isolated across requests, queued jobs, scheduled tasks, and WebSocket callbacks, while HTTP connections are pooled and reused across executions. An execution remains active until any application child coroutines it starts have finished.
+The integration is designed for Hypervel's long-running Swoole workers. Sentry state is isolated across requests, queued jobs, scheduled tasks, and WebSocket callbacks, while HTTP connections are pooled and reused across executions. An execution remains active until the child coroutines sharing its runtime context have finished.
+
+[Detached background coroutines](/docs/{{version}}/coroutines#detached-background-work) do not inherit the creator's scope, request, or runtime context. Explicitly copied scopes and requests are still cloned for isolation. Sentry starts an execution when a child handles an HTTP request, queued job, scheduled task, or WebSocket event through the usual framework lifecycle. Without an execution, logs and metrics use the SDK's shared global buffer, which is not automatically flushed when detached work finishes.
 
 <a name="installation"></a>
 ## Installation

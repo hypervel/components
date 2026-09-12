@@ -6,11 +6,15 @@ namespace Hypervel\Tests\Reverb\Protocols\Pusher;
 
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
+use Hypervel\Coroutine\Waiter;
 use Hypervel\Reverb\Connection;
 use Hypervel\Reverb\Contracts\ApplicationProvider;
 use Hypervel\Reverb\Contracts\WebSocketConnection;
 use Hypervel\Reverb\Events\ConnectionClosed;
 use Hypervel\Reverb\Events\ConnectionEstablished;
+use Hypervel\Reverb\Events\MessageReceived;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\Protocols\Pusher\EventHandler;
 use Hypervel\Reverb\Protocols\Pusher\Exceptions\RateLimitExceeded;
@@ -24,6 +28,7 @@ use Hypervel\Tests\Reverb\ReverbTestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 
 class ServerTest extends ReverbTestCase
 {
@@ -50,6 +55,55 @@ class ServerTest extends ReverbTestCase
                 'activity_timeout' => 30,
             ]),
         ]);
+    }
+
+    public function testCanceledOpenReleasesItsSlotWithoutSendingAProtocolError(): void
+    {
+        config()->set('reverb.apps.apps.0.max_connections', 1);
+        $state = m::mock(SharedState::class);
+        $state->expects('acquireConnectionSlot')->with('123456', 1)->andReturnTrue();
+        $state->expects('releaseConnectionSlot')->with('123456');
+        $this->app->instance(SharedState::class, $state);
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldNotReceive('report');
+        $this->app->instance(ExceptionHandler::class, $handler);
+        $cancellation = new CanceledException;
+        Event::listen(ConnectionEstablished::class, static fn () => throw $cancellation);
+        $connection = new FakeConnection;
+        $caught = null;
+
+        try {
+            $this->server->open($connection);
+        } catch (CanceledException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($cancellation, $caught);
+        $this->assertFalse($connection->hasAcquiredConnectionSlot());
+        $this->assertFalse($connection->isEstablished());
+        $connection->assertReceivedCount(1);
+        $this->assertSame('pusher:connection_established', json_decode($connection->messages[0], true)['event']);
+    }
+
+    public function testTimedOutMessageDoesNotSendOrReportAProtocolError(): void
+    {
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldNotReceive('report');
+        $this->app->instance(ExceptionHandler::class, $handler);
+        Event::listen(MessageReceived::class, static function (): void {
+            Coroutine::sleep(1);
+        });
+        $connection = new FakeConnection;
+        $caught = null;
+
+        try {
+            (new Waiter(0.01))->wait(fn () => $this->server->message($connection, '{"event":"pusher:ping"}'));
+        } catch (WaitTimeoutException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertInstanceOf(WaitTimeoutException::class, $caught);
+        $this->assertSame(['{"event":"pusher:pong"}'], $connection->messages);
     }
 
     public function testCanHandleADisconnection(): void
