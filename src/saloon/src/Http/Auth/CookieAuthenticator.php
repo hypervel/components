@@ -7,7 +7,6 @@ namespace Hypervel\Saloon\Http\Auth;
 use GuzzleHttp\Cookie\SetCookie;
 use Hypervel\Saloon\Contracts\Authenticator;
 use Hypervel\Saloon\Http\PendingRequest;
-use InvalidArgumentException;
 use SensitiveParameter;
 
 readonly class CookieAuthenticator implements Authenticator
@@ -21,9 +20,6 @@ readonly class CookieAuthenticator implements Authenticator
         public string $value,
         public ?string $domain = null,
     ) {
-        if ($domain === '') {
-            throw new InvalidArgumentException('The cookie domain cannot be empty.');
-        }
     }
 
     /**

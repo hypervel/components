@@ -13,6 +13,7 @@ use Hypervel\Saloon\Enums\Method;
 use Hypervel\Saloon\Http\Request;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class RequestTest extends TestCase
 {
@@ -96,12 +97,34 @@ class RequestTest extends TestCase
         $this->assertSame('application/json', $request->headers()['Accept']);
     }
 
-    public function testWithCookieRejectsADomainlessCookie(): void
+    #[DataProvider('invalidCookies')]
+    public function testWithCookieRejectsInvalidCookies(array $cookie, string $message): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('An outgoing cookie must have a domain.');
+        $this->expectExceptionMessage($message);
 
-        (new ContainerRequestStub)->withCookie(new SetCookie(['Name' => 'locale', 'Value' => 'en']));
+        (new ContainerRequestStub)->withCookie(new SetCookie($cookie));
+    }
+
+    /**
+     * Provide cookies that cannot be sent with a request.
+     */
+    public static function invalidCookies(): array
+    {
+        return [
+            'null domain' => [
+                ['Name' => 'locale', 'Value' => 'en'],
+                'An outgoing cookie must have a domain.',
+            ],
+            'empty domain' => [
+                ['Name' => 'locale', 'Value' => 'en', 'Domain' => ''],
+                'Invalid cookie: The cookie domain must not be empty',
+            ],
+            'null value' => [
+                ['Name' => 'locale', 'Domain' => 'api.example.com'],
+                'Invalid cookie: The cookie value must not be empty',
+            ],
+        ];
     }
 
     public function testCloneOwnsIndependentInitializedRequestState(): void

@@ -18,7 +18,6 @@ use Hypervel\Saloon\Http\Request;
 use Hypervel\Saloon\Http\Sender;
 use Hypervel\Saloon\SaloonManager;
 use Hypervel\Tests\TestCase;
-use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -57,14 +56,6 @@ class AuthenticationTest extends TestCase
             'inferred HTTP' => [null, 'api.example.com', 'http'],
             'explicit HTTP' => ['.example.com', '.example.com', 'http'],
         ];
-    }
-
-    public function testAnEmptyExplicitCookieDomainIsRejected(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The cookie domain cannot be empty.');
-
-        new CookieAuthenticator('session', 'secret', '');
     }
 
     public function testReplacementAuthenticationReachesTheTransportWithoutAccumulatingAcrossRetries(): void

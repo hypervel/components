@@ -509,6 +509,10 @@ class PendingRequest implements Transient
             throw new InvalidArgumentException('An outgoing cookie must have a domain.');
         }
 
+        if (($error = $cookie->validate()) !== true) {
+            throw new InvalidArgumentException('Invalid cookie: ' . $error);
+        }
+
         $this->cookies->setCookie(clone $cookie);
 
         return $this;
@@ -2152,6 +2156,9 @@ class PendingRequest implements Transient
         return $this->connection;
     }
 
+    /**
+     * Get the pending request connection configuration.
+     */
     public function getConnectionConfig(): ?array
     {
         return $this->connectionConfig;

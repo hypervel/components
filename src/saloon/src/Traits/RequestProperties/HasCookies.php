@@ -28,6 +28,10 @@ trait HasCookies
             throw new InvalidArgumentException('An outgoing cookie must have a domain.');
         }
 
+        if (($error = $cookie->validate()) !== true) {
+            throw new InvalidArgumentException('Invalid cookie: ' . $error);
+        }
+
         $this->cookies[] = $cookie->toArray();
 
         return $this;

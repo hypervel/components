@@ -2205,7 +2205,6 @@ class HttpClientTest extends TestCase
 
         $this->assertCount(1, $response->cookies()->toArray());
 
-        /** @var \GuzzleHttp\Cookie\CookieJarInterface $responseCookies */
         $responseCookie = $response->cookies()->toArray()[0];
 
         $this->assertSame('foo', $responseCookie['Name']);
@@ -2229,12 +2228,34 @@ class HttpClientTest extends TestCase
         $this->assertSame([$expected], $response->cookies()->toArray());
     }
 
-    public function testWithCookieRejectsADomainlessCookie(): void
+    #[DataProvider('invalidCookies')]
+    public function testWithCookieRejectsInvalidCookies(array $cookie, string $message): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('An outgoing cookie must have a domain.');
+        $this->expectExceptionMessage($message);
 
-        $this->factory->withCookie(new SetCookie(['Name' => 'session', 'Value' => 'secret']));
+        $this->factory->withCookie(new SetCookie($cookie));
+    }
+
+    /**
+     * Provide cookies that cannot be sent with a request.
+     */
+    public static function invalidCookies(): array
+    {
+        return [
+            'null domain' => [
+                ['Name' => 'session', 'Value' => 'secret'],
+                'An outgoing cookie must have a domain.',
+            ],
+            'empty domain' => [
+                ['Name' => 'session', 'Value' => 'secret', 'Domain' => ''],
+                'Invalid cookie: The cookie domain must not be empty',
+            ],
+            'null value' => [
+                ['Name' => 'session', 'Domain' => 'api.example.com'],
+                'Invalid cookie: The cookie value must not be empty',
+            ],
+        ];
     }
 
     public function testWithQueryParameters(): void
