@@ -12,7 +12,6 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Bus\Dispatchable;
-use Hypervel\Foundation\Http\Middleware\InvokeDeferredCallbacks;
 use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\Route;
@@ -77,7 +76,7 @@ class DeferredCallbacksTest extends TestCase
             });
 
             dispatch(new TestSyncJob);
-        })->middleware(InvokeDeferredCallbacks::class);
+        });
 
         $this->get('/test');
 
