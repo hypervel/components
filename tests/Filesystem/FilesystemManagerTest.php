@@ -610,6 +610,39 @@ class FilesystemManagerTest extends TestCase
         $this->assertSame($manager, $boundObject);
     }
 
+    public function testCustomDriverStaticClosure(): void
+    {
+        $manager = new FilesystemManager($this->getContainer([
+            'disks' => [
+                __CLASS__ => [
+                    'driver' => __CLASS__,
+                ],
+            ],
+        ]));
+        $adapter = new LocalFilesystemAdapter($this->tempDir);
+        $driver = new FilesystemAdapter(new Flysystem($adapter), $adapter);
+
+        $manager->extend(__CLASS__, static fn (): Filesystem => $driver);
+        $this->assertSame($driver, $manager->disk(__CLASS__));
+    }
+
+    public function testInvokableObjectDriverClosure(): void
+    {
+        $manager = new FilesystemManager($this->getContainer([
+            'disks' => [
+                __CLASS__ => [
+                    'driver' => __CLASS__,
+                ],
+            ],
+        ]));
+        $adapter = new LocalFilesystemAdapter($this->tempDir);
+        $driver = new FilesystemAdapter(new Flysystem($adapter), $adapter);
+        $creator = new CustomFilesystemDriver($driver);
+
+        $manager->extend(__CLASS__, $creator(...));
+        $this->assertSame($driver, $manager->disk(__CLASS__));
+    }
+
     public function testCustomDriversMustReturnFilesystemImplementations(): void
     {
         $manager = new FilesystemManager($this->getContainer([
@@ -1691,6 +1724,24 @@ class FilesystemManagerTest extends TestCase
         $this->poolManagers[] = $poolManager;
 
         return $container;
+    }
+}
+
+class CustomFilesystemDriver
+{
+    /**
+     * Create a custom filesystem driver factory.
+     */
+    public function __construct(private Filesystem $driver)
+    {
+    }
+
+    /**
+     * Return the custom filesystem driver.
+     */
+    public function __invoke(): Filesystem
+    {
+        return $this->driver;
     }
 }
 
