@@ -8,8 +8,10 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 
+#[WithConfig('database.default', 'testing')]
 class CreatesApplicationTest extends TestCase
 {
     protected array $registeredProviders = [];

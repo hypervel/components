@@ -18,9 +18,11 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Notification as NotificationFacade;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\Assert;
 
+#[WithConfig('database.default', 'testing')]
 class SendingNotificationsWithLocaleTest extends TestCase
 {
     /**

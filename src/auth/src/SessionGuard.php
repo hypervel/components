@@ -502,6 +502,10 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
             $this->queueRecallerCookie($user);
         }
 
+        // Login listeners may read the new user; setUser() still fires Authenticated after Login.
+        CoroutineContext::set($this->userContextKey, $user);
+        $this->setContextState('loggedOut', false);
+
         // If we have an event dispatcher instance set we will fire an event so that
         // any listeners will hook into the authentication events and run actions
         // based on the login and logout events fired from the guard instances.

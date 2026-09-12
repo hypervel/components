@@ -9,8 +9,10 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\NestedSet\NestedSet;
 use Hypervel\NestedSet\NestedSetServiceProvider;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 
+#[WithConfig('database.default', 'testing')]
 class NestedSetSchemaTest extends TestCase
 {
     /**

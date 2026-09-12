@@ -17,10 +17,12 @@ use Hypervel\Notifications\Notification;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Str;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Notifications\Fixtures\Models\NotifiableUser;
 use Mockery as m;
 
+#[WithConfig('database.default', 'testing')]
 class SendingMailNotificationsTest extends TestCase
 {
     public MailFactory $mailFactory;

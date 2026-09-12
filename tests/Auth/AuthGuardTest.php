@@ -850,6 +850,30 @@ class AuthGuardTest extends TestCase
         $this->assertSame($user, $guard->user());
     }
 
+    public function testLoginListenersSeeTheNewUserBeforeAuthenticatedIsFired(): void
+    {
+        $guard = $this->getGuard();
+        $guard->setUser(m::mock(Authenticatable::class));
+        $user = m::mock(Authenticatable::class);
+        $user->expects('getAuthIdentifier')->andReturn(42);
+        $guard->getSession()->expects('put')->with($guard->getName(), 42);
+        $guard->getSession()->expects('regenerate')->with(true);
+        $events = $this->mockEventDispatcher();
+        $events->expects('dispatch')->with(m::type(Login::class))->ordered()
+            ->andReturnUsing(function (Login $event) use ($guard, $user): void {
+                $this->assertSame($user, $event->user);
+                $this->assertTrue($guard->hasUser());
+                $this->assertSame($user, $guard->getUser());
+                $this->assertSame($user, $guard->user());
+            });
+        $events->expects('dispatch')->with(m::type(Authenticated::class))->ordered();
+        $guard->setDispatcher($events);
+
+        $guard->login($user);
+
+        $this->assertSame($user, $guard->user());
+    }
+
     public function testLoggedInUserSurvivesIndependentSessionRotation(): void
     {
         [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();
@@ -1011,6 +1035,24 @@ class AuthGuardTest extends TestCase
         $mock->logout();
 
         $this->assertNull($mock->user());
+
+        $nextUser = m::mock(Authenticatable::class);
+        $nextUser->expects('getAuthIdentifier')->andReturn(42);
+        $session->expects('put')->with($mock->getName(), 42);
+        $session->expects('regenerate')->with(true);
+        $events = $this->mockEventDispatcher();
+        $events->expects('dispatch')->with(m::type(Login::class))->ordered()
+            ->andReturnUsing(function (Login $event) use ($mock, $nextUser): void {
+                $this->assertSame($nextUser, $event->user);
+                $this->assertSame($nextUser, $mock->getUser());
+                $this->assertSame($nextUser, $mock->user());
+            });
+        $events->expects('dispatch')->with(m::type(Authenticated::class))->ordered();
+        $mock->setDispatcher($events);
+
+        $mock->login($nextUser);
+
+        $this->assertSame($nextUser, $mock->user());
     }
 
     public function testIdReturnsNullAfterLogout(): void

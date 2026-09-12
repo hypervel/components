@@ -26,11 +26,11 @@ class AssertRedirectToActionTest extends TestCase
         $router->get('controller/index', [TestActionController::class, 'index']);
         $router->get('controller/show/{id}', [TestActionController::class, 'show']);
 
-        $router->get('redirect-to-index', function () {
+        $router->get('redirect-to-index', function (): RedirectResponse {
             return new RedirectResponse($this->urlGenerator->action([TestActionController::class, 'index']));
         });
 
-        $router->get('redirect-to-show', function () {
+        $router->get('redirect-to-show', function (): RedirectResponse {
             return new RedirectResponse($this->urlGenerator->action([TestActionController::class, 'show'], ['id' => 123]));
         });
 
