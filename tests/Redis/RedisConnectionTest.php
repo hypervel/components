@@ -1944,20 +1944,39 @@ class RedisConnectionTest extends TestCase
         $this->assertEquals(['member1', 'member2'], $result);
     }
 
-    public function testScan(): void
+    #[DataProvider('scanOptions')]
+    public function testScan(array $options, string $pattern, int $count): void
     {
         $connection = $this->mockRedisConnection(transform: true);
-        $cursor = 0;
+        $cursor = null;
 
         $connection->getConnection()
             ->shouldReceive('scan')
-            ->with(0, '*', 10)
+            ->with(null, $pattern, $count)
             ->once()
-            ->andReturn(['key1', 'key2']);
+            ->andReturnUsing(function (&$cursor): array {
+                $cursor = 0;
 
-        $result = $connection->scan($cursor, '*', 10);
+                return ['key1', 'key2'];
+            });
 
-        $this->assertEquals([0, ['key1', 'key2']], $result);
+        $result = $connection->scan($cursor, ...$options);
+
+        $this->assertSame([0, ['key1', 'key2']], $result);
+    }
+
+    /**
+     * Provide positional and array scan options, including omitted defaults.
+     *
+     * @return array<string, array{array, string, int}>
+     */
+    public static function scanOptions(): array
+    {
+        return [
+            'omitted' => [[], '*', 10],
+            'empty options' => [[[]], '*', 10],
+            'null pattern' => [[null, 20], '*', 20],
+        ];
     }
 
     public function testScanWithOptions(): void
@@ -2003,7 +2022,7 @@ class RedisConnectionTest extends TestCase
             ->once()
             ->andReturn(['member1' => 1.0, 'member2' => 2.0]);
 
-        $result = $connection->zscan('sortedset', $cursor, '*', 10);
+        $result = $connection->zscan('sortedset', $cursor);
 
         $this->assertEquals([0, ['member1' => 1.0, 'member2' => 2.0]], $result);
     }
@@ -2019,7 +2038,7 @@ class RedisConnectionTest extends TestCase
             ->once()
             ->andReturn(['field1' => 'value1', 'field2' => 'value2']);
 
-        $result = $connection->hscan('hash', $cursor, '*', 10);
+        $result = $connection->hscan('hash', $cursor);
 
         $this->assertEquals([0, ['field1' => 'value1', 'field2' => 'value2']], $result);
     }
@@ -2035,7 +2054,7 @@ class RedisConnectionTest extends TestCase
             ->once()
             ->andReturn(['member1', 'member2']);
 
-        $result = $connection->sscan('set', $cursor, '*', 10);
+        $result = $connection->sscan('set', $cursor);
 
         $this->assertEquals([0, ['member1', 'member2']], $result);
     }
