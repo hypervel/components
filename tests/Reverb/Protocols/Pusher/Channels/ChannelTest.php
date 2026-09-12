@@ -5,6 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Reverb\Protocols\Pusher\Channels;
 
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
+use Hypervel\Coroutine\Waiter;
+use Hypervel\Reverb\Connection;
+use Hypervel\Reverb\Contracts\ApplicationProvider;
+use Hypervel\Reverb\Contracts\WebSocketConnection;
+use Hypervel\Reverb\Events\MessageSent;
 use Hypervel\Reverb\Protocols\Pusher\Channels\Channel;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelConnectionManager;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
@@ -220,6 +227,35 @@ class ChannelTest extends ReverbTestCase
         $channel->broadcast(['foo' => 'bar']);
 
         collect($connections)->each(fn ($connection) => $connection->assertReceived(['foo' => 'bar']));
+    }
+
+    public function testTimedOutSendListenerStopsDeliveryToLaterConnections(): void
+    {
+        $app = $this->app->make(ApplicationProvider::class)->findByKey('reverb-key');
+        $transport = m::mock(WebSocketConnection::class);
+        $transport->shouldReceive('id')->andReturn(42);
+        $transport->expects('send')->with('{"foo":"bar"}');
+        $first = new Connection($transport, $app, null);
+        $second = new FakeConnection;
+        $this->channelConnectionManager->add($first, []);
+        $this->channelConnectionManager->add($second, []);
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldNotReceive('report');
+        $this->app->instance(ExceptionHandler::class, $handler);
+        $this->app->make('events')->listen(MessageSent::class, static function (): void {
+            Coroutine::sleep(1);
+        });
+        $channel = new Channel('test-channel');
+        $caught = null;
+
+        try {
+            (new Waiter(0.01))->wait(fn () => $channel->broadcast(['foo' => 'bar']));
+        } catch (WaitTimeoutException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertInstanceOf(WaitTimeoutException::class, $caught);
+        $second->assertNothingReceived();
     }
 
     public function testBroadcastAttemptsEveryConnectionAndReportsTheFirstFailure(): void

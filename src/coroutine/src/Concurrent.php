@@ -104,8 +104,9 @@ class Concurrent
     /**
      * Start a coroutine that owns one concurrency slot.
      *
-     * The optional wrapper runs at native child entry. It must not suspend
-     * outside the supplied runner and must invoke that runner exactly once.
+     * The optional wrapper runs at native child entry and must invoke the supplied
+     * runner exactly once. Outside the runner it must not wait for I/O or other work.
+     * Finalize ownership before notifying waiters, which may run immediately.
      *
      * @param array<string>|false $copyContext
      * @param null|Closure(Closure(): void): void $wrapper

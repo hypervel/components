@@ -474,6 +474,8 @@ Many Laravel APIs have direct Hypervel equivalents under the `Hypervel` namespac
 
 Add `--once` to cron entries that invoke `schedule:run`, or run `schedule:run` as a supervised process. For local development, use `schedule:run` in place of Laravel's `schedule:work`. See the [scheduling documentation](/docs/{{version}}/scheduling#running-the-scheduler).
 
+Scheduled Artisan commands share the scheduler process instead of starting a fresh process for each invocation. Use `exec('php artisan ...')` for commands that rely on process isolation. See [Scheduling Artisan Commands](/docs/{{version}}/scheduling#scheduling-artisan-commands).
+
 <a name="http-client-and-concurrency"></a>
 ### HTTP Client and Concurrency
 

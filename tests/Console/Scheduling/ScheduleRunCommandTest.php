@@ -18,11 +18,13 @@ use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Repository as Cache;
+use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Concurrent;
 use Hypervel\Coroutine\Coroutine as HypervelCoroutine;
+use Hypervel\Coroutine\Exceptions\ChildCancellationException;
 use Hypervel\Engine\Channel;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Support\Carbon;
@@ -38,11 +40,13 @@ use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
 use Swoole\Coroutine;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Throwable;
 
 use function Hypervel\Coroutine\parallel;
+use function Hypervel\Support\defer;
 
 class ScheduleRunCommandTest extends TestCase
 {
@@ -89,6 +93,242 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertSame($callbackEvent, $this->dispatched[0]->task);
         $this->assertSame($callbackEvent, $this->dispatched[1]->task);
         $this->assertIsFloat($this->dispatched[1]->runtime);
+    }
+
+    public function testScheduledCommandDefersNestedCommandWorkUntilTheTaskFinishes(): void
+    {
+        $calls = [];
+        $kernel = $this->app->make(Kernel::class);
+        $kernel->command('test:deferred-child', function () use (&$calls): void {
+            $calls[] = 'child';
+            defer(function () use (&$calls): void {
+                $calls[] = 'deferred child';
+            });
+        });
+        $kernel->command('test:deferred-parent', function () use (&$calls): void {
+            $calls[] = 'parent';
+            defer(function () use (&$calls): void {
+                $calls[] = 'deferred parent';
+                defer(function () use (&$calls): void {
+                    $calls[] = 'deferred during cleanup';
+                });
+            });
+            $this->call('test:deferred-child');
+            $calls[] = 'parent finished';
+        });
+        $event = new Event(m::mock(EventMutex::class), 'test:deferred-parent');
+        $event->after(function () use (&$calls): void {
+            $calls[] = 'after';
+        });
+
+        $this->invokeRunEvents($this->makeCommand(), [$event]);
+
+        $this->assertSame(['parent', 'child', 'parent finished', 'after', 'deferred parent', 'deferred child'], $calls);
+    }
+
+    #[DataProvider('deferredTaskOutcomes')]
+    public function testDeferredCallbacksRespectTheWholeTaskOutcome(string $outcome, array $expected): void
+    {
+        $calls = [];
+        $exception = new RuntimeException('Task failed');
+        $event = new CallbackEvent(m::mock(EventMutex::class), function () use (&$calls, $outcome, $exception): bool {
+            defer(function () use (&$calls): void {
+                $calls[] = 'ordinary';
+            });
+            defer(function () use (&$calls): void {
+                $calls[] = 'always';
+            })->always();
+
+            if ($outcome === 'throw') {
+                throw $exception;
+            }
+
+            return $outcome !== 'false';
+        });
+        if ($outcome === 'after') {
+            $event->after(function () use ($exception): void {
+                throw $exception;
+            });
+        }
+        if ($outcome !== 'success') {
+            $this->handler->shouldReceive('report')->once();
+        }
+        $nextEvent = new CallbackEvent(m::mock(EventMutex::class), function () use (&$calls): void {
+            defer(function () use (&$calls): void {
+                $calls[] = 'next task';
+            });
+        });
+
+        $this->invokeRunEvents($this->makeCommand(), [$event, $nextEvent]);
+
+        $this->assertSame([...$expected, 'next task'], $calls);
+    }
+
+    /**
+     * Provide successful and handled task failures.
+     */
+    public static function deferredTaskOutcomes(): array
+    {
+        return [
+            'success' => ['success', ['ordinary', 'always']],
+            'false return' => ['false', ['always']],
+            'thrown callback' => ['throw', ['always']],
+            'after callback failure' => ['after', ['always']],
+        ];
+    }
+
+    public function testCanceledCallbackReleasesItsMutexWithoutRunningFailureOrDeferredCallbacks(): void
+    {
+        $calls = [];
+        $cancellation = new CanceledException('Task canceled');
+        $mutex = m::mock(EventMutex::class);
+        $mutex->shouldReceive('exists')->once()->andReturnFalse();
+        $mutex->shouldReceive('create')->once()->andReturnTrue();
+        $mutex->shouldReceive('forget')->once();
+        $event = new CallbackEvent($mutex, function () use (&$calls, $cancellation): void {
+            defer(function () use (&$calls): void {
+                $calls[] = 'always';
+            })->always();
+
+            throw $cancellation;
+        });
+        $event->name('canceled')->withoutOverlapping()->onFailure(function () use (&$calls): void {
+            $calls[] = 'failure';
+        });
+        $this->handler->shouldNotReceive('report');
+
+        try {
+            $this->invokeRunEvents($this->makeCommand(), [$event]);
+            $this->fail('Expected the owned task to report cancellation.');
+        } catch (ChildCancellationException $exception) {
+            $this->assertSame($cancellation, $exception->getPrevious());
+        }
+
+        $this->assertSame([], $calls);
+        $this->assertCount(1, $this->dispatched);
+        $this->assertInstanceOf(ScheduledTaskStarting::class, $this->dispatched[0]);
+    }
+
+    public function testStartingListenerFailureRunsOnlyAlwaysCallbacksAndPreservesTheException(): void
+    {
+        $calls = [];
+        $exception = new RuntimeException('Starting listener failed');
+        $this->dispatcher = $this->app->make(Dispatcher::class);
+        $this->dispatcher->listen(ScheduledTaskStarting::class, function () use (&$calls, $exception): void {
+            defer(function () use (&$calls): void {
+                $calls[] = 'ordinary';
+            });
+            defer(function () use (&$calls): void {
+                $calls[] = 'always';
+            })->always();
+
+            throw $exception;
+        });
+        $event = new CallbackEvent(m::mock(EventMutex::class), static fn (): bool => true);
+        $caught = null;
+
+        try {
+            $this->invokeRunEvents($this->makeCommand(), [$event]);
+        } catch (RuntimeException $throwable) {
+            $caught = $throwable;
+        }
+
+        $this->assertSame($exception, $caught);
+        $this->assertSame(['always'], $calls);
+    }
+
+    public function testCancellationDuringDeferredWorkStopsTheRemainingCallbacks(): void
+    {
+        $calls = [];
+        $cancellation = new CanceledException('Deferred work canceled');
+        $event = new CallbackEvent(m::mock(EventMutex::class), function () use (&$calls, $cancellation): void {
+            defer(function () use ($cancellation): void {
+                throw $cancellation;
+            });
+            defer(function () use (&$calls): void {
+                $calls[] = 'always';
+            })->always();
+        });
+
+        try {
+            $this->invokeRunEvents($this->makeCommand(), [$event]);
+            $this->fail('Expected cancellation from deferred work.');
+        } catch (ChildCancellationException $exception) {
+            $this->assertSame($cancellation, $exception->getPrevious());
+        }
+
+        $this->assertSame([], $calls);
+    }
+
+    public function testBackgroundTaskDrainsItsCallbacksAfterBackgroundFinishedListeners(): void
+    {
+        $calls = [];
+        $this->app->make(Kernel::class)->command('test:background-defer', function () use (&$calls): void {
+            $calls[] = 'command';
+            defer(function () use (&$calls): void {
+                $calls[] = 'deferred command';
+            });
+        });
+        $this->dispatcher = $this->app->make(Dispatcher::class);
+        $this->dispatcher->listen(ScheduledBackgroundTaskFinished::class, function () use (&$calls): void {
+            $calls[] = 'background finished';
+            defer(function () use (&$calls): void {
+                $calls[] = 'deferred listener';
+            });
+        });
+        $event = new Event(m::mock(EventMutex::class), 'test:background-defer');
+        $event->runInBackground();
+        $command = $this->makeCommand();
+        $concurrent = new Concurrent(1);
+        (new ReflectionProperty($command, 'concurrent'))->setValue($command, $concurrent);
+
+        try {
+            $this->invokeRunEvents($command, [$event]);
+        } finally {
+            $this->waitForConcurrent($concurrent);
+        }
+
+        $this->assertSame(['command', 'background finished', 'deferred command', 'deferred listener'], $calls);
+    }
+
+    #[DataProvider('skippedBackgroundTasks')]
+    public function testSkippedBackgroundTaskDoesNotDispatchCompletion(bool $onAnotherServer): void
+    {
+        $mutex = m::mock(EventMutex::class);
+        $event = new Event($mutex, 'test:skipped-background');
+        $event->runInBackground();
+        $command = $this->makeCommand();
+        if ($onAnotherServer) {
+            $event->onOneServer();
+            $schedule = m::mock(Schedule::class);
+            $schedule->shouldReceive('serverShouldRun')->once()->with($event, m::type(CarbonInterface::class))->andReturnFalse();
+            (new ReflectionProperty($command, 'schedule'))->setValue($command, $schedule);
+        } else {
+            $event->withoutOverlapping();
+            $mutex->shouldReceive('exists')->once()->andReturnFalse();
+            $mutex->shouldReceive('create')->once()->andReturnFalse();
+        }
+        $concurrent = new Concurrent(1);
+        (new ReflectionProperty($command, 'concurrent'))->setValue($command, $concurrent);
+
+        try {
+            $this->invokeRunEvents($command, [$event]);
+        } finally {
+            $this->waitForConcurrent($concurrent);
+        }
+
+        $this->assertSame([], array_values(array_filter(
+            $this->dispatched,
+            static fn (object $event): bool => $event instanceof ScheduledBackgroundTaskFinished,
+        )));
+    }
+
+    /**
+     * Provide the two background dispatch skips.
+     */
+    public static function skippedBackgroundTasks(): array
+    {
+        return ['overlapping' => [false], 'another server' => [true]];
     }
 
     public function testFinishedOutputUsesTheSharedRuntimeFormatterWithoutAppendingUnits(): void
@@ -500,12 +740,19 @@ class ScheduleRunCommandTest extends TestCase
 
     public function testSkippedNonRepeatableTaskIsOnlyEvaluatedOncePerMinute(): void
     {
+        $deferred = [];
         $eventMutex = m::mock(EventMutex::class);
 
         $callbackEvent = new CallbackEvent($eventMutex, function () {
             return 0;
         });
-        $callbackEvent->when(false);
+        $callbackEvent->when(function () use (&$deferred): bool {
+            defer(function () use (&$deferred): void {
+                $deferred[] = 'filter';
+            });
+
+            return false;
+        });
 
         $command = $this->makeCommand();
         $startedAt = CarbonImmutable::parse('2026-05-28 12:34:00');
@@ -516,6 +763,7 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertCount(1, $this->dispatched);
         $this->assertInstanceOf(ScheduledTaskSkipped::class, $this->dispatched[0]);
         $this->assertSame($callbackEvent, $this->dispatched[0]->task);
+        $this->assertSame(['filter'], $deferred);
     }
 
     public function testSkippedTaskEventIsGuardedByRegisteredListeners(): void
@@ -559,6 +807,28 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertCount(1, $this->dispatched);
         $this->assertInstanceOf(ScheduledTaskSkipped::class, $this->dispatched[0]);
         $this->assertSame($callbackEvent, $this->dispatched[0]->task);
+    }
+
+    public function testPausedTaskListenerDefersWorkWithinItsOwnCoroutine(): void
+    {
+        $calls = [];
+        $parentCoroutine = Coroutine::getCid();
+        $this->dispatcher = $this->app->make(Dispatcher::class);
+        $this->dispatcher->listen(ScheduledTaskSkipped::class, function () use (&$calls): void {
+            $calls[] = Coroutine::getCid();
+            defer(function () use (&$calls): void {
+                $calls[] = 'deferred';
+            });
+        });
+        $cache = m::mock(Cache::class);
+        $cache->shouldReceive('get')->once()->with('hypervel:schedule:paused', false)->andReturnTrue();
+        $event = new CallbackEvent(m::mock(EventMutex::class), static fn (): bool => true);
+
+        $this->invokeRunEvents($this->makeCommand($cache), [$event]);
+
+        $this->assertCount(2, $calls);
+        $this->assertNotSame($parentCoroutine, $calls[0]);
+        $this->assertSame('deferred', $calls[1]);
     }
 
     public function testTaskMarkedEvenWhenPausedRunsWhileSchedulerIsPaused(): void

@@ -15,6 +15,8 @@ use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Container\Container;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -23,10 +25,13 @@ use Hypervel\Coroutine\Waiter;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Defer\DeferredCallback;
+use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Sleep;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Throwable;
 
@@ -34,6 +39,11 @@ use Throwable;
 class ScheduleRunCommand extends Command
 {
     use InteractsWithTime;
+
+    /**
+     * The handled failure state for the current task coroutine.
+     */
+    private const string TASK_FAILED_CONTEXT_KEY = '__console.scheduled_task_failed';
 
     /**
      * The console command signature.
@@ -248,14 +258,14 @@ class ScheduleRunCommand extends Command
                     continue;
                 }
 
-                if ($paused && ! $event->runsWhenPaused()) {
-                    $event->lastChecked = Date::now();
-                    $this->dispatchTaskSkipped($event);
+                $this->runTaskInCoroutine(function () use ($event, $paused): void {
+                    if ($paused && ! $event->runsWhenPaused()) {
+                        $event->lastChecked = Date::now();
+                        $this->dispatchTaskSkipped($event);
 
-                    continue;
-                }
+                        return;
+                    }
 
-                $this->runTaskInCoroutine(function () use ($event): void {
                     if (! $event->filtersPass($this->hypervel)) {
                         $this->dispatchTaskSkipped($event);
 
@@ -285,14 +295,14 @@ class ScheduleRunCommand extends Command
                 continue;
             }
 
-            if ($paused && ! $event->runsWhenPaused()) {
-                $event->lastChecked = Date::now();
-                $this->dispatchTaskSkipped($event);
+            $this->runTaskInCoroutine(function () use ($event, $startedAt, $paused): void {
+                if ($paused && ! $event->runsWhenPaused()) {
+                    $event->lastChecked = Date::now();
+                    $this->dispatchTaskSkipped($event);
 
-                continue;
-            }
+                    return;
+                }
 
-            $this->runTaskInCoroutine(function () use ($event, $startedAt): void {
                 if (! $event->filtersPass($this->hypervel)) {
                     $this->dispatchTaskSkipped($event);
 
@@ -312,9 +322,56 @@ class ScheduleRunCommand extends Command
     protected function runTaskInCoroutine(Closure $callback): void
     {
         (new Waiter(-1))->wait(
-            $callback,
+            fn () => $this->runTask($callback),
             copyContext: [ContextRepository::CONTEXT_KEY],
         );
+    }
+
+    /**
+     * Run a task and its deferred callbacks in the owning coroutine.
+     *
+     * @throws Throwable
+     */
+    private function runTask(Closure $callback): void
+    {
+        $exception = null;
+
+        try {
+            $callback();
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        }
+
+        // Nested commands leave deferred work to this boundary. Drain only once,
+        // after task listeners, so callbacks cannot run early or recursively.
+        if (! $exception instanceof CanceledException) {
+            try {
+                $this->invokeDeferredCallbacks(
+                    $exception === null && ! CoroutineContext::get(self::TASK_FAILED_CONTEXT_KEY, false)
+                );
+            } catch (CanceledException $cancellation) {
+                $exception = $cancellation;
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
+    }
+
+    /**
+     * Invoke deferred callbacks allowed by the task's outcome.
+     */
+    private function invokeDeferredCallbacks(bool $successful): void
+    {
+        $container = Container::getInstance();
+
+        if ($container->resolvedScoped(DeferredCallbackCollection::class)) {
+            $container->make(DeferredCallbackCollection::class)
+                ->invokeWhen(fn (DeferredCallback $callback): bool => $successful || $callback->always);
+        }
     }
 
     /**
@@ -327,13 +384,10 @@ class ScheduleRunCommand extends Command
             : $this->runEvent($event);
 
         if ($event->runInBackground) {
-            $this->concurrent->fork(function () use ($runEvent, $event): void {
-                $runEvent();
-
-                if ($this->dispatcher->hasListeners(ScheduledBackgroundTaskFinished::class)) {
-                    $this->dispatcher->dispatch(new ScheduledBackgroundTaskFinished($event));
-                }
-            }, [ContextRepository::CONTEXT_KEY]);
+            $this->concurrent->fork(
+                fn () => $this->runTask($runEvent),
+                [ContextRepository::CONTEXT_KEY],
+            );
 
             return;
         }
@@ -440,8 +494,13 @@ class ScheduleRunCommand extends Command
                     "Scheduled command [{$command}] failed with exit code [{$exitCode}]."
                 );
             }
+        } catch (CanceledException $e) {
+            throw $e;
         } catch (Throwable $e) {
             $failed = true;
+            // runEvent reports ordinary failures instead of throwing them to
+            // runTask; keep that outcome local to this task's deferred work.
+            CoroutineContext::set(self::TASK_FAILED_CONTEXT_KEY, true);
 
             if ($this->dispatcher->hasListeners(ScheduledTaskFailed::class)) {
                 $this->dispatcher->dispatch(new ScheduledTaskFailed($event, $e));
@@ -468,6 +527,13 @@ class ScheduleRunCommand extends Command
         );
 
         $this->line($finishDescription);
+
+        if ($event->runInBackground
+            && ! $skippedBecauseOverlapping
+            && $this->dispatcher->hasListeners(ScheduledBackgroundTaskFinished::class)
+        ) {
+            $this->dispatcher->dispatch(new ScheduledBackgroundTaskFinished($event));
+        }
     }
 
     /**

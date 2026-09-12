@@ -6,12 +6,14 @@ namespace Hypervel\Http\Client;
 
 use ArrayAccess;
 use Closure;
+use Generator;
 use GuzzleHttp\Cookie\CookieJar;
 use GuzzleHttp\Psr7\StreamWrapper;
 use GuzzleHttp\TransferStats;
 use Hypervel\Http\Client\Concerns\DeterminesStatusCode;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
+use Hypervel\Support\Json;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\Tappable;
 use InvalidArgumentException;
@@ -89,6 +91,56 @@ class Response implements ArrayAccess, Stringable
     public function body(): string
     {
         return (string) $this->response->getBody();
+    }
+
+    /**
+     * Read lines from the current response body position without rewinding.
+     *
+     * @return Generator<int, string, void, void>
+     */
+    public function lines(): Generator
+    {
+        $stream = $this->response->getBody();
+        $buffer = '';
+
+        while (! $stream->eof()) {
+            $chunk = $stream->read(8192);
+            $start = 0;
+
+            while (($end = strpos($chunk, "\n", $start)) !== false) {
+                $line = $buffer . substr($chunk, $start, $end - $start);
+                $buffer = '';
+
+                yield str_ends_with($line, "\r") ? substr($line, 0, -1) : $line;
+
+                // Release the untrimmed CRLF line before accumulating the next record.
+                unset($line);
+                $start = $end + 1;
+            }
+
+            $buffer .= substr($chunk, $start);
+        }
+
+        if ($buffer !== '') {
+            yield $buffer;
+        }
+    }
+
+    /**
+     * Decode non-empty JSON lines from the current response body position.
+     *
+     * @param null|int-mask<JSON_BIGINT_AS_STRING, JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_OBJECT_AS_ARRAY, JSON_THROW_ON_ERROR> $flags
+     * @return Generator<int, mixed, void, void>
+     */
+    public function jsonLines(?int $flags = null): Generator
+    {
+        $flags ??= self::$defaultJsonDecodingFlags;
+
+        foreach ($this->lines() as $line) {
+            if (trim($line, " \t\r\n") !== '') {
+                yield Json::decode($line, flags: $flags);
+            }
+        }
     }
 
     /**

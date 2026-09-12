@@ -84,7 +84,9 @@ class Response extends HttpResponse
         }
 
         $body = $stream->getContents();
-        $this->response = $this->response->withBody(Utils::streamFor($body));
+        $buffer = Utils::streamFor($body);
+        $buffer->seek(0, SEEK_END);
+        $this->response = $this->response->withBody($buffer);
         $this->decoded = null;
         $this->hasDecoded = false;
         $this->decodingFlags = 0;
