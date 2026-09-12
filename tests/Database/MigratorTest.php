@@ -322,7 +322,7 @@ class MigratorTest extends TestCase
 
         // Ignore duration...
         $this->output->expects('write')->with(m::on(
-            fn (string $argument): bool => (new Stringable($argument))->contains(['ms</>']),
+            fn (string $argument): bool => str_starts_with($argument, '<fg=gray> ') && str_ends_with($argument, '</>'),
         ), m::any(), m::any());
 
         $this->output->expects('write')->with(m::on(
