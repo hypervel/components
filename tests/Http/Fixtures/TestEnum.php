@@ -6,5 +6,5 @@ namespace Hypervel\Tests\Http\Fixtures;
 
 enum TestEnum
 {
-    case test;
+    case Test;
 }

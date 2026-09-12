@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Http\Fixtures;
 
 enum TestIntegerEnumBacked: int
 {
-    case minus_1 = -1;
-    case zero = 0;
-    case plus_1 = 1;
+    case Minus1 = -1;
+    case Zero = 0;
+    case Plus1 = 1;
 }
