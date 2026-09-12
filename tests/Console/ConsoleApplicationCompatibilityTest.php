@@ -7,15 +7,22 @@ namespace Hypervel\Tests\Console;
 use Hypervel\Console\Application;
 use Hypervel\Tests\TestCase;
 use ReflectionMethod;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Process\PhpProcess;
 
 class ConsoleApplicationCompatibilityTest extends TestCase
 {
     public function testContractMethodsAreDeclaredLocally(): void
     {
+        $get = new ReflectionMethod(Application::class, 'get');
+        $has = new ReflectionMethod(Application::class, 'has');
         $all = new ReflectionMethod(Application::class, 'all');
         $run = new ReflectionMethod(Application::class, 'run');
 
+        $this->assertSame(Application::class, $get->getDeclaringClass()->getName());
+        $this->assertSame(Command::class, (string) $get->getReturnType());
+        $this->assertSame(Application::class, $has->getDeclaringClass()->getName());
+        $this->assertSame('bool', (string) $has->getReturnType());
         $this->assertSame(Application::class, $all->getDeclaringClass()->getName());
         $this->assertSame('array', (string) $all->getReturnType());
         $this->assertSame(Application::class, $run->getDeclaringClass()->getName());

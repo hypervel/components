@@ -6,6 +6,7 @@ namespace Hypervel\Contracts\Console;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
+use Symfony\Component\Console\Exception\CommandNotFoundException;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
@@ -22,6 +23,18 @@ interface Application
     public function add(SymfonyCommand $command): ?SymfonyCommand;
 
     /**
+     * Get a registered command by name or alias.
+     *
+     * @throws CommandNotFoundException
+     */
+    public function get(string $name): SymfonyCommand;
+
+    /**
+     * Determine if a command exists.
+     */
+    public function has(string $name): bool;
+
+    /**
      * Get all of the commands registered with the application.
      */
     public function all(?string $namespace = null): array;
@@ -34,7 +47,7 @@ interface Application
     /**
      * Run an Artisan console command by name.
      *
-     * @throws \Symfony\Component\Console\Exception\CommandNotFoundException
+     * @throws CommandNotFoundException
      */
     public function call(string|SymfonyCommand $command, array $parameters = [], ?OutputInterface $outputBuffer = null): int;
 

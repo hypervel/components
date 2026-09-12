@@ -28,10 +28,12 @@ use Hypervel\Support\Str;
 use ReflectionClass;
 use SplFileInfo;
 use Swoole\Coroutine\CanceledException;
+use Symfony\Component\Console\Application as SymfonyApplication;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\ConsoleEvents;
 use Symfony\Component\Console\Event\ConsoleCommandEvent;
 use Symfony\Component\Console\Event\ConsoleTerminateEvent;
+use Symfony\Component\Console\Exception\CommandNotFoundException;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
@@ -149,7 +151,7 @@ class Kernel implements KernelContract
 
         // If the Artisan application was already created (e.g. during test
         // bootstrap), wire the dispatcher to it now so events still fire.
-        if (isset($this->artisan) && $this->artisan instanceof \Symfony\Component\Console\Application) {
+        if (isset($this->artisan) && $this->artisan instanceof SymfonyApplication) {
             $this->artisan->setDispatcher($this->symfonyDispatcher);
             $this->artisan->setSignalsToDispatchEvent();
         }
@@ -420,7 +422,7 @@ class Kernel implements KernelContract
     /**
      * Run an Artisan console command by name.
      *
-     * @throws \Symfony\Component\Console\Exception\CommandNotFoundException
+     * @throws CommandNotFoundException
      */
     public function call(string $command, array $parameters = [], ?OutputInterface $outputBuffer = null): int
     {
@@ -439,6 +441,16 @@ class Kernel implements KernelContract
     public function queue(string $command, array $parameters = []): PendingDispatch
     {
         return QueuedCommand::dispatch(func_get_args());
+    }
+
+    /**
+     * Get the registered command instance with the given name, if any.
+     */
+    public function findCommand(string $name): ?SymfonyCommand
+    {
+        $artisan = $this->getArtisan();
+
+        return $artisan->has($name) ? $artisan->get($name) : null;
     }
 
     /**
