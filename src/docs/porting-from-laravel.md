@@ -22,6 +22,7 @@
 - [Configuration](#configuration)
 - [Other API Differences](#other-api-differences)
     - [Scheduling](#scheduling)
+    - [Maintenance Mode](#maintenance-mode)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
     - [CSRF Protection](#csrf-protection)
     - [Scout](#scout)
@@ -473,6 +474,13 @@ Many Laravel APIs have direct Hypervel equivalents under the `Hypervel` namespac
 ### Scheduling
 
 Add `--once` to cron entries that invoke `schedule:run`, or run `schedule:run` as a supervised process. For local development, use `schedule:run` in place of Laravel's `schedule:work`. See the [scheduling documentation](/docs/{{version}}/scheduling#running-the-scheduler).
+
+Replace scheduled task `user()` calls by running the scheduler as the required OS user, or by using `exec()` with an explicit command to run that task as another user. See [Scheduling Shell Commands](/docs/{{version}}/scheduling#scheduling-shell-commands).
+
+<a name="maintenance-mode"></a>
+### Maintenance Mode
+
+Maintenance views prepared with `down --render` are served by running Hypervel workers. To serve a static page while Hypervel is unavailable during deployment, configure your reverse proxy or load balancer. See [Pre-Rendering the Maintenance Mode View](/docs/{{version}}/configuration#pre-rendering-the-maintenance-mode-view).
 
 <a name="http-client-and-concurrency"></a>
 ### HTTP Client and Concurrency

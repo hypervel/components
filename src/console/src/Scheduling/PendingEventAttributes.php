@@ -92,10 +92,6 @@ class PendingEventAttributes
             $event->timezone($this->timezone);
         }
 
-        if ($this->user !== null) {
-            $event->user = $this->user;
-        }
-
         if (! empty($this->environments)) {
             $event->environments($this->environments);
         }

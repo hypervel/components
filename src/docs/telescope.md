@@ -544,7 +544,7 @@ You may also use the `ignore_http_methods` and `ignore_status_codes` options to 
 <a name="schedule-watcher"></a>
 ### Schedule Watcher
 
-The schedule watcher records the task type, description, expression, timezone, user, output, status, and exit code of any [scheduled tasks](/docs/{{version}}/scheduling) run by your application. Opaque command lines are not stored. Describe or name a scheduled command to identify it in Telescope; otherwise, Telescope displays `Scheduled command`.
+The schedule watcher records the task type, description, expression, timezone, output, status, and exit code of any [scheduled tasks](/docs/{{version}}/scheduling) run by your application. Opaque command lines are not stored. Describe or name a scheduled command to identify it in Telescope; otherwise, Telescope displays `Scheduled command`.
 
 <a name="view-watcher"></a>
 ### View Watcher
