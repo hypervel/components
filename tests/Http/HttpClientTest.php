@@ -6270,7 +6270,7 @@ class HttpClientTest extends TestCase
 
     public function testItCanAddGlobalMiddleware(): void
     {
-        CarbonImmutable::setTestNow(now()->startOfDay());
+        CarbonImmutable::setTestNow(CarbonImmutable::today());
         $requests = [];
         $responses = [];
         $this->factory->fake(function ($r) use (&$requests) {
@@ -6283,7 +6283,7 @@ class HttpClientTest extends TestCase
 
         $this->factory->globalMiddleware(Middleware::mapRequest(function ($request) {
             // Test manipulating headers on outgoing request...
-            return $request->withHeader('User-Agent', 'Laravel Framework/1.0')
+            return $request->withHeader('User-Agent', 'Hypervel Framework/1.0')
                 ->withAddedHeader('shared', 'global')
                 ->withHeader('list', ['item-1', 'item-2'])
                 ->withAddedHeader('list', ['item-3']);
@@ -6302,19 +6302,19 @@ class HttpClientTest extends TestCase
                 });
             };
         });
-        $responses[] = $this->factory->post('http://forge.laravel.com');
-        $responses[] = $this->factory->withHeader('shared', 'local')->post('http://vapor.laravel.com');
+        $responses[] = $this->factory->post('http://forge.hypervel.com');
+        $responses[] = $this->factory->withHeader('shared', 'local')->post('http://vapor.hypervel.com');
 
         $this->assertCount(2, $requests);
         $this->assertCount(2, $responses);
 
-        $this->assertSame(['Laravel Framework/1.0'], $requests[0]->header('User-Agent'));
+        $this->assertSame(['Hypervel Framework/1.0'], $requests[0]->header('User-Agent'));
         $this->assertSame(['item-1', 'item-2', 'item-3'], $requests[0]->header('list'));
         $this->assertSame(['global'], $requests[0]->header('shared'));
         $this->assertSame('1', $responses[0]->header('X-Count'));
         $this->assertSame('6 seconds', $responses[0]->header('X-Duration'));
 
-        $this->assertSame(['Laravel Framework/1.0'], $requests[1]->header('User-Agent'));
+        $this->assertSame(['Hypervel Framework/1.0'], $requests[1]->header('User-Agent'));
         $this->assertSame(['item-1', 'item-2', 'item-3'], $requests[1]->header('list'));
         $this->assertSame(['local', 'global'], $requests[1]->header('shared'));
         $this->assertSame('2', $responses[1]->header('X-Count'));

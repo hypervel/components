@@ -80,10 +80,10 @@ class SupportLazyCollectionTest extends TestCase
     public function testCanCreateCollectionFromNonGeneratorFunction(): void
     {
         $data = LazyCollection::make(function () {
-            return 'laravel';
+            return 'hypervel';
         });
 
-        $this->assertSame(['laravel'], $data->all());
+        $this->assertSame(['hypervel'], $data->all());
     }
 
     public function testDoesNotCreateCollectionFromGenerator(): void
@@ -292,8 +292,6 @@ class SupportLazyCollectionTest extends TestCase
         }, times: 3);
 
         $this->assertSame([1, 2, 3], $data);
-
-        Sleep::fake(false);
     }
 
     public function testThrottleAccountsForTimePassed(): void
@@ -303,16 +301,16 @@ class SupportLazyCollectionTest extends TestCase
 
         $data = LazyCollection::times(3)
             ->throttle(3)
-            ->tapEach(function ($value, $index) {
-                if ($index == 1) {
+            ->tapEach(function (int $value, int $index): void {
+                if ($index === 1) {
                     // Travel in time...
                     (new Wormhole(1))->second();
                 }
             })
             ->all();
 
-        Sleep::assertSlept(function (Duration $duration, int $index) {
-            $expectation = $index == 1 ? 2_000_000 : 3_000_000;
+        Sleep::assertSlept(function (Duration $duration, int $index): bool {
+            $expectation = $index === 1 ? 2_000_000 : 3_000_000;
 
             $this->assertEqualsWithDelta(
                 $expectation,
@@ -324,9 +322,6 @@ class SupportLazyCollectionTest extends TestCase
         }, times: 3);
 
         $this->assertSame([1, 2, 3], $data);
-
-        Sleep::fake(false);
-        CarbonImmutable::setTestNow();
     }
 
     public function testUniqueDoubleEnumeration(): void
@@ -532,8 +527,6 @@ class SupportLazyCollectionTest extends TestCase
             ],
             $output->all(),
         );
-
-        CarbonImmutable::setTestNow();
     }
 
     public function testRandomPreservesKeys(): void

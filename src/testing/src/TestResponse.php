@@ -485,7 +485,7 @@ class TestResponse implements ArrayAccess
         $expiresAt = CarbonImmutable::createFromTimestamp($cookie->getExpiresTime(), date_default_timezone_get());
 
         PHPUnit::withResponse($this)->assertTrue(
-            $cookie->getExpiresTime() !== 0 && $expiresAt->lessThan(CarbonImmutable::now()),
+            $cookie->getExpiresTime() !== 0 && $expiresAt->isPast(),
             "Cookie [{$cookieName}] is not expired, it expires at [{$expiresAt}]."
         );
 
@@ -505,7 +505,7 @@ class TestResponse implements ArrayAccess
         $expiresAt = CarbonImmutable::createFromTimestamp($cookie->getExpiresTime(), date_default_timezone_get());
 
         PHPUnit::withResponse($this)->assertTrue(
-            $cookie->getExpiresTime() === 0 || $expiresAt->greaterThan(CarbonImmutable::now()),
+            $cookie->getExpiresTime() === 0 || $expiresAt->isFuture(),
             "Cookie [{$cookieName}] is expired, it expired at [{$expiresAt}]."
         );
 
