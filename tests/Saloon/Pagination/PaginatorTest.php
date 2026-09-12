@@ -43,12 +43,12 @@ use WeakReference;
 class PaginatorTest extends TestCase
 {
     #[DataProvider('currentPageLoads')]
-    public function testCurrentLoadsEachPageOnceAndRetriesFailedMapping(string $class, array $queries, bool $failMapping): void
+    public function testCurrentLoadsEachPageOnceAndRetriesFailedMapping(string $class, array $queries, int $mappingFailures): void
     {
         $mappingCalls = 0;
         $failure = new RuntimeException('Cannot map the first page.');
-        $request = new class(static function (Response $response) use (&$mappingCalls, $failMapping, $failure): array {
-            if (++$mappingCalls === 1 && $failMapping) {
+        $request = new class(static function (Response $response) use (&$mappingCalls, $mappingFailures, $failure): array {
+            if (++$mappingCalls <= $mappingFailures) {
                 throw $failure;
             }
 
@@ -82,7 +82,7 @@ class PaginatorTest extends TestCase
         }]);
         $paginator = new $class(new PaginationConnectorStub($manager), $request);
 
-        if ($failMapping) {
+        for ($attempt = 0; $attempt < $mappingFailures; ++$attempt) {
             $caught = null;
             try {
                 $paginator->current();
@@ -97,8 +97,8 @@ class PaginatorTest extends TestCase
         $this->assertSame($first, $paginator->current());
         $this->assertSame(0, $paginator->key());
         $this->assertSame(1, $paginator->totalResults());
-        $this->assertSame($failMapping ? 2 : 1, $mappingCalls);
-        $this->assertSame($failMapping ? [$queries[0], $queries[0]] : [$queries[0]], $requestedQueries);
+        $this->assertSame($mappingFailures + 1, $mappingCalls);
+        $this->assertSame(array_fill(0, $mappingFailures + 1, $queries[0]), $requestedQueries);
 
         $paginator->next();
         $second = $paginator->current();
@@ -108,8 +108,8 @@ class PaginatorTest extends TestCase
         $this->assertSame(2, $paginator->totalResults());
         $this->assertSame([1, 2], iterator_to_array($paginator->items(), false));
         $this->assertSame(2, $paginator->totalResults());
-        $this->assertSame($failMapping ? 5 : 4, $mappingCalls);
-        $this->assertSame($failMapping ? [$queries[0], ...$queries, ...$queries] : [...$queries, ...$queries], $requestedQueries);
+        $this->assertSame($mappingFailures + 4, $mappingCalls);
+        $this->assertSame([...array_fill(0, $mappingFailures, $queries[0]), ...$queries, ...$queries], $requestedQueries);
     }
 
     /**
@@ -122,8 +122,8 @@ class PaginatorTest extends TestCase
             'cursor' => [CursorPaginatorStub::class, ['', 'cursor=2']],
             'link' => [LinkPaginatorStub::class, ['page=1', 'page=2']],
         ] as $name => [$class, $queries]) {
-            yield $name => [$class, $queries, false];
-            yield $name . ' mapping retry' => [$class, $queries, true];
+            yield $name => [$class, $queries, 0];
+            yield $name . ' mapping retry' => [$class, $queries, 4];
         }
     }
 

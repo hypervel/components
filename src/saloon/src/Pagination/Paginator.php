@@ -87,7 +87,7 @@ abstract class Paginator implements Countable, Iterator
     /**
      * The latest response body checksums.
      *
-     * @var list<string>
+     * @var array<int, string>
      */
     protected array $lastFiveBodyChecksums = [];
 
@@ -116,7 +116,8 @@ abstract class Paginator implements Countable, Iterator
                     return;
                 }
 
-                $this->lastFiveBodyChecksums[] = hash('xxh128', $response->body());
+                // Retrying the current page replaces its checksum instead of counting as another page.
+                $this->lastFiveBodyChecksums[$this->currentPage] = hash('xxh128', $response->body());
 
                 if (count($this->lastFiveBodyChecksums) < 5) {
                     return;
@@ -124,11 +125,11 @@ abstract class Paginator implements Countable, Iterator
 
                 if (count(array_unique($this->lastFiveBodyChecksums)) === 1) {
                     throw new PaginationException(
-                        'Potential infinite loop detected because the last five responses had the same body.',
+                        'Potential infinite loop detected because the last five pages had the same body.',
                     );
                 }
 
-                array_shift($this->lastFiveBodyChecksums);
+                unset($this->lastFiveBodyChecksums[array_key_first($this->lastFiveBodyChecksums)]);
             });
     }
 

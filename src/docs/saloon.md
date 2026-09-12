@@ -1585,6 +1585,8 @@ protected string $perPageName = 'pageSize';
 
 `PagedPaginator` defaults to `page` and `per_page`. `OffsetPaginator` provides `$limitName` and `$offsetName`, defaulting to `limit` and `offset`; `CursorPaginator` provides `$cursorName` and `$perPageName`, defaulting to `cursor` and `per_page`. Override `applyPagination(Request $request): Request` for a protocol that needs a different request structure.
 
+During sequential pagination, Saloon throws a `PaginationException` if five consecutive pages return the same response body. Check that your paginator correctly identifies the last page. Retrying the current page does not count as another page. If your API legitimately returns identical pages, you may disable this check by declaring `protected bool $detectInfiniteLoop = false;` on your paginator.
+
 If a request implements `MapPaginatedResponseItems`, its `mapPaginatedResponseItems` method takes precedence over the paginator's item mapping. Declare `@implements MapPaginatedResponseItems<UserData>` with the same item type as its paginator. Mapping runs once per fetched page, after all response middleware, and `totalResults` counts these final items.
 
 <a name="offset-and-cursor-pagination"></a>
