@@ -11,7 +11,6 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Coroutine as FrameworkCoroutine;
-use Hypervel\Database\Connectors\SQLiteConnector;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Pool\DatabasePool;
 use Hypervel\Database\Pool\PooledConnection;
@@ -63,8 +62,6 @@ class DatabasePoolHeartbeatTest extends TestCase
         $files->ensureDirectoryExists($this->databaseDirectory);
         $this->databasePath = $this->databaseDirectory . '/database.sqlite';
         touch($this->databasePath);
-
-        $this->app->instance('db.connector.sqlite', new SQLiteConnector);
     }
 
     protected function tearDown(): void

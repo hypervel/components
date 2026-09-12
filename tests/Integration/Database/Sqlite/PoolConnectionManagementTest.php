@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Integration\Database\Sqlite;
 
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\Connection;
-use Hypervel\Database\Connectors\SQLiteConnector;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\Pool\PooledConnection;
@@ -61,8 +60,6 @@ class PoolConnectionManagementTest extends TestCase
     protected function configureDatabase(): void
     {
         $config = $this->app->make('config');
-
-        $this->app->instance('db.connector.sqlite', new SQLiteConnector);
 
         $connectionConfig = [
             'driver' => 'sqlite',

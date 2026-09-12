@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\Sqlite;
 
-use Hypervel\Database\Connectors\SQLiteConnector;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Filesystem\Filesystem;
@@ -60,8 +59,6 @@ class SQLiteFilePoolingTest extends TestCase
     protected function configureDatabase(): void
     {
         $config = $this->app->make('config');
-
-        $this->app->instance('db.connector.sqlite', new SQLiteConnector);
 
         $connectionConfig = [
             'driver' => 'sqlite',
