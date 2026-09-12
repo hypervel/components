@@ -16,6 +16,7 @@ use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Support\Arr;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Swoole\Server;
 use Throwable;
 
@@ -86,6 +87,8 @@ class EventDispatcher
                 if ($channel instanceof CacheChannel) {
                     app(SharedState::class)->clearCacheMissLock($app->id(), $channel->name());
                 }
+            } catch (CanceledException $throwable) {
+                throw $throwable;
             } catch (Throwable $throwable) {
                 $exception ??= $throwable;
             }
@@ -130,6 +133,8 @@ class EventDispatcher
                 $payload['channel'] = $channel->name();
 
                 $channel->broadcastInternally($payload, $connection);
+            } catch (CanceledException $throwable) {
+                throw $throwable;
             } catch (Throwable $throwable) {
                 $exception ??= $throwable;
             }
@@ -173,6 +178,8 @@ class EventDispatcher
 
             try {
                 $channel->broadcastInternally($payload, $connection);
+            } catch (CanceledException $throwable) {
+                throw $throwable;
             } catch (Throwable $throwable) {
                 $exception = $throwable;
             }
@@ -197,6 +204,8 @@ class EventDispatcher
 
             try {
                 app(PubSubProvider::class)->publish($data);
+            } catch (CanceledException $throwable) {
+                throw $throwable;
             } catch (Throwable $throwable) {
                 $exception = $throwable;
             }

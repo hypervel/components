@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb;
 
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Reverb\Contracts\ApplicationProvider;
 use Hypervel\Reverb\Protocols\Pusher\Channels\CacheChannel;
 use Hypervel\Reverb\Protocols\Pusher\Channels\Channel;
@@ -18,7 +19,9 @@ use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Support\Facades\Queue;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Swoole\Server;
 
 class EventDispatcherTest extends ReverbTestCase
@@ -137,6 +140,91 @@ class EventDispatcherTest extends ReverbTestCase
         $this->channels()->findOrCreate('test-channel-two');
 
         EventDispatcher::dispatch(app(ApplicationProvider::class)->findByKey('reverb-key'), ['channels' => ['test-channel-one', 'test-channel-two']]);
+    }
+
+    #[DataProvider('synchronousDispatchMethods')]
+    public function testCanceledDispatchStopsBeforeLaterChannelsAndWorkers(string $method, string $broadcast): void
+    {
+        $app = app(ApplicationProvider::class)->findByKey('reverb-key');
+        $cancellation = new CanceledException;
+        $channel = m::mock(Channel::class);
+        $channel->allows('name')->andReturn('first');
+        $channel->expects($broadcast)->andThrow($cancellation);
+        $channels = m::mock(ScopedChannelManager::class);
+        $channels->expects('find')->with('first')->andReturn($channel);
+        $channels->shouldNotReceive('find')->with('later');
+        $manager = m::mock(ChannelManager::class);
+        $manager->expects('for')->with($app)->andReturn($channels);
+        $this->app->instance(ChannelManager::class, $manager);
+        $server = m::mock(Server::class);
+        $server->setting = ['worker_num' => 2];
+        $server->worker_id = 0;
+        $server->shouldNotReceive('sendMessage');
+        $this->app->instance(Server::class, $server);
+        $caught = null;
+
+        try {
+            EventDispatcher::{$method}($app, ['channels' => ['first', 'later']]);
+        } catch (CanceledException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($cancellation, $caught);
+    }
+
+    /**
+     * Supply the public and internal channel delivery methods.
+     */
+    public static function synchronousDispatchMethods(): array
+    {
+        return [
+            ['dispatchSynchronously', 'broadcast'],
+            ['dispatchInternallySynchronously', 'broadcastInternally'],
+        ];
+    }
+
+    #[DataProvider('internalPublishingModes')]
+    public function testInternalChannelCancellationIsNotReported(bool $publish): void
+    {
+        $app = app(ApplicationProvider::class)->findByKey('reverb-key');
+        $cancellation = new CanceledException;
+        $channel = m::mock(Channel::class);
+        $channel->allows('name')->andReturn('presence-test');
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldNotReceive('report');
+        $this->app->instance(ExceptionHandler::class, $handler);
+        $server = m::mock(Server::class);
+        $server->setting = ['worker_num' => 2];
+        $server->worker_id = 0;
+        $server->shouldNotReceive('sendMessage');
+        $this->app->instance(Server::class, $server);
+
+        if ($publish) {
+            app(ServerProviderManager::class)->withPublishing();
+            $provider = m::mock(PubSubProvider::class);
+            $provider->expects('publish')->andThrow($cancellation);
+            $this->app->instance(PubSubProvider::class, $provider);
+        } else {
+            $channel->expects('broadcastInternally')->andThrow($cancellation);
+        }
+
+        $caught = null;
+
+        try {
+            EventDispatcher::dispatchInternalToChannel($app, $channel, ['event' => 'pusher_internal:member_added']);
+        } catch (CanceledException $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($cancellation, $caught);
+    }
+
+    /**
+     * Supply local and Redis-backed internal delivery.
+     */
+    public static function internalPublishingModes(): array
+    {
+        return [[false], [true]];
     }
 
     public function testSynchronousDispatchAttemptsEveryChannelAndFanOutBeforeThrowing(): void

@@ -21,6 +21,7 @@ use Hypervel\Reverb\Protocols\Pusher\Exceptions\RateLimitExceeded;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Support\Str;
 use JsonException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class Server
@@ -65,6 +66,10 @@ class Server
                 } catch (Throwable $throwable) {
                     $cleanupFailure = $throwable;
                 }
+            }
+
+            if ($e instanceof CanceledException) {
+                throw $e;
             }
 
             try {
@@ -136,6 +141,8 @@ class Server
             if (app('events')->hasListeners(MessageReceived::class)) {
                 MessageReceived::dispatch($from, $message);
             }
+        } catch (CanceledException $exception) {
+            throw $exception;
         } catch (Throwable $e) {
             $terminateOnLimit = $e instanceof RateLimitExceeded
                 && $from->app()->rateLimiting()['terminate_on_limit'];
