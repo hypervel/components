@@ -12,6 +12,8 @@ the same surface, and its mutators are intended for application boot.
 
 Laravel's real-time facades are intentionally not supported. Define explicit facade classes or inject services from the container instead.
 
+Maintenance responses are served by the running worker; Laravel's pre-bootstrap `maintenance.php` stub is not generated. Configure your reverse proxy or load balancer to serve a maintenance page when Hypervel is unavailable.
+
 The application locale setters do not change the `app.locale` or `app.fallback_locale` configuration values. `App::setLocale()` applies only to the current request, while `App::setFallbackLocale()` is intended for application boot and changes the fallback shared by the worker.
 
 Laravel's deprecated `VerifyCsrfToken` and `ValidateCsrfToken` middleware aliases and `Middleware::validateCsrfTokens()` method are intentionally not ported. Use `PreventRequestForgery` and configure request-forgery protection with `preventRequestForgery()`.
