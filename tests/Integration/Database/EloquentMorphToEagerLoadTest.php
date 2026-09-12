@@ -6,14 +6,17 @@ namespace Hypervel\Tests\Integration\Database\EloquentMorphToEagerLoadTest;
 
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Tests\Integration\Database\Fixtures\Models\Comment;
 
 class EloquentMorphToEagerLoadTest extends DatabaseTestCase
 {
+    /**
+     * Create the test tables and related models.
+     */
     protected function afterRefreshingDatabase(): void
     {
         Schema::create('posts', function (Blueprint $table) {
@@ -137,22 +140,18 @@ class ZeroStringModel extends Model
     protected array $fillable = ['id'];
 }
 
-class Comment extends Model
-{
-    public bool $timestamps = false;
-
-    public function commentable(): MorphTo
-    {
-        return $this->morphTo();
-    }
-}
-
 class Uuid
 {
+    /**
+     * Create the UUID value object.
+     */
     public function __construct(private readonly string $value)
     {
     }
 
+    /**
+     * Get the UUID string.
+     */
     public function __toString(): string
     {
         return $this->value;
@@ -161,12 +160,18 @@ class Uuid
 
 class UuidCast implements CastsAttributes
 {
-    public function get(Model $model, string $key, mixed $value, array $attributes): mixed
+    /**
+     * Cast the stored UUID to a value object.
+     */
+    public function get(Model $model, string $key, mixed $value, array $attributes): Uuid
     {
         return new Uuid($value);
     }
 
-    public function set(Model $model, string $key, mixed $value, array $attributes): mixed
+    /**
+     * Convert the UUID to its stored string.
+     */
+    public function set(Model $model, string $key, mixed $value, array $attributes): string
     {
         return (string) $value;
     }

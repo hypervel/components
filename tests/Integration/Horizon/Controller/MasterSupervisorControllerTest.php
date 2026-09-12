@@ -9,6 +9,7 @@ use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Horizon\Supervisor;
 use Hypervel\Horizon\SupervisorOptions;
+use Hypervel\Tests\Integration\Horizon\Controller\Fixtures\User;
 use Hypervel\Tests\Integration\Horizon\ControllerTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -24,7 +25,7 @@ class MasterSupervisorControllerTest extends ControllerTestCase
         $master2->name = 'risa-2';
         resolve(MasterSupervisorRepository::class)->update($master2);
 
-        $response = $this->actingAs(new Fakes\User)->get('/horizon/api/masters');
+        $response = $this->actingAs(new User)->get('/horizon/api/masters');
 
         $response->assertJson([
             'risa' => ['name' => 'risa', 'status' => 'running'],
@@ -45,7 +46,7 @@ class MasterSupervisorControllerTest extends ControllerTestCase
         $supervisor = new Supervisor(new SupervisorOptions('risa:name', 'redis'));
         resolve(SupervisorRepository::class)->update($supervisor);
 
-        $response = $this->actingAs(new Fakes\User)->get('/horizon/api/masters');
+        $response = $this->actingAs(new User)->get('/horizon/api/masters');
 
         $response->assertJson([
             'risa' => [
@@ -79,7 +80,7 @@ class MasterSupervisorControllerTest extends ControllerTestCase
         $supervisor = new Supervisor(new SupervisorOptions('risa:production:name', 'redis'));
         resolve(SupervisorRepository::class)->update($supervisor);
 
-        $response = $this->actingAs(new Fakes\User)->get('/horizon/api/masters');
+        $response = $this->actingAs(new User)->get('/horizon/api/masters');
 
         $response->assertJson([
             'risa:production' => [
@@ -122,7 +123,7 @@ class MasterSupervisorControllerTest extends ControllerTestCase
         $master->name = 'risa';
         resolve(MasterSupervisorRepository::class)->update($master);
 
-        $response = $this->actingAs(new Fakes\User)
+        $response = $this->actingAs(new User)
             ->get('/horizon/api/masters');
 
         $response

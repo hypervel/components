@@ -14,8 +14,8 @@ class BladeAnonymousComponentTest extends TestCase
 {
     public function testAnonymousComponentsWithCustomPathsCanBeRendered(): void
     {
-        Blade::anonymousComponentPath(__DIR__ . '/anonymous-components-1', 'layouts');
-        Blade::anonymousComponentPath(__DIR__ . '/anonymous-components-2');
+        Blade::anonymousComponentPath(__DIR__ . '/Fixtures/anonymous-components-1', 'layouts');
+        Blade::anonymousComponentPath(__DIR__ . '/Fixtures/anonymous-components-2');
 
         $view = View::make('page')->render();
 
@@ -28,8 +28,8 @@ class BladeAnonymousComponentTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
 
-        Blade::anonymousComponentPath(__DIR__ . '/anonymous-components-1', 'layouts');
-        Blade::anonymousComponentPath(__DIR__ . '/anonymous-components-2');
+        Blade::anonymousComponentPath(__DIR__ . '/Fixtures/anonymous-components-1', 'layouts');
+        Blade::anonymousComponentPath(__DIR__ . '/Fixtures/anonymous-components-2');
 
         View::make('layouts::app')->render();
     }
@@ -38,14 +38,17 @@ class BladeAnonymousComponentTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
 
-        Blade::anonymousComponentPath(__DIR__ . '/anonymous-components-1', 'layouts');
-        Blade::anonymousComponentPath(__DIR__ . '/anonymous-components-2');
+        Blade::anonymousComponentPath(__DIR__ . '/Fixtures/anonymous-components-1', 'layouts');
+        Blade::anonymousComponentPath(__DIR__ . '/Fixtures/anonymous-components-2');
 
         View::make('panel')->render();
     }
 
+    /**
+     * Configure the anonymous component templates.
+     */
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $app->make('config')->set('view.paths', [__DIR__ . '/anonymous-components-templates']);
+        $app->make('config')->set('view.paths', [__DIR__ . '/Fixtures/anonymous-components-templates']);
     }
 }

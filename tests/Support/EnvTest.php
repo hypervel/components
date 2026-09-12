@@ -38,14 +38,14 @@ class EnvTest extends TestCase
 
     public function testGetReturnsValue()
     {
-        DotenvManager::load([__DIR__ . '/envs/oldEnv']);
+        DotenvManager::load([__DIR__ . '/Fixtures/envs/oldEnv']);
 
         $this->assertSame('1.0', Env::get('TEST_VERSION'));
     }
 
     public function testGetReturnsDefaultWhenKeyMissing()
     {
-        DotenvManager::load([__DIR__ . '/envs/oldEnv']);
+        DotenvManager::load([__DIR__ . '/Fixtures/envs/oldEnv']);
 
         $this->assertNull(Env::get('NONEXISTENT'));
         $this->assertSame('default', Env::get('NONEXISTENT', 'default'));
@@ -53,7 +53,7 @@ class EnvTest extends TestCase
 
     public function testGetOrFailThrowsWhenKeyMissing()
     {
-        DotenvManager::load([__DIR__ . '/envs/oldEnv']);
+        DotenvManager::load([__DIR__ . '/Fixtures/envs/oldEnv']);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Environment variable [NONEXISTENT] has no value.');
@@ -63,7 +63,7 @@ class EnvTest extends TestCase
 
     public function testGetOrFailReturnsValueWhenKeyExists()
     {
-        DotenvManager::load([__DIR__ . '/envs/oldEnv']);
+        DotenvManager::load([__DIR__ . '/Fixtures/envs/oldEnv']);
 
         $this->assertSame('1.0', Env::getOrFail('TEST_VERSION'));
     }
@@ -185,7 +185,7 @@ class EnvTest extends TestCase
 
     public function testGetReturnsBooleanForTrueAndFalse()
     {
-        DotenvManager::load([__DIR__ . '/envs/oldEnv']);
+        DotenvManager::load([__DIR__ . '/Fixtures/envs/oldEnv']);
 
         $this->assertTrue(Env::get('OLD_FLAG'));
     }
@@ -202,7 +202,7 @@ class EnvTest extends TestCase
 
     public function testFlushRepositoryAllowsRewrite()
     {
-        DotenvManager::load([__DIR__ . '/envs/oldEnv']);
+        DotenvManager::load([__DIR__ . '/Fixtures/envs/oldEnv']);
         $this->assertSame('1.0', Env::get('TEST_VERSION'));
 
         // Manually clear the env var and flush repository.
@@ -219,7 +219,7 @@ class EnvTest extends TestCase
 
     public function testDeleteManyClearsFromAllAdapters()
     {
-        DotenvManager::load([__DIR__ . '/envs/oldEnv']);
+        DotenvManager::load([__DIR__ . '/Fixtures/envs/oldEnv']);
 
         // Values are present in all adapters.
         $this->assertSame('1.0', Env::get('TEST_VERSION'));
@@ -237,7 +237,7 @@ class EnvTest extends TestCase
 
     public function testDeleteManyAllowsRewriteAfterRepositoryReset()
     {
-        DotenvManager::load([__DIR__ . '/envs/oldEnv']);
+        DotenvManager::load([__DIR__ . '/Fixtures/envs/oldEnv']);
         $this->assertSame('1.0', Env::get('TEST_VERSION'));
 
         Env::deleteMany(['TEST_VERSION', 'OLD_FLAG']);
@@ -245,7 +245,7 @@ class EnvTest extends TestCase
 
         // After delete + flush, the fresh ImmutableWriter allows writing.
         DotenvManager::flushState();
-        DotenvManager::load([__DIR__ . '/envs/newEnv']);
+        DotenvManager::load([__DIR__ . '/Fixtures/envs/newEnv']);
 
         $this->assertSame('2.0', Env::get('TEST_VERSION'));
         $this->assertNull(Env::get('OLD_FLAG'));

@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use BackedEnum;
+use Hypervel\Tests\Support\Fixtures\TestBackedEnum;
+use Hypervel\Tests\Support\Fixtures\TestEnum;
+use Hypervel\Tests\Support\Fixtures\TestStringBackedEnum;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Stringable;
@@ -13,8 +16,6 @@ use ValueError;
 use function Hypervel\Support\enum_from;
 use function Hypervel\Support\enum_try_from;
 use function Hypervel\Support\enum_value;
-
-include_once __DIR__ . '/Enums.php';
 
 class SupportEnumFunctionsTest extends TestCase
 {

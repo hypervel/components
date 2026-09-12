@@ -22,6 +22,9 @@ class DatabaseUuidFailedJobProviderTest extends TestCase
 
     protected bool $migrateRefresh = true;
 
+    /**
+     * Set up the test environment.
+     */
     public function setUp(): void
     {
         parent::setUp();
@@ -33,17 +36,20 @@ class DatabaseUuidFailedJobProviderTest extends TestCase
         );
     }
 
+    /**
+     * Get the migration options.
+     */
     protected function migrateFreshUsing(): array
     {
         return [
             '--seed' => $this->shouldSeed(),
             '--database' => $this->getRefreshConnection(),
             '--realpath' => true,
-            '--path' => __DIR__ . '/migrations',
+            '--path' => __DIR__ . '/Fixtures/migrations',
         ];
     }
 
-    public function testGettingIdsOfAllFailedJobs()
+    public function testGettingIdsOfAllFailedJobs(): void
     {
         $this->provider->log('connection-1', 'queue-1', json_encode(['uuid' => 'uuid-1']), new RuntimeException);
         $this->provider->log('connection-1', 'queue-1', json_encode(['uuid' => 'uuid-2']), new RuntimeException);
@@ -55,7 +61,7 @@ class DatabaseUuidFailedJobProviderTest extends TestCase
         $this->assertSame(['uuid-4', 'uuid-3'], $this->provider->ids('queue-2'));
     }
 
-    public function testGettingAllFailedJobs()
+    public function testGettingAllFailedJobs(): void
     {
         $this->assertEmpty($this->provider->all());
 
@@ -72,7 +78,7 @@ class DatabaseUuidFailedJobProviderTest extends TestCase
         );
     }
 
-    public function testFindingFailedJobsById()
+    public function testFindingFailedJobsById(): void
     {
         $this->provider->log('connection-1', 'queue-1', json_encode(['uuid' => 'uuid-1']), new RuntimeException);
 
@@ -93,7 +99,7 @@ class DatabaseUuidFailedJobProviderTest extends TestCase
         }
     }
 
-    public function testRemovingJobsById()
+    public function testRemovingJobsById(): void
     {
         $this->provider->log('connection-1', 'queue-1', json_encode(['uuid' => 'uuid-1']), new RuntimeException);
 
@@ -104,7 +110,7 @@ class DatabaseUuidFailedJobProviderTest extends TestCase
         $this->assertNull($this->provider->find('uuid-1'));
     }
 
-    public function testRemovingAllFailedJobs()
+    public function testRemovingAllFailedJobs(): void
     {
         $this->provider->log('connection-1', 'queue-1', json_encode(['uuid' => 'uuid-1']), new RuntimeException);
         $this->provider->log('connection-2', 'queue-2', json_encode(['uuid' => 'uuid-2']), new RuntimeException);
@@ -148,7 +154,7 @@ class DatabaseUuidFailedJobProviderTest extends TestCase
         $this->assertEmpty($this->provider->all());
     }
 
-    public function testJobsCanBeCounted()
+    public function testJobsCanBeCounted(): void
     {
         $this->assertSame(0, $this->provider->count());
 
@@ -160,7 +166,7 @@ class DatabaseUuidFailedJobProviderTest extends TestCase
         $this->assertSame(3, $this->provider->count());
     }
 
-    public function testJobsCanBeCountedByConnection()
+    public function testJobsCanBeCountedByConnection(): void
     {
         $this->provider->log('connection-1', 'default', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
         $this->provider->log('connection-2', 'default', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
@@ -172,7 +178,7 @@ class DatabaseUuidFailedJobProviderTest extends TestCase
         $this->assertSame(1, $this->provider->count('connection-2'));
     }
 
-    public function testJobsCanBeCountedByQueue()
+    public function testJobsCanBeCountedByQueue(): void
     {
         $this->provider->log('database', 'queue-1', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
         $this->provider->log('database', 'queue-2', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
@@ -184,7 +190,7 @@ class DatabaseUuidFailedJobProviderTest extends TestCase
         $this->assertSame(1, $this->provider->count(queue: 'queue-2'));
     }
 
-    public function testJobsCanBeCountedByQueueAndConnection()
+    public function testJobsCanBeCountedByQueueAndConnection(): void
     {
         $this->provider->log('connection-1', 'queue-99', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);
         $this->provider->log('connection-1', 'queue-99', json_encode(['uuid' => (string) Str::uuid()]), new RuntimeException);

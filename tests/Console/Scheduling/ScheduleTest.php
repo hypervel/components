@@ -21,6 +21,7 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Tests\Queue\Fixtures\JobToTestWithSchedule;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
@@ -599,8 +600,4 @@ class ScheduleTestMutableJob
 class ScheduleTestQueuedJob implements ShouldQueue
 {
     use Queueable;
-}
-
-class JobToTestWithSchedule implements ShouldQueue
-{
 }

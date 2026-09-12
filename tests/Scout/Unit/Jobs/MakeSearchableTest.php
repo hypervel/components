@@ -8,7 +8,7 @@ use Hypervel\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Scout\Jobs\MakeSearchable;
 use Hypervel\Scout\Jobs\MakeSearchableUniquely;
-use Hypervel\Tests\Scout\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 use JsonException;
 

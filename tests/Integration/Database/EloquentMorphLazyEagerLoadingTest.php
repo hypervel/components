@@ -6,13 +6,17 @@ namespace Hypervel\Tests\Integration\Database\EloquentMorphLazyEagerLoadingTest;
 
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
-use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Tests\Integration\Database\Fixtures\Models\Comment;
+use Hypervel\Tests\Integration\Database\Fixtures\Models\MorphEagerLoading\User;
 
 class EloquentMorphLazyEagerLoadingTest extends DatabaseTestCase
 {
+    /**
+     * Create the test tables and related models.
+     */
     protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function (Blueprint $table) {
@@ -37,7 +41,7 @@ class EloquentMorphLazyEagerLoadingTest extends DatabaseTestCase
         (new Comment)->commentable()->associate($post)->save();
     }
 
-    public function testLazyEagerLoading()
+    public function testLazyEagerLoading(): void
     {
         $comment = Comment::first();
 
@@ -50,29 +54,17 @@ class EloquentMorphLazyEagerLoadingTest extends DatabaseTestCase
     }
 }
 
-class Comment extends Model
-{
-    public bool $timestamps = false;
-
-    public function commentable(): MorphTo
-    {
-        return $this->morphTo();
-    }
-}
-
 class Post extends Model
 {
     public bool $timestamps = false;
 
     protected string $primaryKey = 'post_id';
 
+    /**
+     * Get the post's user.
+     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
-}
-
-class User extends Model
-{
-    public bool $timestamps = false;
 }

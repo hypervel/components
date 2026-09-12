@@ -6,14 +6,19 @@ namespace Hypervel\Tests\Integration\Database\EloquentMorphToLazyEagerLoadingTes
 
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
-use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Tests\Integration\Database\Fixtures\Models\Comment;
+use Hypervel\Tests\Integration\Database\Fixtures\Models\MorphEagerLoading\User;
+use Hypervel\Tests\Integration\Database\Fixtures\Models\MorphEagerLoading\Video;
 
 class EloquentMorphToLazyEagerLoadingTest extends DatabaseTestCase
 {
+    /**
+     * Create the test tables and related models.
+     */
     protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function (Blueprint $table) {
@@ -45,7 +50,7 @@ class EloquentMorphToLazyEagerLoadingTest extends DatabaseTestCase
         (new Comment)->commentable()->associate($video)->save();
     }
 
-    public function testLazyEagerLoading()
+    public function testLazyEagerLoading(): void
     {
         $comments = Comment::all();
 
@@ -60,16 +65,6 @@ class EloquentMorphToLazyEagerLoadingTest extends DatabaseTestCase
     }
 }
 
-class Comment extends Model
-{
-    public bool $timestamps = false;
-
-    public function commentable(): MorphTo
-    {
-        return $this->morphTo();
-    }
-}
-
 class Post extends Model
 {
     public bool $timestamps = false;
@@ -78,20 +73,11 @@ class Post extends Model
 
     protected array $with = ['user'];
 
+    /**
+     * Get the post's user.
+     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
-}
-
-class User extends Model
-{
-    public bool $timestamps = false;
-}
-
-class Video extends Model
-{
-    public bool $timestamps = false;
-
-    protected string $primaryKey = 'video_id';
 }

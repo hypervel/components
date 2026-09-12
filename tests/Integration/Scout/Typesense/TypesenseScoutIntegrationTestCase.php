@@ -25,11 +25,17 @@ abstract class TypesenseScoutIntegrationTestCase extends TypesenseIntegrationTes
 
     protected TypesenseEngine $engine;
 
+    /**
+     * Set up the search engine in the test coroutine.
+     */
     protected function setUpInCoroutine(): void
     {
         $this->engine = $this->app->make(EngineManager::class)->engine('typesense');
     }
 
+    /**
+     * Get the migration options.
+     */
     protected function migrateFreshUsing(): array
     {
         return [
@@ -37,7 +43,7 @@ abstract class TypesenseScoutIntegrationTestCase extends TypesenseIntegrationTes
             '--database' => $this->getRefreshConnection(),
             '--realpath' => true,
             '--path' => [
-                dirname(__DIR__, 3) . '/Scout/migrations',
+                dirname(__DIR__, 3) . '/Scout/Fixtures/migrations',
             ],
         ];
     }

@@ -26,7 +26,7 @@ class InteractsWithDatabaseTest extends TestCase
         return [
             '--database' => $this->getRefreshConnection(),
             '--realpath' => true,
-            '--path' => dirname(__DIR__, 2) . '/migrations',
+            '--path' => dirname(__DIR__, 2) . '/Fixtures/migrations',
         ];
     }
 

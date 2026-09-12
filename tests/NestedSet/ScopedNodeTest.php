@@ -12,7 +12,7 @@ use Hypervel\NestedSet\NestedSet;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\NestedSet\Models\MenuItem;
+use Hypervel\Tests\NestedSet\Fixtures\Models\MenuItem;
 use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -22,16 +22,22 @@ class ScopedNodeTest extends TestCase
 
     protected bool $migrateRefresh = true;
 
+    /**
+     * Get the migration options.
+     */
     protected function migrateFreshUsing(): array
     {
         return [
             '--seed' => $this->shouldSeed(),
             '--database' => $this->getRefreshConnection(),
             '--realpath' => true,
-            '--path' => __DIR__ . '/migrations',
+            '--path' => __DIR__ . '/Fixtures/migrations',
         ];
     }
 
+    /**
+     * Set up the test environment.
+     */
     public function setUp(): void
     {
         parent::setUp();
@@ -47,6 +53,9 @@ class ScopedNodeTest extends TestCase
         }
     }
 
+    /**
+     * Get the initial menu item records.
+     */
     protected function getMockMenuItems(): array
     {
         return [
@@ -121,7 +130,7 @@ class ScopedNodeTest extends TestCase
 
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage(
-            "Nested set {$label} root [Hypervel\\Tests\\NestedSet\\Models\\MenuItem] does not match the query scoped([...]) selection.",
+            "Nested set {$label} root [Hypervel\\Tests\\NestedSet\\Fixtures\\Models\\MenuItem] does not match the query scoped([...]) selection.",
         );
 
         $operation === 'fix'
@@ -166,7 +175,7 @@ class ScopedNodeTest extends TestCase
 
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage(
-            'Nested set node [Hypervel\Tests\NestedSet\Models\MenuItem] must have scope attribute [menu_id] selected.',
+            'Nested set node [Hypervel\Tests\NestedSet\Fixtures\Models\MenuItem] must have scope attribute [menu_id] selected.',
         );
 
         MenuItem::query()->{$method}($node)->get();
@@ -191,7 +200,7 @@ class ScopedNodeTest extends TestCase
 
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage(
-            'Nested set node [Hypervel\Tests\NestedSet\Models\MenuItem] must have scope attribute [menu_id] selected.',
+            'Nested set node [Hypervel\Tests\NestedSet\Fixtures\Models\MenuItem] must have scope attribute [menu_id] selected.',
         );
 
         $node->{$method}()->get();
@@ -384,7 +393,7 @@ class ScopedNodeTest extends TestCase
 
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage(
-            "Nested set relation parent for [Hypervel\\Tests\\NestedSet\\Models\\MenuItem] requires the [{$requiredColumn}] column.",
+            "Nested set relation parent for [Hypervel\\Tests\\NestedSet\\Fixtures\\Models\\MenuItem] requires the [{$requiredColumn}] column.",
         );
 
         $node->{$relation}()->get();
@@ -580,7 +589,7 @@ class ScopedNodeTest extends TestCase
 
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage(
-            'Nested set scope attribute [menu_id] cannot be changed on an existing [Hypervel\Tests\NestedSet\Models\MenuItem] model.',
+            'Nested set scope attribute [menu_id] cannot be changed on an existing [Hypervel\Tests\NestedSet\Fixtures\Models\MenuItem] model.',
         );
 
         $node->save();
@@ -607,7 +616,7 @@ class ScopedNodeTest extends TestCase
 
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage(
-            'Nested set model [Hypervel\Tests\NestedSet\Models\MenuItem] requires the [id] column to be selected.',
+            'Nested set model [Hypervel\Tests\NestedSet\Fixtures\Models\MenuItem] requires the [id] column to be selected.',
         );
 
         $node->save();
@@ -840,7 +849,7 @@ class ScopedNodeTest extends TestCase
         if ($requiredColumn !== null) {
             $this->expectException(LogicException::class);
             $this->expectExceptionMessage(
-                "Nested set relation eager load for [Hypervel\\Tests\\NestedSet\\Models\\MenuItem] requires the [{$requiredColumn}] column.",
+                "Nested set relation eager load for [Hypervel\\Tests\\NestedSet\\Fixtures\\Models\\MenuItem] requires the [{$requiredColumn}] column.",
             );
         }
 

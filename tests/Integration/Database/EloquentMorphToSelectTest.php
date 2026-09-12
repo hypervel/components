@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\EloquentMorphToSelectTest;
 
-use Hypervel\Database\Eloquent\Model;
-use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Tests\Integration\Database\Fixtures\Models\Comment;
+use Hypervel\Tests\Integration\Database\Fixtures\Models\MorphToTarget\Post;
 
 class EloquentMorphToSelectTest extends DatabaseTestCase
 {
+    /**
+     * Create the test tables and related models.
+     */
     protected function afterRefreshingDatabase(): void
     {
         Schema::create('posts', function (Blueprint $table) {
@@ -29,14 +32,14 @@ class EloquentMorphToSelectTest extends DatabaseTestCase
         (new Comment)->commentable()->associate($post)->save();
     }
 
-    public function testSelect()
+    public function testSelect(): void
     {
         $comments = Comment::with('commentable:id')->get();
 
         $this->assertEquals(['id' => 1], $comments[0]->commentable->getAttributes());
     }
 
-    public function testSelectRaw()
+    public function testSelectRaw(): void
     {
         $comments = Comment::with(['commentable' => function ($query) {
             $query->selectRaw('id');
@@ -45,7 +48,7 @@ class EloquentMorphToSelectTest extends DatabaseTestCase
         $this->assertEquals(['id' => 1], $comments[0]->commentable->getAttributes());
     }
 
-    public function testSelectSub()
+    public function testSelectSub(): void
     {
         $comments = Comment::with(['commentable' => function ($query) {
             $query->selectSub(function ($query) {
@@ -56,7 +59,7 @@ class EloquentMorphToSelectTest extends DatabaseTestCase
         $this->assertEquals(['id' => 1], $comments[0]->commentable->getAttributes());
     }
 
-    public function testAddSelect()
+    public function testAddSelect(): void
     {
         $comments = Comment::with(['commentable' => function ($query) {
             $query->addSelect('id');
@@ -65,25 +68,11 @@ class EloquentMorphToSelectTest extends DatabaseTestCase
         $this->assertEquals(['id' => 1], $comments[0]->commentable->getAttributes());
     }
 
-    public function testLazyLoading()
+    public function testLazyLoading(): void
     {
         $comment = Comment::first();
         $post = $comment->commentable()->select('id')->first();
 
         $this->assertEquals(['id' => 1], $post->getAttributes());
     }
-}
-
-class Comment extends Model
-{
-    public bool $timestamps = false;
-
-    public function commentable(): MorphTo
-    {
-        return $this->morphTo();
-    }
-}
-
-class Post extends Model
-{
 }

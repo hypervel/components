@@ -29,8 +29,6 @@ use Symfony\Component\HttpFoundation\InputBag;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
 
-include_once __DIR__ . '/Fixtures/Enums.php';
-
 class HttpRequestTest extends TestCase
 {
     public function testInstanceMethod(): void
@@ -613,7 +611,7 @@ class HttpRequestTest extends TestCase
             $default = true;
         });
 
-        $this->assertSame(TestEnumBacked::test, $status);
+        $this->assertSame(TestEnumBacked::Test, $status);
         $this->assertFalse($invalid);
         $this->assertFalse($empty);
         $this->assertFalse($missing);
@@ -1080,22 +1078,22 @@ class HttpRequestTest extends TestCase
 
         $this->assertNull($request->enum('doesnt_exist', TestEnumBacked::class));
 
-        $this->assertEquals(TestEnumBacked::test, $request->enum('invalid_enum_value', TestEnumBacked::class, TestEnumBacked::test));
-        $this->assertEquals(TestEnumBacked::test, $request->enum('missing_key', TestEnumBacked::class, TestEnumBacked::test));
+        $this->assertEquals(TestEnumBacked::Test, $request->enum('invalid_enum_value', TestEnumBacked::class, TestEnumBacked::Test));
+        $this->assertEquals(TestEnumBacked::Test, $request->enum('missing_key', TestEnumBacked::class, TestEnumBacked::Test));
 
-        $this->assertEquals(TestEnumBacked::test, $request->enum('valid_enum_value', TestEnumBacked::class));
+        $this->assertEquals(TestEnumBacked::Test, $request->enum('valid_enum_value', TestEnumBacked::class));
 
         $this->assertNull($request->enum('invalid_enum_value', TestEnumBacked::class));
         $this->assertNull($request->enum('empty_value_request', TestEnumBacked::class));
         $this->assertNull($request->enum('valid_enum_value', TestEnum::class));
 
-        $this->assertEquals(TestIntegerEnumBacked::minus_1, $request->enum('string.minus_1', TestIntegerEnumBacked::class));
-        $this->assertEquals(TestIntegerEnumBacked::zero, $request->enum('string.0', TestIntegerEnumBacked::class));
-        $this->assertEquals(TestIntegerEnumBacked::plus_1, $request->enum('string.plus_1', TestIntegerEnumBacked::class));
+        $this->assertEquals(TestIntegerEnumBacked::Minus1, $request->enum('string.minus_1', TestIntegerEnumBacked::class));
+        $this->assertEquals(TestIntegerEnumBacked::Zero, $request->enum('string.0', TestIntegerEnumBacked::class));
+        $this->assertEquals(TestIntegerEnumBacked::Plus1, $request->enum('string.plus_1', TestIntegerEnumBacked::class));
         $this->assertNull($request->enum('string.doesnt_exist', TestIntegerEnumBacked::class));
-        $this->assertEquals(TestIntegerEnumBacked::minus_1, $request->enum('int.minus_1', TestIntegerEnumBacked::class));
-        $this->assertEquals(TestIntegerEnumBacked::zero, $request->enum('int.0', TestIntegerEnumBacked::class));
-        $this->assertEquals(TestIntegerEnumBacked::plus_1, $request->enum('int.plus_1', TestIntegerEnumBacked::class));
+        $this->assertEquals(TestIntegerEnumBacked::Minus1, $request->enum('int.minus_1', TestIntegerEnumBacked::class));
+        $this->assertEquals(TestIntegerEnumBacked::Zero, $request->enum('int.0', TestIntegerEnumBacked::class));
+        $this->assertEquals(TestIntegerEnumBacked::Plus1, $request->enum('int.plus_1', TestIntegerEnumBacked::class));
         $this->assertNull($request->enum('int.doesnt_exist', TestIntegerEnumBacked::class));
     }
 
@@ -1121,19 +1119,19 @@ class HttpRequestTest extends TestCase
 
         $this->assertEmpty($request->enums('doesnt_exist', TestEnumBacked::class));
 
-        $this->assertEquals([TestEnumBacked::test, TestEnumBacked::test], $request->enums('valid_enum_values', TestEnumBacked::class));
+        $this->assertEquals([TestEnumBacked::Test, TestEnumBacked::Test], $request->enums('valid_enum_values', TestEnumBacked::class));
 
         $this->assertEmpty($request->enums('invalid_enum_values', TestEnumBacked::class));
         $this->assertEmpty($request->enums('empty_value_request', TestEnumBacked::class));
         $this->assertEmpty($request->enums('valid_enum_values', TestEnum::class));
 
-        $this->assertEquals([TestIntegerEnumBacked::minus_1, TestIntegerEnumBacked::zero], $request->enums('string.minus_1', TestIntegerEnumBacked::class));
-        $this->assertEquals([TestIntegerEnumBacked::zero], $request->enums('string.0', TestIntegerEnumBacked::class));
-        $this->assertEquals([TestIntegerEnumBacked::plus_1], $request->enums('string.plus_1', TestIntegerEnumBacked::class));
+        $this->assertEquals([TestIntegerEnumBacked::Minus1, TestIntegerEnumBacked::Zero], $request->enums('string.minus_1', TestIntegerEnumBacked::class));
+        $this->assertEquals([TestIntegerEnumBacked::Zero], $request->enums('string.0', TestIntegerEnumBacked::class));
+        $this->assertEquals([TestIntegerEnumBacked::Plus1], $request->enums('string.plus_1', TestIntegerEnumBacked::class));
         $this->assertEmpty($request->enums('string.doesnt_exist', TestIntegerEnumBacked::class));
-        $this->assertEquals([TestIntegerEnumBacked::minus_1], $request->enums('int.minus_1', TestIntegerEnumBacked::class));
-        $this->assertEquals([TestIntegerEnumBacked::zero], $request->enums('int.0', TestIntegerEnumBacked::class));
-        $this->assertEquals([TestIntegerEnumBacked::plus_1], $request->enums('int.plus_1', TestIntegerEnumBacked::class));
+        $this->assertEquals([TestIntegerEnumBacked::Minus1], $request->enums('int.minus_1', TestIntegerEnumBacked::class));
+        $this->assertEquals([TestIntegerEnumBacked::Zero], $request->enums('int.0', TestIntegerEnumBacked::class));
+        $this->assertEquals([TestIntegerEnumBacked::Plus1], $request->enums('int.plus_1', TestIntegerEnumBacked::class));
         $this->assertEmpty($request->enums('int.doesnt_exist', TestIntegerEnumBacked::class));
     }
 

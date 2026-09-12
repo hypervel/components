@@ -13,9 +13,13 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Tests\Integration\Database\Fixtures\Models\Guarded\Post;
 
 class EloquentEagerLoadingLimitTest extends DatabaseTestCase
 {
+    /**
+     * Set up the database after refreshing it.
+     */
     protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function (Blueprint $table) {
@@ -152,11 +156,6 @@ class Comment extends Model
     protected array $guarded = [];
 }
 
-class Post extends Model
-{
-    protected array $guarded = [];
-}
-
 class Role extends Model
 {
     protected array $guarded = [];
@@ -168,16 +167,25 @@ class User extends Model
 
     protected array $guarded = [];
 
+    /**
+     * Get the comments for the user's posts.
+     */
     public function comments(): HasManyThrough
     {
         return $this->hasManyThrough(Comment::class, Post::class);
     }
 
+    /**
+     * Get the posts for the user.
+     */
     public function posts(): HasMany
     {
         return $this->hasMany(Post::class);
     }
 
+    /**
+     * Get the roles for the user.
+     */
     public function roles(): BelongsToMany
     {
         return $this->belongsToMany(Role::class);

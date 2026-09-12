@@ -433,7 +433,9 @@ Within test methods, use `config()` directly to read or mutate configuration val
 
 ### Test support files
 
-All **standalone** test support files — PHP classes, non-class PHP files, and non-PHP files (JSON, SQL, images, templates, etc.) — go in a single **`Fixtures/`** directory (capital F). This matches Laravel's predominant convention. PHP classes in `Fixtures/` are PSR-4 autoloaded like any other test file. Helper classes used only by a single test file may be defined inline within that file (matching Laravel's convention).
+All **standalone** test support files — PHP classes, non-class PHP files, and non-PHP files (JSON, SQL, images, templates, etc.) — go in a single **`Fixtures/`** directory (capital F). This matches Laravel's predominant convention. PHP classes in `Fixtures/` are PSR-4 autoloaded like any other test file.
+
+Put independently reusable fixture classes and enums in separate PSR-4 files. Keep single-test helpers inline; never share inline helpers between test files. Keep Integration-only fixtures under Integration, and share fixtures across unit and Integration tests only when it makes the tests clearer. Preserve combined files when their structure is itself part of what is being tested.
 
 ### Helper class namespacing
 

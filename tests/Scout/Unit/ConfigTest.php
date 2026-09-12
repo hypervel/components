@@ -13,7 +13,7 @@ use Hypervel\Scout\Events\ModelsImported;
 use Hypervel\Scout\Scout;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Support\Facades\Event;
-use Hypervel\Tests\Scout\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 
 /**

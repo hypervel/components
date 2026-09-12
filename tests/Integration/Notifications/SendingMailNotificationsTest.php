@@ -8,18 +8,17 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Mail\Factory as MailFactory;
 use Hypervel\Contracts\Mail\Mailable;
 use Hypervel\Contracts\Mail\Mailer;
-use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Mail\Markdown;
 use Hypervel\Mail\Message;
 use Hypervel\Notifications\Channels\MailChannel;
 use Hypervel\Notifications\Messages\MailMessage;
-use Hypervel\Notifications\Notifiable;
 use Hypervel\Notifications\Notification;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Notifications\Fixtures\Models\NotifiableUser;
 use Mockery as m;
 
 class SendingMailNotificationsTest extends TestCase
@@ -380,15 +379,6 @@ class SendingMailNotificationsTest extends TestCase
 
         $user->notify($notification);
     }
-}
-
-class NotifiableUser extends Model
-{
-    use Notifiable;
-
-    protected ?string $table = 'users';
-
-    public bool $timestamps = false;
 }
 
 class NotifiableUserWithNamedAddress extends NotifiableUser

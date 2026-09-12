@@ -127,10 +127,7 @@
             "Workbench\\Database\\Factories\\": "src/testbench/workbench/database/factories/",
             "Workbench\\Database\\Seeders\\": "src/testbench/workbench/database/seeders/",
             "Hypervel\\Tests\\": "tests/"
-        },
-        "classmap": [
-            "tests/Validation/Enums.php"
-        ]
+        }
     },
     "bin": [
         "src/facade-documenter/facade.php",

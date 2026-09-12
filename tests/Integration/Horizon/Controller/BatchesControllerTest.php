@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Horizon\Controller;
 
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Horizon\Controller\Fixtures\User;
 use Hypervel\Tests\Integration\Horizon\ControllerTestCase;
 
 class BatchesControllerTest extends ControllerTestCase
@@ -15,7 +16,7 @@ class BatchesControllerTest extends ControllerTestCase
         $this->setupBatchTable();
         $this->seedBatches();
 
-        $response = $this->actingAs(new Fakes\User)
+        $response = $this->actingAs(new User)
             ->get('/horizon/api/batches?query=Import');
 
         $response->assertOk();
@@ -31,7 +32,7 @@ class BatchesControllerTest extends ControllerTestCase
         $this->setupBatchTable();
         $this->seedBatches();
 
-        $response = $this->actingAs(new Fakes\User)
+        $response = $this->actingAs(new User)
             ->get('/horizon/api/batches?query=import');
 
         $response->assertOk();
@@ -47,7 +48,7 @@ class BatchesControllerTest extends ControllerTestCase
         $this->setupBatchTable();
         $this->seedBatches();
 
-        $response = $this->actingAs(new Fakes\User)
+        $response = $this->actingAs(new User)
             ->get('/horizon/api/batches?query=batch-2');
 
         $response->assertOk();
@@ -63,7 +64,7 @@ class BatchesControllerTest extends ControllerTestCase
         $this->setupBatchTable();
         $this->seedBatches();
 
-        $response = $this->actingAs(new Fakes\User)
+        $response = $this->actingAs(new User)
             ->get('/horizon/api/batches?query=%25');
 
         $response->assertOk();
@@ -77,7 +78,7 @@ class BatchesControllerTest extends ControllerTestCase
         $this->seedBatches();
         $this->insertBatch('batch_under_score', 'Import_Users');
 
-        $response = $this->actingAs(new Fakes\User)
+        $response = $this->actingAs(new User)
             ->get('/horizon/api/batches?query=_');
 
         $response->assertOk();
@@ -96,7 +97,7 @@ class BatchesControllerTest extends ControllerTestCase
             $this->insertBatch("batch-{$i}", 'Import Chunk ' . $i);
         }
 
-        $response = $this->actingAs(new Fakes\User)
+        $response = $this->actingAs(new User)
             ->get('/horizon/api/batches?query=Import&before_id=batch-3');
 
         $response->assertOk();
@@ -113,7 +114,7 @@ class BatchesControllerTest extends ControllerTestCase
         $this->setupBatchTable();
         $this->seedBatches();
 
-        $response = $this->actingAs(new Fakes\User)
+        $response = $this->actingAs(new User)
             ->get('/horizon/api/batches?query=Import&before_id=0');
 
         $response->assertOk();

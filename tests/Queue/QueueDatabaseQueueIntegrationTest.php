@@ -22,6 +22,9 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
 
     protected bool $migrateRefresh = true;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -35,16 +38,22 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
         $this->queue->setContainer($this->app);
     }
 
+    /**
+     * Get the migration options.
+     */
     protected function migrateFreshUsing(): array
     {
         return [
             '--seed' => $this->shouldSeed(),
             '--database' => $this->getRefreshConnection(),
             '--realpath' => true,
-            '--path' => __DIR__ . '/migrations',
+            '--path' => __DIR__ . '/Fixtures/migrations',
         ];
     }
 
+    /**
+     * Get the database connection.
+     */
     protected function connection(): ConnectionInterface
     {
         return $this->app
@@ -53,7 +62,7 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
     }
 
     /**
-     * Test that jobs that are not reserved and have an available_at value less then now, are popped.
+     * Test that jobs that are not reserved and have an available_at value less than now are popped.
      */
     public function testAvailableAndUnReservedJobsArePopped(): void
     {
@@ -229,7 +238,7 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
         $this->assertNotNull($queue->pop('fractional'));
     }
 
-    public function testJobPayloadIsAvailableOnEvents()
+    public function testJobPayloadIsAvailableOnEvents(): void
     {
         $jobQueueingEvent = null;
         $jobQueuedEvent = null;
@@ -238,15 +247,15 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
 
         Str::createUuidsUsing(fn () => $uuid);
 
-        $this->app->make(Dispatcher::class)->listen(function (JobQueueing $e) use (&$jobQueueingEvent) {
-            $jobQueueingEvent = $e;
+        $this->app->make(Dispatcher::class)->listen(function (JobQueueing $event) use (&$jobQueueingEvent): void {
+            $jobQueueingEvent = $event;
         });
-        $this->app->make(Dispatcher::class)->listen(function (JobQueued $e) use (&$jobQueuedEvent) {
-            $jobQueuedEvent = $e;
+        $this->app->make(Dispatcher::class)->listen(function (JobQueued $event) use (&$jobQueuedEvent): void {
+            $jobQueuedEvent = $event;
         });
 
         $this->queue->push('MyJob', [
-            'laravel' => 'Framework',
+            'hypervel' => 'Framework',
         ]);
 
         $this->assertIsArray($jobQueueingEvent->payload());

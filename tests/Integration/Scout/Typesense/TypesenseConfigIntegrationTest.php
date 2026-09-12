@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Integration\Scout\Typesense;
 
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Scout\EngineManager;
-use Hypervel\Tests\Scout\Models\ConfigBasedTypesenseModel;
+use Hypervel\Tests\Integration\Scout\Typesense\Fixtures\Models\ConfigBasedTypesenseModel;
 
 /**
  * Integration tests for Typesense configuration options.

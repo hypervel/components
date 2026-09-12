@@ -13,6 +13,7 @@ use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\Notification;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Testing\Fakes\NotificationFake;
+use Hypervel\Tests\Notifications\Fixtures\NotificationStub;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\ExpectationFailedException;
 
@@ -39,7 +40,7 @@ class SupportTestingNotificationFakeTest extends TestCase
             $this->fake->assertSentTo($this->user, NotificationStub::class);
             $this->fail();
         } catch (ExpectationFailedException $e) {
-            $this->assertStringContainsString('The expected [Hypervel\Tests\Support\NotificationStub] notification was not sent.', $e->getMessage());
+            $this->assertStringContainsString('The expected [Hypervel\Tests\Notifications\Fixtures\NotificationStub] notification was not sent.', $e->getMessage());
         }
 
         $this->fake->send($this->user, new NotificationStub);
@@ -82,7 +83,7 @@ class SupportTestingNotificationFakeTest extends TestCase
             $this->fake->assertNotSentTo($this->user, NotificationStub::class);
             $this->fail();
         } catch (ExpectationFailedException $e) {
-            $this->assertStringContainsString('The unexpected [Hypervel\Tests\Support\NotificationStub] notification was sent.', $e->getMessage());
+            $this->assertStringContainsString('The unexpected [Hypervel\Tests\Notifications\Fixtures\NotificationStub] notification was sent.', $e->getMessage());
         }
     }
 
@@ -96,7 +97,7 @@ class SupportTestingNotificationFakeTest extends TestCase
             });
             $this->fail();
         } catch (ExpectationFailedException $e) {
-            $this->assertStringContainsString('The unexpected [Hypervel\Tests\Support\NotificationStub] notification was sent.', $e->getMessage());
+            $this->assertStringContainsString('The unexpected [Hypervel\Tests\Notifications\Fixtures\NotificationStub] notification was sent.', $e->getMessage());
         }
     }
 
@@ -225,14 +226,6 @@ class SupportTestingNotificationFakeTest extends TestCase
         $this->fake->assertSentTo($this->user, NotificationWithSerialization::class, function (NotificationWithSerialization $notification): bool {
             return $notification->value === 'hello-serialized-unserialized';
         });
-    }
-}
-
-class NotificationStub extends Notification
-{
-    public function via(mixed $notifiable): array
-    {
-        return ['mail'];
     }
 }
 

@@ -10,6 +10,12 @@ use Hypervel\Support\Reflector;
 use Hypervel\Support\Testing\Fakes\BusFake;
 use Hypervel\Support\Testing\Fakes\MailFake;
 use Hypervel\Support\Testing\Fakes\PendingMailFake;
+use Hypervel\Tests\Support\Fixtures\ChildClass;
+use Hypervel\Tests\Support\Fixtures\NumAttr;
+use Hypervel\Tests\Support\Fixtures\ParentClass;
+use Hypervel\Tests\Support\Fixtures\ParentOnlyAttr;
+use Hypervel\Tests\Support\Fixtures\StrAttr;
+use Hypervel\Tests\Support\Fixtures\UnusedAttr;
 use Hypervel\Tests\TestCase;
 use ReflectionClass;
 
@@ -90,59 +96,55 @@ class SupportReflectorTest extends TestCase
 
     public function testGetClassAttributes(): void
     {
-        require_once __DIR__ . '/Fixtures/ClassesWithAttributes.php';
-
-        $this->assertSame([], Reflector::getClassAttributes(Fixtures\ChildClass::class, Fixtures\UnusedAttr::class)->toArray());
+        $this->assertSame([], Reflector::getClassAttributes(ChildClass::class, UnusedAttr::class)->toArray());
 
         $this->assertSame(
-            [Fixtures\ChildClass::class => [], Fixtures\ParentClass::class => []],
-            Reflector::getClassAttributes(Fixtures\ChildClass::class, Fixtures\UnusedAttr::class, true)->toArray()
+            [ChildClass::class => [], ParentClass::class => []],
+            Reflector::getClassAttributes(ChildClass::class, UnusedAttr::class, true)->toArray()
         );
 
         $this->assertSame(
             ['quick', 'brown', 'fox'],
-            Reflector::getClassAttributes(Fixtures\ChildClass::class, Fixtures\StrAttr::class)->map->string->all()
+            Reflector::getClassAttributes(ChildClass::class, StrAttr::class)->map->string->all()
         );
 
         $this->assertSame(
             ['quick', 'brown', 'fox', 'lazy', 'dog'],
-            Reflector::getClassAttributes(Fixtures\ChildClass::class, Fixtures\StrAttr::class, true)->flatten()->map->string->all()
+            Reflector::getClassAttributes(ChildClass::class, StrAttr::class, true)->flatten()->map->string->all()
         );
 
-        $this->assertSame(7, Reflector::getClassAttributes(Fixtures\ChildClass::class, Fixtures\NumAttr::class)->sum->number);
-        $this->assertSame(12, Reflector::getClassAttributes(Fixtures\ChildClass::class, Fixtures\NumAttr::class, true)->flatten()->sum->number);
-        $this->assertSame(5, Reflector::getClassAttributes(Fixtures\ParentClass::class, Fixtures\NumAttr::class)->sum->number);
-        $this->assertSame(5, Reflector::getClassAttributes(Fixtures\ParentClass::class, Fixtures\NumAttr::class, true)->flatten()->sum->number);
+        $this->assertSame(7, Reflector::getClassAttributes(ChildClass::class, NumAttr::class)->sum->number);
+        $this->assertSame(12, Reflector::getClassAttributes(ChildClass::class, NumAttr::class, true)->flatten()->sum->number);
+        $this->assertSame(5, Reflector::getClassAttributes(ParentClass::class, NumAttr::class)->sum->number);
+        $this->assertSame(5, Reflector::getClassAttributes(ParentClass::class, NumAttr::class, true)->flatten()->sum->number);
 
         $this->assertSame(
-            [Fixtures\ChildClass::class, Fixtures\ParentClass::class],
-            Reflector::getClassAttributes(Fixtures\ChildClass::class, Fixtures\StrAttr::class, true)->keys()->all()
+            [ChildClass::class, ParentClass::class],
+            Reflector::getClassAttributes(ChildClass::class, StrAttr::class, true)->keys()->all()
         );
 
         $this->assertContainsOnlyInstancesOf(
-            Fixtures\StrAttr::class,
-            Reflector::getClassAttributes(Fixtures\ChildClass::class, Fixtures\StrAttr::class)->all()
+            StrAttr::class,
+            Reflector::getClassAttributes(ChildClass::class, StrAttr::class)->all()
         );
 
         $this->assertContainsOnlyInstancesOf(
-            Fixtures\StrAttr::class,
-            Reflector::getClassAttributes(Fixtures\ChildClass::class, Fixtures\StrAttr::class, true)->flatten()->all()
+            StrAttr::class,
+            Reflector::getClassAttributes(ChildClass::class, StrAttr::class, true)->flatten()->all()
         );
     }
 
     public function testGetClassAttribute(): void
     {
-        require_once __DIR__ . '/Fixtures/ClassesWithAttributes.php';
-
-        $this->assertNull(Reflector::getClassAttribute(Fixtures\ChildClass::class, Fixtures\UnusedAttr::class));
-        $this->assertNull(Reflector::getClassAttribute(Fixtures\ChildClass::class, Fixtures\UnusedAttr::class, true));
-        $this->assertNull(Reflector::getClassAttribute(Fixtures\ChildClass::class, Fixtures\ParentOnlyAttr::class));
-        $this->assertInstanceOf(Fixtures\ParentOnlyAttr::class, Reflector::getClassAttribute(Fixtures\ChildClass::class, Fixtures\ParentOnlyAttr::class, true));
-        $this->assertInstanceOf(Fixtures\StrAttr::class, Reflector::getClassAttribute(Fixtures\ChildClass::class, Fixtures\StrAttr::class));
-        $this->assertInstanceOf(Fixtures\StrAttr::class, Reflector::getClassAttribute(Fixtures\ChildClass::class, Fixtures\StrAttr::class, true));
-        $this->assertSame('quick', Reflector::getClassAttribute(Fixtures\ChildClass::class, Fixtures\StrAttr::class)->string);
-        $this->assertSame('quick', Reflector::getClassAttribute(Fixtures\ChildClass::class, Fixtures\StrAttr::class, true)->string);
-        $this->assertSame('lazy', Reflector::getClassAttribute(Fixtures\ParentClass::class, Fixtures\StrAttr::class)->string);
+        $this->assertNull(Reflector::getClassAttribute(ChildClass::class, UnusedAttr::class));
+        $this->assertNull(Reflector::getClassAttribute(ChildClass::class, UnusedAttr::class, true));
+        $this->assertNull(Reflector::getClassAttribute(ChildClass::class, ParentOnlyAttr::class));
+        $this->assertInstanceOf(ParentOnlyAttr::class, Reflector::getClassAttribute(ChildClass::class, ParentOnlyAttr::class, true));
+        $this->assertInstanceOf(StrAttr::class, Reflector::getClassAttribute(ChildClass::class, StrAttr::class));
+        $this->assertInstanceOf(StrAttr::class, Reflector::getClassAttribute(ChildClass::class, StrAttr::class, true));
+        $this->assertSame('quick', Reflector::getClassAttribute(ChildClass::class, StrAttr::class)->string);
+        $this->assertSame('quick', Reflector::getClassAttribute(ChildClass::class, StrAttr::class, true)->string);
+        $this->assertSame('lazy', Reflector::getClassAttribute(ParentClass::class, StrAttr::class)->string);
     }
 }
 

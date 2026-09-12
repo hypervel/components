@@ -13,7 +13,7 @@ use Swoole\WebSocket\Frame;
  * Connects to port 19512 (SWOOLE_PROCESS, worker_num=2, no scaling).
  * Provides worker-aware connect helpers for deterministic cross-worker testing.
  *
- * Start it with: REVERB_SERVER_PORT=19512 REVERB_TEST_WORKER_NUM=2 php tests/Integration/Reverb/server.php
+ * Start it with: REVERB_SERVER_PORT=19512 REVERB_TEST_WORKER_NUM=2 php tests/Integration/Reverb/Fixtures/server.php
  */
 abstract class MultiWorkerTestCase extends ReverbIntegrationTestCase
 {

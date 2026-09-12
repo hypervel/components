@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\MariaDb;
 
-use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
-use Hypervel\Database\Eloquent\Casts\Attribute;
-use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\Fixtures\Models\IntTimestampCasts\UserWithIntTimestampsViaAttribute;
+use Hypervel\Tests\Integration\Database\Fixtures\Models\IntTimestampCasts\UserWithIntTimestampsViaCasts;
+use Hypervel\Tests\Integration\Database\Fixtures\Models\IntTimestampCasts\UserWithIntTimestampsViaMutator;
+use Hypervel\Tests\Integration\Database\Fixtures\Models\IntTimestampCasts\UserWithUpdatedAtViaMutator;
 
 class EloquentCastTest extends MariaDbTestCase
 {
     protected string $driver = 'mariadb';
 
+    /**
+     * Set up the database after refreshing it.
+     */
     protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function ($table) {
@@ -31,6 +35,9 @@ class EloquentCastTest extends MariaDbTestCase
         });
     }
 
+    /**
+     * Remove the database tables.
+     */
     protected function destroyDatabaseMigrations(): void
     {
         Schema::drop('users');
@@ -144,96 +151,5 @@ class EloquentCastTest extends MariaDbTestCase
 
         $this->assertSame($updatedAt, $mutatorUser->updated_at->timestamp);
         $this->assertSame($updatedAt, $mutatorUser->fresh()->updated_at->timestamp);
-    }
-}
-
-class UserWithIntTimestampsViaCasts extends Model
-{
-    protected ?string $table = 'users';
-
-    protected array $fillable = ['email'];
-
-    protected array $casts = [
-        'created_at' => UnixTimeStampToCarbon::class,
-        'updated_at' => UnixTimeStampToCarbon::class,
-    ];
-}
-
-class UnixTimeStampToCarbon implements CastsAttributes
-{
-    public function get(Model $model, string $key, mixed $value, array $attributes): mixed
-    {
-        return CarbonImmutable::parse($value);
-    }
-
-    public function set(Model $model, string $key, mixed $value, array $attributes): mixed
-    {
-        return CarbonImmutable::parse($value)->timestamp;
-    }
-}
-
-class UserWithIntTimestampsViaAttribute extends Model
-{
-    protected ?string $table = 'users';
-
-    protected array $fillable = ['email'];
-
-    protected function updatedAt(): Attribute
-    {
-        return Attribute::make(
-            get: fn ($value) => CarbonImmutable::parse($value),
-            set: fn ($value) => CarbonImmutable::parse($value)->timestamp,
-        );
-    }
-
-    protected function createdAt(): Attribute
-    {
-        return Attribute::make(
-            get: fn ($value) => CarbonImmutable::parse($value),
-            set: fn ($value) => CarbonImmutable::parse($value)->timestamp,
-        );
-    }
-}
-
-class UserWithIntTimestampsViaMutator extends Model
-{
-    protected ?string $table = 'users';
-
-    protected array $fillable = ['email'];
-
-    protected function getUpdatedAtAttribute($value)
-    {
-        return CarbonImmutable::parse($value);
-    }
-
-    protected function setUpdatedAtAttribute($value)
-    {
-        $this->attributes['updated_at'] = CarbonImmutable::parse($value)->timestamp;
-    }
-
-    protected function getCreatedAtAttribute($value)
-    {
-        return CarbonImmutable::parse($value);
-    }
-
-    protected function setCreatedAtAttribute($value)
-    {
-        $this->attributes['created_at'] = CarbonImmutable::parse($value)->timestamp;
-    }
-}
-
-class UserWithUpdatedAtViaMutator extends Model
-{
-    protected ?string $table = 'users_nullable_timestamps';
-
-    protected array $fillable = ['email', 'updated_at'];
-
-    public function setUpdatedAtAttribute($value)
-    {
-        if (! $this->id) {
-            return;
-        }
-
-        $this->attributes['updated_at'] = $value;
     }
 }

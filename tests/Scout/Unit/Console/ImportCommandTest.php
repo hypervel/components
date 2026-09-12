@@ -17,7 +17,7 @@ use Hypervel\Scout\Jobs\RemoveFromSearch;
 use Hypervel\Scout\Scout;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\Event;
-use Hypervel\Tests\Scout\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 use Mockery as m;
 use RuntimeException;

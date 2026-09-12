@@ -10,7 +10,7 @@ namespace Hypervel\Tests\Integration\Reverb;
  * Exercises pipe message fan-out, Swoole Table cross-worker atomicity,
  * and presence semantics across workers.
  *
- * Requires: REVERB_SERVER_PORT=19512 REVERB_TEST_WORKER_NUM=2 php tests/Integration/Reverb/server.php
+ * Requires: REVERB_SERVER_PORT=19512 REVERB_TEST_WORKER_NUM=2 php tests/Integration/Reverb/Fixtures/server.php
  */
 class MultiWorkerServerTest extends MultiWorkerTestCase
 {

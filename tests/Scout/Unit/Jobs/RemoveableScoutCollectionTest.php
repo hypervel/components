@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Scout\Unit\Jobs;
 
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Jobs\RemoveableScoutCollection;
-use Hypervel\Tests\Scout\Models\CustomScoutKeyModel;
-use Hypervel\Tests\Scout\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\CustomScoutKeyModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 
 /**

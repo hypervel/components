@@ -396,8 +396,6 @@ class ModelSerializationTest extends TestCase
 
     public function testItSerializesTypedProperties(): void
     {
-        require_once __DIR__ . '/typed-properties.php';
-
         $defaultConnection = config('database.default');
 
         $user = ModelSerializationTestUser::create([
@@ -926,6 +924,60 @@ class ModelSerializationTestClass
     public function __construct(ModelSerializationTestUser|User $user)
     {
         $this->user = $user;
+    }
+}
+
+class TypedPropertyTestClass
+{
+    use SerializesModels;
+
+    public ModelSerializationTestUser $user;
+
+    public ModelSerializationTestUser $uninitializedUser;
+
+    protected int $id;
+
+    private array $names;
+
+    /**
+     * Create a fixture with typed properties of different visibilities.
+     */
+    public function __construct(ModelSerializationTestUser $user, int $id, array $names)
+    {
+        $this->user = $user;
+        $this->id = $id;
+        $this->names = $names;
+    }
+
+    /**
+     * Get the protected identifier.
+     */
+    public function getId(): int
+    {
+        return $this->id;
+    }
+
+    /**
+     * Get the private names.
+     */
+    public function getNames(): array
+    {
+        return $this->names;
+    }
+}
+
+class TypedPropertyCollectionTestClass
+{
+    use SerializesModels;
+
+    public Collection $users;
+
+    /**
+     * Create a fixture containing a typed model collection.
+     */
+    public function __construct(Collection $users)
+    {
+        $this->users = $users;
     }
 }
 

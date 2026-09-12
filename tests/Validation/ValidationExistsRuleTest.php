@@ -26,7 +26,7 @@ class ValidationExistsRuleTest extends TestCase
             '--seed' => $this->shouldSeed(),
             '--database' => $this->getRefreshConnection(),
             '--realpath' => true,
-            '--path' => __DIR__ . '/migrations',
+            '--path' => __DIR__ . '/Fixtures/migrations',
         ];
     }
 

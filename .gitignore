@@ -1,7 +1,7 @@
 .idea
 .DS_Store
 .env
-!tests/Support/envs/**/.env
+!tests/Support/Fixtures/envs/**/.env
 !tests/Foundation/Fixtures/envs/.env
 .phpunit.result.cache
 /.cache
@@ -28,7 +28,6 @@
 /testing
 /tests/*.coverage
 /tests/**/*.coverage
-/tests/Http/Fixtures/sunk.txt
 /vendor
 composer.lock
 !tests/Foundation/Fixtures/project1/composer.lock

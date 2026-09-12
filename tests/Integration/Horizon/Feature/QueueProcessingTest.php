@@ -23,35 +23,37 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;
+use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\Jobs\BasicJob;
+use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\Jobs\LegacyJob;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use ReflectionMethod;
 
 class QueueProcessingTest extends IntegrationTestCase
 {
-    public function testLegacyJobsCanBeProcessedWithoutErrors()
+    public function testLegacyJobsCanBeProcessedWithoutErrors(): void
     {
-        Queue::push('Hypervel\Tests\Integration\Horizon\Feature\Jobs\LegacyJob');
+        Queue::push(LegacyJob::class);
         $this->work();
     }
 
-    public function testCompletedJobsAreNotNormallyStoredInCompletedDatabase()
+    public function testCompletedJobsAreNotNormallyStoredInCompletedDatabase(): void
     {
-        Queue::push(new Jobs\BasicJob);
+        Queue::push(new BasicJob);
         $this->work();
         $this->assertSame(0, $this->monitoredJobs('first'));
         $this->assertSame(0, $this->monitoredJobs('second'));
     }
 
-    public function testPendingJobsAreStoredInPendingJobDatabase()
+    public function testPendingJobsAreStoredInPendingJobDatabase(): void
     {
-        $id = Queue::push(new Jobs\BasicJob);
+        $id = Queue::push(new BasicJob);
         $this->assertSame(1, $this->recentJobs());
         $this->assertSame('pending', Redis::connection('horizon')->hget($id, 'status'));
     }
 
     public function testPendingDelayedJobsAreStoredInPendingJobDatabase(): void
     {
-        $id = Queue::later(1, new Jobs\BasicJob);
+        $id = Queue::later(1, new BasicJob);
         $this->assertSame(1, $this->recentJobs());
         $this->assertSame('pending', Redis::connection('horizon')->hget($id, 'status'));
 
@@ -71,8 +73,8 @@ class QueueProcessingTest extends IntegrationTestCase
         try {
             /** @var RedisQueue $queue */
             $queue = Queue::connection('redis');
-            $queue->push(new Jobs\BasicJob, queue: 'critical');
-            $queue->later(1, new Jobs\BasicJob, queue: 'critical');
+            $queue->push(new BasicJob, queue: 'critical');
+            $queue->later(1, new BasicJob, queue: 'critical');
         } finally {
             BaseQueue::createPayloadUsing(null);
         }
@@ -82,7 +84,7 @@ class QueueProcessingTest extends IntegrationTestCase
 
     public function testDirectRawPushDoesNotInheritThePreviousJob(): void
     {
-        Queue::push(new Jobs\BasicJob);
+        Queue::push(new BasicJob);
 
         /** @var RedisQueue $queue */
         $queue = Queue::connection('redis');
@@ -101,7 +103,7 @@ class QueueProcessingTest extends IntegrationTestCase
             $events[] = [$event::class, $event->queue];
         });
 
-        $id = Queue::push(new Jobs\BasicJob);
+        $id = Queue::push(new BasicJob);
         $job = Queue::pop();
         $this->assertInstanceOf(RedisJob::class, $job);
         $this->assertSame('default', $job->getQueue());
@@ -181,8 +183,8 @@ class QueueProcessingTest extends IntegrationTestCase
         /** @var RedisQueue $queue */
         $queue = Queue::connection('redis');
         $queue->bulk([
-            new Jobs\BasicJob,
-            new Jobs\BasicJob,
+            new BasicJob,
+            new BasicJob,
         ]);
 
         $this->assertSame(
@@ -211,8 +213,8 @@ class QueueProcessingTest extends IntegrationTestCase
 
         try {
             $queue->bulk([
-                new Jobs\BasicJob,
-                new Jobs\BasicJob,
+                new BasicJob,
+                new BasicJob,
             ]);
             $this->fail('Expected the Redis batch to fail.');
         } catch (LuaScriptException) {
@@ -230,7 +232,7 @@ class QueueProcessingTest extends IntegrationTestCase
             'default',
         );
         $queue->setContainer($this->app)->setConnectionName('redis');
-        $queue->rememberLastPushed(new Jobs\BasicJob);
+        $queue->rememberLastPushed(new BasicJob);
 
         try {
             $queue->pushRaw('{invalid');
@@ -244,35 +246,35 @@ class QueueProcessingTest extends IntegrationTestCase
         $this->assertSame([], $payload['tags']);
     }
 
-    public function testPendingJobsAreStoredWithTheirTags()
+    public function testPendingJobsAreStoredWithTheirTags(): void
     {
-        $id = Queue::push(new Jobs\BasicJob);
+        $id = Queue::push(new BasicJob);
         $payload = json_decode(Redis::connection('horizon')->hget($id, 'payload'), true);
         $this->assertEquals(['first', 'second'], $payload['tags']);
     }
 
-    public function testPendingJobsAreStoredWithTheirType()
+    public function testPendingJobsAreStoredWithTheirType(): void
     {
-        $id = Queue::push(new Jobs\BasicJob);
+        $id = Queue::push(new BasicJob);
         $payload = json_decode(Redis::connection('horizon')->hget($id, 'payload'), true);
         $this->assertSame('job', $payload['type']);
     }
 
-    public function testPendingJobsAreNoLongerInPendingDatabaseAfterBeingWorked()
+    public function testPendingJobsAreNoLongerInPendingDatabaseAfterBeingWorked(): void
     {
-        Queue::push(new Jobs\BasicJob);
+        Queue::push(new BasicJob);
         $this->work();
 
         $recent = resolve(JobRepository::class)->getRecent();
         $this->assertSame('completed', $recent[0]->status);
     }
 
-    public function testPendingJobIsMarkedAsReservedDuringProcessing()
+    public function testPendingJobIsMarkedAsReservedDuringProcessing(): void
     {
-        $id = Queue::push(new Jobs\BasicJob);
+        $id = Queue::push(new BasicJob);
 
         $status = null;
-        Event::listen(JobReserved::class, function ($event) use ($id, &$status) {
+        Event::listen(JobReserved::class, function (JobReserved $event) use ($id, &$status): void {
             $status = Redis::connection('horizon')->hget($id, 'status');
         });
 
@@ -281,14 +283,14 @@ class QueueProcessingTest extends IntegrationTestCase
         $this->assertSame('reserved', $status);
     }
 
-    public function testStaleReservedJobsAreMarkedAsPendingAfterMigrating()
+    public function testStaleReservedJobsAreMarkedAsPendingAfterMigrating(): void
     {
-        $id = Queue::later(CarbonImmutable::now()->addSeconds(0), new Jobs\BasicJob);
+        $id = Queue::later(CarbonImmutable::now()->addSeconds(0), new BasicJob);
 
         Redis::connection('horizon')->hset($id, 'status', 'reserved');
 
         $status = null;
-        Event::listen(JobsMigrated::class, function ($event) use ($id, &$status) {
+        Event::listen(JobsMigrated::class, function (JobsMigrated $event) use ($id, &$status): void {
             $status = Redis::connection('horizon')->hget($id, 'status');
         });
 
@@ -324,6 +326,9 @@ class QueueProcessingTest extends IntegrationTestCase
         $this->assertSame('valid', $event->payloads->first()->id());
     }
 
+    /**
+     * Resolve the physical Redis key for the queue.
+     */
     private function getQueueRedisKey(RedisQueue $queue, ?string $name = null): string
     {
         return (new ReflectionMethod($queue, 'getQueueRedisKey'))->invoke($queue, $name);
@@ -332,12 +337,15 @@ class QueueProcessingTest extends IntegrationTestCase
 
 class RedisQueueWithExposedLastPushed extends RedisQueue
 {
+    /**
+     * Set the job used to prepare the next payload.
+     */
     public function rememberLastPushed(object|string $job): void
     {
         $this->setLastPushed($job);
     }
 }
 
-class AfterCommitHorizonJob extends Jobs\BasicJob implements ShouldQueueAfterCommit
+class AfterCommitHorizonJob extends BasicJob implements ShouldQueueAfterCommit
 {
 }

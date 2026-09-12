@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Integration\Reverb;
 /**
  * End-to-end integration tests for the Reverb WebSocket server.
  *
- * Requires a running test server: php tests/Integration/Reverb/server.php
+ * Requires a running test server: php tests/Integration/Reverb/Fixtures/server.php
  */
 class ServerTest extends ReverbIntegrationTestCase
 {

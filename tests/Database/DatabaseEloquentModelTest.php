@@ -66,9 +66,9 @@ use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Stringable;
 use Hypervel\Support\Uri;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Database\Fixtures\Enums\StringStatus;
 use Hypervel\Tests\Database\Fixtures\TestCast;
 use Hypervel\Tests\Database\Fixtures\TestValueObject;
-use Hypervel\Tests\Database\StringStatus;
 use InvalidArgumentException;
 use LogicException;
 use Mockery as m;
@@ -81,8 +81,6 @@ use UnitEnum;
 use WeakMap;
 
 use function Hypervel\Coroutine\parallel;
-
-include_once 'Enums.php';
 
 class DatabaseEloquentModelTest extends TestCase
 {

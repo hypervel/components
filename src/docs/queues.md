@@ -255,7 +255,7 @@ The following dependencies are needed for the listed queue drivers. These depend
 
 <div class="content-list" markdown="1">
 
-- Amazon SQS: `aws/aws-sdk-php ^3.235.5`
+- Amazon SQS: `aws/aws-sdk-php ^3.322.9`
 - Beanstalkd: `pda/pheanstalk ^8.0.2`
 - Redis: PhpRedis PHP extension
 

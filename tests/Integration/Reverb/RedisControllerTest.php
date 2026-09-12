@@ -12,7 +12,7 @@ namespace Hypervel\Tests\Integration\Reverb;
  * PusherPubSubIncomingMessageHandler → merge results → HTTP response) works end-to-end.
  *
  * Requires a running Redis-enabled test server:
- *   REVERB_SERVER_PORT=19511 REVERB_SCALING_ENABLED=true php tests/Integration/Reverb/server.php
+ *   REVERB_SERVER_PORT=19511 REVERB_SCALING_ENABLED=true php tests/Integration/Reverb/Fixtures/server.php
  */
 class RedisControllerTest extends ReverbRedisIntegrationTestCase
 {

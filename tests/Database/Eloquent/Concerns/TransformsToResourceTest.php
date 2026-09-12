@@ -8,8 +8,8 @@ use Hypervel\Database\Eloquent\Attributes\UseResource;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Database\Eloquent\Models\TransformsToResourceTestModelInModelsNamespace;
 use Hypervel\Tests\Database\Fixtures\Models\Administration\Billing\TransformsToResourceTestNestedModel;
+use Hypervel\Tests\Database\Fixtures\Models\TransformsToResourceTestModelInModelsNamespace;
 use LogicException;
 
 class TransformsToResourceTest extends TestCase
@@ -55,8 +55,8 @@ class TransformsToResourceTest extends TestCase
         $result = TransformsToResourceTestModelInModelsNamespace::guessResourceName();
 
         $this->assertSame([
-            'Hypervel\Tests\Database\Eloquent\Http\Resources\TransformsToResourceTestModelInModelsNamespaceResource',
-            'Hypervel\Tests\Database\Eloquent\Http\Resources\TransformsToResourceTestModelInModelsNamespace',
+            'Hypervel\Tests\Database\Fixtures\Http\Resources\TransformsToResourceTestModelInModelsNamespaceResource',
+            'Hypervel\Tests\Database\Fixtures\Http\Resources\TransformsToResourceTestModelInModelsNamespace',
         ], $result);
     }
 

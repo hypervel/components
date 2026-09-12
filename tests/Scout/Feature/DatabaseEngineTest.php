@@ -10,9 +10,9 @@ use Hypervel\Scout\Attributes\SearchUsingFullText;
 use Hypervel\Scout\Attributes\SearchUsingPrefix;
 use Hypervel\Scout\Engines\DatabaseEngine;
 use Hypervel\Support\ClassInvoker;
-use Hypervel\Tests\Scout\Models\PrefixSearchableModel;
-use Hypervel\Tests\Scout\Models\SearchableModel;
-use Hypervel\Tests\Scout\Models\UuidSearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\PrefixSearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\UuidSearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 
 class DatabaseEngineTest extends ScoutTestCase

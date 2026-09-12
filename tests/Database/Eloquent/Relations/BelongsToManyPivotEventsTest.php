@@ -27,7 +27,7 @@ class BelongsToManyPivotEventsTest extends TestCase
         return [
             '--database' => $this->getRefreshConnection(),
             '--realpath' => true,
-            '--path' => __DIR__ . '/migrations',
+            '--path' => __DIR__ . '/Fixtures/migrations',
         ];
     }
 

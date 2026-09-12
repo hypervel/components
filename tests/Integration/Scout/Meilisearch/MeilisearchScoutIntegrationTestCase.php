@@ -25,11 +25,17 @@ abstract class MeilisearchScoutIntegrationTestCase extends MeilisearchIntegratio
 
     protected MeilisearchEngine $engine;
 
+    /**
+     * Set up the search engine in the test coroutine.
+     */
     protected function setUpInCoroutine(): void
     {
         $this->engine = $this->app->make(EngineManager::class)->engine('meilisearch');
     }
 
+    /**
+     * Get the migration options.
+     */
     protected function migrateFreshUsing(): array
     {
         return [
@@ -37,7 +43,7 @@ abstract class MeilisearchScoutIntegrationTestCase extends MeilisearchIntegratio
             '--database' => $this->getRefreshConnection(),
             '--realpath' => true,
             '--path' => [
-                dirname(__DIR__, 3) . '/Scout/migrations',
+                dirname(__DIR__, 3) . '/Scout/Fixtures/migrations',
             ],
         ];
     }

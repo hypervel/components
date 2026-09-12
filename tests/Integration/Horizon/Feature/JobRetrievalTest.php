@@ -9,19 +9,20 @@ use Hypervel\Horizon\JobPayload;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;
+use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\Jobs\BasicJob;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 
 class JobRetrievalTest extends IntegrationTestCase
 {
-    public function testPendingJobsCanBeRetrieved()
+    public function testPendingJobsCanBeRetrieved(): void
     {
         $ids = [];
 
-        $ids[] = Queue::push(new Jobs\BasicJob);
-        $ids[] = Queue::push(new Jobs\BasicJob);
-        $ids[] = Queue::push(new Jobs\BasicJob);
-        $ids[] = Queue::push(new Jobs\BasicJob);
-        $ids[] = Queue::push(new Jobs\BasicJob);
+        $ids[] = Queue::push(new BasicJob);
+        $ids[] = Queue::push(new BasicJob);
+        $ids[] = Queue::push(new BasicJob);
+        $ids[] = Queue::push(new BasicJob);
+        $ids[] = Queue::push(new BasicJob);
 
         $repository = resolve(JobRepository::class);
 
@@ -29,7 +30,7 @@ class JobRetrievalTest extends IntegrationTestCase
 
         // Test getting all jobs...
         $this->assertCount(5, $recent);
-        $this->assertSame(Jobs\BasicJob::class, $recent->first()->name);
+        $this->assertSame(BasicJob::class, $recent->first()->name);
         $this->assertEquals($ids[4], $recent->first()->id);
         $this->assertEquals($ids[0], $recent->last()->id);
         $this->assertSame(0, $recent->first()->index);
@@ -48,15 +49,15 @@ class JobRetrievalTest extends IntegrationTestCase
         $this->assertCount(0, $recent);
     }
 
-    public function testRecentJobsAreCorrectlyTrimmedAndExpired()
+    public function testRecentJobsAreCorrectlyTrimmedAndExpired(): void
     {
         $ids = [];
 
-        $ids[] = Queue::push(new Jobs\BasicJob);
-        $ids[] = Queue::push(new Jobs\BasicJob);
-        $ids[] = Queue::push(new Jobs\BasicJob);
-        $ids[] = Queue::push(new Jobs\BasicJob);
-        $ids[] = Queue::push(new Jobs\BasicJob);
+        $ids[] = Queue::push(new BasicJob);
+        $ids[] = Queue::push(new BasicJob);
+        $ids[] = Queue::push(new BasicJob);
+        $ids[] = Queue::push(new BasicJob);
+        $ids[] = Queue::push(new BasicJob);
 
         $repository = resolve(JobRepository::class);
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addHours(3));
@@ -73,12 +74,12 @@ class JobRetrievalTest extends IntegrationTestCase
         CarbonImmutable::setTestNow();
     }
 
-    public function testPaginatingLargeJobResultsGivesCorrectAmounts()
+    public function testPaginatingLargeJobResultsGivesCorrectAmounts(): void
     {
         $ids = [];
 
         for ($i = 0; $i < 75; ++$i) {
-            $ids[] = Queue::push(new Jobs\BasicJob);
+            $ids[] = Queue::push(new BasicJob);
         }
 
         $repository = resolve(JobRepository::class);

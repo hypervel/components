@@ -8,11 +8,16 @@ use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Stopwatch;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Queue;
+use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\Jobs\BasicJob;
+use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\Jobs\ConditionallyFailingJob;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
 
 class MetricsTest extends IntegrationTestCase
 {
+    /**
+     * Clear metrics before the test.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -22,10 +27,10 @@ class MetricsTest extends IntegrationTestCase
         resolve(MetricsRepository::class)->clear();
     }
 
-    public function testTotalThroughputIsStored()
+    public function testTotalThroughputIsStored(): void
     {
-        Queue::push(new Jobs\BasicJob);
-        Queue::push(new Jobs\BasicJob);
+        Queue::push(new BasicJob);
+        Queue::push(new BasicJob);
 
         $this->work();
         $this->work();
@@ -33,12 +38,12 @@ class MetricsTest extends IntegrationTestCase
         $this->assertSame(2, resolve(MetricsRepository::class)->throughput());
     }
 
-    public function testThroughputIsStoredPerJobClass()
+    public function testThroughputIsStoredPerJobClass(): void
     {
-        Queue::push(new Jobs\BasicJob);
-        Queue::push(new Jobs\BasicJob);
-        Queue::push(new Jobs\BasicJob);
-        Queue::push(new Jobs\ConditionallyFailingJob);
+        Queue::push(new BasicJob);
+        Queue::push(new BasicJob);
+        Queue::push(new BasicJob);
+        Queue::push(new ConditionallyFailingJob);
 
         $this->work();
         $this->work();
@@ -46,16 +51,16 @@ class MetricsTest extends IntegrationTestCase
         $this->work();
 
         $this->assertSame(4, resolve(MetricsRepository::class)->throughput());
-        $this->assertSame(3, resolve(MetricsRepository::class)->throughputForJob(Jobs\BasicJob::class));
-        $this->assertSame(1, resolve(MetricsRepository::class)->throughputForJob(Jobs\ConditionallyFailingJob::class));
+        $this->assertSame(3, resolve(MetricsRepository::class)->throughputForJob(BasicJob::class));
+        $this->assertSame(1, resolve(MetricsRepository::class)->throughputForJob(ConditionallyFailingJob::class));
     }
 
-    public function testThroughputIsStoredPerQueue()
+    public function testThroughputIsStoredPerQueue(): void
     {
-        Queue::push(new Jobs\BasicJob);
-        Queue::push(new Jobs\BasicJob);
-        Queue::push(new Jobs\BasicJob);
-        Queue::push(new Jobs\ConditionallyFailingJob);
+        Queue::push(new BasicJob);
+        Queue::push(new BasicJob);
+        Queue::push(new BasicJob);
+        Queue::push(new ConditionallyFailingJob);
 
         $this->work();
         $this->work();
@@ -66,7 +71,7 @@ class MetricsTest extends IntegrationTestCase
         $this->assertSame(4, resolve(MetricsRepository::class)->throughputForQueue('default'));
     }
 
-    public function testAverageRuntimeIsStoredPerJobClassInMilliseconds()
+    public function testAverageRuntimeIsStoredPerJobClassInMilliseconds(): void
     {
         $stopwatch = m::mock(Stopwatch::class);
         $stopwatch->shouldReceive('start');
@@ -74,16 +79,16 @@ class MetricsTest extends IntegrationTestCase
         $stopwatch->shouldReceive('check')->andReturn(1, 2);
         $this->app->instance(Stopwatch::class, $stopwatch);
 
-        Queue::push(new Jobs\BasicJob);
-        Queue::push(new Jobs\BasicJob);
+        Queue::push(new BasicJob);
+        Queue::push(new BasicJob);
 
         $this->work();
         $this->work();
 
-        $this->assertSame(1.5, resolve(MetricsRepository::class)->runtimeForJob(Jobs\BasicJob::class));
+        $this->assertSame(1.5, resolve(MetricsRepository::class)->runtimeForJob(BasicJob::class));
     }
 
-    public function testAverageRuntimeIsStoredPerQueueInMilliseconds()
+    public function testAverageRuntimeIsStoredPerQueueInMilliseconds(): void
     {
         $stopwatch = m::mock(Stopwatch::class);
         $stopwatch->shouldReceive('start');
@@ -91,8 +96,8 @@ class MetricsTest extends IntegrationTestCase
         $stopwatch->shouldReceive('check')->andReturn(1, 2);
         $this->app->instance(Stopwatch::class, $stopwatch);
 
-        Queue::push(new Jobs\BasicJob);
-        Queue::push(new Jobs\BasicJob);
+        Queue::push(new BasicJob);
+        Queue::push(new BasicJob);
 
         $this->work();
         $this->work();
@@ -100,21 +105,21 @@ class MetricsTest extends IntegrationTestCase
         $this->assertSame(1.5, resolve(MetricsRepository::class)->runtimeForQueue('default'));
     }
 
-    public function testListOfAllJobsWithMetricInformationIsMaintained()
+    public function testListOfAllJobsWithMetricInformationIsMaintained(): void
     {
-        Queue::push(new Jobs\BasicJob);
-        Queue::push(new Jobs\ConditionallyFailingJob);
+        Queue::push(new BasicJob);
+        Queue::push(new ConditionallyFailingJob);
 
         $this->work();
         $this->work();
 
         $jobs = resolve(MetricsRepository::class)->measuredJobs();
         $this->assertCount(2, $jobs);
-        $this->assertContains(Jobs\ConditionallyFailingJob::class, $jobs);
-        $this->assertContains(Jobs\BasicJob::class, $jobs);
+        $this->assertContains(ConditionallyFailingJob::class, $jobs);
+        $this->assertContains(BasicJob::class, $jobs);
     }
 
-    public function testSnapshotOfMetricsPerformanceCanBeStored()
+    public function testSnapshotOfMetricsPerformanceCanBeStored(): void
     {
         $stopwatch = m::mock(Stopwatch::class);
         $stopwatch->shouldReceive('start');
@@ -122,8 +127,8 @@ class MetricsTest extends IntegrationTestCase
         $stopwatch->shouldReceive('check')->andReturn(1, 2, 3);
         $this->app->instance(Stopwatch::class, $stopwatch);
 
-        Queue::push(new Jobs\BasicJob);
-        Queue::push(new Jobs\BasicJob);
+        Queue::push(new BasicJob);
+        Queue::push(new BasicJob);
 
         // Run first two jobs...
         $this->work();
@@ -137,12 +142,12 @@ class MetricsTest extends IntegrationTestCase
         resolve(MetricsRepository::class)->snapshot();
 
         // Work another job and take another snapshot...
-        Queue::push(new Jobs\BasicJob);
+        Queue::push(new BasicJob);
         $this->work();
         CarbonImmutable::setTestNow($secondTimestamp);
         resolve(MetricsRepository::class)->snapshot();
 
-        $snapshots = resolve(MetricsRepository::class)->snapshotsForJob(Jobs\BasicJob::class);
+        $snapshots = resolve(MetricsRepository::class)->snapshotsForJob(BasicJob::class);
 
         // Test job snapshots...
         $this->assertEquals([
@@ -176,7 +181,7 @@ class MetricsTest extends IntegrationTestCase
         ], $snapshots);
     }
 
-    public function testJobsProcessedPerMinuteSinceLastSnapshotIsCalculable()
+    public function testJobsProcessedPerMinuteSinceLastSnapshotIsCalculable(): void
     {
         $stopwatch = m::mock(Stopwatch::class);
         $stopwatch->shouldReceive('start');
@@ -184,8 +189,8 @@ class MetricsTest extends IntegrationTestCase
         $stopwatch->shouldReceive('check')->andReturn(1);
         $this->app->instance(Stopwatch::class, $stopwatch);
 
-        Queue::push(new Jobs\BasicJob);
-        Queue::push(new Jobs\BasicJob);
+        Queue::push(new BasicJob);
+        Queue::push(new BasicJob);
 
         // Run first two jobs...
         $this->work();
@@ -228,14 +233,14 @@ class MetricsTest extends IntegrationTestCase
 
         // Run the jobs...
         for ($i = 0; $i < 30; ++$i) {
-            Queue::push(new Jobs\BasicJob);
+            Queue::push(new BasicJob);
             $this->work();
             resolve(MetricsRepository::class)->snapshot();
             CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(1));
         }
 
         // Check the job snapshots...
-        $snapshots = resolve(MetricsRepository::class)->snapshotsForJob(Jobs\BasicJob::class);
+        $snapshots = resolve(MetricsRepository::class)->snapshotsForJob(BasicJob::class);
         $this->assertCount($retention, $snapshots);
         $this->assertSame(
             CarbonImmutable::now()->getTimestamp() - 1,
@@ -253,7 +258,7 @@ class MetricsTest extends IntegrationTestCase
         CarbonImmutable::setTestNow();
     }
 
-    public function testClearRemovesAllMetricsData()
+    public function testClearRemovesAllMetricsData(): void
     {
         $stopwatch = m::mock(Stopwatch::class);
         $stopwatch->shouldReceive('start');
@@ -261,8 +266,8 @@ class MetricsTest extends IntegrationTestCase
         $stopwatch->shouldReceive('check')->andReturn(1);
         $this->app->instance(Stopwatch::class, $stopwatch);
 
-        Queue::push(new Jobs\BasicJob);
-        Queue::push(new Jobs\ConditionallyFailingJob);
+        Queue::push(new BasicJob);
+        Queue::push(new ConditionallyFailingJob);
 
         $this->work();
         $this->work();
@@ -275,7 +280,7 @@ class MetricsTest extends IntegrationTestCase
         // Verify data exists before clearing
         $this->assertNotEmpty($metrics->measuredJobs());
         $this->assertNotEmpty($metrics->measuredQueues());
-        $this->assertNotEmpty($metrics->snapshotsForJob(Jobs\BasicJob::class));
+        $this->assertNotEmpty($metrics->snapshotsForJob(BasicJob::class));
         $this->assertNotEmpty($metrics->snapshotsForQueue('default'));
 
         // Clear all metrics
@@ -285,14 +290,14 @@ class MetricsTest extends IntegrationTestCase
         $this->assertEmpty($metrics->measuredJobs());
         $this->assertEmpty($metrics->measuredQueues());
         $this->assertSame(0, $metrics->throughput());
-        $this->assertEmpty($metrics->snapshotsForJob(Jobs\BasicJob::class));
-        $this->assertEmpty($metrics->snapshotsForJob(Jobs\ConditionallyFailingJob::class));
+        $this->assertEmpty($metrics->snapshotsForJob(BasicJob::class));
+        $this->assertEmpty($metrics->snapshotsForJob(ConditionallyFailingJob::class));
         $this->assertEmpty($metrics->snapshotsForQueue('default'));
 
         CarbonImmutable::setTestNow();
     }
 
-    public function testClearIsIdempotent()
+    public function testClearIsIdempotent(): void
     {
         $metrics = resolve(MetricsRepository::class);
 

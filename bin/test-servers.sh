@@ -102,23 +102,23 @@ wait_for_tcp() {
 start_engine() {
     echo "Starting engine test servers..."
 
-    setsid php "$PROJECT_DIR/src/engine/examples/http_server.php" &
+    setsid php "$PROJECT_DIR/tests/Integration/Engine/Fixtures/http_server.php" &
     PIDS+=($!)
     echo "  HTTP server started on port 19501 (PID: $!)"
 
-    setsid php "$PROJECT_DIR/src/engine/examples/tcp_packet_server.php" &
+    setsid php "$PROJECT_DIR/tests/Integration/Engine/Fixtures/tcp_packet_server.php" &
     PIDS+=($!)
     echo "  TCP packet server started on port 19502 (PID: $!)"
 
-    setsid php "$PROJECT_DIR/src/engine/examples/websocket_server.php" &
+    setsid php "$PROJECT_DIR/tests/Integration/Engine/Fixtures/websocket_server.php" &
     PIDS+=($!)
     echo "  WebSocket server started on port 19503 (PID: $!)"
 
-    setsid php "$PROJECT_DIR/src/engine/examples/http_server_v2.php" &
+    setsid php "$PROJECT_DIR/tests/Integration/Engine/Fixtures/http_server_v2.php" &
     PIDS+=($!)
     echo "  HTTP v2 server started on port 19505 (PID: $!)"
 
-    setsid php "$PROJECT_DIR/tests/Integration/HttpServer/server.php" &
+    setsid php "$PROJECT_DIR/tests/Integration/HttpServer/Fixtures/server.php" &
     PIDS+=($!)
     echo "  Hypervel HTTP Server starting on port 19506 (PID: $!)..."
 
@@ -134,7 +134,7 @@ start_grpc() {
 
     mkdir -p "$PROJECT_DIR/.tmp/grpc-interop"
     (
-        cd "$PROJECT_DIR/tests/Integration/Grpc/Interop"
+        cd "$PROJECT_DIR/tests/Integration/Grpc/Fixtures/Interop"
         go build -o "$PROJECT_DIR/.tmp/grpc-interop/server" ./server
         go build -o "$PROJECT_DIR/.tmp/grpc-interop/client" ./client
     )
@@ -142,12 +142,12 @@ start_grpc() {
     echo "Starting gRPC test servers..."
 
     # Hypervel peers start serially because Testbench bootstrap paths are shared.
-    setsid sh -c "GRPC_TEST_SERVER_PORT=19520 GRPC_TEST_SERVER_COMPRESSION=gzip exec php '$PROJECT_DIR/tests/Integration/Grpc/server.php'" &
+    setsid sh -c "GRPC_TEST_SERVER_PORT=19520 GRPC_TEST_SERVER_COMPRESSION=gzip exec php '$PROJECT_DIR/tests/Integration/Grpc/Fixtures/server.php'" &
     PIDS+=($!)
     echo "  Hypervel gRPC server starting on port 19520 (PID: $!)..."
     wait_for_tcp 19520 "Hypervel gRPC"
 
-    setsid sh -c "GRPC_TEST_SERVER_PORT=19522 GRPC_TEST_SERVER_COMPRESSION=gzip GRPC_TEST_SERVER_CERT='$PROJECT_DIR/tests/Integration/Grpc/Fixtures/Tls/server.crt' GRPC_TEST_SERVER_KEY='$PROJECT_DIR/tests/Integration/Grpc/Fixtures/Tls/server.key' exec php '$PROJECT_DIR/tests/Integration/Grpc/server.php'" &
+    setsid sh -c "GRPC_TEST_SERVER_PORT=19522 GRPC_TEST_SERVER_COMPRESSION=gzip GRPC_TEST_SERVER_CERT='$PROJECT_DIR/tests/Integration/Grpc/Fixtures/Tls/server.crt' GRPC_TEST_SERVER_KEY='$PROJECT_DIR/tests/Integration/Grpc/Fixtures/Tls/server.key' exec php '$PROJECT_DIR/tests/Integration/Grpc/Fixtures/server.php'" &
     PIDS+=($!)
     echo "  Hypervel TLS gRPC server starting on port 19522 (PID: $!)..."
     wait_for_tcp 19522 "Hypervel TLS gRPC"
@@ -170,32 +170,32 @@ start_reverb() {
     # Reverb servers are started serially with readiness checks.
     # They share Bootstrapper temp paths and race if started concurrently.
 
-    setsid sh -c "REVERB_SERVER_PORT=19510 exec php '$PROJECT_DIR/tests/Integration/Reverb/server.php'" &
+    setsid sh -c "REVERB_SERVER_PORT=19510 exec php '$PROJECT_DIR/tests/Integration/Reverb/Fixtures/server.php'" &
     PIDS+=($!)
     echo "  Reverb server starting on port 19510 (PID: $!)..."
     wait_for_server 19510 "Reverb"
 
-    setsid sh -c "REVERB_SERVER_PORT=19511 REVERB_SCALING_ENABLED=true exec php '$PROJECT_DIR/tests/Integration/Reverb/server.php'" &
+    setsid sh -c "REVERB_SERVER_PORT=19511 REVERB_SCALING_ENABLED=true exec php '$PROJECT_DIR/tests/Integration/Reverb/Fixtures/server.php'" &
     PIDS+=($!)
     echo "  Reverb Redis server starting on port 19511 (PID: $!)..."
     wait_for_server 19511 "Reverb Redis"
 
-    setsid sh -c "REVERB_SERVER_PORT=19512 REVERB_TEST_WORKER_NUM=2 exec php '$PROJECT_DIR/tests/Integration/Reverb/server.php'" &
+    setsid sh -c "REVERB_SERVER_PORT=19512 REVERB_TEST_WORKER_NUM=2 exec php '$PROJECT_DIR/tests/Integration/Reverb/Fixtures/server.php'" &
     PIDS+=($!)
     echo "  Reverb multi-worker server starting on port 19512 (PID: $!)..."
     wait_for_server 19512 "Reverb multi-worker"
 
-    setsid sh -c "REVERB_SERVER_PORT=19513 REVERB_SCALING_ENABLED=true exec php '$PROJECT_DIR/tests/Integration/Reverb/server.php'" &
+    setsid sh -c "REVERB_SERVER_PORT=19513 REVERB_SCALING_ENABLED=true exec php '$PROJECT_DIR/tests/Integration/Reverb/Fixtures/server.php'" &
     PIDS+=($!)
     echo "  Reverb scaling server A starting on port 19513 (PID: $!)..."
     wait_for_server 19513 "Reverb scaling A"
 
-    setsid sh -c "REVERB_SERVER_PORT=19514 REVERB_SCALING_ENABLED=true exec php '$PROJECT_DIR/tests/Integration/Reverb/server.php'" &
+    setsid sh -c "REVERB_SERVER_PORT=19514 REVERB_SCALING_ENABLED=true exec php '$PROJECT_DIR/tests/Integration/Reverb/Fixtures/server.php'" &
     PIDS+=($!)
     echo "  Reverb scaling server B starting on port 19514 (PID: $!)..."
     wait_for_server 19514 "Reverb scaling B"
 
-    setsid sh -c "REVERB_SERVER_PORT=19515 REVERB_SCALING_ENABLED=true REVERB_TEST_WORKER_NUM=2 exec php '$PROJECT_DIR/tests/Integration/Reverb/server.php'" &
+    setsid sh -c "REVERB_SERVER_PORT=19515 REVERB_SCALING_ENABLED=true REVERB_TEST_WORKER_NUM=2 exec php '$PROJECT_DIR/tests/Integration/Reverb/Fixtures/server.php'" &
     PIDS+=($!)
     echo "  Reverb scaling+multi-worker server starting on port 19515 (PID: $!)..."
     wait_for_server 19515 "Reverb scaling+multi-worker"

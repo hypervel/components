@@ -14,8 +14,8 @@ use Hypervel\Scout\Jobs\RemoveableScoutCollection;
 use Hypervel\Scout\Jobs\RemoveFromSearch;
 use Hypervel\Scout\Jobs\RemoveFromSearchUniquely;
 use Hypervel\Support\Facades\DB;
-use Hypervel\Tests\Scout\Models\CustomScoutKeyModel;
-use Hypervel\Tests\Scout\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\CustomScoutKeyModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 use Mockery as m;
 

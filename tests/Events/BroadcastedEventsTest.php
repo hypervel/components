@@ -10,12 +10,13 @@ use Hypervel\Contracts\Broadcasting\Factory as BroadcastFactory;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Events\Dispatchable;
+use Hypervel\Tests\Events\Fixtures\ExampleEvent;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
 class BroadcastedEventsTest extends TestCase
 {
-    public function testShouldBroadcastSuccess()
+    public function testShouldBroadcastSuccess(): void
     {
         $d = m::mock(Dispatcher::class);
 
@@ -30,7 +31,7 @@ class BroadcastedEventsTest extends TestCase
         $this->assertTrue($d->shouldBroadcast([$event]));
     }
 
-    public function testShouldBroadcastAsQueuedAndCallNormalListeners()
+    public function testShouldBroadcastAsQueuedAndCallNormalListeners(): void
     {
         unset($_SERVER['__event.test']);
         $d = new Dispatcher($container = m::mock(Container::class));
@@ -54,7 +55,7 @@ class BroadcastedEventsTest extends TestCase
         $this->assertFalse($d->hasListeners(AlwaysBroadcastEvent::class));
     }
 
-    public function testShouldBroadcastFail()
+    public function testShouldBroadcastFail(): void
     {
         $d = m::mock(Dispatcher::class);
 
@@ -69,7 +70,7 @@ class BroadcastedEventsTest extends TestCase
         $this->assertFalse($d->shouldBroadcast([$event]));
     }
 
-    public function testBroadcastWithMultipleChannels()
+    public function testBroadcastWithMultipleChannels(): void
     {
         $d = new Dispatcher($container = m::mock(Container::class));
         $broadcast = m::mock(BroadcastFactory::class);
@@ -86,7 +87,7 @@ class BroadcastedEventsTest extends TestCase
         $d->dispatch($event);
     }
 
-    public function testBroadcastWithCustomConnectionName()
+    public function testBroadcastWithCustomConnectionName(): void
     {
         $d = new Dispatcher($container = m::mock(Container::class));
         $broadcast = m::mock(BroadcastFactory::class);
@@ -105,7 +106,7 @@ class BroadcastedEventsTest extends TestCase
         $d->dispatch($event);
     }
 
-    public function testBroadcastWithCustomEventName()
+    public function testBroadcastWithCustomEventName(): void
     {
         $d = new Dispatcher($container = m::mock(Container::class));
         $broadcast = m::mock(BroadcastFactory::class);
@@ -127,7 +128,7 @@ class BroadcastedEventsTest extends TestCase
         $d->dispatch($event);
     }
 
-    public function testBroadcastWithCustomPayload()
+    public function testBroadcastWithCustomPayload(): void
     {
         $d = new Dispatcher($container = m::mock(Container::class));
         $broadcast = m::mock(BroadcastFactory::class);
@@ -211,10 +212,6 @@ class BroadcastFalseCondition extends BroadcastEvent
     {
         return false;
     }
-}
-
-class ExampleEvent
-{
 }
 
 class BroadcastableNamedArgumentsEvent

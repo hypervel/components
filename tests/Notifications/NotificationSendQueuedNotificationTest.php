@@ -5,14 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Notifications;
 
 use Hypervel\Contracts\Database\ModelIdentifier;
-use Hypervel\Database\Eloquent\Model;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\ChannelManager;
-use Hypervel\Notifications\Notifiable;
 use Hypervel\Notifications\Notification;
 use Hypervel\Notifications\SendQueuedNotifications;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
+use Hypervel\Tests\Notifications\Fixtures\Models\NotifiableUser;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -76,15 +75,6 @@ class NotificationSendQueuedNotificationTest extends TestCase
             (new SendQueuedNotifications('notifiable', $notification))->retryUntil()
         );
     }
-}
-
-class NotifiableUser extends Model
-{
-    use Notifiable;
-
-    protected ?string $table = 'users';
-
-    public bool $timestamps = false;
 }
 
 class TestNotification extends Notification

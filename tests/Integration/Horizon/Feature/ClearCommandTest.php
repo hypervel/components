@@ -14,7 +14,7 @@ use Hypervel\Horizon\Repositories\RedisJobRepository;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;
-use Hypervel\Tests\Integration\Horizon\Feature\Jobs\BasicJob;
+use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\Jobs\BasicJob;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -23,6 +23,9 @@ use Symfony\Component\Console\Output\BufferedOutput;
 
 class ClearCommandTest extends IntegrationTestCase
 {
+    /**
+     * Configure separate and shared queue storage connections.
+     */
     protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);

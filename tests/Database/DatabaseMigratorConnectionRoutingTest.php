@@ -613,8 +613,8 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         $migrator = new Migrator($repository, $resolver, new Filesystem);
 
         $connections = $migrator->getMigrationConnections([
-            __DIR__ . '/migrations/one',
-            __DIR__ . '/migrations/connection_targets',
+            __DIR__ . '/Fixtures/migrations/one',
+            __DIR__ . '/Fixtures/migrations/connection_targets',
         ]);
 
         $this->assertSame(
@@ -643,7 +643,7 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
 
         $this->assertSame(
             ['default-direct'],
-            $migrator->getMigrationConnections(__DIR__ . '/migrations/missing'),
+            $migrator->getMigrationConnections(__DIR__ . '/Fixtures/migrations/missing'),
         );
     }
 

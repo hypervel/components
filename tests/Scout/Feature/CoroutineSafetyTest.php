@@ -14,7 +14,7 @@ use Hypervel\Scout\ModelObserver;
 use Hypervel\Scout\Scout;
 use Hypervel\Scout\Searchable;
 use Hypervel\Support\Facades\Bus;
-use Hypervel\Tests\Scout\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 use RuntimeException;
 

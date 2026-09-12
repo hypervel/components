@@ -36,6 +36,8 @@ use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\Database\Fixtures\Enums\Bar;
+use Hypervel\Tests\Database\Fixtures\Enums\IntegerStatus;
+use Hypervel\Tests\Database\Fixtures\Enums\NonBackedStatus;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -44,8 +46,6 @@ use RuntimeException;
 use SortDirection;
 use stdClass;
 use TypeError;
-
-include_once 'Enums.php';
 
 class DatabaseQueryBuilderTest extends TestCase
 {

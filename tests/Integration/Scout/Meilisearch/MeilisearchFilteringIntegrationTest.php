@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Scout\Meilisearch;
 
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
-use Hypervel\Tests\Scout\Models\SearchableModel;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModel;
 use Meilisearch\Exceptions\ApiException;
 
 /**

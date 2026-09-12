@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Console;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
-use Hypervel\Tests\Console\Commands\GeneratorCommandStub;
+use Hypervel\Tests\Console\Fixtures\Commands\GeneratorCommandStub;
 use Mockery as m;
 use ReflectionProperty;
 use RuntimeException;
