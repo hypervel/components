@@ -14,6 +14,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
 use Hypervel\Process\Factory as ProcessFactory;
+use Hypervel\Process\FakeProcessResult;
 use Hypervel\Process\PendingProcess;
 use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
@@ -22,14 +23,22 @@ use Hypervel\Support\Facades\Context;
 use Hypervel\Testbench\Attributes\UsesVendor;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Concurrency\Fixtures\ConcurrentProcessExceptionFixtures;
+use Hypervel\Tests\Concurrency\Fixtures\ExceptionWithFalseyParam;
+use Hypervel\Tests\Concurrency\Fixtures\ExceptionWithoutParam;
+use Hypervel\Tests\Concurrency\Fixtures\ExceptionWithParam;
 use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine as SwooleCoroutine;
+use Swoole\Process as SwooleProcess;
 
 class ConcurrencyTest extends TestCase
 {
     private CoroutineDriver $coroutineDriver;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -37,22 +46,22 @@ class ConcurrencyTest extends TestCase
         $this->coroutineDriver = new CoroutineDriver;
     }
 
-    public function testRunReturnsConcurrentResults()
+    public function testRunReturnsConcurrentResults(): void
     {
         [$first, $second] = $this->coroutineDriver->run([
-            fn () => 1 + 1,
-            fn () => 2 + 2,
+            fn (): int => 1 + 1,
+            fn (): int => 2 + 2,
         ]);
 
         $this->assertSame(2, $first);
         $this->assertSame(4, $second);
     }
 
-    public function testRunPreservesStringKeys()
+    public function testRunPreservesStringKeys(): void
     {
         $results = $this->coroutineDriver->run([
-            'first' => fn () => 1 + 1,
-            'second' => fn () => 2 + 2,
+            'first' => fn (): int => 1 + 1,
+            'second' => fn (): int => 2 + 2,
         ]);
 
         $this->assertArrayHasKey('first', $results);
@@ -61,18 +70,18 @@ class ConcurrencyTest extends TestCase
         $this->assertSame(4, $results['second']);
     }
 
-    public function testRunPreservesOrderRegardlessOfCompletionTime()
+    public function testRunPreservesOrderRegardlessOfCompletionTime(): void
     {
         [$first, $second, $third] = $this->coroutineDriver->run([
-            function () {
+            function (): string {
                 usleep(50000);
                 return 'first';
             },
-            function () {
+            function (): string {
                 usleep(25000);
                 return 'second';
             },
-            function () {
+            function (): string {
                 return 'third';
             },
         ]);
@@ -82,22 +91,22 @@ class ConcurrencyTest extends TestCase
         $this->assertSame('third', $third);
     }
 
-    public function testRunRethrowsExceptions()
+    public function testRunRethrowsExceptions(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('something went wrong');
+        $this->expectExceptionMessageIsOrContains('something went wrong');
 
         $this->coroutineDriver->run([
-            fn () => throw new RuntimeException('something went wrong'),
-            fn () => 'ok',
+            fn (): never => throw new RuntimeException('something went wrong'),
+            fn (): string => 'ok',
         ]);
     }
 
-    public function testRunRethrowsCustomExceptionWithOriginalMessage()
+    public function testRunRethrowsCustomExceptionWithOriginalMessage(): void
     {
         try {
             $this->coroutineDriver->run([
-                fn () => throw new ConcurrencyTestException('https://api.example.com', 400),
+                fn (): never => throw new ConcurrencyTestException('https://api.example.com', 400),
             ]);
 
             $this->fail('Expected exception was not thrown');
@@ -108,18 +117,18 @@ class ConcurrencyTest extends TestCase
         }
     }
 
-    public function testRunRethrowsExceptionFromEarliestInputPositionWhenMultipleTasksFail()
+    public function testRunRethrowsExceptionFromEarliestInputPositionWhenMultipleTasksFail(): void
     {
         $caught = null;
 
         try {
             $this->coroutineDriver->run([
-                function () {
+                function (): never {
                     // Task 0: fails later (50ms).
                     usleep(50000);
                     throw new RuntimeException('first in input');
                 },
-                function () {
+                function (): never {
                     // Task 1: fails immediately, before task 0.
                     throw new RuntimeException('second in input');
                 },
@@ -132,48 +141,48 @@ class ConcurrencyTest extends TestCase
         $this->assertSame('first in input', $caught->getMessage());
     }
 
-    public function testRunWithEmptyArrayReturnsEmptyArray()
+    public function testRunWithEmptyArrayReturnsEmptyArray(): void
     {
         $results = $this->coroutineDriver->run([]);
 
         $this->assertSame([], $results);
     }
 
-    public function testRunWithSingleTask()
+    public function testRunWithSingleTask(): void
     {
         $results = $this->coroutineDriver->run([
-            fn () => 42,
+            fn (): int => 42,
         ]);
 
         $this->assertSame([42], $results);
     }
 
-    public function testRunWithSingleClosure()
+    public function testRunWithSingleClosure(): void
     {
-        $results = $this->coroutineDriver->run(fn () => 42);
+        $results = $this->coroutineDriver->run(fn (): int => 42);
 
         $this->assertSame([42], $results);
     }
 
-    public function testRunExecutesConcurrently()
+    public function testRunExecutesConcurrently(): void
     {
         $results = $this->coroutineDriver->run([
-            fn () => Coroutine::id(),
-            fn () => Coroutine::id(),
-            fn () => Coroutine::id(),
+            fn (): int => Coroutine::id(),
+            fn (): int => Coroutine::id(),
+            fn (): int => Coroutine::id(),
         ]);
 
         // Each task runs in its own coroutine, so IDs must be unique.
         $this->assertCount(3, array_unique($results));
     }
 
-    public function testRunPropagatesParentContext()
+    public function testRunPropagatesParentContext(): void
     {
         CoroutineContext::set('test_key', 'test_value');
 
         $results = $this->coroutineDriver->run([
-            fn () => CoroutineContext::get('test_key'),
-            fn () => CoroutineContext::get('test_key'),
+            fn (): mixed => CoroutineContext::get('test_key'),
+            fn (): mixed => CoroutineContext::get('test_key'),
         ]);
 
         $this->assertSame(['test_value', 'test_value'], $results);
@@ -205,10 +214,10 @@ class ConcurrencyTest extends TestCase
         $this->assertSame('Unable to replicate context.', $outcome->getMessage());
     }
 
-    public function testRunChildContextDoesNotLeakToParent()
+    public function testRunChildContextDoesNotLeakToParent(): void
     {
         $this->coroutineDriver->run([
-            function () {
+            function (): void {
                 CoroutineContext::set('child_key', 'child_value');
             },
         ]);
@@ -216,15 +225,15 @@ class ConcurrencyTest extends TestCase
         $this->assertNull(CoroutineContext::get('child_key'));
     }
 
-    public function testRunChildContextDoesNotLeakBetweenTasks()
+    public function testRunChildContextDoesNotLeakBetweenTasks(): void
     {
         $results = $this->coroutineDriver->run([
-            function () {
+            function (): mixed {
                 CoroutineContext::set('task_key', 'from_task_1');
                 usleep(10000);
                 return CoroutineContext::get('task_key');
             },
-            function () {
+            function (): mixed {
                 usleep(5000);
                 return CoroutineContext::get('task_key');
             },
@@ -234,28 +243,28 @@ class ConcurrencyTest extends TestCase
         $this->assertNull($results[1]);
     }
 
-    public function testDeferReturnsDeferredCallback()
+    public function testDeferReturnsDeferredCallback(): void
     {
         $collection = new DeferredCallbackCollection;
-        $this->app->scoped(DeferredCallbackCollection::class, fn () => $collection);
+        $this->app->scoped(DeferredCallbackCollection::class, fn (): DeferredCallbackCollection => $collection);
 
         $result = $this->coroutineDriver->defer([
-            fn () => 1 + 1,
+            fn (): int => 1 + 1,
         ]);
 
         $this->assertInstanceOf(DeferredCallback::class, $result);
         $this->assertCount(1, $collection);
     }
 
-    public function testDeferExecutesTasksWhenInvoked()
+    public function testDeferExecutesTasksWhenInvoked(): void
     {
         $collection = new DeferredCallbackCollection;
-        $this->app->scoped(DeferredCallbackCollection::class, fn () => $collection);
+        $this->app->scoped(DeferredCallbackCollection::class, fn (): DeferredCallbackCollection => $collection);
 
         $executed = false;
 
         $this->coroutineDriver->defer([
-            function () use (&$executed) {
+            function () use (&$executed): void {
                 $executed = true;
             },
         ]);
@@ -269,16 +278,16 @@ class ConcurrencyTest extends TestCase
         $this->assertTrue($executed);
     }
 
-    public function testDeferPropagatesContext()
+    public function testDeferPropagatesContext(): void
     {
         $collection = new DeferredCallbackCollection;
-        $this->app->scoped(DeferredCallbackCollection::class, fn () => $collection);
+        $this->app->scoped(DeferredCallbackCollection::class, fn (): DeferredCallbackCollection => $collection);
 
         CoroutineContext::set('defer_key', 'defer_value');
         $capturedValue = null;
 
         $this->coroutineDriver->defer([
-            function () use (&$capturedValue) {
+            function () use (&$capturedValue): void {
                 $capturedValue = CoroutineContext::get('defer_key');
             },
         ]);
@@ -288,36 +297,36 @@ class ConcurrencyTest extends TestCase
         $this->assertSame('defer_value', $capturedValue);
     }
 
-    public function testFacadeRun()
+    public function testFacadeRun(): void
     {
         [$first, $second] = ConcurrencyFacade::run([
-            fn () => 1 + 1,
-            fn () => 2 + 2,
+            fn (): int => 1 + 1,
+            fn (): int => 2 + 2,
         ]);
 
         $this->assertSame(2, $first);
         $this->assertSame(4, $second);
     }
 
-    public function testFacadeDefer()
+    public function testFacadeDefer(): void
     {
         $collection = new DeferredCallbackCollection;
-        $this->app->scoped(DeferredCallbackCollection::class, fn () => $collection);
+        $this->app->scoped(DeferredCallbackCollection::class, fn (): DeferredCallbackCollection => $collection);
 
         $result = ConcurrencyFacade::defer([
-            fn () => 1 + 1,
+            fn (): int => 1 + 1,
         ]);
 
         $this->assertInstanceOf(DeferredCallback::class, $result);
         $this->assertCount(1, $collection);
     }
 
-    public function testFacadeResolvesManager()
+    public function testFacadeResolvesManager(): void
     {
         $this->assertInstanceOf(ConcurrencyManager::class, ConcurrencyFacade::getFacadeRoot());
     }
 
-    public function testManagerDefaultDriverIsCoroutine()
+    public function testManagerDefaultDriverIsCoroutine(): void
     {
         $manager = $this->app->make(ConcurrencyManager::class);
 
@@ -337,21 +346,21 @@ class ConcurrencyTest extends TestCase
         $this->assertSame($driverConfig, $manager->getInstanceConfig('sync'));
     }
 
-    public function testManagerResolvesCoroutineDriver()
+    public function testManagerResolvesCoroutineDriver(): void
     {
         $manager = $this->app->make(ConcurrencyManager::class);
 
         $this->assertInstanceOf(CoroutineDriver::class, $manager->driver('coroutine'));
     }
 
-    public function testManagerResolvesProcessDriver()
+    public function testManagerResolvesProcessDriver(): void
     {
         $manager = $this->app->make(ConcurrencyManager::class);
 
         $this->assertInstanceOf(ProcessDriver::class, $manager->driver('process'));
     }
 
-    public function testManagerResolvesSyncDriver()
+    public function testManagerResolvesSyncDriver(): void
     {
         $manager = $this->app->make(ConcurrencyManager::class);
 
@@ -362,9 +371,9 @@ class ConcurrencyTest extends TestCase
     {
         $manager = $this->app->make(ConcurrencyManager::class);
 
-        $manager->extend('Primary', fn () => new SyncDriver);
-        $manager->extend('1', fn () => new SyncDriver);
-        $manager->extend('0', fn () => new SyncDriver);
+        $manager->extend('Primary', fn (): SyncDriver => new SyncDriver);
+        $manager->extend('1', fn (): SyncDriver => new SyncDriver);
+        $manager->extend('0', fn (): SyncDriver => new SyncDriver);
 
         $this->assertSame($manager->driver('Primary'), $manager->driver(ConcurrencyUnitIdentifier::Primary));
         $this->assertSame($manager->driver('1'), $manager->driver(ConcurrencyIntegerIdentifier::Primary));
@@ -374,7 +383,7 @@ class ConcurrencyTest extends TestCase
         $this->assertInstanceOf(SyncDriver::class, $manager->driver(ConcurrencyIntegerIdentifier::Zero));
     }
 
-    public function testManagerCachesDriverInstances()
+    public function testManagerCachesDriverInstances(): void
     {
         $manager = $this->app->make(ConcurrencyManager::class);
 
@@ -384,26 +393,26 @@ class ConcurrencyTest extends TestCase
         $this->assertSame($first, $second);
     }
 
-    public function testSyncDriverRunsSequentially()
+    public function testSyncDriverRunsSequentially(): void
     {
         $driver = new SyncDriver;
 
         [$first, $second] = $driver->run([
-            fn () => 1 + 1,
-            fn () => 2 + 2,
+            fn (): int => 1 + 1,
+            fn (): int => 2 + 2,
         ]);
 
         $this->assertSame(2, $first);
         $this->assertSame(4, $second);
     }
 
-    public function testSyncDriverPreservesStringKeys()
+    public function testSyncDriverPreservesStringKeys(): void
     {
         $driver = new SyncDriver;
 
         $results = $driver->run([
-            'first' => fn () => 1 + 1,
-            'second' => fn () => 2 + 2,
+            'first' => fn (): int => 1 + 1,
+            'second' => fn (): int => 2 + 2,
         ]);
 
         $this->assertArrayHasKey('first', $results);
@@ -412,56 +421,56 @@ class ConcurrencyTest extends TestCase
         $this->assertSame(4, $results['second']);
     }
 
-    public function testSyncDriverDefer()
+    public function testSyncDriverDefer(): void
     {
         $collection = new DeferredCallbackCollection;
-        $this->app->scoped(DeferredCallbackCollection::class, fn () => $collection);
+        $this->app->scoped(DeferredCallbackCollection::class, fn (): DeferredCallbackCollection => $collection);
 
         $driver = new SyncDriver;
-        $result = $driver->defer([fn () => 1 + 1]);
+        $result = $driver->defer([fn (): int => 1 + 1]);
 
         $this->assertInstanceOf(DeferredCallback::class, $result);
         $this->assertCount(1, $collection);
     }
 
-    public function testProcessDriverRunReturnsResults()
+    public function testProcessDriverRunReturnsResults(): void
     {
         $factory = $this->app->make(ProcessFactory::class);
-        $factory->fake(fn () => $factory->result(
+        $factory->fake(fn (): FakeProcessResult => $factory->result(
             output: json_encode(['successful' => true, 'result' => base64_encode(serialize('hello'))])
         ));
 
         $driver = new ProcessDriver($factory);
 
-        $results = $driver->run([fn () => 'hello']);
+        $results = $driver->run([fn (): string => 'hello']);
 
         $this->assertSame(['hello'], array_values($results));
     }
 
-    public function testProcessDriverUsesInvokeSerializedClosureCommand()
+    public function testProcessDriverUsesInvokeSerializedClosureCommand(): void
     {
         $factory = $this->app->make(ProcessFactory::class);
-        $factory->fake(fn () => $factory->result(
+        $factory->fake(fn (): FakeProcessResult => $factory->result(
             output: json_encode(['successful' => true, 'result' => base64_encode(serialize(null))])
         ));
 
         $driver = new ProcessDriver($factory);
-        $driver->run([fn () => null]);
+        $driver->run([fn (): null => null]);
 
-        $factory->assertRan(fn ($process) => str_contains($process->command, 'invoke-serialized-closure'));
+        $factory->assertRan(fn (PendingProcess $process): bool => str_contains($process->command, 'invoke-serialized-closure'));
     }
 
-    public function testProcessDriverSetsEnvironmentVariable()
+    public function testProcessDriverSetsEnvironmentVariable(): void
     {
         $factory = $this->app->make(ProcessFactory::class);
-        $factory->fake(fn () => $factory->result(
+        $factory->fake(fn (): FakeProcessResult => $factory->result(
             output: json_encode(['successful' => true, 'result' => base64_encode(serialize(null))])
         ));
 
         $driver = new ProcessDriver($factory);
-        $driver->run([fn () => null]);
+        $driver->run([fn (): null => null]);
 
-        $factory->assertRan(function ($process) {
+        $factory->assertRan(function (PendingProcess $process): bool {
             return isset($process->environment['HYPERVEL_INVOKABLE_CLOSURE'])
                 && $process->environment['HYPERVEL_INVOKABLE_CLOSURE'] !== '';
         });
@@ -483,7 +492,7 @@ class ConcurrencyTest extends TestCase
         $caught = null;
 
         try {
-            $driver->run(static fn () => null);
+            $driver->run(static fn (): null => null);
         } catch (Exception $exception) {
             $caught = $exception;
         }
@@ -499,16 +508,145 @@ class ConcurrencyTest extends TestCase
     public function testProcessDriverReportsFailedChildProcessesBeforeDecoding(): void
     {
         $factory = $this->app->make(ProcessFactory::class);
-        $factory->fake(fn () => $factory->result(
+        $factory->fake(fn (): FakeProcessResult => $factory->result(
             errorOutput: 'child failed',
             exitCode: 5,
         ));
         $driver = new ProcessDriver($factory);
 
         $this->expectException(Exception::class);
-        $this->expectExceptionMessage('Concurrent process failed with exit code [5]. Message: child failed');
+        $this->expectExceptionMessageIsOrContains('Concurrent process failed with exit code [5]. Message: child failed');
 
-        $driver->run(static fn () => null);
+        $driver->run(static fn (): null => null);
+    }
+
+    #[UsesVendor]
+    public function testRunHandlerProcessErrorCode(): void
+    {
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessageIsOrContains('Concurrent process failed with exit code [143].');
+
+        $processDriver = new ProcessDriver($this->app->make(ProcessFactory::class));
+        $processDriver->run([
+            // exit() throws inside a coroutine, so terminate the child process directly.
+            fn (): bool => SwooleProcess::kill(getmypid()),
+        ]);
+    }
+
+    #[UsesVendor]
+    public function testOutputIsMappedToArrayInput(): void
+    {
+        $input = [
+            'first' => fn (): int => 1 + 1,
+            'second' => fn (): int => 2 + 2,
+        ];
+
+        $processOutput = ConcurrencyFacade::driver('process')->run($input);
+
+        $this->assertIsArray($processOutput);
+        $this->assertArrayHasKey('first', $processOutput);
+        $this->assertArrayHasKey('second', $processOutput);
+
+        $syncOutput = ConcurrencyFacade::driver('sync')->run($input);
+
+        $this->assertIsArray($syncOutput);
+        $this->assertArrayHasKey('first', $syncOutput);
+        $this->assertArrayHasKey('second', $syncOutput);
+    }
+
+    public function testProcessDriverRunMayUseCustomTimeout(): void
+    {
+        $factory = $this->app->make(ProcessFactory::class);
+
+        $factory->fake(fn (): FakeProcessResult => $factory->result(output: json_encode([
+            'successful' => true,
+            'result' => base64_encode(serialize('result')),
+        ])));
+
+        $result = (new ProcessDriver($factory))->run([
+            fn (): string => 'result',
+        ], timeout: 120);
+
+        $this->assertSame(['result'], $result);
+
+        $factory->assertRan(function (PendingProcess $process): bool {
+            return $process->timeout === 120;
+        });
+    }
+
+    public function testDriverCanBeResolvedUsingBackedEnum(): void
+    {
+        $this->assertInstanceOf(
+            SyncDriver::class,
+            ConcurrencyFacade::driver(ConcurrencyDriverEnum::Sync),
+        );
+    }
+
+    #[UsesVendor]
+    public function testRunHandlerProcessErrorWithDefaultExceptionWithoutParam(): void
+    {
+        $this->expectExceptionObject(new Exception('This is a different exception'));
+
+        ConcurrencyFacade::driver('process')->run([
+            fn (): never => throw new Exception(
+                'This is a different exception',
+            ),
+        ]);
+    }
+
+    #[UsesVendor]
+    public function testRunHandlerProcessErrorWithCustomExceptionWithoutParam(): void
+    {
+        $this->expectExceptionObject(new ExceptionWithoutParam('Test'));
+        ConcurrencyFacade::driver('process')->run([
+            fn (): never => throw new ExceptionWithoutParam('Test'),
+        ]);
+    }
+
+    #[UsesVendor]
+    public function testRunHandlerProcessErrorWithCustomExceptionWithParam(): void
+    {
+        $this->expectException(ExceptionWithParam::class);
+        $this->expectExceptionMessageIsOrContains('API request to https://api.example.com failed with status 400 Bad Request');
+        ConcurrencyFacade::driver('process')->run([
+            fn (): never => throw new ExceptionWithParam(
+                'https://api.example.com',
+                400,
+                'Bad Request',
+                'Invalid payload'
+            ),
+        ]);
+    }
+
+    #[UsesVendor]
+    #[DataProvider('falseyExceptionParameters')]
+    public function testRunHandlerProcessErrorWithFalseyParam(int|bool|string $value): void
+    {
+        try {
+            ConcurrencyFacade::driver('process')->run([
+                fn (): never => throw new ExceptionWithFalseyParam($value),
+            ]);
+        } catch (ExceptionWithFalseyParam $e) {
+            $this->assertSame($value, $e->value);
+
+            return;
+        }
+
+        $this->fail('The expected exception was not thrown.');
+    }
+
+    /**
+     * Get falsey constructor parameters.
+     *
+     * @return array<string, array{bool|int|string}>
+     */
+    public static function falseyExceptionParameters(): array
+    {
+        return [
+            'zero' => [0],
+            'false' => [false],
+            'empty string' => [''],
+        ];
     }
 
     #[UsesVendor]
@@ -541,6 +679,46 @@ class ConcurrencyTest extends TestCase
     }
 
     #[UsesVendor]
+    #[DataProvider('getConcurrencyDrivers')]
+    public function testRunPreservesCallbackOrder(string $driver): void
+    {
+        [$first, $second, $third] = ConcurrencyFacade::driver($driver)->run([
+            function (): string {
+                usleep(1000000);
+
+                return 'first';
+            },
+            function (): string {
+                usleep(500000);
+
+                return 'second';
+            },
+            function (): string {
+                usleep(200000);
+
+                return 'third';
+            },
+        ]);
+
+        $this->assertSame('first', $first);
+        $this->assertSame('second', $second);
+        $this->assertSame('third', $third);
+    }
+
+    /**
+     * Get the concurrency drivers.
+     *
+     * @return array<int, array{string}>
+     */
+    public static function getConcurrencyDrivers(): array
+    {
+        return [
+            ['sync'],
+            ['process'],
+        ];
+    }
+
+    #[UsesVendor]
     public function testBinaryContextIsPropagatedToConcurrentProcesses(): void
     {
         Context::add('task', 'concurrency');
@@ -556,7 +734,7 @@ class ConcurrencyTest extends TestCase
     public function testProcessDriverAppliesCustomTimeouts(): void
     {
         $factory = $this->app->make(ProcessFactory::class);
-        $factory->fake(fn () => $factory->result(
+        $factory->fake(fn (): FakeProcessResult => $factory->result(
             output: json_encode([
                 'successful' => true,
                 'result' => base64_encode(serialize('result')),
@@ -566,21 +744,21 @@ class ConcurrencyTest extends TestCase
         $driver = new ProcessDriver($factory);
 
         $this->assertSame(['result'], $driver->run(
-            static fn () => 'result',
+            static fn (): string => 'result',
             timeout: CarbonInterval::seconds(120),
         ));
 
-        $factory->assertRan(fn ($process) => $process->timeout === 120);
+        $factory->assertRan(fn (PendingProcess $process): bool => $process->timeout === 120);
     }
 
     public function testCoroutineAndSyncDriversAcceptProcessOnlyTimeouts(): void
     {
         $this->assertSame(['coroutine'], $this->coroutineDriver->run(
-            static fn () => 'coroutine',
+            static fn (): string => 'coroutine',
             timeout: 1,
         ));
         $this->assertSame(['sync'], (new SyncDriver)->run(
-            static fn () => 'sync',
+            static fn (): string => 'sync',
             timeout: 1,
         ));
     }
@@ -593,7 +771,7 @@ class ConcurrencyTest extends TestCase
     private function processDriverFor(array $payload): ProcessDriver
     {
         $factory = $this->app->make(ProcessFactory::class);
-        $factory->fake(fn () => $factory->result(
+        $factory->fake(fn (): FakeProcessResult => $factory->result(
             output: json_encode($payload, JSON_THROW_ON_ERROR)
         ));
 
@@ -603,6 +781,9 @@ class ConcurrencyTest extends TestCase
 
 class ConcurrencyTestException extends Exception
 {
+    /**
+     * Create an exception for the failed request.
+     */
     public function __construct(
         public readonly string $uri,
         public readonly int $statusCode,
@@ -620,4 +801,9 @@ enum ConcurrencyIntegerIdentifier: int
 {
     case Primary = 1;
     case Zero = 0;
+}
+
+enum ConcurrencyDriverEnum: string
+{
+    case Sync = 'sync';
 }
