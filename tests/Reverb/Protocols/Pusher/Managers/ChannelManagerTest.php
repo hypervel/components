@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Protocols\Pusher\Managers;
 
+use Hypervel\Reverb\Events\ChannelRemoved;
 use Hypervel\Reverb\Protocols\Pusher\Channels\Channel;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager;
 use Hypervel\Reverb\Protocols\Pusher\Contracts\ScopedChannelManager;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class ChannelManagerTest extends ReverbTestCase
 {
@@ -88,6 +93,39 @@ class ChannelManagerTest extends ReverbTestCase
         $this->channelManager->unsubscribeFromAll($this->connection);
 
         collect($this->channelManager->all())->each(fn ($channel) => $this->assertCount(0, $channel->connections()));
+    }
+
+    #[DataProvider('unsubscribeFailures')]
+    public function testUnsubscribeFailureDoesNotLeaveMembershipInLaterChannels(bool $cancel): void
+    {
+        $first = $this->channel;
+        $second = $this->channelManager->findOrCreate('second');
+        $first->subscribe($this->connection);
+        $second->subscribe($this->connection);
+        $failure = $cancel ? new CanceledException : new RuntimeException('listener failed');
+        $laterFailure = new RuntimeException('later listener failed');
+        $this->app->make('events')->listen(ChannelRemoved::class, static function (ChannelRemoved $event) use ($first, $failure, $laterFailure): never {
+            throw $event->channel === $first ? $failure : $laterFailure;
+        });
+        $caught = null;
+
+        try {
+            $this->channelManager->unsubscribeFromAll($this->connection);
+        } catch (Throwable $exception) {
+            $caught = $exception;
+        }
+
+        $this->assertSame($failure, $caught);
+        $this->assertFalse($first->subscribed($this->connection));
+        $this->assertFalse($second->subscribed($this->connection));
+    }
+
+    /**
+     * Supply ordinary failure and cancellation during channel cleanup.
+     */
+    public static function unsubscribeFailures(): array
+    {
+        return [[false], [true]];
     }
 
     public function testCanGetTheDataForAConnectionSubscribedToAChannel(): void

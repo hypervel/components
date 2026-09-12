@@ -16,6 +16,7 @@ use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Reverb\Servers\Hypervel\Scaling\SubscriptionResult;
 use Hypervel\Reverb\Webhooks\Contracts\WebhookDispatcher;
 use Hypervel\Reverb\Webhooks\DeferredWebhookManager;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class Channel
@@ -387,6 +388,8 @@ class Channel
 
             try {
                 $connection->send($message);
+            } catch (CanceledException $throwable) {
+                throw $throwable;
             } catch (Throwable $throwable) {
                 $exception ??= $throwable;
             }

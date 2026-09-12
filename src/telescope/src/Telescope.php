@@ -273,7 +273,7 @@ class Telescope
         if (Coroutine::inCoroutine()
             && ! $state->storeScheduled
         ) {
-            Coroutine::defer(function () {
+            Coroutine::defer(function (): void {
                 static::store(static::$store);
             });
             $state->storeScheduled = true;
