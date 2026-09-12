@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Operations\AnyTag;
 
-use Hypervel\Redis\PhpRedis;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
 
@@ -54,7 +53,7 @@ class GetTaggedKeysTest extends RedisCacheTestCase
         $connection->shouldReceive('hscan')
             ->once()
             ->withArgs(function ($key, &$iterator, $pattern, $count) {
-                $this->assertSame(PhpRedis::initialScanCursor(), $iterator);
+                $this->assertNull($iterator);
                 $iterator = 0; // Done after first iteration
                 return true;
             })

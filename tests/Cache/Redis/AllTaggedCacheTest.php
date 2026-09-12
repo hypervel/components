@@ -26,7 +26,6 @@ use Hypervel\Cache\Redis\Operations\AllTagOperations;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Redis\PhpRedis;
 use Mockery as m;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -1399,7 +1398,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
+            ->with('prefix:_all:tag:users:entries', null, '*', 1000)
             ->andReturnUsing(function ($key, &$cursor) {
                 $cursor = 0;
 

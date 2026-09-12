@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Cache\Redis\Operations\AnyTag;
 
 use Hypervel\Cache\Redis\Operations\AnyTag\Prune;
 use Hypervel\Cache\Redis\Support\StoreContext;
-use Hypervel\Redis\PhpRedis;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
 use Mockery as m;
@@ -47,7 +46,7 @@ class PruneTest extends RedisCacheTestCase
             ->once()
             ->with('prefix:_any:tag:users:entries', m::any(), '*', 37)
             ->andReturnUsing(function ($tagHash, &$iterator): array {
-                $this->assertSame(PhpRedis::initialScanCursor(), $iterator);
+                $this->assertNull($iterator);
                 $iterator = 0;
 
                 return ['key1' => '1', 'key2' => '1', 'key3' => '1'];
