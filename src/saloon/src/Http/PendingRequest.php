@@ -47,6 +47,7 @@ class PendingRequest
     use HasDebugging;
     use HasRequestProperties {
         withQueryParameters as protected addQueryParameters;
+        withQueryString as protected replaceQueryString;
     }
     use Macroable;
 
@@ -120,6 +121,7 @@ class PendingRequest
             $connector->queryParameters(),
             $request->queryParameters(),
         ));
+        $this->queryString = $request->queryString();
         $this->optionRepository = new ArrayRepository(array_replace_recursive(
             $connector->options(),
             $request->options(),
@@ -178,12 +180,19 @@ class PendingRequest
      */
     public function uri(): UriInterface
     {
-        return $this->uri ?? UrlResolver::withQuery(
-            UrlResolver::resolve(
-                $this->connector->resolveBaseUrl(),
-                $this->request->resolveEndpoint(),
-                $this->request->allowsBaseUrlOverride() ?? $this->connector->allowsBaseUrlOverride(),
-            ),
+        if ($this->uri !== null) {
+            return $this->uri;
+        }
+
+        $uri = UrlResolver::resolve(
+            $this->connector->resolveBaseUrl(),
+            $this->request->resolveEndpoint(),
+            $this->request->allowsBaseUrlOverride() ?? $this->connector->allowsBaseUrlOverride(),
+        );
+        $query = $this->queryString();
+
+        return UrlResolver::withQuery(
+            $query === null ? $uri : $uri->withQuery($query),
             $this->queryParameters(),
         );
     }
@@ -210,6 +219,16 @@ class PendingRequest
         $this->addQueryParameters($parameters);
 
         return $this;
+    }
+
+    /**
+     * Replace the raw query string and invalidate the finalized URI.
+     */
+    public function withQueryString(string $query): static
+    {
+        $this->uri = null;
+
+        return $this->replaceQueryString($query);
     }
 
     /**

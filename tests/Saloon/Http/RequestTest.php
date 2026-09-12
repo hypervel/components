@@ -139,6 +139,20 @@ class RequestTest extends TestCase
         $this->assertTrue($clone->cachingEnabled());
         $this->assertTrue($clone->shouldInvalidateCache());
     }
+
+    public function testRawQueryDefaultsOverridesAndCloneIsolation(): void
+    {
+        $this->assertNull((new ContainerRequestStub)->queryString());
+        $request = new RawQueryRequestStub;
+        $this->assertSame('tag=a&tag=b', $request->queryString());
+        $request->withQueryString('cursor=a%2Fb')->withQueryParameters(['limit' => 10]);
+        $clone = clone $request;
+
+        $this->assertSame($clone, $clone->withQueryString(''));
+        $this->assertSame('', $clone->queryString());
+        $this->assertSame('cursor=a%2Fb', $request->queryString());
+        $this->assertSame(['limit' => 10], $clone->queryParameters());
+    }
 }
 
 class ContainerRequestStub extends Request
@@ -150,6 +164,17 @@ class ContainerRequestStub extends Request
     public function resolveEndpoint(): string
     {
         return 'users';
+    }
+}
+
+class RawQueryRequestStub extends ContainerRequestStub
+{
+    /**
+     * Resolve the default raw query string override.
+     */
+    protected function defaultQueryString(): ?string
+    {
+        return 'tag=a&tag=b';
     }
 }
 

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Hypervel\Saloon\Enums\Method;
+use Hypervel\Saloon\Http\BaseResource;
 use Hypervel\Saloon\Http\Connector;
 use Hypervel\Saloon\Http\Request;
 use Hypervel\Saloon\Http\Response;
@@ -33,11 +34,40 @@ class SaloonTypeGetUserRequest extends Request
 /** @extends Connector<SaloonTypeUserData> */
 class SaloonTypeConnector extends Connector
 {
+    /**
+     * Get an integration-specific value for resource type assertions.
+     */
+    public function integrationName(): string
+    {
+        return 'users';
+    }
+
     public function resolveBaseUrl(): string
     {
         return 'https://example.com';
     }
 }
+
+/** @extends BaseResource<SaloonTypeConnector> */
+class SaloonTypeUserResource extends BaseResource
+{
+    /**
+     * Send a typed request through the resource connector.
+     *
+     * @return Response<SaloonTypeUserData>
+     */
+    public function get(): Response
+    {
+        assertType(SaloonTypeConnector::class, $this->connector);
+        assertType('string', $this->connector->integrationName());
+
+        return $this->connector->send(new SaloonTypeGetUserRequest);
+    }
+}
+
+$resource = new SaloonTypeUserResource(new SaloonTypeConnector);
+assertType('Hypervel\Saloon\Http\Response<SaloonTypeUserData>', $resource->get());
+assertType(SaloonTypeUserData::class, $resource->get()->dto());
 
 $response = (new SaloonTypeConnector)->send(new SaloonTypeGetUserRequest);
 

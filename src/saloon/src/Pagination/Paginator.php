@@ -16,8 +16,13 @@ use Hypervel\Support\LazyCollection;
 use InvalidArgumentException;
 use Iterator;
 use LogicException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
+/**
+ * @template TItem
+ * @implements Iterator<int, Response<mixed>>
+ */
 abstract class Paginator implements Countable, Iterator
 {
     /**
@@ -47,8 +52,17 @@ abstract class Paginator implements Countable, Iterator
 
     /**
      * The current response.
+     *
+     * @var null|Response<mixed>
      */
     protected ?Response $currentResponse = null;
+
+    /**
+     * The items mapped from the final current response.
+     *
+     * @var array<array-key, TItem>
+     */
+    protected array $currentPageItems = [];
 
     /**
      * The total number of mapped results processed.
@@ -74,6 +88,9 @@ abstract class Paginator implements Countable, Iterator
 
     /**
      * Create a paginator.
+     *
+     * @param Connector<mixed> $connector
+     * @param Request<mixed> $request
      */
     public function __construct(
         protected Connector $connector,
@@ -89,9 +106,6 @@ abstract class Paginator implements Countable, Iterator
         $this->request = clone $request;
         $this->request->middleware()
             ->onResponse(static fn (Response $response): Response => $response->throw())
-            ->onResponse(function (Response $response): void {
-                $this->totalResults += count($this->pageItems($response));
-            })
             ->onResponse(function (Response $response): void {
                 if (! $this->detectInfiniteLoop || $this->pooling) {
                     return;
@@ -115,12 +129,18 @@ abstract class Paginator implements Countable, Iterator
 
     /**
      * Get the response for the current page.
+     *
+     * @return Response<mixed>
      */
     public function current(): Response
     {
         $request = $this->applyPagination(clone $this->request);
 
-        return $this->currentResponse = $this->connector->send($request);
+        $this->currentResponse = $this->connector->send($request);
+        $this->currentPageItems = $this->pageItems($this->currentResponse);
+        $this->totalResults += count($this->currentPageItems);
+
+        return $this->currentResponse;
     }
 
     /**
@@ -128,6 +148,7 @@ abstract class Paginator implements Countable, Iterator
      */
     public function next(): void
     {
+        $this->currentPageItems = [];
         ++$this->pageNumber;
         ++$this->currentPage;
     }
@@ -160,6 +181,7 @@ abstract class Paginator implements Countable, Iterator
         $this->pageNumber = $this->startPage;
         $this->currentPage = 0;
         $this->currentResponse = null;
+        $this->currentPageItems = [];
         $this->totalResults = 0;
         $this->lastFiveBodyChecksums = [];
         $this->onRewind();
@@ -175,12 +197,12 @@ abstract class Paginator implements Countable, Iterator
     /**
      * Iterate over every response item.
      *
-     * @return iterable<array-key, mixed>
+     * @return iterable<int, TItem>
      */
     public function items(): iterable
     {
         foreach ($this as $response) {
-            foreach ($this->pageItems($response) as $item) {
+            foreach ($this->currentPageItems as $item) {
                 yield $item;
             }
         }
@@ -188,6 +210,8 @@ abstract class Paginator implements Countable, Iterator
 
     /**
      * Create a lazy collection from page responses or response items.
+     *
+     * @return ($throughItems is true ? LazyCollection<int, TItem> : LazyCollection<int, Response<mixed>>)
      */
     public function collect(bool $throughItems = true): LazyCollection
     {
@@ -199,9 +223,9 @@ abstract class Paginator implements Countable, Iterator
     /**
      * Send every page through a bounded coroutine pool.
      *
-     * @param null|callable(Response, int): void $responseHandler
+     * @param null|callable(Response<mixed>, int): void $responseHandler
      * @param null|callable(Throwable, int): void $exceptionHandler
-     * @return array<int, Response>
+     * @return array<int, Response<mixed>>
      */
     public function pool(
         int $concurrency = 5,
@@ -219,6 +243,7 @@ abstract class Paginator implements Countable, Iterator
         try {
             $firstKey = $this->key();
             $firstResponse = $this->current();
+            $this->currentPageItems = [];
             $totalPages = $this->getTotalPages($firstResponse);
             $lastPage = $this->maxPages === null
                 ? $totalPages
@@ -228,6 +253,8 @@ abstract class Paginator implements Countable, Iterator
             if ($responseHandler !== null) {
                 try {
                     $responseHandler($firstResponse, $firstKey);
+                } catch (CanceledException $exception) {
+                    throw $exception;
                 } catch (Throwable $exception) {
                     $initialCallbackFailure = $exception;
                 }
@@ -236,7 +263,13 @@ abstract class Paginator implements Countable, Iterator
             $remainingPool = $this->connector->pool(
                 $this->remainingRequests($lastPage),
                 $concurrency,
-                $responseHandler,
+                function (Response $response, int $key) use ($responseHandler): void {
+                    $this->totalResults += count($this->pageItems($response));
+
+                    if ($responseHandler !== null) {
+                        $responseHandler($response, $key);
+                    }
+                },
                 $exceptionHandler,
             );
 
@@ -302,6 +335,8 @@ abstract class Paginator implements Countable, Iterator
 
     /**
      * Get the cloned request used by this paginator.
+     *
+     * @return Request<mixed>
      */
     public function request(): Request
     {
@@ -347,21 +382,25 @@ abstract class Paginator implements Countable, Iterator
     /**
      * Resolve response items using the request override when present.
      *
-     * @return array<array-key, mixed>
+     * @param Response<mixed> $response
+     * @return array<array-key, TItem>
      */
     protected function pageItems(Response $response): array
     {
         $request = $response->request();
 
-        return $request instanceof MapPaginatedResponseItems
-            ? $request->mapPaginatedResponseItems($response)
-            : $this->getPageItems($response, $request);
+        if ($request instanceof MapPaginatedResponseItems) {
+            /** @var MapPaginatedResponseItems<TItem>&Request<mixed> $request */
+            return $request->mapPaginatedResponseItems($response);
+        }
+
+        return $this->getPageItems($response, $request);
     }
 
     /**
      * Yield independently addressable page requests after the first page.
      *
-     * @return iterable<int, Request>
+     * @return iterable<int, Request<mixed>>
      */
     protected function remainingRequests(int $lastPage): iterable
     {
@@ -375,6 +414,8 @@ abstract class Paginator implements Countable, Iterator
 
     /**
      * Get the total number of independently addressable pages.
+     *
+     * @param Response<mixed> $response
      */
     protected function getTotalPages(Response $response): int
     {
@@ -383,18 +424,25 @@ abstract class Paginator implements Countable, Iterator
 
     /**
      * Apply pagination to a cloned request.
+     *
+     * @param Request<mixed> $request
+     * @return Request<mixed>
      */
     abstract protected function applyPagination(Request $request): Request;
 
     /**
      * Determine if the response is the last page.
+     *
+     * @param Response<mixed> $response
      */
     abstract protected function isLastPage(Response $response): bool;
 
     /**
      * Get the items from one page.
      *
-     * @return array<array-key, mixed>
+     * @param Response<mixed> $response
+     * @param Request<mixed> $request
+     * @return array<array-key, TItem>
      */
     abstract protected function getPageItems(Response $response, Request $request): array;
 }
