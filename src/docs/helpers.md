@@ -3522,7 +3522,7 @@ Route::post('/orders', function (Request $request) {
 });
 ```
 
-By default, deferred functions will only be executed if the HTTP response, Artisan command, scheduled task, or queued job from which `Hypervel\Support\defer` is invoked completes successfully. This means that deferred functions will not be executed if a request results in a `4xx` or `5xx` HTTP response. If you would like a deferred function to always execute, you may chain the `always` method onto your deferred function:
+By default, deferred functions will only be executed if the HTTP response, Artisan command, scheduled task, WebSocket callback, or queued job from which `Hypervel\Support\defer` is invoked completes successfully. This means that deferred functions will not be executed if a request results in a `4xx` or `5xx` HTTP response. If you would like a deferred function to always execute, you may chain the `always` method onto your deferred function:
 
 ```php
 defer(fn () => Metrics::reportOrder($order))->always();
