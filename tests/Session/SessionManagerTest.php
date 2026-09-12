@@ -32,6 +32,9 @@ use SessionHandlerInterface;
 
 class SessionManagerTest extends TestCase
 {
+    // REMOVED: CacheBasedSessionHandlerTest; Redis sessions use a dedicated handler,
+    // and the APC, Memcached and DynamoDB session drivers are unsupported.
+
     public function testEnumDefaultDriverIsNormalizedWithoutTreatingZeroAsAbsent(): void
     {
         $manager = new SessionManager($this->getContainer([
