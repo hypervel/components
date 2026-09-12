@@ -219,6 +219,50 @@ class CoroutineTest extends TestCase
         $this->assertFalse(CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY));
     }
 
+    public function testForksDuringDetachedStartupOnlyDetachWhenRequested(): void
+    {
+        $observed = [];
+        $coroutineIds = [];
+        $started = false;
+        $wrapper = static function (Closure $run): void {
+            $run();
+        };
+
+        Coroutine::afterCreated(static function () use (&$observed, &$coroutineIds, &$started, $wrapper): void {
+            if ($started) {
+                $observed[] = [
+                    CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY),
+                    CoroutineContext::get('request-id'),
+                ];
+
+                return;
+            }
+
+            $started = true;
+            CoroutineContext::set('request-id', 'child-request');
+            $callable = static function (): void {};
+            $coroutineIds = [
+                Coroutine::fork($callable),
+                Coroutine::forkOwned($callable, $wrapper),
+                Coroutine::forkOwned($callable, $wrapper, detached: true),
+            ];
+
+            $observed[] = ['parent', CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY)];
+        });
+
+        $coroutineId = Coroutine::createOwned(static function (): void {}, $wrapper, detached: true);
+        Coroutine::join([...$coroutineIds, $coroutineId]);
+
+        $this->assertSame([
+            [false, 'child-request'],
+            [false, 'child-request'],
+            [true, 'child-request'],
+            ['parent', true],
+        ], $observed);
+        $this->assertFalse(CoroutineContext::has('request-id'));
+        $this->assertFalse(CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY));
+    }
+
     public function testFlushStateRestoresExceptionReporting()
     {
         try {

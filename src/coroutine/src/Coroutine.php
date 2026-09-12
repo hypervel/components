@@ -127,6 +127,9 @@ class Coroutine
     {
         $context = CoroutineContext::captureFrom($keys);
 
+        // Forks created by startup hooks must not inherit the parent's detachment instruction.
+        unset($context[self::DETACHED_CONTEXT_KEY]);
+
         return self::createWithContext($callable, $context, null);
     }
 
@@ -144,6 +147,7 @@ class Coroutine
     public static function forkOwned(callable $callable, Closure $wrapper, array $keys = [], bool $detached = false): int
     {
         $context = CoroutineContext::captureFrom($keys);
+        unset($context[self::DETACHED_CONTEXT_KEY]);
 
         if ($detached) {
             $context[self::DETACHED_CONTEXT_KEY] = true;

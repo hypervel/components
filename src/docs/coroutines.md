@@ -290,7 +290,7 @@ $coroutineId = Coroutine::createOwned($callable, $wrapper, detached: true);
 
 Startup hooks still run. The framework installs `Coroutine::DETACHED_CONTEXT_KEY` before the hooks run. Hooks that propagate parent context honor this marker by leaving explicitly installed child values intact and avoiding parent fallback. Detachment does not erase values explicitly copied by `forkOwned`. See the [Sentry](/docs/{{version}}/sentry#introduction) and [Telescope](/docs/{{version}}/telescope#controlling-recording) documentation for their behavior in detached children.
 
-The framework removes the marker after startup hooks and before the callable runs. A detached child may establish its own context, and children it later creates follow normal inheritance rules. Detachment controls context propagation; the caller still owns cancellation, joining, and resource cleanup.
+The framework removes the marker after startup hooks and before the callable runs. A detached child may establish its own context, and children it creates, including from startup hooks, follow normal inheritance rules unless explicitly detached. Detachment controls context propagation; the caller still owns cancellation, joining, and resource cleanup.
 
 <a name="nested-coroutines"></a>
 ### Nested Coroutines
