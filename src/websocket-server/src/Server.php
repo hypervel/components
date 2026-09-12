@@ -494,7 +494,7 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
         HttpRequest $httpRequest,
         Response $httpResponse,
     ): void {
-        Coroutine::defer(function () use ($request, $instance, $server, $fd, $httpRequest, $httpResponse) {
+        Coroutine::defer(function () use ($request, $instance, $server, $fd, $httpRequest, $httpResponse): void {
             $failed = false;
 
             try {
