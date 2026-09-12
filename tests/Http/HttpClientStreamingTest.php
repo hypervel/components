@@ -76,8 +76,9 @@ class HttpClientStreamingTest extends TestCase
 
     public function testBufferedFirstRecordArrivesBeforeTheNextServerWrite(): void
     {
-        // https://github.com/swoole/swoole-src/pull/6235
-        $this->requireSwooleStreamFixes('Hooked reads wait for more data after PHP has already supplied buffered bytes.');
+        if (SWOOLE_VERSION_ID <= 60202) {
+            $this->markTestSkipped('Buffered stream reads require https://github.com/swoole/swoole-src/pull/6235.');
+        }
 
         $this->withStreamingServer('buffered', function (string $address): void {
             $received = new Channel(1);
@@ -116,8 +117,9 @@ class HttpClientStreamingTest extends TestCase
 
     public function testIdleStreamingReadTimeoutRaisesTheStreamReadError(): void
     {
-        // https://github.com/swoole/swoole-src/pull/6236
-        $this->requireSwooleStreamFixes('Hooked read timeouts return an empty string instead of a failed read.');
+        if (SWOOLE_VERSION_ID <= 60202) {
+            $this->markTestSkipped('Stream read timeout errors require https://github.com/swoole/swoole-src/pull/6236.');
+        }
 
         $this->withStreamingServer('delayed', function (string $address): void {
             $finished = new Channel(1);
@@ -148,18 +150,6 @@ class HttpClientStreamingTest extends TestCase
                 $finished->close();
             }
         });
-    }
-
-    /**
-     * Run the upstream regressions on newer or explicitly patched Swoole builds.
-     */
-    protected function requireSwooleStreamFixes(string $reason): void
-    {
-        // Swoole 6.2.2 and earlier have these socket_read() defects.
-        // https://github.com/swoole/swoole-src/blob/v6.2.2/ext-src/swoole_runtime.cc#L530-L568
-        if (version_compare(swoole_version(), '6.2.2', '<=') && getenv('HYPERVEL_TEST_SWOOLE_STREAM_FIXES') !== '1') {
-            $this->markTestSkipped($reason . ' Affects Swoole <= 6.2.2; set HYPERVEL_TEST_SWOOLE_STREAM_FIXES=1 to test a patched build.');
-        }
     }
 
     /**
