@@ -17,16 +17,18 @@ class EnvironmentEncryptCommandTest extends TestCase
 {
     protected Filesystem $filesystem;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->filesystem = m::spy(Filesystem::class);
+        $this->filesystem = File::spy();
         $this->filesystem->shouldReceive('get')
             ->andReturn('APP_NAME=Hypervel');
         $this->filesystem->shouldReceive('replace');
         $this->filesystem->shouldReceive('chmod')->andReturn('0640');
-        File::swap($this->filesystem);
     }
 
     public function testItFailsWithInvalidCipherFails(): void
@@ -196,29 +198,25 @@ class EnvironmentEncryptCommandTest extends TestCase
 
     public function testItEncryptsInReadableFormat(): void
     {
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->shouldReceive('exists')
+        File::swap(m::mock(Filesystem::class));
+
+        File::expects('exists')
             ->with(base_path('.env'))
-            ->once()
             ->andReturn(true);
-        $filesystem->shouldReceive('exists')
+        File::expects('exists')
             ->with(base_path('.env.encrypted'))
-            ->once()
             ->andReturn(false);
-        $filesystem->shouldReceive('get')
+        File::expects('get')
             ->with(base_path('.env'))
-            ->once()
             ->andReturn("APP_NAME=Hypervel\nAPP_ENV=local");
-        $filesystem->shouldReceive('replace')
-            ->once()
-            ->with(base_path('.env.encrypted'), m::on(function ($content) {
+        File::expects('replace')
+            ->with(base_path('.env.encrypted'), m::on(function (string $content): bool {
                 $lines = explode("\n", rtrim($content));
 
                 return count($lines) === 2
                     && str_starts_with($lines[0], 'APP_NAME=')
                     && str_starts_with($lines[1], 'APP_ENV=');
             }), null);
-        File::swap($filesystem);
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => 'ANvVbPbE0tWMHpUySh6liY4WaCmAYKXP'])
             ->expectsOutputToContain('Environment successfully encrypted')
@@ -227,22 +225,19 @@ class EnvironmentEncryptCommandTest extends TestCase
 
     public function testItSkipsCommentsAndBlankLinesInReadableFormat(): void
     {
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->shouldReceive('exists')
+        File::swap(m::mock(Filesystem::class));
+
+        File::expects('exists')
             ->with(base_path('.env'))
-            ->once()
             ->andReturn(true);
-        $filesystem->shouldReceive('exists')
+        File::expects('exists')
             ->with(base_path('.env.encrypted'))
-            ->once()
             ->andReturn(false);
-        $filesystem->shouldReceive('get')
+        File::expects('get')
             ->with(base_path('.env'))
-            ->once()
             ->andReturn("# Comment\nAPP_NAME=Hypervel\n\nAPP_ENV=local");
-        $filesystem->shouldReceive('replace')
-            ->once()
-            ->with(base_path('.env.encrypted'), m::on(function ($content) {
+        File::expects('replace')
+            ->with(base_path('.env.encrypted'), m::on(function (string $content): bool {
                 $lines = explode("\n", rtrim($content));
 
                 // Comments and blank lines are skipped
@@ -250,7 +245,6 @@ class EnvironmentEncryptCommandTest extends TestCase
                     && str_starts_with($lines[0], 'APP_NAME=')
                     && str_starts_with($lines[1], 'APP_ENV=');
             }), null);
-        File::swap($filesystem);
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => 'ANvVbPbE0tWMHpUySh6liY4WaCmAYKXP'])
             ->expectsOutputToContain('Environment successfully encrypted')
@@ -273,27 +267,23 @@ ENV;
 
         $encryptedOutput = null;
 
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->shouldReceive('exists')
+        File::swap(m::mock(Filesystem::class));
+
+        File::expects('exists')
             ->with(base_path('.env'))
-            ->once()
             ->andReturn(true);
-        $filesystem->shouldReceive('exists')
+        File::expects('exists')
             ->with(base_path('.env.encrypted'))
-            ->once()
             ->andReturn(false);
-        $filesystem->shouldReceive('get')
+        File::expects('get')
             ->with(base_path('.env'))
-            ->once()
             ->andReturn($originalContent);
-        $filesystem->shouldReceive('replace')
-            ->once()
-            ->with(base_path('.env.encrypted'), m::on(function ($content) use (&$encryptedOutput) {
+        File::expects('replace')
+            ->with(base_path('.env.encrypted'), m::on(function (string $content) use (&$encryptedOutput): bool {
                 $encryptedOutput = $content;
 
                 return true;
             }), null);
-        File::swap($filesystem);
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $key])
             ->expectsOutputToContain('Environment successfully encrypted')
@@ -326,27 +316,23 @@ ENV;
 
         $encryptedOutput = null;
 
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->shouldReceive('exists')
+        File::swap(m::mock(Filesystem::class));
+
+        File::expects('exists')
             ->with(base_path('.env'))
-            ->once()
             ->andReturn(true);
-        $filesystem->shouldReceive('exists')
+        File::expects('exists')
             ->with(base_path('.env.encrypted'))
-            ->once()
             ->andReturn(false);
-        $filesystem->shouldReceive('get')
+        File::expects('get')
             ->with(base_path('.env'))
-            ->once()
             ->andReturn($originalContent);
-        $filesystem->shouldReceive('replace')
-            ->once()
-            ->with(base_path('.env.encrypted'), m::on(function ($content) use (&$encryptedOutput) {
+        File::expects('replace')
+            ->with(base_path('.env.encrypted'), m::on(function (string $content) use (&$encryptedOutput): bool {
                 $encryptedOutput = $content;
 
                 return true;
             }), null);
-        File::swap($filesystem);
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $key])
             ->expectsOutputToContain('Environment successfully encrypted')
@@ -380,27 +366,23 @@ ENV;
 
         $encryptedOutput = null;
 
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->shouldReceive('exists')
+        File::swap(m::mock(Filesystem::class));
+
+        File::expects('exists')
             ->with(base_path('.env'))
-            ->once()
             ->andReturn(true);
-        $filesystem->shouldReceive('exists')
+        File::expects('exists')
             ->with(base_path('.env.encrypted'))
-            ->once()
             ->andReturn(false);
-        $filesystem->shouldReceive('get')
+        File::expects('get')
             ->with(base_path('.env'))
-            ->once()
             ->andReturn($originalContent);
-        $filesystem->shouldReceive('replace')
-            ->once()
-            ->with(base_path('.env.encrypted'), m::on(function ($content) use (&$encryptedOutput) {
+        File::expects('replace')
+            ->with(base_path('.env.encrypted'), m::on(function (string $content) use (&$encryptedOutput): bool {
                 $encryptedOutput = $content;
 
                 return true;
             }), null);
-        File::swap($filesystem);
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $key])
             ->expectsOutputToContain('Environment successfully encrypted')
@@ -433,27 +415,23 @@ ENV;
 
         $encryptedOutput = null;
 
-        $filesystem = m::mock(Filesystem::class);
-        $filesystem->shouldReceive('exists')
+        File::swap(m::mock(Filesystem::class));
+
+        File::expects('exists')
             ->with(base_path('.env'))
-            ->once()
             ->andReturn(true);
-        $filesystem->shouldReceive('exists')
+        File::expects('exists')
             ->with(base_path('.env.encrypted'))
-            ->once()
             ->andReturn(false);
-        $filesystem->shouldReceive('get')
+        File::expects('get')
             ->with(base_path('.env'))
-            ->once()
             ->andReturn($originalContent);
-        $filesystem->shouldReceive('replace')
-            ->once()
-            ->with(base_path('.env.encrypted'), m::on(function ($content) use (&$encryptedOutput) {
+        File::expects('replace')
+            ->with(base_path('.env.encrypted'), m::on(function (string $content) use (&$encryptedOutput): bool {
                 $encryptedOutput = $content;
 
                 return true;
             }), null);
-        File::swap($filesystem);
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $key])
             ->expectsOutputToContain('Environment successfully encrypted')

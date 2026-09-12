@@ -279,10 +279,9 @@ class BladeTest extends TestCase
         View::addNamespace('templates', join_paths(__DIR__, 'Fixtures', 'templates'));
         View::addNamespace('components', join_paths(__DIR__, 'Fixtures', 'templates', 'components'));
 
-        $compiler = m::mock(app('blade.compiler'))->makePartial();
-        $compiler->shouldReceive('compile')->with(realpath(__DIR__ . '/Fixtures/templates/components/panel.blade.php'))->once();
-
-        $this->instance('blade.compiler', $compiler);
+        // Unmatched compile() calls need the configured compiler; a class-based partial mock skips its constructor.
+        Blade::swap(m::mock(Blade::getFacadeRoot())->makePartial());
+        Blade::expects('compile')->with(realpath(__DIR__ . '/Fixtures/templates/components/panel.blade.php'));
 
         $this->artisan('view:cache');
     }

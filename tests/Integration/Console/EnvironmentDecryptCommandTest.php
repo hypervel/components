@@ -17,14 +17,16 @@ class EnvironmentDecryptCommandTest extends TestCase
 {
     protected Filesystem $filesystem;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->filesystem = m::spy(Filesystem::class);
+        $this->filesystem = File::spy();
         $this->filesystem->shouldReceive('replace');
         $this->filesystem->shouldReceive('chmod')->andReturn('0640');
-        File::swap($this->filesystem);
     }
 
     public function testItFailsWithInvalidCipherFails(): void
@@ -77,7 +79,7 @@ class EnvironmentDecryptCommandTest extends TestCase
         }
     }
 
-    public function testItFailsWhenEncryptionFileCannotBeFound(): void
+    public function testItFailsWhenEnvironmentFileExists(): void
     {
         $this->filesystem->shouldReceive('exists')->andReturn(true);
 
@@ -86,7 +88,7 @@ class EnvironmentDecryptCommandTest extends TestCase
             ->assertExitCode(1);
     }
 
-    public function testItFailsWhenEnvironmentFileExists(): void
+    public function testItFailsWhenEncryptionFileCannotBeFound(): void
     {
         $this->filesystem->shouldReceive('exists')->andReturn(false);
 

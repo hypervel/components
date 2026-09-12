@@ -38,7 +38,7 @@ class AuthenticateMiddlewareTest extends TestCase
             return $this->createConfig();
         });
 
-        $container->singleton('request', fn (): Request => m::mock(Request::class));
+        $container->singleton('request', fn (): Request => new Request);
     }
 
     public function testItCanGenerateDefinitionViaStaticMethod(): void
