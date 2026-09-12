@@ -244,6 +244,8 @@ class EventDispatcher
         );
         $exception = null;
 
+        // Unlike channel delivery, sendMessage() never yields for these payloads,
+        // so it cannot be canceled.
         for ($workerId = 0; $workerId < $workerNum; ++$workerId) {
             if ($workerId === $currentWorkerId) {
                 continue;
