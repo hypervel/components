@@ -27,6 +27,9 @@ class AblyBroadcasterTest extends TestCase
 
     protected Container $container;
 
+    /**
+     * Set up the broadcaster and its dependencies.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -39,12 +42,11 @@ class AblyBroadcasterTest extends TestCase
 
     public function testAuthCallValidAuthenticationResponseWithPrivateChannelWhenCallbackReturnTrue(): void
     {
-        $this->broadcaster->channel('test', function () {
+        $this->broadcaster->channel('test', function (): bool {
             return true;
         });
 
-        $this->broadcaster->shouldReceive('generateAblySignature')
-            ->once()
+        $this->broadcaster->expects('generateAblySignature')
             ->with('private-test', 'abcd.1234')
             ->andReturn('signature');
 
@@ -60,7 +62,7 @@ class AblyBroadcasterTest extends TestCase
     {
         $this->expectException(AccessDeniedHttpException::class);
 
-        $this->broadcaster->channel('test', function () {
+        $this->broadcaster->channel('test', function (): bool {
             return false;
         });
 
@@ -73,7 +75,7 @@ class AblyBroadcasterTest extends TestCase
     {
         $this->expectException(AccessDeniedHttpException::class);
 
-        $this->broadcaster->channel('test', function () {
+        $this->broadcaster->channel('test', function (): bool {
             return true;
         });
 
@@ -85,12 +87,11 @@ class AblyBroadcasterTest extends TestCase
     public function testAuthCallValidAuthenticationResponseWithPresenceChannelWhenCallbackReturnAnArray(): void
     {
         $returnData = [1, 2, 3, 4];
-        $this->broadcaster->channel('test', function () use ($returnData) {
+        $this->broadcaster->channel('test', function () use ($returnData): array {
             return $returnData;
         });
 
-        $this->broadcaster->shouldReceive('generateAblySignature')
-            ->once()
+        $this->broadcaster->expects('generateAblySignature')
             ->with(
                 'presence-test',
                 'abcd.1234',
@@ -116,7 +117,7 @@ class AblyBroadcasterTest extends TestCase
     {
         $this->expectException(AccessDeniedHttpException::class);
 
-        $this->broadcaster->channel('test', function () {
+        $this->broadcaster->channel('test', function (): void {
         });
 
         $this->broadcaster->auth(
@@ -128,7 +129,7 @@ class AblyBroadcasterTest extends TestCase
     {
         $this->expectException(AccessDeniedHttpException::class);
 
-        $this->broadcaster->channel('test', function () {
+        $this->broadcaster->channel('test', function (): array {
             return [1, 2, 3, 4];
         });
 
@@ -160,7 +161,7 @@ class AblyBroadcasterTest extends TestCase
 
         $this->broadcaster->channel(
             'application.orders.{order}',
-            static fn ($authenticatedUser, string $order): array|false => $authenticatedUser === $user && $order === '5'
+            static fn (object $authenticatedUser, string $order): array|false => $authenticatedUser === $user && $order === '5'
                 ? ['role' => 'viewer']
                 : false,
             ['guards' => ['members']],
@@ -296,6 +297,9 @@ class AblyBroadcasterTest extends TestCase
         ]);
     }
 
+    /**
+     * Create an authenticated channel request.
+     */
     protected function getMockRequestWithUserForChannel(string $channel): Request
     {
         $request = m::mock(Request::class);
@@ -311,12 +315,15 @@ class AblyBroadcasterTest extends TestCase
         return $request;
     }
 
+    /**
+     * Create a channel request without an authenticated user.
+     */
     protected function getMockRequestWithoutUserForChannel(string $channel): Request
     {
         $request = m::mock(Request::class);
         $request->shouldReceive('input')->with('channel_name')->andReturn($channel);
 
-        $request->shouldReceive('user')->andReturn(null);
+        $request->expects('user')->andReturn(null);
 
         return $request;
     }
@@ -324,6 +331,9 @@ class AblyBroadcasterTest extends TestCase
 
 class InspectableAblyBroadcaster extends AblyBroadcaster
 {
+    /**
+     * Format outgoing channel names for inspection.
+     */
     public function formatOutgoingChannels(array $channels): array
     {
         return parent::formatChannels($channels);
@@ -336,7 +346,10 @@ class BroadcastingAblyHttpFake extends Http
 
     public int $requestCount = 0;
 
-    public function request($method, $url, $headers = [], $params = []): array
+    /**
+     * Record a publication without sending an HTTP request.
+     */
+    public function request(mixed $method, mixed $url, mixed $headers = [], mixed $params = []): array
     {
         ++$this->requestCount;
 

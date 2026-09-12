@@ -11,6 +11,7 @@ use Hypervel\Contracts\Broadcasting\Broadcaster;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Queue\Attributes\Backoff;
+use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Throwable;
@@ -21,7 +22,7 @@ class BroadcastEventTest extends TestCase
     {
         $broadcaster = m::mock(Broadcaster::class);
 
-        $broadcaster->shouldReceive('broadcast')->once()->with(
+        $broadcaster->expects('broadcast')->with(
             ['test-channel'],
             TestBroadcastEvent::class,
             ['firstName' => 'Taylor', 'lastName' => 'Otwell', 'collection' => ['foo' => 'bar']]
@@ -29,7 +30,7 @@ class BroadcastEventTest extends TestCase
 
         $manager = m::mock(BroadcastingFactory::class);
 
-        $manager->shouldReceive('connection')->once()->with(null)->andReturn($broadcaster);
+        $manager->expects('connection')->with(null)->andReturn($broadcaster);
 
         $event = new TestBroadcastEvent;
 
@@ -40,7 +41,7 @@ class BroadcastEventTest extends TestCase
     {
         $broadcaster = m::mock(Broadcaster::class);
 
-        $broadcaster->shouldReceive('broadcast')->once()->with(
+        $broadcaster->expects('broadcast')->with(
             ['test-channel'],
             TestBroadcastEventWithManualData::class,
             ['name' => 'Taylor', 'socket' => null]
@@ -48,7 +49,7 @@ class BroadcastEventTest extends TestCase
 
         $manager = m::mock(BroadcastingFactory::class);
 
-        $manager->shouldReceive('connection')->once()->with(null)->andReturn($broadcaster);
+        $manager->expects('connection')->with(null)->andReturn($broadcaster);
 
         $event = new TestBroadcastEventWithManualData;
 
@@ -59,11 +60,11 @@ class BroadcastEventTest extends TestCase
     {
         $broadcaster = m::mock(Broadcaster::class);
 
-        $broadcaster->shouldReceive('broadcast')->once();
+        $broadcaster->expects('broadcast');
 
         $manager = m::mock(BroadcastingFactory::class);
 
-        $manager->shouldReceive('connection')->once()->with('log')->andReturn($broadcaster);
+        $manager->expects('connection')->with('log')->andReturn($broadcaster);
 
         $event = new TestBroadcastEventWithSpecificBroadcaster;
 
@@ -74,13 +75,13 @@ class BroadcastEventTest extends TestCase
     {
         $broadcaster = m::mock(Broadcaster::class);
 
-        $broadcaster->shouldReceive('broadcast')->once()->with(
+        $broadcaster->expects('broadcast')->with(
             ['first-channel'],
             TestBroadcastEventWithChannelsPerConnection::class,
             ['firstName' => 'Taylor', 'lastName' => 'Otwell', 'collection' => ['foo' => 'bar']]
         );
 
-        $broadcaster->shouldReceive('broadcast')->once()->with(
+        $broadcaster->expects('broadcast')->with(
             ['second-channel'],
             TestBroadcastEventWithChannelsPerConnection::class,
             ['firstName' => 'Taylor']
@@ -88,8 +89,8 @@ class BroadcastEventTest extends TestCase
 
         $manager = m::mock(BroadcastingFactory::class);
 
-        $manager->shouldReceive('connection')->once()->with('first_connection')->andReturn($broadcaster);
-        $manager->shouldReceive('connection')->once()->with('second_connection')->andReturn($broadcaster);
+        $manager->expects('connection')->with('first_connection')->andReturn($broadcaster);
+        $manager->expects('connection')->with('second_connection')->andReturn($broadcaster);
 
         $event = new TestBroadcastEventWithChannelsPerConnection;
 
@@ -131,12 +132,11 @@ class BroadcastEventTest extends TestCase
     public function testSingleStringChannelIsBroadcast(): void
     {
         $broadcaster = m::mock(Broadcaster::class);
-        $broadcaster->shouldReceive('broadcast')
-            ->once()
+        $broadcaster->expects('broadcast')
             ->with(['test-channel'], TestBroadcastEventWithStringChannel::class, m::type('array'));
 
         $manager = m::mock(BroadcastingFactory::class);
-        $manager->shouldReceive('connection')->once()->with(null)->andReturn($broadcaster);
+        $manager->expects('connection')->with(null)->andReturn($broadcaster);
 
         (new BroadcastEvent(new TestBroadcastEventWithStringChannel))->handle($manager);
     }
@@ -162,6 +162,9 @@ class BroadcastEventTest extends TestCase
     public function testMiddlewareProxiesMiddlewareFromUnderlyingEvent(): void
     {
         $event = new class {
+            /**
+             * Get the middleware for the event.
+             */
             public function middleware(): array
             {
                 return ['foo', 'bar'];
@@ -176,6 +179,9 @@ class BroadcastEventTest extends TestCase
     public function testMiddlewareProxiesFailedHandlerFromUnderlyingEvent(): void
     {
         $event = new class {
+            /**
+             * Handle a job failure.
+             */
             public function failed(?Throwable $e = null): void
             {
                 $e->validateCall();
@@ -199,6 +205,17 @@ class BroadcastEventTest extends TestCase
         $this->assertTrue($job->deleteWhenMissingModels);
     }
 
+    public function testDeletingWhenMissingModelsCanBeDisabled(): void
+    {
+        $event = new class {
+            public bool $deleteWhenMissingModels = false;
+        };
+
+        $job = new BroadcastEvent($event);
+
+        $this->assertFalse($job->deleteWhenMissingModels);
+    }
+
     public function testArrayBackoffIsReadFromTheUnderlyingEvent(): void
     {
         $job = new BroadcastEvent(new TestBroadcastEventWithArrayBackoff);
@@ -219,12 +236,14 @@ class BroadcastEventTest extends TestCase
     protected function assertEventBroadcastsAs(object $event, string $name): void
     {
         $broadcaster = m::mock(Broadcaster::class);
-        $broadcaster->shouldReceive('broadcast')
-            ->once()
-            ->with(['test-channel'], $name, m::type('array'));
+        $broadcaster->expects('broadcast')->with(
+            ['test-channel'],
+            $name,
+            ['firstName' => 'Taylor', 'lastName' => 'Otwell', 'collection' => ['foo' => 'bar']]
+        );
 
         $manager = m::mock(BroadcastingFactory::class);
-        $manager->shouldReceive('connection')->once()->with(null)->andReturn($broadcaster);
+        $manager->expects('connection')->with(null)->andReturn($broadcaster);
 
         (new BroadcastEvent($event))->handle($manager);
     }
@@ -232,20 +251,26 @@ class BroadcastEventTest extends TestCase
 
 class TestBroadcastEvent
 {
-    public $firstName = 'Taylor';
+    public string $firstName = 'Taylor';
 
-    public $lastName = 'Otwell';
+    public string $lastName = 'Otwell';
 
-    public $collection;
+    public ?Collection $collection = null;
 
-    private $title = 'Developer';
+    private string $title = 'Developer';
 
+    /**
+     * Create a new event instance.
+     */
     public function __construct()
     {
         $this->collection = collect(['foo' => 'bar']);
     }
 
-    public function broadcastOn()
+    /**
+     * Get the channels the event should broadcast on.
+     */
+    public function broadcastOn(): array|string
     {
         return ['test-channel'];
     }
@@ -253,6 +278,9 @@ class TestBroadcastEvent
 
 class TestBroadcastEventWithStringName extends TestBroadcastEvent
 {
+    /**
+     * Get the broadcast event name.
+     */
     public function broadcastAs(): string
     {
         return 'custom-name';
@@ -261,6 +289,9 @@ class TestBroadcastEventWithStringName extends TestBroadcastEvent
 
 class TestBroadcastEventWithEnumName extends TestBroadcastEvent
 {
+    /**
+     * Get the broadcast event name.
+     */
     public function broadcastAs(): TestBroadcastEventName
     {
         return TestBroadcastEventName::Custom;
@@ -269,6 +300,9 @@ class TestBroadcastEventWithEnumName extends TestBroadcastEvent
 
 class TestBroadcastEventWithIntegerEnumName extends TestBroadcastEvent
 {
+    /**
+     * Get the broadcast event name.
+     */
     public function broadcastAs(): TestBroadcastIntegerEventName
     {
         return TestBroadcastIntegerEventName::Zero;
@@ -277,6 +311,9 @@ class TestBroadcastEventWithIntegerEnumName extends TestBroadcastEvent
 
 class TestBroadcastEventWithUnitEnumName extends TestBroadcastEvent
 {
+    /**
+     * Get the broadcast event name.
+     */
     public function broadcastAs(): TestBroadcastUnitEventName
     {
         return TestBroadcastUnitEventName::Custom;
@@ -285,6 +322,9 @@ class TestBroadcastEventWithUnitEnumName extends TestBroadcastEvent
 
 class TestBroadcastEventWithStringChannel extends TestBroadcastEvent implements ShouldBroadcast
 {
+    /**
+     * Get the channel the event should broadcast on.
+     */
     public function broadcastOn(): string
     {
         return 'test-channel';
@@ -308,7 +348,10 @@ enum TestBroadcastUnitEventName
 
 class TestBroadcastEventWithManualData extends TestBroadcastEvent
 {
-    public function broadcastWith()
+    /**
+     * Get the data to broadcast.
+     */
+    public function broadcastWith(): array
     {
         return ['name' => 'Taylor'];
     }
@@ -318,6 +361,9 @@ class TestBroadcastEventWithSpecificBroadcaster extends TestBroadcastEvent
 {
     use InteractsWithBroadcasting;
 
+    /**
+     * Create a new event instance.
+     */
     public function __construct()
     {
         $this->broadcastVia('log');
@@ -326,7 +372,10 @@ class TestBroadcastEventWithSpecificBroadcaster extends TestBroadcastEvent
 
 class TestBroadcastEventWithChannelsPerConnection extends TestBroadcastEvent
 {
-    public function broadcastConnections()
+    /**
+     * Get the connections to broadcast on.
+     */
+    public function broadcastConnections(): array
     {
         return [
             'first_connection',
@@ -334,7 +383,10 @@ class TestBroadcastEventWithChannelsPerConnection extends TestBroadcastEvent
         ];
     }
 
-    public function broadcastWith()
+    /**
+     * Get the data to broadcast.
+     */
+    public function broadcastWith(): array
     {
         return [
             'first_connection' => [
@@ -348,7 +400,10 @@ class TestBroadcastEventWithChannelsPerConnection extends TestBroadcastEvent
         ];
     }
 
-    public function broadcastOn()
+    /**
+     * Get the channels the event should broadcast on.
+     */
+    public function broadcastOn(): array
     {
         return [
             'first_connection' => ['first-channel'],
