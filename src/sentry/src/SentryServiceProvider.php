@@ -556,7 +556,9 @@ class SentryServiceProvider extends ServiceProvider
             }
 
             /** @var null|ArrayObject<string, mixed> $parentContext */
-            $parentContext = CoroutineContext::getContainer(Coroutine::parentId());
+            $parentContext = isset($context[Coroutine::DETACHED_CONTEXT_KEY])
+                ? null
+                : CoroutineContext::getContainer(Coroutine::parentId());
 
             /** @var null|list<Layer> $stack */
             $stack = $context[Hub::CONTEXT_STACK_KEY]
