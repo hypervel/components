@@ -203,6 +203,45 @@ class RedisClusterIntegrationTest extends TestCase
         $this->assertSame(['sorted:1' => 1.0, 'sorted:2' => 2.0], $sortedSet);
     }
 
+    public function testScanVisitsEveryMasterAndTerminatesOnFalse(): void
+    {
+        $redis = $this->maxOneRedisConnection('test_cluster_scan');
+        $expected = ['cluster-scan:{a}', 'cluster-scan:{b}', 'cluster-scan:{c}'];
+
+        foreach ($expected as $key) {
+            $redis->set($key, 'value');
+        }
+
+        // Different slots can share a master; verify this test exercises multiple masters.
+        $client = $this->nativeClient($redis);
+        $mastersWithKeys = 0;
+
+        foreach ($client->_masters() as $master) {
+            $cursor = null;
+
+            do {
+                if ($client->scan($cursor, $master, 'cluster-scan:*', 10)) {
+                    ++$mastersWithKeys;
+                    break;
+                }
+            } while ($cursor !== 0);
+        }
+
+        $this->assertGreaterThan(1, $mastersWithKeys);
+
+        $cursor = null;
+        $keys = [];
+        $iterations = 0;
+
+        while (($page = $redis->scan($cursor, 'cluster-scan:*', 1)) !== false) {
+            $this->assertLessThan(100, ++$iterations, 'The completed scan must not restart.');
+            [$cursor, $batch] = $page;
+            array_push($keys, ...$batch);
+        }
+
+        $this->assertEqualsCanonicalizing($expected, array_unique($keys));
+    }
+
     private function maxOneRedisConnection(string $name): RedisProxy
     {
         return Redis::connection($this->createRedisConnectionWithOptions(
