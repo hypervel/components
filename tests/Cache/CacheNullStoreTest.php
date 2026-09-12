@@ -15,14 +15,14 @@ use Mockery as m;
 
 class CacheNullStoreTest extends TestCase
 {
-    public function testItemsCanNotBeCached()
+    public function testItemsCanNotBeCached(): void
     {
         $store = new NullStore;
         $store->put('foo', 'bar', 10);
         $this->assertNull($store->get('foo'));
     }
 
-    public function testGetMultipleReturnsMultipleNulls()
+    public function testGetMultipleReturnsMultipleNulls(): void
     {
         $store = new NullStore;
 
@@ -35,14 +35,15 @@ class CacheNullStoreTest extends TestCase
         ]));
     }
 
-    public function testIncrementAndDecrementReturnFalse()
+    public function testIncrementAndDecrementReturnFalse(): void
     {
         $store = new NullStore;
         $this->assertFalse($store->increment('foo'));
+        $this->assertFalse($store->decrement('foo'));
         $this->assertFalse($store->decrement('foo', 2));
     }
 
-    public function testTouchReturnsFalse()
+    public function testTouchReturnsFalse(): void
     {
         $this->assertFalse((new NullStore)->touch('foo', 30));
     }
