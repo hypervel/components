@@ -958,10 +958,10 @@ if (Cache::supportsFlushingLocks()) {
 }
 ```
 
-If the configured store cannot currently flush locks, Hypervel throws a `BadMethodCallException`. Calling `flushLocks` directly on a `redis`, `database`, or `file` store throws a `RuntimeException` when its lock storage is shared with regular cache storage.
+If the configured store reports that it cannot flush locks, Hypervel throws a `BadMethodCallException`. Calling `flushLocks` directly on a `redis`, `database`, or `file` store throws a `RuntimeException` if the configured lock connection name, table, or directory matches the one used for cache entries.
 
 > [!WARNING]
-> The `flushLocks` method removes every lock in the lock store, regardless of which application or process owns the lock. Use it carefully in shared environments.
+> The `flushLocks` method removes every lock in the lock store, regardless of which application or process owns the lock. For Redis, it removes every key in the lock connection's database. Use a database dedicated to locks; a different connection name or key prefix does not provide isolation.
 
 You may also flush only cache locks from the command line using the `--locks` option:
 

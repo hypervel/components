@@ -21,6 +21,7 @@
     - [Coroutine-Aware Dependencies](#coroutine-aware-dependencies)
 - [Configuration](#configuration)
 - [Other API Differences](#other-api-differences)
+    - [Scheduling](#scheduling)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
     - [CSRF Protection](#csrf-protection)
     - [Scout](#scout)
@@ -468,6 +469,11 @@ Application code should keep request-specific values in the request, session, co
 
 Many Laravel APIs have direct Hypervel equivalents under the `Hypervel` namespace. The following differences commonly require more than a namespace replacement.
 
+<a name="scheduling"></a>
+### Scheduling
+
+Add `--once` to cron entries that invoke `schedule:run`, or run `schedule:run` as a supervised process. For local development, use `schedule:run` in place of Laravel's `schedule:work`. See the [scheduling documentation](/docs/{{version}}/scheduling#running-the-scheduler).
+
 <a name="http-client-and-concurrency"></a>
 ### HTTP Client and Concurrency
 
@@ -587,6 +593,8 @@ Hypervel provides Redis, database, file, filesystem storage, Swoole table, sessi
 For local in-memory caching, use the [Swoole table cache](/docs/{{version}}/cache#swoole-table-cache). A Swoole table is shared by the workers on one application node. For applications running across several nodes, the [stack cache](/docs/{{version}}/cache#building-cache-stacks) may combine a short-lived Swoole L1 cache with a shared Redis L2 cache. `Cache::memo()` may also wrap a store with per-coroutine memoization at runtime.
 
 If your application uses Redis cache tags, review [Redis Tag Modes](/docs/{{version}}/cache#redis-tag-modes) before porting. Hypervel's tagged-cache storage is not interchangeable with Laravel's.
+
+Hypervel's named Redis connections share `REDIS_DB` by default, and its Redis cache store uses the `cache` connection for locks. Before using Redis `Cache::flushLocks()` or `cache:clear --locks`, configure a lock connection to a database used only for locks. See [Flushing Locks](/docs/{{version}}/cache#flushing-locks).
 
 Custom cache tag sets must declare `TagSet::reset(): bool` and `TagSet::flush(): bool`. Hypervel uses these results to report a rejected tagged flush instead of returning unconditional success. Custom `VersionedTagSet` subclasses should override `writeTagId()` for bulk reset persistence; `resetTag()` keeps returning the generated identifier.
 
