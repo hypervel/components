@@ -82,8 +82,8 @@ class ScheduleTest extends TestCase
     {
         $schedule = new Schedule;
         $scheduledJob = $schedule->job($job);
-        self::assertSame($jobName, $scheduledJob->description);
-        self::assertFalse($this->container->resolved(JobToTestWithSchedule::class));
+        $this->assertSame($jobName, $scheduledJob->description);
+        $this->assertFalse($this->container->resolved(JobToTestWithSchedule::class));
     }
 
     public static function jobHonoursDisplayNameIfMethodExistsProvider(): array
@@ -105,8 +105,8 @@ class ScheduleTest extends TestCase
     {
         $schedule = new Schedule;
         $scheduledJob = $schedule->job(JobToTestWithSchedule::class);
-        self::assertSame(JobToTestWithSchedule::class, $scheduledJob->description);
-        self::assertFalse($this->container->resolved(JobToTestWithSchedule::class));
+        $this->assertSame(JobToTestWithSchedule::class, $scheduledJob->description);
+        $this->assertFalse($this->container->resolved(JobToTestWithSchedule::class));
     }
 
     public function testSynchronousJobResolvesToAFreshInstanceForEachFiring(): void
@@ -214,19 +214,19 @@ class ScheduleTest extends TestCase
 
         $filteredEvents = $schedule->eventsForEnvironments(['production', 'staging']);
 
-        self::assertCount(3, $filteredEvents);
+        $this->assertCount(3, $filteredEvents);
 
-        self::assertSame(JobToTestWithSchedule::class, $filteredEvents[0]->description);
-        self::assertSame(['production'], $filteredEvents[0]->environments);
-        self::assertSame('0 0 * * *', $filteredEvents[0]->expression);
+        $this->assertSame(JobToTestWithSchedule::class, $filteredEvents[0]->description);
+        $this->assertSame(['production'], $filteredEvents[0]->environments);
+        $this->assertSame('0 0 * * *', $filteredEvents[0]->expression);
 
-        self::assertSame('inspire', $filteredEvents[1]->command);
-        self::assertSame(['staging', 'production'], $filteredEvents[1]->environments);
-        self::assertSame('* * * * *', $filteredEvents[1]->expression);
+        $this->assertSame('inspire', $filteredEvents[1]->command);
+        $this->assertSame(['staging', 'production'], $filteredEvents[1]->environments);
+        $this->assertSame('* * * * *', $filteredEvents[1]->expression);
 
-        self::assertMatchesRegularExpression('/^foobar\b/', $filteredEvents[2]->command);
-        self::assertSame([], $filteredEvents[2]->environments);
-        self::assertSame('0 * * * *', $filteredEvents[2]->expression);
+        $this->assertMatchesRegularExpression('/^foobar\b/', $filteredEvents[2]->command);
+        $this->assertSame([], $filteredEvents[2]->environments);
+        $this->assertSame('0 * * * *', $filteredEvents[2]->expression);
     }
 
     public function testDueEventsAtUsesGivenTime()

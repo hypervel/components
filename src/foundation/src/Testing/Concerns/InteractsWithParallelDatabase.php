@@ -20,8 +20,8 @@ use InvalidArgumentException;
  *    connection's database name to {database}_test_{token} before
  *    defineEnvironment() runs, so custom connections derived from the
  *    default connection inherit the correct database name.
- * 2. Database creation (later, in database traits): ensures the per-worker
- *    database exists, creating it on demand if needed.
+ * 2. Database creation (before Testbench database requirements and in database
+ *    traits): ensures the per-worker database exists, creating it on demand.
  *
  * In-memory SQLite databases are skipped — each worker process gets its
  * own memory space naturally.
@@ -85,9 +85,9 @@ trait InteractsWithParallelDatabase
     /**
      * Ensure the per-worker database exists, creating it if needed.
      *
-     * Called from database testing traits (RefreshDatabase, DatabaseMigrations,
-     * DatabaseTruncation, DatabaseTransactions) after the app is booted and
-     * connections are available.
+     * Called before Testbench database requirements and from database testing
+     * traits (RefreshDatabase, DatabaseMigrations, DatabaseTruncation,
+     * DatabaseTransactions) after the app is booted and connections are available.
      * The config has already been rewritten by configureParallelDatabaseName().
      *
      * No-op when not running in parallel or when using in-memory SQLite.

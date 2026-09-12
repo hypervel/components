@@ -77,8 +77,8 @@ class PostgresConnector extends Connector implements ConnectorInterface
         }
 
         // Postgres allows an application_name to be set by the user and this name is
-        // used to when monitoring the application with pg_stat_activity. So we'll
-        // determine if the option has been specified and run a statement if so.
+        // used when monitoring the application with pg_stat_activity. So we'll
+        // determine if the option has been specified and add it to the DSN.
         if (isset($application_name)) {
             $dsn .= ";application_name='" . str_replace("'", "\\'", $application_name) . "'";
         }
@@ -89,7 +89,7 @@ class PostgresConnector extends Connector implements ConnectorInterface
             $dsn .= ";options='{$startupOptions}'";
         }
 
-        return $this->addSslOptions($dsn, $config);
+        return $this->addKeepaliveOptions($this->addSslOptions($dsn, $config), $config);
     }
 
     /**
@@ -159,6 +159,20 @@ class PostgresConnector extends Connector implements ConnectorInterface
     protected function addSslOptions(string $dsn, array $config): string
     {
         foreach (['sslmode', 'sslcert', 'sslkey', 'sslrootcert'] as $option) {
+            if (isset($config[$option])) {
+                $dsn .= ";{$option}={$config[$option]}";
+            }
+        }
+
+        return $dsn;
+    }
+
+    /**
+     * Add the keepalive options to the DSN.
+     */
+    protected function addKeepaliveOptions(string $dsn, array $config): string
+    {
+        foreach (['keepalives', 'keepalives_idle', 'keepalives_interval', 'keepalives_count'] as $option) {
             if (isset($config[$option])) {
                 $dsn .= ";{$option}={$config[$option]}";
             }

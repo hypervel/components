@@ -472,6 +472,8 @@ Many Laravel APIs have direct Hypervel equivalents under the `Hypervel` namespac
 <a name="scheduling"></a>
 ### Scheduling
 
+Add `--once` to cron entries that invoke `schedule:run`, or run `schedule:run` as a supervised process. For local development, use `schedule:run` in place of Laravel's `schedule:work`. See the [scheduling documentation](/docs/{{version}}/scheduling#running-the-scheduler).
+
 Scheduled Artisan commands share the scheduler process instead of starting a fresh process for each invocation. Use `exec('php artisan ...')` for commands that rely on process isolation. See [Scheduling Artisan Commands](/docs/{{version}}/scheduling#scheduling-artisan-commands).
 
 <a name="http-client-and-concurrency"></a>
@@ -593,6 +595,8 @@ Hypervel provides Redis, database, file, filesystem storage, Swoole table, sessi
 For local in-memory caching, use the [Swoole table cache](/docs/{{version}}/cache#swoole-table-cache). A Swoole table is shared by the workers on one application node. For applications running across several nodes, the [stack cache](/docs/{{version}}/cache#building-cache-stacks) may combine a short-lived Swoole L1 cache with a shared Redis L2 cache. `Cache::memo()` may also wrap a store with per-coroutine memoization at runtime.
 
 If your application uses Redis cache tags, review [Redis Tag Modes](/docs/{{version}}/cache#redis-tag-modes) before porting. Hypervel's tagged-cache storage is not interchangeable with Laravel's.
+
+Hypervel's named Redis connections share `REDIS_DB` by default, and its Redis cache store uses the `cache` connection for locks. Before using Redis `Cache::flushLocks()` or `cache:clear --locks`, configure a lock connection to a database used only for locks. See [Flushing Locks](/docs/{{version}}/cache#flushing-locks).
 
 Custom cache tag sets must declare `TagSet::reset(): bool` and `TagSet::flush(): bool`. Hypervel uses these results to report a rejected tagged flush instead of returning unconditional success. Custom `VersionedTagSet` subclasses should override `writeTagId()` for bulk reset persistence; `resetTag()` keeps returning the generated identifier.
 

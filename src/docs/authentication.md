@@ -663,6 +663,8 @@ if (Auth::attempt(['email' => $email, 'password' => $password], $remember)) {
 }
 ```
 
+Existing remember cookies stop working when a user's password hash changes or when the application key is rotated.
+
 You may customize the cookie lifetime for a session guard using the `remember` option in your application's `config/auth.php` configuration file. The value is expressed in minutes. If this option is omitted or `null`, Hypervel uses the built-in 400-day lifetime. For example, the following configuration uses a 30-day lifetime:
 
 ```php

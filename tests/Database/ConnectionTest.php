@@ -11,6 +11,7 @@ use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PDO;
@@ -21,6 +22,7 @@ use Throwable;
 /**
  * Tests for database Connection behavior.
  */
+#[WithConfig('database.default', 'testing')]
 class ConnectionTest extends TestCase
 {
     protected function defineEnvironment(Application $app): void

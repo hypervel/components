@@ -12,5 +12,6 @@ Documentation: https://hypervel.org/docs/authentication
 - `auth.defaults.provider` does not exist; `getUserProviderName()` resolves the provider declared by a given guard, `getDefaultUserProvider()` uses the current default guard, and `createUserProvider(null)` means no provider.
 - `guest:{guard}` selects the first named guard as the request's default guard on pass-through, mirroring how `auth:{guard}` selects on success.
 - Password confirmation is scoped to the current guard, and each guard may define its own `password_timeout`.
+- Remember cookies require a password HMAC; the legacy raw-password-hash fallback is intentionally omitted.
 
 Ported from: https://github.com/laravel/framework

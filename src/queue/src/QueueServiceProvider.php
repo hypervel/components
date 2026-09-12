@@ -206,6 +206,7 @@ class QueueServiceProvider extends ServiceProvider
             $config = $app->make('config')->array('queue.failed');
             $driver = $config['driver'];
 
+            // REMOVED: dynamoFailedJobProvider(); DynamoDB failed-job storage is unsupported.
             return match ($driver) {
                 null, 'null' => new NullFailedJobProvider,
                 'file' => new FileFailedJobProvider(

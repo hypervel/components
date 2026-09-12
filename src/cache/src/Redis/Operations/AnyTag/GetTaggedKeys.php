@@ -6,7 +6,6 @@ namespace Hypervel\Cache\Redis\Operations\AnyTag;
 
 use Generator;
 use Hypervel\Cache\Redis\Support\StoreContext;
-use Hypervel\Redis\PhpRedis;
 use Hypervel\Redis\RedisConnection;
 
 /**
@@ -85,7 +84,7 @@ class GetTaggedKeys
      */
     private function hscanGenerator(string $tagKey, int $count): Generator
     {
-        $iterator = PhpRedis::initialScanCursor();
+        $iterator = null;
 
         do {
             // Acquire connection just for this HSCAN batch

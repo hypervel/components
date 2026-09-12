@@ -42,23 +42,64 @@ use stdClass;
 
 class CacheManagerTest extends TestCase
 {
-    public function testCustomDriverClosureBoundObjectIsCacheManager()
+    public function testCustomDriverClosureBoundObjectIsCacheManager(): void
     {
-        $userConfig = [
+        $manager = new CacheManager($this->getApp([
             'cache' => [
                 'stores' => [
-                    'foo' => [
-                        'driver' => 'foo',
+                    __CLASS__ => [
+                        'driver' => __CLASS__,
                     ],
                 ],
             ],
-        ];
+        ]));
+        $boundTo = null;
+        $manager->extend(__CLASS__, function () use (&$boundTo): Repository {
+            $boundTo = $this;
 
-        $app = $this->getApp($userConfig);
-        $cacheManager = new CacheManager($app);
-        $repository = m::mock(CacheRepository::class);
-        $cacheManager->extend('foo', fn () => $repository);
-        $this->assertEquals($repository, $cacheManager->store('foo'));
+            return new Repository(new ArrayStore);
+        });
+
+        $manager->store(__CLASS__);
+
+        $this->assertSame($manager, $boundTo);
+    }
+
+    public function testCustomDriverStaticClosure(): void
+    {
+        $manager = new CacheManager($this->getApp([
+            'cache' => [
+                'stores' => [
+                    __CLASS__ => [
+                        'driver' => __CLASS__,
+                    ],
+                ],
+            ],
+        ]));
+
+        $driver = new Repository(new ArrayStore);
+
+        $manager->extend(__CLASS__, static fn (): Repository => $driver);
+        $this->assertSame($driver, $manager->store(__CLASS__));
+    }
+
+    public function testInvokableObjectDriverClosure(): void
+    {
+        $manager = new CacheManager($this->getApp([
+            'cache' => [
+                'stores' => [
+                    __CLASS__ => [
+                        'driver' => __CLASS__,
+                    ],
+                ],
+            ],
+        ]));
+
+        $driver = new Repository(new ArrayStore);
+        $creator = new CustomCacheDriver($driver);
+
+        $manager->extend(__CLASS__, $creator(...));
+        $this->assertSame($driver, $manager->store(__CLASS__));
     }
 
     public function testCustomDriverOverridesInternalDrivers()
@@ -594,6 +635,9 @@ class CacheManagerTest extends TestCase
         $this->assertNotSame($firstMemoizedStore->getInnerStore(), $secondMemoizedStore->getInnerStore());
     }
 
+    // REMOVED: CacheApcStoreTest, CacheDynamoDbStoreTest, CacheMemcachedConnectorTest,
+    // CacheMemcachedStoreTest and their integration tests; these drivers are unsupported.
+
     public function testThrowExceptionWhenUnknownDriverIsUsed()
     {
         $this->expectException(InvalidArgumentException::class);
@@ -980,6 +1024,24 @@ class CacheManagerTest extends TestCase
         Container::setInstance($app);
 
         return $app;
+    }
+}
+
+class CustomCacheDriver
+{
+    /**
+     * Create a custom cache driver factory.
+     */
+    public function __construct(private CacheRepository $driver)
+    {
+    }
+
+    /**
+     * Return the custom cache driver.
+     */
+    public function __invoke(): CacheRepository
+    {
+        return $this->driver;
     }
 }
 

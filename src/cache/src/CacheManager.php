@@ -178,6 +178,8 @@ class CacheManager implements FactoryContract
         return $this->customCreators[$config['driver']]($this->app, $config);
     }
 
+    // REMOVED: createApcDriver(); Swoole tables provide local shared-memory caching.
+
     /**
      * Create an instance of the array cache driver.
      */
@@ -225,6 +227,8 @@ class CacheManager implements FactoryContract
         return $this->repository($store, $config);
     }
 
+    // REMOVED: createDynamodbDriver(); DynamoDB cache storage is unsupported.
+
     /**
      * Create an instance of the failover cache driver.
      */
@@ -267,6 +271,8 @@ class CacheManager implements FactoryContract
             serializableClassPolicy: $this->serializableClassPolicy,
         ), $config);
     }
+
+    // REMOVED: createMemcachedDriver(); Memcached cache storage is unsupported.
 
     /**
      * Create an instance of the Null cache driver.
@@ -500,8 +506,13 @@ class CacheManager implements FactoryContract
     /**
      * Register a custom driver creator Closure.
      *
+     * Anonymous closures run in this manager's class scope; non-static closures
+     * also receive the manager as $this.
+     *
      * Boot-only. The callback persists in the singleton's customCreators array
      * for the worker lifetime and applies to every subsequent store resolution.
+     *
+     * @return $this
      */
     public function extend(string $driver, Closure $callback): static
     {

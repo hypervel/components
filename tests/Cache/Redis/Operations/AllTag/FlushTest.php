@@ -8,7 +8,6 @@ use Hypervel\Cache\Redis\Operations\AllTag\Flush;
 use Hypervel\Cache\Redis\Operations\AllTag\GetEntries;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
-use Hypervel\Redis\PhpRedis;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
@@ -175,7 +174,7 @@ class FlushTest extends RedisCacheTestCase
 
         $connection->shouldReceive('zScan')
             ->once()
-            ->with('prefix:_all:tag:users:entries', PhpRedis::initialScanCursor(), '*', 1000)
+            ->with('prefix:_all:tag:users:entries', null, '*', 1000)
             ->andReturnUsing(function ($key, &$cursor) use ($entries) {
                 $cursor = 0;
 

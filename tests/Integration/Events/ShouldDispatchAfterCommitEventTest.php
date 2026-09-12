@@ -8,8 +8,10 @@ use Exception;
 use Hypervel\Contracts\Events\ShouldDispatchAfterCommit;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 
+#[WithConfig('database.default', 'testing')]
 class ShouldDispatchAfterCommitEventTest extends TestCase
 {
     protected function tearDown(): void

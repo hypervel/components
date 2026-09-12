@@ -10,11 +10,13 @@ use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use ReflectionProperty;
 use RuntimeException;
 
+#[WithConfig('database.default', 'testing')]
 class DatabaseConnectionResolverTest extends TestCase
 {
     public function testFlushDisconnectsCachedConnection(): void

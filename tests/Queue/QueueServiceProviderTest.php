@@ -25,6 +25,8 @@ use RuntimeException;
 
 class QueueServiceProviderTest extends TestCase
 {
+    // REMOVED: DynamoDbFailedJobProviderTest; DynamoDB failed-job storage is unsupported.
+
     public function testBackgroundAndDeferredConnectionsAreLazyAndReportExceptions(): void
     {
         $handler = m::mock(ExceptionHandler::class);

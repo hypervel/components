@@ -948,10 +948,20 @@ You may clear all atomic locks in the cache using the `flushLocks` method:
 Cache::flushLocks();
 ```
 
-The `flushLocks` method is supported by the `redis`, `database`, `file`, `swoole`, `array`, and `stack` cache drivers when their current configuration can flush locks. Stack stores delegate lock flushing to the bottom layer and support it only when that bottom layer supports flushing locks. Redis, database, and file stores only support flushing locks when lock storage is configured separately from regular cache storage. If the repository's configured store cannot currently flush locks, Hypervel will throw a `BadMethodCallException`. Direct store-level `flushLocks` calls still throw a `RuntimeException` when lock storage is shared with regular cache storage.
+The `flushLocks` method is supported by the `array`, `worker-array`, `swoole`, and `null` cache drivers. The `redis`, `database`, and `file` drivers support it only when lock storage is configured separately from regular cache storage. Stack stores delegate to their bottom layer, while memoized caches delegate to their underlying store. Failover stores require at least one store that provides locks, and each such store must support flushing locks.
+
+You may check whether the current configuration supports flushing locks using the `supportsFlushingLocks` method:
+
+```php
+if (Cache::supportsFlushingLocks()) {
+    Cache::flushLocks();
+}
+```
+
+If the configured store reports that it cannot flush locks, Hypervel throws a `BadMethodCallException`. Calling `flushLocks` directly on a `redis`, `database`, or `file` store throws a `RuntimeException` if the configured lock connection name, table, or directory matches the one used for cache entries.
 
 > [!WARNING]
-> The `flushLocks` method removes every lock in the lock store, regardless of which application or process owns the lock. Use it carefully in shared environments.
+> The `flushLocks` method removes every lock in the lock store, regardless of which application or process owns the lock. For Redis, it removes every key in the lock connection's database. Use a database dedicated to locks; a different connection name or key prefix does not provide isolation.
 
 You may also flush only cache locks from the command line using the `--locks` option:
 

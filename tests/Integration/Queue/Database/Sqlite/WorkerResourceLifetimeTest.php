@@ -15,6 +15,7 @@ use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Database\Pool\PoolManager;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Queue\Events\JobPopping;
 use Hypervel\Queue\Events\Looping;
 use Hypervel\Queue\Events\WorkerIdle;
@@ -24,23 +25,58 @@ use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
 use Hypervel\Support\Facades\DB;
-use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
 use Mockery as m;
 
-#[RequiresDatabase('sqlite')]
 class WorkerResourceLifetimeTest extends TestCase
 {
+    protected string $databaseDirectory;
+
+    /**
+     * Create the database owned by the worker lifecycle test.
+     */
+    protected function setUp(): void
+    {
+        $this->databaseDirectory = ParallelTesting::tempDir('WorkerResourceLifetimeTest');
+        $files = new Filesystem;
+        $files->deleteDirectory($this->databaseDirectory);
+        $files->ensureDirectoryExists($this->databaseDirectory);
+        touch($this->databaseDirectory . '/database.sqlite');
+
+        parent::setUp();
+    }
+
+    /**
+     * Close the application before removing its database.
+     */
+    protected function tearDown(): void
+    {
+        try {
+            parent::tearDown();
+        } finally {
+            (new Filesystem)->deleteDirectory($this->databaseDirectory);
+        }
+    }
+
+    /**
+     * Configure an isolated pooled SQLite connection.
+     */
     protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
 
         $config = $app->make('config');
-        $connection = $config->string('database.default');
-        $config->set("database.connections.{$connection}.pool", [
-            'testing_enabled' => true,
-            'min_retained_connections' => 1,
-            'max_connections' => 1,
+        $config->set('database.default', 'worker_resource');
+        $config->set('database.connections.worker_resource', [
+            'driver' => 'sqlite',
+            'database' => $this->databaseDirectory . '/database.sqlite',
+            'prefix' => '',
+            'pool' => [
+                'testing_enabled' => true,
+                'min_retained_connections' => 1,
+                'max_connections' => 1,
+            ],
         ]);
     }
 
