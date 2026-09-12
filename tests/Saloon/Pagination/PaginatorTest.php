@@ -42,6 +42,91 @@ use WeakReference;
 
 class PaginatorTest extends TestCase
 {
+    #[DataProvider('currentPageLoads')]
+    public function testCurrentLoadsEachPageOnceAndRetriesFailedMapping(string $class, array $queries, bool $failMapping): void
+    {
+        $mappingCalls = 0;
+        $failure = new RuntimeException('Cannot map the first page.');
+        $request = new class(static function (Response $response) use (&$mappingCalls, $failMapping, $failure): array {
+            if (++$mappingCalls === 1 && $failMapping) {
+                throw $failure;
+            }
+
+            return $response->json('data');
+        }) extends PagedRequestStub implements MapPaginatedResponseItems {
+            /**
+             * Share mapping observations across request clones.
+             */
+            public function __construct(public Closure $mapper)
+            {
+            }
+
+            /**
+             * Map the page through the test callback.
+             */
+            public function mapPaginatedResponseItems(Response $response): array
+            {
+                return ($this->mapper)($response);
+            }
+        };
+        $requestedQueries = [];
+        $manager = $this->manager();
+        $manager->fake([$request::class => static function (PendingRequest $pendingRequest) use (&$requestedQueries, $queries): MockResponse {
+            $query = $pendingRequest->uri()->getQuery();
+            $requestedQueries[] = $query;
+            $page = $query === $queries[0] ? 1 : 2;
+
+            return MockResponse::make([
+                'data' => [$page], 'page' => $page, 'pages' => 2, 'next' => $page === 1 ? '2' : null,
+            ], headers: $page === 1 ? ['Link' => '<?page=2>; rel=next'] : []);
+        }]);
+        $paginator = new $class(new PaginationConnectorStub($manager), $request);
+
+        if ($failMapping) {
+            $caught = null;
+            try {
+                $paginator->current();
+            } catch (RuntimeException $exception) {
+                $caught = $exception;
+            }
+            $this->assertSame($failure, $caught);
+            $this->assertSame(0, $paginator->totalResults());
+        }
+
+        $first = $paginator->current();
+        $this->assertSame($first, $paginator->current());
+        $this->assertSame(0, $paginator->key());
+        $this->assertSame(1, $paginator->totalResults());
+        $this->assertSame($failMapping ? 2 : 1, $mappingCalls);
+        $this->assertSame($failMapping ? [$queries[0], $queries[0]] : [$queries[0]], $requestedQueries);
+
+        $paginator->next();
+        $second = $paginator->current();
+        $this->assertSame($second, $paginator->current());
+        $this->assertSame([2], $second->json('data'));
+        $this->assertSame(1, $paginator->key());
+        $this->assertSame(2, $paginator->totalResults());
+        $this->assertSame([1, 2], iterator_to_array($paginator->items(), false));
+        $this->assertSame(2, $paginator->totalResults());
+        $this->assertSame($failMapping ? 5 : 4, $mappingCalls);
+        $this->assertSame($failMapping ? [$queries[0], ...$queries, ...$queries] : [...$queries, ...$queries], $requestedQueries);
+    }
+
+    /**
+     * Provide paginator strategies with successful and failed first-page mapping.
+     */
+    public static function currentPageLoads(): iterable
+    {
+        foreach ([
+            'paged' => [PagedPaginatorStub::class, ['page=1', 'page=2']],
+            'cursor' => [CursorPaginatorStub::class, ['', 'cursor=2']],
+            'link' => [LinkPaginatorStub::class, ['page=1', 'page=2']],
+        ] as $name => [$class, $queries]) {
+            yield $name => [$class, $queries, false];
+            yield $name . ' mapping retry' => [$class, $queries, true];
+        }
+    }
+
     public function testPagedPaginatorIteratesItemsAndResetsEveryStateOnRewind(): void
     {
         $manager = $this->manager();
@@ -331,6 +416,7 @@ class PaginatorTest extends TestCase
 
         sort($handled);
         $this->assertSame([0, 1, 2], $handled);
+        sort($paginator->mappedPages);
         $this->assertSame([1, 2, 3], $paginator->mappedPages);
         $this->assertSame(3, $paginator->totalResults());
     }
@@ -454,6 +540,7 @@ class PaginatorTest extends TestCase
         $this->assertSame($mapperFails ? 2 : 3, $paginator->totalResults());
         sort($handled);
         $this->assertSame($mapperFails ? [0, 2] : [0, 1, 2], $handled);
+        sort($paginator->mappedPages);
         $this->assertSame([1, 2, 3], $paginator->mappedPages);
     }
 
@@ -684,6 +771,7 @@ class PaginatorTest extends TestCase
         $responses = $paginator->pool();
 
         $this->assertSame([0, 1, 2], array_keys($responses));
+        usort($queries, static fn (array $first, array $second): int => $first['number'] <=> $second['number']);
         $this->assertSame([['number' => 2, 'size' => 5], ['number' => 3, 'size' => 5], ['number' => 4, 'size' => 5]], $queries);
         $this->assertSame(3, $paginator->totalResults());
     }

@@ -538,7 +538,7 @@ use Hypervel\Saloon\Http\Auth\CookieAuthenticator;
 $request->authenticate(new CookieAuthenticator('session', $token));
 ```
 
-By default, the cookie is sent to the request's host. You may pass a domain such as `.example.com` as the third argument; an empty domain is not allowed. If you replace the authenticator using the same cookie name and domain, the new value is used when sending the request.
+By default, the cookie is sent only to the request's host, not its subdomains. For HTTPS requests, it is also marked `Secure` so it cannot be sent over HTTP. You may pass a domain such as `.example.com` as the third argument to include subdomains; an empty domain is not allowed. If you replace the authenticator using the same cookie name and domain argument, the new value is used when sending the request.
 
 Add the `RequiresAuth` trait to a request that must never be sent without an authenticator:
 
@@ -739,6 +739,20 @@ $request
 ```
 
 The `timeout` and `connectTimeout` methods accept seconds, while `delay` accepts milliseconds.
+
+To specify a cookie's path or other attributes, use `withCookie` with a Guzzle `SetCookie` instance. The cookie must include a domain:
+
+```php
+use GuzzleHttp\Cookie\SetCookie;
+
+$request->withCookie(new SetCookie([
+    'Name' => 'locale',
+    'Value' => 'en',
+    'Domain' => 'api.example.com',
+    'Path' => '/reports',
+    'Secure' => true,
+]));
+```
 
 Request-shaping options such as `headers`, `query`, `cookies`, `body`, `json`, `form_params`, `multipart`, `auth`, `delay`, and `http_errors` must be configured through Saloon's dedicated methods. Transport sharing belongs to a fixed Hypervel HTTP connection, while request handlers, object pools, and connection caps are not accepted through `withOptions`.
 
@@ -1524,10 +1538,12 @@ class GitHubPaginator extends PagedPaginator
     }
 }
 
+/** @implements HasPagination<array<string, mixed>> */
 class GitHubConnector extends Connector implements HasPagination
 {
     // Define the connector base URL and defaults...
 
+    /** @return Paginator<array<string, mixed>> */
     public function paginate(Request $request): Paginator
     {
         if ($request instanceof HasRequestPagination) {
@@ -1553,7 +1569,7 @@ foreach ($paginator->items() as $user) {
 $users = $paginator->collect();
 ```
 
-The `HasPagination` contract provides the conventional connector entry point. A request that needs its own paginator may implement `HasRequestPagination` and define `paginate(Connector $connector): Paginator`; the connector can delegate to it as shown above.
+The `HasPagination` contract provides the conventional connector entry point. A request that needs its own paginator may implement `HasRequestPagination` and define `paginate(Connector $connector): Paginator`; the connector can delegate to it as shown above. Declare the request's item type with `@implements HasRequestPagination<UserData>` and `@return Paginator<UserData>` on its `paginate` method.
 
 The `collect(false)` method returns a lazy collection of page responses instead of items. Declare the paginator's item type with `@extends PagedPaginator<UserData>` (or the matching base class) to preserve it through `items` and `collect`. You may also inspect `totalResults`, `request`, and the zero-based iterator position returned by `currentPage`. Use `startPage` to configure the first remote page number.
 
@@ -1602,7 +1618,7 @@ The first request uses your configured page and per-page parameters. For each la
 
 Pagination links must use the same scheme, host, port, and path as the current request.
 
-Iteration ends when the response has no `next` link. If the API also supplies a `last` link containing a page number, you may use `pool` to request the remaining pages concurrently. Pooled requests use your configured page names and `perPageLimit`. Cursor-only links must be followed sequentially. Malformed links throw a `PaginationException`; invalid or contradictory last-page numbers are rejected when pooling.
+Iteration ends when the response has no `next` link. If the API also supplies a `last` link containing a page number, you may use `pool` to request the remaining pages concurrently. Pooled requests use your configured page names and `perPageLimit`. Cursor-only links must be followed sequentially. Malformed header syntax or conflicting pagination links throw a `PaginationException`; invalid or contradictory last-page numbers are rejected when pooling.
 
 <a name="pooled-pagination"></a>
 ### Pooled Pagination

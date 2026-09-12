@@ -9,6 +9,7 @@ use Exception;
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Cookie\CookieJar;
+use GuzzleHttp\Cookie\SetCookie;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Exception\TransferException;
@@ -497,6 +498,20 @@ class PendingRequest implements Transient
         return tap($this, function () use ($parameters) {
             $this->urlParameters = $parameters;
         });
+    }
+
+    /**
+     * Specify a cookie and its attributes for the request.
+     */
+    public function withCookie(SetCookie $cookie): static
+    {
+        if ($cookie->getDomain() === null) {
+            throw new InvalidArgumentException('An outgoing cookie must have a domain.');
+        }
+
+        $this->cookies->setCookie(clone $cookie);
+
+        return $this;
     }
 
     /**

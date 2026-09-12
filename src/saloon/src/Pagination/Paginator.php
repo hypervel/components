@@ -58,6 +58,11 @@ abstract class Paginator implements Countable, Iterator
     protected ?Response $currentResponse = null;
 
     /**
+     * Whether the current page has been fetched and mapped.
+     */
+    protected bool $currentPageLoaded = false;
+
+    /**
      * The items mapped from the final current response.
      *
      * @var array<array-key, TItem>
@@ -134,11 +139,18 @@ abstract class Paginator implements Countable, Iterator
      */
     public function current(): Response
     {
+        if ($this->currentPageLoaded && $this->currentResponse !== null) {
+            return $this->currentResponse;
+        }
+
         $request = $this->applyPagination(clone $this->request);
 
-        $this->currentResponse = $this->connector->send($request);
-        $this->currentPageItems = $this->pageItems($this->currentResponse);
+        $response = $this->connector->send($request);
+        $this->currentPageItems = $this->pageItems($response);
+        // Keep the preceding response until mapping succeeds so a failed load retries the same page.
+        $this->currentResponse = $response;
         $this->totalResults += count($this->currentPageItems);
+        $this->currentPageLoaded = true;
 
         return $this->currentResponse;
     }
@@ -148,6 +160,7 @@ abstract class Paginator implements Countable, Iterator
      */
     public function next(): void
     {
+        $this->currentPageLoaded = false;
         $this->currentPageItems = [];
         ++$this->pageNumber;
         ++$this->currentPage;
@@ -181,6 +194,7 @@ abstract class Paginator implements Countable, Iterator
         $this->pageNumber = $this->startPage;
         $this->currentPage = 0;
         $this->currentResponse = null;
+        $this->currentPageLoaded = false;
         $this->currentPageItems = [];
         $this->totalResults = 0;
         $this->lastFiveBodyChecksums = [];

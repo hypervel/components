@@ -144,7 +144,7 @@ class PendingRequest
             $this->bodyRepository = $connectorBody->merge($requestBody->all());
         }
 
-        $this->cookieGroups = $request->cookies();
+        $this->cookies = $request->cookies();
         $this->retryPolicy = $request->retryPolicy();
         $this->authenticator = $request->authenticator() ?? $connector->authenticator();
     }

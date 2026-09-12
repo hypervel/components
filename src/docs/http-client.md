@@ -354,6 +354,21 @@ $response = Http::withCookies([
 ], 'example.com')->get(/* ... */);
 ```
 
+To specify a cookie's path or other attributes, pass a Guzzle `SetCookie` instance to `withCookie`. The cookie must include a domain:
+
+```php
+use GuzzleHttp\Cookie\SetCookie;
+
+$response = Http::withCookie(new SetCookie([
+    'Name' => 'session',
+    'Value' => 'abc123',
+    'Domain' => 'api.example.com',
+    'Path' => '/api',
+    'Secure' => true,
+    'HostOnly' => true,
+]))->get('https://api.example.com/api/users');
+```
+
 By default, redirects will be followed. You may configure the maximum number of redirects using the `maxRedirects` method, or disable redirects entirely using the `withoutRedirecting` method:
 
 ```php
@@ -935,7 +950,7 @@ public function boot(): void
 
 The second argument is a request-option preset. It accepts normal Guzzle request options except for options whose ownership belongs to a dedicated Hypervel API:
 
-- `cookies` is rejected. Every pending request owns an isolated cookie jar; seed it with `withCookies()`.
+- `cookies` is rejected. Every pending request owns an isolated cookie jar; add cookies using `withCookie()` or `withCookies()`.
 - `handler` is rejected. Use `setHandler()` for a request-specific handler.
 - `pool` is rejected. HTTP clients are not object-pooled.
 - `max_host_connections` and `max_total_connections` are rejected. Use bounded coroutine fan-out or the rate limiter instead.

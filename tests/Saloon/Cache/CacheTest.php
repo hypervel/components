@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Saloon\Cache;
 
 use DateInterval;
 use DateTimeInterface;
+use GuzzleHttp\Cookie\SetCookie;
 use GuzzleHttp\Psr7\Utils;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Repository;
@@ -284,6 +285,15 @@ class CacheTest extends TestCase
         $this->assertNotSame($firstKey, $key->make($different, ['verify' => true, 'curl' => [2 => 'b', 1 => 'a']]));
         $this->assertNotSame($firstKey, $key->make($first, ['verify' => false, 'curl' => [2 => 'b', 1 => 'a']]));
         $this->assertMatchesRegularExpression('/^saloon:[a-f0-9]{64}$/', $firstKey);
+
+        $firstCookie = $this->pending($connector, (new CacheRequestStub)->withCookie(new SetCookie([
+            'Name' => 'session', 'Value' => 'secret', 'Domain' => 'api.example.com', 'Path' => '/',
+        ])));
+        $differentCookie = $this->pending($connector, (new CacheRequestStub)->withCookie(new SetCookie([
+            'Name' => 'session', 'Value' => 'secret', 'Domain' => 'api.example.com', 'Path' => '/admin',
+        ])));
+
+        $this->assertNotSame($key->make($firstCookie, []), $key->make($differentCookie, []));
     }
 
     public function testCustomKeysRemainBoundedAndCacheScopesStayDistinct(): void

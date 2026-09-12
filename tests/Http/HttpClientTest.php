@@ -10,6 +10,7 @@ use Exception;
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Cookie\CookieJar;
+use GuzzleHttp\Cookie\SetCookie;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\RequestException as GuzzleRequestException;
 use GuzzleHttp\Exception\TooManyRedirectsException;
@@ -2210,6 +2211,30 @@ class HttpClientTest extends TestCase
         $this->assertSame('foo', $responseCookie['Name']);
         $this->assertSame('bar', $responseCookie['Value']);
         $this->assertSame('https://laravel.com', $responseCookie['Domain']);
+    }
+
+    public function testWithCookiePreservesAttributesAndSnapshotsTheInput(): void
+    {
+        $this->factory->fake();
+        $cookie = new SetCookie([
+            'Name' => 'session', 'Value' => 'first', 'Domain' => 'api.example.com',
+            'Path' => '/api', 'Secure' => true, 'HttpOnly' => true, 'HostOnly' => true,
+        ]);
+        $expected = $cookie->toArray();
+        $request = $this->factory->withCookie($cookie);
+        $cookie->setValue('second');
+
+        $response = $request->get('https://api.example.com/api/users');
+
+        $this->assertSame([$expected], $response->cookies()->toArray());
+    }
+
+    public function testWithCookieRejectsADomainlessCookie(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('An outgoing cookie must have a domain.');
+
+        $this->factory->withCookie(new SetCookie(['Name' => 'session', 'Value' => 'secret']));
     }
 
     public function testWithQueryParameters(): void

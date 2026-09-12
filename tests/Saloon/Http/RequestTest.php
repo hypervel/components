@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Saloon\Http;
 
 use ArgumentCountError;
+use GuzzleHttp\Cookie\CookieJar;
+use GuzzleHttp\Cookie\SetCookie;
 use Hypervel\Container\Container;
 use Hypervel\Saloon\Cache\Traits\HasCaching;
 use Hypervel\Saloon\Enums\Method;
 use Hypervel\Saloon\Http\Request;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 
 class RequestTest extends TestCase
 {
@@ -93,6 +96,14 @@ class RequestTest extends TestCase
         $this->assertSame('application/json', $request->headers()['Accept']);
     }
 
+    public function testWithCookieRejectsADomainlessCookie(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('An outgoing cookie must have a domain.');
+
+        (new ContainerRequestStub)->withCookie(new SetCookie(['Name' => 'locale', 'Value' => 'en']));
+    }
+
     public function testCloneOwnsIndependentInitializedRequestState(): void
     {
         $request = (new ContainerRequestStub)
@@ -126,9 +137,7 @@ class RequestTest extends TestCase
         $this->assertSame(10, $request->delayMilliseconds());
         $this->assertCount(1, $request->middleware()->requestPipeline()->pipes());
         $this->assertSame(['original' => true], $request->body());
-        $this->assertSame([
-            ['cookies' => ['original' => 'yes'], 'domain' => '.example.test'],
-        ], $request->cookies());
+        $this->assertSame(CookieJar::fromArray(['original' => 'yes'], '.example.test')->toArray(), $request->cookies());
         $this->assertSame([10], $request->retryPolicy()->times);
         $this->assertFalse($request->cachingEnabled());
         $this->assertFalse($request->shouldInvalidateCache());

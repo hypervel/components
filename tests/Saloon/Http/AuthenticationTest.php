@@ -25,10 +25,10 @@ use PHPUnit\Framework\Attributes\DataProvider;
 class AuthenticationTest extends TestCase
 {
     #[DataProvider('cookieDomains')]
-    public function testCookieDomainIsInferredOrExplicit(?string $domain, string $expected): void
+    public function testCookieDomainIsInferredOrExplicit(?string $domain, string $expected, string $scheme): void
     {
         $pendingRequest = new PendingRequest(
-            new CookieAuthConnectorStub,
+            new CookieAuthConnectorStub($scheme . '://api.example.com'),
             (new CookieAuthRequestStub)->authenticate(new CookieAuthenticator('session', 'secret', $domain)),
             m::mock(CacheFactory::class),
             m::mock(RateLimiter::class),
@@ -36,9 +36,14 @@ class AuthenticationTest extends TestCase
 
         $pendingRequest->applyAuthentication();
 
-        $this->assertSame([
-            ['cookies' => ['session' => 'secret'], 'domain' => $expected],
-        ], $pendingRequest->cookies());
+        $this->assertCount(1, $pendingRequest->cookies());
+        $cookie = $pendingRequest->cookies()[0];
+        $this->assertSame('session', $cookie['Name']);
+        $this->assertSame('secret', $cookie['Value']);
+        $this->assertSame($expected, $cookie['Domain']);
+        $this->assertSame($domain === null, $cookie['HostOnly'] ?? false);
+        $this->assertSame($scheme === 'https', $cookie['Secure']);
+        $this->assertTrue($cookie['Discard']);
     }
 
     /**
@@ -46,7 +51,12 @@ class AuthenticationTest extends TestCase
      */
     public static function cookieDomains(): array
     {
-        return [[null, 'api.example.com'], ['.example.com', '.example.com']];
+        return [
+            'inferred HTTPS' => [null, 'api.example.com', 'https'],
+            'explicit HTTPS' => ['.example.com', '.example.com', 'https'],
+            'inferred HTTP' => [null, 'api.example.com', 'http'],
+            'explicit HTTP' => ['.example.com', '.example.com', 'http'],
+        ];
     }
 
     public function testAnEmptyExplicitCookieDomainIsRejected(): void
@@ -80,10 +90,10 @@ class AuthenticationTest extends TestCase
             ->authenticate(new CookieAuthenticator('session', 'original'))
             ->authenticate(new CookieAuthenticator('session', 'request'))
             ->retry(2);
-        $groups = [];
-        $request->middleware()->onRequest(function (PendingRequest $pendingRequest) use (&$groups): void {
+        $pendingCookies = [];
+        $request->middleware()->onRequest(function (PendingRequest $pendingRequest) use (&$pendingCookies): void {
             $pendingRequest->authenticate(new CookieAuthenticator('session', 'replacement'));
-            $groups[] = $pendingRequest->cookies();
+            $pendingCookies[] = $pendingRequest->cookies();
         });
 
         $response = $manager->send(new CookieAuthConnectorStub, $request);
@@ -95,9 +105,12 @@ class AuthenticationTest extends TestCase
             $this->assertSame('session', $attemptCookies[0]['Name']);
             $this->assertSame('replacement', $attemptCookies[0]['Value']);
             $this->assertSame('api.example.com', $attemptCookies[0]['Domain']);
+            $this->assertTrue($attemptCookies[0]['HostOnly']);
+            $this->assertTrue($attemptCookies[0]['Secure']);
+            $this->assertTrue($attemptCookies[0]['Discard']);
         }
-        $this->assertSame($groups[0], $groups[1]);
-        $this->assertCount(2, $groups[0]);
+        $this->assertSame($pendingCookies[0], $pendingCookies[1]);
+        $this->assertCount(2, $pendingCookies[0]);
         $this->assertSame([], $request->cookies());
     }
 }
@@ -105,11 +118,18 @@ class AuthenticationTest extends TestCase
 class CookieAuthConnectorStub extends Connector
 {
     /**
+     * Set the API base URL.
+     */
+    public function __construct(protected string $baseUrl = 'https://api.example.com')
+    {
+    }
+
+    /**
      * Resolve the API base URL.
      */
     public function resolveBaseUrl(): string
     {
-        return 'https://api.example.com';
+        return $this->baseUrl;
     }
 }
 
