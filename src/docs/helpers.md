@@ -3692,6 +3692,29 @@ $user = Pipeline::send($user)
     ->thenReturn();
 ```
 
+#### Reusing a Pipeline
+
+When processing many values through the same middleware, you may build a reusable closure with `toClosure`. The closure receives a new input on each call, so the middleware structure only needs to be built once:
+
+```php
+use App\Pipes\NormalizeRecord;
+use App\Pipes\ValidateRecord;
+use Hypervel\Support\Facades\Pipeline;
+
+$process = Pipeline::through([
+    NormalizeRecord::class,
+    ValidateRecord::class,
+])->toClosure(fn (array $record): array => $record);
+
+foreach ($records as $record) {
+    $processed = $process($record);
+}
+```
+
+Class middleware is resolved when each invocation reaches it, using its normal [container lifetime](/docs/{{version}}/container). Middleware bound with `scoped` is resolved once per coroutine; `bind` creates a fresh instance each time it is resolved. Unbound classes are shared by default, and singleton bindings are shared for the worker's lifetime. Shared middleware, supplied middleware objects, and state captured by closures must not retain invocation-specific values when the closure is used concurrently. Transaction and `finally` behavior applies separately to each invocation.
+
+Configure the pipeline before calling `toClosure` and leave that pipeline's configuration unchanged while using the returned closure. Each invocation receives its own input, but the closure still uses the pipeline's container, method, transaction, and `finally` settings.
+
 <a name="sleep"></a>
 ### Sleep
 

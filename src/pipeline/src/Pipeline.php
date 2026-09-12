@@ -106,14 +106,12 @@ class Pipeline implements PipelineContract, Transient
     }
 
     /**
-     * Compile the pipeline structure without binding it to a passable value.
+     * Create a reusable closure that receives a value on each invocation.
      *
-     * The returned closure receives its passable per invocation. Immutable pipe
-     * descriptors stay in the onion while their middleware instances are resolved
-     * inside each call, allowing independent requests to reuse the same structure.
-     * Transaction and finally callbacks are also applied per invocation.
-     *
-     * @internal
+     * Class middleware resolves inside each call using its container lifetime.
+     * Supplied middleware objects and captured closure state remain shared.
+     * Transaction and finally callbacks are applied per invocation.
+     * Keep this pipeline's configuration unchanged while using the closure.
      */
     public function toClosure(Closure $destination): Closure
     {
