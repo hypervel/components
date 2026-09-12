@@ -10,12 +10,13 @@ use Hypervel\Cache\SerializableClassPolicy;
 use Hypervel\Contracts\Redis\Factory;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
+use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
 use Mockery as m;
 use stdClass;
 
 class CacheRedisStoreTest extends RedisCacheTestCase
 {
-    public function testGetReturnsNullWhenNotFound()
+    public function testGetReturnsNullWhenNotFound(): void
     {
         $connection = $this->mockConnection();
         $connection->shouldReceive('get')->once()->with('prefix:foo')->andReturn(null);
@@ -24,7 +25,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
         $this->assertNull($store->get('foo'));
     }
 
-    public function testRedisValueIsReturned()
+    public function testRedisValueIsReturned(): void
     {
         $connection = $this->mockConnection();
         $connection->shouldReceive('get')->once()->with('prefix:foo')->andReturn(serialize('foo'));
@@ -80,7 +81,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
         $this->assertInstanceOf(__PHP_Incomplete_Class::class, $store->get('object'));
     }
 
-    public function testRedisMultipleValuesAreReturned()
+    public function testRedisMultipleValuesAreReturned(): void
     {
         $connection = $this->mockConnection();
         $connection->shouldReceive('mget')->once()->with(['prefix:foo', 'prefix:fizz', 'prefix:norf', 'prefix:null'])
@@ -100,7 +101,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
         $this->assertNull($results['null']);
     }
 
-    public function testRedisValueIsReturnedForNumerics()
+    public function testRedisValueIsReturnedForNumerics(): void
     {
         $connection = $this->mockConnection();
         $connection->shouldReceive('get')->once()->with('prefix:foo')->andReturn(1);
@@ -109,7 +110,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
         $this->assertEquals(1, $store->get('foo'));
     }
 
-    public function testSetMethodProperlyCallsRedis()
+    public function testSetMethodProperlyCallsRedis(): void
     {
         $connection = $this->mockConnection();
         $connection->shouldReceive('setex')->once()->with('prefix:foo', 60, serialize('foo'))->andReturn('OK');
@@ -119,12 +120,18 @@ class CacheRedisStoreTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    public function testSetMultipleMethodProperlyCallsRedis()
+    public function testSetMultipleMethodProperlyCallsRedis(): void
     {
         $connection = $this->mockConnection();
         // Hypervel uses a Lua script for putMany in standard mode (more performant than multi/exec).
         // The Lua script receives all keys and serialized values in a single EVALSHA call.
-        $connection->shouldReceive('evalWithShaCache')->once()->andReturn(true);
+        $connection->shouldReceive('evalWithShaCache')->once()
+            ->with(
+                m::type('string'),
+                ['prefix:foo', 'prefix:baz', 'prefix:bar'],
+                [60, serialize('bar'), serialize('qux'), serialize('norf')],
+            )
+            ->andReturn(true);
 
         $store = $this->createStore($connection);
         $result = $store->putMany([
@@ -135,7 +142,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    public function testSetMethodProperlyCallsRedisForNumerics()
+    public function testSetMethodProperlyCallsRedisForNumerics(): void
     {
         $connection = $this->mockConnection();
         $connection->shouldReceive('setex')->once()->with('prefix:foo', 60, 1);
@@ -145,7 +152,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
         $this->assertFalse($result);
     }
 
-    public function testIncrementMethodProperlyCallsRedis()
+    public function testIncrementMethodProperlyCallsRedis(): void
     {
         $connection = $this->mockConnection();
         $connection->shouldReceive('incrBy')->once()->with('prefix:foo', 5)->andReturn(5);
@@ -154,7 +161,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
         $store->increment('foo', 5);
     }
 
-    public function testDecrementMethodProperlyCallsRedis()
+    public function testDecrementMethodProperlyCallsRedis(): void
     {
         $connection = $this->mockConnection();
         $connection->shouldReceive('decrBy')->once()->with('prefix:foo', 5)->andReturn(-5);
@@ -163,7 +170,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
         $store->decrement('foo', 5);
     }
 
-    public function testStoreItemForeverProperlyCallsRedis()
+    public function testStoreItemForeverProperlyCallsRedis(): void
     {
         $connection = $this->mockConnection();
         $connection->shouldReceive('set')->once()->with('prefix:foo', serialize('foo'))->andReturn('OK');
@@ -173,7 +180,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    public function testTouchMethodProperlyCallsRedis()
+    public function testTouchMethodProperlyCallsRedis(): void
     {
         $connection = $this->mockConnection();
         $connection->shouldReceive('expire')->once()->with('prefix:key', 60)->andReturn(true);
@@ -182,7 +189,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
         $this->assertTrue($store->touch('key', 60));
     }
 
-    public function testForgetMethodProperlyCallsRedis()
+    public function testForgetMethodProperlyCallsRedis(): void
     {
         $connection = $this->mockConnection();
         $connection->shouldReceive('del')->once()->with('prefix:foo');
@@ -191,7 +198,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
         $store->forget('foo');
     }
 
-    public function testFlushesCached()
+    public function testFlushesCached(): void
     {
         $connection = $this->mockConnection();
         $connection->shouldReceive('flushdb')->once()->andReturn('ok');
@@ -201,7 +208,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    public function testFlushesCachedLocks()
+    public function testFlushesCachedLocks(): void
     {
         $lockProxy = m::mock(RedisProxy::class);
         $lockProxy->shouldReceive('flushdb')->once()->andReturn('ok');
@@ -220,7 +227,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    public function testSupportsFlushingLocksRequiresSeparateLockConnection()
+    public function testSupportsFlushingLocksRequiresSeparateLockConnection(): void
     {
         $store = $this->createStore($this->mockConnection());
 
@@ -231,7 +238,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
         $this->assertTrue($store->supportsFlushingLocks());
     }
 
-    public function testGetAndSetPrefix()
+    public function testGetAndSetPrefix(): void
     {
         $store = $this->createStore($this->mockConnection());
         $this->assertSame('prefix:', $store->getPrefix());
@@ -239,5 +246,17 @@ class CacheRedisStoreTest extends RedisCacheTestCase
         $this->assertSame('foo', $store->getPrefix());
         $store->setPrefix(null);
         $this->assertEmpty($store->getPrefix());
+    }
+
+    public function testFlushStaleTagsStopsScanningWhenTheCursorReachesZero(): void
+    {
+        $client = new FakeRedisClient(scanResults: [
+            ['keys' => ['prefix:_all:tag:foo:entries'], 'iterator' => 0],
+        ]);
+        $store = $this->createStoreWithFakeClient($client, tagMode: 'all');
+
+        $store->flushStaleTags();
+
+        $this->assertSame(1, $client->getScanCallCount());
     }
 }
