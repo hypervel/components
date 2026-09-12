@@ -14,7 +14,7 @@ use Mockery as m;
 
 class AuthListenersSendEmailVerificationNotificationHandleFunctionTest extends TestCase
 {
-    public function testWillExecuted()
+    public function testWillExecuted(): void
     {
         $user = m::mock(Authenticatable::class, MustVerifyEmail::class);
         $user->shouldReceive('hasVerifiedEmail')->andReturn(false);
@@ -25,7 +25,7 @@ class AuthListenersSendEmailVerificationNotificationHandleFunctionTest extends T
         $listener->handle(new Registered($user));
     }
 
-    public function testUserIsNotInstanceOfMustVerifyEmail()
+    public function testUserIsNotInstanceOfMustVerifyEmail(): void
     {
         $user = m::mock(User::class);
         $user->shouldNotReceive('sendEmailVerificationNotification');
@@ -35,7 +35,7 @@ class AuthListenersSendEmailVerificationNotificationHandleFunctionTest extends T
         $listener->handle(new Registered($user));
     }
 
-    public function testHasVerifiedEmailAsTrue()
+    public function testHasVerifiedEmailAsTrue(): void
     {
         $user = m::mock(Authenticatable::class, MustVerifyEmail::class);
         $user->shouldReceive('hasVerifiedEmail')->andReturn(true);
