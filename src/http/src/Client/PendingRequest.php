@@ -1594,7 +1594,20 @@ class PendingRequest implements Transient
             $handler = $this->factory->getConnectionHandler($this->connection);
         }
 
-        return $this->pushHandlers(HandlerStack::create($handler));
+        $stack = $this->pushHandlers(HandlerStack::create($handler));
+
+        if ($this->handler === null && ! ini_get('allow_url_fopen')) {
+            // Faked responses return before reaching this transport-only guard.
+            $stack->push(static fn (callable $handler): Closure => static function (RequestInterface $request, array $options) use ($handler): PromiseInterface {
+                if ($options['stream'] ?? false) {
+                    throw new RuntimeException('Streaming responses require allow_url_fopen when using the default HTTP handler.');
+                }
+
+                return $handler($request, $options);
+            });
+        }
+
+        return $stack;
     }
 
     /**
