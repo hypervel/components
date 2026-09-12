@@ -41,18 +41,21 @@ class TelescopeServiceProvider extends ServiceProvider
 
         Telescope::start($this->app);
         Telescope::listenForStorageOpportunities($this->app);
-        Coroutine::afterCreated(function () {
+        Coroutine::afterCreated(static function (): void {
+            $detached = CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY);
             $keys = [
                 Telescope::SHOULD_RECORD_CONTEXT_KEY => false,
                 Telescope::BATCH_ID_CONTEXT_KEY => null,
             ];
             foreach ($keys as $key => $default) {
-                // fork() installs its snapshot before callbacks run, so keep captured values.
+                // Keep explicit snapshots; detachment only prevents parent fallback.
                 if (CoroutineContext::has($key)) {
                     continue;
                 }
 
-                CoroutineContext::set($key, CoroutineContext::get($key, $default, Coroutine::parentId()));
+                CoroutineContext::set($key, $detached
+                    ? $default
+                    : CoroutineContext::get($key, $default, Coroutine::parentId()));
             }
         });
     }
