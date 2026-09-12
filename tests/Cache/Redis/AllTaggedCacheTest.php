@@ -26,6 +26,7 @@ use Hypervel\Cache\Redis\Operations\AllTagOperations;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Support\CarbonImmutable;
 use Mockery as m;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -415,10 +416,6 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $key = hash('xxh128', '_all:tag:users:entries') . ':name';
 
-        $connection->shouldReceive('get')
-            ->once()
-            ->with("prefix:{$key}")
-            ->andReturn(serialize('John'));
         $connection->shouldReceive('evalWithShaCache')
             ->once()
             ->withArgs(function (string $script, array $keys, array $args) use ($key): bool {
@@ -436,98 +433,20 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    public function testTouchUpdatesCachedNullKeyAndTagScores(): void
+    public function testTouchWithDatetimeInPastOrZeroSecondsRemovesOldItem(): void
     {
         $connection = $this->mockConnection();
 
         $key = hash('xxh128', '_all:tag:users:entries') . ':name';
 
-        $connection->shouldReceive('get')
-            ->once()
-            ->with("prefix:{$key}")
-            ->andReturn(serialize(NullSentinel::VALUE));
-        $connection->shouldReceive('evalWithShaCache')
-            ->once()
-            ->withArgs(function (string $script, array $keys, array $args) use ($key): bool {
-                $this->assertSame(["prefix:{$key}", 'prefix:_all:tag:users:entries'], $keys);
-                $this->assertSame(60, $args[0]);
-                $this->assertSame($key, $args[2]);
-
-                return true;
-            })
-            ->andReturn(true);
-
-        $store = $this->createStore($connection);
-        $result = $store->tags(['users'])->touch('name', 60);
-
-        $this->assertTrue($result);
-    }
-
-    public function testTouchWithNullTtlStoresItemForeverWithTags(): void
-    {
-        $connection = $this->mockConnection();
-
-        $key = hash('xxh128', '_all:tag:users:entries') . ':name';
-
-        $connection->shouldReceive('get')
-            ->once()
-            ->with("prefix:{$key}")
-            ->andReturn(serialize('John'));
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:users:entries', -1, $key)->andReturn($connection);
-        $connection->shouldReceive('set')->once()->with("prefix:{$key}", serialize('John'))->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, 1]);
-
-        $store = $this->createStore($connection);
-        $result = $store->tags(['users'])->touch('name', null);
-
-        $this->assertTrue($result);
-    }
-
-    public function testTouchWithNullTtlPreservesCachedNullSentinel(): void
-    {
-        $connection = $this->mockConnection();
-
-        $key = hash('xxh128', '_all:tag:users:entries') . ':name';
-
-        $connection->shouldReceive('get')
-            ->once()
-            ->with("prefix:{$key}")
-            ->andReturn(serialize(NullSentinel::VALUE));
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:users:entries', -1, $key)->andReturn($connection);
-        $connection->shouldReceive('set')
-            ->once()
-            ->with(
-                "prefix:{$key}",
-                m::on(fn (string $serialized): bool => unserialize($serialized) === NullSentinel::VALUE)
-            )
-            ->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, 1]);
-
-        $store = $this->createStore($connection);
-        $result = $store->tags(['users'])->touch('name', null);
-
-        $this->assertTrue($result);
-    }
-
-    public function testTouchReturnsFalseForMissingKey(): void
-    {
-        $connection = $this->mockConnection();
-
-        $key = hash('xxh128', '_all:tag:users:entries') . ':name';
-
-        $connection->shouldReceive('get')
-            ->once()
-            ->with("prefix:{$key}")
-            ->andReturnNull();
         $connection->shouldNotReceive('evalWithShaCache');
-        $connection->shouldNotReceive('pipeline');
+        $connection->expects('del')->twice()->with("prefix:{$key}")->andReturn(1);
 
         $store = $this->createStore($connection);
-        $result = $store->tags(['users'])->touch('name', 60);
+        $tagged = $store->tags(['users']);
 
-        $this->assertFalse($result);
+        $this->assertTrue($tagged->touch('name', CarbonImmutable::now()->subMinute()));
+        $this->assertTrue($tagged->touch('name', 0));
     }
 
     public function testIncrementWithCustomValue(): void

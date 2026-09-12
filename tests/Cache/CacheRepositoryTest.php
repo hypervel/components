@@ -1193,65 +1193,55 @@ class CacheRepositoryTest extends TestCase
         $nonFlushableRepo->flushLocks();
     }
 
-    public function testTouchWithNullTTLRemembersItemForever()
+    public function testTouchWithSecondsTtlCorrectlyProxiesToStore(): void
     {
+        $key = 'key';
+        $ttl = 60;
+
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->with('key')->andReturn('bar');
-        $repo->getStore()->shouldReceive('forever')->once()->with('key', 'bar')->andReturn(true);
-        $this->assertTrue($repo->touch('key', null));
+        $repo->getStore()->expects('touch')->with($key, $ttl)->andReturn(true);
+        $this->assertTrue($repo->touch($key, $ttl));
     }
 
-    public function testTouchWithNullTtlPreservesCachedNullSentinel()
+    public function testTouchWithDatetimeTtlCorrectlyProxiesToStore(): void
     {
-        $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->with('key')->andReturn(NullSentinel::VALUE);
-        $repo->getStore()->shouldReceive('forever')->once()->with('key', NullSentinel::VALUE)->andReturn(true);
+        $key = 'key';
+        $ttl = 60;
 
-        $this->assertTrue($repo->touch('key', null));
-    }
-
-    public function testTouchWithSecondsTtlCorrectlyProxiesToStore()
-    {
-        $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->with('key')->andReturn('bar');
-        $repo->getStore()->shouldReceive('touch')->once()->with('key', 60)->andReturn(true);
-        $this->assertTrue($repo->touch('key', 60));
-    }
-
-    public function testTouchWithSecondsTtlTreatsCachedNullSentinelAsHit()
-    {
-        $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->with('key')->andReturn(NullSentinel::VALUE);
-        $repo->getStore()->shouldReceive('touch')->once()->with('key', 60)->andReturn(true);
-
-        $this->assertTrue($repo->touch('key', 60));
-    }
-
-    public function testTouchWithEnumKeyProxiesResolvedKeyToStore()
-    {
-        $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->with('foo')->andReturn('bar');
-        $repo->getStore()->shouldReceive('touch')->once()->with('foo', 60)->andReturn(true);
-
-        $this->assertTrue($repo->touch(TestCacheKey::Foo, 60));
-    }
-
-    public function testTouchWithDatetimeTtlCorrectlyProxiesToStore()
-    {
         CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->with('key')->andReturn('bar');
-        $repo->getStore()->shouldReceive('touch')->once()->with('key', 60)->andReturn(true);
-        $this->assertTrue($repo->touch('key', $now->addSeconds(60)));
+        $repo->getStore()->expects('touch')->with($key, $ttl)->andReturn(true);
+        $this->assertTrue($repo->touch($key, $now->addSeconds($ttl)));
     }
 
-    public function testTouchWithDateIntervalTtlCorrectlyProxiesToStore()
+    public function testTouchWithDateIntervalTtlCorrectlyProxiesToStore(): void
+    {
+        $key = 'key';
+        $ttl = 60;
+
+        $repo = $this->getRepository();
+        $repo->getStore()->expects('touch')->with($key, $ttl)->andReturn(true);
+        $this->assertTrue($repo->touch($key, DateInterval::createFromDateString("{$ttl} seconds")));
+    }
+
+    public function testTouchWithDatetimeInPastOrZeroSecondsRemovesOldItem(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->with('key')->andReturn('bar');
-        $repo->getStore()->shouldReceive('touch')->once()->with('key', 60)->andReturn(true);
-        $this->assertTrue($repo->touch('key', DateInterval::createFromDateString('60 seconds')));
+        $repo->getStore()->shouldReceive('touch')->never();
+        $repo->getStore()->expects('forget')->times(2)->with('key')->andReturn(true);
+
+        $this->assertTrue($repo->touch('key', CarbonImmutable::now()->subMinute()));
+        $this->assertTrue($repo->touch('key', 0));
+    }
+
+    public function testTouchWorksWithEnumKey(): void
+    {
+        $ttl = 60;
+
+        $repo = $this->getRepository();
+        $repo->getStore()->expects('touch')->with('foo', $ttl)->andReturn(true);
+        $this->assertTrue($repo->touch(TestCacheKey::Foo, $ttl));
     }
 
     public function testAtomicExecutesCallbackAndReturnsResult()

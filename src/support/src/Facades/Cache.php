@@ -72,7 +72,7 @@ use Mockery;
  * @method static bool supportsFlushingLocks()
  * @method static bool supportsTags()
  * @method static \Hypervel\Cache\TaggedCache tags(mixed $names)
- * @method static bool touch(\UnitEnum|string $key, \DateInterval|\DateTimeInterface|int|null $ttl = null)
+ * @method static bool touch(\UnitEnum|string $key, \DateInterval|\DateTimeInterface|int $ttl)
  * @method static mixed withoutOverlapping(\UnitEnum|string $key, callable $callback, int $lockFor = 0, int $waitFor = 10, string|null $owner = null)
  * @method static bool flush()
  * @method static string getPrefix()

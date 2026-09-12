@@ -206,24 +206,21 @@ class AllTaggedCache extends NamespacedTaggedCache
     }
 
     /**
-     * Set the expiration of a cached item; null TTL will retain the item forever.
+     * Set the expiration of a cached item.
      */
-    public function touch(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl = null): bool
+    public function touch(UnitEnum|string $key, DateInterval|DateTimeInterface|int $ttl): bool
     {
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
-        $value = $this->getRaw($key);
 
-        if (is_null($value)) {
-            return false;
-        }
+        $seconds = $this->getSeconds($ttl);
 
-        if (is_null($ttl)) {
-            return $this->forever($key, $value);
+        if ($seconds <= 0) {
+            return $this->forget($key);
         }
 
         return $this->store->allTagOps()->touch()->execute(
             $this->itemKey($key),
-            $this->getSeconds($ttl),
+            $seconds,
             $this->tags->tagIds()
         );
     }
