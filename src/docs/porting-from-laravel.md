@@ -21,6 +21,7 @@
     - [Coroutine-Aware Dependencies](#coroutine-aware-dependencies)
 - [Configuration](#configuration)
 - [Other API Differences](#other-api-differences)
+    - [Scheduling](#scheduling)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
     - [CSRF Protection](#csrf-protection)
     - [Scout](#scout)
@@ -467,6 +468,11 @@ Application code should keep request-specific values in the request, session, co
 ## Other API Differences
 
 Many Laravel APIs have direct Hypervel equivalents under the `Hypervel` namespace. The following differences commonly require more than a namespace replacement.
+
+<a name="scheduling"></a>
+### Scheduling
+
+Scheduled Artisan commands share the scheduler process instead of starting a fresh process for each invocation. Use `exec('php artisan ...')` for commands that rely on process isolation. See [Scheduling Artisan Commands](/docs/{{version}}/scheduling#scheduling-artisan-commands).
 
 <a name="http-client-and-concurrency"></a>
 ### HTTP Client and Concurrency
