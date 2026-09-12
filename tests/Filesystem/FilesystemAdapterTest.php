@@ -1157,7 +1157,7 @@ class FilesystemAdapterTest extends TestCase
         $this->fail('Exception was not thrown.');
     }
 
-    public function testReportExceptionsForGet()
+    public function testReportExceptionsForGet(): void
     {
         $container = Container::getInstance();
 
@@ -1166,7 +1166,7 @@ class FilesystemAdapterTest extends TestCase
         $exceptionHandler->shouldReceive('report')
             ->once()
             ->andReturnUsing(function (UnableToReadFile $exception) {
-                self::assertStringContainsString(
+                $this->assertStringContainsString(
                     'Unable to read file from location: foo.txt.',
                     $exception->getMessage(),
                 );
@@ -1185,7 +1185,7 @@ class FilesystemAdapterTest extends TestCase
         }
     }
 
-    public function testReportExceptionsForReadStream()
+    public function testReportExceptionsForReadStream(): void
     {
         $container = Container::getInstance();
 
@@ -1194,7 +1194,7 @@ class FilesystemAdapterTest extends TestCase
         $exceptionHandler->shouldReceive('report')
             ->once()
             ->andReturnUsing(function (UnableToReadFile $exception) {
-                self::assertStringContainsString(
+                $this->assertStringContainsString(
                     'Unable to read file from location: foo.txt.',
                     $exception->getMessage(),
                 );
@@ -1231,7 +1231,7 @@ class FilesystemAdapterTest extends TestCase
             $exceptionHandler->shouldReceive('report')
                 ->once()
                 ->andReturnUsing(function (UnableToWriteFile $exception) {
-                    self::assertStringContainsString(
+                    $this->assertStringContainsString(
                         'Unable to write file at location: foo.txt.',
                         $exception->getMessage(),
                     );
@@ -1251,7 +1251,7 @@ class FilesystemAdapterTest extends TestCase
         }
     }
 
-    public function testReportExceptionsForMimeType()
+    public function testReportExceptionsForMimeType(): void
     {
         $container = Container::getInstance();
 
@@ -1260,7 +1260,7 @@ class FilesystemAdapterTest extends TestCase
         $exceptionHandler->shouldReceive('report')
             ->once()
             ->andReturnUsing(function (UnableToRetrieveMetadata $exception) {
-                self::assertStringContainsString(
+                $this->assertStringContainsString(
                     'Unable to retrieve the mime_type for file at location: unknown.mime-type.',
                     $exception->getMessage(),
                 );

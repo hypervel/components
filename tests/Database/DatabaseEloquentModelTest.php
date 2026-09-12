@@ -2002,7 +2002,7 @@ class DatabaseEloquentModelTest extends TestCase
         $model->fillable(['name']);
         $model->fill(['name' => 'Leto Atreides', 'age' => 51]);
 
-        self::assertSame(
+        $this->assertSame(
             ['name' => 'Leto Atreides', 'age' => 51],
             $model->getAttributes(),
         );

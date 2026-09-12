@@ -28,19 +28,19 @@ class TranslationTranslatorTest extends TestCase
     public function testHasMethodReturnsFalseWhenReturnedTranslationIsNull(): void
     {
         $translator = $this->getMockBuilder(Translator::class)->onlyMethods(['get'])->setConstructorArgs([$this->getLoader(), 'en'])->getMock();
-        $translator->expects($this->once())->method('get')->with($this->equalTo('foo'), $this->equalTo([]), $this->equalTo('bar'))->willReturn('foo');
+        $translator->expects($this->once())->method('get')->with('foo', [], 'bar')->willReturn('foo');
         $this->assertFalse($translator->has('foo', 'bar'));
 
         $translator = $this->getMockBuilder(Translator::class)->onlyMethods(['get'])->setConstructorArgs([$this->getLoader(), 'en'])->getMock();
-        $translator->expects($this->once())->method('get')->with($this->equalTo('foo'), $this->equalTo([]), $this->equalTo('bar'))->willReturn('bar');
+        $translator->expects($this->once())->method('get')->with('foo', [], 'bar')->willReturn('bar');
         $this->assertTrue($translator->has('foo', 'bar'));
 
         $translator = $this->getMockBuilder(Translator::class)->onlyMethods(['get'])->setConstructorArgs([$this->getLoader(), 'en'])->getMock();
-        $translator->expects($this->once())->method('get')->with($this->equalTo('foo'), $this->equalTo([]), $this->equalTo('bar'), false)->willReturn('bar');
+        $translator->expects($this->once())->method('get')->with('foo', [], 'bar', false)->willReturn('bar');
         $this->assertTrue($translator->hasForLocale('foo', 'bar'));
 
         $translator = $this->getMockBuilder(Translator::class)->onlyMethods(['get'])->setConstructorArgs([$this->getLoader(), 'en'])->getMock();
-        $translator->expects($this->once())->method('get')->with($this->equalTo('foo'), $this->equalTo([]), $this->equalTo('bar'), false)->willReturn('foo');
+        $translator->expects($this->once())->method('get')->with('foo', [], 'bar', false)->willReturn('foo');
         $this->assertFalse($translator->hasForLocale('foo', 'bar'));
 
         $translator = new Translator($this->getLoader(), 'en');

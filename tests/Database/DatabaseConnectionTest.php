@@ -454,34 +454,34 @@ class DatabaseConnectionTest extends TestCase
         $this->assertNull($connection->scalar('select foo from tbl where 0=1'));
     }
 
-    public function testInsertCallsTheStatementMethod()
+    public function testInsertCallsTheStatementMethod(): void
     {
         $connection = $this->getMockConnection(['statement']);
-        $connection->expects($this->once())->method('statement')->with($this->equalTo('foo'), $this->equalTo(['bar']))->willReturn(true);
+        $connection->expects($this->once())->method('statement')->with('foo', ['bar'])->willReturn(true);
         $results = $connection->insert('foo', ['bar']);
         $this->assertTrue($results);
     }
 
-    public function testUpdateCallsTheAffectingStatementMethod()
+    public function testUpdateCallsTheAffectingStatementMethod(): void
     {
         $connection = $this->getMockConnection(['affectingStatement']);
-        $connection->expects($this->once())->method('affectingStatement')->with($this->equalTo('foo'), $this->equalTo(['bar']))->willReturn(42);
+        $connection->expects($this->once())->method('affectingStatement')->with('foo', ['bar'])->willReturn(42);
         $results = $connection->update('foo', ['bar']);
         $this->assertSame(42, $results);
     }
 
-    public function testDeleteCallsTheAffectingStatementMethod()
+    public function testDeleteCallsTheAffectingStatementMethod(): void
     {
         $connection = $this->getMockConnection(['affectingStatement']);
-        $connection->expects($this->once())->method('affectingStatement')->with($this->equalTo('foo'), $this->equalTo(['bar']))->willReturn(1);
+        $connection->expects($this->once())->method('affectingStatement')->with('foo', ['bar'])->willReturn(1);
         $results = $connection->delete('foo', ['bar']);
         $this->assertSame(1, $results);
     }
 
-    public function testTransactionLevelNotIncrementedOnTransactionException()
+    public function testTransactionLevelNotIncrementedOnTransactionException(): void
     {
         $pdo = $this->createMock(PDOStub::class);
-        $pdo->expects($this->once())->method('beginTransaction')->will($this->throwException(new Exception));
+        $pdo->expects($this->once())->method('beginTransaction')->willThrowException(new Exception);
         $connection = $this->getMockConnection([], $pdo);
         try {
             $connection->beginTransaction();
@@ -512,11 +512,11 @@ class DatabaseConnectionTest extends TestCase
         $this->assertEquals(1, $connection->transactionLevel());
     }
 
-    public function testBeginTransactionMethodNeverRetriesIfWithinTransaction()
+    public function testBeginTransactionMethodNeverRetriesIfWithinTransaction(): void
     {
         $pdo = $this->createMock(PDOStub::class);
         $pdo->expects($this->once())->method('beginTransaction');
-        $pdo->expects($this->once())->method('exec')->will($this->throwException(new Exception));
+        $pdo->expects($this->once())->method('exec')->willThrowException(new Exception);
         $connection = $this->getMockConnection(['reconnect'], $pdo);
         $queryGrammar = $this->createMock(Grammar::class);
         $queryGrammar->expects($this->once())->method('compileSavepoint')->willReturn('trans1');
@@ -643,7 +643,7 @@ class DatabaseConnectionTest extends TestCase
         $this->assertSame('success', $result);
     }
 
-    public function testTransactionRetriesOnSerializationFailure()
+    public function testTransactionRetriesOnSerializationFailure(): void
     {
         $this->expectException(PDOException::class);
         $this->expectExceptionMessage('Serialization failure');
@@ -651,7 +651,7 @@ class DatabaseConnectionTest extends TestCase
         $pdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['inTransaction', 'beginTransaction', 'commit', 'rollBack'])->getMock();
         $mock = $this->getMockConnection([], $pdo);
         $pdo->expects($this->exactly(3))->method('inTransaction')->willReturn(true);
-        $pdo->expects($this->exactly(3))->method('commit')->will($this->throwException(new PDOExceptionStub('Serialization failure', '40001')));
+        $pdo->expects($this->exactly(3))->method('commit')->willThrowException(new PDOExceptionStub('Serialization failure', '40001'));
         $pdo->expects($this->exactly(3))->method('beginTransaction');
         $pdo->expects($this->exactly(3))->method('rollBack');
         $mock->transaction(function () {
