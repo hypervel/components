@@ -148,11 +148,11 @@ class CacheRepositoryTest extends TestCase
         $this->assertEquals(['foo' => 'default', 'bar' => 'baz'], $repo->get(['foo' => 'default', 'bar']));
     }
 
-    public function testGetReturnsMultipleValuesFromCacheWhenGivenAnArrayOfOneTwoThree()
+    public function testGetReturnsMultipleValuesFromCacheWhenGivenAnArrayOfOneTwoThree(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('many')->once()->with(['one', 'two', 'three'])->andReturn(['one' => null, 'two' => null, 'three' => null]);
-        $this->assertEquals(['one' => null, 'two' => null, 'three' => null], $repo->get(['one', 'two', 'three']));
+        $repo->getStore()->expects('many')->with(['1', '2', '3'])->andReturn([1 => null, 2 => null, 3 => null]);
+        $this->assertEquals([1 => null, 2 => null, 3 => null], $repo->get([1, 2, 3]));
     }
 
     public function testDefaultValueIsReturned()
@@ -1354,6 +1354,30 @@ class CacheRepositoryTest extends TestCase
 
         $this->assertSame('integer-value', $repo->get('2'));
         $this->assertSame('string-value', $repo->get('a'));
+    }
+
+    public function testManyDispatchesEventsForIntegerArrayKeys(): void
+    {
+        $repo = new Repository(new ArrayStore);
+        $repo->put('1', 'cached', 60);
+
+        $captured = [];
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('hasListeners')->andReturnUsing(
+            static fn (string $event): bool => in_array($event, [CacheHit::class, CacheMissed::class], true)
+        );
+        $dispatcher->shouldReceive('dispatch')->andReturnUsing(function (CacheHit|CacheMissed $event) use (&$captured): void {
+            $captured[] = $event;
+        });
+        $repo->setEventDispatcher($dispatcher);
+
+        $this->assertSame([1 => 'cached', 2 => null], $repo->many(['1', '2']));
+        $this->assertCount(2, $captured);
+        $this->assertInstanceOf(CacheHit::class, $captured[0]);
+        $this->assertSame('1', $captured[0]->key);
+        $this->assertSame('cached', $captured[0]->value);
+        $this->assertInstanceOf(CacheMissed::class, $captured[1]);
+        $this->assertSame('2', $captured[1]->key);
     }
 
     public function testStringTypedGetter(): void

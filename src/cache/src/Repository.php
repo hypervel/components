@@ -1372,15 +1372,16 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
             $this->events?->hasListeners(CacheMissed::class)
             || $this->events?->hasListeners(CacheHit::class)
         ) {
+            // PHP stores numeric-string keys as integers; event keys must be strings.
             foreach ($result as $key => $value) {
                 // Keep the per-class checks live: an earlier hit listener may register
                 // a miss listener, or vice versa, before a later result is dispatched.
                 if (is_null($value)) {
                     if ($this->events?->hasListeners(CacheMissed::class)) {
-                        $this->event(new CacheMissed($this->getName(), $key));
+                        $this->event(new CacheMissed($this->getName(), (string) $key));
                     }
                 } elseif ($this->events?->hasListeners(CacheHit::class)) {
-                    $this->event(new CacheHit($this->getName(), $key, NullSentinel::unwrap($value)));
+                    $this->event(new CacheHit($this->getName(), (string) $key, NullSentinel::unwrap($value)));
                 }
             }
         }
