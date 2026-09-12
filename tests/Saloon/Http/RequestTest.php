@@ -5,11 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Saloon\Http;
 
 use ArgumentCountError;
+use GuzzleHttp\Cookie\CookieJar;
+use GuzzleHttp\Cookie\SetCookie;
 use Hypervel\Container\Container;
 use Hypervel\Saloon\Cache\Traits\HasCaching;
 use Hypervel\Saloon\Enums\Method;
 use Hypervel\Saloon\Http\Request;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class RequestTest extends TestCase
 {
@@ -93,6 +97,36 @@ class RequestTest extends TestCase
         $this->assertSame('application/json', $request->headers()['Accept']);
     }
 
+    #[DataProvider('invalidCookies')]
+    public function testWithCookieRejectsInvalidCookies(array $cookie, string $message): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($message);
+
+        (new ContainerRequestStub)->withCookie(new SetCookie($cookie));
+    }
+
+    /**
+     * Provide cookies that cannot be sent with a request.
+     */
+    public static function invalidCookies(): array
+    {
+        return [
+            'null domain' => [
+                ['Name' => 'locale', 'Value' => 'en'],
+                'An outgoing cookie must have a domain.',
+            ],
+            'empty domain' => [
+                ['Name' => 'locale', 'Value' => 'en', 'Domain' => ''],
+                'Invalid cookie: The cookie domain must not be empty',
+            ],
+            'null value' => [
+                ['Name' => 'locale', 'Domain' => 'api.example.com'],
+                'Invalid cookie: The cookie value must not be empty',
+            ],
+        ];
+    }
+
     public function testCloneOwnsIndependentInitializedRequestState(): void
     {
         $request = (new ContainerRequestStub)
@@ -126,9 +160,7 @@ class RequestTest extends TestCase
         $this->assertSame(10, $request->delayMilliseconds());
         $this->assertCount(1, $request->middleware()->requestPipeline()->pipes());
         $this->assertSame(['original' => true], $request->body());
-        $this->assertSame([
-            ['cookies' => ['original' => 'yes'], 'domain' => '.example.test'],
-        ], $request->cookies());
+        $this->assertSame(CookieJar::fromArray(['original' => 'yes'], '.example.test')->toArray(), $request->cookies());
         $this->assertSame([10], $request->retryPolicy()->times);
         $this->assertFalse($request->cachingEnabled());
         $this->assertFalse($request->shouldInvalidateCache());
@@ -138,6 +170,20 @@ class RequestTest extends TestCase
         $this->assertSame(3, $clone->retryPolicy()->times);
         $this->assertTrue($clone->cachingEnabled());
         $this->assertTrue($clone->shouldInvalidateCache());
+    }
+
+    public function testRawQueryDefaultsOverridesAndCloneIsolation(): void
+    {
+        $this->assertNull((new ContainerRequestStub)->queryString());
+        $request = new RawQueryRequestStub;
+        $this->assertSame('tag=a&tag=b', $request->queryString());
+        $request->withQueryString('cursor=a%2Fb')->withQueryParameters(['limit' => 10]);
+        $clone = clone $request;
+
+        $this->assertSame($clone, $clone->withQueryString(''));
+        $this->assertSame('', $clone->queryString());
+        $this->assertSame('cursor=a%2Fb', $request->queryString());
+        $this->assertSame(['limit' => 10], $clone->queryParameters());
     }
 }
 
@@ -150,6 +196,17 @@ class ContainerRequestStub extends Request
     public function resolveEndpoint(): string
     {
         return 'users';
+    }
+}
+
+class RawQueryRequestStub extends ContainerRequestStub
+{
+    /**
+     * Resolve the default raw query string override.
+     */
+    protected function defaultQueryString(): ?string
+    {
+        return 'tag=a&tag=b';
     }
 }
 

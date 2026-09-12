@@ -12,6 +12,7 @@ use Hypervel\Saloon\Exceptions\MissingAuthenticatorException;
 use Hypervel\Saloon\Exceptions\PendingRequestException;
 use Hypervel\Saloon\Http\Auth\AccessTokenAuthenticator;
 use Hypervel\Saloon\Http\Auth\HeaderAuthenticator;
+use Hypervel\Saloon\Http\Auth\QueryAuthenticator;
 use Hypervel\Saloon\Http\Auth\TokenAuthenticator;
 use Hypervel\Saloon\Http\Connector;
 use Hypervel\Saloon\Http\PendingRequest;
@@ -71,6 +72,50 @@ class PendingRequestTest extends TestCase
             '{"connector":true,"initial":true,"middleware":true}',
             (string) $pendingRequest->preparedBody(),
         );
+    }
+
+    public function testRawQuerySnapshotsDefaultsAndReplacesBothUrlQueries(): void
+    {
+        $request = new PendingRawQueryRequestStub;
+        $pendingRequest = $this->pendingRequest(new PendingRawQueryConnectorStub, $request);
+        $request->withQueryString('changed=after-snapshot');
+
+        $pendingRequest->finalizeUri();
+
+        $this->assertSame('tag=a&tag=b&cursor=a%2fb', $pendingRequest->queryString());
+        $this->assertSame('https://api.example.com/users?tag=a&tag=b&cursor=a%2fb', (string) $pendingRequest->uri());
+        $this->assertSame([], $pendingRequest->queryParameters());
+
+        $pendingRequest->withQueryString('')->finalizeUri();
+
+        $this->assertSame('https://api.example.com/users', (string) $pendingRequest->uri());
+        $this->assertSame('changed=after-snapshot', $request->queryString());
+    }
+
+    public function testRawQueryReplacementRetainsArrayAndAuthenticationOverlays(): void
+    {
+        $request = (new PendingRawQueryRequestStub)
+            ->withQueryString('tag=a&tag=b&token=old&token=older')
+            ->withQueryParameters(['limit' => 10]);
+        $pendingRequest = $this->pendingRequest(new PendingRequestConnectorStub, $request);
+
+        $pendingRequest->authenticate(new QueryAuthenticator('token', 'secret'))->finalizeUri();
+
+        $this->assertSame('tag=a&tag=b&version=1&limit=10&token=secret', $pendingRequest->uri()->getQuery());
+
+        $pendingRequest->withQueryString('cursor=next&token=stale')->finalizeUri();
+        $pendingRequest->withQueryParameters(['tag' => 'replacement'])->finalizeUri();
+
+        $this->assertSame('cursor=next&version=1&limit=10&token=secret&tag=replacement', $pendingRequest->uri()->getQuery());
+        $this->assertSame(['version' => 1, 'limit' => 10, 'token' => 'secret', 'tag' => 'replacement'], $pendingRequest->queryParameters());
+    }
+
+    public function testNullRawQueryKeepsTheOriginalUrlQuery(): void
+    {
+        $pendingRequest = $this->pendingRequest(new PendingRawQueryConnectorStub, new PendingRequestRequestStub);
+
+        $this->assertNull($pendingRequest->queryString());
+        $this->assertSame('base=old', $pendingRequest->uri()->getQuery());
     }
 
     public function testConnectorAndRequestBodyTypesMustMatch(): void
@@ -190,6 +235,38 @@ class PendingRequestConnectorStub extends Connector
     protected function defaultBody(): array
     {
         return ['connector' => true];
+    }
+}
+
+class PendingRawQueryConnectorStub extends Connector
+{
+    /**
+     * Resolve the integration base URL.
+     */
+    public function resolveBaseUrl(): string
+    {
+        return 'https://api.example.com?base=old';
+    }
+}
+
+class PendingRawQueryRequestStub extends Request
+{
+    protected Method $method = Method::GET;
+
+    /**
+     * Resolve the request endpoint.
+     */
+    public function resolveEndpoint(): string
+    {
+        return '/users?endpoint=old';
+    }
+
+    /**
+     * Resolve the default raw query string override.
+     */
+    protected function defaultQueryString(): ?string
+    {
+        return 'tag=a&tag=b&cursor=a%2fb';
     }
 }
 

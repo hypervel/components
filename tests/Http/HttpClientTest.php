@@ -10,6 +10,7 @@ use Exception;
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Cookie\CookieJar;
+use GuzzleHttp\Cookie\SetCookie;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\RequestException as GuzzleRequestException;
 use GuzzleHttp\Exception\TooManyRedirectsException;
@@ -2204,12 +2205,57 @@ class HttpClientTest extends TestCase
 
         $this->assertCount(1, $response->cookies()->toArray());
 
-        /** @var \GuzzleHttp\Cookie\CookieJarInterface $responseCookies */
         $responseCookie = $response->cookies()->toArray()[0];
 
         $this->assertSame('foo', $responseCookie['Name']);
         $this->assertSame('bar', $responseCookie['Value']);
         $this->assertSame('https://laravel.com', $responseCookie['Domain']);
+    }
+
+    public function testWithCookiePreservesAttributesAndSnapshotsTheInput(): void
+    {
+        $this->factory->fake();
+        $cookie = new SetCookie([
+            'Name' => 'session', 'Value' => 'first', 'Domain' => 'api.example.com',
+            'Path' => '/api', 'Secure' => true, 'HttpOnly' => true, 'HostOnly' => true,
+        ]);
+        $expected = $cookie->toArray();
+        $request = $this->factory->withCookie($cookie);
+        $cookie->setValue('second');
+
+        $response = $request->get('https://api.example.com/api/users');
+
+        $this->assertSame([$expected], $response->cookies()->toArray());
+    }
+
+    #[DataProvider('invalidCookies')]
+    public function testWithCookieRejectsInvalidCookies(array $cookie, string $message): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($message);
+
+        $this->factory->withCookie(new SetCookie($cookie));
+    }
+
+    /**
+     * Provide cookies that cannot be sent with a request.
+     */
+    public static function invalidCookies(): array
+    {
+        return [
+            'null domain' => [
+                ['Name' => 'session', 'Value' => 'secret'],
+                'An outgoing cookie must have a domain.',
+            ],
+            'empty domain' => [
+                ['Name' => 'session', 'Value' => 'secret', 'Domain' => ''],
+                'Invalid cookie: The cookie domain must not be empty',
+            ],
+            'null value' => [
+                ['Name' => 'session', 'Domain' => 'api.example.com'],
+                'Invalid cookie: The cookie value must not be empty',
+            ],
+        ];
     }
 
     public function testWithQueryParameters(): void

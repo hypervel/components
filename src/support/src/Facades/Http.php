@@ -104,6 +104,7 @@ use Hypervel\Http\Client\ResponseSequence;
  * @method static \Hypervel\Http\Client\PendingRequest withAttributes(array $attributes)
  * @method static \Hypervel\Http\Client\PendingRequest withBasicAuth(string $username, string $password)
  * @method static \Hypervel\Http\Client\PendingRequest withBody(null|resource|\Psr\Http\Message\StreamInterface|string|\Hypervel\Support\Stringable $content, string|null $contentType = 'application/json')
+ * @method static \Hypervel\Http\Client\PendingRequest withCookie(\GuzzleHttp\Cookie\SetCookie $cookie)
  * @method static \Hypervel\Http\Client\PendingRequest withCookies(array $cookies, string $domain)
  * @method static \Hypervel\Http\Client\PendingRequest withDigestAuth(string $username, string $password)
  * @method static \Hypervel\Http\Client\PendingRequest withHeader(string $name, mixed $value)

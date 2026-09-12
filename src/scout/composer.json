@@ -55,7 +55,7 @@
         "symfony/console": "^8.1"
     },
     "suggest": {
-        "algolia/algoliasearch-client-php": "Required for Algolia driver (^4.0)",
+        "algolia/algoliasearch-client-php": "Required for Algolia driver (^4.49.0)",
         "meilisearch/meilisearch-php": "Required for Meilisearch driver (^1.16)",
         "typesense/typesense-php": "Required for Typesense driver (^5.2)"
     },
