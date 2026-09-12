@@ -51,26 +51,30 @@ class HttpClientStreamingTest extends TestCase
     public function testStreamingReadsAllowOtherCoroutinesToProgress(): void
     {
         $this->withStreamingServer('delayed', function (string $address): void {
-            $progress = false;
-            $results = parallel([
-                'reader' => function () use ($address, &$progress): array {
-                    $response = (new Factory)->withOptions(['stream' => true, 'read_timeout' => 3])->get('http://' . $address);
-                    try {
-                        $items = iterator_to_array($response->jsonLines());
+            $ready = new Channel(1);
+            try {
+                $results = parallel([
+                    'reader' => function () use ($address, $ready): array {
+                        $response = (new Factory)->withOptions(['stream' => true, 'read_timeout' => 3])->get('http://' . $address);
+                        try {
+                            $ready->push(true);
 
-                        return [$items, $progress];
-                    } finally {
-                        $response->close();
-                    }
-                },
-                'release' => function () use ($address, &$progress): void {
-                    usleep(10000);
-                    $progress = true;
-                    $this->releaseServer($address);
-                },
-            ]);
+                            return iterator_to_array($response->jsonLines());
+                        } finally {
+                            $response->close();
+                        }
+                    },
+                    'release' => function () use ($address, $ready): void {
+                        $this->assertTrue($ready->pop(1), 'The streaming response headers did not arrive.');
+                        usleep(10000);
+                        $this->releaseServer($address);
+                    },
+                ]);
 
-            $this->assertSame([[['id' => 2]], true], $results['reader']);
+                $this->assertSame([['id' => 2]], $results['reader']);
+            } finally {
+                $ready->close();
+            }
         });
     }
 
