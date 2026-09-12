@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\WebSocketServer;
 
+use Hypervel\Container\Container as BaseContainer;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Container\Container;
@@ -27,6 +28,8 @@ use Hypervel\HttpServer\Events\ResponseSent;
 use Hypervel\HttpServer\RequestBridge;
 use Hypervel\HttpServer\ResponseBridge;
 use Hypervel\Routing\Router;
+use Hypervel\Support\Defer\DeferredCallback;
+use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\SafeCaller;
 use Hypervel\WebSocketServer\Collector\FdCollector;
 use Hypervel\WebSocketServer\Context as WebSocketContext;
@@ -210,25 +213,38 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
                 }
             }
 
+            if ($terminalException === null && $handshake !== null) {
+                [$fd, $class, $instance, $server] = $handshake;
+
+                if ($server->isEstablished($fd)) {
+                    // No yield may occur between the native liveness check and
+                    // publication, or onClose could miss the committed connection.
+                    $this->deferOnOpen($request, $instance, $server, $fd, $httpRequest, $httpResponse);
+                    FdCollector::set($fd, $class);
+                    $committed = true;
+
+                    return;
+                }
+            }
+
+            if ($httpRequest !== null) {
+                try {
+                    $this->terminateRouteMiddleware($httpRequest, $httpResponse);
+                } catch (CanceledException $exception) {
+                    throw $exception;
+                } catch (Throwable $throwable) {
+                    $terminalException ??= $throwable;
+                }
+            }
+
+            $this->invokeDeferredCallbacks(
+                $terminalException === null
+                    && $httpResponse->getStatusCode() < Response::HTTP_BAD_REQUEST
+            );
+
             if ($terminalException !== null) {
                 throw $terminalException;
             }
-
-            if ($handshake === null) {
-                return;
-            }
-
-            [$fd, $class, $instance, $server] = $handshake;
-
-            if (! $server->isEstablished($fd)) {
-                return;
-            }
-
-            // No yield may occur between the native liveness check and
-            // publication, or onClose could miss the committed connection.
-            $this->deferOnOpen($request, $instance, $server, $fd);
-            FdCollector::set($fd, $class);
-            $committed = true;
         } finally {
             if ($fd !== null && ! $committed) {
                 FdCollector::del($fd);
@@ -305,8 +321,11 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
         } catch (CanceledException) {
             return;
         } catch (Throwable $throwable) {
+            $exception ??= $throwable;
             $this->reportCallbackFailure($throwable);
         }
+
+        $this->invokeDeferredCallbacks($exception === null);
     }
 
     /**
@@ -315,6 +334,7 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
     public function onClose(SwooleServer $server, int $fd, int $reactorId): void
     {
         CoroutineContext::set(WebSocketContext::FD, $fd);
+        $failed = false;
 
         try {
             $class = FdCollector::get($fd);
@@ -329,6 +349,7 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
             } catch (CanceledException) {
                 return;
             } catch (Throwable $throwable) {
+                $failed = true;
                 $this->reportCallbackFailure($throwable);
             }
 
@@ -337,6 +358,7 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
             } catch (CanceledException) {
                 return;
             } catch (Throwable $throwable) {
+                $failed = true;
                 $this->reportCallbackFailure($throwable);
             }
 
@@ -345,6 +367,7 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
             } catch (CanceledException) {
                 return;
             } catch (Throwable $throwable) {
+                $failed = true;
                 $this->reportCallbackFailure($throwable);
                 $instance = null;
             }
@@ -355,6 +378,7 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
                 } catch (CanceledException) {
                     return;
                 } catch (Throwable $throwable) {
+                    $failed = true;
                     $this->reportCallbackFailure($throwable);
                 }
             }
@@ -366,8 +390,11 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
             } catch (CanceledException) {
                 return;
             } catch (Throwable $throwable) {
+                $failed = true;
                 $this->reportCallbackFailure($throwable);
             }
+
+            $this->invokeDeferredCallbacks(! $failed);
         } finally {
             FdCollector::del($fd);
             WebSocketContext::release($fd);
@@ -457,11 +484,19 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
     }
 
     /**
-     * Defer the onOpen callback after handshake completes.
+     * Defer connection opening and cleanup until the handshake coroutine exits.
      */
-    protected function deferOnOpen(Request $request, object $instance, WebSocketServer $server, int $fd): void
-    {
-        Coroutine::defer(function () use ($request, $instance, $server, $fd) {
+    protected function deferOnOpen(
+        Request $request,
+        object $instance,
+        WebSocketServer $server,
+        int $fd,
+        HttpRequest $httpRequest,
+        Response $httpResponse,
+    ): void {
+        Coroutine::defer(function () use ($request, $instance, $server, $fd, $httpRequest, $httpResponse) {
+            $failed = false;
+
             try {
                 if ($this->event?->hasListeners(ConnectionOpened::class)) {
                     $this->event->dispatch(new ConnectionOpened($fd, $request, $this->serverName));
@@ -469,6 +504,7 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
             } catch (CanceledException) {
                 return;
             } catch (Throwable $throwable) {
+                $failed = true;
                 $this->reportCallbackFailure($throwable);
             }
 
@@ -478,10 +514,81 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
                 } catch (CanceledException) {
                     return;
                 } catch (Throwable $throwable) {
+                    $failed = true;
                     $this->reportCallbackFailure($throwable);
                 }
             }
+
+            // Termination may yield and let onClose run, so run it after onOpen
+            // has initialized the connection. Drain handshake defers afterward.
+            try {
+                $this->terminateRouteMiddleware($httpRequest, $httpResponse);
+            } catch (CanceledException) {
+                return;
+            } catch (Throwable $throwable) {
+                $failed = true;
+                $this->reportCallbackFailure($throwable);
+            }
+
+            $this->invokeDeferredCallbacks(! $failed);
         });
+    }
+
+    /**
+     * Terminate the middleware used by the handshake route.
+     */
+    private function terminateRouteMiddleware(HttpRequest $request, Response $response): void
+    {
+        $route = $request->route();
+
+        if ($route === null
+            || ($this->container->bound('middleware.disable')
+                && $this->container->make('middleware.disable') === true)) {
+            return;
+        }
+
+        $exception = null;
+
+        foreach ($this->getRouter()->gatherRouteMiddleware($route) as $middleware) {
+            if (! is_string($middleware)) {
+                continue;
+            }
+
+            try {
+                $instance = $this->container->make(explode(':', $middleware, 2)[0]);
+
+                if (method_exists($instance, 'terminate')) {
+                    $instance->terminate($request, $response);
+                }
+            } catch (CanceledException $throwable) {
+                throw $throwable;
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
+    }
+
+    /**
+     * Run deferred work without escaping the native callback boundary.
+     */
+    private function invokeDeferredCallbacks(bool $successful): void
+    {
+        try {
+            $container = BaseContainer::getInstance();
+
+            if ($container->resolvedScoped(DeferredCallbackCollection::class)) {
+                $container->make(DeferredCallbackCollection::class)->invokeWhen(
+                    fn (DeferredCallback $callback): bool => $successful || $callback->always
+                );
+            }
+        } catch (CanceledException) {
+        } catch (Throwable $throwable) {
+            $this->reportCallbackFailure($throwable);
+        }
     }
 
     /**
