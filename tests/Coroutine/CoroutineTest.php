@@ -188,6 +188,37 @@ class CoroutineTest extends TestCase
         $this->assertSame(1, $count); // Should still be 1, callback was flushed
     }
 
+    public function testDetachmentMarkerIsOnlyAvailableDuringChildStartup(): void
+    {
+        $observed = [];
+        Coroutine::afterCreated(static function () use (&$observed): void {
+            $observed[] = ['startup', CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY)];
+        });
+
+        Coroutine::createOwned(
+            static function () use (&$observed): void {
+                $observed[] = ['callable', CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY)];
+                Coroutine::fork(static function () use (&$observed): void {
+                    $observed[] = ['descendant', CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY)];
+                });
+            },
+            static function (Closure $run) use (&$observed): void {
+                $run();
+                $observed[] = ['wrapper', CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY)];
+            },
+            detached: true,
+        );
+
+        $this->assertSame([
+            ['startup', true],
+            ['callable', false],
+            ['startup', false],
+            ['descendant', false],
+            ['wrapper', false],
+        ], $observed);
+        $this->assertFalse(CoroutineContext::has(Coroutine::DETACHED_CONTEXT_KEY));
+    }
+
     public function testFlushStateRestoresExceptionReporting()
     {
         try {
