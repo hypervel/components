@@ -127,7 +127,7 @@ class TelescopeServiceProviderTest extends FeatureTestCase
         CoroutineContext::set(Telescope::BATCH_ID_CONTEXT_KEY, 'parent-batch');
         $observed = [];
 
-        Coroutine::createOwned(
+        $coroutineId = Coroutine::createOwned(
             static function () use (&$observed): void {
                 $observed = [
                     Telescope::isRecording(),
@@ -139,6 +139,8 @@ class TelescopeServiceProviderTest extends FeatureTestCase
             },
             detached: true,
         );
+
+        Coroutine::join([$coroutineId]);
 
         $this->assertSame([false, null], $observed);
         $this->assertTrue(Telescope::isRecording());
@@ -151,7 +153,7 @@ class TelescopeServiceProviderTest extends FeatureTestCase
         CoroutineContext::set(Telescope::BATCH_ID_CONTEXT_KEY, 'parent-batch');
         $observed = [];
 
-        Coroutine::forkOwned(
+        $coroutineId = Coroutine::forkOwned(
             static function () use (&$observed): void {
                 $observed = [
                     Telescope::isRecording(),
@@ -164,6 +166,8 @@ class TelescopeServiceProviderTest extends FeatureTestCase
             [Telescope::SHOULD_RECORD_CONTEXT_KEY],
             detached: true,
         );
+
+        Coroutine::join([$coroutineId]);
 
         $this->assertSame([true, null], $observed);
         $this->assertSame('parent-batch', CoroutineContext::get(Telescope::BATCH_ID_CONTEXT_KEY));
