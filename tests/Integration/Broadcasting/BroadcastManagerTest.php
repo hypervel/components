@@ -344,11 +344,10 @@ class BroadcastManagerTest extends TestCase
 
     public function testThrowExceptionWhenUnknownStoreIsUsed(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Broadcast connection [alien_connection] is not defined.');
+        $this->expectExceptionObject(new InvalidArgumentException('Broadcast connection [alien_connection] is not defined.'));
 
         $app = new Container;
-        $app->singleton('config', fn () => new \Hypervel\Config\Repository([
+        $app->singleton('config', fn (): Repository => new Repository([
             'broadcasting' => [
                 'connections' => [
                     'my_connection' => [
