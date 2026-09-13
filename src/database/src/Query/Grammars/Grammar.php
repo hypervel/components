@@ -14,6 +14,7 @@ use Hypervel\Database\Query\JoinClause;
 use Hypervel\Database\Query\JoinLateralClause;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use InvalidArgumentException;
 use RuntimeException;
 
 class Grammar extends BaseGrammar
@@ -1210,6 +1211,28 @@ class Grammar extends BaseGrammar
         $joins = $this->compileJoins($query, $query->joins);
 
         return "delete {$alias} from {$table} {$joins} {$where}";
+    }
+
+    /**
+     * Qualify the row identifier selected by a limited or joined write rewrite.
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function qualifyRowIdentifier(Builder $query, string $identifier): string
+    {
+        $alias = $query->getFromAlias();
+
+        if ($alias !== null) {
+            return $alias . '.' . $identifier;
+        }
+
+        // In a join, an unqualified identifier can resolve to the outer query in
+        // PostgreSQL or a string literal in SQLite, silently affecting the wrong rows.
+        if ($query->joins) {
+            throw new InvalidArgumentException('Joined writes on a raw query source require an explicit alias set through from().');
+        }
+
+        return $identifier;
     }
 
     /**
