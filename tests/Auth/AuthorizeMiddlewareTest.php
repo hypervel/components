@@ -112,8 +112,7 @@ class AuthorizeMiddlewareTest extends TestCase
 
     public function testSimpleAbilityUnauthorized(): void
     {
-        $this->expectException(AuthorizationException::class);
-        $this->expectExceptionMessage('This action is unauthorized.');
+        $this->expectExceptionObject(new AuthorizationException('This action is unauthorized.'));
 
         $this->gate()->define('view-dashboard', function (stdClass $user, mixed $additional = null): bool {
             $this->assertNull($additional);
@@ -274,8 +273,7 @@ class AuthorizeMiddlewareTest extends TestCase
 
     public function testModelTypeUnauthorized(): void
     {
-        $this->expectException(AuthorizationException::class);
-        $this->expectExceptionMessage('This action is unauthorized.');
+        $this->expectExceptionObject(new AuthorizationException('This action is unauthorized.'));
 
         $this->gate()->define('create', function (stdClass $user, string $model): bool {
             $this->assertSame('App\User', $model);
@@ -315,8 +313,7 @@ class AuthorizeMiddlewareTest extends TestCase
 
     public function testModelUnauthorized(): void
     {
-        $this->expectException(AuthorizationException::class);
-        $this->expectExceptionMessage('This action is unauthorized.');
+        $this->expectExceptionObject(new AuthorizationException('This action is unauthorized.'));
 
         $post = new stdClass;
 

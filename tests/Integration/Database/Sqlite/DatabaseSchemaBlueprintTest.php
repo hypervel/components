@@ -1383,7 +1383,7 @@ SQL);
         );
     }
 
-    public function testItDoesNotSetPrecisionHigherThanSupportedWhenRenamingTimestamps()
+    public function testItDoesNotSetPrecisionHigherThanSupportedWhenRenamingTimestamps(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->timestamp('created_at');
@@ -1398,7 +1398,7 @@ SQL);
             $this->addToAssertionCount(1); // it did not throw
         } catch (Exception $e) {
             // Expecting something similar to:
-            // Illuminate\Database\QueryException
+            // QueryException
             //   SQLSTATE[42000]: Syntax error or access violation: 1426 Too big precision 10 specified for 'my_timestamp'. Maximum is 6....
             $this->fail('test_it_does_not_set_precision_higher_than_supported_when_renaming_timestamps has failed. Error: ' . $e->getMessage());
         }

@@ -1143,6 +1143,44 @@ class Builder implements BuilderContract
     }
 
     /**
+     * Add a "where binary" clause to the query.
+     */
+    public function whereBinary(ExpressionContract|string $column, string $value, string $boolean = 'and', bool $not = false): static
+    {
+        $type = 'Binary';
+
+        $this->wheres[] = compact('type', 'column', 'value', 'boolean', 'not');
+
+        $this->addBinding($value);
+
+        return $this;
+    }
+
+    /**
+     * Add an "or where binary" clause to the query.
+     */
+    public function orWhereBinary(ExpressionContract|string $column, string $value): static
+    {
+        return $this->whereBinary($column, $value, 'or');
+    }
+
+    /**
+     * Add a "where not binary" clause to the query.
+     */
+    public function whereNotBinary(ExpressionContract|string $column, string $value, string $boolean = 'and'): static
+    {
+        return $this->whereBinary($column, $value, $boolean, true);
+    }
+
+    /**
+     * Add an "or where not binary" clause to the query.
+     */
+    public function orWhereNotBinary(ExpressionContract|string $column, string $value): static
+    {
+        return $this->whereNotBinary($column, $value, 'or');
+    }
+
+    /**
      * Add a "where like" clause to the query.
      */
     public function whereLike(ExpressionContract|string $column, string $value, bool $caseSensitive = false, string $boolean = 'and', bool $not = false): static
@@ -3844,12 +3882,14 @@ class Builder implements BuilderContract
 
     /**
      * Insert or update a record matching the attributes, and fill it with values.
+     *
+     * @param array|(callable(bool): array) $values
      */
     public function updateOrInsert(array $attributes, array|callable $values = []): bool
     {
         $exists = $this->where($attributes)->exists();
 
-        if ($values instanceof Closure) {
+        if (! is_array($values)) {
             $values = $values($exists);
         }
 
@@ -3866,9 +3906,17 @@ class Builder implements BuilderContract
 
     /**
      * Insert new records or update the existing ones.
+     *
+     * @param non-empty-array<int, non-empty-string>|non-empty-string $uniqueBy
+     *
+     * @throws InvalidArgumentException
      */
     public function upsert(array $values, array|string $uniqueBy, ?array $update = null): int
     {
+        if ($uniqueBy === [] || $uniqueBy === '') {
+            throw new InvalidArgumentException('The unique columns must not be empty.');
+        }
+
         if (empty($values)) {
             return 0;
         }

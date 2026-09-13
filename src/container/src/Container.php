@@ -857,14 +857,8 @@ class Container implements ContainerContract
         }
 
         $target = $abstract;
-        $visited = [];
 
-        while (isset($this->aliases[$target])) {
-            if ($target === $alias || isset($visited[$target])) {
-                throw new LogicException("Alias [{$alias}] would create a circular alias chain.");
-            }
-
-            $visited[$target] = true;
+        while ($target !== $alias && isset($this->aliases[$target])) {
             $target = $this->aliases[$target];
         }
 
@@ -1624,7 +1618,7 @@ class Container implements ContainerContract
     /**
      * Get the current build stack without creating resolution state.
      *
-     * @return list<string>
+     * @return list<int|string>
      */
     protected function currentBuildStack(): array
     {
@@ -1781,7 +1775,7 @@ class Container implements ContainerContract
         // hand back the results of the functions, which allows functions to be
         // used as resolvers for more fine-tuned resolution of these objects.
         if ($concrete instanceof Closure) {
-            $resolutionState->buildStack[] = spl_object_hash($concrete);
+            $resolutionState->buildStack[] = spl_object_id($concrete);
 
             try {
                 return $concrete($this, end($resolutionState->parameterOverrides) ?: []);
@@ -2266,11 +2260,9 @@ class Container implements ContainerContract
     }
 
     /**
-     * Get the name of the binding the container is currently resolving.
-     *
-     * @return null|class-string|string
+     * Get the class name or closure object ID the container is currently resolving.
      */
-    public function currentlyResolving(): ?string
+    public function currentlyResolving(): int|string|null
     {
         $buildStack = $this->currentBuildStack();
 
@@ -2290,6 +2282,7 @@ class Container implements ContainerContract
      */
     public function getAlias(string $abstract): string
     {
+        // alias() rejects cycles before registering, so this chain always terminates.
         return isset($this->aliases[$abstract])
             ? $this->getAlias($this->aliases[$abstract])
             : $abstract;

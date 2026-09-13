@@ -42,13 +42,25 @@ class MySqlGrammar extends Grammar
     }
 
     /**
+     * Compile a "where binary" clause.
+     */
+    protected function whereBinary(Builder $query, array $where): string
+    {
+        $operator = $where['not'] ? '!=' : '=';
+
+        return $this->wrap($where['column']) . ' ' . $operator . ' cast(' . $this->parameter($where['value']) . ' as binary)';
+    }
+
+    /**
      * Compile a "where like" clause.
      */
     protected function whereLike(Builder $query, array $where): string
     {
-        $where['operator'] = $where['not'] ? 'not ' : '';
+        $where['operator'] = $where['not'] ? 'not like' : 'like';
 
-        $where['operator'] .= $where['caseSensitive'] ? 'like binary' : 'like';
+        if ($where['caseSensitive']) {
+            return $this->wrap($where['column']) . ' ' . $where['operator'] . ' cast(' . $this->parameter($where['value']) . ' as binary)';
+        }
 
         return $this->whereBasic($query, $where);
     }

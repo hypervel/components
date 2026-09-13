@@ -95,6 +95,22 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
         $this->assertEquals([], $query->getBindings());
     }
 
+    public function testAnonymousGlobalScopeCanBeRetrievedAndRemovedByItsIdentifier(): void
+    {
+        $model = new ClosureGlobalScopesModel;
+        $scopes = $model->getGlobalScopes();
+        $identifier = array_key_first($scopes);
+
+        $this->assertIsInt($identifier);
+        $this->assertTrue($model::hasGlobalScope($identifier));
+        $this->assertSame($scopes[$identifier], $model::getGlobalScope($identifier));
+
+        $query = $model->newQueryWithoutScope($identifier);
+
+        $this->assertSame('select * from "table" where ("active" = ?)', $query->toSql());
+        $this->assertSame([1], $query->getBindings());
+    }
+
     public function testGlobalScopeCanBeRemovedAfterTheQueryIsExecuted()
     {
         $model = new ClosureGlobalScopesModel;

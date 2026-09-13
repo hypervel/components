@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
+use Closure;
 use Generator;
 use Hypervel\Container\Container;
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionName;
 use Hypervel\Database\Connectors\ConnectionFactory;
+use Hypervel\Database\Connectors\ConnectorInterface;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
@@ -21,10 +23,15 @@ use stdClass;
 
 class DatabaseConnectionFactoryTest extends TestCase
 {
-    protected $db;
+    protected DB $db;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
+        parent::setUp();
+
         $this->db = new DB;
 
         $this->db->addConnection([
@@ -49,7 +56,7 @@ class DatabaseConnectionFactoryTest extends TestCase
         $this->db->setAsGlobal();
     }
 
-    public function testConnectionCanBeCreated()
+    public function testConnectionCanBeCreated(): void
     {
         $this->assertInstanceOf(PDO::class, $this->db->getConnection()->getPdo());
         $this->assertInstanceOf(PDO::class, $this->db->getConnection()->getReadPdo());
@@ -275,7 +282,7 @@ class DatabaseConnectionFactoryTest extends TestCase
         $this->assertArrayNotHasKey('write', $config);
     }
 
-    public function testSingleConnectionNotCreatedUntilNeeded()
+    public function testSingleConnectionNotCreatedUntilNeeded(): void
     {
         $connection = $this->db->getConnection();
         $pdo = new ReflectionProperty(get_class($connection), 'pdo');
@@ -285,7 +292,7 @@ class DatabaseConnectionFactoryTest extends TestCase
         $this->assertNotInstanceOf(PDO::class, $readPdo->getValue($connection));
     }
 
-    public function testReadWriteConnectionsNotCreatedUntilNeeded()
+    public function testReadWriteConnectionsNotCreatedUntilNeeded(): void
     {
         $connection = $this->db->getConnection('read_write');
         $pdo = new ReflectionProperty(get_class($connection), 'pdo');
@@ -308,36 +315,41 @@ class DatabaseConnectionFactoryTest extends TestCase
         $this->assertSame(':memory:', $config['database']);
     }
 
-    public function testIfDriverIsntSetExceptionIsThrown()
-    {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('A driver must be specified.');
+    // REMOVED: Laravel's external-pooler configuration tests. Hypervel configures
+    // the direct endpoint as a normal named connection and uses migrations_connection
+    // instead of the ::direct suffix.
 
-        $factory = new ConnectionFactory($container = m::mock(Container::class));
+    public function testIfDriverIsntSetExceptionIsThrown(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException('A driver must be specified.'));
+
+        $container = m::mock(Container::class);
+        $factory = new ConnectionFactory($container);
         $factory->createConnector(['foo']);
     }
 
-    public function testExceptionIsThrownOnUnsupportedDriver()
+    public function testExceptionIsThrownOnUnsupportedDriver(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unsupported driver [foo]');
+        $this->expectExceptionObject(new InvalidArgumentException('Unsupported driver [foo]'));
 
-        $factory = new ConnectionFactory($container = m::mock(Container::class));
-        $container->shouldReceive('bound')->once()->andReturn(false);
+        $container = m::mock(Container::class);
+        $container->expects('bound')->andReturn(false);
+        $factory = new ConnectionFactory($container);
         $factory->createConnector(['driver' => 'foo']);
     }
 
-    public function testCustomConnectorsCanBeResolvedViaContainer()
+    public function testCustomConnectorsCanBeResolvedViaContainer(): void
     {
-        $connector = m::mock(\Hypervel\Database\Connectors\ConnectorInterface::class);
-        $factory = new ConnectionFactory($container = m::mock(Container::class));
-        $container->shouldReceive('bound')->once()->with('db.connector.foo')->andReturn(true);
-        $container->shouldReceive('make')->once()->with('db.connector.foo')->andReturn($connector);
+        $connector = m::mock(ConnectorInterface::class);
+        $container = m::mock(Container::class);
+        $container->expects('bound')->with('db.connector.foo')->andReturn(true);
+        $container->expects('make')->with('db.connector.foo')->andReturn($connector);
+        $factory = new ConnectionFactory($container);
 
         $this->assertSame($connector, $factory->createConnector(['driver' => 'foo']));
     }
 
-    public function testSqliteForeignKeyConstraints()
+    public function testSqliteForeignKeyConstraints(): void
     {
         $this->db->addConnection([
             'url' => 'sqlite:///:memory:?foreign_key_constraints=true',
@@ -348,7 +360,7 @@ class DatabaseConnectionFactoryTest extends TestCase
         $this->assertEquals(1, $this->db->getConnection('constraints_set')->select('PRAGMA foreign_keys')[0]->foreign_keys);
     }
 
-    public function testSqliteBusyTimeout()
+    public function testSqliteBusyTimeout(): void
     {
         $this->db->addConnection([
             'url' => 'sqlite:///:memory:?busy_timeout=1234',
@@ -360,7 +372,7 @@ class DatabaseConnectionFactoryTest extends TestCase
         $this->assertSame(1234, $this->db->getConnection('busy_timeout_set')->select('PRAGMA busy_timeout')[0]->timeout);
     }
 
-    public function testSqliteSynchronous()
+    public function testSqliteSynchronous(): void
     {
         $this->db->addConnection([
             'url' => 'sqlite:///:memory:?synchronous=NORMAL',
@@ -371,12 +383,12 @@ class DatabaseConnectionFactoryTest extends TestCase
         $this->assertSame(1, $this->db->getConnection('synchronous_set')->select('PRAGMA synchronous')[0]->synchronous);
     }
 
-    public function testExtendWithDriverName()
+    public function testExtendWithDriverName(): void
     {
         $factory = new ConnectionFactory(new Container);
         $custom = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
 
-        $factory->extend('sqlite', function (array $config, ?string $name) use ($custom) {
+        $factory->extend('sqlite', function (array $config, ?string $name) use ($custom): SQLiteConnection {
             return $custom;
         });
 
@@ -385,12 +397,12 @@ class DatabaseConnectionFactoryTest extends TestCase
         $this->assertSame($custom, $result);
     }
 
-    public function testExtendWithConnectionName()
+    public function testExtendWithConnectionName(): void
     {
         $factory = new ConnectionFactory(new Container);
         $custom = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
 
-        $factory->extend('my-connection', function (array $config, ?string $name) use ($custom) {
+        $factory->extend('my-connection', function (array $config, ?string $name) use ($custom): SQLiteConnection {
             return $custom;
         });
 
@@ -399,12 +411,12 @@ class DatabaseConnectionFactoryTest extends TestCase
         $this->assertSame($custom, $result);
     }
 
-    public function testDriverExtensionTakesPrecedenceOverBuiltInDrivers()
+    public function testDriverExtensionTakesPrecedenceOverBuiltInDrivers(): void
     {
         $factory = new ConnectionFactory(new Container);
         $custom = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
 
-        $factory->extend('sqlite', function () use ($custom) {
+        $factory->extend('sqlite', function () use ($custom): SQLiteConnection {
             return $custom;
         });
 
@@ -414,16 +426,16 @@ class DatabaseConnectionFactoryTest extends TestCase
         $this->assertSame($custom, $result);
     }
 
-    public function testConnectionNameExtensionTakesPrecedenceOverDriverExtension()
+    public function testConnectionNameExtensionTakesPrecedenceOverDriverExtension(): void
     {
         $factory = new ConnectionFactory(new Container);
         $connectionSpecific = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
         $driverLevel = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
 
-        $factory->extend('my-conn', function () use ($connectionSpecific) {
+        $factory->extend('my-conn', function () use ($connectionSpecific): SQLiteConnection {
             return $connectionSpecific;
         });
-        $factory->extend('sqlite', function () use ($driverLevel) {
+        $factory->extend('sqlite', function () use ($driverLevel): SQLiteConnection {
             return $driverLevel;
         });
 
@@ -433,12 +445,12 @@ class DatabaseConnectionFactoryTest extends TestCase
         $this->assertNotSame($driverLevel, $result);
     }
 
-    public function testForgetExtensionRemovesExtension()
+    public function testForgetExtensionRemovesExtension(): void
     {
         $factory = new ConnectionFactory(new Container);
         $custom = new SQLiteConnection(new PDO('sqlite::memory:'), ':memory:');
 
-        $factory->extend('sqlite', function () use ($custom) {
+        $factory->extend('sqlite', function () use ($custom): SQLiteConnection {
             return $custom;
         });
 
@@ -454,13 +466,13 @@ class DatabaseConnectionFactoryTest extends TestCase
         $this->assertInstanceOf(SQLiteConnection::class, $result);
     }
 
-    public function testExtensionCallbackReceivesConfigAndName()
+    public function testExtensionCallbackReceivesConfigAndName(): void
     {
         $factory = new ConnectionFactory(new Container);
         $receivedConfig = null;
         $receivedName = null;
 
-        $factory->extend('sqlite', function (array $config, ?string $name) use (&$receivedConfig, &$receivedName) {
+        $factory->extend('sqlite', function (array $config, ?string $name) use (&$receivedConfig, &$receivedName): SQLiteConnection {
             $receivedConfig = $config;
             $receivedName = $name;
 
@@ -535,7 +547,7 @@ class DatabaseConnectionFactoryTest extends TestCase
         $factory->extend('http', static fn (): object => new stdClass);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Database connection extensions must return a Connection instance.');
+        $this->expectExceptionMessageIsOrContains('Database connection extensions must return a Connection instance.');
 
         $factory->make(['driver' => 'http'], 'analytics');
     }
@@ -544,7 +556,7 @@ class DatabaseConnectionFactoryTest extends TestCase
     {
         $factory = new ConnectionFactory(new Container);
         $resolvedConfigs = [];
-        Connection::resolverFor('sqlite', function ($connection, $database, $prefix, $config) use (&$resolvedConfigs) {
+        Connection::resolverFor('sqlite', function (PDO|Closure $connection, string $database, string $prefix, array $config) use (&$resolvedConfigs): FactorySqliteConnection {
             $resolvedConfigs[] = $config;
 
             return new FactorySqliteConnection($connection, $database, $prefix, $config);
@@ -556,25 +568,21 @@ class DatabaseConnectionFactoryTest extends TestCase
             'write' => ['database' => ':memory:'],
         ];
 
-        try {
-            $initial = $factory->makeSharedInMemorySqliteConnection($config, 'memory');
-            $pdo = $initial->getPdo();
-            $replacement = $factory->makeSqliteFromSharedPdo($pdo, $config, 'memory');
+        $initial = $factory->makeSharedInMemorySqliteConnection($config, 'memory');
+        $pdo = $initial->getPdo();
+        $replacement = $factory->makeSqliteFromSharedPdo($pdo, $config, 'memory');
 
-            $this->assertInstanceOf(FactorySqliteConnection::class, $initial);
-            $this->assertInstanceOf(FactorySqliteConnection::class, $replacement);
-            $this->assertSame($pdo, $replacement->getPdo());
-            $this->assertCount(2, $resolvedConfigs);
-            $this->assertSame($resolvedConfigs[0], $resolvedConfigs[1]);
-            $this->assertArrayNotHasKey('read', $resolvedConfigs[0]);
-            $this->assertArrayNotHasKey('write', $resolvedConfigs[0]);
+        $this->assertInstanceOf(FactorySqliteConnection::class, $initial);
+        $this->assertInstanceOf(FactorySqliteConnection::class, $replacement);
+        $this->assertSame($pdo, $replacement->getPdo());
+        $this->assertCount(2, $resolvedConfigs);
+        $this->assertSame($resolvedConfigs[0], $resolvedConfigs[1]);
+        $this->assertArrayNotHasKey('read', $resolvedConfigs[0]);
+        $this->assertArrayNotHasKey('write', $resolvedConfigs[0]);
 
-            $initial->refreshFrom($replacement);
+        $initial->refreshFrom($replacement);
 
-            $this->assertSame($pdo, $initial->getPdo());
-        } finally {
-            Connection::flushState();
-        }
+        $this->assertSame($pdo, $initial->getPdo());
     }
 
     public function testSharedInMemorySqliteRejectsConfigFirstExtensionsBeforeConnectionCreation(): void
@@ -583,7 +591,7 @@ class DatabaseConnectionFactoryTest extends TestCase
         $factory->extend('sqlite', static fn (): FactoryNonPdoConnection => new FactoryNonPdoConnection);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             "Pooled in-memory SQLite connections cannot use config-first extensions. Use Connection::resolverFor('sqlite', ...) to register a PDO connection subclass."
         );
 
@@ -599,7 +607,7 @@ class DatabaseConnectionFactoryTest extends TestCase
         $factory->extend('memory', static fn (): FactoryNonPdoConnection => new FactoryNonPdoConnection);
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             "Pooled in-memory SQLite connections cannot use config-first extensions. Use Connection::resolverFor('sqlite', ...) to register a PDO connection subclass."
         );
 
@@ -614,17 +622,13 @@ class DatabaseConnectionFactoryTest extends TestCase
         $factory = new ConnectionFactory(new Container);
         Connection::resolverFor('sqlite', static fn (): FactoryNonPdoConnection => new FactoryNonPdoConnection);
 
-        try {
-            $this->expectException(InvalidArgumentException::class);
-            $this->expectExceptionMessage('PDO connection resolvers must return a PdoConnection instance.');
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageIsOrContains('PDO connection resolvers must return a PdoConnection instance.');
 
-            $factory->makeSharedInMemorySqliteConnection([
-                'driver' => 'sqlite',
-                'database' => ':memory:',
-            ], 'memory');
-        } finally {
-            Connection::flushState();
-        }
+        $factory->makeSharedInMemorySqliteConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ], 'memory');
     }
 }
 
@@ -661,71 +665,113 @@ class FactoryNonPdoConnection extends Connection
 {
     protected bool $driverResourcesPresent = true;
 
+    /**
+     * Run a select statement against the database.
+     */
     public function select(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): array
     {
         return [];
     }
 
+    /**
+     * Run a select statement and return a generator for the results.
+     */
     public function cursor(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): Generator
     {
         yield from [];
     }
 
+    /**
+     * Execute an SQL statement.
+     */
     public function statement(string $query, array $bindings = []): bool
     {
         return true;
     }
 
+    /**
+     * Run an SQL statement and get the number of affected rows.
+     */
     public function affectingStatement(string $query, array $bindings = []): int
     {
         return 0;
     }
 
+    /**
+     * Run an unprepared query against the database.
+     */
     public function unprepared(string $query): bool
     {
         return true;
     }
 
+    /**
+     * Determine whether the connection is responsive.
+     */
     public function ping(): bool
     {
         return $this->driverResourcesPresent;
     }
 
+    /**
+     * Determine whether the driver is in a transaction.
+     */
     public function inTransaction(): bool
     {
         return false;
     }
 
+    /**
+     * Get the database server version.
+     */
     public function getServerVersion(): string
     {
         return '1.0';
     }
 
+    /**
+     * Get the default driver name.
+     */
     protected function getDefaultDriverName(): string
     {
         return 'http';
     }
 
+    /**
+     * Escape a string for SQL.
+     */
     protected function escapeString(string $value): string
     {
         return "'{$value}'";
     }
 
+    /**
+     * Determine whether driver resources are present.
+     */
     protected function hasDriverResources(): bool
     {
         return $this->driverResourcesPresent;
     }
 
+    /**
+     * Disconnect the driver resources.
+     */
     protected function disconnectDriverResources(): void
     {
         $this->forgetDriverResources();
     }
 
+    /**
+     * Forget the driver resources.
+     */
     protected function forgetDriverResources(): void
     {
         $this->driverResourcesPresent = false;
     }
 
+    /**
+     * Replace the driver resources from a fresh connection.
+     */
     protected function replaceDriverResources(Connection $fresh): void
     {
         /** @var self $fresh */

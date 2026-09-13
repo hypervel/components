@@ -25,9 +25,9 @@ final class ContainerResolutionState implements ReplicableContext
     public int $depth = 0;
 
     /**
-     * The concrete types currently being built.
+     * The class names and closure object IDs currently being built.
      *
-     * @var list<string>
+     * @var list<int|string>
      */
     public array $buildStack = [];
 

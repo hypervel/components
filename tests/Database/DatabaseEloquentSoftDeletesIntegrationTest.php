@@ -7,10 +7,12 @@ namespace Hypervel\Tests\Database\DatabaseEloquentSoftDeletesIntegrationTest;
 use BadMethodCallException;
 use Exception;
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Eloquent\SoftDeletingScope;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Database\Schema\Builder as SchemaBuilder;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\Paginator;
@@ -1019,20 +1021,16 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
 
     /**
      * Get a database connection instance.
-     *
-     * @return \Illuminate\Database\Connection
      */
-    protected function connection()
+    protected function connection(): ConnectionInterface
     {
         return Eloquent::getConnectionResolver()->connection();
     }
 
     /**
      * Get a schema builder instance.
-     *
-     * @return \Illuminate\Database\Schema\Builder
      */
-    protected function schema()
+    protected function schema(): SchemaBuilder
     {
         return $this->connection()->getSchemaBuilder();
     }

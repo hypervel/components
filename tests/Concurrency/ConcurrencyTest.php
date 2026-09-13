@@ -520,6 +520,30 @@ class ConcurrencyTest extends TestCase
         $driver->run(static fn (): null => null);
     }
 
+    public function testWorkCanBeDistributed(): void
+    {
+        $this->defineCacheRoutes(<<<'PHP'
+<?php
+use Hypervel\Support\Facades\Concurrency;
+use Hypervel\Support\Facades\Route;
+
+Route::any('/concurrency', function (): array {
+    return Concurrency::run([
+        fn (): int => 1 + 1,
+        fn (): int => 2 + 2,
+    ]);
+});
+PHP);
+
+        $response = $this->get('concurrency')
+            ->assertOk();
+
+        [$first, $second] = $response->original;
+
+        $this->assertSame(2, $first);
+        $this->assertSame(4, $second);
+    }
+
     #[UsesVendor]
     public function testRunHandlerProcessErrorCode(): void
     {

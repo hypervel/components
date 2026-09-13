@@ -891,6 +891,18 @@ $users = DB::table('users')
 <a name="additional-where-clauses"></a>
 ### Additional Where Clauses
 
+**whereBinary / orWhereBinary / whereNotBinary / orWhereNotBinary**
+
+The `whereBinary` method compares strings byte by byte on MySQL and MariaDB, making letter case and trailing spaces significant:
+
+```php
+$users = DB::table('users')
+    ->whereBinary('name', 'John')
+    ->get();
+```
+
+Use `whereNotBinary` to find values that differ. The `orWhereBinary` and `orWhereNotBinary` methods add the corresponding "or" conditions. These methods throw an exception on other database drivers.
+
 **whereLike / orWhereLike / whereNotLike / orWhereNotLike**
 
 The `whereLike` method allows you to add "LIKE" clauses to your query for pattern matching. These methods provide a database-agnostic way of performing string matching queries, with the ability to toggle case-sensitivity. By default, string matching is case-insensitive:
@@ -1656,6 +1668,15 @@ In addition to inserting records into the database, the query builder can also u
 $affected = DB::table('users')
     ->where('id', 1)
     ->update(['votes' => 1]);
+```
+
+When using PostgreSQL, use the `updateFrom` method when the new column values reference columns from a joined table. This method returns the number of affected rows:
+
+```php
+$affected = DB::table('invoices')
+    ->join('customers', 'invoices.customer_id', '=', 'customers.id')
+    ->whereNull('invoices.currency')
+    ->updateFrom(['currency' => DB::raw('customers.currency')]);
 ```
 
 <a name="update-or-insert"></a>

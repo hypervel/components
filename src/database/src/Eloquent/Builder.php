@@ -134,6 +134,7 @@ class Builder implements BuilderContract
         'insert',
         'insertgetid',
         'insertorignore',
+        'insertorignorereturning',
         'insertusing',
         'insertorignoreusing',
         'max',
@@ -192,7 +193,7 @@ class Builder implements BuilderContract
     /**
      * Register a new global scope.
      */
-    public function withGlobalScope(string $identifier, Closure|Scope $scope): static
+    public function withGlobalScope(int|string $identifier, Closure|Scope $scope): static
     {
         $this->scopes[$identifier] = $scope;
 
@@ -206,9 +207,9 @@ class Builder implements BuilderContract
     /**
      * Remove a registered global scope.
      */
-    public function withoutGlobalScope(Scope|string $scope): static
+    public function withoutGlobalScope(Scope|int|string $scope): static
     {
-        if (! is_string($scope)) {
+        if (is_object($scope)) {
             $scope = get_class($scope);
         }
 

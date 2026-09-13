@@ -125,7 +125,15 @@ class ScheduleRunCommandTest extends TestCase
 
         $this->invokeRunEvents($this->makeCommand(), [$event]);
 
-        $this->assertSame(['parent', 'child', 'parent finished', 'after', 'deferred parent', 'deferred child'], $calls);
+        $this->assertSame([
+            'parent',
+            'child',
+            'parent finished',
+            'after',
+            'deferred parent',
+            'deferred child',
+            'deferred during cleanup',
+        ], $calls);
     }
 
     #[DataProvider('deferredTaskOutcomes')]

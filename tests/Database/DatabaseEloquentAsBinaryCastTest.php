@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\DatabaseEloquentAsBinaryCastTest;
+namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Eloquent\Casts\AsBinary;
 use Hypervel\Database\Eloquent\Model;
@@ -15,20 +15,18 @@ class DatabaseEloquentAsBinaryCastTest extends TestCase
 {
     public function testCastThrowsWhenFormatMissing(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The binary codec format is required.');
+        $this->expectExceptionObject(new InvalidArgumentException('The binary codec format is required.'));
 
-        $model = new TestModel;
+        $model = new AsBinaryTestModel;
         $model->setRawAttributes(['no_format' => 'value']);
         $model->no_format;
     }
 
     public function testCastThrowsOnInvalidFormat(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unsupported binary codec format [invalid]. Allowed formats are: uuid, ulid.');
+        $this->expectExceptionObject(new InvalidArgumentException('Unsupported binary codec format [invalid]. Allowed formats are: uuid, ulid.'));
 
-        $model = new TestModel;
+        $model = new AsBinaryTestModel;
         $model->setRawAttributes(['invalid_format' => 'value']);
         $model->invalid_format;
     }
@@ -36,7 +34,7 @@ class DatabaseEloquentAsBinaryCastTest extends TestCase
     public function testGetDecodesUuidFromBinary(): void
     {
         $uuid = '550e8400-e29b-41d4-a716-446655440000';
-        $model = new TestModel;
+        $model = new AsBinaryTestModel;
         $model->setRawAttributes(['uuid' => Uuid::fromString($uuid)->toBinary()]);
 
         $this->assertSame($uuid, $model->uuid);
@@ -47,7 +45,7 @@ class DatabaseEloquentAsBinaryCastTest extends TestCase
         $uuid = '550e8400-e29b-41d4-a716-446655440000';
         $stream = fopen('php://memory', 'r+');
         fwrite($stream, Uuid::fromString($uuid)->toBinary());
-        $model = new TestModel;
+        $model = new AsBinaryTestModel;
         $model->setRawAttributes(['uuid' => $stream]);
 
         try {
@@ -62,7 +60,7 @@ class DatabaseEloquentAsBinaryCastTest extends TestCase
     public function testSetEncodesUuidToBinary(): void
     {
         $uuid = '550e8400-e29b-41d4-a716-446655440000';
-        $model = new TestModel;
+        $model = new AsBinaryTestModel;
         $model->uuid = $uuid;
 
         $this->assertSame(Uuid::fromString($uuid)->toBinary(), $model->getAttributes()['uuid']);
@@ -71,7 +69,7 @@ class DatabaseEloquentAsBinaryCastTest extends TestCase
     public function testGetDecodesUlidFromBinary(): void
     {
         $ulid = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
-        $model = new TestModel;
+        $model = new AsBinaryTestModel;
         $model->setRawAttributes(['ulid' => Ulid::fromString($ulid)->toBinary()]);
 
         $this->assertSame($ulid, $model->ulid);
@@ -80,7 +78,7 @@ class DatabaseEloquentAsBinaryCastTest extends TestCase
     public function testSetEncodesUlidToBinary(): void
     {
         $ulid = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
-        $model = new TestModel;
+        $model = new AsBinaryTestModel;
         $model->ulid = $ulid;
 
         $this->assertSame(Ulid::fromString($ulid)->toBinary(), $model->getAttributes()['ulid']);
@@ -88,7 +86,7 @@ class DatabaseEloquentAsBinaryCastTest extends TestCase
 
     public function testGetReturnsNullForNullValue(): void
     {
-        $model = new TestModel;
+        $model = new AsBinaryTestModel;
         $model->setRawAttributes(['uuid' => null]);
 
         $this->assertNull($model->uuid);
@@ -96,7 +94,7 @@ class DatabaseEloquentAsBinaryCastTest extends TestCase
 
     public function testSetEncodesNullToNull(): void
     {
-        $model = new TestModel;
+        $model = new AsBinaryTestModel;
         $model->uuid = null;
 
         $this->assertNull($model->getAttributes()['uuid']);
@@ -118,7 +116,7 @@ class DatabaseEloquentAsBinaryCastTest extends TestCase
     }
 }
 
-class TestModel extends Model
+class AsBinaryTestModel extends Model
 {
     protected array $guarded = [];
 

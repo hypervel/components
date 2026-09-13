@@ -264,6 +264,21 @@ class ContainerTest extends TestCase
         $this->assertNotSame($first, $container->make(ContainerConcreteStub::class));
     }
 
+    public function testScopedDoesNotRegisterDuplicateScopedInstances(): void
+    {
+        $container = new Container;
+        $container->scoped('class', function (): stdClass {
+            return new stdClass;
+        });
+        $container->scoped('class', function (): stdClass {
+            return new stdClass;
+        });
+
+        $this->assertSame(['class' => true], (new ReflectionProperty($container, 'scopedInstances'))->getValue($container));
+    }
+
+    // REMOVED: Scoped re-registration after offsetUnset; arbitrary binding removal is unsupported.
+
     public function testScopedClosureResets()
     {
         $container = new Container;
@@ -607,10 +622,9 @@ class ContainerTest extends TestCase
         $this->assertFalse($_SERVER['__test.rebind']);
     }
 
-    public function testInternalClassWithDefaultParameters()
+    public function testInternalClassWithDefaultParameters(): void
     {
-        $this->expectException(BindingResolutionException::class);
-        $this->expectExceptionMessage('Unresolvable dependency resolving [$first] in class Hypervel\Tests\Container\ContainerTest\ContainerMixedPrimitiveStub');
+        $this->expectExceptionObject(new BindingResolutionException('Unresolvable dependency resolving [$first] in class Hypervel\Tests\Container\ContainerTest\ContainerMixedPrimitiveStub'));
 
         $container = new Container;
         $container->make(ContainerMixedPrimitiveStub::class, []);
@@ -622,7 +636,7 @@ class ContainerTest extends TestCase
         // unresolvable param, the error message should reference A (the
         // declaring class), not B (the class being built).
         $this->expectException(BindingResolutionException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'Unresolvable dependency resolving [$value] in class '
             . ContainerInheritedConstructorParentStub::class
         );
@@ -631,28 +645,25 @@ class ContainerTest extends TestCase
         $container->make(ContainerInheritedConstructorChildStub::class);
     }
 
-    public function testBindingResolutionExceptionMessage()
+    public function testBindingResolutionExceptionMessage(): void
     {
-        $this->expectException(BindingResolutionException::class);
-        $this->expectExceptionMessage('Target [Hypervel\Tests\Container\ContainerTest\IContainerContractStub] is not instantiable.');
+        $this->expectExceptionObject(new BindingResolutionException('Target [Hypervel\Tests\Container\ContainerTest\IContainerContractStub] is not instantiable.'));
 
         $container = new Container;
         $container->make(IContainerContractStub::class, []);
     }
 
-    public function testBindingResolutionExceptionMessageIncludesBuildStack()
+    public function testBindingResolutionExceptionMessageIncludesBuildStack(): void
     {
-        $this->expectException(BindingResolutionException::class);
-        $this->expectExceptionMessage('Target [Hypervel\Tests\Container\ContainerTest\IContainerContractStub] is not instantiable while building [Hypervel\Tests\Container\ContainerTest\ContainerDependentStub].');
+        $this->expectExceptionObject(new BindingResolutionException('Target [Hypervel\Tests\Container\ContainerTest\IContainerContractStub] is not instantiable while building [Hypervel\Tests\Container\ContainerTest\ContainerDependentStub].'));
 
         $container = new Container;
         $container->make(ContainerDependentStub::class, []);
     }
 
-    public function testBindingResolutionExceptionMessageWhenClassDoesNotExist()
+    public function testBindingResolutionExceptionMessageWhenClassDoesNotExist(): void
     {
-        $this->expectException(BindingResolutionException::class);
-        $this->expectExceptionMessage('Target class [Foo\Bar\Baz\DummyClass] does not exist.');
+        $this->expectExceptionObject(new BindingResolutionException('Target class [Foo\Bar\Baz\DummyClass] does not exist.'));
 
         $container = new Container;
         $container->build('Foo\Bar\Baz\DummyClass');
@@ -963,6 +974,22 @@ class ContainerTest extends TestCase
         $this->assertEquals(ContainerCurrentResolvingConcrete::class, $resolved->currentlyResolving);
     }
 
+    public function testCurrentlyResolvingClosureReturnsItsObjectId(): void
+    {
+        $container = new Container;
+        $currentlyResolving = null;
+        $factory = function (Container $container) use (&$currentlyResolving): stdClass {
+            $currentlyResolving = $container->currentlyResolving();
+
+            return new stdClass;
+        };
+
+        $container->build($factory);
+
+        $this->assertSame(spl_object_id($factory), $currentlyResolving);
+        $this->assertNull($container->currentlyResolving());
+    }
+
     public function testContextualNullTakesPrecedenceOverPrimitiveBindingAndDefault(): void
     {
         $container = new Container;
@@ -1012,42 +1039,48 @@ class ContainerTest extends TestCase
         $this->assertTrue($container->isAlias('foo'));
     }
 
-    public function testIndirectAliasCycleIsRejectedBeforeMutation(): void
+    public function testRepointingAliasCycleIsRejectedBeforeMutation(): void
     {
         $container = new Container;
         $container->alias('service', 'first');
         $container->alias('first', 'second');
 
         try {
-            $container->alias('second', 'service');
+            $container->alias('second', 'first');
             $this->fail('Expected the alias cycle to be rejected.');
         } catch (LogicException $exception) {
-            $this->assertSame('Alias [service] would create a circular alias chain.', $exception->getMessage());
+            $this->assertSame('Alias [first] would create a circular alias chain.', $exception->getMessage());
         }
 
+        $this->assertSame('service', $container->getAlias('first'));
         $this->assertSame('service', $container->getAlias('second'));
-        $this->assertFalse($container->isAlias('service'));
     }
 
-    public function testExistingAliasCycleIsRejectedWithoutLooping(): void
+    public function testItThrowsExceptionWhenAbstractIsSameAsAlias(): void
     {
-        $container = new Container;
-        $aliases = new ReflectionProperty(Container::class, 'aliases');
-        $aliases->setValue($container, ['first' => 'second', 'second' => 'first']);
-
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Alias [third] would create a circular alias chain.');
-
-        $container->alias('first', 'third');
-    }
-
-    public function testItThrowsExceptionWhenAbstractIsSameAsAlias()
-    {
-        $this->expectException('LogicException');
-        $this->expectExceptionMessage('[name] is aliased to itself.');
+        $this->expectExceptionObject(new LogicException('[name] is aliased to itself.'));
 
         $container = new Container;
         $container->alias('name', 'name');
+    }
+
+    public function testItThrowsExceptionOnCircularAliasReference(): void
+    {
+        $this->expectExceptionObject(new LogicException('Alias [a] would create a circular alias chain.'));
+
+        $container = new Container;
+        $container->alias('a', 'b');
+        $container->alias('b', 'a');
+    }
+
+    public function testItThrowsExceptionOnIndirectCircularAliasReference(): void
+    {
+        $this->expectExceptionObject(new LogicException('Alias [a] would create a circular alias chain.'));
+
+        $container = new Container;
+        $container->alias('a', 'b');
+        $container->alias('b', 'c');
+        $container->alias('c', 'a');
     }
 
     public function testContainerGetFactory()

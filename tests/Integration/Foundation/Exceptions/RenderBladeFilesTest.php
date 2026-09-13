@@ -12,6 +12,7 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\Engines\CompilerEngine;
+use Hypervel\View\Engines\EngineResolver;
 use Mockery as m;
 use ReflectionMethod;
 use Swoole\Coroutine\CanceledException;
@@ -22,9 +23,12 @@ use function Hypervel\Testbench\package_path;
 #[WithConfig('app.debug', true)]
 class RenderBladeFilesTest extends TestCase
 {
+    /**
+     * Define the test environment.
+     */
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        after_resolving($app, 'view.engine.resolver', function ($resolver) {
+        after_resolving($app, 'view.engine.resolver', function (EngineResolver $resolver): void {
             $resolver->resolve('blade')->getCompiler()->withoutComponentTags();
         });
     }
@@ -32,22 +36,34 @@ class RenderBladeFilesTest extends TestCase
     public function testFormattedSourceTooltipRendersMultilineSafely(): void
     {
         $frame = new class {
-            public function class()
+            /**
+             * Get the frame's class.
+             */
+            public function class(): null
             {
                 return null;
             }
 
-            public function operator()
+            /**
+             * Get the frame's call operator.
+             */
+            public function operator(): string
             {
                 return '';
             }
 
-            public function callable()
+            /**
+             * Get the frame's callable.
+             */
+            public function callable(): string
             {
                 return 'throw';
             }
 
-            public function source()
+            /**
+             * Get the frame's source code.
+             */
+            public function source(): string
             {
                 return "Foo::bar(1)\nAnother line";
             }
@@ -70,8 +86,8 @@ class RenderBladeFilesTest extends TestCase
 
         $html = (string) $this->app->make('view')->file($path, ['queries' => $queries])->render();
 
-        $this->assertStringContainsString('data-tippy-content="', $html);
-        $this->assertMatchesRegularExpression('/&lt;br\s*\/?&gt;/', $html);
+        $this->assertStringContainsString('data-tippy-content="' . $sql . '"', $html);
+        $this->assertStringNotContainsString('&lt;br', $html);
     }
 
     public function testRequestHeaderTooltipRendersMultilineSafely(): void

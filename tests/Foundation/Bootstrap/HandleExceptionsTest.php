@@ -265,7 +265,7 @@ class HandleExceptionsTest extends TestCase
         $this->config->set('logging.deprecations', $configuration);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($key);
+        $this->expectExceptionMessageIsOrContains($key);
 
         $this->handleExceptions()->handleDeprecationError(
             'Deprecated behavior',
@@ -424,7 +424,7 @@ class HandleExceptionsTest extends TestCase
         $this->assertNull($this->config->get('logging.channels.deprecations'));
     }
 
-    public function testErrors()
+    public function testErrors(): void
     {
         $logger = m::mock(LogManager::class);
         $this->app->instance(LogManager::class, $logger);
@@ -432,13 +432,12 @@ class HandleExceptionsTest extends TestCase
         $logger->shouldNotReceive('channel');
         $logger->shouldNotReceive('warning');
 
-        $this->expectException(ErrorException::class);
-        $this->expectExceptionMessage('Something went wrong');
+        $this->expectExceptionObject(new ErrorException('Something went wrong'));
 
         $this->handleExceptions()->handleError(
             E_ERROR,
             'Something went wrong',
-            '/home/user/laravel/src/Providers/AppServiceProvider.php',
+            '/home/user/hypervel/src/Providers/AppServiceProvider.php',
             17
         );
     }

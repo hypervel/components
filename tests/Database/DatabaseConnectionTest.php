@@ -197,22 +197,18 @@ class DatabaseConnectionTest extends TestCase
         $this->assertFalse($calledWithoutOwnTransaction);
     }
 
-    public function testFlushStateClearsResolversAndMacros()
+    public function testFlushStateClearsResolversAndMacros(): void
     {
-        try {
-            Connection::resolverFor('custom', fn () => null);
-            Connection::macro('stateTest', fn () => 'state');
+        Connection::resolverFor('custom', fn (): null => null);
+        Connection::macro('stateTest', fn (): string => 'state');
 
-            $this->assertNotNull(Connection::getResolver('custom'));
-            $this->assertTrue(Connection::hasMacro('stateTest'));
+        $this->assertNotNull(Connection::getResolver('custom'));
+        $this->assertTrue(Connection::hasMacro('stateTest'));
 
-            Connection::flushState();
+        Connection::flushState();
 
-            $this->assertNull(Connection::getResolver('custom'));
-            $this->assertFalse(Connection::hasMacro('stateTest'));
-        } finally {
-            Connection::flushState();
-        }
+        $this->assertNull(Connection::getResolver('custom'));
+        $this->assertFalse(Connection::hasMacro('stateTest'));
     }
 
     public function testNeutralConnectionDoesNotExposePdoResourceMethods(): void
@@ -333,7 +329,7 @@ class DatabaseConnectionTest extends TestCase
         $this->assertSame('fresh_', $connection->getTablePrefix());
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'Cannot refresh connection [analytics] of type [' . NeutralConnectionForTest::class
             . '] from connection [analytics] of type [' . NeutralTransactionConnectionForTest::class . '].'
         );
@@ -646,7 +642,7 @@ class DatabaseConnectionTest extends TestCase
     public function testTransactionRetriesOnSerializationFailure(): void
     {
         $this->expectException(PDOException::class);
-        $this->expectExceptionMessage('Serialization failure');
+        $this->expectExceptionMessageIsOrContains('Serialization failure');
 
         $pdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['inTransaction', 'beginTransaction', 'commit', 'rollBack'])->getMock();
         $mock = $this->getMockConnection([], $pdo);
@@ -654,14 +650,14 @@ class DatabaseConnectionTest extends TestCase
         $pdo->expects($this->exactly(3))->method('commit')->willThrowException(new PDOExceptionStub('Serialization failure', '40001'));
         $pdo->expects($this->exactly(3))->method('beginTransaction');
         $pdo->expects($this->exactly(3))->method('rollBack');
-        $mock->transaction(function () {
+        $mock->transaction(function (): void {
         }, 3);
     }
 
-    public function testTransactionMethodRetriesOnDeadlock()
+    public function testTransactionMethodRetriesOnDeadlock(): void
     {
         $this->expectException(QueryException::class);
-        $this->expectExceptionMessage('Deadlock found when trying to get lock (Connection: conn, SQL: )');
+        $this->expectExceptionMessageIsOrContains('Deadlock found when trying to get lock (Connection: conn, SQL: )');
 
         $pdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['inTransaction', 'beginTransaction', 'commit', 'rollBack'])->getMock();
         $mock = $this->getMockConnection([], $pdo);
@@ -669,7 +665,7 @@ class DatabaseConnectionTest extends TestCase
         $pdo->expects($this->exactly(3))->method('beginTransaction');
         $pdo->expects($this->exactly(3))->method('rollBack');
         $pdo->expects($this->never())->method('commit');
-        $mock->transaction(function () {
+        $mock->transaction(function (): never {
             throw new QueryException('conn', '', [], new Exception('Deadlock found when trying to get lock'));
         }, 3);
     }
@@ -1458,10 +1454,10 @@ class DatabaseConnectionTest extends TestCase
         $this->assertSame($failure, $thrown->getPrevious());
     }
 
-    public function testRunMethodNeverRetriesIfWithinTransaction()
+    public function testRunMethodNeverRetriesIfWithinTransaction(): void
     {
         $this->expectException(QueryException::class);
-        $this->expectExceptionMessage('(Connection: conn, SQL: ) (Connection: test, Host: , Port: , Database: , SQL: )');
+        $this->expectExceptionMessageIsOrContains('(Connection: conn, SQL: ) (Connection: test, Host: , Port: , Database: , SQL: )');
 
         $method = (new ReflectionClass(Connection::class))->getMethod('run');
 
@@ -1471,7 +1467,7 @@ class DatabaseConnectionTest extends TestCase
         $mock->expects($this->never())->method('tryAgainIfCausedByLostConnection');
         $mock->beginTransaction();
 
-        $method->invokeArgs($mock, ['', [], function () {
+        $method->invokeArgs($mock, ['', [], function (): never {
             throw new QueryException('conn', '', [], new Exception);
         }]);
     }
@@ -1529,25 +1525,23 @@ class DatabaseConnectionTest extends TestCase
         $connection->logQuery('foo', [], null);
     }
 
-    public function testBeforeExecutingHooksCanBeRegistered()
+    public function testBeforeExecutingHooksCanBeRegistered(): void
     {
-        $this->expectException(Exception::class);
-        $this->expectExceptionMessage('The callback was fired');
+        $this->expectExceptionObject(new Exception('The callback was fired'));
 
         $connection = $this->getMockConnection();
-        $connection->beforeExecuting(function () {
+        $connection->beforeExecuting(function (): never {
             throw new Exception('The callback was fired');
         });
         $connection->select('foo bar', ['baz']);
     }
 
-    public function testBeforeStartingTransactionHooksCanBeRegistered()
+    public function testBeforeStartingTransactionHooksCanBeRegistered(): void
     {
-        $this->expectException(Exception::class);
-        $this->expectExceptionMessage('The callback was fired');
+        $this->expectExceptionObject(new Exception('The callback was fired'));
 
         $connection = $this->getMockConnection();
-        $connection->beforeStartingTransaction(function () {
+        $connection->beforeStartingTransaction(function (): never {
             throw new Exception('The callback was fired');
         });
         $connection->beginTransaction();
@@ -2543,7 +2537,7 @@ class DatabaseConnectionTest extends TestCase
         $connection->endForeignKeyConstraintSuppression();
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('No foreign key constraint suppression scope is active.');
+        $this->expectExceptionMessageIsOrContains('No foreign key constraint suppression scope is active.');
 
         $connection->endForeignKeyConstraintSuppression();
     }

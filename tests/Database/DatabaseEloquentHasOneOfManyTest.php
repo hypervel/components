@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\DatabaseEloquentHasOneOfManyTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 
@@ -151,10 +153,9 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertSame('latest_login.id', $user->latest_login()->qualifySubSelectColumn('id'));
     }
 
-    public function testItFailsWhenUsingInvalidAggregate()
+    public function testItFailsWhenUsingInvalidAggregate(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid aggregate [count] used within ofMany relation. Available aggregates: MIN, MAX');
+        $this->expectExceptionObject(new InvalidArgumentException('Invalid aggregate [count] used within ofMany relation. Available aggregates: MIN, MAX'));
         $user = User::make();
         $user->latest_login_with_invalid_aggregate();
     }
@@ -518,20 +519,16 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     /**
      * Get a database connection instance.
-     *
-     * @return \Illuminate\Database\Connection
      */
-    protected function connection()
+    protected function connection(): ConnectionInterface
     {
         return Eloquent::getConnectionResolver()->connection();
     }
 
     /**
      * Get a schema builder instance.
-     *
-     * @return \Illuminate\Database\Schema\Builder
      */
-    protected function schema()
+    protected function schema(): Builder
     {
         return $this->connection()->getSchemaBuilder();
     }

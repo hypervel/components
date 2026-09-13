@@ -42,8 +42,7 @@ class AuthPasswordBrokerTest extends TestCase
 
     public function testGetUserThrowsExceptionIfUserDoesntImplementCanResetPassword(): void
     {
-        $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('User must implement CanResetPassword interface.');
+        $this->expectExceptionObject(new UnexpectedValueException('User must implement CanResetPassword interface.'));
 
         $broker = $this->getBroker($mocks = $this->getMocks());
         $mocks['users']->expects('retrieveByCredentials')->with(['foo'])->andReturn(m::mock(Authenticatable::class));

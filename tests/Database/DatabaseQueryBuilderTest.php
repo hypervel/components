@@ -834,6 +834,64 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals([0 => 1, 1 => $testDate, 2 => $testDate], $builder->getBindings());
     }
 
+    public function testWhereBinaryClauseMariaDb(): void
+    {
+        $builder = $this->getMariaDbBuilder();
+        $builder->select('*')->from('users')->whereBinary('name', 'john');
+        $this->assertSame('select * from `users` where `name` = cast(? as binary)', $builder->toSql());
+        $this->assertEquals([0 => 'john'], $builder->getBindings());
+
+        $builder = $this->getMariaDbBuilder();
+        $builder->select('*')->from('users')->whereNotBinary('name', 'john');
+        $this->assertSame('select * from `users` where `name` != cast(? as binary)', $builder->toSql());
+        $this->assertEquals([0 => 'john'], $builder->getBindings());
+    }
+
+    public function testWhereBinaryClauseMysql(): void
+    {
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('users')->whereBinary('name', 'john');
+        $this->assertSame('select * from `users` where `name` = cast(? as binary)', $builder->toSql());
+        $this->assertEquals([0 => 'john'], $builder->getBindings());
+
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('users')->whereNotBinary('name', 'john');
+        $this->assertSame('select * from `users` where `name` != cast(? as binary)', $builder->toSql());
+        $this->assertEquals([0 => 'john'], $builder->getBindings());
+
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('users')->where('id', '=', 1)->orWhereBinary('name', 'john');
+        $this->assertSame('select * from `users` where `id` = ? or `name` = cast(? as binary)', $builder->toSql());
+        $this->assertEquals([0 => 1, 1 => 'john'], $builder->getBindings());
+
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('users')->where('id', '=', 1)->orWhereNotBinary('name', 'john');
+        $this->assertSame('select * from `users` where `id` = ? or `name` != cast(? as binary)', $builder->toSql());
+        $this->assertEquals([0 => 1, 1 => 'john'], $builder->getBindings());
+    }
+
+    public function testWhereBinaryClausePostgres(): void
+    {
+        $builder = $this->getPostgresBuilder();
+        $builder->select('*')->from('users')->whereBinary('name', 'john');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageIsOrContains('This database engine does not support binary comparison operations.');
+
+        $builder->toSql();
+    }
+
+    public function testWhereBinaryClauseSqlite(): void
+    {
+        $builder = $this->getSQLiteBuilder();
+        $builder->select('*')->from('users')->whereBinary('name', 'john');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageIsOrContains('This database engine does not support binary comparison operations.');
+
+        $builder->toSql();
+    }
+
     public function testWhereLikePostgres()
     {
         $builder = $this->getPostgresBuilder();
@@ -895,7 +953,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals([0 => '1'], $builder->getBindings());
     }
 
-    public function testWhereLikeClauseMysql()
+    public function testWhereLikeClauseMysql(): void
     {
         $builder = $this->getMySqlBuilder();
         $builder->select('*')->from('users')->whereLike('id', '1');
@@ -909,7 +967,7 @@ class DatabaseQueryBuilderTest extends TestCase
 
         $builder = $this->getMySqlBuilder();
         $builder->select('*')->from('users')->whereLike('id', '1', true);
-        $this->assertSame('select * from `users` where `id` like binary ?', $builder->toSql());
+        $this->assertSame('select * from `users` where `id` like cast(? as binary)', $builder->toSql());
         $this->assertEquals([0 => '1'], $builder->getBindings());
 
         $builder = $this->getMySqlBuilder();
@@ -924,7 +982,7 @@ class DatabaseQueryBuilderTest extends TestCase
 
         $builder = $this->getMySqlBuilder();
         $builder->select('*')->from('users')->whereNotLike('id', '1', true);
-        $this->assertSame('select * from `users` where `id` not like binary ?', $builder->toSql());
+        $this->assertSame('select * from `users` where `id` not like cast(? as binary)', $builder->toSql());
         $this->assertEquals([0 => '1'], $builder->getBindings());
     }
 
@@ -2421,7 +2479,7 @@ class DatabaseQueryBuilderTest extends TestCase
     public function testOrderByInvalidDirectionParam(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Order direction must be a SortDirection, "asc" or "desc".');
+        $this->expectExceptionMessageIsOrContains('Order direction must be a SortDirection, "asc" or "desc".');
 
         $builder = $this->getBuilder();
         $builder->select('*')->from('users')->orderBy('age', 'asec');
@@ -3655,16 +3713,14 @@ class DatabaseQueryBuilderTest extends TestCase
 
     public function testIncrementManyArgumentValidation1(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Non-numeric value passed as increment amount for column: \'col\'.');
+        $this->expectExceptionObject(new InvalidArgumentException('Non-numeric value passed as increment amount for column: \'col\'.'));
         $builder = $this->getBuilder();
         $builder->from('users')->incrementEach(['col' => 'a']);
     }
 
     public function testIncrementManyArgumentValidation2(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Non-associative array passed to incrementEach method.');
+        $this->expectExceptionObject(new InvalidArgumentException('Non-associative array passed to incrementEach method.'));
         $builder = $this->getBuilder();
         $builder->from('users')->incrementEach([11 => 11]);
     }
@@ -3672,7 +3728,7 @@ class DatabaseQueryBuilderTest extends TestCase
     public function testDecrementManyArgumentValidation1(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Non-numeric value passed as decrement amount for column: \'col\'.');
+        $this->expectExceptionMessageIsOrContains('Non-numeric value passed as decrement amount for column: \'col\'.');
         $builder = $this->getBuilder();
         $builder->from('users')->decrementEach(['col' => '1; DROP TABLE users']);
     }
@@ -3680,7 +3736,7 @@ class DatabaseQueryBuilderTest extends TestCase
     public function testDecrementManyArgumentValidation2(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Non-associative array passed to decrementEach method.');
+        $this->expectExceptionMessageIsOrContains('Non-associative array passed to decrementEach method.');
         $builder = $this->getBuilder();
         $builder->from('users')->decrementEach([11 => 11]);
     }
@@ -4147,7 +4203,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder->select('*')->from('users')->straightJoin('contacts', 'users.id', '=', 'contacts.id');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('does not support straight joins');
+        $this->expectExceptionMessageIsOrContains('does not support straight joins');
 
         $builder->toSql();
     }
@@ -4320,15 +4376,14 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals(['foo' => 'bar'], $results);
     }
 
-    public function testFirstOrFailMethodThrowsRecordNotFoundException()
+    public function testFirstOrFailMethodThrowsRecordNotFoundException(): void
     {
         $builder = $this->getBuilder();
         $builder->getConnection()->shouldReceive('select')->once()->with('select * from "users" where "id" = ? limit 1', [1], true, [])->andReturn([]);
 
         $builder->getProcessor()->shouldReceive('processSelect')->once()->with($builder, [])->andReturn([]);
 
-        $this->expectException(RecordNotFoundException::class);
-        $this->expectExceptionMessage('No record found for the given query.');
+        $this->expectExceptionObject(new RecordNotFoundException('No record found for the given query.'));
 
         $builder->from('users')->where('id', '=', 1)->firstOrFail();
     }
@@ -4621,10 +4676,9 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder->from('table1')->insertUsing(['foo'], ['bar']);
     }
 
-    public function testInsertOrIgnoreMethod()
+    public function testInsertOrIgnoreMethod(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('does not support');
+        $this->expectExceptionObject(new RuntimeException('does not support'));
         $builder = $this->getBuilder();
         $builder->from('users')->insertOrIgnore(['email' => 'foo']);
     }
@@ -4653,100 +4707,170 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals(1, $result);
     }
 
-    public function testInsertOrIgnoreReturningRejectsUnsupportedGrammars(): void
+    public function testInsertOrIgnoreReturningMethod(): void
     {
+        $this->expectExceptionObject(new RuntimeException('does not support insert or ignore with returning'));
         $builder = $this->getBuilder();
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('does not support insert or ignore with returning');
-
         $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo']);
     }
 
-    public function testInsertOrIgnoreReturningWithEmptyValues(): void
+    public function testInsertOrIgnoreReturningMethodWithEmptyValues(): void
     {
-        $result = $this->getPostgresBuilder()->from('users')->insertOrIgnoreReturning([]);
-
+        $builder = $this->getPostgresBuilder();
+        $result = $builder->from('users')->insertOrIgnoreReturning([]);
         $this->assertInstanceOf(Collection::class, $result);
         $this->assertTrue($result->isEmpty());
     }
 
-    public function testMySqlInsertOrIgnoreReturningIsUnsupported(): void
+    public function testMySqlInsertOrIgnoreReturningMethod(): void
     {
+        $this->expectExceptionObject(new RuntimeException('does not support insert or ignore with returning'));
         $builder = $this->getMySqlBuilder();
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('does not support insert or ignore with returning');
-
         $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo']);
     }
 
-    public function testPostgresInsertOrIgnoreReturning(): void
+    public function testPostgresInsertOrIgnoreReturningMethod(): void
     {
         $builder = $this->getPostgresBuilder();
-        $builder->getConnection()->shouldReceive('recordsHaveBeenModified')->once()->with(true);
-        $builder->getConnection()->shouldReceive('selectFromWriteConnection')->once()->with(
+        $builder->getConnection()->expects('recordsHaveBeenModified')->with(true);
+        $builder->getConnection()->expects('selectFromWriteConnection')->with(
             'insert into "users" ("email") values (?) on conflict do nothing returning "id"',
             ['foo']
         )->andReturn([['id' => 1]]);
-
         $result = $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo'], ['id']);
-
+        $this->assertInstanceOf(Collection::class, $result);
         $this->assertSame([['id' => 1]], $result->all());
     }
 
-    public function testPostgresInsertOrIgnoreReturningWithConflictColumns(): void
+    public function testPostgresInsertOrIgnoreReturningMethodWithUniqueByColumn(): void
     {
         $builder = $this->getPostgresBuilder();
-        $builder->getConnection()->shouldReceive('recordsHaveBeenModified')->once()->with(true);
-        $builder->getConnection()->shouldReceive('selectFromWriteConnection')->once()->with(
-            'insert into "users" ("email", "name") values (?, ?) on conflict ("email", "name") do nothing returning *',
+        $builder->getConnection()->expects('recordsHaveBeenModified')->with(true);
+        $builder->getConnection()->expects('selectFromWriteConnection')->with(
+            'insert into "users" ("email", "name") values (?, ?) on conflict ("email") do nothing returning *',
             ['foo', 'bar']
         )->andReturn([['id' => 1, 'email' => 'foo', 'name' => 'bar']]);
-
-        $result = $builder->from('users')->insertOrIgnoreReturning(
-            ['email' => 'foo', 'name' => 'bar'],
-            ['*'],
-            ['email', 'name']
-        );
-
+        $result = $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo', 'name' => 'bar'], ['*'], 'email');
+        $this->assertInstanceOf(Collection::class, $result);
         $this->assertSame([['id' => 1, 'email' => 'foo', 'name' => 'bar']], $result->all());
     }
 
-    public function testPostgresInsertOrIgnoreReturningMultipleRows(): void
+    public function testPostgresInsertOrIgnoreReturningMethodWithUniqueByColumns(): void
     {
         $builder = $this->getPostgresBuilder();
-        $builder->getConnection()->shouldReceive('recordsHaveBeenModified')->once()->with(true);
-        $builder->getConnection()->shouldReceive('selectFromWriteConnection')->once()->with(
-            'insert into "users" ("email") values (?), (?) on conflict ("email") do nothing returning "id", "email"',
+        $builder->getConnection()->expects('recordsHaveBeenModified')->with(true);
+        $builder->getConnection()->expects('selectFromWriteConnection')->with(
+            'insert into "users" ("email", "name") values (?, ?) on conflict ("email", "name") do nothing returning *',
+            ['foo', 'bar']
+        )->andReturn([['id' => 1, 'email' => 'foo', 'name' => 'bar']]);
+        $result = $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo', 'name' => 'bar'], ['*'], ['email', 'name']);
+        $this->assertInstanceOf(Collection::class, $result);
+        $this->assertSame([['id' => 1, 'email' => 'foo', 'name' => 'bar']], $result->all());
+    }
+
+    public function testPostgresInsertOrIgnoreReturningMethodWithMultipleRecords(): void
+    {
+        $builder = $this->getPostgresBuilder();
+        $builder->getConnection()->expects('recordsHaveBeenModified')->with(true);
+        $builder->getConnection()->expects('selectFromWriteConnection')->with(
+            'insert into "users" ("email") values (?), (?) on conflict do nothing returning "id", "email"',
             ['foo', 'bar']
         )->andReturn([['id' => 1, 'email' => 'foo']]);
-
         $result = $builder->from('users')->insertOrIgnoreReturning(
             [['email' => 'foo'], ['email' => 'bar']],
-            ['id', 'email'],
-            'email'
+            ['id', 'email']
         );
-
+        $this->assertInstanceOf(Collection::class, $result);
         $this->assertSame([['id' => 1, 'email' => 'foo']], $result->all());
     }
 
-    public function testSQLiteInsertOrIgnoreReturning(): void
+    public function testSqliteInsertOrIgnoreReturningMethod(): void
     {
         $builder = $this->getSQLiteBuilder();
-        $builder->getConnection()->shouldReceive('recordsHaveBeenModified')->once()->with(true);
-        $builder->getConnection()->shouldReceive('selectFromWriteConnection')->once()->with(
-            'insert into "users" ("email", "name") values (?, ?) on conflict ("email") do nothing returning "id"',
-            ['foo', 'bar']
+        $builder->getConnection()->expects('recordsHaveBeenModified')->with(true);
+        $builder->getConnection()->expects('selectFromWriteConnection')->with(
+            'insert into "users" ("email") values (?) on conflict do nothing returning "id"',
+            ['foo']
         )->andReturn([['id' => 1]]);
-
-        $result = $builder->from('users')->insertOrIgnoreReturning(
-            ['email' => 'foo', 'name' => 'bar'],
-            ['id'],
-            'email'
-        );
-
+        $result = $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo'], ['id']);
+        $this->assertInstanceOf(Collection::class, $result);
         $this->assertSame([['id' => 1]], $result->all());
+    }
+
+    public function testSqliteInsertOrIgnoreReturningMethodWithUniqueByColumn(): void
+    {
+        $builder = $this->getSQLiteBuilder();
+        $builder->getConnection()->expects('recordsHaveBeenModified')->with(true);
+        $builder->getConnection()->expects('selectFromWriteConnection')->with(
+            'insert into "users" ("email", "name") values (?, ?) on conflict ("email") do nothing returning *',
+            ['foo', 'bar']
+        )->andReturn([['id' => 1, 'email' => 'foo', 'name' => 'bar']]);
+        $result = $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo', 'name' => 'bar'], ['*'], 'email');
+        $this->assertInstanceOf(Collection::class, $result);
+        $this->assertSame([['id' => 1, 'email' => 'foo', 'name' => 'bar']], $result->all());
+    }
+
+    public function testSqliteInsertOrIgnoreReturningMethodWithUniqueByColumns(): void
+    {
+        $builder = $this->getSQLiteBuilder();
+        $builder->getConnection()->expects('recordsHaveBeenModified')->with(true);
+        $builder->getConnection()->expects('selectFromWriteConnection')->with(
+            'insert into "users" ("email", "name") values (?, ?) on conflict ("email", "name") do nothing returning *',
+            ['foo', 'bar']
+        )->andReturn([['id' => 1, 'email' => 'foo', 'name' => 'bar']]);
+        $result = $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo', 'name' => 'bar'], ['*'], ['email', 'name']);
+        $this->assertInstanceOf(Collection::class, $result);
+        $this->assertSame([['id' => 1, 'email' => 'foo', 'name' => 'bar']], $result->all());
+    }
+
+    public function testSqliteInsertOrIgnoreReturningMethodWithMultipleRecords(): void
+    {
+        $builder = $this->getSQLiteBuilder();
+        $builder->getConnection()->expects('recordsHaveBeenModified')->with(true);
+        $builder->getConnection()->expects('selectFromWriteConnection')->with(
+            'insert into "users" ("email") values (?), (?) on conflict do nothing returning "id", "email"',
+            ['foo', 'bar']
+        )->andReturn([['id' => 1, 'email' => 'foo']]);
+        $result = $builder->from('users')->insertOrIgnoreReturning(
+            [['email' => 'foo'], ['email' => 'bar']],
+            ['id', 'email']
+        );
+        $this->assertInstanceOf(Collection::class, $result);
+        $this->assertSame([['id' => 1, 'email' => 'foo']], $result->all());
+    }
+
+    public function testInsertOrIgnoreReturningWithEmptyUniqueByArray(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException('The unique columns must not be empty.'));
+        $builder = $this->getPostgresBuilder();
+        $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo'], ['*'], []);
+    }
+
+    public function testInsertOrIgnoreReturningWithEmptyUniqueByString(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException('The unique columns must not be empty.'));
+        $builder = $this->getPostgresBuilder();
+        $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo'], ['*'], '');
+    }
+
+    public function testInsertOrIgnoreReturningWithEmptyReturning(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException('The returning columns must not be empty.'));
+        $builder = $this->getPostgresBuilder();
+        $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo'], []);
+    }
+
+    public function testInsertOrIgnoreReturningDoesNotMarkRecordsModifiedWhenNoRowsWereInserted(): void
+    {
+        $builder = $this->getPostgresBuilder();
+        $builder->getConnection()->expects('selectFromWriteConnection')->with(
+            'insert into "users" ("email") values (?) on conflict do nothing returning *',
+            ['foo']
+        )->andReturn([]);
+        $builder->getConnection()->expects('recordsHaveBeenModified')->with(false);
+        $result = $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo']);
+        $this->assertInstanceOf(Collection::class, $result);
+        $this->assertTrue($result->isEmpty());
     }
 
     public function testInsertOrIgnoreReturningRunsBeforeQueryCallbacks(): void
@@ -4765,45 +4889,9 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame([['email' => 'foo']], $result->all());
     }
 
-    public function testInsertOrIgnoreReturningValidatesConflictAndReturningColumns(): void
+    public function testInsertOrIgnoreUsingMethod(): void
     {
-        $builder = $this->getPostgresBuilder()->from('users');
-
-        foreach (
-            [
-                [[], 'The unique columns must not be empty.'],
-                ['', 'The unique columns must not be empty.'],
-            ] as [$uniqueBy, $message]
-        ) {
-            try {
-                $builder->insertOrIgnoreReturning(['email' => 'foo'], ['*'], $uniqueBy);
-                $this->fail('Expected an invalid conflict-column exception.');
-            } catch (InvalidArgumentException $exception) {
-                $this->assertSame($message, $exception->getMessage());
-            }
-        }
-
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The returning columns must not be empty.');
-
-        $builder->insertOrIgnoreReturning(['email' => 'foo'], []);
-    }
-
-    public function testInsertOrIgnoreReturningDoesNotMarkRecordsModifiedWhenNoRowsAreInserted(): void
-    {
-        $builder = $this->getPostgresBuilder();
-        $builder->getConnection()->shouldReceive('selectFromWriteConnection')->once()->andReturn([]);
-        $builder->getConnection()->shouldReceive('recordsHaveBeenModified')->once()->with(false);
-
-        $result = $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo']);
-
-        $this->assertTrue($result->isEmpty());
-    }
-
-    public function testInsertOrIgnoreUsingMethod()
-    {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('does not support');
+        $this->expectExceptionObject(new RuntimeException('does not support'));
         $builder = $this->getBuilder();
         $builder->from('users')->insertOrIgnoreUsing(['email' => 'foo'], 'bar');
     }
@@ -5037,6 +5125,20 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals(2, $result);
     }
 
+    public function testUpsertMethodWithEmptyUniqueByArray(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException('The unique columns must not be empty.'));
+        $builder = $this->getPostgresBuilder();
+        $builder->from('users')->upsert([['email' => 'foo', 'name' => 'bar']], []);
+    }
+
+    public function testUpsertMethodWithEmptyUniqueByString(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException('The unique columns must not be empty.'));
+        $builder = $this->getPostgresBuilder();
+        $builder->from('users')->upsert([['email' => 'foo', 'name' => 'bar']], '');
+    }
+
     public function testUpdateMethodWithJoins()
     {
         $builder = $this->getBuilder();
@@ -5236,7 +5338,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame(1, $result);
     }
 
-    public function testUpdateOrInsertMethod()
+    public function testUpdateOrInsertMethod(): void
     {
         $builder = m::mock(Builder::class . '[where,exists,insert]', [
             $connection = m::mock(Connection::class),
@@ -5258,10 +5360,54 @@ class DatabaseQueryBuilderTest extends TestCase
 
         $builder->shouldReceive('where')->once()->with(['email' => 'foo'])->andReturn(m::self());
         $builder->shouldReceive('exists')->once()->andReturn(true);
-        $builder->shouldReceive('take')->andReturnSelf();
         $builder->shouldReceive('update')->once()->with(['name' => 'bar'])->andReturn(1);
 
         $this->assertTrue($builder->updateOrInsert(['email' => 'foo'], ['name' => 'bar']));
+    }
+
+    #[DataProvider('updateOrInsertCallbacks')]
+    public function testUpdateOrInsertMethodWithCallback(callable $values): void
+    {
+        $builder = $this->getBuilder()->from('users');
+        $builder->getConnection()->expects('select')
+            ->with('select exists(select * from "users" where ("email" = ?)) as "exists"', ['foo'], true)
+            ->andReturn([['exists' => false]]);
+        $builder->getConnection()->expects('insert')
+            ->with('insert into "users" ("email", "name") values (?, ?)', ['foo', 'new'])
+            ->andReturn(true);
+
+        $this->assertTrue($builder->updateOrInsert(['email' => 'foo'], $values));
+
+        $builder = $this->getBuilder()->from('users');
+        $builder->getConnection()->expects('select')
+            ->with('select exists(select * from "users" where ("email" = ?)) as "exists"', ['foo'], true)
+            ->andReturn([['exists' => true]]);
+        $builder->getConnection()->expects('update')
+            ->with('update "users" set "name" = ? where ("email" = ?)', ['updated', 'foo'])
+            ->andReturn(1);
+
+        $this->assertTrue($builder->updateOrInsert(['email' => 'foo'], $values));
+    }
+
+    /**
+     * Provide callbacks that select values based on whether a record exists.
+     *
+     * @return array<string, array{callable(bool): array<string, string>}>
+     */
+    public static function updateOrInsertCallbacks(): array
+    {
+        return [
+            'closure' => [fn (bool $exists): array => ['name' => $exists ? 'updated' : 'new']],
+            'invokable' => [new class {
+                /**
+                 * Select values based on whether a record exists.
+                 */
+                public function __invoke(bool $exists): array
+                {
+                    return ['name' => $exists ? 'updated' : 'new'];
+                }
+            }],
+        ];
     }
 
     public function testUpdateOrInsertMethodWorksWithEmptyUpdateValues()
@@ -5977,10 +6123,9 @@ SQL;
         $this->assertSame('=', $operator);
     }
 
-    public function testPrepareValueAndOperatorExpectException()
+    public function testPrepareValueAndOperatorExpectException(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Illegal operator and value combination.');
+        $this->expectExceptionObject(new InvalidArgumentException('Illegal operator and value combination.'));
 
         $builder = $this->getBuilder();
         $builder->prepareValueAndOperator(null, 'like');
@@ -7430,10 +7575,9 @@ SQL;
         $this->assertEquals([1], $builder->getBindings());
     }
 
-    public function testWhereRowValuesArityMismatch()
+    public function testWhereRowValuesArityMismatch(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The number of columns must match the number of values');
+        $this->expectExceptionObject(new InvalidArgumentException('The number of columns must match the number of values'));
 
         $builder = $this->getBuilder();
         $builder->select('*')->from('orders')->whereRowValues(['last_update'], '<', [1, 2]);
@@ -7938,7 +8082,7 @@ SQL;
     public function testWhereVectorSimilarToThrowsOnUnsupportedGrammar(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Vector distance queries are only supported by Postgres and MariaDB.');
+        $this->expectExceptionMessageIsOrContains('Vector distance queries are only supported by Postgres and MariaDB.');
 
         $builder = $this->getMySqlBuilder();
         $builder->select('*')->from('documents')->whereVectorSimilarTo('embedding', [1, 2, 3]);
@@ -7947,7 +8091,7 @@ SQL;
     public function testWhereVectorSimilarToRejectsUnsupportedGrammarBeforeGeneratingEmbeddings(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Vector distance queries are only supported by Postgres and MariaDB.');
+        $this->expectExceptionMessageIsOrContains('Vector distance queries are only supported by Postgres and MariaDB.');
 
         $builder = $this->getMySqlBuilder();
         $builder->from('documents')->whereVectorSimilarTo('embedding', 'best wineries in Napa Valley');
