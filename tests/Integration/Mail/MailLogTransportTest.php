@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Mail;
+namespace Hypervel\Tests\Integration\Mail;
 
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Mail\Attachment;
@@ -10,6 +10,8 @@ use Hypervel\Mail\Message;
 use Hypervel\Mail\Transport\LogTransport;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use Monolog\Handler\StreamHandler;
+use Monolog\Logger;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Stringable;
@@ -17,6 +19,9 @@ use Symfony\Component\Mime\Email;
 
 class MailLogTransportTest extends TestCase
 {
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -25,7 +30,7 @@ class MailLogTransportTest extends TestCase
 
     public function testGetLogTransportWithConfiguredChannel(): void
     {
-        $this->app->make('config')->set('mail', [
+        config(['mail' => [
             'default' => 'log',
             'mailers' => [
                 'log' => [
@@ -33,15 +38,15 @@ class MailLogTransportTest extends TestCase
                     'channel' => 'mail',
                 ],
             ],
-        ]);
-        $this->app->make('config')->set('logging', [
+        ]]);
+        config(['logging' => [
             'channels' => [
                 'mail' => [
                     'driver' => 'single',
                     'path' => 'mail.log',
                 ],
             ],
-        ]);
+        ]]);
 
         $transport = $this->app->make('mail.manager')
             ->removePoolableDriver('log')
@@ -50,6 +55,10 @@ class MailLogTransportTest extends TestCase
 
         $logger = $transport->logger();
         $this->assertInstanceOf(LoggerInterface::class, $logger);
+
+        $this->assertInstanceOf(Logger::class, $monolog = $logger->getLogger());
+        $this->assertCount(1, $handlers = $monolog->getHandlers());
+        $this->assertInstanceOf(StreamHandler::class, $handlers[0]);
     }
 
     public function testItDecodesTheMessageBeforeLogging(): void
@@ -91,7 +100,7 @@ class MailLogTransportTest extends TestCase
             Burt & Irving
             BODY)
             ->text('A text part')
-            ->attach(Attachment::fromData(fn () => 'My attachment', 'attachment.txt'));
+            ->attach(Attachment::fromData(fn (): string => 'My attachment', 'attachment.txt'));
 
         $actualLoggedValue = $this->getLoggedEmailMessage($message);
 
@@ -104,14 +113,14 @@ class MailLogTransportTest extends TestCase
 
     public function testGetLogTransportWithPsrLogger(): void
     {
-        $this->app->make('config')->set('mail', [
+        config(['mail' => [
             'default' => 'log',
             'mailers' => [
                 'log' => [
                     'transport' => 'log',
                 ],
             ],
-        ]);
+        ]]);
 
         $this->app->instance(LoggerInterface::class, new NullLogger);
 
@@ -123,12 +132,18 @@ class MailLogTransportTest extends TestCase
         );
     }
 
+    /**
+     * Get the message written to the log.
+     */
     private function getLoggedEmailMessage(Message $message): string
     {
         $logger = new class extends NullLogger {
             public string $loggedValue = '';
 
-            public function log($level, string|Stringable $message, array $context = []): void
+            /**
+             * Capture the log message.
+             */
+            public function log(mixed $level, string|Stringable $message, array $context = []): void
             {
                 $this->loggedValue = (string) $message;
             }

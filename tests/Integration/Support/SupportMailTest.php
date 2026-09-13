@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Support;
+namespace Hypervel\Tests\Integration\Support;
 
 use Hypervel\Support\Facades\Mail;
 use Hypervel\Testbench\TestCase;

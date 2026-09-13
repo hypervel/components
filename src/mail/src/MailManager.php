@@ -665,6 +665,7 @@ class MailManager implements FactoryContract
      */
     protected function getConfig(string $name): ?array
     {
+        // REMOVED: Laravel 6-style mail.driver configuration; use named mail.mailers entries.
         $config = $this->config->get("mail.mailers.{$name}");
 
         if (isset($config['url'])) {

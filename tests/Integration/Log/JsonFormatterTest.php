@@ -2,10 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Log;
+namespace Hypervel\Tests\Integration\Log;
 
 use Exception;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Log\Formatters\JsonFormatter;
 use Hypervel\Log\Logger;
@@ -21,19 +22,20 @@ use Throwable;
 
 final class JsonFormatterTest extends TestCase
 {
+    /**
+     * Configure the test environment.
+     */
     #[Override]
-    protected function setUp(): void
+    protected function defineEnvironment(Application $app): void
     {
-        parent::setUp();
-
-        config(['logging.default' => 'testing']);
-        config(['logging.channels' => [
+        $app->make('config')->set('logging.default', 'testing');
+        $app->make('config')->set('logging.channels', [
             'testing' => [
                 'driver' => 'monolog',
                 'handler' => TestHandler::class,
                 'formatter' => JsonFormatter::class,
             ],
-        ]]);
+        ]);
     }
 
     public function testExceptionContextIsEnrichedOnDirectLogging(): void
@@ -170,7 +172,7 @@ final class JsonFormatterTest extends TestCase
 
     public function testContextCallbacksAreIncludedInFormatterEnrichment(): void
     {
-        $this->app->make(ExceptionHandlerContract::class)->buildContextUsing(function (Throwable $e) {
+        $this->app->make(ExceptionHandlerContract::class)->buildContextUsing(function (Throwable $e): array {
             return ['callback_key' => 'callback_value'];
         });
 
@@ -277,7 +279,7 @@ final class JsonFormatterTest extends TestCase
 
     public function testNoHandlerSetMergesExceptionContext(): void
     {
-        $this->app->bind(ExceptionHandlerContract::class, function () {
+        $this->app->bind(ExceptionHandlerContract::class, function (): never {
             throw new Exception('this never works');
         });
         Log::warning('fail', ['exception' => new ContextProvidingException('Oh no!')]);
@@ -289,6 +291,9 @@ final class JsonFormatterTest extends TestCase
         $this->assertSame(ContextProvidingException::class, $exceptionData['class']);
     }
 
+    /**
+     * Decode the first formatted log record.
+     */
     private function getFormattedJson(?TestHandler $handler = null): array
     {
         $handler ??= $this->app->make('log')->driver()->getLogger()->getHandlers()[0];
@@ -303,6 +308,9 @@ final class JsonFormatterTest extends TestCase
 
 class ContextProvidingException extends Exception
 {
+    /**
+     * Get the exception's context.
+     */
     public function context(): array
     {
         return ['foo' => 'bar'];
@@ -311,6 +319,9 @@ class ContextProvidingException extends Exception
 
 class AnotherContextProvidingException extends Exception
 {
+    /**
+     * Get the exception's context.
+     */
     public function context(): array
     {
         return ['outer_key' => 'outer_value'];
@@ -319,6 +330,9 @@ class AnotherContextProvidingException extends Exception
 
 class ObjectContextException extends Exception
 {
+    /**
+     * Get the exception's context.
+     */
     public function context(): array
     {
         return [
