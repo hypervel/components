@@ -15,16 +15,19 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 #[RequiresOperatingSystem('Linux|Darwin')]
 class JoinLateralTest extends MySqlTestCase
 {
+    /**
+     * Set up the database after refreshing it.
+     */
     protected function afterRefreshingDatabase(): void
     {
         $this->checkMySqlVersion();
 
-        Schema::create('users', function (Blueprint $table) {
+        Schema::create('users', function (Blueprint $table): void {
             $table->id('id');
             $table->string('name');
         });
 
-        Schema::create('posts', function (Blueprint $table) {
+        Schema::create('posts', function (Blueprint $table): void {
             $table->id('id');
             $table->string('title');
             $table->integer('rating');
@@ -43,24 +46,30 @@ class JoinLateralTest extends MySqlTestCase
         ]);
     }
 
+    /**
+     * Remove the database tables.
+     */
     protected function destroyDatabaseMigrations(): void
     {
         Schema::dropIfExists('posts');
         Schema::dropIfExists('users');
     }
 
+    /**
+     * Skip the test when the server does not support lateral joins.
+     */
     protected function checkMySqlVersion(): void
     {
         $mySqlVersion = DB::select('select version()')[0]->{'version()'} ?? '';
 
         if (str_contains($mySqlVersion, 'Maria')) {
             $this->markTestSkipped('Lateral joins are not supported on MariaDB' . __CLASS__);
-        } elseif ((float) $mySqlVersion < '8.0.14') {
+        } elseif (version_compare($mySqlVersion, '8.0.14', '<')) {
             $this->markTestSkipped('Lateral joins are not supported on MySQL < 8.0.14' . __CLASS__);
         }
     }
 
-    public function testJoinLateral()
+    public function testJoinLateral(): void
     {
         $subquery = DB::table('posts')
             ->select('title as best_post_title', 'rating as best_post_rating')
@@ -85,7 +94,7 @@ class JoinLateralTest extends MySqlTestCase
         $this->assertCount(0, $userWithoutPosts);
     }
 
-    public function testLeftJoinLateral()
+    public function testLeftJoinLateral(): void
     {
         $subquery = DB::table('posts')
             ->select('title as best_post_title', 'rating as best_post_rating')
