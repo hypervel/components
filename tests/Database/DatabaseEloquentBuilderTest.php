@@ -3220,6 +3220,87 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(1, $result);
     }
 
+    public function testUpdateOrInsertReturnsTheQueryResult(): void
+    {
+        $builder = $this->getBuilder();
+        $builder->getQuery()->shouldReceive('updateOrInsert')->once()
+            ->with(['email' => 'user@example.com'], ['name' => 'Taylor'])->andReturn(false);
+
+        $this->assertFalse($builder->updateOrInsert(['email' => 'user@example.com'], ['name' => 'Taylor']));
+    }
+
+    public function testUpdateOrInsertAppliesGlobalScopes(): void
+    {
+        $connection = new PdoConnection(new PDO('sqlite::memory:'));
+        $connection->statement('create table items (id integer primary key, email text, name text, active integer)');
+        $connection->table('items')->insert(['email' => 'user@example.com', 'name' => 'old', 'active' => 0]);
+        $builder = (new Builder($connection->query()))->setModel((new Stub)->setTable('items'));
+        $builder->withGlobalScope('active', fn (Builder $query): Builder => $query->where('active', 1));
+
+        $this->assertTrue($builder->updateOrInsert(['email' => 'user@example.com'], ['name' => 'new', 'active' => 1]));
+        $this->assertSame(['old', 'new'], $connection->table('items')->orderBy('id')->pluck('name')->all());
+    }
+
+    #[DataProvider('updateFromTimestamps')]
+    public function testUpdateFromAppliesScopesAndModelTimestamps(bool $timestamps, array $values, string $sql, array $bindings): void
+    {
+        CarbonImmutable::setTestNow('2017-10-10 10:10:10');
+        $model = new Stub;
+        $model->timestamps = $timestamps;
+        $connection = $this->mockConnectionForModel($model, 'Postgres');
+        $connection->shouldReceive('update')->once()->with($sql, $bindings)->andReturn(2);
+
+        $builder = $model->newQuery()
+            ->withGlobalScope('active', fn (Builder $query): Builder => $query->where('table.active', 1))
+            ->join('profiles', 'profiles.user_id', '=', 'table.id');
+
+        $this->assertSame(2, $builder->updateFrom($values));
+    }
+
+    /**
+     * Provide timestamp configurations for PostgreSQL model updates.
+     */
+    public static function updateFromTimestamps(): array
+    {
+        return [
+            'automatic timestamp' => [
+                true,
+                ['name' => 'new'],
+                'update "table" set "name" = ?, "updated_at" = ? from "profiles" where ("table"."active" = ?) and "profiles"."user_id" = "table"."id"',
+                ['new', '2017-10-10 10:10:10', 1],
+            ],
+            'explicit timestamp' => [
+                true,
+                ['name' => 'new', 'updated_at' => null],
+                'update "table" set "name" = ?, "updated_at" = ? from "profiles" where ("table"."active" = ?) and "profiles"."user_id" = "table"."id"',
+                ['new', null, 1],
+            ],
+            'timestamps disabled' => [
+                false,
+                ['name' => 'new'],
+                'update "table" set "name" = ? from "profiles" where ("table"."active" = ?) and "profiles"."user_id" = "table"."id"',
+                ['new', 1],
+            ],
+        ];
+    }
+
+    public function testGetColumnsReturnsTheQueryColumns(): void
+    {
+        $builder = $this->getBuilder();
+        $builder->getQuery()->shouldReceive('getColumns')->once()->andReturn(['name']);
+
+        $this->assertSame(['name'], $builder->getColumns());
+    }
+
+    public function testGetProcessorReturnsTheQueryProcessor(): void
+    {
+        $builder = $this->getBuilder();
+        $processor = new Processor;
+        $builder->getQuery()->shouldReceive('getProcessor')->once()->andReturn($processor);
+
+        $this->assertSame($processor, $builder->getProcessor());
+    }
+
     public function testUpsert()
     {
         CarbonImmutable::setTestNow($now = '2017-10-10 10:10:10');
@@ -3342,6 +3423,63 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertNotSame($builder, $clone);
         $this->assertSame('select * from "users"', $builder->toSql());
         $this->assertSame('select * from "users" where "email" = ?', $clone->toSql());
+    }
+
+    public function testCloneWithoutPreservesTheModelAndCloneCallbackChanges(): void
+    {
+        $model = new Stub;
+        $this->mockConnectionForModel($model, '');
+        $builder = $model->newQuery()->where('active', 1)->orderBy('name');
+        $clones = [];
+        $builder->onClone(function (Builder $clone) use (&$clones): void {
+            $clones[] = $clone;
+            $clone->where('verified', 1)->orderBy('id');
+        });
+
+        $clone = $builder->cloneWithout(['orders']);
+
+        $this->assertNotSame($builder, $clone);
+        $this->assertSame($model, $clone->getModel());
+        $this->assertSame([$clone], $clones);
+        $this->assertSame('select * from "table" where "active" = ? and "verified" = ?', $clone->toSql());
+        $this->assertSame('select * from "table" where "active" = ? order by "name" asc', $builder->toSql());
+    }
+
+    public function testCloneWithoutBindingsKeepsTheOriginalQueryIntact(): void
+    {
+        $model = new Stub;
+        $this->mockConnectionForModel($model, '');
+        $builder = $model->newQuery()->where('active', 1)->orderBy('name');
+
+        $withoutWheres = $builder->cloneWithout(['wheres']);
+        $clone = $withoutWheres->cloneWithoutBindings(['where']);
+
+        $this->assertNotSame($withoutWheres, $clone);
+        $this->assertSame($model, $clone->getModel());
+        $this->assertSame('select * from "table" order by "name" asc', $clone->toSql());
+        $this->assertSame([], $clone->getBindings());
+        $this->assertSame([1], $withoutWheres->getBindings());
+        $this->assertSame([1], $builder->getBindings());
+        $this->assertSame('select * from "table" where "active" = ? order by "name" asc', $builder->toSql());
+    }
+
+    public function testNewQueryRestoresTheModelDefaults(): void
+    {
+        $model = new FreshQueryModel;
+        $this->mockConnectionForModel($model, '');
+        FreshQueryModel::addGlobalScope('active', fn (Builder $query): Builder => $query->where('active', 1));
+        $builder = $model->newQuery()->withoutGlobalScopes()->withoutEagerLoads()->where('name', 'Taylor');
+        $builder->macro('customQuery', fn (Builder $query): Builder => $query);
+
+        $fresh = $builder->newQuery();
+
+        $this->assertNotSame($builder, $fresh);
+        $this->assertSame($model, $fresh->getModel());
+        $this->assertInstanceOf(FreshQueryBuilder::class, $fresh);
+        $this->assertSame(['related'], array_keys($fresh->getEagerLoads()));
+        $this->assertFalse($fresh->hasMacro('customQuery'));
+        $this->assertSame('select * from "table" where ("active" = ?)', $fresh->toSql());
+        $this->assertSame('select * from "table" where "name" = ?', $builder->toSql());
     }
 
     public function testCloneModelMakesAFreshCopyOfTheModel()
@@ -3584,6 +3722,17 @@ class DatabaseEloquentBuilderTest extends TestCase
 class Stub extends Model
 {
     protected ?string $table = 'table';
+}
+
+class FreshQueryBuilder extends Builder
+{
+}
+
+class FreshQueryModel extends Stub
+{
+    protected static string $builder = FreshQueryBuilder::class;
+
+    protected array $with = ['related'];
 }
 
 class ScopeStub extends Model

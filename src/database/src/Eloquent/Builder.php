@@ -123,9 +123,11 @@ class Builder implements BuilderContract
         'existsor',
         'explain',
         'getbindings',
+        'getcolumns',
         'getconnection',
         'getcountforpagination',
         'getgrammar',
+        'getprocessor',
         'getrawbindings',
         'implode',
         'insert',
@@ -141,6 +143,7 @@ class Builder implements BuilderContract
         'sum',
         'tosql',
         'torawsql',
+        'updateorinsert',
     ];
 
     /**
@@ -1179,6 +1182,14 @@ class Builder implements BuilderContract
     }
 
     /**
+     * Update records in a PostgreSQL database using the update from syntax.
+     */
+    public function updateFrom(array $values): int
+    {
+        return $this->toBase()->updateFrom($this->addUpdatedAtColumn($values));
+    }
+
+    /**
      * Insert new records or update the existing ones.
      */
     public function upsert(array $values, array|string $uniqueBy, ?array $update = null): int
@@ -1925,6 +1936,16 @@ class Builder implements BuilderContract
     }
 
     /**
+     * Get a fresh query builder with the model's default scopes and eager loads.
+     *
+     * @return Builder<TModel>
+     */
+    public function newQuery(): Builder
+    {
+        return $this->getModel()->newQuery();
+    }
+
+    /**
      * Set a model instance for the model being queried.
      *
      * @template TModelNew of \Hypervel\Database\Eloquent\Model
@@ -2114,6 +2135,28 @@ class Builder implements BuilderContract
     public function clone(): static
     {
         return clone $this;
+    }
+
+    /**
+     * Clone the Eloquent query builder without the given query properties.
+     */
+    public function cloneWithout(array $properties): static
+    {
+        $clone = $this->clone();
+
+        return $clone->setQuery($clone->getQuery()->cloneWithout($properties));
+    }
+
+    /**
+     * Clone the Eloquent query builder without the given query bindings.
+     *
+     * @param list<string> $except
+     */
+    public function cloneWithoutBindings(array $except): static
+    {
+        $clone = $this->clone();
+
+        return $clone->setQuery($clone->getQuery()->cloneWithoutBindings($except));
     }
 
     /**

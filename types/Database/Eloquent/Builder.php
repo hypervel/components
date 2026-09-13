@@ -39,6 +39,10 @@ function test(
     assertType("Hypervel\\Database\\Query\\Builder<int, Hypervel\\Types\\Builder\\User, 'from'|'groupBy'|'having'|'join'|'order'|'select'|'union'|'unionOrder'|'where'>", $query->dumpRawSql());
     assertType('stdClass|null', $query->toBase()->first());
     assertType('stdClass|null', $query->getQuery()->first());
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->newQuery());
+    assertType('Hypervel\Types\Builder\User|null', $query->newQuery()->first());
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->cloneWithout(['orders']));
+    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->cloneWithoutBindings(['order']));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->with('relation'));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->with(['relation' => ['foo' => fn ($q) => $q]]));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->with(['relation' => function ($query) {
