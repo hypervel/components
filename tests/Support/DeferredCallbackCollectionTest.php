@@ -10,15 +10,15 @@ use Hypervel\Tests\TestCase;
 
 class DeferredCallbackCollectionTest extends TestCase
 {
-    public function testForgetRemovesCallbacksByName()
+    public function testForgetRemovesCallbacksByName(): void
     {
         $callbacks = new DeferredCallbackCollection;
         $results = [];
 
-        $callbacks[] = new DeferredCallback(function () use (&$results) {
+        $callbacks[] = new DeferredCallback(function () use (&$results): void {
             $results[] = 'alpha';
         }, 'alpha');
-        $callbacks[] = new DeferredCallback(function () use (&$results) {
+        $callbacks[] = new DeferredCallback(function () use (&$results): void {
             $results[] = 'beta';
         }, 'beta');
 
@@ -29,18 +29,18 @@ class DeferredCallbackCollectionTest extends TestCase
         $this->assertCount(0, $callbacks);
     }
 
-    public function testInvokeDeduplicatesCallbacksByName()
+    public function testInvokeDeduplicatesCallbacksByName(): void
     {
         $callbacks = new DeferredCallbackCollection;
         $results = [];
 
-        $callbacks[] = new DeferredCallback(function () use (&$results) {
+        $callbacks[] = new DeferredCallback(function () use (&$results): void {
             $results[] = 'first';
         }, 'metrics');
-        $callbacks[] = new DeferredCallback(function () use (&$results) {
+        $callbacks[] = new DeferredCallback(function () use (&$results): void {
             $results[] = 'second';
         }, 'metrics');
-        $callbacks[] = new DeferredCallback(function () use (&$results) {
+        $callbacks[] = new DeferredCallback(function () use (&$results): void {
             $results[] = 'other';
         }, 'other');
 
@@ -50,58 +50,58 @@ class DeferredCallbackCollectionTest extends TestCase
         $this->assertCount(0, $callbacks);
     }
 
-    public function testInvokeWhenHonorsPredicateAndStillClearsCollection()
+    public function testInvokeWhenHonorsPredicateAndStillClearsCollection(): void
     {
         $callbacks = new DeferredCallbackCollection;
         $results = [];
 
-        $callbacks[] = new DeferredCallback(function () use (&$results) {
+        $callbacks[] = new DeferredCallback(function () use (&$results): void {
             $results[] = 'skipped';
         }, 'skip');
-        $callbacks[] = new DeferredCallback(function () use (&$results) {
+        $callbacks[] = new DeferredCallback(function () use (&$results): void {
             $results[] = 'run';
         }, 'run', true);
 
-        $callbacks->invokeWhen(fn (DeferredCallback $callback) => $callback->always);
+        $callbacks->invokeWhen(fn (DeferredCallback $callback): bool => $callback->always);
 
         $this->assertSame(['run'], $results);
         $this->assertCount(0, $callbacks);
     }
 
-    public function testCountReturnsDeduplicatedViewBeforeInvoke()
+    public function testCountReturnsDeduplicatedViewBeforeInvoke(): void
     {
         $callbacks = new DeferredCallbackCollection;
 
-        $callbacks[] = new DeferredCallback(fn () => null, 'metrics');
-        $callbacks[] = new DeferredCallback(fn () => null, 'metrics');
-        $callbacks[] = new DeferredCallback(fn () => null, 'other');
+        $callbacks[] = new DeferredCallback(fn (): null => null, 'metrics');
+        $callbacks[] = new DeferredCallback(fn (): null => null, 'metrics');
+        $callbacks[] = new DeferredCallback(fn (): null => null, 'other');
 
         $this->assertCount(2, $callbacks);
     }
 
-    public function testOffsetExistsUsesDeduplicatedView()
+    public function testOffsetExistsUsesDeduplicatedView(): void
     {
         $callbacks = new DeferredCallbackCollection;
 
-        $callbacks[] = new DeferredCallback(fn () => null, 'a');
-        $callbacks[] = new DeferredCallback(fn () => null, 'a');
-        $callbacks[] = new DeferredCallback(fn () => null, 'b');
+        $callbacks[] = new DeferredCallback(fn (): null => null, 'a');
+        $callbacks[] = new DeferredCallback(fn (): null => null, 'a');
+        $callbacks[] = new DeferredCallback(fn (): null => null, 'b');
 
         $this->assertTrue(isset($callbacks[0]));
         $this->assertTrue(isset($callbacks[1]));
         $this->assertFalse(isset($callbacks[2]));
     }
 
-    public function testOffsetGetReturnsDeduplicatedLastOccurrence()
+    public function testOffsetGetReturnsDeduplicatedLastOccurrence(): void
     {
         $callbacks = new DeferredCallbackCollection;
         $ran = [];
 
-        $first = new DeferredCallback(function () use (&$ran) {
+        $first = new DeferredCallback(function () use (&$ran): void {
             $ran[] = 'first';
         }, 'alpha');
 
-        $second = new DeferredCallback(function () use (&$ran) {
+        $second = new DeferredCallback(function () use (&$ran): void {
             $ran[] = 'second';
         }, 'alpha');
 
@@ -117,43 +117,44 @@ class DeferredCallbackCollectionTest extends TestCase
         $this->assertSame(['second'], $ran);
     }
 
-    public function testOffsetUnsetOperatesOnDeduplicatedView()
+    public function testOffsetUnsetOperatesOnDeduplicatedView(): void
     {
         $callbacks = new DeferredCallbackCollection;
         $ran = [];
 
-        $callbacks[] = new DeferredCallback(function () use (&$ran) {
+        $callbacks[] = new DeferredCallback(function () use (&$ran): void {
             $ran[] = 'a-first';
         }, 'a');
-        $callbacks[] = new DeferredCallback(function () use (&$ran) {
+        $callbacks[] = new DeferredCallback(function () use (&$ran): void {
             $ran[] = 'a-second';
         }, 'a');
-        $callbacks[] = new DeferredCallback(function () use (&$ran) {
+        $remaining = new DeferredCallback(function () use (&$ran): void {
             $ran[] = 'b';
         }, 'b');
+        $callbacks[] = $remaining;
 
         unset($callbacks[0]);
+
+        $this->assertSame($remaining, $callbacks[0]);
+        $this->assertFalse(isset($callbacks[1]));
 
         $callbacks->invoke();
 
         $this->assertSame(['b'], $ran);
     }
 
-    public function testExplicitIndexedOffsetSetTriggersLaterDedupe()
+    public function testExplicitIndexedOffsetSetTriggersLaterDedupe(): void
     {
         $callbacks = new DeferredCallbackCollection;
         $ran = [];
 
-        $callbacks[] = new DeferredCallback(function () use (&$ran) {
+        $callbacks[] = new DeferredCallback(function () use (&$ran): void {
             $ran[] = 'first';
         }, 'alpha');
 
-        // Force a dedupe pass so $needsDedupe is cleared.
         $this->assertCount(1, $callbacks);
 
-        // Explicit-index write must re-flag the collection dirty even though
-        // $needsDedupe is currently false.
-        $callbacks[1] = new DeferredCallback(function () use (&$ran) {
+        $callbacks[1] = new DeferredCallback(function () use (&$ran): void {
             $ran[] = 'second';
         }, 'alpha');
 
@@ -162,21 +163,21 @@ class DeferredCallbackCollectionTest extends TestCase
         $this->assertSame(['second'], $ran);
     }
 
-    public function testMutationAfterReadReflagsCollection()
+    public function testAppendingAfterReadDeduplicatesCallbacks(): void
     {
         $callbacks = new DeferredCallbackCollection;
         $ran = [];
 
-        $callbacks[] = new DeferredCallback(function () use (&$ran) {
+        $callbacks[] = new DeferredCallback(function () use (&$ran): void {
             $ran[] = 'first';
         }, 'a');
-        $callbacks[] = new DeferredCallback(function () use (&$ran) {
+        $callbacks[] = new DeferredCallback(function () use (&$ran): void {
             $ran[] = 'second';
         }, 'a');
 
         $this->assertCount(1, $callbacks);
 
-        $callbacks[] = new DeferredCallback(function () use (&$ran) {
+        $callbacks[] = new DeferredCallback(function () use (&$ran): void {
             $ran[] = 'third';
         }, 'a');
 
@@ -187,24 +188,45 @@ class DeferredCallbackCollectionTest extends TestCase
         $this->assertSame(['third'], $ran);
     }
 
-    public function testForgetAfterMutationLeavesCleanState()
+    public function testRenamingAfterReadDeduplicatesCallbacks(): void
     {
         $callbacks = new DeferredCallbackCollection;
         $ran = [];
 
-        $callbacks[] = new DeferredCallback(function () use (&$ran) {
+        $callbacks[] = new DeferredCallback(function () use (&$ran): void {
+            $ran[] = 'original';
+        }, 'refresh');
+        $callbacks[] = new DeferredCallback(function () use (&$ran): void {
+            $ran[] = 'replacement';
+        }, 'other');
+
+        $callbacks[1]->name('refresh');
+
+        $this->assertCount(1, $callbacks);
+
+        $callbacks->invoke();
+
+        $this->assertSame(['replacement'], $ran);
+    }
+
+    public function testForgetAfterMutationLeavesCleanState(): void
+    {
+        $callbacks = new DeferredCallbackCollection;
+        $ran = [];
+
+        $callbacks[] = new DeferredCallback(function () use (&$ran): void {
             $ran[] = 'a-first';
         }, 'a');
-        $callbacks[] = new DeferredCallback(function () use (&$ran) {
+        $callbacks[] = new DeferredCallback(function () use (&$ran): void {
             $ran[] = 'a-second';
         }, 'a');
-        $callbacks[] = new DeferredCallback(function () use (&$ran) {
+        $callbacks[] = new DeferredCallback(function () use (&$ran): void {
             $ran[] = 'b-first';
         }, 'b');
 
         $callbacks->forget('a');
 
-        $callbacks[] = new DeferredCallback(function () use (&$ran) {
+        $callbacks[] = new DeferredCallback(function () use (&$ran): void {
             $ran[] = 'b-second';
         }, 'b');
 
@@ -213,26 +235,25 @@ class DeferredCallbackCollectionTest extends TestCase
         $this->assertSame(['b-second'], $ran);
     }
 
-    public function testForgetPreservesDedupeFlagWhenOtherDuplicatesRemain()
+    public function testForgetStillDeduplicatesRemainingCallbacks(): void
     {
         $callbacks = new DeferredCallbackCollection;
         $ran = [];
 
-        $callbacks[] = new DeferredCallback(function () use (&$ran) {
+        $callbacks[] = new DeferredCallback(function () use (&$ran): void {
             $ran[] = 'a';
         }, 'alpha');
 
-        $callbacks[] = new DeferredCallback(function () use (&$ran) {
+        $callbacks[] = new DeferredCallback(function () use (&$ran): void {
             $ran[] = 'b-first';
         }, 'bravo');
 
-        $callbacks[] = new DeferredCallback(function () use (&$ran) {
+        $callbacks[] = new DeferredCallback(function () use (&$ran): void {
             $ran[] = 'b-second';
         }, 'bravo');
 
         $callbacks->forget('alpha');
 
-        // No intervening write — the next read must still dedupe the two bravos.
         $this->assertCount(1, $callbacks);
 
         $callbacks->invoke();
@@ -240,16 +261,16 @@ class DeferredCallbackCollectionTest extends TestCase
         $this->assertSame(['b-second'], $ran);
     }
 
-    public function testFirstReturnsDeduplicatedView()
+    public function testFirstReturnsDeduplicatedView(): void
     {
         $callbacks = new DeferredCallbackCollection;
         $ran = [];
 
-        $callbacks[] = new DeferredCallback(function () use (&$ran) {
+        $callbacks[] = new DeferredCallback(function () use (&$ran): void {
             $ran[] = 'first';
         }, 'alpha');
 
-        $last = new DeferredCallback(function () use (&$ran) {
+        $last = new DeferredCallback(function () use (&$ran): void {
             $ran[] = 'last';
         }, 'alpha');
 

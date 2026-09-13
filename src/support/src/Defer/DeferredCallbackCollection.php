@@ -21,23 +21,13 @@ class DeferredCallbackCollection implements ArrayAccess, Countable
     protected array $callbacks = [];
 
     /**
-     * Whether the callbacks array may contain duplicates that need collapsing
-     * on the next read. Set to true by offsetSet() (the only mutation that
-     * can introduce a duplicate); cleared only by forgetDuplicates() after a
-     * successful rebuild. forget() and offsetUnset() can only remove items,
-     * so they cannot introduce duplicates and deliberately leave the flag
-     * alone — see forget() for the reasoning.
-     */
-    protected bool $needsDedupe = false;
-
-    /**
      * Get the first callback in the collection.
      */
     public function first(): DeferredCallback
     {
         $this->forgetDuplicates();
 
-        return array_values($this->callbacks)[0];
+        return $this->callbacks[0];
     }
 
     /**
@@ -45,7 +35,7 @@ class DeferredCallbackCollection implements ArrayAccess, Countable
      */
     public function invoke(): void
     {
-        $this->invokeWhen(fn () => true);
+        $this->invokeWhen(fn (): bool => true);
     }
 
     /**
@@ -53,7 +43,7 @@ class DeferredCallbackCollection implements ArrayAccess, Countable
      */
     public function invokeWhen(?Closure $when = null): void
     {
-        $when ??= fn () => true;
+        $when ??= fn (): bool => true;
 
         $this->forgetDuplicates();
 
@@ -80,13 +70,6 @@ class DeferredCallbackCollection implements ArrayAccess, Countable
         }
 
         $this->callbacks = $kept;
-
-        // Preserve $needsDedupe intentionally: forget() only removes items, so
-        // if duplicates of other names were pending before this call they are
-        // still pending. Clearing the flag here would cause the next read to
-        // short-circuit and observe an undeduplicated view. Letting the flag
-        // carry over is always correct — if it was already false, forget()
-        // cannot introduce new duplicates, so it stays false.
     }
 
     /**
@@ -94,11 +77,9 @@ class DeferredCallbackCollection implements ArrayAccess, Countable
      */
     protected function forgetDuplicates(): static
     {
-        if (! $this->needsDedupe) {
-            return $this;
-        }
-
-        // Walk the reversed array so the LAST occurrence of each name wins,
+        // Callback names can change through objects already returned to callers,
+        // so every read must check their current names.
+        // Walk the reversed array so the last occurrence of each name wins,
         // then reverse the kept slice to restore original insertion order
         // among survivors. foreach-over-array_reverse tolerates sparse keys
         // left by prior offsetUnset() calls, which a count()-bounded for-loop
@@ -116,7 +97,6 @@ class DeferredCallbackCollection implements ArrayAccess, Countable
         }
 
         $this->callbacks = array_reverse($keptReversed);
-        $this->needsDedupe = false;
 
         return $this;
     }
@@ -151,8 +131,6 @@ class DeferredCallbackCollection implements ArrayAccess, Countable
         } else {
             $this->callbacks[$offset] = $value;
         }
-
-        $this->needsDedupe = true;
     }
 
     /**
