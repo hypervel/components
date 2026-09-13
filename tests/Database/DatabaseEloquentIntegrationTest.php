@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Database\DatabaseEloquentIntegrationTest;
 use DateTimeInterface;
 use Exception;
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Concerns\HasUuids;
@@ -20,6 +21,7 @@ use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Eloquent\SoftDeletingScope;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Database\Schema\Builder as SchemaBuilder;
 use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Pagination\AbstractPaginator as Paginator;
 use Hypervel\Pagination\Cursor;
@@ -2727,26 +2729,20 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     /**
      * Helpers...
-     * @param mixed $connection
      */
 
     /**
      * Get a database connection instance.
-     *
-     * @return \Illuminate\Database\Connection
      */
-    protected function connection($connection = 'default')
+    protected function connection(string $connection = 'default'): ConnectionInterface
     {
         return Eloquent::getConnectionResolver()->connection($connection);
     }
 
     /**
      * Get a schema builder instance.
-     *
-     * @param mixed $connection
-     * @return \Illuminate\Database\Schema\Builder
      */
-    protected function schema($connection = 'default')
+    protected function schema(string $connection = 'default'): SchemaBuilder
     {
         return $this->connection($connection)->getSchemaBuilder();
     }

@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Factories\Factory;
 use Hypervel\Database\Eloquent\Factories\HasFactory;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\HasOne;
+use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentInverseRelationHasOneTest extends TestCase
@@ -165,26 +167,20 @@ class DatabaseEloquentInverseRelationHasOneTest extends TestCase
 
     /**
      * Helpers...
-     * @param mixed $connection
      */
 
     /**
      * Get a database connection instance.
-     *
-     * @return \Illuminate\Database\Connection
      */
-    protected function connection($connection = 'default')
+    protected function connection(string $connection = 'default'): ConnectionInterface
     {
         return Eloquent::getConnectionResolver()->connection($connection);
     }
 
     /**
      * Get a schema builder instance.
-     *
-     * @param mixed $connection
-     * @return \Illuminate\Database\Schema\Builder
      */
-    protected function schema($connection = 'default')
+    protected function schema(string $connection = 'default'): Builder
     {
         return $this->connection($connection)->getSchemaBuilder();
     }

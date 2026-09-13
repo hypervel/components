@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\DatabaseEloquentHasOneThroughIntegrationTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
@@ -353,20 +355,16 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
 
     /**
      * Get a database connection instance.
-     *
-     * @return \Illuminate\Database\Connection
      */
-    protected function connection()
+    protected function connection(): ConnectionInterface
     {
         return Eloquent::getConnectionResolver()->connection();
     }
 
     /**
      * Get a schema builder instance.
-     *
-     * @return \Illuminate\Database\Schema\Builder
      */
-    protected function schema()
+    protected function schema(): Builder
     {
         return $this->connection()->getSchemaBuilder();
     }

@@ -5,15 +5,22 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\MorphToMany;
+use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentBelongsToManyWithAttributesTest extends TestCase
 {
+    /**
+     * Set up the database schema.
+     */
     protected function setUp(): void
     {
+        parent::setUp();
+
         $db = new DB;
 
         $db->addConnection([
@@ -190,22 +197,16 @@ class DatabaseEloquentBelongsToManyWithAttributesTest extends TestCase
 
     /**
      * Get a database connection instance.
-     *
-     * @param mixed $connection
-     * @return \Illuminate\Database\Connection
      */
-    protected function connection($connection = 'default')
+    protected function connection(string $connection = 'default'): ConnectionInterface
     {
         return Model::getConnectionResolver()->connection($connection);
     }
 
     /**
      * Get a schema builder instance.
-     *
-     * @param mixed $connection
-     * @return \Illuminate\Database\Schema\Builder
      */
-    protected function schema($connection = 'default')
+    protected function schema(string $connection = 'default'): Builder
     {
         return $this->connection($connection)->getSchemaBuilder();
     }

@@ -11,10 +11,12 @@ use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
 use Hypervel\Contracts\Database\Eloquent\ComparesCastableAttributes;
 use Hypervel\Contracts\Database\Eloquent\SerializesCastableAttributes;
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\MassAssignmentException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
@@ -22,8 +24,13 @@ use stdClass;
 
 class EloquentModelCustomCastingTest extends TestCase
 {
+    /**
+     * Set up the database schema.
+     */
     protected function setUp(): void
     {
+        parent::setUp();
+
         $db = new DB;
 
         $db->addConnection([
@@ -82,9 +89,9 @@ class EloquentModelCustomCastingTest extends TestCase
     }
 
     #[RequiresPhpExtension('gmp')]
-    public function testSavingCastedAttributesToDatabase()
+    public function testSavingCastedAttributesToDatabase(): void
     {
-        /** @var \Illuminate\Tests\Integration\Database\CustomCasts $model */
+        /** @var CustomCasts $model */
         $model = CustomCasts::create([
             'address' => new AddressModel('address_line_one_value', 'address_line_two_value'),
             'amount' => gmp_init('1000', 10),
@@ -103,7 +110,7 @@ class EloquentModelCustomCastingTest extends TestCase
         $this->assertNull($model->getAttribute('string_field'));
         $this->assertSame('', $model->getRawOriginal('string_field'));
 
-        /** @var \Illuminate\Tests\Integration\Database\CustomCasts $another_model */
+        /** @var CustomCasts $another_model */
         $another_model = CustomCasts::create([
             'address_line_one' => 'address_line_one_value',
             'address_line_two' => 'address_line_two_value',
@@ -119,47 +126,51 @@ class EloquentModelCustomCastingTest extends TestCase
     }
 
     #[RequiresPhpExtension('gmp')]
-    public function testInvalidArgumentExceptionOnInvalidValue()
+    public function testInvalidArgumentExceptionOnInvalidValue(): void
     {
-        /** @var \Illuminate\Tests\Integration\Database\CustomCasts $model */
+        /** @var CustomCasts $model */
         $model = CustomCasts::create([
             'address' => new AddressModel('address_line_one_value', 'address_line_two_value'),
             'amount' => gmp_init('1000', 10),
             'string_field' => 'string_value',
         ]);
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The given value is not an Address instance.');
-        $model->address = 'single_string';
+        $this->expectExceptionObject(new InvalidArgumentException('The given value is not an Address instance.'));
 
-        // Ensure model values remain unchanged
-        $this->assertSame('address_line_one_value', $model->address->lineOne);
-        $this->assertSame('address_line_two_value', $model->address->lineTwo);
+        try {
+            $model->address = 'single_string';
+        } finally {
+            // Ensure model values remain unchanged
+            $this->assertSame('address_line_one_value', $model->address->lineOne);
+            $this->assertSame('address_line_two_value', $model->address->lineTwo);
+        }
     }
 
     #[RequiresPhpExtension('gmp')]
-    public function testInvalidArgumentExceptionOnNull()
+    public function testInvalidArgumentExceptionOnNull(): void
     {
-        /** @var \Illuminate\Tests\Integration\Database\CustomCasts $model */
+        /** @var CustomCasts $model */
         $model = CustomCasts::create([
             'address' => new AddressModel('address_line_one_value', 'address_line_two_value'),
             'amount' => gmp_init('1000', 10),
             'string_field' => 'string_value',
         ]);
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The given value is not an Address instance.');
-        $model->address = null;
+        $this->expectExceptionObject(new InvalidArgumentException('The given value is not an Address instance.'));
 
-        // Ensure model values remain unchanged
-        $this->assertSame('address_line_one_value', $model->address->lineOne);
-        $this->assertSame('address_line_two_value', $model->address->lineTwo);
+        try {
+            $model->address = null;
+        } finally {
+            // Ensure model values remain unchanged
+            $this->assertSame('address_line_one_value', $model->address->lineOne);
+            $this->assertSame('address_line_two_value', $model->address->lineTwo);
+        }
     }
 
     #[RequiresPhpExtension('gmp')]
-    public function testModelsWithCustomCastsCanBeConvertedToArrays()
+    public function testModelsWithCustomCastsCanBeConvertedToArrays(): void
     {
-        /** @var \Illuminate\Tests\Integration\Database\CustomCasts $model */
+        /** @var CustomCasts $model */
         $model = CustomCasts::create([
             'address' => new AddressModel('address_line_one_value', 'address_line_two_value'),
             'amount' => gmp_init('1000', 10),
@@ -231,20 +242,16 @@ class EloquentModelCustomCastingTest extends TestCase
 
     /**
      * Get a database connection instance.
-     *
-     * @return \Illuminate\Database\Connection
      */
-    protected function connection()
+    protected function connection(): ConnectionInterface
     {
         return Eloquent::getConnectionResolver()->connection();
     }
 
     /**
      * Get a schema builder instance.
-     *
-     * @return \Illuminate\Database\Schema\Builder
      */
-    protected function schema()
+    protected function schema(): Builder
     {
         return $this->connection()->getSchemaBuilder();
     }
@@ -257,11 +264,8 @@ class AddressCast implements CastsAttributes
 {
     /**
      * Cast the given value.
-     *
-     * @param \Illuminate\Database\Eloquent\Model $model
-     * @return \Illuminate\Tests\Integration\Database\AddressModel
      */
-    public function get(Model $model, string $key, mixed $value, array $attributes): mixed
+    public function get(Model $model, string $key, mixed $value, array $attributes): AddressModel
     {
         return new AddressModel(
             $attributes['address_line_one'],
@@ -272,11 +276,9 @@ class AddressCast implements CastsAttributes
     /**
      * Prepare the given value for storage.
      *
-     * @param \Illuminate\Database\Eloquent\Model $model
      * @param AddressModel $value
-     * @return array
      */
-    public function set(Model $model, string $key, mixed $value, array $attributes): mixed
+    public function set(Model $model, string $key, mixed $value, array $attributes): array
     {
         if (! $value instanceof AddressModel) {
             throw new InvalidArgumentException('The given value is not an Address instance.');
@@ -294,11 +296,9 @@ class GMPCast implements CastsAttributes, SerializesCastableAttributes
     /**
      * Cast the given value.
      *
-     * @param \Illuminate\Database\Eloquent\Model $model
      * @param string $value
-     * @return null|string
      */
-    public function get(Model $model, string $key, mixed $value, array $attributes): mixed
+    public function get(Model $model, string $key, mixed $value, array $attributes): GMP
     {
         return gmp_init($value, 10);
     }
@@ -306,11 +306,9 @@ class GMPCast implements CastsAttributes, SerializesCastableAttributes
     /**
      * Prepare the given value for storage.
      *
-     * @param \Illuminate\Database\Eloquent\Model $model
-     * @param null|string $value
-     * @return string
+     * @param GMP|int|string $value
      */
-    public function set(Model $model, string $key, mixed $value, array $attributes): mixed
+    public function set(Model $model, string $key, mixed $value, array $attributes): string
     {
         return gmp_strval($value, 10);
     }
@@ -318,7 +316,7 @@ class GMPCast implements CastsAttributes, SerializesCastableAttributes
     /**
      * Serialize the attribute when converting the model to an array.
      */
-    public function serialize(Model $model, string $key, mixed $value, array $attributes): mixed
+    public function serialize(Model $model, string $key, mixed $value, array $attributes): string
     {
         return gmp_strval($value, 10);
     }
@@ -329,7 +327,6 @@ class NonNullableString implements CastsAttributes
     /**
      * Cast the given value.
      *
-     * @param \Illuminate\Database\Eloquent\Model $model
      * @param string $value
      * @return null|string
      */
@@ -341,7 +338,6 @@ class NonNullableString implements CastsAttributes
     /**
      * Prepare the given value for storage.
      *
-     * @param \Illuminate\Database\Eloquent\Model $model
      * @param null|string $value
      * @return string
      */
