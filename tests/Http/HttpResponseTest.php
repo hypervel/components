@@ -299,8 +299,7 @@ class HttpResponseTest extends TestCase
 
     public function testMagicCallException(): void
     {
-        $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Call to undefined method Hypervel\Http\RedirectResponse::doesNotExist()');
+        $this->expectExceptionObject(new BadMethodCallException('Call to undefined method Hypervel\Http\RedirectResponse::doesNotExist()'));
 
         $response = new RedirectResponse('foo.bar');
         $response->doesNotExist('bar');

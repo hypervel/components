@@ -26,16 +26,14 @@ class JsonApiResourceTest extends TestCase
 
     public function testUnableToSetWrapper(): void
     {
-        $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Using Hypervel\Http\Resources\JsonApi\JsonApiResource::wrap() method is not allowed.');
+        $this->expectExceptionObject(new BadMethodCallException('Using Hypervel\Http\Resources\JsonApi\JsonApiResource::wrap() method is not allowed.'));
 
         JsonApiResource::wrap('hypervel');
     }
 
     public function testUnableToUnsetWrapper(): void
     {
-        $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Using Hypervel\Http\Resources\JsonApi\JsonApiResource::withoutWrapping() method is not allowed.');
+        $this->expectExceptionObject(new BadMethodCallException('Using Hypervel\Http\Resources\JsonApi\JsonApiResource::withoutWrapping() method is not allowed.'));
 
         JsonApiResource::withoutWrapping();
     }
