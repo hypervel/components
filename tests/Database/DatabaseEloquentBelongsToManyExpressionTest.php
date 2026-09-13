@@ -68,10 +68,10 @@ class DatabaseEloquentBelongsToManyExpressionTest extends TestCase
         $post = Post::query()->firstOrFail();
         Tag::addGlobalScope(
             'default',
-            static fn () => throw new Exception('Default global scope.')
+            static fn (): never => throw new Exception('Default global scope.')
         );
 
-        $this->expectExceptionMessage('Default global scope.');
+        $this->expectExceptionObject(new Exception('Default global scope.'));
         $post->tags()->get();
     }
 

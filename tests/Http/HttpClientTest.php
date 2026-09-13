@@ -128,7 +128,7 @@ class HttpClientTest extends TestCase
     public function testStatusCodeShorthandRejectsInvalidHttpStatusCode(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('HTTP status code must be between 100 and 599.');
+        $this->expectExceptionMessageIsOrContains('HTTP status code must be between 100 and 599.');
 
         $this->factory->fake([
             'forge.laravel.com' => 999,
@@ -174,8 +174,7 @@ class HttpClientTest extends TestCase
     #[DataProvider('invalidFakeResponseHeaderValuesProvider')]
     public function testInvalidFakeResponseHeaderValuesAreRejected(mixed $value): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('HTTP fake response header values must be scalar, null, Hypervel Stringable, or arrays of scalar, null, or Hypervel Stringable values.');
+        $this->expectExceptionObject(new InvalidArgumentException('HTTP fake response header values must be scalar, null, Hypervel Stringable, or arrays of scalar, null, or Hypervel Stringable values.'));
 
         $this->factory::response('OK', 200, ['X-Test' => $value]);
     }
@@ -194,7 +193,7 @@ class HttpClientTest extends TestCase
     public function testInvalidJsonFakeResponseBodyValuesAreRejected(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('HTTP fake response body could not be JSON encoded.');
+        $this->expectExceptionMessageIsOrContains('HTTP fake response body could not be JSON encoded.');
 
         $this->factory::response(['value' => NAN]);
     }
@@ -887,7 +886,7 @@ class HttpClientTest extends TestCase
         $this->factory->fake();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('HTTP request body must be a string, resource, Psr\Http\Message\StreamInterface, or null.');
+        $this->expectExceptionMessageIsOrContains('HTTP request body must be a string, resource, Psr\Http\Message\StreamInterface, or null.');
 
         $this->factory->withBody(new stdClass)->send('post', 'http://foo.com/api');
     }
@@ -1158,7 +1157,7 @@ class HttpClientTest extends TestCase
         $this->factory->fake();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('HTTP form data must resolve to an array.');
+        $this->expectExceptionMessageIsOrContains('HTTP form data must resolve to an array.');
 
         $this->factory->asForm()->post('http://foo.com/form', new class($serialized) implements JsonSerializable {
             public function __construct(private ?string $serialized)
@@ -1327,8 +1326,7 @@ class HttpClientTest extends TestCase
     {
         $this->factory->fake();
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('HTTP header values must be scalar, null, Hypervel Stringable, or arrays of scalar, null, or Hypervel Stringable values.');
+        $this->expectExceptionObject(new InvalidArgumentException('HTTP header values must be scalar, null, Hypervel Stringable, or arrays of scalar, null, or Hypervel Stringable values.'));
 
         $this->factory->withHeaders(['X-Test' => $value])->post('http://foo.com/json');
     }
@@ -1349,7 +1347,7 @@ class HttpClientTest extends TestCase
         $this->factory->fake();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('HTTP header names must be strings.');
+        $this->expectExceptionMessageIsOrContains('HTTP header names must be strings.');
 
         $this->factory->withHeaders(['Content-Type', 'application/json'])->post('http://foo.com/json');
     }
@@ -1431,7 +1429,7 @@ class HttpClientTest extends TestCase
         ));
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The request JSON body must decode to an array.');
+        $this->expectExceptionMessageIsOrContains('The request JSON body must decode to an array.');
 
         $request->data();
     }
@@ -1794,8 +1792,7 @@ class HttpClientTest extends TestCase
     {
         $this->factory->fake();
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Multipart header values must be scalar, null, or Hypervel Stringable.');
+        $this->expectExceptionObject(new InvalidArgumentException('Multipart header values must be scalar, null, or Hypervel Stringable.'));
 
         $this->factory->asMultipart()->post('http://foo.com/multipart', [
             [
@@ -1863,7 +1860,7 @@ class HttpClientTest extends TestCase
         $this->factory->fake();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('HTTP multipart data must resolve to an array.');
+        $this->expectExceptionMessageIsOrContains('HTTP multipart data must resolve to an array.');
 
         $this->factory->asMultipart()->post('http://foo.com/multipart', new class implements JsonSerializable {
             public function jsonSerialize(): mixed
@@ -2232,7 +2229,7 @@ class HttpClientTest extends TestCase
     public function testWithCookieRejectsInvalidCookies(array $cookie, string $message): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage($message);
+        $this->expectExceptionMessageIsOrContains($message);
 
         $this->factory->withCookie(new SetCookie($cookie));
     }
@@ -2476,7 +2473,7 @@ class HttpClientTest extends TestCase
         $this->factory->fake();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('HTTP query data must resolve to an array, string, or null.');
+        $this->expectExceptionMessageIsOrContains('HTTP query data must resolve to an array, string, or null.');
 
         $this->factory->get('http://foo.com/get', new class implements JsonSerializable {
             public function jsonSerialize(): mixed
@@ -2775,7 +2772,7 @@ class HttpClientTest extends TestCase
     public function testRequestExceptionSummary(): void
     {
         $this->expectException(RequestException::class);
-        $this->expectExceptionMessage('{"error":{"code":403,"message":"The Request can not be completed"}}');
+        $this->expectExceptionMessageIsOrContains('{"error":{"code":403,"message":"The Request can not be completed"}}');
 
         $error = [
             'error' => [
@@ -2791,7 +2788,7 @@ class HttpClientTest extends TestCase
     public function testRequestExceptionTruncatedSummary(): void
     {
         $this->expectException(RequestException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             '{"error":{"code":403,"message":"The Request can not be completed because quota limit was exceeded. Please, check our sup (truncated...)'
         );
 
@@ -2811,7 +2808,7 @@ class HttpClientTest extends TestCase
         RequestException::dontTruncate();
 
         $this->expectException(RequestException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             '{"error":{"code":403,"message":"The Request can not be completed because quota limit was exceeded. Please, check our support team to increase your limit'
         );
 
@@ -2831,7 +2828,7 @@ class HttpClientTest extends TestCase
         RequestException::truncateAt(60);
 
         $this->expectException(RequestException::class);
-        $this->expectExceptionMessage('{"error":{"code":403,"message":"The Request can not be compl (truncated...)');
+        $this->expectExceptionMessageIsOrContains('{"error":{"code":403,"message":"The Request can not be compl (truncated...)');
 
         $error = [
             'error' => [
@@ -5074,7 +5071,7 @@ class HttpClientTest extends TestCase
         $request = $this->factory->recorded()->first()[0];
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The request JSON body must decode to an array.');
+        $this->expectExceptionMessageIsOrContains('The request JSON body must decode to an array.');
 
         $request->data();
     }
@@ -5109,7 +5106,7 @@ class HttpClientTest extends TestCase
 
     public function testSslCertificateErrorsConvertedToConnectionException(): void
     {
-        $this->factory->fake(function () {
+        $this->factory->fake(function (): never {
             $request = new GuzzleRequest('HEAD', 'https://ssl-error.hypervel.example');
 
             throw new GuzzleRequestException(
@@ -5118,20 +5115,18 @@ class HttpClientTest extends TestCase
             );
         });
 
-        $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('cURL error 60: SSL certificate problem: unable to get local issuer certificate');
+        $this->expectExceptionObject(new ConnectionException('cURL error 60: SSL certificate problem: unable to get local issuer certificate'));
 
         $this->factory->head('https://ssl-error.hypervel.example');
     }
 
     public function testConnectExceptionIsConvertedToConnectionExceptionEvenWhenWithoutFactory(): void
     {
-        $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('cURL error 60: SSL certificate problem');
+        $this->expectExceptionObject(new ConnectionException('cURL error 60: SSL certificate problem'));
 
         $pendingRequest = new PendingRequest;
 
-        $pendingRequest->setHandler(function () {
+        $pendingRequest->setHandler(function (): never {
             throw new ConnectException(
                 'cURL error 60: SSL certificate problem: unable to get local issuer certificate',
                 new GuzzleRequest('HEAD', 'https://ssl-error.hypervel.example')
@@ -5143,12 +5138,11 @@ class HttpClientTest extends TestCase
 
     public function testRequestExceptionWithoutResponseIsConvertedToConnectionExceptionEvenWhenWithoutFactory(): void
     {
-        $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('cURL error 28: Operation timed out');
+        $this->expectExceptionObject(new ConnectionException('cURL error 28: Operation timed out'));
 
         $pendingRequest = new PendingRequest;
 
-        $pendingRequest->setHandler(function () {
+        $pendingRequest->setHandler(function (): never {
             throw new GuzzleRequestException(
                 'cURL error 28: Operation timed out',
                 new GuzzleRequest('GET', 'https://timeout.hypervel.example')
@@ -5160,12 +5154,11 @@ class HttpClientTest extends TestCase
 
     public function testRequestExceptionWithResponseIsConvertedToConnectionExceptionEvenWhenWithoutFactory(): void
     {
-        $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('cURL error 28: Operation timed out');
+        $this->expectExceptionObject(new ConnectionException('cURL error 28: Operation timed out'));
 
         $pendingRequest = new PendingRequest;
 
-        $pendingRequest->setHandler(function () {
+        $pendingRequest->setHandler(function (): never {
             throw new GuzzleRequestException(
                 'cURL error 28: Operation timed out',
                 new GuzzleRequest('GET', 'https://timeout.hypervel.example'),
@@ -5178,12 +5171,11 @@ class HttpClientTest extends TestCase
 
     public function testTooManyRedirectsExceptionIsConvertedToConnectionExceptionEvenWhenWithoutFactory(): void
     {
-        $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('Maximum number of redirects (5) exceeded');
+        $this->expectExceptionObject(new ConnectionException('Maximum number of redirects (5) exceeded'));
 
         $pendingRequest = new PendingRequest;
 
-        $pendingRequest->setHandler(function () {
+        $pendingRequest->setHandler(function (): never {
             throw new TooManyRedirectsException(
                 'Maximum number of redirects (5) exceeded',
                 new GuzzleRequest('GET', 'https://redirect.hypervel.example'),
@@ -5196,7 +5188,7 @@ class HttpClientTest extends TestCase
 
     public function testTooManyRedirectsExceptionConvertedToConnectionException(): void
     {
-        $this->factory->fake(function () {
+        $this->factory->fake(function (): never {
             $request = new GuzzleRequest('GET', 'https://redirect.hypervel.example');
             $response = new Psr7Response(301, ['Location' => 'https://redirect2.hypervel.example']);
 
@@ -5207,8 +5199,7 @@ class HttpClientTest extends TestCase
             );
         });
 
-        $this->expectException(ConnectionException::class);
-        $this->expectExceptionMessage('Maximum number of redirects (5) exceeded');
+        $this->expectExceptionObject(new ConnectionException('Maximum number of redirects (5) exceeded'));
 
         $this->factory->maxRedirects(5)->get('https://redirect.hypervel.example');
     }
@@ -6068,8 +6059,7 @@ class HttpClientTest extends TestCase
         $responses[] = $this->factory->get('https://forge.laravel.com')->body();
         $this->assertSame(['ok', 'ok'], $responses);
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Attempted request to [https://laravel.com] without a matching fake.');
+        $this->expectExceptionObject(new StrayRequestException('https://laravel.com'));
 
         $this->factory->get('https://laravel.com');
     }

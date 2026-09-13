@@ -380,7 +380,7 @@ class FilesystemAdapterTest extends TestCase
         $image = $filesystemAdapter->image('missing.jpg');
 
         $this->expectException(ImageException::class);
-        $this->expectExceptionMessage('Unable to read image from path [missing.jpg].');
+        $this->expectExceptionMessageIsOrContains('Unable to read image from path [missing.jpg].');
 
         $image->toBytes();
     }
@@ -1514,8 +1514,7 @@ class FilesystemAdapterTest extends TestCase
         $this->filesystem->write('foo/file.txt', 'Hello World');
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
 
-        $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('Disk is not empty.');
+        $this->expectExceptionObject(new ExpectationFailedException('Disk is not empty.'));
 
         $filesystemAdapter->assertEmpty();
     }
