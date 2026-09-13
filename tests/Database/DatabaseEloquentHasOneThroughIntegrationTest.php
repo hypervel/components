@@ -130,10 +130,9 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
         $this->assertEquals($position->first()->contract->pluck('title')->unique()->toArray(), ['A title']);
     }
 
-    public function testFirstOrFailThrowsAnException()
+    public function testFirstOrFailThrowsAnException(): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasOneThroughIntegrationTest\Contract].');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasOneThroughIntegrationTest\Contract].'));
 
         Position::create(['id' => 1, 'name' => 'President', 'shortname' => 'ps'])
             ->user()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'position_short' => 'ps']);
