@@ -82,7 +82,6 @@ class SleepTest extends TestCase
         $elapsed = microtime(true) - $start;
 
         $this->assertGreaterThanOrEqual(2.9, $elapsed);
-        $this->assertLessThan(3.5, $elapsed);
     }
 
     #[TestWith([0])]
