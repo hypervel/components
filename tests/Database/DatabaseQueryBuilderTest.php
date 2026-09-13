@@ -41,6 +41,7 @@ use Hypervel\Tests\Database\Fixtures\Enums\NonBackedStatus;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use RuntimeException;
 use SortDirection;
@@ -185,7 +186,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $subquery = (clone $builder)->fromSub('select 2 as id', 'new')->addSelect(['bonus' => $this->getBuilder()->selectRaw('42')]);
         $this->assertSame('select "prefix_new".*, (select 42) as "bonus" from (select 2 as id) as "prefix_new"', $subquery->toSql());
 
-        $this->expectException(TypeError::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $builder->fromRaw('users')->addSelect(['bonus' => $this->getBuilder()->selectRaw('42')]);
     }
@@ -5138,6 +5139,47 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals(1, $result);
     }
 
+    #[DataProvider('rawSourcesForLimitedWrites')]
+    public function testUpdateWithRawSourceAndLimit(string $database, ?string $alias, string $source, string $rowIdentifier, string $selection, bool $withJoin = false): void
+    {
+        $builder = $database === 'Postgres' ? $this->getPostgresBuilder('prefix_') : $this->getSQLiteBuilder('prefix_');
+        $builder->from(new Raw('"prefix_users"'), $alias);
+        $join = '';
+
+        if ($withJoin) {
+            $builder->join('profiles', 'profiles.user_id', '=', ($alias ?? 'users') . '.id');
+            $join = ' inner join "prefix_profiles" on "prefix_profiles"."user_id" = "prefix_target"."id"';
+        }
+
+        if ($withJoin && $alias === null) {
+            $this->expectException(InvalidArgumentException::class);
+        } else {
+            $builder->getConnection()->shouldReceive('update')->once()->with(
+                'update ' . $source . ' set "email" = ? where ' . $rowIdentifier . ' in (select ' . $selection . ' from ' . $source . $join . ' where "active" = ? limit 1)',
+                ['new@example.com', 1],
+            )->andReturn(1);
+        }
+
+        $this->assertSame(1, $builder->where('active', 1)->limit(1)->update(['email' => 'new@example.com']));
+    }
+
+    /**
+     * Provide opaque and explicitly aliased sources for limited writes with and without joins.
+     */
+    public static function rawSourcesForLimitedWrites(): array
+    {
+        return [
+            'Postgres opaque source' => ['Postgres', null, '"prefix_users"', '"ctid"', '"ctid"'],
+            'Postgres explicit alias' => ['Postgres', 'target', '"prefix_users" as "prefix_target"', '"ctid"', '"prefix_target"."ctid"'],
+            'SQLite opaque source' => ['SQLite', null, '"prefix_users"', '"rowid"', '"rowid"'],
+            'SQLite explicit alias' => ['SQLite', 'target', '"prefix_users" as "prefix_target"', '"rowid"', '"prefix_target"."rowid"'],
+            'Postgres opaque source with join' => ['Postgres', null, '"prefix_users"', '"ctid"', '"ctid"', true],
+            'Postgres explicit alias with join' => ['Postgres', 'target', '"prefix_users" as "prefix_target"', '"ctid"', '"prefix_target"."ctid"', true],
+            'SQLite opaque source with join' => ['SQLite', null, '"prefix_users"', '"rowid"', '"rowid"', true],
+            'SQLite explicit alias with join' => ['SQLite', 'target', '"prefix_users" as "prefix_target"', '"rowid"', '"prefix_target"."rowid"', true],
+        ];
+    }
+
     public function testUpdateFromMethodWithJoinsOnPostgres()
     {
         $builder = $this->getPostgresBuilder();
@@ -5321,6 +5363,30 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder->getConnection()->shouldReceive('delete')->once()->with('delete from "users" where "ctid" in (select "users"."ctid" from "users" inner join "contacts" on "users"."id" = "contacts"."id")', [])->andReturn(1);
         $result = $builder->from('users')->join('contacts', 'users.id', '=', 'contacts.id')->delete();
         $this->assertEquals(1, $result);
+    }
+
+    #[DataProvider('rawSourcesForLimitedWrites')]
+    public function testDeleteWithRawSourceAndLimit(string $database, ?string $alias, string $source, string $rowIdentifier, string $selection, bool $withJoin = false): void
+    {
+        $builder = $database === 'Postgres' ? $this->getPostgresBuilder('prefix_') : $this->getSQLiteBuilder('prefix_');
+        $builder->from(new Raw('"prefix_users"'), $alias);
+        $join = '';
+
+        if ($withJoin) {
+            $builder->join('profiles', 'profiles.user_id', '=', ($alias ?? 'users') . '.id');
+            $join = ' inner join "prefix_profiles" on "prefix_profiles"."user_id" = "prefix_target"."id"';
+        }
+
+        if ($withJoin && $alias === null) {
+            $this->expectException(InvalidArgumentException::class);
+        } else {
+            $builder->getConnection()->shouldReceive('delete')->once()->with(
+                'delete from ' . $source . ' where ' . $rowIdentifier . ' in (select ' . $selection . ' from ' . $source . $join . ' where "active" = ? limit 1)',
+                [1],
+            )->andReturn(1);
+        }
+
+        $this->assertSame(1, $builder->where('active', 1)->limit(1)->delete());
     }
 
     public function testTruncateMethod()
