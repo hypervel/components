@@ -50,6 +50,55 @@ class DeferredCallbackCollectionTest extends TestCase
         $this->assertCount(0, $callbacks);
     }
 
+    public function testInvokePreservesPendingCallbacksWhenAReadReindexesTheCollection(): void
+    {
+        $callbacks = new DeferredCallbackCollection;
+        $results = [];
+
+        $callbacks[] = new DeferredCallback(function () use (&$results, $callbacks): void {
+            $results[] = 'first';
+            $callbacks[] = new DeferredCallback(function () use (&$results): void {
+                $results[] = 'nested';
+            }, 'nested');
+        }, 'first');
+        $callbacks[] = new DeferredCallback(function () use (&$results, $callbacks): void {
+            $results[] = 'second';
+
+            // Reindex pending callbacks while the drain still holds the original indexes.
+            count($callbacks);
+        }, 'second');
+        $callbacks[] = new DeferredCallback(function () use (&$results): void {
+            $results[] = 'third';
+        }, 'third');
+
+        $callbacks->invoke();
+
+        $this->assertSame(['first', 'second', 'third', 'nested'], $results);
+        $this->assertCount(0, $callbacks);
+    }
+
+    public function testInvokeSkipsCallbacksForgottenByAnEarlierCallback(): void
+    {
+        $callbacks = new DeferredCallbackCollection;
+        $results = [];
+
+        $callbacks[] = new DeferredCallback(function () use (&$results, $callbacks): void {
+            $results[] = 'first';
+            $callbacks->forget('third');
+        }, 'first');
+        $callbacks[] = new DeferredCallback(function () use (&$results): void {
+            $results[] = 'second';
+        }, 'second');
+        $callbacks[] = new DeferredCallback(function () use (&$results): void {
+            $results[] = 'third';
+        }, 'third');
+
+        $callbacks->invoke();
+
+        $this->assertSame(['first', 'second'], $results);
+        $this->assertCount(0, $callbacks);
+    }
+
     public function testInvokeWhenHonorsPredicateAndStillClearsCollection(): void
     {
         $callbacks = new DeferredCallbackCollection;

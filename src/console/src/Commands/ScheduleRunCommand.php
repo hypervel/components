@@ -342,8 +342,8 @@ class ScheduleRunCommand extends Command
             $exception = $throwable;
         }
 
-        // Nested commands leave deferred work to this boundary. Drain only once,
-        // after task listeners, so callbacks cannot run early or recursively.
+        // Nested commands leave deferred work to this boundary. Drain after
+        // task listeners so callbacks cannot run early.
         if (! $exception instanceof CanceledException) {
             try {
                 $this->invokeDeferredCallbacks(

@@ -48,11 +48,26 @@ class DeferredCallbackCollection implements ArrayAccess, Countable
         $this->forgetDuplicates();
 
         foreach ($this->callbacks as $index => $callback) {
-            if ($when($callback)) {
-                rescue($callback);
+            // Callbacks can remove or reindex pending entries. Match the live entry
+            // and remove it before invocation so forgotten callbacks stay canceled
+            // and running callbacks cannot be replayed.
+            if (($this->callbacks[$index] ?? null) !== $callback) {
+                $index = array_search($callback, $this->callbacks, true);
+
+                if ($index === false) {
+                    continue;
+                }
             }
 
             unset($this->callbacks[$index]);
+
+            if ($when($callback)) {
+                rescue($callback);
+            }
+        }
+
+        if (! empty($this->callbacks)) {
+            $this->invokeWhen($when);
         }
     }
 

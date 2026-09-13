@@ -108,11 +108,11 @@ class ConsoleApplicationDeferredCallbacksTest extends TestCase
         $application = $this->createConsoleApplication();
         $application->addCommand(new DeferredCommand(
             'test:no-defer-coroutine',
-            fn () => Command::SUCCESS,
+            fn (): int => Command::SUCCESS,
         ));
         $application->addCommand(new DeferredCommand(
             'test:no-defer-non-coroutine',
-            fn () => Command::SUCCESS,
+            fn (): int => Command::SUCCESS,
             coroutine: false,
         ));
 
@@ -142,7 +142,7 @@ class ConsoleApplicationDeferredCallbacksTest extends TestCase
         $this->app->setRunningInConsole(true);
         $application->addCommand(new DeferredCommand(
             'test:next-console-owner',
-            fn () => Command::SUCCESS,
+            fn (): int => Command::SUCCESS,
             coroutine: false,
         ));
         $application->call('test:next-console-owner');
@@ -235,12 +235,12 @@ class ConsoleApplicationDeferredCallbacksTest extends TestCase
         $this->assertSame(['first-deferred', 'inner-handle', 'second-deferred'], $calls);
     }
 
-    public function testCallbackAddedDuringNonCoroutineDrainRunsAtNextOwningCall(): void
+    public function testCallbackAddedDuringNonCoroutineDrainRunsInTheSameOwningCall(): void
     {
         $application = $this->createConsoleApplication();
         $calls = [];
 
-        $application->addCommand(new DeferredCommand('test:one-pass-register', function () use (&$calls): int {
+        $application->addCommand(new DeferredCommand('test:nested-defer-register', function () use (&$calls): int {
             defer(function () use (&$calls): void {
                 $calls[] = 'first';
                 defer(function () use (&$calls): void {
@@ -251,26 +251,26 @@ class ConsoleApplicationDeferredCallbacksTest extends TestCase
             return Command::SUCCESS;
         }, coroutine: false));
         $application->addCommand(new DeferredCommand(
-            'test:one-pass-next',
-            fn () => Command::SUCCESS,
+            'test:nested-defer-next',
+            fn (): int => Command::SUCCESS,
             coroutine: false,
         ));
 
-        $application->call('test:one-pass-register');
-        $this->assertSame(['first'], $calls);
-        $this->assertCount(1, $this->app->make(DeferredCallbackCollection::class));
+        $application->call('test:nested-defer-register');
+        $this->assertSame(['first', 'second'], $calls);
+        $this->assertCount(0, $this->app->make(DeferredCallbackCollection::class));
 
-        $application->call('test:one-pass-next');
+        $application->call('test:nested-defer-next');
         $this->assertSame(['first', 'second'], $calls);
         $this->assertCount(0, $this->app->make(DeferredCallbackCollection::class));
     }
 
-    public function testCallbackAddedDuringCoroutineDrainDoesNotSurviveTheCoroutine(): void
+    public function testCallbackAddedDuringCoroutineDrainRunsBeforeTheCoroutineEnds(): void
     {
         $application = $this->createConsoleApplication();
         $calls = [];
 
-        $application->addCommand(new DeferredCommand('test:coroutine-one-pass', function () use (&$calls): int {
+        $application->addCommand(new DeferredCommand('test:coroutine-nested-defer', function () use (&$calls): int {
             defer(function () use (&$calls): void {
                 $calls[] = 'first';
                 defer(function () use (&$calls): void {
@@ -282,14 +282,16 @@ class ConsoleApplicationDeferredCallbacksTest extends TestCase
         }));
         $application->addCommand(new DeferredCommand(
             'test:coroutine-next',
-            fn () => Command::SUCCESS,
+            fn (): int => Command::SUCCESS,
             coroutine: false,
         ));
 
-        $application->call('test:coroutine-one-pass');
+        $application->call('test:coroutine-nested-defer');
+        $this->assertSame(['first', 'second'], $calls);
+
         $application->call('test:coroutine-next');
 
-        $this->assertSame(['first'], $calls);
+        $this->assertSame(['first', 'second'], $calls);
     }
 
     public function testApplicationOwnerRunsAlwaysCallbacksAndPreservesCommandFailure(): void
@@ -383,11 +385,11 @@ class ConsoleApplicationDeferredCallbacksTest extends TestCase
         $drainFailure = new RuntimeException('drain failed');
         $this->app->scoped(
             DeferredCallbackCollection::class,
-            fn () => new ThrowingDeferredCallbackCollection($drainFailure),
+            fn (): ThrowingDeferredCallbackCollection => new ThrowingDeferredCallbackCollection($drainFailure),
         );
 
         $application->addCommand(new DeferredCommand('test:application-drain-failure', function () use ($commandFailure): never {
-            defer(fn () => null);
+            defer(fn (): null => null);
 
             throw $commandFailure;
         }, coroutine: false));
@@ -407,11 +409,11 @@ class ConsoleApplicationDeferredCallbacksTest extends TestCase
         $drainFailure = new RuntimeException('drain failed');
         $this->app->scoped(
             DeferredCallbackCollection::class,
-            fn () => new ThrowingDeferredCallbackCollection($drainFailure),
+            fn (): ThrowingDeferredCallbackCollection => new ThrowingDeferredCallbackCollection($drainFailure),
         );
 
         $application->addCommand(new DeferredCommand('test:command-drain-failure', function () use ($commandFailure): never {
-            defer(fn () => null);
+            defer(fn (): null => null);
 
             throw $commandFailure;
         }));
@@ -431,11 +433,11 @@ class ConsoleApplicationDeferredCallbacksTest extends TestCase
         $cancellation = new CanceledException('canceled');
         $this->app->scoped(
             DeferredCallbackCollection::class,
-            fn () => new ThrowingDeferredCallbackCollection($cancellation),
+            fn (): ThrowingDeferredCallbackCollection => new ThrowingDeferredCallbackCollection($cancellation),
         );
 
         $application->addCommand(new DeferredCommand('test:application-drain-cancellation', function () use ($commandFailure): never {
-            defer(fn () => null, always: true);
+            defer(fn (): null => null, always: true);
 
             throw $commandFailure;
         }, coroutine: false));
@@ -455,11 +457,11 @@ class ConsoleApplicationDeferredCallbacksTest extends TestCase
         $cancellation = new CanceledException('canceled');
         $this->app->scoped(
             DeferredCallbackCollection::class,
-            fn () => new ThrowingDeferredCallbackCollection($cancellation),
+            fn (): ThrowingDeferredCallbackCollection => new ThrowingDeferredCallbackCollection($cancellation),
         );
 
         $application->addCommand(new DeferredCommand('test:command-drain-cancellation', function () use ($commandFailure): never {
-            defer(fn () => null, always: true);
+            defer(fn (): null => null, always: true);
 
             throw $commandFailure;
         }));
@@ -472,6 +474,9 @@ class ConsoleApplicationDeferredCallbacksTest extends TestCase
         }
     }
 
+    /**
+     * Create a console application for the test.
+     */
     private function createConsoleApplication(): ConsoleApplication
     {
         return new ConsoleApplication(
@@ -484,6 +489,9 @@ class ConsoleApplicationDeferredCallbacksTest extends TestCase
 
 class DeferredCommand extends Command
 {
+    /**
+     * Create a new command instance.
+     */
     public function __construct(
         string $name,
         private readonly Closure $callback,
@@ -494,6 +502,9 @@ class DeferredCommand extends Command
         parent::__construct($name);
     }
 
+    /**
+     * Execute the console command.
+     */
     public function handle(): int
     {
         return ($this->callback)();
@@ -506,11 +517,17 @@ class IsolatableDeferredCommand extends DeferredCommand implements Isolatable
 
 class PlainDeferredCommand extends SymfonyCommand
 {
+    /**
+     * Create a new command instance.
+     */
     public function __construct(string $name, private readonly Closure $callback)
     {
         parent::__construct($name);
     }
 
+    /**
+     * Execute the console command.
+     */
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         return ($this->callback)();
@@ -519,10 +536,16 @@ class PlainDeferredCommand extends SymfonyCommand
 
 class ThrowingDeferredCallbackCollection extends DeferredCallbackCollection
 {
+    /**
+     * Create a new callback collection.
+     */
     public function __construct(private readonly Throwable $exception)
     {
     }
 
+    /**
+     * Fail when invoking deferred callbacks.
+     */
     public function invokeWhen(?Closure $when = null): void
     {
         throw $this->exception;
