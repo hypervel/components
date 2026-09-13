@@ -21,7 +21,7 @@ class ServeFileTest extends TestCase
 {
     protected function setUp(): void
     {
-        $this->afterApplicationCreated(function () {
+        $this->afterApplicationCreated(function (): void {
             Storage::extend('served-test', function (ApplicationContract $app, array $config): LocalFilesystemAdapter {
                 $adapter = new FlysystemLocalAdapter($config['root']);
 
@@ -37,7 +37,7 @@ class ServeFileTest extends TestCase
             Storage::disk('scoped-owner')->put('serve-file-test.txt', 'Hello Scoped Owner');
         });
 
-        $this->beforeApplicationDestroyed(function () {
+        $this->beforeApplicationDestroyed(function (): void {
             Storage::delete([
                 'serve-file-test.txt',
                 'serve-file-test.txt?pad=x',
@@ -130,16 +130,26 @@ class ServeFileTest extends TestCase
         $this->assertSame('Hello Custom Driver', $response->streamedContent());
     }
 
-    public function testItCanServeAnExistingFile()
+    public function testItCanServeAnExistingFile(): void
     {
         $url = Storage::temporaryUrl('serve-file-test.txt', now()->addMinutes(1));
 
         $response = $this->get($url);
 
-        $this->assertEquals('Hello World', $response->streamedContent());
+        $this->assertSame('Hello World', $response->streamedContent());
     }
 
-    public function testItWill404OnMissingFile()
+    public function testDownloadUsesTheQueryFlagInsteadOfRequestBody(): void
+    {
+        $url = Storage::temporaryUrl('serve-file-test.txt', now()->addMinutes(1));
+
+        $response = $this->json('GET', $url, ['upload' => true]);
+
+        $response->assertOk();
+        $this->assertSame('Hello World', $response->streamedContent());
+    }
+
+    public function testItWill404OnMissingFile(): void
     {
         $url = Storage::temporaryUrl('serve-missing-test.txt', now()->addMinutes(1));
 
@@ -148,7 +158,7 @@ class ServeFileTest extends TestCase
         $response->assertNotFound();
     }
 
-    public function testItWill403OnWrongSignature()
+    public function testItWill403OnWrongSignature(): void
     {
         $url = Storage::temporaryUrl('serve-file-test.txt', now()->addMinutes(1));
 
@@ -227,7 +237,7 @@ class ServeFileTest extends TestCase
         $response->assertForbidden();
     }
 
-    public function testHeadRequestSendsHeadersButNoBody()
+    public function testHeadRequestSendsHeadersButNoBody(): void
     {
         $url = Storage::temporaryUrl('serve-file-test.txt', now()->addMinutes(1));
 

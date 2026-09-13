@@ -18,7 +18,7 @@ class ReceiveFileTest extends TestCase
 {
     protected function setUp(): void
     {
-        $this->beforeApplicationDestroyed(function () {
+        $this->beforeApplicationDestroyed(function (): void {
             Storage::delete([
                 'receive-file-test.txt',
                 'receive-file-test.txt?pad=x',
@@ -51,7 +51,7 @@ class ReceiveFileTest extends TestCase
         ]);
     }
 
-    public function testItCanReceiveAFile()
+    public function testItCanReceiveAFile(): void
     {
         $result = Storage::temporaryUploadUrl('receive-file-test.txt', now()->addMinutes(1));
 
@@ -59,6 +59,16 @@ class ReceiveFileTest extends TestCase
 
         $response->assertNoContent();
         Storage::assertExists('receive-file-test.txt', 'Hello World');
+    }
+
+    public function testUploadUsesTheQueryFlagInsteadOfFileContents(): void
+    {
+        $result = Storage::temporaryUploadUrl('receive-file-test.txt', now()->addMinutes(1));
+
+        $response = $this->putJson($result['url'], ['upload' => false]);
+
+        $response->assertNoContent();
+        Storage::assertExists('receive-file-test.txt', '{"upload":false}');
     }
 
     public function testScopedDiskUploadsThroughItsServedParentRoute(): void
@@ -98,7 +108,7 @@ class ReceiveFileTest extends TestCase
         $response->assertInternalServerError();
     }
 
-    public function testItWill403OnWrongSignature()
+    public function testItWill403OnWrongSignature(): void
     {
         $result = Storage::temporaryUploadUrl('receive-file-test.txt', now()->addMinutes(1));
 
@@ -110,7 +120,7 @@ class ReceiveFileTest extends TestCase
         Storage::assertMissing('receive-file-test.txt');
     }
 
-    public function testItWill403OnExpiredUrl()
+    public function testItWill403OnExpiredUrl(): void
     {
         $result = Storage::temporaryUploadUrl('receive-file-test.txt', now()->subMinutes(1));
 
@@ -120,7 +130,7 @@ class ReceiveFileTest extends TestCase
         Storage::assertMissing('receive-file-test.txt');
     }
 
-    public function testDownloadUrlCannotBeUsedForUpload()
+    public function testDownloadUrlCannotBeUsedForUpload(): void
     {
         Storage::put('receive-file-test.txt', 'Original Content');
 
@@ -132,7 +142,7 @@ class ReceiveFileTest extends TestCase
         $this->assertSame('Original Content', Storage::get('receive-file-test.txt'));
     }
 
-    public function testUploadUrlCannotBeUsedForDownload()
+    public function testUploadUrlCannotBeUsedForDownload(): void
     {
         Storage::put('receive-file-test.txt', 'Secret Content');
 
