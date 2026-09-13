@@ -88,10 +88,9 @@ class DatabaseMigrationCreatorTest extends TestCase
         $creator->create('create_bar', 'foo', 'baz', true);
     }
 
-    public function testTableUpdateMigrationWontCreateDuplicateClass()
+    public function testTableUpdateMigrationWontCreateDuplicateClass(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('A MigrationCreatorFakeMigration class already exists.');
+        $this->expectExceptionObject(new InvalidArgumentException('A MigrationCreatorFakeMigration class already exists.'));
 
         $creator = $this->getCreator([]);
 
@@ -99,6 +98,74 @@ class DatabaseMigrationCreatorTest extends TestCase
         $creator->getFilesystem()->shouldReceive('requireOnce')->once()->with('foo/foo_create_bar.php');
 
         $creator->create('migration_creator_fake_migration', 'foo');
+    }
+
+    public function testMigrationsCreatedWithinTheSameSecondHaveIncreasingDatePrefixes(): void
+    {
+        Date::setTestNow('2026-07-13 14:41:22');
+
+        $files = new Filesystem;
+        $path = ParallelTesting::tempDir('DatabaseMigrationCreatorTest-increasing-prefixes');
+        $files->deleteDirectory($path);
+
+        try {
+            $creator = new MigrationCreator($files, $path . '/stubs');
+
+            $first = $creator->create('create_bs_table', $path, 'bs', true);
+            $second = $creator->create('create_as_table', $path, 'as', true);
+
+            $this->assertSame($path . '/2026_07_13_144122_create_bs_table.php', $first);
+            $this->assertSame($path . '/2026_07_13_144123_create_as_table.php', $second);
+        } finally {
+            $files->deleteDirectory($path);
+        }
+    }
+
+    public function testOverriddenDatePrefixRetainsExistingBehavior(): void
+    {
+        $files = new Filesystem;
+        $path = ParallelTesting::tempDir('DatabaseMigrationCreatorTest-overridden-prefix');
+        $files->deleteDirectory($path);
+        $creator = new class($files, $path . '/stubs') extends MigrationCreator {
+            /**
+             * Get the date prefix for the migration.
+             */
+            protected function getDatePrefix(): string
+            {
+                return 'custom_prefix';
+            }
+        };
+
+        try {
+            $first = $creator->create('create_bs_table', $path, 'bs', true);
+            $second = $creator->create('create_as_table', $path, 'as', true);
+
+            $this->assertSame($path . '/custom_prefix_create_bs_table.php', $first);
+            $this->assertSame($path . '/custom_prefix_create_as_table.php', $second);
+        } finally {
+            $files->deleteDirectory($path);
+        }
+    }
+
+    public function testOverriddenCreateMethodRetainsExistingDatePrefixBehavior(): void
+    {
+        $files = m::mock(Filesystem::class);
+        $files->shouldNotReceive('glob');
+
+        $creator = new class($files, 'stubs') extends MigrationCreator {
+            /**
+             * Get the migration path without creating a file.
+             */
+            public function create(string $name, string $path, ?string $table = null, bool $create = false, ?string $stubPath = null): string
+            {
+                return $this->getPath($name, $path);
+            }
+        };
+
+        $this->assertMatchesRegularExpression(
+            '/^foo\/\d{4}_\d{2}_\d{2}_\d{6}_create_bar\.php$/',
+            $creator->create('create_bar', 'foo'),
+        );
     }
 
     public function testCustomStubIsPublishedAsTheFinalMigrationBeforeHooksRun(): void
@@ -130,7 +197,6 @@ class DatabaseMigrationCreatorTest extends TestCase
                 $filesystem->get($path)
             );
         } finally {
-            Date::setTestNow();
             $filesystem->deleteDirectory($directory);
         }
     }
@@ -183,7 +249,7 @@ class DatabaseMigrationCreatorTest extends TestCase
         $creator->getFilesystem()->shouldReceive('glob')->once()->with('foo/*.php')->andReturnFalse();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to read files matching [foo/*.php].');
+        $this->expectExceptionMessageIsOrContains('Unable to read files matching [foo/*.php].');
 
         $creator->create('create_bar', 'foo');
     }
@@ -199,11 +265,7 @@ class DatabaseMigrationCreatorTest extends TestCase
 
         Date::setTestNow('2026-07-23 12:34:56');
 
-        try {
-            $this->assertSame('2026_07_23_123456', $creator->datePrefix());
-        } finally {
-            Date::setTestNow();
-        }
+        $this->assertSame('2026_07_23_123456', $creator->datePrefix());
     }
 
     public function testCollisionFreePrefixesAreIsolatedAcrossConcurrentPaths(): void
@@ -247,7 +309,6 @@ class DatabaseMigrationCreatorTest extends TestCase
             $this->assertSame('2026_07_23_120001_first.php', basename($paths['first']));
             $this->assertSame('2026_07_23_120000_second.php', basename($paths['second']));
         } finally {
-            Date::setTestNow();
             $filesystem->deleteDirectory($directory);
         }
     }

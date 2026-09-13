@@ -29,10 +29,9 @@ class DatabaseEloquentResourceCollectionTest extends TestCase
         $this->assertInstanceOf(JsonResource::class, $resource);
     }
 
-    public function testItThrowsExceptionWhenResourceCannotBeFound()
+    public function testItThrowsExceptionWhenResourceCannotBeFound(): void
     {
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Failed to find resource class for model [Hypervel\Tests\Database\Fixtures\Models\EloquentResourceCollectionTestModel].');
+        $this->expectExceptionObject(new LogicException('Failed to find resource class for model [Hypervel\Tests\Database\Fixtures\Models\EloquentResourceCollectionTestModel].'));
 
         $collection = new Collection([
             new EloquentResourceCollectionTestModel,

@@ -1058,10 +1058,8 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertInstanceOf(User::class, $multiple[1]);
     }
 
-    public function testFindOrFailWithSingleIdThrowsModelNotFoundException()
+    public function testFindOrFailWithSingleIdThrowsModelNotFoundException(): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\DatabaseEloquentIntegrationTest\User] 1');
         $this->expectExceptionObject(
             (new ModelNotFoundException)->setModel(User::class, [1]),
         );
@@ -1069,10 +1067,8 @@ class DatabaseEloquentIntegrationTest extends TestCase
         User::findOrFail(1);
     }
 
-    public function testFindOrFailWithMultipleIdsThrowsModelNotFoundException()
+    public function testFindOrFailWithMultipleIdsThrowsModelNotFoundException(): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\DatabaseEloquentIntegrationTest\User] 2, 3');
         $this->expectExceptionObject(
             (new ModelNotFoundException)->setModel(User::class, [2, 3]),
         );
@@ -1081,10 +1077,8 @@ class DatabaseEloquentIntegrationTest extends TestCase
         User::findOrFail([1, 2, 3]);
     }
 
-    public function testFindOrFailWithMultipleIdsUsingCollectionThrowsModelNotFoundException()
+    public function testFindOrFailWithMultipleIdsUsingCollectionThrowsModelNotFoundException(): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\DatabaseEloquentIntegrationTest\User] 2, 3');
         $this->expectExceptionObject(
             (new ModelNotFoundException)->setModel(User::class, [2, 3]),
         );
@@ -1754,10 +1748,10 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(['x' => 0, 'y' => 1, 'a' => ['b' => 3]], $model->json);
     }
 
-    public function testSaveOrFailWithDuplicatedEntry()
+    public function testSaveOrFailWithDuplicatedEntry(): void
     {
         $this->expectException(QueryException::class);
-        $this->expectExceptionMessage('SQLSTATE[23000]:');
+        $this->expectExceptionMessageIsOrContains('SQLSTATE[23000]:');
 
         $date = '1970-01-01';
         Post::create([

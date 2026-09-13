@@ -22,10 +22,9 @@ class DatabaseEloquentResourceModelTest extends TestCase
         $this->assertSame($model, $resource->resource);
     }
 
-    public function testItThrowsExceptionWhenResourceCannotBeFound()
+    public function testItThrowsExceptionWhenResourceCannotBeFound(): void
     {
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Failed to find resource class for model [Hypervel\Tests\Database\Fixtures\Models\EloquentResourceTestResourceModel].');
+        $this->expectExceptionObject(new LogicException('Failed to find resource class for model [Hypervel\Tests\Database\Fixtures\Models\EloquentResourceTestResourceModel].'));
 
         $model = new EloquentResourceTestResourceModel;
         $model->toResource();

@@ -2067,10 +2067,9 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertSame('bar', $model->foo);
     }
 
-    public function testGlobalGuarded()
+    public function testGlobalGuarded(): void
     {
-        $this->expectException(MassAssignmentException::class);
-        $this->expectExceptionMessage('name');
+        $this->expectExceptionObject(new MassAssignmentException('name'));
 
         $model = new ModelStub;
         $model->guard(['*']);
@@ -2652,10 +2651,9 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertNotContains('bar', $class->getObservableEvents());
     }
 
-    public function testGetModelAttributeMethodThrowsExceptionIfNotRelation()
+    public function testGetModelAttributeMethodThrowsExceptionIfNotRelation(): void
     {
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelStub::incorrectRelationStub must return a relationship instance.');
+        $this->expectExceptionObject(new LogicException('Hypervel\Tests\Database\DatabaseEloquentModelTest\ModelStub::incorrectRelationStub must return a relationship instance.'));
 
         $model = new ModelStub;
         $model->incorrectRelationStub;
@@ -3332,10 +3330,9 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertNull($attributes['collectionAttribute']);
     }
 
-    public function testModelAttributeCastingFailsOnUnencodableData()
+    public function testModelAttributeCastingFailsOnUnencodableData(): void
     {
-        $this->expectException(JsonEncodingException::class);
-        $this->expectExceptionMessage('Unable to encode attribute [objectAttribute] for model [Hypervel\Tests\Database\DatabaseEloquentModelTest\CastingStub] to JSON: Malformed UTF-8 characters, possibly incorrectly encoded.');
+        $this->expectExceptionObject(new JsonEncodingException('Unable to encode attribute [objectAttribute] for model [Hypervel\Tests\Database\DatabaseEloquentModelTest\CastingStub] to JSON: Malformed UTF-8 characters, possibly incorrectly encoded.'));
 
         $model = new CastingStub;
         $model->objectAttribute = ['foo' => "b\xF8r"];
@@ -3346,10 +3343,9 @@ class DatabaseEloquentModelTest extends TestCase
         $model->getAttributes();
     }
 
-    public function testModelJsonCastingFailsOnUnencodableData()
+    public function testModelJsonCastingFailsOnUnencodableData(): void
     {
-        $this->expectException(JsonEncodingException::class);
-        $this->expectExceptionMessage('Unable to encode attribute [jsonAttribute] for model [Hypervel\Tests\Database\DatabaseEloquentModelTest\CastingStub] to JSON: Malformed UTF-8 characters, possibly incorrectly encoded.');
+        $this->expectExceptionObject(new JsonEncodingException('Unable to encode attribute [jsonAttribute] for model [Hypervel\Tests\Database\DatabaseEloquentModelTest\CastingStub] to JSON: Malformed UTF-8 characters, possibly incorrectly encoded.'));
 
         $model = new CastingStub;
         $model->jsonAttribute = ['foo' => "b\xF8r"];
@@ -3357,10 +3353,9 @@ class DatabaseEloquentModelTest extends TestCase
         $model->getAttributes();
     }
 
-    public function testModelAttributeCastingFailsOnUnencodableDataWithUnicode()
+    public function testModelAttributeCastingFailsOnUnencodableDataWithUnicode(): void
     {
-        $this->expectException(JsonEncodingException::class);
-        $this->expectExceptionMessage('Unable to encode attribute [jsonAttributeWithUnicode] for model [Hypervel\Tests\Database\DatabaseEloquentModelTest\CastingStub] to JSON: Malformed UTF-8 characters, possibly incorrectly encoded.');
+        $this->expectExceptionObject(new JsonEncodingException('Unable to encode attribute [jsonAttributeWithUnicode] for model [Hypervel\Tests\Database\DatabaseEloquentModelTest\CastingStub] to JSON: Malformed UTF-8 characters, possibly incorrectly encoded.'));
 
         $model = new CastingStub;
         $model->jsonAttributeWithUnicode = ['foo' => "b\xF8r"];
@@ -4525,12 +4520,11 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertEquals('test', $model->getCasts()['something']);
     }
 
-    public function testUsingPlainObjectAsCastThrowsException()
+    public function testUsingPlainObjectAsCastThrowsException(): void
     {
         $model = new CastingStub;
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The cast object for the something attribute must implement Stringable.');
+        $this->expectExceptionObject(new InvalidArgumentException('The cast object for the something attribute must implement Stringable.'));
 
         $model->mergeCasts([
             'something' => (object) [],
