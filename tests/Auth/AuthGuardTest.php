@@ -312,8 +312,7 @@ class AuthGuardTest extends TestCase
 
     public function testAuthenticateThrowsWhenUserIsNull(): void
     {
-        $this->expectException(AuthenticationException::class);
-        $this->expectExceptionMessage('Unauthenticated.');
+        $this->expectExceptionObject(new AuthenticationException('Unauthenticated.'));
 
         $guard = $this->getGuard();
         $guard->getSession()->expects('get')->andReturn(null);
@@ -1090,7 +1089,7 @@ class AuthGuardTest extends TestCase
     public function testGetCookieJarThrowsWhenUnset(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Cookie jar has not been set.');
+        $this->expectExceptionMessageIsOrContains('Cookie jar has not been set.');
 
         [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();
         $guard = new SessionGuard('default', $provider, $session, $app, $timebox);
