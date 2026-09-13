@@ -70,8 +70,8 @@ class Context extends Facade
     /**
      * Resolve the facade root instance from the coroutine context.
      *
-     * Bypasses the container — the Repository is stored per-coroutine
-     * via CoroutineContext, not as a container binding.
+     * Resolve directly from CoroutineContext, which also owns the instance
+     * returned by the container binding.
      */
     protected static function resolveFacadeInstance(string $name): mixed
     {

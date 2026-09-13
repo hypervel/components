@@ -9,6 +9,7 @@ use Hypervel\Bus\UniqueLock;
 use Hypervel\Cache\Repository as CacheRepository;
 use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Coroutine\Coroutine;
@@ -296,6 +297,25 @@ class ContextQueueTest extends TestCase
         $this->app->make('events')->dispatch(new JobProcessing('sync', $job));
 
         $this->assertTrue($called);
+    }
+
+    public function testHydratedHookRunsWithoutPayloadContextInAFreshCoroutine(): void
+    {
+        Repository::getInstance()->hydrated(static function (Repository $context): void {
+            $context->add('hydrated', true);
+        });
+
+        $events = $this->app->make('events');
+        $job = m::mock(JobContract::class);
+        $job->shouldReceive('payload')->once()->andReturn(['job' => 'SomeJob']);
+        $channel = new Channel(1);
+
+        Coroutine::create(static function () use ($events, $job, $channel): void {
+            $events->dispatch(new JobProcessing('sync', $job));
+            $channel->push(Repository::getInstance()->get('hydrated'));
+        });
+
+        $this->assertTrue($channel->pop(1));
     }
 
     public function testDehydratingCallbackCanModifyWithoutAffectingOriginal(): void
