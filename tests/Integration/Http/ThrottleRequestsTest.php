@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Http;
 
 use Hypervel\Auth\GenericUser;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Foundation\Auth\User;
 use Hypervel\Http\Request;
 use Hypervel\RateLimiter\AdmissionPolicy;
 use Hypervel\RateLimiter\Backoff;
@@ -108,10 +110,28 @@ class ThrottleRequestsTest extends TestCase
     {
         Route::get('/', fn (): string => 'yes')->middleware(ThrottleRequests::using('missing'));
 
-        $this->expectException(MissingRateLimiterException::class);
-        $this->expectExceptionMessage('Rate limiter [missing] is not defined.');
+        $this->expectExceptionObject(new MissingRateLimiterException('Rate limiter [missing] is not defined.'));
 
         $this->withoutExceptionHandling()->get('/');
+    }
+
+    public function testItFailsIfNamedLimiterDoesNotExistAndAuthenticatedUserDoesNotHaveFallbackProperty(): void
+    {
+        $this->expectExceptionObject(new MissingRateLimiterException('Rate limiter [' . User::class . '::rateLimiting] is not defined.'));
+
+        Route::get('/', fn (): string => 'ok')->middleware(['auth', ThrottleRequests::using('rateLimiting')]);
+
+        // Strict mode on a hydrated model ensures this reports the missing limiter
+        // without trying to read a model attribute that does not exist.
+        Model::shouldBeStrict();
+        $user = (new User)->newFromBuilder([
+            'id' => 1,
+            'name' => 'Mateus',
+            'email' => 'mateus@example.org',
+            'password' => 'password',
+        ]);
+
+        $this->withoutExceptionHandling()->actingAs($user)->get('/');
     }
 
     public function testInlineLimitSelectsGuestAuthenticatedAndUserAttributeCapacities(): void

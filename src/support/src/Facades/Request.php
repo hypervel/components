@@ -168,6 +168,7 @@ namespace Hypervel\Support\Facades;
  * @method static void setAllowedHttpMethodOverride(string[]|null $methods)
  * @method static void setDefaultLocale(string $locale)
  * @method static void setDefaultRequestLocale(string $locale)
+ * @method static void setDefaultUserResolver(\Closure $callback)
  * @method static void setFactory(callable|null $callable)
  * @method static void setFormat(string $format, string|string[] $mimeTypes)
  * @method static void setHypervelSession(\Hypervel\Contracts\Session\Session $session)

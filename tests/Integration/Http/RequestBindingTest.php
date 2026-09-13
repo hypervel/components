@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Http;
 
+use Closure;
+use Hypervel\Auth\GenericUser;
 use Hypervel\Context\RequestContext;
 use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
+use Symfony\Component\HttpFoundation\Response;
 
 class RequestBindingTest extends TestCase
 {
@@ -53,5 +57,26 @@ class RequestBindingTest extends TestCase
         $this->assertSame($request, $this->app->make('request'));
         $this->assertSame($request, $this->app->make('request'));
         $this->assertSame('John', request('name'));
+    }
+
+    public function testMiddlewareResolvesUserAndPreservesRequestOverride(): void
+    {
+        $user = new GenericUser(['id' => 1]);
+        $otherUser = new GenericUser(['id' => 2]);
+
+        Route::aliasMiddleware('resolve-user', function (Request $request, Closure $next) use ($user, $otherUser): Response {
+            $this->assertSame($user, $request->user());
+
+            $request->setUserResolver(fn (): GenericUser => $otherUser);
+
+            $this->assertSame($request, $this->app->make('request'));
+            $this->assertSame($otherUser, $request->user());
+
+            return $next($request);
+        });
+
+        Route::get('/', fn (): string => 'ok')->middleware('resolve-user');
+
+        $this->actingAs($user)->get('/')->assertOk()->assertContent('ok');
     }
 }

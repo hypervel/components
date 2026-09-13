@@ -164,11 +164,13 @@ class AfterEachTestSubscriberTest extends TestCase
         Request::enableHttpMethodParameterOverride();
         Request::setAllowedHttpMethodOverride(['PATCH']);
         Request::setFactory(static fn (): Request => new Request(attributes: ['from_factory' => true]));
+        Request::setDefaultUserResolver(static fn (): string => 'user');
 
         $this->assertSame(['application/x-testing'], Request::getMimeTypes('testing'));
         $this->assertTrue(Request::getHttpMethodParameterOverride());
         $this->assertSame(['PATCH'], Request::getAllowedHttpMethodOverride());
         $this->assertTrue(Request::create('/')->attributes->get('from_factory'));
+        $this->assertSame('user', $request->user());
 
         $subscriber = new class extends AfterEachTestSubscriber {
             public function flushFrameworkStateForTest(): void
@@ -184,6 +186,7 @@ class AfterEachTestSubscriberTest extends TestCase
             $this->assertFalse(Request::getHttpMethodParameterOverride());
             $this->assertNull(Request::getAllowedHttpMethodOverride());
             $this->assertNull(Request::create('/')->attributes->get('from_factory'));
+            $this->assertNull($request->user());
         } finally {
             Request::flushState();
         }
