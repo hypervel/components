@@ -4652,100 +4652,170 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals(1, $result);
     }
 
-    public function testInsertOrIgnoreReturningRejectsUnsupportedGrammars(): void
+    public function testInsertOrIgnoreReturningMethod(): void
     {
+        $this->expectExceptionObject(new RuntimeException('does not support insert or ignore with returning'));
         $builder = $this->getBuilder();
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('does not support insert or ignore with returning');
-
         $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo']);
     }
 
-    public function testInsertOrIgnoreReturningWithEmptyValues(): void
+    public function testInsertOrIgnoreReturningMethodWithEmptyValues(): void
     {
-        $result = $this->getPostgresBuilder()->from('users')->insertOrIgnoreReturning([]);
-
+        $builder = $this->getPostgresBuilder();
+        $result = $builder->from('users')->insertOrIgnoreReturning([]);
         $this->assertInstanceOf(Collection::class, $result);
         $this->assertTrue($result->isEmpty());
     }
 
-    public function testMySqlInsertOrIgnoreReturningIsUnsupported(): void
+    public function testMySqlInsertOrIgnoreReturningMethod(): void
     {
+        $this->expectExceptionObject(new RuntimeException('does not support insert or ignore with returning'));
         $builder = $this->getMySqlBuilder();
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('does not support insert or ignore with returning');
-
         $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo']);
     }
 
-    public function testPostgresInsertOrIgnoreReturning(): void
+    public function testPostgresInsertOrIgnoreReturningMethod(): void
     {
         $builder = $this->getPostgresBuilder();
-        $builder->getConnection()->shouldReceive('recordsHaveBeenModified')->once()->with(true);
-        $builder->getConnection()->shouldReceive('selectFromWriteConnection')->once()->with(
+        $builder->getConnection()->expects('recordsHaveBeenModified')->with(true);
+        $builder->getConnection()->expects('selectFromWriteConnection')->with(
             'insert into "users" ("email") values (?) on conflict do nothing returning "id"',
             ['foo']
         )->andReturn([['id' => 1]]);
-
         $result = $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo'], ['id']);
-
+        $this->assertInstanceOf(Collection::class, $result);
         $this->assertSame([['id' => 1]], $result->all());
     }
 
-    public function testPostgresInsertOrIgnoreReturningWithConflictColumns(): void
+    public function testPostgresInsertOrIgnoreReturningMethodWithUniqueByColumn(): void
     {
         $builder = $this->getPostgresBuilder();
-        $builder->getConnection()->shouldReceive('recordsHaveBeenModified')->once()->with(true);
-        $builder->getConnection()->shouldReceive('selectFromWriteConnection')->once()->with(
-            'insert into "users" ("email", "name") values (?, ?) on conflict ("email", "name") do nothing returning *',
+        $builder->getConnection()->expects('recordsHaveBeenModified')->with(true);
+        $builder->getConnection()->expects('selectFromWriteConnection')->with(
+            'insert into "users" ("email", "name") values (?, ?) on conflict ("email") do nothing returning *',
             ['foo', 'bar']
         )->andReturn([['id' => 1, 'email' => 'foo', 'name' => 'bar']]);
-
-        $result = $builder->from('users')->insertOrIgnoreReturning(
-            ['email' => 'foo', 'name' => 'bar'],
-            ['*'],
-            ['email', 'name']
-        );
-
+        $result = $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo', 'name' => 'bar'], ['*'], 'email');
+        $this->assertInstanceOf(Collection::class, $result);
         $this->assertSame([['id' => 1, 'email' => 'foo', 'name' => 'bar']], $result->all());
     }
 
-    public function testPostgresInsertOrIgnoreReturningMultipleRows(): void
+    public function testPostgresInsertOrIgnoreReturningMethodWithUniqueByColumns(): void
     {
         $builder = $this->getPostgresBuilder();
-        $builder->getConnection()->shouldReceive('recordsHaveBeenModified')->once()->with(true);
-        $builder->getConnection()->shouldReceive('selectFromWriteConnection')->once()->with(
-            'insert into "users" ("email") values (?), (?) on conflict ("email") do nothing returning "id", "email"',
+        $builder->getConnection()->expects('recordsHaveBeenModified')->with(true);
+        $builder->getConnection()->expects('selectFromWriteConnection')->with(
+            'insert into "users" ("email", "name") values (?, ?) on conflict ("email", "name") do nothing returning *',
+            ['foo', 'bar']
+        )->andReturn([['id' => 1, 'email' => 'foo', 'name' => 'bar']]);
+        $result = $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo', 'name' => 'bar'], ['*'], ['email', 'name']);
+        $this->assertInstanceOf(Collection::class, $result);
+        $this->assertSame([['id' => 1, 'email' => 'foo', 'name' => 'bar']], $result->all());
+    }
+
+    public function testPostgresInsertOrIgnoreReturningMethodWithMultipleRecords(): void
+    {
+        $builder = $this->getPostgresBuilder();
+        $builder->getConnection()->expects('recordsHaveBeenModified')->with(true);
+        $builder->getConnection()->expects('selectFromWriteConnection')->with(
+            'insert into "users" ("email") values (?), (?) on conflict do nothing returning "id", "email"',
             ['foo', 'bar']
         )->andReturn([['id' => 1, 'email' => 'foo']]);
-
         $result = $builder->from('users')->insertOrIgnoreReturning(
             [['email' => 'foo'], ['email' => 'bar']],
-            ['id', 'email'],
-            'email'
+            ['id', 'email']
         );
-
+        $this->assertInstanceOf(Collection::class, $result);
         $this->assertSame([['id' => 1, 'email' => 'foo']], $result->all());
     }
 
-    public function testSQLiteInsertOrIgnoreReturning(): void
+    public function testSqliteInsertOrIgnoreReturningMethod(): void
     {
         $builder = $this->getSQLiteBuilder();
-        $builder->getConnection()->shouldReceive('recordsHaveBeenModified')->once()->with(true);
-        $builder->getConnection()->shouldReceive('selectFromWriteConnection')->once()->with(
-            'insert into "users" ("email", "name") values (?, ?) on conflict ("email") do nothing returning "id"',
-            ['foo', 'bar']
+        $builder->getConnection()->expects('recordsHaveBeenModified')->with(true);
+        $builder->getConnection()->expects('selectFromWriteConnection')->with(
+            'insert into "users" ("email") values (?) on conflict do nothing returning "id"',
+            ['foo']
         )->andReturn([['id' => 1]]);
-
-        $result = $builder->from('users')->insertOrIgnoreReturning(
-            ['email' => 'foo', 'name' => 'bar'],
-            ['id'],
-            'email'
-        );
-
+        $result = $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo'], ['id']);
+        $this->assertInstanceOf(Collection::class, $result);
         $this->assertSame([['id' => 1]], $result->all());
+    }
+
+    public function testSqliteInsertOrIgnoreReturningMethodWithUniqueByColumn(): void
+    {
+        $builder = $this->getSQLiteBuilder();
+        $builder->getConnection()->expects('recordsHaveBeenModified')->with(true);
+        $builder->getConnection()->expects('selectFromWriteConnection')->with(
+            'insert into "users" ("email", "name") values (?, ?) on conflict ("email") do nothing returning *',
+            ['foo', 'bar']
+        )->andReturn([['id' => 1, 'email' => 'foo', 'name' => 'bar']]);
+        $result = $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo', 'name' => 'bar'], ['*'], 'email');
+        $this->assertInstanceOf(Collection::class, $result);
+        $this->assertSame([['id' => 1, 'email' => 'foo', 'name' => 'bar']], $result->all());
+    }
+
+    public function testSqliteInsertOrIgnoreReturningMethodWithUniqueByColumns(): void
+    {
+        $builder = $this->getSQLiteBuilder();
+        $builder->getConnection()->expects('recordsHaveBeenModified')->with(true);
+        $builder->getConnection()->expects('selectFromWriteConnection')->with(
+            'insert into "users" ("email", "name") values (?, ?) on conflict ("email", "name") do nothing returning *',
+            ['foo', 'bar']
+        )->andReturn([['id' => 1, 'email' => 'foo', 'name' => 'bar']]);
+        $result = $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo', 'name' => 'bar'], ['*'], ['email', 'name']);
+        $this->assertInstanceOf(Collection::class, $result);
+        $this->assertSame([['id' => 1, 'email' => 'foo', 'name' => 'bar']], $result->all());
+    }
+
+    public function testSqliteInsertOrIgnoreReturningMethodWithMultipleRecords(): void
+    {
+        $builder = $this->getSQLiteBuilder();
+        $builder->getConnection()->expects('recordsHaveBeenModified')->with(true);
+        $builder->getConnection()->expects('selectFromWriteConnection')->with(
+            'insert into "users" ("email") values (?), (?) on conflict do nothing returning "id", "email"',
+            ['foo', 'bar']
+        )->andReturn([['id' => 1, 'email' => 'foo']]);
+        $result = $builder->from('users')->insertOrIgnoreReturning(
+            [['email' => 'foo'], ['email' => 'bar']],
+            ['id', 'email']
+        );
+        $this->assertInstanceOf(Collection::class, $result);
+        $this->assertSame([['id' => 1, 'email' => 'foo']], $result->all());
+    }
+
+    public function testInsertOrIgnoreReturningWithEmptyUniqueByArray(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException('The unique columns must not be empty.'));
+        $builder = $this->getPostgresBuilder();
+        $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo'], ['*'], []);
+    }
+
+    public function testInsertOrIgnoreReturningWithEmptyUniqueByString(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException('The unique columns must not be empty.'));
+        $builder = $this->getPostgresBuilder();
+        $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo'], ['*'], '');
+    }
+
+    public function testInsertOrIgnoreReturningWithEmptyReturning(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException('The returning columns must not be empty.'));
+        $builder = $this->getPostgresBuilder();
+        $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo'], []);
+    }
+
+    public function testInsertOrIgnoreReturningDoesNotMarkRecordsModifiedWhenNoRowsWereInserted(): void
+    {
+        $builder = $this->getPostgresBuilder();
+        $builder->getConnection()->expects('selectFromWriteConnection')->with(
+            'insert into "users" ("email") values (?) on conflict do nothing returning *',
+            ['foo']
+        )->andReturn([]);
+        $builder->getConnection()->expects('recordsHaveBeenModified')->with(false);
+        $result = $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo']);
+        $this->assertInstanceOf(Collection::class, $result);
+        $this->assertTrue($result->isEmpty());
     }
 
     public function testInsertOrIgnoreReturningRunsBeforeQueryCallbacks(): void
@@ -4762,41 +4832,6 @@ class DatabaseQueryBuilderTest extends TestCase
             ->insertOrIgnoreReturning(['email' => 'foo']);
 
         $this->assertSame([['email' => 'foo']], $result->all());
-    }
-
-    public function testInsertOrIgnoreReturningValidatesConflictAndReturningColumns(): void
-    {
-        $builder = $this->getPostgresBuilder()->from('users');
-
-        foreach (
-            [
-                [[], 'The unique columns must not be empty.'],
-                ['', 'The unique columns must not be empty.'],
-            ] as [$uniqueBy, $message]
-        ) {
-            try {
-                $builder->insertOrIgnoreReturning(['email' => 'foo'], ['*'], $uniqueBy);
-                $this->fail('Expected an invalid conflict-column exception.');
-            } catch (InvalidArgumentException $exception) {
-                $this->assertSame($message, $exception->getMessage());
-            }
-        }
-
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The returning columns must not be empty.');
-
-        $builder->insertOrIgnoreReturning(['email' => 'foo'], []);
-    }
-
-    public function testInsertOrIgnoreReturningDoesNotMarkRecordsModifiedWhenNoRowsAreInserted(): void
-    {
-        $builder = $this->getPostgresBuilder();
-        $builder->getConnection()->shouldReceive('selectFromWriteConnection')->once()->andReturn([]);
-        $builder->getConnection()->shouldReceive('recordsHaveBeenModified')->once()->with(false);
-
-        $result = $builder->from('users')->insertOrIgnoreReturning(['email' => 'foo']);
-
-        $this->assertTrue($result->isEmpty());
     }
 
     public function testInsertOrIgnoreUsingMethod()

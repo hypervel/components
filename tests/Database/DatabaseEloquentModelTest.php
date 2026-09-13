@@ -1348,6 +1348,24 @@ class DatabaseEloquentModelTest extends TestCase
         $model->saveOrIgnore();
     }
 
+    public function testInsertOrIgnoreThrowsWithoutAttributes(): void
+    {
+        $model = $this->getMockBuilder(ModelStub::class)
+            ->onlyMethods(['newModelQuery', 'updateTimestamps'])
+            ->getMock();
+        $query = m::mock(Builder::class);
+        $model->expects($this->once())->method('newModelQuery')->willReturn($query);
+        $model->expects($this->once())->method('updateTimestamps');
+
+        $model->setEventDispatcher($events = m::mock(Dispatcher::class));
+        $events->expects('until')->with('eloquent.saving: ' . get_class($model), $model)->andReturn(true);
+        $events->expects('until')->with('eloquent.creating: ' . get_class($model), $model)->andReturn(true);
+
+        $this->expectExceptionObject(new LogicException('Cannot use saveOrIgnore on a model without attributes.'));
+
+        $model->saveOrIgnore();
+    }
+
     public function testDeleteProperlyDeletesModel()
     {
         $model = $this->getMockBuilder(Model::class)->onlyMethods(['newModelQuery', 'updateTimestamps', 'touchOwners'])->getMock();

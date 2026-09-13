@@ -1441,6 +1441,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Save the model to the database, ignoring specific unique constraint conflicts.
      *
      * @param array<string, mixed> $options
+     *
+     * @throws LogicException
      */
     public function saveOrIgnore(array $options = [], array|string|null $uniqueBy = null): bool
     {
@@ -1678,6 +1680,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Perform a model insert operation, ignoring specific unique constraint conflicts.
      *
      * @param Builder<static> $query
+     *
+     * @throws LogicException
      */
     protected function performInsertOrIgnore(Builder $query, array|string|null $uniqueBy): bool
     {
@@ -1698,7 +1702,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         );
 
         if ($attributes === []) {
-            return true;
+            throw new LogicException('Cannot use saveOrIgnore on a model without attributes.');
         }
 
         // Keep array-valued attributes inside the model's single row.

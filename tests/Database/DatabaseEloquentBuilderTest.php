@@ -1071,14 +1071,13 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('foo', $eagers['orders.lines']($this->getBuilder()));
     }
 
-    public function testQueryPassThru()
+    public function testQueryPassThru(): void
     {
         $builder = $this->getBuilder();
         $builder->getQuery()->shouldReceive('foobar')->once()->andReturn('foo');
 
         $this->assertInstanceOf(Builder::class, $builder->foobar());
 
-        // Hypervel has strict return types on insert methods, so we use correct types
         $builder = $this->getBuilder();
         $builder->getQuery()->shouldReceive('insert')->once()->with(['bar'])->andReturn(true);
 
@@ -1088,6 +1087,12 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->getQuery()->shouldReceive('insertOrIgnore')->once()->with(['bar'])->andReturn(1);
 
         $this->assertSame(1, $builder->insertOrIgnore(['bar']));
+
+        $builder = $this->getBuilder();
+        $inserted = new BaseCollection([(object) ['baz' => 'foo']]);
+        $builder->getQuery()->expects('insertOrIgnoreReturning')->with(['bar'], ['baz'])->andReturn($inserted);
+
+        $this->assertSame($inserted, $builder->insertOrIgnoreReturning(['bar'], ['baz']));
 
         $builder = $this->getBuilder();
         $builder->getQuery()->shouldReceive('insertOrIgnoreUsing')->once()->with(['bar'], 'baz')->andReturn(1);
