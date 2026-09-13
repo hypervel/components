@@ -834,6 +834,64 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals([0 => 1, 1 => $testDate, 2 => $testDate], $builder->getBindings());
     }
 
+    public function testWhereBinaryClauseMariaDb(): void
+    {
+        $builder = $this->getMariaDbBuilder();
+        $builder->select('*')->from('users')->whereBinary('name', 'john');
+        $this->assertSame('select * from `users` where `name` = cast(? as binary)', $builder->toSql());
+        $this->assertEquals([0 => 'john'], $builder->getBindings());
+
+        $builder = $this->getMariaDbBuilder();
+        $builder->select('*')->from('users')->whereNotBinary('name', 'john');
+        $this->assertSame('select * from `users` where `name` != cast(? as binary)', $builder->toSql());
+        $this->assertEquals([0 => 'john'], $builder->getBindings());
+    }
+
+    public function testWhereBinaryClauseMysql(): void
+    {
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('users')->whereBinary('name', 'john');
+        $this->assertSame('select * from `users` where `name` = cast(? as binary)', $builder->toSql());
+        $this->assertEquals([0 => 'john'], $builder->getBindings());
+
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('users')->whereNotBinary('name', 'john');
+        $this->assertSame('select * from `users` where `name` != cast(? as binary)', $builder->toSql());
+        $this->assertEquals([0 => 'john'], $builder->getBindings());
+
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('users')->where('id', '=', 1)->orWhereBinary('name', 'john');
+        $this->assertSame('select * from `users` where `id` = ? or `name` = cast(? as binary)', $builder->toSql());
+        $this->assertEquals([0 => 1, 1 => 'john'], $builder->getBindings());
+
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('users')->where('id', '=', 1)->orWhereNotBinary('name', 'john');
+        $this->assertSame('select * from `users` where `id` = ? or `name` != cast(? as binary)', $builder->toSql());
+        $this->assertEquals([0 => 1, 1 => 'john'], $builder->getBindings());
+    }
+
+    public function testWhereBinaryClausePostgres(): void
+    {
+        $builder = $this->getPostgresBuilder();
+        $builder->select('*')->from('users')->whereBinary('name', 'john');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageIsOrContains('This database engine does not support binary comparison operations.');
+
+        $builder->toSql();
+    }
+
+    public function testWhereBinaryClauseSqlite(): void
+    {
+        $builder = $this->getSQLiteBuilder();
+        $builder->select('*')->from('users')->whereBinary('name', 'john');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageIsOrContains('This database engine does not support binary comparison operations.');
+
+        $builder->toSql();
+    }
+
     public function testWhereLikePostgres()
     {
         $builder = $this->getPostgresBuilder();
@@ -895,7 +953,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals([0 => '1'], $builder->getBindings());
     }
 
-    public function testWhereLikeClauseMysql()
+    public function testWhereLikeClauseMysql(): void
     {
         $builder = $this->getMySqlBuilder();
         $builder->select('*')->from('users')->whereLike('id', '1');
@@ -909,7 +967,7 @@ class DatabaseQueryBuilderTest extends TestCase
 
         $builder = $this->getMySqlBuilder();
         $builder->select('*')->from('users')->whereLike('id', '1', true);
-        $this->assertSame('select * from `users` where `id` like binary ?', $builder->toSql());
+        $this->assertSame('select * from `users` where `id` like cast(? as binary)', $builder->toSql());
         $this->assertEquals([0 => '1'], $builder->getBindings());
 
         $builder = $this->getMySqlBuilder();
@@ -924,7 +982,7 @@ class DatabaseQueryBuilderTest extends TestCase
 
         $builder = $this->getMySqlBuilder();
         $builder->select('*')->from('users')->whereNotLike('id', '1', true);
-        $this->assertSame('select * from `users` where `id` not like binary ?', $builder->toSql());
+        $this->assertSame('select * from `users` where `id` not like cast(? as binary)', $builder->toSql());
         $this->assertEquals([0 => '1'], $builder->getBindings());
     }
 
