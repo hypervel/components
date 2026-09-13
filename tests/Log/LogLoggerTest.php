@@ -94,13 +94,12 @@ class LogLoggerTest extends TestCase
         $this->assertEquals([], $context['event_context']);
     }
 
-    public function testListenShortcutFailsWithNoDispatcher()
+    public function testListenShortcutFailsWithNoDispatcher(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Events dispatcher has not been set.');
+        $this->expectExceptionObject(new RuntimeException('Events dispatcher has not been set.'));
 
         $writer = new Logger($this->mockMonolog());
-        $writer->listen(function () {
+        $writer->listen(function (): void {
         });
     }
 
