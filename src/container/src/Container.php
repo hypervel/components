@@ -1618,7 +1618,7 @@ class Container implements ContainerContract
     /**
      * Get the current build stack without creating resolution state.
      *
-     * @return list<string>
+     * @return list<int|string>
      */
     protected function currentBuildStack(): array
     {
@@ -1775,7 +1775,7 @@ class Container implements ContainerContract
         // hand back the results of the functions, which allows functions to be
         // used as resolvers for more fine-tuned resolution of these objects.
         if ($concrete instanceof Closure) {
-            $resolutionState->buildStack[] = spl_object_hash($concrete);
+            $resolutionState->buildStack[] = spl_object_id($concrete);
 
             try {
                 return $concrete($this, end($resolutionState->parameterOverrides) ?: []);
@@ -2260,11 +2260,9 @@ class Container implements ContainerContract
     }
 
     /**
-     * Get the name of the binding the container is currently resolving.
-     *
-     * @return null|class-string|string
+     * Get the class name or closure object ID the container is currently resolving.
      */
-    public function currentlyResolving(): ?string
+    public function currentlyResolving(): int|string|null
     {
         $buildStack = $this->currentBuildStack();
 

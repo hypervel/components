@@ -974,6 +974,22 @@ class ContainerTest extends TestCase
         $this->assertEquals(ContainerCurrentResolvingConcrete::class, $resolved->currentlyResolving);
     }
 
+    public function testCurrentlyResolvingClosureReturnsItsObjectId(): void
+    {
+        $container = new Container;
+        $currentlyResolving = null;
+        $factory = function (Container $container) use (&$currentlyResolving): stdClass {
+            $currentlyResolving = $container->currentlyResolving();
+
+            return new stdClass;
+        };
+
+        $container->build($factory);
+
+        $this->assertSame(spl_object_id($factory), $currentlyResolving);
+        $this->assertNull($container->currentlyResolving());
+    }
+
     public function testContextualNullTakesPrecedenceOverPrimitiveBindingAndDefault(): void
     {
         $container = new Container;

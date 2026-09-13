@@ -208,7 +208,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * The array of global scopes on the model.
      *
-     * @var array<class-string<self>, array<string, Closure|Scope>>
+     * @var array<class-string<self>, array<int|string, Closure|Scope>>
      */
     protected static array $globalScopes = [];
 
@@ -1948,7 +1948,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @return Builder<static>
      */
-    public function newQueryWithoutScope(Scope|string $scope): Builder
+    public function newQueryWithoutScope(Scope|int|string $scope): Builder
     {
         return $this->newQuery()->withoutGlobalScope($scope);
     }
