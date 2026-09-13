@@ -944,6 +944,8 @@ $affected = Invoice::join('customers', 'invoices.customer_id', '=', 'customers.i
 
 Like `update`, `updateFrom` applies the model's global scopes and returns the number of affected rows. It also updates the model's `updated_at` column unless timestamps are disabled or you supply that column explicitly.
 
+When using `fromRaw`, supply timestamps yourself or give the raw source an explicit alias with `from(DB::raw(...), 'alias')` to retain automatic timestamps.
+
 > [!WARNING]
 > When issuing a mass update via Eloquent, the `saving`, `saved`, `updating`, and `updated` model events will not be fired for the updated models. This is because the models are never actually retrieved when issuing a mass update.
 

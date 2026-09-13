@@ -450,12 +450,20 @@ class Builder implements BuilderContract
 
     /**
      * Get the wildcard selection for the query's primary source.
+     *
+     * @throws InvalidArgumentException
      */
     public function getDefaultSelectColumn(): string
     {
         // Raw sources need an explicit alias or selection: an unqualified wildcard
         // can introduce duplicate columns into a joined pagination count subquery.
-        return ($this->fromAlias ?? last(preg_split('/\s+as\s+/i', $this->from))) . '.*';
+        $alias = $this->getFromAlias();
+
+        if ($alias === null) {
+            throw new InvalidArgumentException('Raw query sources need an explicit alias or selection.');
+        }
+
+        return $alias . '.*';
     }
 
     /**
@@ -529,6 +537,16 @@ class Builder implements BuilderContract
         $this->fromAlias = $as !== '' ? $as : null;
 
         return $this;
+    }
+
+    /**
+     * Get the alias or table name that qualifies the query's source columns.
+     *
+     * Raw sources without an explicit alias return null; raw SQL is not parsed.
+     */
+    public function getFromAlias(): ?string
+    {
+        return $this->fromAlias ?? (is_string($this->from) ? last(preg_split('/\s+as\s+/i', $this->from)) : null);
     }
 
     /**

@@ -303,9 +303,9 @@ class SQLiteGrammar extends Grammar
 
         $columns = $this->compileUpdateColumns($query, $values);
 
-        $alias = last(preg_split('/\s+as\s+/i', $query->from));
+        $alias = $query->getFromAlias();
 
-        $selectSql = $this->compileSelectQuery($query->select($alias . '.rowid'));
+        $selectSql = $this->compileSelectQuery($query->select($alias === null ? 'rowid' : $alias . '.rowid'));
 
         return "update {$table} set {$columns} where {$this->wrap('rowid')} in ({$selectSql})";
     }
@@ -352,9 +352,9 @@ class SQLiteGrammar extends Grammar
     {
         $table = $this->wrapTable($query->from);
 
-        $alias = last(preg_split('/\s+as\s+/i', $query->from));
+        $alias = $query->getFromAlias();
 
-        $selectSql = $this->compileSelectQuery($query->select($alias . '.rowid'));
+        $selectSql = $this->compileSelectQuery($query->select($alias === null ? 'rowid' : $alias . '.rowid'));
 
         return "delete from {$table} where {$this->wrap('rowid')} in ({$selectSql})";
     }

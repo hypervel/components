@@ -534,9 +534,9 @@ class PostgresGrammar extends Grammar
 
         $columns = $this->compileUpdateColumns($query, $values);
 
-        $alias = last(preg_split('/\s+as\s+/i', $query->from));
+        $alias = $query->getFromAlias();
 
-        $selectSql = $this->compileSelectQuery($query->select($alias . '.ctid'));
+        $selectSql = $this->compileSelectQuery($query->select($alias === null ? 'ctid' : $alias . '.ctid'));
 
         return "update {$table} set {$columns} where {$this->wrap('ctid')} in ({$selectSql})";
     }
@@ -581,9 +581,9 @@ class PostgresGrammar extends Grammar
     {
         $table = $this->wrapTable($query->from);
 
-        $alias = last(preg_split('/\s+as\s+/i', $query->from));
+        $alias = $query->getFromAlias();
 
-        $selectSql = $this->compileSelectQuery($query->select($alias . '.ctid'));
+        $selectSql = $this->compileSelectQuery($query->select($alias === null ? 'ctid' : $alias . '.ctid'));
 
         return "delete from {$table} where {$this->wrap('ctid')} in ({$selectSql})";
     }

@@ -23,6 +23,7 @@ use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Query\Builder as BaseBuilder;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Query\Grammars\Grammar;
+use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection as BaseCollection;
@@ -3220,6 +3221,25 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(1, $result);
     }
 
+    public function testUpdateWithAnExplicitRawSourceAliasAndPrefix(): void
+    {
+        CarbonImmutable::setTestNow('2017-10-10 10:10:10');
+
+        $connection = m::mock(Connection::class, ['getTablePrefix' => 'prefix_']);
+        $query = new BaseBuilder($connection, new MySqlGrammar($connection), m::mock(Processor::class));
+        $builder = (new Builder($query))->setModel((new Stub)->setDateFormat('Y-m-d H:i:s'));
+        $connection->shouldReceive('update')->once()->with(
+            'update `prefix_table` as `prefix_target` inner join `prefix_profiles` on `prefix_profiles`.`user_id` = `prefix_target`.`id` set `prefix_target`.`name` = ?, `prefix_target`.`updated_at` = ?',
+            ['new', '2017-10-10 10:10:10'],
+        )->andReturn(1);
+
+        $builder->from(new Expression('`prefix_table`'), 'target')
+            ->join('profiles', 'profiles.user_id', '=', 'target.id');
+
+        $this->assertSame(1, $builder->update(['target.name' => 'new']));
+        $this->assertSame('target', $builder->getFromAlias());
+    }
+
     public function testUpdateOrInsertReturnsTheQueryResult(): void
     {
         $builder = $this->getBuilder();
@@ -3281,6 +3301,33 @@ class DatabaseEloquentBuilderTest extends TestCase
                 'update "table" set "name" = ? from "profiles" where ("table"."active" = ?) and "profiles"."user_id" = "table"."id"',
                 ['new', 1],
             ],
+        ];
+    }
+
+    #[DataProvider('rawSourceUpdateValues')]
+    public function testUpdateFromWithAnOpaqueRawSourcePreservesSuppliedValues(array $values, string $columns, array $bindings): void
+    {
+        $model = new Stub;
+        $connection = $this->mockConnectionForModel($model, 'Postgres');
+        $connection->shouldReceive('update')->once()->with(
+            'update "table" as "target" set ' . $columns . ' from "profiles" where "profiles"."user_id" = "target"."id"',
+            $bindings,
+        )->andReturn(1);
+
+        $builder = $model->newQuery()->fromRaw('"table" as "target"')
+            ->join('profiles', 'profiles.user_id', '=', 'target.id');
+
+        $this->assertSame(1, $builder->updateFrom($values));
+    }
+
+    /**
+     * Provide writes with caller-owned timestamps for opaque raw sources.
+     */
+    public static function rawSourceUpdateValues(): array
+    {
+        return [
+            'no automatic timestamp' => [['name' => 'new'], '"name" = ?', ['new']],
+            'explicit qualified timestamp' => [['name' => 'new', 'target.updated_at' => null], '"name" = ?, "updated_at" = ?', ['new', null]],
         ];
     }
 
@@ -3590,7 +3637,7 @@ class DatabaseEloquentBuilderTest extends TestCase
     {
         $query = m::mock(BaseBuilder::class);
         $query->shouldReceive('from')->with('foo_table');
-        $query->from = 'foo_table';
+        $query->shouldReceive('getFromAlias')->andReturn('foo_table');
         $query->shouldReceive('incrementEach')->once()->withArgs(function ($columns, $extra) {
             return $columns === ['votes' => 5]
                 && array_key_exists('foo_table.updated_at', $extra);
@@ -3615,7 +3662,7 @@ class DatabaseEloquentBuilderTest extends TestCase
     {
         $query = m::mock(BaseBuilder::class);
         $query->shouldReceive('from')->with('foo_table');
-        $query->from = 'foo_table';
+        $query->shouldReceive('getFromAlias')->andReturn('foo_table');
         $query->shouldReceive('decrementEach')->once()->withArgs(function ($columns, $extra) {
             return $columns === ['votes' => 3]
                 && array_key_exists('foo_table.updated_at', $extra);

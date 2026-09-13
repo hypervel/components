@@ -126,6 +126,7 @@ class Builder implements BuilderContract
         'getcolumns',
         'getconnection',
         'getcountforpagination',
+        'getfromalias',
         'getgrammar',
         'getprocessor',
         'getrawbindings',
@@ -1301,6 +1302,13 @@ class Builder implements BuilderContract
 
         $column = $this->model->getUpdatedAtColumn();
 
+        $alias = $this->query->getFromAlias();
+
+        // Opaque raw sources cannot safely qualify an automatic timestamp.
+        if ($alias === null) {
+            return $values;
+        }
+
         if (! array_key_exists($column, $values)) {
             $timestamp = $this->model->freshTimestampString();
 
@@ -1317,9 +1325,7 @@ class Builder implements BuilderContract
             $values = array_merge([$column => $timestamp], $values);
         }
 
-        $segments = preg_split('/\s+as\s+/i', $this->query->from);
-
-        $qualifiedColumn = array_last($segments) . '.' . $column;
+        $qualifiedColumn = $alias . '.' . $column;
 
         $values[$qualifiedColumn] = Arr::get($values, $qualifiedColumn, $values[$column]);
 
