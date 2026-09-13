@@ -291,6 +291,8 @@ class FoundationHelpersTest extends TestCase
         $this->assertEmpty($result);
     }
 
+    // REMOVED: Mix helper tests; Hypervel uses Vite instead of Laravel Mix.
+
     public function testAbortReceivesCodeAsSymfonyResponseInstance()
     {
         try {

@@ -774,13 +774,12 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->executeScenarioWhereErrorViewThrowsWhileRenderingAndDebugIs(false);
     }
 
-    public function testItDoesNotCrashIfErrorViewThrowsWhileRenderingAndDebugTrue()
+    public function testItDoesNotCrashIfErrorViewThrowsWhileRenderingAndDebugTrue(): void
     {
         // When debug is true, it is OK to bubble the exception thrown while rendering
         // the error view as the debug handler should handle this gracefully.
 
-        $this->expectException(Exception::class);
-        $this->expectExceptionMessage('Rendering this view throws an exception');
+        $this->expectExceptionObject(new Exception('Rendering this view throws an exception'));
         $this->executeScenarioWhereErrorViewThrowsWhileRenderingAndDebugIs(true);
     }
 
