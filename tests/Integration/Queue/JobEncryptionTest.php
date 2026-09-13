@@ -49,12 +49,11 @@ class JobEncryptionTest extends QueueTestCase
         );
     }
 
-    public function testNonEncryptedJobPayloadIsStoredRaw()
+    public function testNonEncryptedJobPayloadIsStoredRaw(): void
     {
         Bus::dispatch(new JobEncryptionTestNonEncryptedJob);
 
-        $this->expectException(DecryptException::class);
-        $this->expectExceptionMessage('The payload is invalid');
+        $this->expectExceptionObject(new DecryptException('The payload is invalid'));
 
         $this->assertInstanceOf(
             JobEncryptionTestNonEncryptedJob::class,

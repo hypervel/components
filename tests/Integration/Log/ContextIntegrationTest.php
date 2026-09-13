@@ -92,7 +92,7 @@ class ContextIntegrationTest extends TestCase
         $this->assertSame(55, Repository::getInstance()->get('number'));
     }
 
-    public function testItThrowsOnIncompleteClasses()
+    public function testItThrowsOnIncompleteClasses(): void
     {
         $dehydrated = [
             'data' => [
@@ -101,13 +101,12 @@ class ContextIntegrationTest extends TestCase
             'hidden' => [],
         ];
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Value is incomplete class: {"__PHP_Incomplete_Class_Name":"App\\\MyContextClass"}');
+        $this->expectExceptionObject(new RuntimeException('Value is incomplete class: {"__PHP_Incomplete_Class_Name":"App\\\MyContextClass"}'));
 
         Repository::getInstance()->hydrate($dehydrated);
     }
 
-    public function testItThrowsGenericUnserializeExceptions()
+    public function testItThrowsGenericUnserializeExceptions(): void
     {
         $dehydrated = [
             'data' => [
@@ -116,8 +115,7 @@ class ContextIntegrationTest extends TestCase
             'hidden' => [],
         ];
 
-        $this->expectException(ErrorException::class);
-        $this->expectExceptionMessage('unserialize(): Error at offset 0 of 8 bytes');
+        $this->expectExceptionObject(new ErrorException('unserialize(): Error at offset 0 of 8 bytes'));
 
         Repository::getInstance()->hydrate($dehydrated);
     }
