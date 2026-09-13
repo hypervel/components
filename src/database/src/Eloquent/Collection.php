@@ -803,9 +803,11 @@ class Collection extends BaseCollection implements QueueableCollection
     }
 
     /**
+     * Pad collection to the specified length with a value.
+     *
      * @template TPadValue
      *
-     * @return \Hypervel\Support\Collection<int, TModel|TPadValue>
+     * @return \Hypervel\Support\Collection<int|TKey, TModel|TPadValue>
      */
     #[Override]
     public function pad(int $size, mixed $value): BaseCollection

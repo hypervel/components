@@ -69,6 +69,7 @@ function assertEnumerableTypes(Enumerable $enumerable): void
     assertType('Hypervel\Support\Enumerable<int, mixed>', $enumerable->flatten());
     assertType('Hypervel\Support\Enumerable<int, int>', $enumerable->random(2));
     assertType('Hypervel\Support\Enumerable<string, int>', $enumerable->random(2, true));
+    assertType('Hypervel\Support\Enumerable<int|string, int>', $enumerable->pad(3, 0));
     assertType('float|int', $enumerable->sum(static fn (int $value): int => $value));
     assertType('mixed', $enumerable->sum('amount'));
 

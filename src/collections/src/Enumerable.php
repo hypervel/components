@@ -1079,7 +1079,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @template TPadValue
      *
      * @param TPadValue $value
-     * @return static<int, TPadValue|TValue>
+     * @return static<int|TKey, TPadValue|TValue>
      */
     public function pad(int $size, mixed $value): Collection|static;
 

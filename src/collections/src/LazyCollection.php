@@ -1469,6 +1469,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
             $chunk = new Collection;
 
             if ($iterator->valid()) {
+                // @phpstan-ignore offsetAssign.dimType (PHPStan 2.2.14 rejects template keys on ArrayAccess)
                 $chunk[$iterator->key()] = $iterator->current();
 
                 $iterator->next();
@@ -1481,6 +1482,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
                     $chunk = new Collection;
                 }
 
+                // @phpstan-ignore offsetAssign.dimType (PHPStan 2.2.14 rejects template keys on ArrayAccess)
                 $chunk[$iterator->key()] = $iterator->current();
 
                 $iterator->next();
@@ -1807,7 +1809,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
      * @template TPadValue
      *
      * @param TPadValue $value
-     * @return static<int, TPadValue|TValue>
+     * @return static<int|TKey, TPadValue|TValue>
      */
     #[Override]
     public function pad(int $size, mixed $value): static

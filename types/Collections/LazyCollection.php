@@ -886,6 +886,7 @@ assertType('Hypervel\Support\LazyCollection<int, int|string>', $collection::make
 assertType('Hypervel\Support\LazyCollection<int, int>', $collection::make([1])->pad(2, 0));
 assertType('Hypervel\Support\LazyCollection<int, int|string>', $collection::make([1])->pad(2, 'string'));
 assertType('Hypervel\Support\LazyCollection<int, int|User>', $collection->pad(2, 0));
+assertType('Hypervel\Support\LazyCollection<int|string, int|User>', $associativeCollection->pad(2, 0));
 
 assertType('Hypervel\Support\LazyCollection<(int|string), int>', $collection::make([1])->countBy());
 assertType('Hypervel\Support\LazyCollection<(int|string), int>', $collection::make(['string' => 'string'])->countBy('string'));
