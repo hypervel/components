@@ -10,7 +10,6 @@ use Hypervel\Database\Query\Builder;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\Failed\DatabaseFailedJobProvider;
 use Hypervel\Support\CarbonImmutable;
-use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use RuntimeException;
@@ -125,17 +124,17 @@ class DatabaseFailedJobProviderTest extends TestCase
 
     public function testCanFlushFailedJobs(): void
     {
-        Date::setTestNow(Date::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
-        $this->createFailedJobsRecord(['failed_at' => Date::now()->subDays(10)]);
+        $this->createFailedJobsRecord(['failed_at' => $now->subDays(10)]);
         $this->provider->flush();
         $this->assertSame(0, $this->failedJobsTable()->count());
 
-        $this->createFailedJobsRecord(['failed_at' => Date::now()->subDays(10)]);
+        $this->createFailedJobsRecord(['failed_at' => $now->subDays(10)]);
         $this->provider->flush(15 * 24);
         $this->assertSame(1, $this->failedJobsTable()->count());
 
-        $this->createFailedJobsRecord(['failed_at' => Date::now()->subDays(10)]);
+        $this->createFailedJobsRecord(['failed_at' => $now->subDays(10)]);
         $this->provider->flush(10 * 24);
         $this->assertSame(0, $this->failedJobsTable()->count());
     }
@@ -231,7 +230,7 @@ class DatabaseFailedJobProviderTest extends TestCase
                 'queue' => 'default',
                 'payload' => json_encode(['uuid' => (string) Str::uuid()]),
                 'exception' => new Exception('Whoops!'),
-                'failed_at' => Date::now()->subDays(10),
+                'failed_at' => CarbonImmutable::now()->subDays(10),
             ], $overrides));
     }
 }

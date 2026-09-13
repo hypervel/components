@@ -224,6 +224,8 @@ class MaintenanceModeTest extends TestCase
         $response->assertJson(['message' => 'Service Unavailable']);
     }
 
+    // REMOVED: The maintenance.php stub test; requests reach the already-booted worker's middleware.
+
     public function testDownCommandPrerendersTemplateIntoMaintenancePayload(): void
     {
         file_put_contents(resource_path('views/errors/503.blade.php'), 'Rendered {{ $retryAfter }}');
@@ -501,8 +503,6 @@ class MaintenanceModeTest extends TestCase
 
         $expectedDate = CarbonImmutable::parse($datetime)->toRfc7231String();
         $this->assertSame($expectedDate, $data['retry']);
-
-        CarbonImmutable::setTestNow();
     }
 
     /**

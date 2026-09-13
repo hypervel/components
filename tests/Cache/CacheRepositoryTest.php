@@ -148,11 +148,11 @@ class CacheRepositoryTest extends TestCase
         $this->assertEquals(['foo' => 'default', 'bar' => 'baz'], $repo->get(['foo' => 'default', 'bar']));
     }
 
-    public function testGetReturnsMultipleValuesFromCacheWhenGivenAnArrayOfOneTwoThree()
+    public function testGetReturnsMultipleValuesFromCacheWhenGivenAnArrayOfOneTwoThree(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('many')->once()->with(['one', 'two', 'three'])->andReturn(['one' => null, 'two' => null, 'three' => null]);
-        $this->assertEquals(['one' => null, 'two' => null, 'three' => null], $repo->get(['one', 'two', 'three']));
+        $repo->getStore()->expects('many')->with(['1', '2', '3'])->andReturn([1 => null, 2 => null, 3 => null]);
+        $this->assertEquals([1 => null, 2 => null, 3 => null], $repo->get([1, 2, 3]));
     }
 
     public function testDefaultValueIsReturned()
@@ -1193,65 +1193,55 @@ class CacheRepositoryTest extends TestCase
         $nonFlushableRepo->flushLocks();
     }
 
-    public function testTouchWithNullTTLRemembersItemForever()
+    public function testTouchWithSecondsTtlCorrectlyProxiesToStore(): void
     {
+        $key = 'key';
+        $ttl = 60;
+
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->with('key')->andReturn('bar');
-        $repo->getStore()->shouldReceive('forever')->once()->with('key', 'bar')->andReturn(true);
-        $this->assertTrue($repo->touch('key', null));
+        $repo->getStore()->expects('touch')->with($key, $ttl)->andReturn(true);
+        $this->assertTrue($repo->touch($key, $ttl));
     }
 
-    public function testTouchWithNullTtlPreservesCachedNullSentinel()
+    public function testTouchWithDatetimeTtlCorrectlyProxiesToStore(): void
     {
-        $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->with('key')->andReturn(NullSentinel::VALUE);
-        $repo->getStore()->shouldReceive('forever')->once()->with('key', NullSentinel::VALUE)->andReturn(true);
+        $key = 'key';
+        $ttl = 60;
 
-        $this->assertTrue($repo->touch('key', null));
-    }
-
-    public function testTouchWithSecondsTtlCorrectlyProxiesToStore()
-    {
-        $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->with('key')->andReturn('bar');
-        $repo->getStore()->shouldReceive('touch')->once()->with('key', 60)->andReturn(true);
-        $this->assertTrue($repo->touch('key', 60));
-    }
-
-    public function testTouchWithSecondsTtlTreatsCachedNullSentinelAsHit()
-    {
-        $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->with('key')->andReturn(NullSentinel::VALUE);
-        $repo->getStore()->shouldReceive('touch')->once()->with('key', 60)->andReturn(true);
-
-        $this->assertTrue($repo->touch('key', 60));
-    }
-
-    public function testTouchWithEnumKeyProxiesResolvedKeyToStore()
-    {
-        $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->with('foo')->andReturn('bar');
-        $repo->getStore()->shouldReceive('touch')->once()->with('foo', 60)->andReturn(true);
-
-        $this->assertTrue($repo->touch(TestCacheKey::Foo, 60));
-    }
-
-    public function testTouchWithDatetimeTtlCorrectlyProxiesToStore()
-    {
         CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->with('key')->andReturn('bar');
-        $repo->getStore()->shouldReceive('touch')->once()->with('key', 60)->andReturn(true);
-        $this->assertTrue($repo->touch('key', $now->addSeconds(60)));
+        $repo->getStore()->expects('touch')->with($key, $ttl)->andReturn(true);
+        $this->assertTrue($repo->touch($key, $now->addSeconds($ttl)));
     }
 
-    public function testTouchWithDateIntervalTtlCorrectlyProxiesToStore()
+    public function testTouchWithDateIntervalTtlCorrectlyProxiesToStore(): void
+    {
+        $key = 'key';
+        $ttl = 60;
+
+        $repo = $this->getRepository();
+        $repo->getStore()->expects('touch')->with($key, $ttl)->andReturn(true);
+        $this->assertTrue($repo->touch($key, DateInterval::createFromDateString("{$ttl} seconds")));
+    }
+
+    public function testTouchWithDatetimeInPastOrZeroSecondsRemovesOldItem(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->with('key')->andReturn('bar');
-        $repo->getStore()->shouldReceive('touch')->once()->with('key', 60)->andReturn(true);
-        $this->assertTrue($repo->touch('key', DateInterval::createFromDateString('60 seconds')));
+        $repo->getStore()->shouldReceive('touch')->never();
+        $repo->getStore()->expects('forget')->times(2)->with('key')->andReturn(true);
+
+        $this->assertTrue($repo->touch('key', CarbonImmutable::now()->subMinute()));
+        $this->assertTrue($repo->touch('key', 0));
+    }
+
+    public function testTouchWorksWithEnumKey(): void
+    {
+        $ttl = 60;
+
+        $repo = $this->getRepository();
+        $repo->getStore()->expects('touch')->with('foo', $ttl)->andReturn(true);
+        $this->assertTrue($repo->touch(TestCacheKey::Foo, $ttl));
     }
 
     public function testAtomicExecutesCallbackAndReturnsResult()
@@ -1354,6 +1344,30 @@ class CacheRepositoryTest extends TestCase
 
         $this->assertSame('integer-value', $repo->get('2'));
         $this->assertSame('string-value', $repo->get('a'));
+    }
+
+    public function testManyDispatchesEventsForIntegerArrayKeys(): void
+    {
+        $repo = new Repository(new ArrayStore);
+        $repo->put('1', 'cached', 60);
+
+        $captured = [];
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('hasListeners')->andReturnUsing(
+            static fn (string $event): bool => in_array($event, [CacheHit::class, CacheMissed::class], true)
+        );
+        $dispatcher->shouldReceive('dispatch')->andReturnUsing(function (CacheHit|CacheMissed $event) use (&$captured): void {
+            $captured[] = $event;
+        });
+        $repo->setEventDispatcher($dispatcher);
+
+        $this->assertSame([1 => 'cached', 2 => null], $repo->many(['1', '2']));
+        $this->assertCount(2, $captured);
+        $this->assertInstanceOf(CacheHit::class, $captured[0]);
+        $this->assertSame('1', $captured[0]->key);
+        $this->assertSame('cached', $captured[0]->value);
+        $this->assertInstanceOf(CacheMissed::class, $captured[1]);
+        $this->assertSame('2', $captured[1]->key);
     }
 
     public function testStringTypedGetter(): void

@@ -32,8 +32,8 @@ class Limiter
     }
 
     // One-call decisions replace Laravel's split tooManyAttempts(), hit(),
-    // increment(), attempts(), resetAttempts(), retriesLeft(), availableIn(),
-    // cleanRateLimiterKey(), and Limit::fallbackKey() APIs.
+    // increment(), decrement(), attempts(), resetAttempts(), remaining(),
+    // retriesLeft(), availableIn(), cleanRateLimiterKey(), and Limit::fallbackKey() APIs.
 
     /**
      * Atomically consume capacity from an admission policy.

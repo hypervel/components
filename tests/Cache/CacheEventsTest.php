@@ -32,6 +32,8 @@ use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Mockery\Matcher\Closure as ClosureMatcher;
+use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -43,6 +45,9 @@ class CacheEventsTest extends TestCase
         $repository = new class(new ArrayStore, ['store' => 'array']) extends Repository {
             public int $eventCalls = 0;
 
+            /**
+             * Count event dispatches through the repository.
+             */
             protected function event(object $event): void
             {
                 ++$this->eventCalls;
@@ -75,6 +80,9 @@ class CacheEventsTest extends TestCase
         $repository = new class($store, new VersionedTagSet($store, ['tag'])) extends NamespacedTaggedCache {
             public int $eventCalls = 0;
 
+            /**
+             * Count event dispatches through the tagged repository.
+             */
             protected function event(object $event): void
             {
                 ++$this->eventCalls;
@@ -101,47 +109,52 @@ class CacheEventsTest extends TestCase
         $this->assertSame(2, $repository->eventCalls);
     }
 
-    public function testHasTriggersEvents()
+    public function testHasTriggersEvents(): void
     {
         $dispatcher = $this->getDispatcher();
         $repository = $this->getRepository($dispatcher);
 
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(RetrievingKey::class, ['key' => 'foo']));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(CacheMissed::class, ['key' => 'foo']));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(RetrievingKey::class, ['storeName' => 'array', 'key' => 'foo']));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(CacheMissed::class, ['storeName' => 'array', 'key' => 'foo']));
         $this->assertFalse($repository->has('foo'));
 
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(RetrievingKey::class, ['key' => 'baz']));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(CacheHit::class, ['key' => 'baz', 'value' => 'qux']));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(RetrievingKey::class, ['storeName' => 'array', 'key' => 'baz']));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(CacheHit::class, ['storeName' => 'array', 'key' => 'baz', 'value' => 'qux']));
         $this->assertTrue($repository->has('baz'));
 
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(RetrievingKey::class, ['key' => 'foo', 'tags' => ['taylor']]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(CacheMissed::class, ['key' => 'foo', 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(RetrievingKey::class, ['storeName' => 'array', 'key' => 'foo', 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(CacheMissed::class, ['storeName' => 'array', 'key' => 'foo', 'tags' => ['taylor']]));
         $this->assertFalse($repository->tags('taylor')->has('foo'));
 
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(RetrievingKey::class, ['key' => 'baz', 'tags' => ['taylor']]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(CacheHit::class, ['key' => 'baz', 'value' => 'qux', 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(RetrievingKey::class, ['storeName' => 'array', 'key' => 'baz', 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(CacheHit::class, ['storeName' => 'array', 'key' => 'baz', 'value' => 'qux', 'tags' => ['taylor']]));
         $this->assertTrue($repository->tags('taylor')->has('baz'));
     }
 
-    public function testGetTriggersEvents()
+    public function testGetTriggersEvents(): void
     {
         $dispatcher = $this->getDispatcher();
         $repository = $this->getRepository($dispatcher);
 
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(RetrievingKey::class, ['key' => 'foo']));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(CacheMissed::class, ['key' => 'foo']));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(RetrievingKey::class, ['storeName' => 'array', 'key' => 'foo']));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(CacheMissed::class, ['storeName' => 'array', 'key' => 'foo']));
         $this->assertNull($repository->get('foo'));
 
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(RetrievingKey::class, ['key' => 'baz']));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(CacheHit::class, ['key' => 'baz', 'value' => 'qux']));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(RetrievingManyKeys::class, ['storeName' => 'array', 'keys' => ['foo', 'bar']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(CacheMissed::class, ['storeName' => 'array', 'key' => 'foo']));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(CacheMissed::class, ['storeName' => 'array', 'key' => 'bar']));
+        $this->assertSame(['foo' => null, 'bar' => null], $repository->get(['foo', 'bar']));
+
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(RetrievingKey::class, ['storeName' => 'array', 'key' => 'baz']));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(CacheHit::class, ['storeName' => 'array', 'key' => 'baz', 'value' => 'qux']));
         $this->assertSame('qux', $repository->get('baz'));
 
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(RetrievingKey::class, ['key' => 'foo', 'tags' => ['taylor']]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(CacheMissed::class, ['key' => 'foo', 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(RetrievingKey::class, ['storeName' => 'array', 'key' => 'foo', 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(CacheMissed::class, ['storeName' => 'array', 'key' => 'foo', 'tags' => ['taylor']]));
         $this->assertNull($repository->tags('taylor')->get('foo'));
 
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(RetrievingKey::class, ['key' => 'baz', 'tags' => ['taylor']]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(CacheHit::class, ['key' => 'baz', 'value' => 'qux', 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(RetrievingKey::class, ['storeName' => 'array', 'key' => 'baz', 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(CacheHit::class, ['storeName' => 'array', 'key' => 'baz', 'value' => 'qux', 'tags' => ['taylor']]));
         $this->assertSame('qux', $repository->tags('taylor')->get('baz'));
     }
 
@@ -366,6 +379,9 @@ class CacheEventsTest extends TestCase
         $this->assertSame([$startedEvent], array_map(get_class(...), $events));
     }
 
+    /**
+     * Provide cache operations that propagate coroutine cancellation.
+     */
     public static function repositoryCancellationOperations(): array
     {
         return [
@@ -380,143 +396,144 @@ class CacheEventsTest extends TestCase
         ];
     }
 
-    public function testPullTriggersEvents()
+    public function testPullTriggersEvents(): void
     {
         $dispatcher = $this->getDispatcher();
         $repository = $this->getRepository($dispatcher);
 
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(RetrievingKey::class, ['key' => 'baz']));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(CacheHit::class, ['key' => 'baz', 'value' => 'qux']));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(ForgettingKey::class, ['key' => 'baz']));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(KeyForgotten::class, ['key' => 'baz']));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(RetrievingKey::class, ['storeName' => 'array', 'key' => 'baz']));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(CacheHit::class, ['storeName' => 'array', 'key' => 'baz', 'value' => 'qux']));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(ForgettingKey::class, ['storeName' => 'array', 'key' => 'baz']));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(KeyForgotten::class, ['storeName' => 'array', 'key' => 'baz']));
         $this->assertSame('qux', $repository->pull('baz'));
     }
 
-    public function testPullTriggersEventsUsingTags()
+    public function testPullTriggersEventsUsingTags(): void
     {
         $dispatcher = $this->getDispatcher();
         $repository = $this->getRepository($dispatcher);
 
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(RetrievingKey::class, ['key' => 'baz', 'tags' => ['taylor']]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(CacheHit::class, ['key' => 'baz', 'value' => 'qux', 'tags' => ['taylor']]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(ForgettingKey::class, ['key' => 'baz', 'tags' => ['taylor']]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(KeyForgotten::class, ['key' => 'baz', 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(RetrievingKey::class, ['storeName' => 'array', 'key' => 'baz', 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(CacheHit::class, ['storeName' => 'array', 'key' => 'baz', 'value' => 'qux', 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(ForgettingKey::class, ['storeName' => 'array', 'key' => 'baz', 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(KeyForgotten::class, ['storeName' => 'array', 'key' => 'baz', 'tags' => ['taylor']]));
         $this->assertSame('qux', $repository->tags('taylor')->pull('baz'));
     }
 
-    public function testPutTriggersEvents()
+    public function testPutTriggersEvents(): void
     {
         $dispatcher = $this->getDispatcher();
         $repository = $this->getRepository($dispatcher);
 
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(WritingKey::class, ['key' => 'foo', 'value' => 'bar', 'seconds' => 99]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(KeyWritten::class, ['key' => 'foo', 'value' => 'bar', 'seconds' => 99]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(WritingKey::class, ['storeName' => 'array', 'key' => 'foo', 'value' => 'bar', 'seconds' => 99]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(KeyWritten::class, ['storeName' => 'array', 'key' => 'foo', 'value' => 'bar', 'seconds' => 99]));
         $repository->put('foo', 'bar', 99);
 
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(WritingKey::class, ['key' => 'foo', 'value' => 'bar', 'seconds' => 99, 'tags' => ['taylor']]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(KeyWritten::class, ['key' => 'foo', 'value' => 'bar', 'seconds' => 99, 'tags' => ['taylor']]));
-        $repository->tags('taylor')->put('foo', 'bar', 99);
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(WritingManyKeys::class, ['storeName' => 'array', 'keys' => ['foo', 'baz'], 'values' => ['bar', 'qux'], 'seconds' => 99]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(KeyWritten::class, ['storeName' => 'array', 'key' => 'foo', 'value' => 'bar', 'seconds' => 99]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(KeyWritten::class, ['storeName' => 'array', 'key' => 'baz', 'value' => 'qux', 'seconds' => 99]));
+        $repository->putMany(['foo' => 'bar', 'baz' => 'qux'], 99);
 
-        $this->assertTrue(true);
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(WritingKey::class, ['storeName' => 'array', 'key' => 'foo', 'value' => 'bar', 'seconds' => 99, 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(KeyWritten::class, ['storeName' => 'array', 'key' => 'foo', 'value' => 'bar', 'seconds' => 99, 'tags' => ['taylor']]));
+        $repository->tags('taylor')->put('foo', 'bar', 99);
     }
 
-    public function testAddTriggersEvents()
+    public function testAddTriggersEvents(): void
     {
         $dispatcher = $this->getDispatcher();
         $repository = $this->getRepository($dispatcher);
 
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(RetrievingKey::class, ['key' => 'foo']));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(CacheMissed::class, ['key' => 'foo']));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(WritingKey::class, ['key' => 'foo', 'value' => 'bar', 'seconds' => 99]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(KeyWritten::class, ['key' => 'foo', 'value' => 'bar', 'seconds' => 99]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(RetrievingKey::class, ['storeName' => 'array', 'key' => 'foo']));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(CacheMissed::class, ['storeName' => 'array', 'key' => 'foo']));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(WritingKey::class, ['storeName' => 'array', 'key' => 'foo', 'value' => 'bar', 'seconds' => 99]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(KeyWritten::class, ['storeName' => 'array', 'key' => 'foo', 'value' => 'bar', 'seconds' => 99]));
         $this->assertTrue($repository->add('foo', 'bar', 99));
 
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(RetrievingKey::class, ['key' => 'foo', 'tags' => ['taylor']]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(CacheMissed::class, ['key' => 'foo', 'tags' => ['taylor']]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(WritingKey::class, ['key' => 'foo', 'value' => 'bar', 'seconds' => 99, 'tags' => ['taylor']]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(KeyWritten::class, ['key' => 'foo', 'value' => 'bar', 'seconds' => 99, 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(RetrievingKey::class, ['storeName' => 'array', 'key' => 'foo', 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(CacheMissed::class, ['storeName' => 'array', 'key' => 'foo', 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(WritingKey::class, ['storeName' => 'array', 'key' => 'foo', 'value' => 'bar', 'seconds' => 99, 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(KeyWritten::class, ['storeName' => 'array', 'key' => 'foo', 'value' => 'bar', 'seconds' => 99, 'tags' => ['taylor']]));
         $this->assertTrue($repository->tags('taylor')->add('foo', 'bar', 99));
     }
 
-    public function testForeverTriggersEvents()
+    public function testForeverTriggersEvents(): void
     {
         $dispatcher = $this->getDispatcher();
         $repository = $this->getRepository($dispatcher);
 
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(WritingKey::class, ['key' => 'foo', 'value' => 'bar', 'seconds' => null]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(KeyWritten::class, ['key' => 'foo', 'value' => 'bar', 'seconds' => null]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(WritingKey::class, ['storeName' => 'array', 'key' => 'foo', 'value' => 'bar', 'seconds' => null]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(KeyWritten::class, ['storeName' => 'array', 'key' => 'foo', 'value' => 'bar', 'seconds' => null]));
         $repository->forever('foo', 'bar');
 
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(WritingKey::class, ['key' => 'foo', 'value' => 'bar', 'seconds' => null, 'tags' => ['taylor']]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(KeyWritten::class, ['key' => 'foo', 'value' => 'bar', 'seconds' => null, 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(WritingKey::class, ['storeName' => 'array', 'key' => 'foo', 'value' => 'bar', 'seconds' => null, 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(KeyWritten::class, ['storeName' => 'array', 'key' => 'foo', 'value' => 'bar', 'seconds' => null, 'tags' => ['taylor']]));
         $repository->tags('taylor')->forever('foo', 'bar');
-
-        $this->assertTrue(true);
     }
 
-    public function testRememberTriggersEvents()
+    public function testRememberTriggersEvents(): void
     {
         $dispatcher = $this->getDispatcher();
         $repository = $this->getRepository($dispatcher);
 
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(RetrievingKey::class, ['key' => 'foo']));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(CacheMissed::class, ['key' => 'foo']));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(WritingKey::class, ['key' => 'foo', 'value' => 'bar', 'seconds' => 99]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(KeyWritten::class, ['key' => 'foo', 'value' => 'bar', 'seconds' => 99]));
-        $this->assertSame('bar', $repository->remember('foo', 99, function () {
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(RetrievingKey::class, ['storeName' => 'array', 'key' => 'foo']));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(CacheMissed::class, ['storeName' => 'array', 'key' => 'foo']));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(WritingKey::class, ['storeName' => 'array', 'key' => 'foo', 'value' => 'bar', 'seconds' => 99]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(KeyWritten::class, ['storeName' => 'array', 'key' => 'foo', 'value' => 'bar', 'seconds' => 99]));
+        $this->assertSame('bar', $repository->remember('foo', 99, function (): string {
             return 'bar';
         }));
 
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(RetrievingKey::class, ['key' => 'foo', 'tags' => ['taylor']]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(CacheMissed::class, ['key' => 'foo', 'tags' => ['taylor']]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(WritingKey::class, ['key' => 'foo', 'value' => 'bar', 'seconds' => 99, 'tags' => ['taylor']]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(KeyWritten::class, ['key' => 'foo', 'value' => 'bar', 'seconds' => 99, 'tags' => ['taylor']]));
-        $this->assertSame('bar', $repository->tags('taylor')->remember('foo', 99, function () {
-            return 'bar';
-        }));
-    }
-
-    public function testRememberForeverTriggersEvents()
-    {
-        $dispatcher = $this->getDispatcher();
-        $repository = $this->getRepository($dispatcher);
-
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(RetrievingKey::class, ['key' => 'foo']));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(CacheMissed::class, ['key' => 'foo']));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(WritingKey::class, ['key' => 'foo', 'value' => 'bar', 'seconds' => null]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(KeyWritten::class, ['key' => 'foo', 'value' => 'bar', 'seconds' => null]));
-        $this->assertSame('bar', $repository->rememberForever('foo', function () {
-            return 'bar';
-        }));
-
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(RetrievingKey::class, ['key' => 'foo', 'tags' => ['taylor']]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(CacheMissed::class, ['key' => 'foo', 'tags' => ['taylor']]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(WritingKey::class, ['key' => 'foo', 'value' => 'bar', 'seconds' => null, 'tags' => ['taylor']]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(KeyWritten::class, ['key' => 'foo', 'value' => 'bar', 'seconds' => null, 'tags' => ['taylor']]));
-        $this->assertSame('bar', $repository->tags('taylor')->rememberForever('foo', function () {
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(RetrievingKey::class, ['storeName' => 'array', 'key' => 'foo', 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(CacheMissed::class, ['storeName' => 'array', 'key' => 'foo', 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(WritingKey::class, ['storeName' => 'array', 'key' => 'foo', 'value' => 'bar', 'seconds' => 99, 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(KeyWritten::class, ['storeName' => 'array', 'key' => 'foo', 'value' => 'bar', 'seconds' => 99, 'tags' => ['taylor']]));
+        $this->assertSame('bar', $repository->tags('taylor')->remember('foo', 99, function (): string {
             return 'bar';
         }));
     }
 
-    public function testForgetTriggersEvents()
+    public function testRememberForeverTriggersEvents(): void
     {
         $dispatcher = $this->getDispatcher();
         $repository = $this->getRepository($dispatcher);
 
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(ForgettingKey::class, ['key' => 'baz']));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(KeyForgotten::class, ['key' => 'baz']));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(RetrievingKey::class, ['storeName' => 'array', 'key' => 'foo']));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(CacheMissed::class, ['storeName' => 'array', 'key' => 'foo']));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(WritingKey::class, ['storeName' => 'array', 'key' => 'foo', 'value' => 'bar', 'seconds' => null]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(KeyWritten::class, ['storeName' => 'array', 'key' => 'foo', 'value' => 'bar', 'seconds' => null]));
+        $this->assertSame('bar', $repository->rememberForever('foo', function (): string {
+            return 'bar';
+        }));
+
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(RetrievingKey::class, ['storeName' => 'array', 'key' => 'foo', 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(CacheMissed::class, ['storeName' => 'array', 'key' => 'foo', 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(WritingKey::class, ['storeName' => 'array', 'key' => 'foo', 'value' => 'bar', 'seconds' => null, 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(KeyWritten::class, ['storeName' => 'array', 'key' => 'foo', 'value' => 'bar', 'seconds' => null, 'tags' => ['taylor']]));
+        $this->assertSame('bar', $repository->tags('taylor')->rememberForever('foo', function (): string {
+            return 'bar';
+        }));
+    }
+
+    public function testForgetTriggersEvents(): void
+    {
+        $dispatcher = $this->getDispatcher();
+        $repository = $this->getRepository($dispatcher);
+
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(ForgettingKey::class, ['storeName' => 'array', 'key' => 'baz']));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(KeyForgotten::class, ['storeName' => 'array', 'key' => 'baz']));
         $this->assertTrue($repository->forget('baz'));
 
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(ForgettingKey::class, ['key' => 'baz', 'tags' => ['taylor']]));
-        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(KeyForgotten::class, ['key' => 'baz', 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(ForgettingKey::class, ['storeName' => 'array', 'key' => 'baz', 'tags' => ['taylor']]));
+        $dispatcher->expects('dispatch')->with($this->assertEventMatches(KeyForgotten::class, ['storeName' => 'array', 'key' => 'baz', 'tags' => ['taylor']]));
         $this->assertTrue($repository->tags('taylor')->forget('baz'));
     }
 
-    public function testForgetDoesTriggerFailedEventOnFailure()
+    public function testForgetDoesTriggerFailedEventOnFailure(): void
     {
         $dispatcher = $this->getDispatcher();
         $store = m::mock(Store::class);
-        $store->shouldReceive('forget')->andReturn(false);
+        $store->expects('forget')->andReturn(false);
         $repository = new Repository($store);
         $repository->setEventDispatcher($dispatcher);
 
@@ -529,7 +546,7 @@ class CacheEventsTest extends TestCase
         $this->assertFalse($repository->forget('baz'));
     }
 
-    public function testFlushTriggersEvents()
+    public function testFlushTriggersEvents(): void
     {
         $dispatcher = $this->getDispatcher();
         $repository = $this->getRepository($dispatcher);
@@ -584,7 +601,7 @@ class CacheEventsTest extends TestCase
         $this->assertSame($exception, $events[1]->exception);
     }
 
-    public function testFlushLocksTriggersEvents()
+    public function testFlushLocksTriggersEvents(): void
     {
         $dispatcher = $this->getDispatcher();
         $repository = $this->getRepository($dispatcher);
@@ -627,13 +644,13 @@ class CacheEventsTest extends TestCase
         $this->assertSame($exception, $events[1]->exception);
     }
 
-    public function testFlushFailureDoesDispatchEvent()
+    public function testFlushFailureDoesDispatchEvent(): void
     {
         $dispatcher = $this->getDispatcher();
 
         // Create a store that fails to flush
         $failingStore = m::mock(Store::class);
-        $failingStore->shouldReceive('flush')->andReturn(false);
+        $failingStore->expects('flush')->andReturn(false);
 
         $repository = new Repository($failingStore, ['store' => 'array']);
         $repository->setEventDispatcher($dispatcher);
@@ -653,14 +670,14 @@ class CacheEventsTest extends TestCase
         $this->assertFalse($repository->clear());
     }
 
-    public function testFlushLocksFailureDoesDispatchEvent()
+    public function testFlushLocksFailureDoesDispatchEvent(): void
     {
         $dispatcher = $this->getDispatcher();
 
         // Create a store that fails to flush locks
         $failingStore = m::mock(ArrayStore::class);
         $failingStore->shouldReceive('supportsFlushingLocks')->andReturn(true);
-        $failingStore->shouldReceive('flushLocks')->andReturn(false);
+        $failingStore->expects('flushLocks')->andReturn(false);
 
         $repository = new Repository($failingStore, ['store' => 'array']);
         $repository->setEventDispatcher($dispatcher);
@@ -680,9 +697,12 @@ class CacheEventsTest extends TestCase
         $this->assertFalse($repository->flushLocks());
     }
 
-    protected function assertEventMatches($eventClass, $properties = [])
+    /**
+     * Match an event by its class and property values.
+     */
+    protected function assertEventMatches(string $eventClass, array $properties = []): ClosureMatcher
     {
-        return m::on(function ($event) use ($eventClass, $properties) {
+        return m::on(function (mixed $event) use ($eventClass, $properties): bool {
             if (! $event instanceof $eventClass) {
                 return false;
             }
@@ -697,7 +717,10 @@ class CacheEventsTest extends TestCase
         });
     }
 
-    protected function getDispatcher()
+    /**
+     * Create a dispatcher with event listeners enabled.
+     */
+    protected function getDispatcher(): Dispatcher&MockInterface
     {
         $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
@@ -705,6 +728,9 @@ class CacheEventsTest extends TestCase
         return $dispatcher;
     }
 
+    /**
+     * Create a dispatcher that records each emitted event.
+     */
     protected function getCapturingDispatcher(array &$events): Dispatcher
     {
         $dispatcher = $this->getDispatcher();
@@ -715,7 +741,10 @@ class CacheEventsTest extends TestCase
         return $dispatcher;
     }
 
-    protected function getRepository($dispatcher)
+    /**
+     * Create a repository with ordinary and tagged cache entries.
+     */
+    protected function getRepository(Dispatcher $dispatcher): Repository
     {
         $repository = new Repository(new ArrayStore, ['store' => 'array']);
         $repository->put('baz', 'qux', 99);

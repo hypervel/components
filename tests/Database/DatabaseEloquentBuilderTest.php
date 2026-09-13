@@ -3202,7 +3202,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(1, $result);
     }
 
-    public function testUpdateWithAliasWithQualifiedTimestampValue()
+    public function testUpdateWithAliasWithQualifiedTimestampValue(): void
     {
         CarbonImmutable::setTestNow($now = '2017-10-10 10:10:10');
 
@@ -3218,8 +3218,6 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         $result = $builder->from('table as alias')->update(['foo' => 'bar', 'alias.updated_at' => null]);
         $this->assertEquals(1, $result);
-
-        CarbonImmutable::setTestNow(null);
     }
 
     public function testUpsert()

@@ -127,7 +127,6 @@ class ScheduleWatcher extends Watcher
             'description' => $task->description,
             'expression' => $task->expression,
             'timezone' => $task->timezone,
-            'user' => $task->user,
             'output' => $task->getOutput($this->app),
         ], $outcome));
     }

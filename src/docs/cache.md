@@ -538,6 +538,8 @@ You may provide an integer number of seconds, a `DateInterval`, or a `DateTimeIn
 Cache::touch('key', now()->plus(hours: 2));
 ```
 
+Providing a zero or negative number of seconds, or an expiration time in the past, removes the item from the cache.
+
 <a name="storing-items-forever"></a>
 #### Storing Items Forever
 
@@ -726,7 +728,7 @@ Because tags are invalidation indexes in `any` mode, flushing any one tag remove
 Cache::tags(['user:42'])->flush();
 ```
 
-Tag membership is synchronized by tagged writes. Plain `Cache::forget($key)` removes any-mode tag membership for that key, and a finite `Cache::touch($key, $ttl)` keeps the key and tag metadata TTLs in sync. Plain `put`, plain `forever`, and `touch($key, null)` are plain rewrites; they do not add tags or refresh tag metadata for an already-tagged value. To change a tagged value's TTL or tags, write it again through `tags()`.
+Tag membership is synchronized by tagged writes. Plain `Cache::forget($key)` removes any-mode tag membership for that key, and `Cache::touch($key, $ttl)` keeps the key and tag metadata TTLs in sync. Plain `put` and `forever` are plain rewrites; they do not add tags or refresh tag metadata for an already-tagged value. To change a tagged value's TTL or tags, write it again through `tags()`.
 
 > [!WARNING]
 > In `any` mode, attempting to retrieve, check, pull, forget, touch, or retrieve many cache items through a tagged cache will throw a `BadMethodCallException`. Use the direct `Cache::get`, `Cache::has`, `Cache::pull`, `Cache::forget`, `Cache::touch`, and `Cache::many` methods with the full cache key instead.

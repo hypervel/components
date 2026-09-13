@@ -8,7 +8,7 @@ use Hypervel\Http\Request;
 use Hypervel\Routing\Events\RouteMatched;
 use Hypervel\Routing\Route;
 use Hypervel\Sentry\Integration;
-use Mockery;
+use Mockery as m;
 use RuntimeException;
 use Sentry\Event;
 use Sentry\State\Scope;
@@ -31,7 +31,7 @@ class IntegrationTest extends SentryTestCase
 
         $event = new RouteMatched(
             new Route('GET', $routeUrl = '/sentry-route-matched-event', []),
-            Mockery::mock(Request::class)->makePartial()
+            m::mock(Request::class)->makePartial()
         );
 
         $this->dispatchHypervelEvent($event);

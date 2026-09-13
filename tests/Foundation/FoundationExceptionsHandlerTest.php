@@ -1286,7 +1286,7 @@ class FoundationExceptionsHandlerTest extends TestCase
                 return $this->store()->attempt($policy, $callback, $limiterName);
             }
         });
-        CarbonImmutable::setTestNow(CarbonImmutable::now()->startOfDay());
+        CarbonImmutable::setTestNow(CarbonImmutable::today());
 
         for ($i = 0; $i < 100; ++$i) {
             $handler->report(new Exception('Something in the app went wrong.'));

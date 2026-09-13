@@ -1172,7 +1172,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame([1, 'bar'], $builder->getBindings());
     }
 
-    public function testWhereBetweens()
+    public function testWhereBetweens(): void
     {
         $builder = $this->getBuilder();
         $builder->select('*')->from('users')->whereBetween('id', [1, 2]);
@@ -1200,19 +1200,19 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals([], $builder->getBindings());
 
         $builder = $this->getBuilder();
-        $period = now()->startOfDay()->toPeriod(now()->addDay()->startOfDay());
+        $period = today()->toPeriod(now()->addDay()->startOfDay());
         $builder->select('*')->from('users')->whereBetween('created_at', $period);
         $this->assertSame('select * from "users" where "created_at" between ? and ?', $builder->toSql());
-        $this->assertEquals([now()->startOfDay(), now()->addDay()->startOfDay()], $builder->getBindings());
+        $this->assertEquals([today(), now()->addDay()->startOfDay()], $builder->getBindings());
 
         // custom long carbon period date
         $builder = $this->getBuilder();
-        $period = now()->startOfDay()->toPeriod(now()->addMonth()->startOfDay());
+        $period = today()->toPeriod(now()->addMonth()->startOfDay());
         $builder->select('*')->from('users')->whereBetween('created_at', $period);
         $this->assertSame('select * from "users" where "created_at" between ? and ?', $builder->toSql());
-        $this->assertEquals([now()->startOfDay(), now()->addMonth()->startOfDay()], $builder->getBindings());
+        $this->assertEquals([today(), now()->addMonth()->startOfDay()], $builder->getBindings());
 
-        $start = now()->startOfDay();
+        $start = today();
 
         $builder = $this->getBuilder();
         $period = new DatePeriod($start, new DateInterval('P1D'), $start->addDays(5));

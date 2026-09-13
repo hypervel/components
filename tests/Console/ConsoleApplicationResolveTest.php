@@ -12,11 +12,13 @@ use Hypervel\Console\ContainerCommandLoader;
 use Hypervel\Console\Events\ArtisanStarting;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Events\Dispatcher as EventsDispatcher;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Console\Fixtures\FakeCommandWithArrayInputPrompting;
 use Hypervel\Tests\Console\Fixtures\FakeCommandWithInputPrompting;
 use Mockery as m;
 use ReflectionProperty;
+use Symfony\Component\Console\Application as SymfonyApplication;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
@@ -27,10 +29,13 @@ use function Hypervel\Coroutine\parallel;
 
 class ConsoleApplicationResolveTest extends TestCase
 {
+    /**
+     * Create a console application for command resolution.
+     */
     private function createApp(?Application $container = null): ConsoleApplication
     {
         $container ??= $this->createStub(Application::class);
-        $dispatcher = $this->createStub(Dispatcher::class);
+        $dispatcher = new EventsDispatcher($container);
 
         return new ConsoleApplication($container, $dispatcher, '1.0');
     }
@@ -47,7 +52,7 @@ class ConsoleApplicationResolveTest extends TestCase
     // extractCommandName (tested indirectly through resolve)
     // ---------------------------------------------------------------
 
-    public function testResolveLazilyRegistersCommandWithAsCommandAttribute()
+    public function testResolveLazilyRegistersCommandWithAsCommandAttribute(): void
     {
         $app = $this->createApp();
 
@@ -57,7 +62,7 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertArrayHasKey('test:attributed', $this->getCommandMap($app));
     }
 
-    public function testResolveLazilyRegistersCommandWithSignatureProperty()
+    public function testResolveLazilyRegistersCommandWithSignatureProperty(): void
     {
         $app = $this->createApp();
 
@@ -67,7 +72,7 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertArrayHasKey('test:signed', $this->getCommandMap($app));
     }
 
-    public function testResolveLazilyRegistersCommandWithSignatureAttribute()
+    public function testResolveLazilyRegistersCommandWithSignatureAttribute(): void
     {
         $app = $this->createApp();
 
@@ -77,7 +82,7 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertArrayHasKey('test:signed-attribute', $this->getCommandMap($app));
     }
 
-    public function testResolveLazilyRegistersCommandWithNameProperty()
+    public function testResolveLazilyRegistersCommandWithNameProperty(): void
     {
         $app = $this->createApp();
 
@@ -87,7 +92,7 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertArrayHasKey('test:named', $this->getCommandMap($app));
     }
 
-    public function testResolveRegistersAllPipeAliases()
+    public function testResolveRegistersAllPipeAliases(): void
     {
         $app = $this->createApp();
 
@@ -111,10 +116,11 @@ class ConsoleApplicationResolveTest extends TestCase
         $result = $artisan->resolve(StubDynamicCommand::class);
 
         $this->assertSame($command, $result);
+        $this->assertSame($command, $artisan->get('test:dynamic'));
         $this->assertArrayNotHasKey('test:dynamic', $this->getCommandMap($artisan));
     }
 
-    public function testAsCommandAttributeTakesPriorityOverSignature()
+    public function testAsCommandAttributeTakesPriorityOverSignature(): void
     {
         $app = $this->createApp();
 
@@ -125,7 +131,7 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertArrayNotHasKey('test:from-signature', $map);
     }
 
-    public function testResolveEagerlyAddsCommandInstance()
+    public function testResolveEagerlyAddsCommandInstance(): void
     {
         $app = $this->createApp($this->app);
 
@@ -185,7 +191,7 @@ class ConsoleApplicationResolveTest extends TestCase
     // Loader refresh
     // ---------------------------------------------------------------
 
-    public function testResolveRefreshesLoaderWhenAlreadySet()
+    public function testResolveRefreshesLoaderWhenAlreadySet(): void
     {
         $app = $this->createApp();
         $app->setContainerCommandLoader();
@@ -203,7 +209,7 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertNotSame($loaderBefore, $loaderAfter);
     }
 
-    public function testResolveDoesNotRefreshLoaderWhenNotYetSet()
+    public function testResolveDoesNotRefreshLoaderWhenNotYetSet(): void
     {
         $app = $this->createApp();
 
@@ -219,7 +225,7 @@ class ConsoleApplicationResolveTest extends TestCase
     // add (container propagation)
     // ---------------------------------------------------------------
 
-    public function testAddCommandSetsHypervelOnHypervelCommands()
+    public function testAddCommandSetsHypervelOnHypervelCommands(): void
     {
         $artisan = $this->getMockConsole(['addToParent']);
 
@@ -232,7 +238,7 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertSame($command, $result);
     }
 
-    public function testAddCommandDoesNotSetHypervelOnSymfonyCommands()
+    public function testAddCommandDoesNotSetHypervelOnSymfonyCommands(): void
     {
         $artisan = $this->getMockConsole(['addToParent']);
 
@@ -249,7 +255,7 @@ class ConsoleApplicationResolveTest extends TestCase
     // Alias resolution via AsCommand attribute and $aliases property
     // ---------------------------------------------------------------
 
-    public function testResolvingCommandsWithAliasViaAttribute()
+    public function testResolvingCommandsWithAliasViaAttribute(): void
     {
         $app = $this->createApp($this->app);
         $app->resolve(StubCommandWithAttributeAlias::class);
@@ -261,7 +267,7 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertArrayHasKey('alias-test:attr-alias', $app->all());
     }
 
-    public function testResolvingCommandsWithAliasViaProperty()
+    public function testResolvingCommandsWithAliasViaProperty(): void
     {
         $app = $this->createApp($this->app);
         $app->resolve(StubCommandWithPropertyAlias::class);
@@ -273,7 +279,7 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertArrayHasKey('alias-test:prop-alias', $app->all());
     }
 
-    public function testResolveRegistersPropertyAliasesInCommandMap()
+    public function testResolveRegistersPropertyAliasesInCommandMap(): void
     {
         $app = $this->createApp();
 
@@ -284,7 +290,7 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertArrayHasKey('alias-test:prop-alias', $map);
     }
 
-    public function testPropertyAliasResolvesDirectlyWithoutPrimaryName()
+    public function testPropertyAliasResolvesDirectlyWithoutPrimaryName(): void
     {
         $app = $this->createApp($this->app);
         $app->resolve(StubCommandWithPropertyAlias::class);
@@ -294,7 +300,7 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertInstanceOf(StubCommandWithPropertyAlias::class, $app->get('alias-test:prop-alias'));
     }
 
-    public function testSignatureCommandWithAliasesResolvesDirectlyByAlias()
+    public function testSignatureCommandWithAliasesResolvesDirectlyByAlias(): void
     {
         $app = $this->createApp($this->app);
         $app->resolve(StubSignatureWithAliasCommand::class);
@@ -304,7 +310,7 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertInstanceOf(StubSignatureWithAliasCommand::class, $app->get('test:signed-alias'));
     }
 
-    public function testSignatureAttributeCommandWithAliasesResolvesDirectlyByAlias()
+    public function testSignatureAttributeCommandWithAliasesResolvesDirectlyByAlias(): void
     {
         $app = $this->createApp($this->app);
         $app->resolve(StubSignatureAttributeCommand::class);
@@ -496,7 +502,7 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertNotSame($recorder->commands[0], $recorder->commands[1]);
     }
 
-    public function testConcurrentCallsUseIsolatedCommandInstances()
+    public function testConcurrentCallsUseIsolatedCommandInstances(): void
     {
         $artisan = $this->createApp($this->app);
         $artisan->resolve(StubStatefulCommand::class);
@@ -506,11 +512,11 @@ class ConsoleApplicationResolveTest extends TestCase
         $outputB = new BufferedOutput;
 
         [$exitCodeA, $exitCodeB] = parallel([
-            fn () => $artisan->call('test:stateful', [
+            fn (): int => $artisan->call('test:stateful', [
                 'value' => 'alpha',
                 '--sleep' => 5000,
             ], $outputA),
-            function () use ($artisan, $outputB) {
+            function () use ($artisan, $outputB): int {
                 usleep(2500);
 
                 return $artisan->call('test:stateful', [
@@ -526,7 +532,7 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertSame("bravo\n", $outputB->fetch());
     }
 
-    public function testConcurrentNestedCallsUseIsolatedCommandInstances()
+    public function testConcurrentNestedCallsUseIsolatedCommandInstances(): void
     {
         $artisan = $this->createApp($this->app);
         $artisan->resolve(StubNestedCallerCommand::class);
@@ -537,11 +543,11 @@ class ConsoleApplicationResolveTest extends TestCase
         $outputB = new BufferedOutput;
 
         [$exitCodeA, $exitCodeB] = parallel([
-            fn () => $artisan->call('test:nested-caller', [
+            fn (): int => $artisan->call('test:nested-caller', [
                 'value' => 'alpha',
                 '--sleep' => 5000,
             ], $outputA),
-            function () use ($artisan, $outputB) {
+            function () use ($artisan, $outputB): int {
                 usleep(2500);
 
                 return $artisan->call('test:nested-caller', [
@@ -567,9 +573,9 @@ class ConsoleApplicationResolveTest extends TestCase
     private function getCommandLoader(ConsoleApplication $app): ?ContainerCommandLoader
     {
         // Access the commandLoader via Symfony's private property.
-        $ref = new ReflectionProperty(\Symfony\Component\Console\Application::class, 'commandLoader');
+        $reflection = new ReflectionProperty(SymfonyApplication::class, 'commandLoader');
 
-        return $ref->getValue($app);
+        return $reflection->getValue($app);
     }
 
     /**
@@ -594,6 +600,9 @@ class ConsoleApplicationResolveTest extends TestCase
 #[AsCommand(name: 'test:attributed')]
 class StubAttributedCommand extends Command
 {
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -603,6 +612,9 @@ class StubSignatureCommand extends Command
 {
     protected ?string $signature = 'test:signed {--option}';
 
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -611,6 +623,9 @@ class StubSignatureCommand extends Command
 #[Signature('test:signed-attribute {--option}', aliases: ['test:signed-attribute-alias'])]
 class StubSignatureAttributeCommand extends Command
 {
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -620,6 +635,9 @@ class StubSignatureAttributeCommand extends Command
 #[Aliases(['test:aliases-attribute-alias'])]
 class StubAliasesAttributeCommand extends Command
 {
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -629,6 +647,9 @@ class StubAliasesAttributeCommand extends Command
 #[Aliases(['test:aliases-attribute-override'])]
 class StubAliasesAttributeOverridesSignatureCommand extends Command
 {
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -638,6 +659,9 @@ class StubNamedCommand extends Command
 {
     protected ?string $name = 'test:named';
 
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -647,6 +671,9 @@ class StubAliasedCommand extends Command
 {
     protected ?string $name = 'test:primary|test:alias';
 
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -657,6 +684,9 @@ class StubAliasedCommand extends Command
  */
 class StubDynamicCommand extends SymfonyCommand
 {
+    /**
+     * Create a command with a dynamically assigned name.
+     */
     public function __construct()
     {
         parent::__construct('test:dynamic');
@@ -668,6 +698,9 @@ class StubAttributeOverridesSignatureCommand extends Command
 {
     protected ?string $signature = 'test:from-signature {--option}';
 
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -676,6 +709,9 @@ class StubAttributeOverridesSignatureCommand extends Command
 #[AsCommand(name: 'test:late')]
 class StubLateCommand extends Command
 {
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -684,6 +720,9 @@ class StubLateCommand extends Command
 #[AsCommand(name: 'alias-test:attr', aliases: ['alias-test:attr-alias'])]
 class StubCommandWithAttributeAlias extends Command
 {
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -695,6 +734,9 @@ class StubCommandWithPropertyAlias extends Command
 
     protected array $aliases = ['alias-test:prop-alias'];
 
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -704,6 +746,9 @@ class StubCommandWithoutPropertyAlias extends Command
 {
     protected ?string $name = 'alias-test:no-alias';
 
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -715,6 +760,9 @@ class StubSignatureWithAliasCommand extends Command
 
     protected array $aliases = ['test:signed-alias'];
 
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -724,6 +772,9 @@ class StubStatefulCommand extends Command
 {
     protected ?string $signature = 'test:stateful {value} {--sleep=0}';
 
+    /**
+     * Execute the console command.
+     */
     public function handle(): int
     {
         usleep((int) $this->option('sleep'));
@@ -737,11 +788,17 @@ class StubStatefulCommand extends Command
 #[AsCommand(name: 'test:execution-identity')]
 class StubExecutionIdentityCommand extends Command
 {
+    /**
+     * Create a command that records each execution instance.
+     */
     public function __construct(private readonly StubCommandExecutionRecorder $recorder)
     {
         parent::__construct();
     }
 
+    /**
+     * Execute the console command.
+     */
     public function handle(): int
     {
         $this->recorder->commands[] = $this;
@@ -762,6 +819,9 @@ class StubNestedCallerCommand extends Command
 {
     protected ?string $signature = 'test:nested-caller {value} {--sleep=0}';
 
+    /**
+     * Execute the console command.
+     */
     public function handle(): int
     {
         return $this->call('test:stateful', [

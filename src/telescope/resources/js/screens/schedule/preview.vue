@@ -34,13 +34,6 @@ export default {
             </tr>
 
             <tr>
-                <td class="table-fit text-muted">User</td>
-                <td>
-                    {{ slotProps.entry.content.user || '-' }}
-                </td>
-            </tr>
-
-            <tr>
                 <td class="table-fit text-muted">Timezone</td>
                 <td>
                     {{ slotProps.entry.content.timezone || '-' }}

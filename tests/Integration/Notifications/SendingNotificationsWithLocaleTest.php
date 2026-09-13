@@ -25,6 +25,9 @@ use Hypervel\Testing\Assert;
 #[WithConfig('database.default', 'testing')]
 class SendingNotificationsWithLocaleTest extends TestCase
 {
+    /**
+     * Define the test environment.
+     */
     protected function defineEnvironment(ApplicationContract $app): void
     {
         $config = $app->make('config');
@@ -46,11 +49,14 @@ class SendingNotificationsWithLocaleTest extends TestCase
         ]);
     }
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
 
-        Schema::create('users', function (Blueprint $table) {
+        Schema::create('users', function (Blueprint $table): void {
             $table->increments('id');
             $table->string('email');
             $table->string('name')->nullable();
@@ -60,7 +66,7 @@ class SendingNotificationsWithLocaleTest extends TestCase
     public function testMailIsSentWithDefaultLocale(): void
     {
         $user = NotifiableLocalizedUser::forceCreate([
-            'email' => 'taylor@laravel.com',
+            'email' => 'taylor@hypervel.com',
             'name' => 'Taylor Otwell',
         ]);
 
@@ -75,7 +81,7 @@ class SendingNotificationsWithLocaleTest extends TestCase
     public function testMailIsSentWithFacadeSelectedLocale(): void
     {
         $user = NotifiableLocalizedUser::forceCreate([
-            'email' => 'taylor@laravel.com',
+            'email' => 'taylor@hypervel.com',
             'name' => 'Taylor Otwell',
         ]);
 
@@ -91,11 +97,11 @@ class SendingNotificationsWithLocaleTest extends TestCase
     {
         $users = [
             NotifiableLocalizedUser::forceCreate([
-                'email' => 'taylor@laravel.com',
+                'email' => 'taylor@hypervel.com',
                 'name' => 'Taylor Otwell',
             ]),
             NotifiableLocalizedUser::forceCreate([
-                'email' => 'mohamed@laravel.com',
+                'email' => 'mohamed@hypervel.com',
                 'name' => 'Mohamed Said',
             ]),
         ];
@@ -116,7 +122,7 @@ class SendingNotificationsWithLocaleTest extends TestCase
     public function testMailableIsSentWithSelectedLocale(): void
     {
         $user = NotifiableLocalizedUser::forceCreate([
-            'email' => 'taylor@laravel.com',
+            'email' => 'taylor@hypervel.com',
             'name' => 'Taylor Otwell',
         ]);
 
@@ -132,12 +138,12 @@ class SendingNotificationsWithLocaleTest extends TestCase
     {
         CarbonImmutable::setTestNow('2018-07-25');
 
-        Event::listen(LocaleUpdated::class, function ($event) {
+        Event::listen(LocaleUpdated::class, function (LocaleUpdated $event): void {
             CarbonImmutable::setLocale($event->locale);
         });
 
         $user = NotifiableLocalizedUser::forceCreate([
-            'email' => 'taylor@laravel.com',
+            'email' => 'taylor@hypervel.com',
             'name' => 'Taylor Otwell',
         ]);
 
@@ -156,8 +162,6 @@ class SendingNotificationsWithLocaleTest extends TestCase
         $this->assertTrue($this->app->isLocale('en'));
 
         $this->assertSame('en', CarbonImmutable::getLocale());
-
-        CarbonImmutable::setTestNow(null);
     }
 
     public function testLocaleIsSentWithNotifiablePreferredLocale(): void
@@ -264,6 +268,9 @@ class NotifiableEmailLocalePreferredUser extends Model implements HasLocalePrefe
         'email_locale',
     ];
 
+    /**
+     * Get the preferred locale.
+     */
     public function preferredLocale(): ?string
     {
         return $this->email_locale;
@@ -272,11 +279,17 @@ class NotifiableEmailLocalePreferredUser extends Model implements HasLocalePrefe
 
 class GreetingMailNotification extends Notification
 {
+    /**
+     * Get the notification channels.
+     */
     public function via(mixed $notifiable): array
     {
         return [MailChannel::class];
     }
 
+    /**
+     * Get the mail representation of the notification.
+     */
     public function toMail(mixed $notifiable): MailMessage
     {
         return (new MailMessage)
@@ -287,12 +300,18 @@ class GreetingMailNotification extends Notification
 
 class GreetingMailNotificationWithMailable extends Notification
 {
-    public function via($notifiable)
+    /**
+     * Get the notification channels.
+     */
+    public function via(mixed $notifiable): array
     {
         return [MailChannel::class];
     }
 
-    public function toMail($notifiable)
+    /**
+     * Get the mail representation of the notification.
+     */
+    public function toMail(mixed $notifiable): GreetingMailable
     {
         return (new GreetingMailable)
             ->to($notifiable->email);
@@ -301,7 +320,10 @@ class GreetingMailNotificationWithMailable extends Notification
 
 class GreetingMailable extends Mailable
 {
-    public function build()
+    /**
+     * Build the message.
+     */
+    public function build(): static
     {
         return $this->view('greeting');
     }

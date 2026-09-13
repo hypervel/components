@@ -549,12 +549,11 @@ class CacheFileStoreTest extends TestCase
 
     public function testIncrementExpiredKeys(): void
     {
-        CarbonImmutable::setTestNow(CarbonImmutable::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         $filePath = $this->getCachePath('foo');
         $files = $this->mockFilesystem();
-        $now = CarbonImmutable::now()->getTimestamp();
-        $initialValue = ($now - 10) . serialize(77);
+        $initialValue = $now->subSeconds(10)->getTimestamp() . serialize(77);
         $valueAfterIncrement = '9999999999' . serialize(3);
         $store = new FileStore($files, __DIR__);
 
@@ -628,10 +627,10 @@ class CacheFileStoreTest extends TestCase
 
     public function testIncrementDoesNotExtendCacheLife(): void
     {
-        CarbonImmutable::setTestNow(CarbonImmutable::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         $files = $this->mockFilesystem();
-        $expiration = CarbonImmutable::now()->addSeconds(50)->getTimestamp();
+        $expiration = $now->addSeconds(50)->getTimestamp();
         $initialValue = $expiration . serialize(1);
         $valueAfterIncrement = $expiration . serialize(2);
         $store = new FileStore($files, __DIR__);

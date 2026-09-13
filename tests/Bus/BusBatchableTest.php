@@ -15,7 +15,7 @@ use Mockery as m;
 
 class BusBatchableTest extends TestCase
 {
-    public function testBatchMayBeRetrieved()
+    public function testBatchMayBeRetrieved(): void
     {
         $class = new class {
             use Batchable;
@@ -28,12 +28,10 @@ class BusBatchableTest extends TestCase
 
         $repository = m::mock(BatchRepository::class);
         $batch = m::mock(Batch::class);
-        $repository->shouldReceive('find')->once()->with('test-batch-id')->andReturn($batch);
+        $repository->expects('find')->with('test-batch-id')->andReturn($batch);
         $container->instance(BatchRepository::class, $repository);
 
         $this->assertSame($batch, $class->batch());
-
-        Container::setInstance(null);
     }
 
     public function testWithFakeBatchSetsAndReturnsFake(): void
@@ -63,7 +61,7 @@ class BusBatchableTest extends TestCase
 
         $repository = m::mock(BatchRepository::class);
         $batch = m::mock(Batch::class);
-        $repository->shouldReceive('find')->once()->with('0')->andReturn($batch);
+        $repository->expects('find')->with('0')->andReturn($batch);
         $container->instance(BatchRepository::class, $repository);
 
         $job->withBatchId('0');
@@ -79,7 +77,7 @@ class BusBatchableTest extends TestCase
         $this->assertSame('0', $fakeBatch->id);
     }
 
-    public function testBatchingReflectsCancelledState()
+    public function testBatchingReflectsCancelledState(): void
     {
         $job = new class {
             use Batchable;

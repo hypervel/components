@@ -25,11 +25,6 @@ trait ManagesAttributes
     public DateTimeZone|string|null $timezone = null;
 
     /**
-     * The user the command should run as.
-     */
-    public ?string $user = null;
-
-    /**
      * The list of environments the command should run under.
      */
     public array $environments = [];
@@ -89,15 +84,7 @@ trait ManagesAttributes
      */
     public array $attributes = [];
 
-    /**
-     * Set which user the command should run as.
-     */
-    public function user(string $user): static
-    {
-        $this->user = $user;
-
-        return $this;
-    }
+    // REMOVED: Laravel's user() / $user; coroutine tasks share the scheduler's OS user.
 
     /**
      * Limit the environments the command should run in.

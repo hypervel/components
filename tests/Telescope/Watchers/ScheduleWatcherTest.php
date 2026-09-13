@@ -43,7 +43,6 @@ class ScheduleWatcherTest extends FeatureTestCase
         $this->assertSame('command description', $entry->content['description']);
         $this->assertSame('* * * * *', $entry->content['expression']);
         $this->assertSame('UTC', $entry->content['timezone']);
-        $this->assertSame('user', $entry->content['user']);
         $this->assertSame('command output', $entry->content['output']);
         $this->assertSame('finished', $entry->content['status']);
         $this->assertSame(0, $entry->content['exit_code']);
@@ -192,7 +191,7 @@ class ScheduleWatcherTest extends FeatureTestCase
 
     public function testIgnoredSchedulerDoesNotRegisterAnEntry(): void
     {
-        config()->set('telescope.ignore_commands', ['schedule:run']);
+        config(['telescope.ignore_commands' => ['schedule:run']]);
         Telescope::stopRecording();
 
         $task = m::mock(Event::class);
@@ -273,7 +272,6 @@ class ScheduleWatcherTest extends FeatureTestCase
         $task->description = $command . ' description';
         $task->expression = '* * * * *';
         $task->timezone = 'UTC';
-        $task->user = 'user';
         $task->shouldReceive('exitCode')->andReturn($exitCode);
         $task->shouldReceive('wasSkippedDueToOverlapping')->andReturn($skippedBecauseOverlapping);
         $task->shouldReceive('getOutput')

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth;
 
+use BackedEnum;
 use Hypervel\Auth\Passwords\DatabaseTokenRepository;
 use Hypervel\Auth\Passwords\PasswordBroker as PasswordBrokerImplementation;
 use Hypervel\Auth\Passwords\PasswordBrokerManager;
@@ -215,13 +216,14 @@ class AuthPasswordBrokerManagerTest extends TestCase
         $this->assertSame('other', $manager->getDefaultDriver());
     }
 
-    public function testSetDefaultDriverAcceptsAnIntBackedZeroEnum(): void
+    #[DataProvider('backedBrokerNames')]
+    public function testSetDefaultDriverAcceptsBackedEnum(BackedEnum $name, string $expected): void
     {
         $manager = new PasswordBrokerManager(new Container);
 
-        $manager->setDefaultDriver(AuthPasswordBrokerIntEnum::Zero);
+        $manager->setDefaultDriver($name);
 
-        $this->assertSame('0', $manager->getDefaultDriver());
+        $this->assertSame($expected, $manager->getDefaultDriver());
     }
 
     public function testSetDefaultDriverIsCoroutineIsolated(): void
@@ -475,15 +477,27 @@ class AuthPasswordBrokerManagerTest extends TestCase
         (new PasswordBrokerManager($container))->broker('users');
     }
 
-    public function testBrokerNormalizesEnumsBeforeCaching(): void
+    #[DataProvider('backedBrokerNames')]
+    public function testBrokerNormalizesEnumsBeforeCaching(BackedEnum $name, string $expected): void
     {
         $broker = m::mock(PasswordBrokerContract::class);
         $manager = new AuthPasswordBrokerManagerStub(new Container);
         $manager->resolvedBroker = $broker;
 
-        $this->assertSame($broker, $manager->broker(AuthPasswordBrokerIntEnum::Zero));
-        $this->assertSame($broker, $manager->broker('0'));
-        $this->assertSame(['0'], $manager->resolvedNames);
+        $this->assertSame($broker, $manager->broker($name));
+        $this->assertSame($broker, $manager->broker($expected));
+        $this->assertSame([$expected], $manager->resolvedNames);
+    }
+
+    /**
+     * Provide backed enum broker names.
+     */
+    public static function backedBrokerNames(): array
+    {
+        return [
+            'string backed' => [AuthPasswordBrokerStringEnum::Users, 'users'],
+            'integer backed zero' => [AuthPasswordBrokerIntEnum::Zero, '0'],
+        ];
     }
 
     public function testRefreshingDispatcherUpdatesOnlyConcreteResolvedBrokers(): void
@@ -576,6 +590,7 @@ class AuthPasswordBrokerManagerStub extends PasswordBrokerManager
 
 enum AuthPasswordBrokerStringEnum: string
 {
+    case Users = 'users';
     case Staff = 'staff';
 }
 

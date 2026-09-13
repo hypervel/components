@@ -10,6 +10,7 @@ use Hypervel\Foundation\Exceptions\Renderer\Listener;
 use Hypervel\Foundation\Exceptions\Renderer\Renderer;
 use Hypervel\Foundation\Providers\FoundationServiceProvider;
 use Hypervel\Routing\Router;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -18,10 +19,13 @@ use Throwable;
 
 class RendererTest extends TestCase
 {
+    /**
+     * Define the test routes.
+     */
     protected function defineRoutes(Router $router): void
     {
-        $router->get('failed', fn () => throw new RuntimeException('Bad route!'));
-        $router->get('failed-with-previous', function () {
+        $router->get('failed', fn (): never => throw new RuntimeException('Bad route!'));
+        $router->get('failed-with-previous', function (): never {
             throw new RuntimeException(
                 'First exception',
                 previous: new RuntimeException(
@@ -35,7 +39,7 @@ class RendererTest extends TestCase
     }
 
     #[WithConfig('app.debug', true)]
-    public function testItCanRenderExceptionPage()
+    public function testItCanRenderExceptionPage(): void
     {
         $this->assertTrue($this->app->bound(Renderer::class));
 
@@ -46,7 +50,7 @@ class RendererTest extends TestCase
     }
 
     #[WithConfig('app.debug', false)]
-    public function testItCanRenderExceptionPageUsingSymfonyIfRendererIsNotDefined()
+    public function testItCanRenderExceptionPageUsingSymfonyIfRendererIsNotDefined(): void
     {
         config(['app.debug' => true]);
 
@@ -59,10 +63,13 @@ class RendererTest extends TestCase
     }
 
     #[WithConfig('app.debug', true)]
-    public function testItCanRenderExceptionPageWithRendererWhenDebugEnabled()
+    public function testItCanRenderExceptionPageWithRendererWhenDebugEnabled(): void
     {
-        $this->app->singleton(ExceptionRenderer::class, function () {
+        $this->app->singleton(ExceptionRenderer::class, function (): ExceptionRenderer {
             return new class implements ExceptionRenderer {
+                /**
+                 * Render the exception as HTML.
+                 */
                 public function render(Throwable $throwable): string
                 {
                     return 'Custom Exception Renderer: ' . $throwable->getMessage();
@@ -78,10 +85,13 @@ class RendererTest extends TestCase
     }
 
     #[WithConfig('app.debug', false)]
-    public function testItDoesNotRenderExceptionPageWithRendererWhenDebugDisabled()
+    public function testItDoesNotRenderExceptionPageWithRendererWhenDebugDisabled(): void
     {
-        $this->app->singleton(ExceptionRenderer::class, function () {
+        $this->app->singleton(ExceptionRenderer::class, function (): ExceptionRenderer {
             return new class implements ExceptionRenderer {
+                /**
+                 * Render the exception as HTML.
+                 */
                 public function render(Throwable $throwable): string
                 {
                     return 'Custom Exception Renderer: ' . $throwable->getMessage();
@@ -97,7 +107,7 @@ class RendererTest extends TestCase
     }
 
     #[WithConfig('app.debug', false)]
-    public function testItDoesNotRegisterListenersWhenDebugDisabled()
+    public function testItDoesNotRegisterListenersWhenDebugDisabled(): void
     {
         $this->app->forgetInstance(ExceptionRenderer::class);
         $this->assertFalse($this->app->bound(ExceptionRenderer::class));
@@ -106,17 +116,20 @@ class RendererTest extends TestCase
         $listener->shouldReceive('registerListeners')->never();
 
         $this->app->instance(Listener::class, $listener);
-        $this->app->instance(Dispatcher::class, m::mock(Dispatcher::class));
+        Event::swap(m::mock(Dispatcher::class, ['listen' => null]));
 
         $provider = $this->app->getProvider(FoundationServiceProvider::class);
         $provider->boot();
     }
 
     #[WithConfig('app.debug', true)]
-    public function testItDoesNotRegisterListenersWhenRendererBound()
+    public function testItDoesNotRegisterListenersWhenRendererBound(): void
     {
-        $this->app->singleton(ExceptionRenderer::class, function () {
+        $this->app->singleton(ExceptionRenderer::class, function (): ExceptionRenderer {
             return new class implements ExceptionRenderer {
+                /**
+                 * Render the exception as HTML.
+                 */
                 public function render(Throwable $throwable): string
                 {
                     return 'Custom Exception Renderer: ' . $throwable->getMessage();
@@ -130,14 +143,14 @@ class RendererTest extends TestCase
         $listener->shouldReceive('registerListeners')->never();
 
         $this->app->instance(Listener::class, $listener);
-        $this->app->instance(Dispatcher::class, m::mock(Dispatcher::class));
+        Event::swap(m::mock(Dispatcher::class, ['listen' => null]));
 
         $provider = $this->app->getProvider(FoundationServiceProvider::class);
         $provider->boot();
     }
 
     #[WithConfig('app.debug', true)]
-    public function testItRegistersListenersWhenRendererNotBound()
+    public function testItRegistersListenersWhenRendererNotBound(): void
     {
         $this->app->forgetInstance(ExceptionRenderer::class);
         $this->assertFalse($this->app->bound(ExceptionRenderer::class));
@@ -146,14 +159,14 @@ class RendererTest extends TestCase
         $listener->shouldReceive('registerListeners')->once();
 
         $this->app->instance(Listener::class, $listener);
-        $this->app->instance(Dispatcher::class, m::mock(Dispatcher::class));
+        Event::swap(m::mock(Dispatcher::class, ['listen' => null]));
 
         $provider = $this->app->getProvider(FoundationServiceProvider::class);
         $provider->boot();
     }
 
     #[WithConfig('app.debug', true)]
-    public function testItRendersPreviousExceptions()
+    public function testItRendersPreviousExceptions(): void
     {
         $this->assertTrue($this->app->bound(Renderer::class));
 
@@ -171,11 +184,14 @@ class RendererTest extends TestCase
     // REMOVED: testItExcludesDecorativeAsciiArtInNonBrowserContexts - Laravel ASCII art component was removed
 
     #[WithConfig('app.debug', true)]
-    public function testItFallsBackToSymfonyWhenRendererThrows()
+    public function testItFallsBackToSymfonyWhenRendererThrows(): void
     {
         // Replace the Renderer with one that always throws
-        $this->app->singleton(Renderer::class, function () {
+        $this->app->singleton(Renderer::class, function (): object {
             return new class {
+                /**
+                 * Fail while rendering the exception.
+                 */
                 public function render(): never
                 {
                     throw new RuntimeException('Renderer broke');

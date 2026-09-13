@@ -50,6 +50,8 @@ use function Hypervel\Support\defer;
 
 class ScheduleRunCommandTest extends TestCase
 {
+    // REMOVED: ScheduleWorkCommandTest; schedule:run owns the loop without a subprocess wrapper.
+
     protected array $dispatched;
 
     protected Dispatcher $dispatcher;

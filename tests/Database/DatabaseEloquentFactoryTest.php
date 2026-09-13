@@ -858,7 +858,7 @@ class DatabaseEloquentFactoryTest extends TestCase
             });
     }
 
-    public function testDynamicTrashedStateForSoftdeletesModels()
+    public function testDynamicTrashedStateForSoftdeletesModels(): void
     {
         $now = CarbonImmutable::create(2020, 6, 7, 8, 9);
         CarbonImmutable::setTestNow($now);
@@ -870,19 +870,15 @@ class DatabaseEloquentFactoryTest extends TestCase
         $post = PostFactory::new()->trashed($deleted_at)->create();
 
         $this->assertTrue($deleted_at->equalTo($post->deleted_at));
-
-        CarbonImmutable::setTestNow();
     }
 
-    public function testDynamicTrashedStateRespectsExistingState()
+    public function testDynamicTrashedStateRespectsExistingState(): void
     {
         $now = CarbonImmutable::create(2020, 6, 7, 8, 9);
         CarbonImmutable::setTestNow($now);
         $comment = CommentFactory::new()->trashed()->create();
 
         $this->assertTrue($comment->deleted_at->equalTo($now->subWeek()));
-
-        CarbonImmutable::setTestNow();
     }
 
     public function testDynamicTrashedStateThrowsExceptionWhenNotASoftdeletesModel()
