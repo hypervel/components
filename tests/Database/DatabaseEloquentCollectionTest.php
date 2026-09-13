@@ -290,7 +290,7 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertSame($mockModel, $c->findOrFail(1));
     }
 
-    public function testFindOrFailFindsManyModelsById()
+    public function testFindOrFailFindsManyModelsById(): void
     {
         $model1 = (new CollectionModel)->forceFill(['id' => 1]);
         $model2 = (new CollectionModel)->forceFill(['id' => 2]);
@@ -306,30 +306,27 @@ class DatabaseEloquentCollectionTest extends TestCase
         $c->push($model2);
         $this->assertCount(2, $c->findOrFail([1, 2]));
 
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\DatabaseEloquentCollectionTest\CollectionModel] 3');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Database\DatabaseEloquentCollectionTest\CollectionModel] 3'));
 
         $c->findOrFail([1, 2, 3]);
     }
 
-    public function testFindOrFailThrowsExceptionWithMessageWhenOtherModelsArePresent()
+    public function testFindOrFailThrowsExceptionWithMessageWhenOtherModelsArePresent(): void
     {
         $model = (new CollectionModel)->forceFill(['id' => 1]);
 
         $c = new Collection([$model]);
 
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\DatabaseEloquentCollectionTest\CollectionModel] 2');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Database\DatabaseEloquentCollectionTest\CollectionModel] 2'));
 
         $c->findOrFail(2);
     }
 
-    public function testFindOrFailThrowsExceptionWithoutMessageWhenOtherModelsAreNotPresent()
+    public function testFindOrFailThrowsExceptionWithoutMessageWhenOtherModelsAreNotPresent(): void
     {
         $c = new Collection;
 
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('');
+        $this->expectExceptionObject(new ModelNotFoundException(''));
 
         $c->findOrFail(1);
     }
@@ -877,10 +874,9 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertEquals(CollectionModel::class, $c->getQueueableClass());
     }
 
-    public function testQueueableCollectionImplementationThrowsExceptionOnMultipleModelTypes()
+    public function testQueueableCollectionImplementationThrowsExceptionOnMultipleModelTypes(): void
     {
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Queueing collections with multiple model types is not supported.');
+        $this->expectExceptionObject(new LogicException('Queueing collections with multiple model types is not supported.'));
 
         $c = new Collection([new CollectionModel, (object) ['id' => 'something']]);
         $c->getQueueableClass();

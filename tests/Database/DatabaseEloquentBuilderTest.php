@@ -878,10 +878,9 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals($builder->bam(), $builder->getQuery());
     }
 
-    public function testMissingStaticMacrosThrowsProperException()
+    public function testMissingStaticMacrosThrowsProperException(): void
     {
-        $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Call to undefined method Hypervel\Database\Eloquent\Builder::missingMacro()');
+        $this->expectExceptionObject(new BadMethodCallException('Call to undefined method Hypervel\Database\Eloquent\Builder::missingMacro()'));
 
         Builder::missingMacro();
     }

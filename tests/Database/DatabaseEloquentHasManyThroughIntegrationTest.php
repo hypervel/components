@@ -169,10 +169,9 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertCount(2, $country->posts()->findMany(new Collection([1, 2])));
     }
 
-    public function testFirstOrFailThrowsAnException()
+    public function testFirstOrFailThrowsAnException(): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post].');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post].'));
 
         Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us']);
@@ -180,10 +179,9 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         Country::first()->posts()->firstOrFail();
     }
 
-    public function testFindOrFailThrowsAnException()
+    public function testFindOrFailThrowsAnException(): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1'));
 
         Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us']);
@@ -191,10 +189,9 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         Country::first()->posts()->findOrFail(1);
     }
 
-    public function testFindOrFailWithManyThrowsAnException()
+    public function testFindOrFailWithManyThrowsAnException(): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1, 2');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1, 2'));
 
         Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
@@ -203,10 +200,9 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         Country::first()->posts()->findOrFail([1, 2]);
     }
 
-    public function testFindOrFailWithManyUsingCollectionThrowsAnException()
+    public function testFindOrFailWithManyUsingCollectionThrowsAnException(): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1, 2');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1, 2'));
 
         Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
