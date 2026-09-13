@@ -635,6 +635,8 @@ Tests are part of the port. When porting Laravel package functionality, port the
 
 Laravel tests often rely on loose PHPDoc types or mocks that return values too broad for Hypervel's native type declarations. Fix the source type or test mock so it matches the real runtime behavior. Do not weaken the test just to make it pass.
 
+Unlike Laravel, `Sleep::fake()` evaluates `while()` predicates; ensure they can terminate, using `syncWithCarbon: true` when they depend on Carbon time.
+
 <a name="application-tests"></a>
 ### Application Tests
 
