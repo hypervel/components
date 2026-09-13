@@ -107,6 +107,8 @@ You may temporarily override the HTTP server address for the current process usi
 php artisan serve --host=127.0.0.1 --port=8001
 ```
 
+The `--host` option also accepts a port, such as `127.0.0.1:8001` or `[::1]:8001`. If both options specify a port, `--port` takes precedence.
+
 <a name="watching-for-changes"></a>
 ### Watching for Changes
 

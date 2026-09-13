@@ -18,6 +18,8 @@ The application locale setters do not change the `app.locale` or `app.fallback_l
 
 Laravel's deprecated `VerifyCsrfToken` and `ValidateCsrfToken` middleware aliases and `Middleware::validateCsrfTokens()` method are intentionally not ported. Use `PreventRequestForgery` and configure request-forgery protection with `preventRequestForgery()`.
 
+The `php artisan serve` command starts Hypervel's configured Swoole servers directly instead of PHP's built-in development server.
+
 The default `dev` server process runs `php artisan watch` so the Watcher package can own and restart the long-running Swoole server. Official Hypervel skeletons and starter kits include `hypervel/watcher` as a development dependency.
 
 Laravel's default Pail process is omitted because Hypervel has no Pail-equivalent command. Application logging remains controlled by the application's logging configuration.
