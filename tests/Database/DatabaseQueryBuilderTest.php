@@ -2421,7 +2421,7 @@ class DatabaseQueryBuilderTest extends TestCase
     public function testOrderByInvalidDirectionParam(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Order direction must be a SortDirection, "asc" or "desc".');
+        $this->expectExceptionMessageIsOrContains('Order direction must be a SortDirection, "asc" or "desc".');
 
         $builder = $this->getBuilder();
         $builder->select('*')->from('users')->orderBy('age', 'asec');
@@ -3655,16 +3655,14 @@ class DatabaseQueryBuilderTest extends TestCase
 
     public function testIncrementManyArgumentValidation1(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Non-numeric value passed as increment amount for column: \'col\'.');
+        $this->expectExceptionObject(new InvalidArgumentException('Non-numeric value passed as increment amount for column: \'col\'.'));
         $builder = $this->getBuilder();
         $builder->from('users')->incrementEach(['col' => 'a']);
     }
 
     public function testIncrementManyArgumentValidation2(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Non-associative array passed to incrementEach method.');
+        $this->expectExceptionObject(new InvalidArgumentException('Non-associative array passed to incrementEach method.'));
         $builder = $this->getBuilder();
         $builder->from('users')->incrementEach([11 => 11]);
     }
@@ -3672,7 +3670,7 @@ class DatabaseQueryBuilderTest extends TestCase
     public function testDecrementManyArgumentValidation1(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Non-numeric value passed as decrement amount for column: \'col\'.');
+        $this->expectExceptionMessageIsOrContains('Non-numeric value passed as decrement amount for column: \'col\'.');
         $builder = $this->getBuilder();
         $builder->from('users')->decrementEach(['col' => '1; DROP TABLE users']);
     }
@@ -3680,7 +3678,7 @@ class DatabaseQueryBuilderTest extends TestCase
     public function testDecrementManyArgumentValidation2(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Non-associative array passed to decrementEach method.');
+        $this->expectExceptionMessageIsOrContains('Non-associative array passed to decrementEach method.');
         $builder = $this->getBuilder();
         $builder->from('users')->decrementEach([11 => 11]);
     }
@@ -4147,7 +4145,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder->select('*')->from('users')->straightJoin('contacts', 'users.id', '=', 'contacts.id');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('does not support straight joins');
+        $this->expectExceptionMessageIsOrContains('does not support straight joins');
 
         $builder->toSql();
     }
@@ -4320,15 +4318,14 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals(['foo' => 'bar'], $results);
     }
 
-    public function testFirstOrFailMethodThrowsRecordNotFoundException()
+    public function testFirstOrFailMethodThrowsRecordNotFoundException(): void
     {
         $builder = $this->getBuilder();
         $builder->getConnection()->shouldReceive('select')->once()->with('select * from "users" where "id" = ? limit 1', [1], true, [])->andReturn([]);
 
         $builder->getProcessor()->shouldReceive('processSelect')->once()->with($builder, [])->andReturn([]);
 
-        $this->expectException(RecordNotFoundException::class);
-        $this->expectExceptionMessage('No record found for the given query.');
+        $this->expectExceptionObject(new RecordNotFoundException('No record found for the given query.'));
 
         $builder->from('users')->where('id', '=', 1)->firstOrFail();
     }
@@ -4621,10 +4618,9 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder->from('table1')->insertUsing(['foo'], ['bar']);
     }
 
-    public function testInsertOrIgnoreMethod()
+    public function testInsertOrIgnoreMethod(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('does not support');
+        $this->expectExceptionObject(new RuntimeException('does not support'));
         $builder = $this->getBuilder();
         $builder->from('users')->insertOrIgnore(['email' => 'foo']);
     }
@@ -4835,10 +4831,9 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame([['email' => 'foo']], $result->all());
     }
 
-    public function testInsertOrIgnoreUsingMethod()
+    public function testInsertOrIgnoreUsingMethod(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('does not support');
+        $this->expectExceptionObject(new RuntimeException('does not support'));
         $builder = $this->getBuilder();
         $builder->from('users')->insertOrIgnoreUsing(['email' => 'foo'], 'bar');
     }
@@ -5070,6 +5065,20 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder->getConnection()->shouldReceive('affectingStatement')->once()->with('insert into "users" ("email", "name") values (?, ?), (?, ?) on conflict ("email") do update set "name" = "excluded"."name"', ['foo', 'bar', 'foo2', 'bar2'])->andReturn(2);
         $result = $builder->from('users')->upsert([['email' => 'foo', 'name' => 'bar'], ['name' => 'bar2', 'email' => 'foo2']], 'email', ['name']);
         $this->assertEquals(2, $result);
+    }
+
+    public function testUpsertMethodWithEmptyUniqueByArray(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException('The unique columns must not be empty.'));
+        $builder = $this->getPostgresBuilder();
+        $builder->from('users')->upsert([['email' => 'foo', 'name' => 'bar']], []);
+    }
+
+    public function testUpsertMethodWithEmptyUniqueByString(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException('The unique columns must not be empty.'));
+        $builder = $this->getPostgresBuilder();
+        $builder->from('users')->upsert([['email' => 'foo', 'name' => 'bar']], '');
     }
 
     public function testUpdateMethodWithJoins()
@@ -6056,10 +6065,9 @@ SQL;
         $this->assertSame('=', $operator);
     }
 
-    public function testPrepareValueAndOperatorExpectException()
+    public function testPrepareValueAndOperatorExpectException(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Illegal operator and value combination.');
+        $this->expectExceptionObject(new InvalidArgumentException('Illegal operator and value combination.'));
 
         $builder = $this->getBuilder();
         $builder->prepareValueAndOperator(null, 'like');
@@ -7509,10 +7517,9 @@ SQL;
         $this->assertEquals([1], $builder->getBindings());
     }
 
-    public function testWhereRowValuesArityMismatch()
+    public function testWhereRowValuesArityMismatch(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The number of columns must match the number of values');
+        $this->expectExceptionObject(new InvalidArgumentException('The number of columns must match the number of values'));
 
         $builder = $this->getBuilder();
         $builder->select('*')->from('orders')->whereRowValues(['last_update'], '<', [1, 2]);
@@ -8017,7 +8024,7 @@ SQL;
     public function testWhereVectorSimilarToThrowsOnUnsupportedGrammar(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Vector distance queries are only supported by Postgres and MariaDB.');
+        $this->expectExceptionMessageIsOrContains('Vector distance queries are only supported by Postgres and MariaDB.');
 
         $builder = $this->getMySqlBuilder();
         $builder->select('*')->from('documents')->whereVectorSimilarTo('embedding', [1, 2, 3]);
@@ -8026,7 +8033,7 @@ SQL;
     public function testWhereVectorSimilarToRejectsUnsupportedGrammarBeforeGeneratingEmbeddings(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Vector distance queries are only supported by Postgres and MariaDB.');
+        $this->expectExceptionMessageIsOrContains('Vector distance queries are only supported by Postgres and MariaDB.');
 
         $builder = $this->getMySqlBuilder();
         $builder->from('documents')->whereVectorSimilarTo('embedding', 'best wineries in Napa Valley');

@@ -3868,9 +3868,17 @@ class Builder implements BuilderContract
 
     /**
      * Insert new records or update the existing ones.
+     *
+     * @param non-empty-array<int, non-empty-string>|non-empty-string $uniqueBy
+     *
+     * @throws InvalidArgumentException
      */
     public function upsert(array $values, array|string $uniqueBy, ?array $update = null): int
     {
+        if ($uniqueBy === [] || $uniqueBy === '') {
+            throw new InvalidArgumentException('The unique columns must not be empty.');
+        }
+
         if (empty($values)) {
             return 0;
         }
