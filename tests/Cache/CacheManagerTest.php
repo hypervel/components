@@ -642,8 +642,7 @@ class CacheManagerTest extends TestCase
 
     public function testThrowExceptionWhenUnknownDriverIsUsed(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Driver [unknown_taxi_driver] is not supported.');
+        $this->expectExceptionObject(new InvalidArgumentException('Driver [unknown_taxi_driver] is not supported.'));
 
         $userConfig = [
             'cache' => [
@@ -664,8 +663,7 @@ class CacheManagerTest extends TestCase
 
     public function testThrowExceptionWhenUnknownStoreIsUsed(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Cache store [alien_store] is not defined.');
+        $this->expectExceptionObject(new InvalidArgumentException('Cache store [alien_store] is not defined.'));
 
         $userConfig = [
             'cache' => [
@@ -752,7 +750,7 @@ class CacheManagerTest extends TestCase
         $cacheManager = new CacheManager($app);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'Invalid cache tag mode [invalid]. Supported modes are [any, all].'
         );
 
@@ -788,7 +786,7 @@ class CacheManagerTest extends TestCase
     public function testSessionDriverThrowsWhenSessionNotAvailable(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Session store requires session manager to be available in container.');
+        $this->expectExceptionMessageIsOrContains('Session store requires session manager to be available in container.');
 
         $userConfig = [
             'cache' => [
@@ -894,7 +892,7 @@ class CacheManagerTest extends TestCase
         ]));
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Cache store [] is not defined.');
+        $this->expectExceptionMessageIsOrContains('Cache store [] is not defined.');
 
         $cacheManager->store('');
     }
