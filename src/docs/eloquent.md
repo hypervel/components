@@ -931,6 +931,19 @@ Flight::where('active', 1)
 
 The `update` method expects an array of column and value pairs representing the columns that should be updated. The `update` method returns the number of affected rows.
 
+When using PostgreSQL, the `updateFrom` method allows you to update columns using values from joined tables:
+
+```php
+use App\Models\Invoice;
+use Hypervel\Support\Facades\DB;
+
+$affected = Invoice::join('customers', 'invoices.customer_id', '=', 'customers.id')
+    ->whereNull('invoices.currency')
+    ->updateFrom(['currency' => DB::raw('customers.currency')]);
+```
+
+Like `update`, `updateFrom` applies the model's global scopes and returns the number of affected rows. It also updates the model's `updated_at` column unless timestamps are disabled or you supply that column explicitly.
+
 > [!WARNING]
 > When issuing a mass update via Eloquent, the `saving`, `saved`, `updating`, and `updated` model events will not be fired for the updated models. This is because the models are never actually retrieved when issuing a mass update.
 
