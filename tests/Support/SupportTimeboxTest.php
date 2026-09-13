@@ -55,15 +55,15 @@ class SupportTimeboxTest extends TestCase
         $mock->shouldHaveReceived('usleep')->once();
     }
 
-    public function testMakeWaitsForMicrosecondsWhenExceptionIsThrown()
+    public function testMakeWaitsForMicrosecondsWhenExceptionIsThrown(): void
     {
         $mock = m::spy(Timebox::class)->shouldAllowMockingProtectedMethods()->makePartial();
         $mock->shouldReceive('usleep')->once();
 
         try {
-            $this->expectExceptionMessage('Exception within Timebox callback.');
+            $this->expectExceptionObject(new Exception('Exception within Timebox callback.'));
 
-            $mock->call(function () {
+            $mock->call(function (): never {
                 throw new Exception('Exception within Timebox callback.');
             }, 10000);
         } finally {
@@ -71,14 +71,14 @@ class SupportTimeboxTest extends TestCase
         }
     }
 
-    public function testMakeShouldNotSleepWhenEarlyReturnHasBeenFlaggedAndExceptionIsThrown()
+    public function testMakeShouldNotSleepWhenEarlyReturnHasBeenFlaggedAndExceptionIsThrown(): void
     {
         $mock = m::spy(Timebox::class)->shouldAllowMockingProtectedMethods()->makePartial();
 
         try {
-            $this->expectExceptionMessage('Exception within Timebox callback.');
+            $this->expectExceptionObject(new Exception('Exception within Timebox callback.'));
 
-            $mock->call(function ($timebox) {
+            $mock->call(function (Timebox $timebox): never {
                 $timebox->returnEarly();
                 throw new Exception('Exception within Timebox callback.');
             }, 10000);

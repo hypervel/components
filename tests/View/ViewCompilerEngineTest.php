@@ -43,14 +43,13 @@ class ViewCompilerEngineTest extends TestCase
 ', $results);
     }
 
-    public function testRegularExceptionsAreReThrownAsViewExceptions()
+    public function testRegularExceptionsAreReThrownAsViewExceptions(): void
     {
         $engine = $this->getEngine();
         $engine->getCompiler()->shouldReceive('getCompiledPath')->with(__DIR__ . '/Fixtures/foo.php')->andReturn(__DIR__ . '/Fixtures/regular-exception.php');
         $engine->getCompiler()->shouldReceive('isExpired')->once()->andReturn(false);
 
-        $this->expectException(ViewException::class);
-        $this->expectExceptionMessage('regular exception message');
+        $this->expectExceptionObject(new ViewException('regular exception message'));
 
         $engine->get(__DIR__ . '/Fixtures/foo.php');
     }
@@ -77,14 +76,13 @@ class ViewCompilerEngineTest extends TestCase
         $this->assertSame([], CoroutineContext::get(CompilerEngine::COMPILED_PATH_CONTEXT_KEY, []));
     }
 
-    public function testHttpExceptionsAreNotReThrownAsViewExceptions()
+    public function testHttpExceptionsAreNotReThrownAsViewExceptions(): void
     {
         $engine = $this->getEngine();
         $engine->getCompiler()->shouldReceive('getCompiledPath')->with(__DIR__ . '/Fixtures/foo.php')->andReturn(__DIR__ . '/Fixtures/http-exception.php');
         $engine->getCompiler()->shouldReceive('isExpired')->once()->andReturn(false);
 
-        $this->expectException(HttpException::class);
-        $this->expectExceptionMessage('http exception message');
+        $this->expectExceptionObject(new HttpException(403, 'http exception message'));
 
         $engine->get(__DIR__ . '/Fixtures/foo.php');
     }
@@ -244,12 +242,11 @@ class ViewCompilerEngineTest extends TestCase
 
         $engine->get($path);
 
-        $this->expectException(ViewException::class);
-        $this->expectExceptionMessage("File does not exist at path {$path}.");
+        $this->expectExceptionObject(new ViewException("File does not exist at path {$path}."));
         $engine->get($path);
     }
 
-    public function testViewsAreNotRecompiledOnRegularViewException()
+    public function testViewsAreNotRecompiledOnRegularViewException(): void
     {
         $compiled = __DIR__ . '/Fixtures/basic.php';
         $path = __DIR__ . '/Fixtures/foo.php';
@@ -279,12 +276,11 @@ class ViewCompilerEngineTest extends TestCase
             ->with($path)
             ->andReturn($compiled);
 
-        $this->expectException(ViewException::class);
-        $this->expectExceptionMessage('Just an regular error...');
+        $this->expectExceptionObject(new ViewException('Just an regular error...'));
         $engine->get($path);
     }
 
-    public function testViewsAreNotRecompiledIfTheyWereJustCompiled()
+    public function testViewsAreNotRecompiledIfTheyWereJustCompiled(): void
     {
         $compiled = __DIR__ . '/Fixtures/basic.php';
         $path = __DIR__ . '/Fixtures/foo.php';
@@ -315,8 +311,7 @@ class ViewCompilerEngineTest extends TestCase
             ->with($path)
             ->andReturn($compiled);
 
-        $this->expectException(ViewException::class);
-        $this->expectExceptionMessage("File does not exist at path {$path}.");
+        $this->expectExceptionObject(new ViewException("File does not exist at path {$path}."));
         $engine->get($path);
     }
 
