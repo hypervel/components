@@ -327,21 +327,20 @@ class RoutingRouteTest extends TestCase
         );
     }
 
-    public function testFluentRouting()
+    public function testFluentRouting(): void
     {
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Route for [foo/bar] has no action.');
+        $this->expectExceptionObject(new LogicException('Route for [foo/bar] has no action.'));
 
         $router = $this->getRouter();
-        $router->get('foo/bar')->uses(function () {
+        $router->get('foo/bar')->uses(function (): string {
             return 'hello';
         });
         $this->assertSame('hello', $router->dispatch(Request::create('foo/bar', 'GET'))->getContent());
-        $router->post('foo/bar')->uses(function () {
+        $router->post('foo/bar')->uses(function (): string {
             return 'hello';
         });
         $this->assertSame('hello', $router->dispatch(Request::create('foo/bar', 'POST'))->getContent());
-        $router->get('foo/bar')->uses(function () {
+        $router->get('foo/bar')->uses(function (): string {
             return 'middleware';
         })->middleware(RouteTestControllerMiddleware::class);
         $this->assertSame('middleware', $router->dispatch(Request::create('foo/bar'))->getContent());
@@ -397,6 +396,20 @@ class RoutingRouteTest extends TestCase
         $this->assertTrue($_SERVER['__middleware.group']);
 
         unset($_SERVER['__middleware.group']);
+    }
+
+    public function testMiddlewareGroupsCannotReferenceItself(): void
+    {
+        $this->expectExceptionObject(new LogicException('[web] middleware group is referencing itself.'));
+
+        $router = $this->getRouter();
+        $router->get('foo/bar', ['middleware' => 'web', function (): string {
+            return 'hello';
+        }]);
+
+        $router->middlewareGroup('web', ['web']);
+
+        $router->dispatch(Request::create('foo/bar', 'GET'));
     }
 
     public function testFluentRouteNamingWithinAGroup()
@@ -1043,13 +1056,12 @@ class RoutingRouteTest extends TestCase
         $this->assertSame('TAYLOR', $router->dispatch(Request::create('foo/taylor', 'GET'))->getContent());
     }
 
-    public function testModelBindingWithNullReturn()
+    public function testModelBindingWithNullReturn(): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Routing\RoutingRouteTest\RouteModelBindingNullStub].');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Routing\RoutingRouteTest\RouteModelBindingNullStub].'));
 
         $router = $this->getRouter();
-        $router->get('foo/{bar}', ['middleware' => SubstituteBindings::class, 'uses' => function ($name) {
+        $router->get('foo/{bar}', ['middleware' => SubstituteBindings::class, 'uses' => function (string $name): string {
             return $name;
         }]);
         $router->model('bar', RouteModelBindingNullStub::class);
@@ -1408,10 +1420,9 @@ class RoutingRouteTest extends TestCase
         $this->assertSame('Namespace\Controller@action', $action['controller']);
     }
 
-    public function testInvalidActionException()
+    public function testInvalidActionException(): void
     {
-        $this->expectException(UnexpectedValueException::class);
-        $this->expectExceptionMessage('Invalid route action: [Hypervel\Tests\Routing\RoutingRouteTest\RouteTestControllerStub].');
+        $this->expectExceptionObject(new UnexpectedValueException('Invalid route action: [Hypervel\Tests\Routing\RoutingRouteTest\RouteTestControllerStub].'));
 
         $router = $this->getRouter();
         $router->get('/', ['uses' => RouteTestControllerStub::class]);
@@ -2161,10 +2172,9 @@ class RoutingRouteTest extends TestCase
         $this->assertEquals(302, $response->getStatusCode());
     }
 
-    public function testRouteRedirectExceptionWhenMissingExpectedParameters()
+    public function testRouteRedirectExceptionWhenMissingExpectedParameters(): void
     {
-        $this->expectException(UrlGenerationException::class);
-        $this->expectExceptionMessage('Missing required parameter for [Route: hypervel_route_redirect_destination] [URI: users/{user}] [Missing parameter: user].');
+        $this->expectExceptionObject(new UrlGenerationException('Missing required parameter for [Route: hypervel_route_redirect_destination] [URI: users/{user}] [Missing parameter: user].'));
 
         $router = new Router(new Dispatcher, $this->app);
         $this->app->instance(Registrar::class, $router);
@@ -2172,7 +2182,7 @@ class RoutingRouteTest extends TestCase
         RequestContext::set($request);
         $urlGenerator = new UrlGenerator(new RouteCollection, $request);
         $this->app->instance(UrlGenerator::class, $urlGenerator);
-        $router->get('users', function () {
+        $router->get('users', function (): never {
             throw new Exception('Route should not be reachable.');
         });
         $router->redirect('users', 'users/{user}');

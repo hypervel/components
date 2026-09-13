@@ -3117,6 +3117,9 @@ class RedisConnectionTest extends TestCase
         ?string $exceptionMessage,
     ): void {
         $connection = new class extends PhpRedisConnectionStub {
+            /**
+             * Expose host formatting for testing.
+             */
             public function formatHostForTest(array $config): string
             {
                 return $this->formatHost($config);
@@ -3124,8 +3127,7 @@ class RedisConnectionTest extends TestCase
         };
 
         if ($exceptionMessage !== null) {
-            $this->expectException(InvalidArgumentException::class);
-            $this->expectExceptionMessage($exceptionMessage);
+            $this->expectExceptionObject(new InvalidArgumentException($exceptionMessage));
 
             $connection->formatHostForTest($config);
 
@@ -3135,6 +3137,9 @@ class RedisConnectionTest extends TestCase
         $this->assertSame($expected, $connection->formatHostForTest($config));
     }
 
+    /**
+     * Provide host formatting cases.
+     */
     public static function hostFormattingProvider(): array
     {
         return [
@@ -3142,6 +3147,21 @@ class RedisConnectionTest extends TestCase
                 ['host' => ''],
                 null,
                 'Redis host must be a non-empty string.',
+            ],
+            'missing host' => [
+                ['scheme' => 'tls'],
+                null,
+                'Redis host must be a non-empty string.',
+            ],
+            'null host' => [
+                ['host' => null, 'scheme' => 'tls'],
+                null,
+                'Redis host must be a non-empty string.',
+            ],
+            'host without scheme' => [
+                ['host' => '127.0.0.1', 'scheme' => 'tls'],
+                'tls://127.0.0.1',
+                null,
             ],
             'matching scheme' => [
                 ['host' => 'tls://redis.test', 'scheme' => 'TLS'],
@@ -3151,7 +3171,7 @@ class RedisConnectionTest extends TestCase
             'mismatched scheme' => [
                 ['host' => 'tls://redis.test', 'scheme' => 'tcp'],
                 null,
-                'must match the scheme option',
+                'The scheme configured in the Redis host option must match the scheme option.',
             ],
         ];
     }
