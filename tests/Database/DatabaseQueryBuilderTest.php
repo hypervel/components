@@ -41,6 +41,7 @@ use Hypervel\Tests\Database\Fixtures\Enums\NonBackedStatus;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use RuntimeException;
 use SortDirection;
@@ -5229,7 +5230,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame(1, $result);
     }
 
-    public function testUpdateOrInsertMethod()
+    public function testUpdateOrInsertMethod(): void
     {
         $builder = m::mock(Builder::class . '[where,exists,insert]', [
             $connection = m::mock(Connection::class),
@@ -5251,10 +5252,54 @@ class DatabaseQueryBuilderTest extends TestCase
 
         $builder->shouldReceive('where')->once()->with(['email' => 'foo'])->andReturn(m::self());
         $builder->shouldReceive('exists')->once()->andReturn(true);
-        $builder->shouldReceive('take')->andReturnSelf();
         $builder->shouldReceive('update')->once()->with(['name' => 'bar'])->andReturn(1);
 
         $this->assertTrue($builder->updateOrInsert(['email' => 'foo'], ['name' => 'bar']));
+    }
+
+    #[DataProvider('updateOrInsertCallbacks')]
+    public function testUpdateOrInsertMethodWithCallback(callable $values): void
+    {
+        $builder = $this->getBuilder()->from('users');
+        $builder->getConnection()->expects('select')
+            ->with('select exists(select * from "users" where ("email" = ?)) as "exists"', ['foo'], true)
+            ->andReturn([['exists' => false]]);
+        $builder->getConnection()->expects('insert')
+            ->with('insert into "users" ("email", "name") values (?, ?)', ['foo', 'new'])
+            ->andReturn(true);
+
+        $this->assertTrue($builder->updateOrInsert(['email' => 'foo'], $values));
+
+        $builder = $this->getBuilder()->from('users');
+        $builder->getConnection()->expects('select')
+            ->with('select exists(select * from "users" where ("email" = ?)) as "exists"', ['foo'], true)
+            ->andReturn([['exists' => true]]);
+        $builder->getConnection()->expects('update')
+            ->with('update "users" set "name" = ? where ("email" = ?)', ['updated', 'foo'])
+            ->andReturn(1);
+
+        $this->assertTrue($builder->updateOrInsert(['email' => 'foo'], $values));
+    }
+
+    /**
+     * Provide callbacks that select values based on whether a record exists.
+     *
+     * @return array<string, array{callable(bool): array<string, string>}>
+     */
+    public static function updateOrInsertCallbacks(): array
+    {
+        return [
+            'closure' => [fn (bool $exists): array => ['name' => $exists ? 'updated' : 'new']],
+            'invokable' => [new class {
+                /**
+                 * Select values based on whether a record exists.
+                 */
+                public function __invoke(bool $exists): array
+                {
+                    return ['name' => $exists ? 'updated' : 'new'];
+                }
+            }],
+        ];
     }
 
     public function testUpdateOrInsertMethodWorksWithEmptyUpdateValues()

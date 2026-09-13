@@ -3826,12 +3826,14 @@ class Builder implements BuilderContract
 
     /**
      * Insert or update a record matching the attributes, and fill it with values.
+     *
+     * @param array|(callable(bool): array) $values
      */
     public function updateOrInsert(array $attributes, array|callable $values = []): bool
     {
         $exists = $this->where($attributes)->exists();
 
-        if ($values instanceof Closure) {
+        if (! is_array($values)) {
             $values = $values($exists);
         }
 

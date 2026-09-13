@@ -1658,6 +1658,15 @@ $affected = DB::table('users')
     ->update(['votes' => 1]);
 ```
 
+When using PostgreSQL, use the `updateFrom` method when the new column values reference columns from a joined table. This method returns the number of affected rows:
+
+```php
+$affected = DB::table('invoices')
+    ->join('customers', 'invoices.customer_id', '=', 'customers.id')
+    ->whereNull('invoices.currency')
+    ->updateFrom(['currency' => DB::raw('customers.currency')]);
+```
+
 <a name="update-or-insert"></a>
 #### Update or Insert
 
