@@ -18,5 +18,6 @@ Documentation: https://hypervel.org/docs/database
 - `Blueprint::dropForeign()` widens Laravel's method signature with an optional constraint name when columns are supplied, allowing explicitly named foreign keys to be dropped portably across SQLite and the server databases. Custom `Blueprint` subclasses that override this method must accept the optional second argument.
 - Eloquent models that override `CREATED_AT` or `UPDATED_AT` must declare the compatible `?string` constant type, such as `public const ?string UPDATED_AT = null;`. Laravel's constants are untyped, but omitting the type from an override in Hypervel causes a fatal error.
 - Eloquent expression plucks use `Query\Builder::pluckWithColumn()` to retain the returned field name for casts and accessors. Custom query builders overriding `pluck()` must also override `pluckWithColumn()` to customize this path. String-based Eloquent plucks still call `pluck()`.
+- Eloquent `updateFrom()` maintains the model's `updated_at` timestamp, like `update()`. Laravel forwards this method without adding a timestamp.
 
 Ported from: https://github.com/laravel/framework
