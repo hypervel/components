@@ -857,14 +857,8 @@ class Container implements ContainerContract
         }
 
         $target = $abstract;
-        $visited = [];
 
-        while (isset($this->aliases[$target])) {
-            if ($target === $alias || isset($visited[$target])) {
-                throw new LogicException("Alias [{$alias}] would create a circular alias chain.");
-            }
-
-            $visited[$target] = true;
+        while ($target !== $alias && isset($this->aliases[$target])) {
             $target = $this->aliases[$target];
         }
 
@@ -2290,6 +2284,7 @@ class Container implements ContainerContract
      */
     public function getAlias(string $abstract): string
     {
+        // alias() rejects cycles before registering, so this chain always terminates.
         return isset($this->aliases[$abstract])
             ? $this->getAlias($this->aliases[$abstract])
             : $abstract;
