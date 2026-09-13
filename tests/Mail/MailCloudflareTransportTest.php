@@ -252,7 +252,7 @@ class MailCloudflareTransportTest extends TestCase
 
     public function testSendThrowsOnApiFailure(): void
     {
-        $client = new MockHttpClient(function () {
+        $client = new MockHttpClient(function (): MockResponse {
             return new MockResponse(json_encode([
                 'success' => false,
                 'errors' => [
@@ -274,8 +274,7 @@ class MailCloudflareTransportTest extends TestCase
         $message->sender('sender@example.com');
         $message->to('me@example.com');
 
-        $this->expectException(TransportException::class);
-        $this->expectExceptionMessage('invalid_request_schema');
+        $this->expectExceptionObject(new TransportException('invalid_request_schema', 400));
 
         $transport->send($message);
     }
