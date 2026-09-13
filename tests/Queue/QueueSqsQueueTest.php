@@ -2107,6 +2107,24 @@ class QueueSqsQueueTest extends TestCase
         $this->assertSame($failed[0]->exception, $failed[10]->exception);
     }
 
+    public function testBulkStopsSendingFifoBatchesAfterAFailedRequest(): void
+    {
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['getQueue', 'createPayload'])
+            ->setConstructorArgs([$this->sqs, $this->fifoQueueName, $this->prefix])
+            ->getMock();
+        $queue->setContainer(new Container);
+        $queue->expects($this->once())->method('getQueue')->willReturn($this->fifoQueueUrl);
+        $queue->method('createPayload')->willReturnCallback(fn (string $job): string => "payload-{$job}");
+
+        // Only the first chunk is attempted; its exception propagates untouched and later chunks are not sent.
+        $this->sqs->expects('sendMessageBatch')->andThrow(new RuntimeException('SQS is down'));
+
+        $this->expectExceptionObject(new RuntimeException('SQS is down'));
+
+        $queue->bulk(array_map('strval', range(1, 15)), 'data', $this->fifoQueueName);
+    }
+
     public function testBulkDefersOnePreparedBatchUntilTheTransactionCommits(): void
     {
         $jobA = (new FakeSqsJob)->afterCommit();
@@ -2141,6 +2159,23 @@ class QueueSqsQueueTest extends TestCase
         $transactions->commit('default', 1, 0);
 
         $this->assertTrue($sent);
+    }
+
+    public function testBulkRethrowsTheOriginalExceptionWhenASingleBatchRequestFails(): void
+    {
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['getQueue', 'createPayload'])
+            ->setConstructorArgs([$this->sqs, $this->queueName, $this->prefix])
+            ->getMock();
+        $queue->setContainer(new Container);
+        $queue->expects($this->once())->method('getQueue')->willReturn($this->queueUrl);
+        $queue->expects($this->once())->method('createPayload')->willReturn('payload-a');
+
+        $this->sqs->expects('sendMessageBatch')->andThrow(new RuntimeException('SQS is down'));
+
+        $this->expectExceptionObject(new RuntimeException('SQS is down'));
+
+        $queue->bulk(['a'], 'data', $this->queueName);
     }
 
     public function testBulkDoesNothingForEmptyInput(): void
