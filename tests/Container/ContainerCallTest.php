@@ -20,10 +20,10 @@ use stdClass;
 
 class ContainerCallTest extends TestCase
 {
-    public function testCallWithAtSignBasedClassReferencesWithoutMethodThrowsException()
+    public function testCallWithAtSignBasedClassReferencesWithoutMethodThrowsException(): void
     {
         $this->expectException(Error::class);
-        $this->expectExceptionMessage('Call to undefined function ContainerTestCallStub()');
+        $this->expectExceptionMessageIsOrContains('Call to undefined function ContainerTestCallStub()');
 
         $container = new Container;
         $container->call('ContainerTestCallStub');
@@ -206,31 +206,28 @@ class ContainerCallTest extends TestCase
         $this->assertInstanceOf(ContainerTestCallStub::class, $result[2]);
     }
 
-    public function testCallWithoutRequiredParamsThrowsException()
+    public function testCallWithoutRequiredParamsThrowsException(): void
     {
-        $this->expectException(BindingResolutionException::class);
-        $this->expectExceptionMessage('Unable to resolve dependency [Parameter #0 [ <required> $foo ]] in class Hypervel\Tests\Container\ContainerTestCallStub');
+        $this->expectExceptionObject(new BindingResolutionException('Unable to resolve dependency [Parameter #0 [ <required> $foo ]] in class Hypervel\Tests\Container\ContainerTestCallStub'));
 
         $container = new Container;
         $container->call(ContainerTestCallStub::class . '@unresolvable');
     }
 
-    public function testCallWithUnnamedParametersThrowsException()
+    public function testCallWithUnnamedParametersThrowsException(): void
     {
-        $this->expectException(BindingResolutionException::class);
-        $this->expectExceptionMessage('Unable to resolve dependency [Parameter #0 [ <required> $foo ]] in class Hypervel\Tests\Container\ContainerTestCallStub');
+        $this->expectExceptionObject(new BindingResolutionException('Unable to resolve dependency [Parameter #0 [ <required> $foo ]] in class Hypervel\Tests\Container\ContainerTestCallStub'));
 
         $container = new Container;
         $container->call([new ContainerTestCallStub, 'unresolvable'], ['foo', 'bar']);
     }
 
-    public function testCallWithoutRequiredParamsOnClosureThrowsException()
+    public function testCallWithoutRequiredParamsOnClosureThrowsException(): void
     {
-        $this->expectException(BindingResolutionException::class);
-        $this->expectExceptionMessage('Unable to resolve dependency [Parameter #0 [ <required> $foo ]] in class Hypervel\Tests\Container\ContainerCallTest');
+        $this->expectExceptionObject(new BindingResolutionException('Unable to resolve dependency [Parameter #0 [ <required> $foo ]] in class Hypervel\Tests\Container\ContainerCallTest'));
 
         $container = new Container;
-        $container->call(function ($foo, $bar = 'default') {
+        $container->call(function ($foo, $bar = 'default'): mixed {
             return $foo;
         });
     }
@@ -251,6 +248,31 @@ class ContainerCallTest extends TestCase
             );
             $this->assertStringContainsString('in function {closure:', $exception->getMessage());
         }
+    }
+
+    public function testCallCleansUpBuildStackAfterException(): void
+    {
+        $container = new Container;
+
+        $container->when(ContainerCallFailingStub::class)
+            ->needs(ContainerCallConcreteStub::class)
+            ->give(ContainerCallContextualConcreteStub::class);
+
+        try {
+            $container->call([new ContainerCallFailingStub, 'handle']);
+
+            $this->fail('Expected the callback to throw an exception.');
+        } catch (RuntimeException $exception) {
+            // Expected.
+            $this->assertSame('Expected.', $exception->getMessage());
+        }
+
+        $this->assertNull($container->currentlyResolving());
+
+        $dependency = $container->make(ContainerCallConcreteStub::class);
+
+        $this->assertInstanceOf(ContainerCallConcreteStub::class, $dependency);
+        $this->assertNotInstanceOf(ContainerCallContextualConcreteStub::class, $dependency);
     }
 
     public function testCallWithNullableClassParameterDefaultValue()
@@ -274,24 +296,6 @@ class ContainerCallTest extends TestCase
         });
 
         $this->assertInstanceOf(ContainerCallConcreteStub::class, $result);
-    }
-
-    public function testExceptionInCallDoesNotCorruptBuildStack()
-    {
-        $container = new Container;
-
-        // call() pushes the callable's class onto the build stack.
-        // If BoundMethod::call() throws, the build stack entry must still be
-        // cleaned up. Without try/finally, the stale entry leaks into Context.
-        try {
-            $container->call([new ContainerCallThrowingStub, 'throwingMethod']);
-        } catch (RuntimeException) {
-            // Expected
-        }
-
-        // If the build stack was corrupted, currentlyResolving() would return
-        // the stale class name instead of null
-        $this->assertNull($container->currentlyResolving());
     }
 
     public function testMethodRecipeCacheIsPopulatedForArrayCallables()
@@ -509,6 +513,31 @@ class ContainerCallTest extends TestCase
         $this->assertInstanceOf(ContainerCallContextualImplB::class, $result);
     }
 
+    public function testFirstClassCallableCleansUpBuildStackAfterException(): void
+    {
+        $container = new Container;
+
+        $container->when(ContainerCallFailingStub::class)
+            ->needs(ContainerCallConcreteStub::class)
+            ->give(ContainerCallContextualConcreteStub::class);
+
+        try {
+            $container->call((new ContainerCallFailingStub)->handle(...));
+
+            $this->fail('Expected the callback to throw an exception.');
+        } catch (RuntimeException $exception) {
+            // Expected.
+            $this->assertSame('Expected.', $exception->getMessage());
+        }
+
+        $this->assertNull($container->currentlyResolving());
+
+        $dependency = $container->make(ContainerCallConcreteStub::class);
+
+        $this->assertInstanceOf(ContainerCallConcreteStub::class, $dependency);
+        $this->assertNotInstanceOf(ContainerCallContextualConcreteStub::class, $dependency);
+    }
+
     public function testCallZeroParameterClosureUseFastPath()
     {
         $container = new Container;
@@ -584,6 +613,21 @@ class ContainerCallConcreteStub
 {
 }
 
+class ContainerCallContextualConcreteStub extends ContainerCallConcreteStub
+{
+}
+
+class ContainerCallFailingStub
+{
+    /**
+     * Throw after the container resolves the contextual dependency.
+     */
+    public function handle(ContainerCallConcreteStub $stub): never
+    {
+        throw new RuntimeException('Expected.');
+    }
+}
+
 function containerTestInject(ContainerCallConcreteStub $stub, $default = 'taylor')
 {
     return func_get_args();
@@ -633,14 +677,6 @@ class ContainerCallCallableClassStringStub
     public function __invoke(ContainerTestCallStub $dependency)
     {
         return [$this->stub, $this->default, $dependency];
-    }
-}
-
-class ContainerCallThrowingStub
-{
-    public function throwingMethod(): never
-    {
-        throw new RuntimeException('Intentional failure');
     }
 }
 
