@@ -376,6 +376,12 @@ If you would like to perform model operations without the model having its `upda
 Model::withoutTimestamps(fn () => $post->increment('reads'));
 ```
 
+To set one or more timestamp attributes to the current time and save the model, pass the attribute names to the `touch` method:
+
+```php
+$post->touch(['published_at', 'verified_at']);
+```
+
 <a name="database-connections"></a>
 ### Database Connections
 
@@ -521,6 +527,16 @@ $flight->number = 'FR 456';
 $flight->refresh();
 
 $flight->number; // "FR 900"
+```
+
+If you need to refresh a model and acquire a pessimistic lock within a transaction, you may use the `refreshForUpdate` method. This method reloads the model using a `FOR UPDATE` lock:
+
+```php
+DB::transaction(function () use ($flight) {
+    $flight->refreshForUpdate();
+
+    // Update the locked model...
+});
 ```
 
 <a name="collections"></a>

@@ -24,7 +24,9 @@ use Hypervel\Database\ConnectionResolverInterface as Resolver;
 use Hypervel\Database\Eloquent\Attributes\CollectedBy;
 use Hypervel\Database\Eloquent\Attributes\ObservedBy;
 use Hypervel\Database\Eloquent\Attributes\RouteKey;
+use Hypervel\Database\Eloquent\Attributes\Table;
 use Hypervel\Database\Eloquent\Attributes\UseFactory;
+use Hypervel\Database\Eloquent\Attributes\WithoutTimestamps;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Casts\ArrayObject;
 use Hypervel\Database\Eloquent\Casts\AsArrayObject;
@@ -726,6 +728,31 @@ class DatabaseEloquentModelTest extends TestCase
     public function testFindMethodUseWritePdo()
     {
         FindWithWritePdoStub::onWriteConnection()->find(1);
+    }
+
+    public function testRefreshForUpdateUsesLockForUpdate(): void
+    {
+        $model = m::mock(ModelStub::class . '[newQueryWithoutScopes,load]');
+        $model->exists = true;
+        $model->setRawAttributes(['id' => 1, 'name' => 'Taylor'], true);
+
+        $freshModel = new ModelStub;
+        $freshModel->setRawAttributes(['id' => 1, 'name' => 'Abigail']);
+
+        $query = m::mock(Builder::class);
+        $model->expects('newQueryWithoutScopes')->andReturn($query);
+        $query->expects('lockForUpdate')->andReturnSelf();
+        $query->expects('where')->with('id', '=', 1)->andReturnSelf();
+        $query->expects('useWritePdo')->andReturnSelf();
+        $query->expects('firstOrFail')->andReturn($freshModel);
+        $model->expects('load')->with([])->andReturnSelf();
+
+        $result = $model->refreshForUpdate();
+
+        $this->assertSame($model, $result);
+        $this->assertSame('Abigail', $model->name);
+        $this->assertEmpty($model->getDirty());
+        $this->assertSame('Abigail', $model->getOriginal('name'));
     }
 
     public function testDestroyMethodCallsQueryBuilderCorrectly()
@@ -4360,6 +4387,20 @@ class DatabaseEloquentModelTest extends TestCase
         });
     }
 
+    public function testTouchMethodWithMultipleAttributes(): void
+    {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
+
+        $model = m::mock(ModelStub::class . '[save]');
+        $model->expects('save')->andReturn(true);
+
+        $result = $model->touch(['published_at', 'verified_at']);
+
+        $this->assertTrue($result);
+        $this->assertEquals($now->toDateTimeString(), $model->published_at->toDateTimeString());
+        $this->assertEquals($now->toDateTimeString(), $model->verified_at->toDateTimeString());
+    }
+
     public function testTouchingModelWithTimestamps()
     {
         $this->assertFalse(
@@ -4378,6 +4419,20 @@ class DatabaseEloquentModelTest extends TestCase
     {
         $this->assertTrue(
             Model::isIgnoringTouch(ModelWithoutTimestamps::class)
+        );
+    }
+
+    public function testNotTouchingModelWithoutTimestampsAttribute(): void
+    {
+        $this->assertTrue(
+            Model::isIgnoringTouch(ModelWithoutTimestampsAttribute::class)
+        );
+    }
+
+    public function testNotTouchingModelWithoutTimestampsTable(): void
+    {
+        $this->assertTrue(
+            Model::isIgnoringTouch(ModelWithoutTimestampsTable::class)
         );
     }
 
@@ -5408,6 +5463,18 @@ class ModelWithoutTimestamps extends Model
     protected ?string $table = 'stub';
 
     public bool $timestamps = false;
+}
+
+#[WithoutTimestamps]
+class ModelWithoutTimestampsAttribute extends Model
+{
+    protected ?string $table = 'stub';
+}
+
+#[Table(timestamps: false)]
+class ModelWithoutTimestampsTable extends Model
+{
+    protected ?string $table = 'stub';
 }
 
 class ModelWithUpdatedAtNull extends Model

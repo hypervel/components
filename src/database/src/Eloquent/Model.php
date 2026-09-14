@@ -28,6 +28,7 @@ use Hypervel\Database\Eloquent\Attributes\Scope as LocalScope;
 use Hypervel\Database\Eloquent\Attributes\Table;
 use Hypervel\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Hypervel\Database\Eloquent\Attributes\WithoutIncrementing;
+use Hypervel\Database\Eloquent\Attributes\WithoutTimestamps;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
@@ -605,8 +606,10 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             return true;
         }
 
-        $timestamps = static::resolveClassAttribute(Table::class, 'timestamps', $class)
-            ?? get_class_vars($class)['timestamps'];
+        // Match initializeHasTimestamps(): explicit disabling takes precedence over Table.
+        $timestamps = get_class_vars($class)['timestamps']
+            && static::resolveClassAttribute(WithoutTimestamps::class, null, $class) === null
+            && (static::resolveClassAttribute(Table::class, 'timestamps', $class) ?? true);
 
         if (! $timestamps) {
             return true;
@@ -2156,6 +2159,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Reload the current model instance with fresh attributes from the database.
+     *
+     * @return $this
      */
     public function refresh(): static
     {
@@ -2163,16 +2168,43 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             return $this;
         }
 
+        return $this->refreshUsingQuery($this->newQueryWithoutScopes());
+    }
+
+    /**
+     * Reload the current model instance with fresh attributes from the database while locking it for updating.
+     *
+     * @return $this
+     */
+    public function refreshForUpdate(): static
+    {
+        if (! $this->exists) {
+            return $this;
+        }
+
+        return $this->refreshUsingQuery(
+            $this->newQueryWithoutScopes()->lockForUpdate()
+        );
+    }
+
+    /**
+     * Reload the current model instance using the given query.
+     *
+     * @param Builder<static> $query
+     * @return $this
+     */
+    protected function refreshUsingQuery(Builder $query): static
+    {
         $this->setRawAttributes(
-            $this->setKeysForSelectQuery($this->newQueryWithoutScopes())
+            $this->setKeysForSelectQuery($query)
                 ->useWritePdo()
                 ->firstOrFail()
                 ->attributes
         );
 
         $this->load((new BaseCollection($this->relations))->reject(
-            fn ($relation) => $relation instanceof Pivot
-                || (is_object($relation) && in_array(AsPivot::class, class_uses_recursive($relation), true))
+            fn (mixed $relation): bool => $relation instanceof Pivot
+                || (is_object($relation) && isset(class_uses_recursive($relation)[AsPivot::class]))
         )->keys()->all());
 
         $this->syncOriginal();
