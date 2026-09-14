@@ -26,7 +26,7 @@ class DatabaseMySqlQueryGrammarTest extends TestCase
     public function testToRawSql(): void
     {
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('escape')->with('foo', false)->andReturn("'foo'");
+        $connection->expects('escape')->with('foo', false)->andReturn("'foo'");
         $grammar = new MySqlGrammar($connection);
 
         $query = $grammar->substituteBindingsIntoRawSql(
@@ -48,7 +48,7 @@ class DatabaseMySqlQueryGrammarTest extends TestCase
         );
     }
 
-    public function testTimeoutWithDistinctAndAggregateQueries(): void
+    public function testTimeoutWithDistinct(): void
     {
         $builder = $this->getBuilder();
         $builder->distinct()->select('*')->from('users')->timeout(30);
@@ -56,7 +56,10 @@ class DatabaseMySqlQueryGrammarTest extends TestCase
             'select /*+ MAX_EXECUTION_TIME(30000) */ distinct * from `users`',
             $builder->toSql()
         );
+    }
 
+    public function testTimeoutWithAggregate(): void
+    {
         $builder = $this->getBuilder();
         $builder->from('users')->timeout(10);
         $builder->aggregate = ['function' => 'count', 'columns' => ['*']];
@@ -134,7 +137,7 @@ class DatabaseMySqlQueryGrammarTest extends TestCase
         $this->assertSame(1, substr_count($sql, 'MAX_EXECUTION_TIME'));
     }
 
-    public function testTimeoutCanBeCleared(): void
+    public function testTimeoutNullRemovesTimeout(): void
     {
         $builder = $this->getBuilder();
         $builder->select('*')->from('users')->timeout(60)->timeout(null);
@@ -142,7 +145,7 @@ class DatabaseMySqlQueryGrammarTest extends TestCase
         $this->assertSame('select * from `users`', $builder->toSql());
     }
 
-    public function testTimeoutRejectsNonPositiveValues(): void
+    public function testTimeoutThrowsExceptionForNegativeValue(): void
     {
         foreach ([0, -1] as $timeout) {
             try {
@@ -154,6 +157,9 @@ class DatabaseMySqlQueryGrammarTest extends TestCase
         }
     }
 
+    /**
+     * Create a query builder with the MySQL grammar.
+     */
     protected function getBuilder(): Builder
     {
         $connection = m::mock(Connection::class);
