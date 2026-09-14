@@ -239,8 +239,6 @@ class SQLiteGrammar extends Grammar
     {
         return (new Collection($this->groupJsonColumnsForUpdate($values)))
             ->map(function (array $group, string $column): string {
-                $column = last(explode('.', $column));
-
                 if ($this->isJsonSelector(array_key_first($group))) {
                     return $this->compileJsonUpdateColumn($column, $group);
                 }

@@ -352,6 +352,25 @@ class MySqlGrammar extends Grammar
     }
 
     /**
+     * Group update values by column in order of first appearance.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    protected function groupJsonColumnsForUpdate(array $values): array
+    {
+        $groups = [];
+
+        foreach ($values as $key => $value) {
+            // Joined updates can assign columns belonging to different tables.
+            $column = explode('->', $key, 2)[0];
+
+            $groups[$column][$key] = $value;
+        }
+
+        return $groups;
+    }
+
+    /**
      * Compile an "upsert" statement into SQL.
      */
     public function compileUpsert(Builder $query, array $values, array $uniqueBy, array $update): string

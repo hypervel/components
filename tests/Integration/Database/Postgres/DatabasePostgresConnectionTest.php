@@ -127,8 +127,8 @@ class DatabasePostgresConnectionTest extends PostgresTestCase
         $values = [
             'json_table.json_col->a.b' => 3,
             'label' => 'after',
-            'json_table.json_col->object' => ['new' => true],
-            'json_table.json_col->nullable' => null,
+            'json_col->object' => ['new' => true],
+            'json_col->nullable' => null,
             'json_table.json_col->raw' => DB::raw("'4'::jsonb"),
         ];
 

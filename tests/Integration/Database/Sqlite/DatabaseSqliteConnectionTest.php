@@ -61,7 +61,7 @@ class DatabaseSqliteConnectionTest extends SqliteTestCase
             'replace object' => ['{"settings":{"keep":1,"replace":2}}', ['json_col->settings' => ['replace' => 3]], ['settings' => ['replace' => 3]]],
             'retain null' => ['{"key":1}', ['json_col->key' => null], ['key' => null]],
             'dotted key' => ['{"a.b":1}', ['json_table.json_col->a.b' => 2], ['a.b' => 2]],
-            'multiple values' => ['{}', ['json_col->name' => 'John', 'json_col->active' => true, 'json_col->size' => 1.5, 'json_col->tags' => ['a', 'b']], ['name' => 'John', 'active' => true, 'size' => 1.5, 'tags' => ['a', 'b']]],
+            'multiple values' => ['{}', ['json_col->name' => 'John', 'json_table.json_col->active' => true, 'json_col->size' => 1.5, 'json_table.json_col->tags' => ['a', 'b']], ['name' => 'John', 'active' => true, 'size' => 1.5, 'tags' => ['a', 'b']]],
         ];
     }
 

@@ -6073,14 +6073,15 @@ class DatabaseQueryBuilderTest extends TestCase
 
         $builder = $this->getMySqlBuilder();
         $builder->getConnection()->expects('update')->with(
-            'update `users` inner join (select ? as id) as `source` on `users`.`id` = `source`.`id` set `options` = json_set(`options`, \'$."a"\', ?, \'$."b"\', ?), `name` = ? where `active` = ?',
-            [7, 1, 2, 'John', 1],
+            'update `users` inner join (select ? as id) as `source` on `users`.`id` = `source`.`id` inner join `posts` on `posts`.`user_id` = `users`.`id` set `users`.`options` = json_set(`users`.`options`, \'$."a"\', ?, \'$."b"\', ?), `name` = ?, `posts`.`options` = json_set(`posts`.`options`, \'$."c"\', ?) where `active` = ?',
+            [7, 1, 2, 'John', 3, 1],
         )->andReturn(1);
 
         $this->assertSame(1, $builder->from('users')
             ->joinSub($this->getMySqlBuilder()->selectRaw('? as id', [7]), 'source', 'users.id', '=', 'source.id')
+            ->join('posts', 'posts.user_id', '=', 'users.id')
             ->where('active', 1)
-            ->update(['options->a' => 1, 'name' => 'John', 'options->b' => 2]));
+            ->update(['users.options->a' => 1, 'name' => 'John', 'posts.options->c' => 3, 'users.options->b' => 2]));
     }
 
     public function testPostgresUpdateWrappingJson(): void
@@ -6102,7 +6103,7 @@ class DatabaseQueryBuilderTest extends TestCase
         )->andReturn(1);
 
         $this->assertSame(1, $builder->from('users')->where('active', 1)
-            ->update(['options->a' => 1, 'name' => 'John', 'options->b' => 2]));
+            ->update(['options->a' => 1, 'name' => 'John', 'users.options->b' => 2]));
     }
 
     public function testPostgresUpdateWrappingJsonArray(): void

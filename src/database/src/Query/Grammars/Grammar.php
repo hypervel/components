@@ -1156,7 +1156,8 @@ class Grammar extends BaseGrammar
         $groups = [];
 
         foreach ($values as $key => $value) {
-            $column = explode('->', $key, 2)[0];
+            // Qualified and unqualified references must share one assignment.
+            $column = last(explode('.', explode('->', $key, 2)[0]));
 
             $groups[$column][$key] = $value;
         }
