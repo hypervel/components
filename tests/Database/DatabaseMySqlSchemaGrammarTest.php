@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Connection;
+use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\ForeignIdColumnDefinition;
@@ -13,6 +14,8 @@ use Hypervel\Database\Schema\MySqlBuilder;
 use Hypervel\Tests\Database\Fixtures\Enums\Foo;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PDO;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseMySqlSchemaGrammarTest extends TestCase
 {
@@ -861,6 +864,45 @@ class DatabaseMySqlSchemaGrammarTest extends TestCase
         $this->assertSame('alter table `users` add `status` enum(\'bar\') not null', $statements[1]);
     }
 
+    #[DataProvider('escapedSchemaLiteralsProvider')]
+    public function testSchemaLiteralsUseTheConfiguredSqlMode(array $modes, string $literal, string $path): void
+    {
+        $connection = new MySqlConnection(m::mock(PDO::class), config: ['modes' => $modes]);
+        $connection->useDefaultSchemaGrammar();
+        $blueprint = new Blueprint($connection, 'users');
+        $value = "O'Brien\\User";
+        $blueprint->enum('role', [$value])->default($value)->comment($value);
+        $blueprint->string('label')->virtualAsJson('options->' . $value);
+        $blueprint->comment($value);
+
+        $this->assertSame([
+            "alter table `users` add `role` enum({$literal}) not null default {$literal} comment {$literal}",
+            "alter table `users` add `label` varchar(255) as (json_unquote(json_extract(`options`, {$path})))",
+            "alter table `users` comment = {$literal}",
+        ], $blueprint->toSql());
+    }
+
+    /**
+     * Provide SQL modes and escaped schema literals.
+     *
+     * @return array<string, array{list<string>, string, string}>
+     */
+    public static function escapedSchemaLiteralsProvider(): array
+    {
+        return [
+            'backslash escapes' => [[], <<<'SQL'
+'O''Brien\\User'
+SQL, <<<'SQL'
+'$."O''Brien\\\\User"'
+SQL],
+            'literal backslashes' => [['no_backslash_escapes'], <<<'SQL'
+'O''Brien\User'
+SQL, <<<'SQL'
+'$."O''Brien\\User"'
+SQL],
+        ];
+    }
+
     public function testAddingSet()
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
@@ -1403,7 +1445,7 @@ class DatabaseMySqlSchemaGrammarTest extends TestCase
         $statements = $blueprint->toSql();
 
         $this->assertCount(1, $statements);
-        $this->assertSame("alter table `users` add `foo` varchar(255) not null comment 'Escape \\' when using words like it\\'s'", $statements[0]);
+        $this->assertSame("alter table `users` add `foo` varchar(255) not null comment 'Escape '' when using words like it''s'", $statements[0]);
     }
 
     public function testAddingVector()
@@ -1611,7 +1653,9 @@ class DatabaseMySqlSchemaGrammarTest extends TestCase
         ?MySqlBuilder $builder = null,
         string $prefix = ''
     ): Connection {
-        $connection = m::mock(Connection::class);
+        $connection = m::mock(MySqlConnection::class);
+        $connection->shouldReceive('usesBackslashEscapes')->passthru();
+        $connection->shouldReceive('getConfig')->with('modes')->andReturn(null);
         $connection->shouldReceive('getTablePrefix')->andReturn($prefix);
         $connection->shouldReceive('getConfig')->with('prefix_indexes')->andReturn(null);
         $connection->shouldReceive('isMaria')->andReturn(false);
@@ -1763,6 +1807,18 @@ class DatabaseMySqlSchemaGrammarTest extends TestCase
 
         $this->assertCount(1, $statements);
         $this->assertSame('alter table `users` add index `custom_idx` using btree(`name`), lock=none', $statements[0]);
+    }
+
+    public function testQuoteString(): void
+    {
+        $this->assertSame("'中文測試'", $this->getGrammar()->quoteString('中文測試'));
+        $this->assertSame("'foo''bar'", $this->getGrammar()->quoteString("foo'bar"));
+    }
+
+    public function testQuoteStringOnArray(): void
+    {
+        $this->assertSame("'中文', '測試'", $this->getGrammar()->quoteString(['中文', '測試']));
+        $this->assertSame("'foo''bar', 'baz''qux'", $this->getGrammar()->quoteString(["foo'bar", "baz'qux"]));
     }
 
     /**

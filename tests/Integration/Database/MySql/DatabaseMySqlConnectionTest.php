@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\MySql;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
@@ -23,6 +24,17 @@ class DatabaseMySqlConnectionTest extends MySqlTestCase
     public const string JSON_COL = 'json_col';
 
     public const float FLOAT_VAL = 0.2;
+
+    protected function defineEnvironment(ApplicationContract $app): void
+    {
+        parent::defineEnvironment($app);
+
+        $config = $app->make('config');
+        $config->set('database.connections.mysql_no_backslash_escapes', array_replace(
+            $config->array('database.connections.mysql'),
+            ['modes' => ['NO_BACKSLASH_ESCAPES']],
+        ));
+    }
 
     protected function afterRefreshingDatabase(): void
     {
@@ -131,6 +143,34 @@ class DatabaseMySqlConnectionTest extends MySqlTestCase
             self::JSON_COL . '->foo[0]' => 'updated',
         ]);
         $this->assertSame(1, $updatedCount);
+    }
+
+    #[DataProvider('jsonPathConnections')]
+    public function testJsonPathEscaping(string $connectionName): void
+    {
+        $connection = DB::connection($connectionName);
+
+        foreach (['App\Models\User', 'a"b', "O'Brien\\x"] as $key) {
+            $path = self::JSON_COL . '->' . $key . '[0]';
+            $connection->table(self::TABLE)->insert([self::JSON_COL => json_encode([$key => ['before']], JSON_THROW_ON_ERROR)]);
+
+            $this->assertSame('before', $connection->table(self::TABLE)->where($path, 'before')->value($path));
+            $this->assertSame(1, $connection->table(self::TABLE)->where($path, 'before')->update([$path => 'after']));
+            $this->assertSame(
+                [$key => ['after']],
+                json_decode($connection->table(self::TABLE)->where($path, 'after')->value(self::JSON_COL), true, flags: JSON_THROW_ON_ERROR),
+            );
+        }
+    }
+
+    /**
+     * Provide connections with each MySQL backslash escaping mode.
+     *
+     * @return list<array{string}>
+     */
+    public static function jsonPathConnections(): array
+    {
+        return [['mysql'], ['mysql_no_backslash_escapes']];
     }
 
     #[DataProvider('jsonContainsKeyDataProvider')]

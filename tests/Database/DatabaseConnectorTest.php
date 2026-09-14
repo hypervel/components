@@ -36,7 +36,7 @@ class DatabaseConnectorTest extends TestCase
         $connector->expects($this->once())->method('getOptions')->with($config)->willReturn(['options']);
         $connector->expects($this->once())->method('createConnection')->with($dsn, $config, ['options'])->willReturn($connection);
         $connection->shouldReceive('exec')->once()->with('use `bar`;')->andReturn(true);
-        $connection->shouldReceive('exec')->once()->with("SET NAMES 'utf8' COLLATE 'utf8_unicode_ci';")->andReturn(true);
+        $connection->shouldReceive('exec')->once()->with("SET NAMES 'utf8' COLLATE 'utf8_unicode_ci', SESSION sql_mode='';")->andReturn(true);
         $result = $connector->connect($config);
 
         $this->assertSame($result, $connection);
@@ -45,9 +45,9 @@ class DatabaseConnectorTest extends TestCase
     public static function mySqlConnectProvider()
     {
         return [
-            ['mysql:host=foo;dbname=bar', ['host' => 'foo', 'database' => 'bar', 'collation' => 'utf8_unicode_ci', 'charset' => 'utf8']],
-            ['mysql:host=foo;port=111;dbname=bar', ['host' => 'foo', 'database' => 'bar', 'port' => 111, 'collation' => 'utf8_unicode_ci', 'charset' => 'utf8']],
-            ['mysql:unix_socket=baz;dbname=bar', ['host' => 'foo', 'database' => 'bar', 'port' => 111, 'unix_socket' => 'baz', 'collation' => 'utf8_unicode_ci', 'charset' => 'utf8']],
+            ['mysql:host=foo;dbname=bar', ['host' => 'foo', 'database' => 'bar', 'collation' => 'utf8_unicode_ci', 'charset' => 'utf8', 'modes' => []]],
+            ['mysql:host=foo;port=111;dbname=bar', ['host' => 'foo', 'database' => 'bar', 'port' => 111, 'collation' => 'utf8_unicode_ci', 'charset' => 'utf8', 'modes' => []]],
+            ['mysql:unix_socket=baz;dbname=bar', ['host' => 'foo', 'database' => 'bar', 'port' => 111, 'unix_socket' => 'baz', 'collation' => 'utf8_unicode_ci', 'charset' => 'utf8', 'modes' => []]],
         ];
     }
 
@@ -67,11 +67,12 @@ class DatabaseConnectorTest extends TestCase
 
     public function testMySqlEscapesBackticksInTheSelectedDatabaseName(): void
     {
-        $config = ['host' => 'foo', 'database' => 'app`tenant'];
+        $config = ['host' => 'foo', 'database' => 'app`tenant', 'modes' => []];
         $connector = $this->getMockBuilder(MySqlConnector::class)->onlyMethods(['createConnection'])->getMock();
         $connection = m::mock(PDO::class);
         $connector->expects($this->once())->method('createConnection')->willReturn($connection);
         $connection->shouldReceive('exec')->once()->with('use `app``tenant`;')->andReturn(true);
+        $connection->shouldReceive('exec')->once()->with("SET SESSION sql_mode='';")->andReturn(true);
 
         $this->assertSame($connection, $connector->connect($config));
     }
@@ -79,7 +80,7 @@ class DatabaseConnectorTest extends TestCase
     public function testMySqlConnectCallsCreateConnectionWithIsolationLevel(): void
     {
         $dsn = 'mysql:host=foo;dbname=bar';
-        $config = ['host' => 'foo', 'database' => 'bar', 'collation' => 'utf8_unicode_ci', 'charset' => 'utf8', 'isolation_level' => 'REPEATABLE READ'];
+        $config = ['host' => 'foo', 'database' => 'bar', 'collation' => 'utf8_unicode_ci', 'charset' => 'utf8', 'isolation_level' => 'REPEATABLE READ', 'modes' => []];
 
         $connector = $this->getMockBuilder(MySqlConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
         $connection = m::mock(PDO::class);
@@ -87,7 +88,7 @@ class DatabaseConnectorTest extends TestCase
         $connector->expects($this->once())->method('createConnection')->with($dsn, $config, ['options'])->willReturn($connection);
         $connection->shouldReceive('exec')->once()->with('use `bar`;')->andReturn(true);
         $connection->shouldReceive('exec')->once()->with('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;')->andReturn(true);
-        $connection->shouldReceive('exec')->once()->with("SET NAMES 'utf8' COLLATE 'utf8_unicode_ci';")->andReturn(true);
+        $connection->shouldReceive('exec')->once()->with("SET NAMES 'utf8' COLLATE 'utf8_unicode_ci', SESSION sql_mode='';")->andReturn(true);
         $result = $connector->connect($config);
 
         $this->assertSame($result, $connection);
@@ -123,6 +124,21 @@ class DatabaseConnectorTest extends TestCase
         $this->expectExceptionMessage('Database connection [lock_timeout] must be a positive integer.');
 
         $connector->connect($config);
+    }
+
+    public function testMySqlAndMariaDbRequireAnExplicitSqlModeConfiguration(): void
+    {
+        foreach ([MySqlConnector::class => 'MySQL', MariaDbConnector::class => 'MariaDB'] as $connectorClass => $driver) {
+            $connector = $this->getMockBuilder($connectorClass)->onlyMethods(['createConnection'])->getMock();
+            $connector->expects($this->once())->method('createConnection')->willReturn(m::mock(PDO::class));
+
+            try {
+                $connector->connect(['host' => 'localhost', 'database' => '']);
+                $this->fail('Expected missing SQL mode configuration to be rejected.');
+            } catch (InvalidArgumentException $exception) {
+                $this->assertSame("{$driver} connections must configure [strict] or [modes] so SQL literals can be escaped correctly.", $exception->getMessage());
+            }
+        }
     }
 
     public function testPostgresConnectCallsCreateConnectionWithProperArguments(): void

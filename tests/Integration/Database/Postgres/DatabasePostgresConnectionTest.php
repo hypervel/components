@@ -90,6 +90,21 @@ class DatabasePostgresConnectionTest extends PostgresTestCase
         $this->assertSame(1, $updatedCount);
     }
 
+    public function testJsonPathEscaping(): void
+    {
+        foreach (['App\Models\User', 'a"b', "O'Brien\\\"x"] as $key) {
+            $path = 'json_col->' . $key . '[0]';
+            DB::table('json_table')->insert(['json_col' => json_encode([$key => ['before']], JSON_THROW_ON_ERROR)]);
+
+            $this->assertSame('before', DB::table('json_table')->where($path, 'before')->value($path));
+            $this->assertSame(1, DB::table('json_table')->where($path, 'before')->update([$path => 'after']));
+            $this->assertSame(
+                [$key => ['after']],
+                json_decode(DB::table('json_table')->where($path, 'after')->value('json_col'), true, flags: JSON_THROW_ON_ERROR),
+            );
+        }
+    }
+
     #[DataProvider('jsonContainsKeyDataProvider')]
     public function testWhereJsonContainsKey($count, $column)
     {

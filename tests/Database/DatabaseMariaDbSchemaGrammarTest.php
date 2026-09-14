@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Connection;
+use Hypervel\Database\MariaDbConnection;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\ForeignIdColumnDefinition;
@@ -1435,7 +1436,7 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         $statements = $blueprint->toSql();
 
         $this->assertCount(1, $statements);
-        $this->assertSame("alter table `users` add `foo` varchar(255) not null comment 'Escape \\' when using words like it\\'s'", $statements[0]);
+        $this->assertSame("alter table `users` add `foo` varchar(255) not null comment 'Escape '' when using words like it''s'", $statements[0]);
     }
 
     public function testCreateDatabase(): void
@@ -1618,7 +1619,9 @@ class DatabaseMariaDbSchemaGrammarTest extends TestCase
         ?MariaDbBuilder $builder = null,
         string $prefix = ''
     ): Connection&MockInterface {
-        $connection = m::mock(Connection::class);
+        $connection = m::mock(MariaDbConnection::class);
+        $connection->shouldReceive('usesBackslashEscapes')->passthru();
+        $connection->shouldReceive('getConfig')->with('modes')->andReturn(null);
         $connection->shouldReceive('getTablePrefix')->andReturn($prefix);
         $connection->shouldReceive('getConfig')->with('prefix_indexes')->andReturn(null);
 

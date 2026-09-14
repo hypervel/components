@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Query\Grammars;
 
+use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\IndexHint;
 use Hypervel\Database\Query\JoinLateralClause;
@@ -12,6 +13,9 @@ use Hypervel\Support\Str;
 use InvalidArgumentException;
 use Override;
 
+/**
+ * @property MySqlConnection $connection
+ */
 class MySqlGrammar extends Grammar
 {
     /**
@@ -481,6 +485,22 @@ class MySqlGrammar extends Grammar
     public function compileThreadCount(): string
     {
         return 'select variable_value as `Value` from performance_schema.session_status where variable_name = \'threads_connected\'';
+    }
+
+    /**
+     * Quote the given string literal.
+     *
+     * @param array<string>|string $value
+     */
+    #[Override]
+    public function quoteString(string|array $value): string
+    {
+        // The parent quotes array members through this method.
+        if (is_string($value) && $this->connection->usesBackslashEscapes()) {
+            $value = str_replace('\\', '\\\\', $value);
+        }
+
+        return parent::quoteString($value);
     }
 
     /**

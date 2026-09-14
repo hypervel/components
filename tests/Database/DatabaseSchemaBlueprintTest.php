@@ -6,6 +6,8 @@ namespace Hypervel\Tests\Database;
 
 use Closure;
 use Hypervel\Database\Connection;
+use Hypervel\Database\MariaDbConnection;
+use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Database\Schema\ColumnDefinition;
@@ -975,12 +977,16 @@ class DatabaseSchemaBlueprintTest extends TestCase
 
     protected function getConnection(?string $grammar = null, string $prefix = '')
     {
-        $connection = m::mock(Connection::class)
+        $grammar ??= 'MySql';
+        $connection = m::mock(match ($grammar) {
+            'MySql' => MySqlConnection::class,
+            'MariaDb' => MariaDbConnection::class,
+            default => Connection::class,
+        })
             ->shouldReceive('getTablePrefix')->andReturn($prefix)
             ->shouldReceive('getConfig')->with('prefix_indexes')->andReturn(true)
             ->getMock();
 
-        $grammar ??= 'MySql';
         $grammarClass = 'Hypervel\Database\Schema\Grammars\\' . $grammar . 'Grammar';
         $builderClass = 'Hypervel\Database\Schema\\' . $grammar . 'Builder';
 
@@ -993,6 +999,11 @@ class DatabaseSchemaBlueprintTest extends TestCase
 
         if ($grammar === 'MySql') {
             $connection->shouldReceive('isMaria')->andReturn(false);
+        }
+
+        if ($connection instanceof MySqlConnection) {
+            $connection->shouldReceive('usesBackslashEscapes')->passthru();
+            $connection->shouldReceive('getConfig')->with('modes')->andReturn(null);
         }
 
         return $connection;

@@ -424,12 +424,12 @@ abstract class Grammar extends BaseGrammar
         }
 
         if ($value instanceof UnitEnum) {
-            return "'" . str_replace("'", "''", enum_value($value)) . "'";
+            return $this->quoteString((string) enum_value($value));
         }
 
         return is_bool($value)
             ? "'" . (int) $value . "'"
-            : "'" . str_replace("'", "''", (string) $value) . "'";
+            : $this->quoteString((string) $value);
     }
 
     /**

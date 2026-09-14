@@ -653,9 +653,18 @@ class PostgresGrammar extends Grammar
             ->map(fn ($attribute) => $this->parseJsonPathArrayKeys($attribute))
             ->collapse()
             ->map(function ($attribute) use ($quote) {
-                return filter_var($attribute, FILTER_VALIDATE_INT) !== false
-                    ? $attribute
-                    : $quote . $attribute . $quote;
+                if (filter_var($attribute, FILTER_VALIDATE_INT) !== false) {
+                    return $attribute;
+                }
+
+                $attribute = str_replace("'", "''", $attribute);
+
+                if ($quote !== "'") {
+                    // Update paths are array literals inside an SQL string.
+                    $attribute = str_replace(['\\', $quote], ['\\\\', '\\' . $quote], $attribute);
+                }
+
+                return $quote . $attribute . $quote;
             })
             ->all();
     }

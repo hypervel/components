@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Connection;
+use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\Query\Processors\Processor;
@@ -12,9 +13,41 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use JsonException;
 use Mockery as m;
+use PDO;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseMySqlQueryGrammarTest extends TestCase
 {
+    #[DataProvider('jsonPathEscapingProvider')]
+    public function testJsonPathsEscapeKeysUsingTheConfiguredSqlMode(array $modes, string $path): void
+    {
+        $connection = new MySqlConnection(m::mock(PDO::class), config: ['modes' => $modes]);
+        $builder = $connection->table('users')->select('options->App\Models\User->a"b[0]');
+
+        $this->assertSame("select json_unquote(json_extract(`options`, {$path})) from `users`", $builder->toSql());
+        $this->assertSame(
+            "update `users` set `options` = json_set(`options`, {$path}, ?)",
+            $builder->getGrammar()->compileUpdate($builder, ['options->App\Models\User->a"b[0]' => 'John']),
+        );
+    }
+
+    /**
+     * Provide SQL modes and their JSON path literals.
+     *
+     * @return array<string, array{list<string>, string}>
+     */
+    public static function jsonPathEscapingProvider(): array
+    {
+        return [
+            'backslash escapes' => [[], <<<'SQL'
+'$."App\\\\Models\\\\User"."a\\"b"[0]'
+SQL],
+            'literal backslashes' => [['STRICT_TRANS_TABLES,no_backslash_escapes'], <<<'SQL'
+'$."App\\Models\\User"."a\"b"[0]'
+SQL],
+        ];
+    }
+
     public function testUpdateBindingsRejectUnencodableArrays(): void
     {
         $this->expectException(JsonException::class);

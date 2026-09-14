@@ -17,6 +17,8 @@ use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Grammar as BaseGrammar;
+use Hypervel\Database\MariaDbConnection;
+use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Expression as Raw;
 use Hypervel\Database\Query\Grammars\Grammar;
@@ -5807,7 +5809,7 @@ class DatabaseQueryBuilderTest extends TestCase
 
     public function testMySqlUpdateWithJsonPreparesBindingsCorrectly()
     {
-        $connection = $this->getConnection();
+        $connection = $this->getConnection(connectionClass: MySqlConnection::class);
         $grammar = new MySqlGrammar($connection);
         $processor = m::mock(Processor::class);
 
@@ -5996,6 +5998,47 @@ SQL;
         $builder = $this->getMySqlBuilder();
         $builder->select("json->\\\\'))#");
         $this->assertEquals($expectedWithJsonEscaped, $builder->toSql());
+    }
+
+    public function testPostgresJsonPathEscaping(): void
+    {
+        $builder = $this->getPostgresBuilder();
+        $builder->select("json->'))#");
+        $this->assertSame('select "json"->>\'\'\'))#\'', $builder->toSql());
+
+        $builder = $this->getPostgresBuilder();
+        $builder->select('*')->from('users')->where("json->'))#", '=', 1);
+        $this->assertSame('select * from "users" where "json"->>\'\'\'))#\' = ?', $builder->toSql());
+
+        $builder = $this->getPostgresBuilder();
+        $builder->select('*')->from('users')->orderBy("json->'))#");
+        $this->assertSame('select * from "users" order by "json"->>\'\'\'))#\' asc', $builder->toSql());
+
+        $builder = $this->getPostgresBuilder();
+        $builder->select('*')->from('users')->whereJsonLength("json->'))#", 1);
+        $this->assertSame('select * from "users" where jsonb_array_length(("json"->\'\'\'))#\')::jsonb) = ?', $builder->toSql());
+    }
+
+    public function testPostgresUpdateJsonPathEscaping(): void
+    {
+        // The update path delimits its attributes with double quotes, but the
+        // resulting path is still nested within a single quoted string literal,
+        // so single quotes must be escaped there as well...
+        $builder = $this->getPostgresBuilder();
+        $builder->getConnection()->expects('update')
+            ->with('update "users" set "options" = jsonb_set("options"::jsonb, \'{"\'\'))#"}\', ?)', ['"John"'])
+            ->andReturn(1);
+        $builder->from('users')->update(["options->'))#" => 'John']);
+    }
+
+    public function testPostgresUpdateJsonPathEscapesArrayAttributes(): void
+    {
+        $builder = $this->getPostgresBuilder();
+        $builder->getConnection()->expects('update')->with(<<<'SQL'
+update "users" set "options" = jsonb_set("options"::jsonb, '{"a\\\"b",0}', ?)
+SQL, ['"John"'])->andReturn(1);
+
+        $builder->from('users')->update(['options->a\"b[0]' => 'John']);
     }
 
     public function testMySqlWrappingJson()
@@ -8194,11 +8237,21 @@ SQL;
         $this->assertSame('select * from "users" where "email" = \'foo\'', $builder->toRawSql());
     }
 
-    protected function getConnection(string $prefix = '')
+    /**
+     * Create a connection mock for query compilation.
+     *
+     * @param class-string<Connection> $connectionClass
+     */
+    protected function getConnection(string $prefix = '', string $connectionClass = Connection::class): Connection&m\MockInterface
     {
-        $connection = m::mock(Connection::class);
+        $connection = m::mock($connectionClass);
         $connection->shouldReceive('getDatabaseName')->andReturn('database');
         $connection->shouldReceive('getTablePrefix')->andReturn($prefix);
+
+        if ($connection instanceof MySqlConnection) {
+            $connection->shouldReceive('usesBackslashEscapes')->passthru();
+            $connection->shouldReceive('getConfig')->with('modes')->andReturn(null);
+        }
 
         return $connection;
     }
@@ -8316,7 +8369,7 @@ SQL;
 
     protected function getMySqlBuilder(string $prefix = '')
     {
-        $connection = $this->getConnection(prefix: $prefix);
+        $connection = $this->getConnection(prefix: $prefix, connectionClass: MySqlConnection::class);
         $grammar = new MySqlGrammar($connection);
         $processor = m::mock(Processor::class);
 
@@ -8325,7 +8378,7 @@ SQL;
 
     protected function getMariaDbBuilder(string $prefix = '')
     {
-        $connection = $this->getConnection(prefix: $prefix);
+        $connection = $this->getConnection(prefix: $prefix, connectionClass: MariaDbConnection::class);
         $grammar = new MariaDbGrammar($connection);
         $processor = m::mock(Processor::class);
 
@@ -8343,7 +8396,7 @@ SQL;
 
     protected function getMySqlBuilderWithProcessor(string $prefix = '')
     {
-        $connection = $this->getConnection(prefix: $prefix);
+        $connection = $this->getConnection(prefix: $prefix, connectionClass: MySqlConnection::class);
         $grammar = new MySqlGrammar($connection);
         $processor = new MySqlProcessor;
 

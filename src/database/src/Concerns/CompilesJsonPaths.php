@@ -28,13 +28,13 @@ trait CompilesJsonPaths
      */
     protected function wrapJsonPath(string $value, string $delimiter = '->'): string
     {
-        $value = preg_replace("/([\\\\]+)?\\'/", "''", $value);
+        $value = preg_replace("/([\\\\]+)?\\'/", "'", $value);
 
         $jsonPath = (new Collection(explode($delimiter, $value)))
             ->map(fn ($segment) => $this->wrapJsonPathSegment($segment))
             ->join('.');
 
-        return "'$" . (str_starts_with($jsonPath, '[') ? '' : '.') . $jsonPath . "'";
+        return $this->quoteString('$' . (str_starts_with($jsonPath, '[') ? '' : '.') . $jsonPath);
     }
 
     /**
@@ -45,13 +45,13 @@ trait CompilesJsonPaths
         if (preg_match('/(\[[^\]]+\])+$/', $segment, $parts)) {
             $key = Str::beforeLast($segment, $parts[0]);
 
-            if (! empty($key)) {
-                return '"' . $key . '"' . $parts[0];
+            if ($key !== '') {
+                return '"' . str_replace(['\\', '"'], ['\\\\', '\"'], $key) . '"' . $parts[0];
             }
 
             return $parts[0];
         }
 
-        return '"' . $segment . '"';
+        return '"' . str_replace(['\\', '"'], ['\\\\', '\"'], $segment) . '"';
     }
 }
