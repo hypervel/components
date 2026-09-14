@@ -6542,7 +6542,7 @@ SQL;
         });
     }
 
-    public function testChunkRejectsNonpositiveCounts()
+    public function testChunkWithCountZero(): void
     {
         $builder = $this->getMockQueryBuilder();
         $builder->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
@@ -6555,7 +6555,7 @@ SQL;
 
         foreach ([0, -1] as $count) {
             try {
-                $builder->chunk($count, function () {
+                $builder->chunk($count, function (): never {
                     $this->fail('Should never be called.');
                 });
                 $this->fail('The nonpositive chunk size was accepted.');
@@ -6631,7 +6631,7 @@ SQL;
         }, 'someIdField');
     }
 
-    public function testChunkByIdRejectsNonpositiveCounts()
+    public function testChunkPaginatesUsingIdWithCountZero(): void
     {
         $builder = $this->getMockQueryBuilder();
         $builder->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
@@ -6643,7 +6643,7 @@ SQL;
 
         foreach ([0, -1] as $count) {
             try {
-                $builder->chunkById($count, function () {
+                $builder->chunkById($count, function (): never {
                     $this->fail('Should never be called.');
                 }, 'someIdField');
                 $this->fail('The nonpositive chunk size was accepted.');

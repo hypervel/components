@@ -492,6 +492,12 @@ $flights = Flight::where('active', 1)
 > [!NOTE]
 > Since Eloquent models are query builders, you should review all of the methods provided by Hypervel's [query builder](/docs/{{version}}/queries). You may use any of these methods when writing your Eloquent queries.
 
+The `whereKey` and `whereKeyNot` methods constrain a query using the model's primary key. Both accept a single key or multiple keys. To join these conditions with `or`, use `orWhereKey` or `orWhereKeyNot`:
+
+```php
+$flights = Flight::where('active', 1)->orWhereKey([1, 2])->get();
+```
+
 <a name="refreshing-models"></a>
 #### Refreshing Models
 

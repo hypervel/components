@@ -958,6 +958,76 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(2, $chunks);
     }
 
+    public function testLazyWithLimits(): void
+    {
+        User::insert([
+            ['name' => 'First', 'email' => 'first@example.com'],
+            ['name' => 'Second', 'email' => 'second@example.com'],
+            ['name' => 'Third', 'email' => 'third@example.com'],
+        ]);
+
+        DB::enableQueryLog();
+
+        $users = User::query()->orderBy('id', 'asc')->limit(2)->lazy(2);
+
+        $this->assertSame(['First', 'Second'], $users->pluck('name')->all());
+        $this->assertCount(1, DB::getQueryLog());
+    }
+
+    public function testLazyWithLimitsAndOffsets(): void
+    {
+        User::insert([
+            ['name' => 'First', 'email' => 'first@example.com'],
+            ['name' => 'Second', 'email' => 'second@example.com'],
+            ['name' => 'Third', 'email' => 'third@example.com'],
+            ['name' => 'Fourth', 'email' => 'fourth@example.com'],
+            ['name' => 'Fifth', 'email' => 'fifth@example.com'],
+            ['name' => 'Sixth', 'email' => 'sixth@example.com'],
+            ['name' => 'Seventh', 'email' => 'seventh@example.com'],
+        ]);
+
+        $users = User::query()->orderBy('id', 'asc')->offset(2)->limit(3)->lazy(2);
+
+        $this->assertSame(['Third', 'Fourth', 'Fifth'], $users->pluck('name')->all());
+    }
+
+    public function testLazyByIdWithLimits(): void
+    {
+        User::insert([
+            ['name' => 'First', 'email' => 'first@example.com'],
+            ['name' => 'Second', 'email' => 'second@example.com'],
+            ['name' => 'Third', 'email' => 'third@example.com'],
+        ]);
+
+        DB::enableQueryLog();
+
+        $users = User::query()->limit(2)->lazyById(2);
+
+        $this->assertSame(['First', 'Second'], $users->pluck('name')->all());
+        $this->assertCount(1, DB::getQueryLog());
+    }
+
+    public function testLazyByIdWithLimitsAndOffsets(): void
+    {
+        User::insert([
+            ['name' => 'First', 'email' => 'first@example.com'],
+            ['name' => 'Second', 'email' => 'second@example.com'],
+            ['name' => 'Third', 'email' => 'third@example.com'],
+            ['name' => 'Fourth', 'email' => 'fourth@example.com'],
+            ['name' => 'Fifth', 'email' => 'fifth@example.com'],
+            ['name' => 'Sixth', 'email' => 'sixth@example.com'],
+            ['name' => 'Seventh', 'email' => 'seventh@example.com'],
+        ]);
+
+        $users = User::query()->offset(2)->limit(3)->lazyById(2);
+
+        $this->assertSame(['Third', 'Fourth', 'Fifth'], $users->pluck('name')->all());
+
+        $users = User::query()->offset(2)->limit(3)->lazyByIdDesc(2);
+
+        $this->assertSame(['Fifth', 'Fourth', 'Third'], $users->pluck('name')->all());
+    }
+
     public function testChunkByIdWithNonIncrementingKey()
     {
         NonIncrementingSecond::insert([
