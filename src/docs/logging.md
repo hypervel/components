@@ -87,7 +87,7 @@ The `single`, `daily`, and `monthly` channels have three optional configuration 
 
 When `permission` is `null`, the operating system determines the log file's permissions.
 
-Additionally, the retention policy for the `daily` and `monthly` channels can be configured via the `max_files` configuration option. The `daily` channel uses `days` when `max_files` is not set; the default `daily` configuration sets `days` through the `LOG_DAILY_DAYS` environment variable. The `monthly` channel retains three files by default.
+Additionally, the retention policy for the `daily` and `monthly` channels can be configured via the `max_files` configuration option. The `LOG_DAILY_DAYS` environment variable may also be used to configure retention for the `daily` channel.
 
 <a name="configuring-the-papertrail-channel"></a>
 #### Configuring the Papertrail Channel

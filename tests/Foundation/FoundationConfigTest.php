@@ -42,7 +42,7 @@ class FoundationConfigTest extends TestCase
             return require dirname(__DIR__, 2) . '/src/foundation/config/logging.php';
         });
 
-        $this->assertSame(30, $config['channels']['daily']['days']);
+        $this->assertSame(30, $config['channels']['daily']['max_files']);
     }
 
     public function testLoggingConfigNormalizesNullablePapertrailPort(): void
