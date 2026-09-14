@@ -169,7 +169,7 @@ class DatabaseEloquentMorphToTest extends TestCase
         $this->assertSame('taylor', $result->username);
     }
 
-    public function testMorphToWithZeroMorphType()
+    public function testMorphToWithZeroMorphType(): void
     {
         $parent = $this->getMockBuilder(ModelStub::class)->onlyMethods(['getAttributeFromArray', 'morphEagerTo', 'morphInstanceTo'])->getMock();
         $parent->expects($this->once())->method('getAttributeFromArray')->with('relation_type')->willReturn(0);
@@ -179,7 +179,7 @@ class DatabaseEloquentMorphToTest extends TestCase
         $parent->relation();
     }
 
-    public function testMorphToWithEmptyStringMorphType()
+    public function testMorphToWithEmptyStringMorphType(): void
     {
         $parent = $this->getMockBuilder(ModelStub::class)->onlyMethods(['getAttributeFromArray', 'morphEagerTo', 'morphInstanceTo'])->getMock();
         $parent->expects($this->once())->method('getAttributeFromArray')->with('relation_type')->willReturn('');
