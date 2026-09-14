@@ -2760,6 +2760,15 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertEquals([], $model->toArray());
     }
 
+    public function testToArrayPassesRealValueToAppendedAccessor(): void
+    {
+        $model = new AppendsWithExistingAttributeStub;
+        $model->price = 100;
+
+        $this->assertSame(100, $model->price);
+        $this->assertSame(100, $model->toArray()['price']);
+    }
+
     public function testMergeAppendsMergesAppends()
     {
         $model = new AppendsStub;
@@ -4773,6 +4782,23 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertEquals('test name', $instance->name); // Small smoke test to ensure the factory is working
     }
 
+    public function testNestedModelBootingIsDisallowed(): void
+    {
+        $this->expectExceptionMessageMatches('/The \[(.+)] method may not be called on model \[(.+)\] while it is being booted\./');
+
+        $model = new class extends Model {
+            /**
+             * Bootstrap the model and its traits.
+             */
+            protected static function boot(): void
+            {
+                parent::boot();
+
+                $tableName = (new self)->getTable();
+            }
+        };
+    }
+
     public function testUseCustomBuilderWithUseEloquentBuilderAttribute()
     {
         $model = new ModelWithUseEloquentBuilderAttributeStub;
@@ -5203,6 +5229,21 @@ class AppendsStub extends Model
     public function getStudlyCasedAttribute()
     {
         return 'StudlyCased';
+    }
+}
+
+class AppendsWithExistingAttributeStub extends Model
+{
+    protected array $guarded = [];
+
+    protected array $appends = ['price'];
+
+    /**
+     * Get the price attribute.
+     */
+    protected function price(): Attribute
+    {
+        return Attribute::get(fn (mixed $value): mixed => $value);
     }
 }
 

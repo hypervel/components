@@ -262,10 +262,10 @@ trait HasAttributes
         );
 
         // Here we will grab all of the appended, calculated attributes to this model
-        // as these attributes are not really in the attributes array, but are run
+        // as these attributes may not be in the attributes array, but are run
         // when we need to array or JSON the model for convenience to the coder.
         foreach ($this->getArrayableAppends() as $key) {
-            $attributes[$key] = $this->mutateAttributeForArray($key, null);
+            $attributes[$key] = $this->mutateAttributeForArray($key, $this->getAttributeFromArray($key));
         }
 
         return $attributes;
