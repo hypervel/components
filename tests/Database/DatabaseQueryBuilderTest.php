@@ -88,19 +88,19 @@ class DatabaseQueryBuilderTest extends TestCase
         }
     }
 
-    public function testBasicSelectWithGetColumns()
+    public function testBasicSelectWithGetColumns(): void
     {
         $builder = $this->getBuilder();
-        $builder->getProcessor()->shouldReceive('processSelect');
-        $builder->getConnection()->shouldReceive('select')->once()->andReturnUsing(function ($sql) {
+        $builder->getProcessor()->expects('processSelect')->times(3);
+        $builder->getConnection()->expects('select')->andReturnUsing(function (string $sql): array {
             $this->assertSame('select * from "users"', $sql);
             return [];
         });
-        $builder->getConnection()->shouldReceive('select')->once()->andReturnUsing(function ($sql) {
+        $builder->getConnection()->expects('select')->andReturnUsing(function (string $sql): array {
             $this->assertSame('select "foo", "bar" from "users"', $sql);
             return [];
         });
-        $builder->getConnection()->shouldReceive('select')->once()->andReturnUsing(function ($sql) {
+        $builder->getConnection()->expects('select')->andReturnUsing(function (string $sql): array {
             $this->assertSame('select "baz" from "users"', $sql);
             return [];
         });
@@ -4408,7 +4408,10 @@ class DatabaseQueryBuilderTest extends TestCase
     public function testStraightJoin(): void
     {
         $builder = $this->getMySqlBuilder();
-        $builder->getConnection()->shouldReceive('getDatabaseName');
+        $builder->select('*')->from('users')->straightJoin('contacts', 'users.id', 'contacts.id');
+        $this->assertSame('select * from `users` straight_join `contacts` on `users`.`id` = `contacts`.`id`', $builder->toSql());
+
+        $builder = $this->getMySqlBuilder();
         $builder->select('*')->from('users')
             ->join('contacts', 'users.id', '=', 'contacts.id')
             ->straightJoin('photos', 'users.id', '=', 'photos.id');
@@ -4416,7 +4419,6 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame('select * from `users` inner join `contacts` on `users`.`id` = `contacts`.`id` straight_join `photos` on `users`.`id` = `photos`.`id`', $builder->toSql());
 
         $builder = $this->getMySqlBuilder();
-        $builder->getConnection()->shouldReceive('getDatabaseName');
         $builder->select('*')->from('users')
             ->straightJoinWhere('photos', 'users.id', '=', 'bar')
             ->joinWhere('photos', 'users.id', '=', 'foo');
@@ -4425,10 +4427,10 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame(['bar', 'foo'], $builder->getBindings());
     }
 
-    public function testStraightJoinIsRejectedByUnsupportedGrammars(): void
+    public function testStraightJoinNoSupport(): void
     {
         $builder = $this->getBuilder();
-        $builder->select('*')->from('users')->straightJoin('contacts', 'users.id', '=', 'contacts.id');
+        $builder->select('*')->from('users')->straightJoin('contacts', 'users.id', 'contacts.id');
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessageIsOrContains('does not support straight joins');
@@ -4439,7 +4441,25 @@ class DatabaseQueryBuilderTest extends TestCase
     public function testStraightJoinSub(): void
     {
         $builder = $this->getMySqlBuilder();
-        $builder->getConnection()->shouldReceive('getDatabaseName');
+        $builder->from('users')->straightJoinSub($this->getBuilder()->from('contacts'), 'sub', 'users.id', '=', 'sub.id');
+        $this->assertSame('select * from `users` straight_join (select * from "contacts") as `sub` on `users`.`id` = `sub`.`id`', $builder->toSql());
+
+        $this->expectException(TypeError::class);
+        $builder = $this->getBuilder();
+        $builder->from('users')->straightJoinSub(['foo'], 'sub', 'users.id', '=', 'sub.id');
+    }
+
+    public function testStraightJoinSubNoSupport(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $builder = $this->getBuilder();
+        $builder->from('users')->straightJoinSub($this->getBuilder()->from('contacts'), 'sub', 'users.id', '=', 'sub.id');
+        $builder->toSql();
+    }
+
+    public function testStraightJoinSubPreservesBindings(): void
+    {
+        $builder = $this->getMySqlBuilder();
         $builder->from('users')->straightJoinSub(
             $this->getBuilder()->from('contacts')->where('active', true),
             'sub',
@@ -4746,45 +4766,45 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals(1, $results);
     }
 
-    public function testExistsOr()
+    public function testExistsOr(): void
     {
         $builder = $this->getBuilder();
-        $builder->getConnection()->shouldReceive('select')->andReturn([['exists' => 1]]);
-        $results = $builder->from('users')->doesntExistOr(function () {
+        $builder->getConnection()->expects('select')->andReturn([['exists' => 1]]);
+        $results = $builder->from('users')->doesntExistOr(function (): int {
             return 123;
         });
         $this->assertSame(123, $results);
         $builder = $this->getBuilder();
-        $builder->getConnection()->shouldReceive('select')->andReturn([['exists' => 0]]);
-        $results = $builder->from('users')->doesntExistOr(function () {
+        $builder->getConnection()->expects('select')->andReturn([['exists' => 0]]);
+        $results = $builder->from('users')->doesntExistOr(function (): never {
             throw new RuntimeException;
         });
         $this->assertTrue($results);
     }
 
-    public function testDoesntExistsOr()
+    public function testDoesntExistsOr(): void
     {
         $builder = $this->getBuilder();
-        $builder->getConnection()->shouldReceive('select')->andReturn([['exists' => 0]]);
-        $results = $builder->from('users')->existsOr(function () {
+        $builder->getConnection()->expects('select')->andReturn([['exists' => 0]]);
+        $results = $builder->from('users')->existsOr(function (): int {
             return 123;
         });
         $this->assertSame(123, $results);
         $builder = $this->getBuilder();
-        $builder->getConnection()->shouldReceive('select')->andReturn([['exists' => 1]]);
-        $results = $builder->from('users')->existsOr(function () {
+        $builder->getConnection()->expects('select')->andReturn([['exists' => 1]]);
+        $results = $builder->from('users')->existsOr(function (): never {
             throw new RuntimeException;
         });
         $this->assertTrue($results);
     }
 
-    public function testAggregateResetFollowedByGet()
+    public function testAggregateResetFollowedByGet(): void
     {
         $builder = $this->getBuilder();
-        $builder->getConnection()->shouldReceive('select')->once()->with('select count(*) as "aggregate" from "users"', [], true, [])->andReturn([['aggregate' => 1]]);
-        $builder->getConnection()->shouldReceive('select')->once()->with('select sum("id") as "aggregate" from "users"', [], true, [])->andReturn([['aggregate' => 2]]);
-        $builder->getConnection()->shouldReceive('select')->once()->with('select "column1", "column2" from "users"', [], true, [])->andReturn([['column1' => 'foo', 'column2' => 'bar']]);
-        $builder->getProcessor()->shouldReceive('processSelect')->andReturnUsing(function ($builder, $results) {
+        $builder->getConnection()->expects('select')->with('select count(*) as "aggregate" from "users"', [], true, [])->andReturn([['aggregate' => 1]]);
+        $builder->getConnection()->expects('select')->with('select sum("id") as "aggregate" from "users"', [], true, [])->andReturn([['aggregate' => 2]]);
+        $builder->getConnection()->expects('select')->with('select "column1", "column2" from "users"', [], true, [])->andReturn([['column1' => 'foo', 'column2' => 'bar']]);
+        $builder->getProcessor()->expects('processSelect')->times(3)->andReturnUsing(function (Builder $builder, array $results): array {
             return $results;
         });
         $builder->from('users')->select('column1', 'column2');
@@ -4796,12 +4816,12 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals([['column1' => 'foo', 'column2' => 'bar']], $result->all());
     }
 
-    public function testAggregateResetFollowedBySelectGet()
+    public function testAggregateResetFollowedBySelectGet(): void
     {
         $builder = $this->getBuilder();
-        $builder->getConnection()->shouldReceive('select')->once()->with('select count("column1") as "aggregate" from "users"', [], true, [])->andReturn([['aggregate' => 1]]);
-        $builder->getConnection()->shouldReceive('select')->once()->with('select "column2", "column3" from "users"', [], true, [])->andReturn([['column2' => 'foo', 'column3' => 'bar']]);
-        $builder->getProcessor()->shouldReceive('processSelect')->andReturnUsing(function ($builder, $results) {
+        $builder->getConnection()->expects('select')->with('select count("column1") as "aggregate" from "users"', [], true, [])->andReturn([['aggregate' => 1]]);
+        $builder->getConnection()->expects('select')->with('select "column2", "column3" from "users"', [], true, [])->andReturn([['column2' => 'foo', 'column3' => 'bar']]);
+        $builder->getProcessor()->expects('processSelect')->times(2)->andReturnUsing(function (Builder $builder, array $results): array {
             return $results;
         });
         $builder->from('users');
@@ -4811,12 +4831,12 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals([['column2' => 'foo', 'column3' => 'bar']], $result->all());
     }
 
-    public function testAggregateResetFollowedByGetWithColumns()
+    public function testAggregateResetFollowedByGetWithColumns(): void
     {
         $builder = $this->getBuilder();
-        $builder->getConnection()->shouldReceive('select')->once()->with('select count("column1") as "aggregate" from "users"', [], true, [])->andReturn([['aggregate' => 1]]);
-        $builder->getConnection()->shouldReceive('select')->once()->with('select "column2", "column3" from "users"', [], true, [])->andReturn([['column2' => 'foo', 'column3' => 'bar']]);
-        $builder->getProcessor()->shouldReceive('processSelect')->andReturnUsing(function ($builder, $results) {
+        $builder->getConnection()->expects('select')->with('select count("column1") as "aggregate" from "users"', [], true, [])->andReturn([['aggregate' => 1]]);
+        $builder->getConnection()->expects('select')->with('select "column2", "column3" from "users"', [], true, [])->andReturn([['column2' => 'foo', 'column3' => 'bar']]);
+        $builder->getProcessor()->expects('processSelect')->times(2)->andReturnUsing(function (Builder $builder, array $results): array {
             return $results;
         });
         $builder->from('users');
