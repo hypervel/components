@@ -547,6 +547,14 @@ class PostgresGrammar extends Grammar
     }
 
     /**
+     * Compile a drop vector index command.
+     */
+    public function compileDropVectorIndex(Blueprint $blueprint, Fluent $command): string
+    {
+        return $this->compileDropIndex($blueprint, $command);
+    }
+
+    /**
      * Compile a drop foreign key command.
      */
     public function compileDropForeign(Blueprint $blueprint, Fluent $command): string

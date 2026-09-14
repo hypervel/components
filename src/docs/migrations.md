@@ -1613,6 +1613,7 @@ To drop an index, you must specify the index's name. By default, Hypervel automa
 | `$table->dropIndex('geo_state_index');`                  | Drop a basic index from the "geo" table.                    |
 | `$table->dropFullText('posts_body_fulltext');`           | Drop a full text index from the "posts" table.              |
 | `$table->dropSpatialIndex('geo_location_spatialindex');` | Drop a spatial index from the "geo" table  (except SQLite). |
+| `$table->dropVectorIndex('posts_embeddings_vectorindex');` | Drop a vector index from the "posts" table (MariaDB / PostgreSQL). |
 
 </div>
 

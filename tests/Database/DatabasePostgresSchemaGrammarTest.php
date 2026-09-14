@@ -241,6 +241,16 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertSame('drop index "geo_coordinates_spatialindex"', $statements[0]);
     }
 
+    public function testDropVectorIndex(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'posts');
+        $blueprint->dropVectorIndex(['embeddings']);
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('drop index "posts_embeddings_vectorindex"', $statements[0]);
+    }
+
     public function testDropForeign()
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
