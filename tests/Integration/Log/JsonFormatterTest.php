@@ -46,6 +46,7 @@ final class JsonFormatterTest extends TestCase
 
         $exceptionData = $formatted['context']['exception'];
         $this->assertSame('bar', $exceptionData['foo']);
+        $this->assertSame('numeric', $exceptionData[123] ?? null);
         $this->assertSame(ContextProvidingException::class, $exceptionData['class']);
     }
 
@@ -59,6 +60,7 @@ final class JsonFormatterTest extends TestCase
 
         // Context should be at the top level (from the handler)
         $this->assertSame('bar', $formatted['context']['foo']);
+        $this->assertSame('numeric', $formatted['context'][123] ?? null);
 
         // But NOT enriched inside the normalized exception (formatter should skip)
         $exceptionData = $formatted['context']['exception'];
@@ -173,7 +175,7 @@ final class JsonFormatterTest extends TestCase
     public function testContextCallbacksAreIncludedInFormatterEnrichment(): void
     {
         $this->app->make(ExceptionHandlerContract::class)->buildContextUsing(function (Throwable $e): array {
-            return ['callback_key' => 'callback_value'];
+            return ['callback_key' => 'callback_value', '123' => 'updated', '456' => 'added'];
         });
 
         $exception = new ContextProvidingException('With callbacks');
@@ -185,6 +187,8 @@ final class JsonFormatterTest extends TestCase
 
         $this->assertSame('bar', $exceptionData['foo']);
         $this->assertSame('callback_value', $exceptionData['callback_key']);
+        $this->assertSame('updated', $exceptionData[123] ?? null);
+        $this->assertSame('added', $exceptionData[456] ?? null);
     }
 
     public function testNonScalarContextValuesAreNormalized(): void
@@ -288,6 +292,7 @@ final class JsonFormatterTest extends TestCase
 
         $exceptionData = $formatted['context']['exception'];
         $this->assertSame('bar', $exceptionData['foo']);
+        $this->assertSame('numeric', $exceptionData[123] ?? null);
         $this->assertSame(ContextProvidingException::class, $exceptionData['class']);
     }
 
@@ -313,7 +318,7 @@ class ContextProvidingException extends Exception
      */
     public function context(): array
     {
-        return ['foo' => 'bar'];
+        return ['foo' => 'bar', '123' => 'numeric'];
     }
 }
 

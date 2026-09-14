@@ -528,7 +528,7 @@ class LogManager implements LoggerInterface
         }
 
         CoroutineContext::override(self::SHARED_CONTEXT_KEY, function ($currentContext) use ($context) {
-            return array_merge($currentContext ?: [], $context);
+            return array_replace($currentContext ?: [], $context);
         });
 
         return $this;

@@ -667,7 +667,7 @@ class Handler implements ExceptionHandlerContract
      */
     protected function buildExceptionContext(Throwable $e): array
     {
-        return array_merge(
+        return array_replace(
             $this->buildContextForException($e),
             $this->context(),
             ['exception' => $e]
@@ -696,7 +696,7 @@ class Handler implements ExceptionHandlerContract
         }
 
         foreach ($this->contextCallbacks as $callback) {
-            $context = array_merge($context, $callback($e, $context));
+            $context = array_replace($context, $callback($e, $context));
         }
 
         return $context;

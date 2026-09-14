@@ -880,6 +880,26 @@ class LogManagerTest extends TestCase
         ], $manager->sharedContext());
     }
 
+    public function testSharedContextPreservesNumericKeys(): void
+    {
+        config(['logging.channels.first' => [
+            'driver' => 'monolog',
+            'handler' => NullHandler::class,
+        ], 'logging.channels.second' => [
+            'driver' => 'monolog',
+            'handler' => NullHandler::class,
+        ]]);
+        $manager = new LogManager($this->app);
+        $first = $manager->channel('first');
+
+        $manager->shareContext(['123' => 'first', '456' => 'kept']);
+        $manager->shareContext(['123' => 'updated']);
+
+        $this->assertSame([123 => 'updated', 456 => 'kept'], $manager->sharedContext());
+        $this->assertSame([123 => 'updated', 456 => 'kept'], $first->getContext());
+        $this->assertSame([123 => 'updated', 456 => 'kept'], $manager->channel('second')->getContext());
+    }
+
     public function testFlushSharedContext(): void
     {
         $manager = new LogManager($this->app);

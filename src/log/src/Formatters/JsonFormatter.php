@@ -20,7 +20,7 @@ class JsonFormatter extends MonologJsonFormatter
         try {
             $handler = Container::getInstance()->make(ExceptionHandler::class);
         } catch (Throwable) {
-            return array_merge($this->getExceptionContext($e, $depth), $response);
+            return array_replace($this->getExceptionContext($e, $depth), $response);
         }
 
         // Active reports already carry this context at record level; rebuilding it can re-enter user callbacks.
@@ -28,9 +28,9 @@ class JsonFormatter extends MonologJsonFormatter
             if (method_exists($handler, 'buildContextForException')
                 && is_array($context = $this->normalize($handler->buildContextForException($e), $depth + 1))
             ) {
-                $response = array_merge($context, $response);
+                $response = array_replace($context, $response);
             } elseif (method_exists($e, 'context')) {
-                $response = array_merge($this->getExceptionContext($e, $depth), $response);
+                $response = array_replace($this->getExceptionContext($e, $depth), $response);
             }
         }
 

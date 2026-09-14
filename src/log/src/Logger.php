@@ -168,7 +168,7 @@ class Logger implements LoggerInterface
 
             $this->logger->{$level}(
                 $message = $this->formatMessage($message),
-                $context = array_merge($state->context, $context)
+                $context = array_replace($state->context, $context)
             );
 
             $this->fireLogEvent($level, $message, $context);
@@ -202,7 +202,7 @@ class Logger implements LoggerInterface
     public function withContext(array $context = []): self
     {
         $state = $this->state();
-        $state->context = array_merge($state->context, $context);
+        $state->context = array_replace($state->context, $context);
 
         return $this;
     }
