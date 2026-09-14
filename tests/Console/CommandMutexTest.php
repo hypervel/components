@@ -24,8 +24,11 @@ class CommandMutexTest extends TestCase
 {
     protected Command $command;
 
-    protected CommandMutex|m\MockInterface $commandMutex;
+    protected CommandMutex&m\MockInterface $commandMutex;
 
+    /**
+     * Set up an isolatable command and its mutex.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -33,7 +36,10 @@ class CommandMutexTest extends TestCase
         $this->command = new class extends Command implements Isolatable {
             public int $ran = 0;
 
-            public function __invoke()
+            /**
+             * Execute the command.
+             */
+            public function __invoke(): void
             {
                 ++$this->ran;
             }
@@ -45,25 +51,19 @@ class CommandMutexTest extends TestCase
         $this->app->instance(CommandMutex::class, $this->commandMutex);
     }
 
-    public function testCanRunIsolatedCommandIfNotBlocked()
+    public function testCanRunIsolatedCommandIfNotBlocked(): void
     {
-        $this->commandMutex->shouldReceive('create')
-            ->andReturn(true)
-            ->once();
-        $this->commandMutex->shouldReceive('forget')
-            ->andReturn(true)
-            ->once();
+        $this->commandMutex->expects('create')->andReturn(true);
+        $this->commandMutex->expects('forget')->andReturn(true);
 
         $this->runCommand();
 
         $this->assertEquals(1, $this->command->ran);
     }
 
-    public function testCannotRunIsolatedCommandIfBlocked()
+    public function testCannotRunIsolatedCommandIfBlocked(): void
     {
-        $this->commandMutex->shouldReceive('create')
-            ->andReturn(false)
-            ->once();
+        $this->commandMutex->expects('create')->andReturn(false);
 
         $this->runCommand();
 
@@ -85,14 +85,14 @@ class CommandMutexTest extends TestCase
         $this->assertSame(0, $this->command->ran);
     }
 
-    public function testCanRunCommandAgainAfterOtherCommandFinished()
+    public function testCanRunCommandAgainAfterOtherCommandFinished(): void
     {
-        $this->commandMutex->shouldReceive('create')
+        $this->commandMutex->expects('create')
             ->andReturn(true)
-            ->twice();
-        $this->commandMutex->shouldReceive('forget')
+            ->times(2);
+        $this->commandMutex->expects('forget')
             ->andReturn(true)
-            ->twice();
+            ->times(2);
 
         $this->runCommand();
         $this->runCommand();
@@ -100,12 +100,11 @@ class CommandMutexTest extends TestCase
         $this->assertEquals(2, $this->command->ran);
     }
 
-    public function testCanRunCommandAgainNonAutomated()
+    public function testCanRunCommandAgainNonAutomated(): void
     {
-        $this->commandMutex->shouldNotHaveBeenCalled();
-
         $this->runCommand(false);
 
+        $this->commandMutex->shouldNotHaveReceived('create');
         $this->assertEquals(1, $this->command->ran);
     }
 
@@ -301,7 +300,10 @@ class CommandMutexTest extends TestCase
         $this->assertSame($cancellation, $observed);
     }
 
-    protected function runCommand(bool $withIsolated = true)
+    /**
+     * Run the command with optional isolation.
+     */
+    protected function runCommand(bool $withIsolated = true): void
     {
         $input = new ArrayInput(['--isolated' => $withIsolated]);
         $output = new NullOutput;
