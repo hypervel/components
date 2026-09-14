@@ -205,16 +205,16 @@ class DatabaseEloquentMorphToTest extends TestCase
         $this->assertEquals($newModel, $result);
     }
 
-    public function testAssociateMethodSetsForeignKeyAndTypeOnModel()
+    public function testAssociateMethodSetsForeignKeyAndTypeOnModel(): void
     {
         $parent = m::mock(Model::class);
-        $parent->shouldReceive('getAttribute')->with('foreign_key')->andReturn('foreign.value');
+        $parent->expects('getAttribute')->with('foreign_key')->andReturn('foreign.value');
 
         $relation = $this->getRelationAssociate($parent);
 
         $associate = m::mock(Model::class);
-        $associate->shouldReceive('getAttribute')->andReturn(1);
-        $associate->shouldReceive('getMorphClass')->andReturn('Model');
+        $associate->expects('getAttribute')->with('id')->andReturn(1);
+        $associate->expects('getMorphClass')->andReturn('Model');
 
         $parent->shouldReceive('setAttribute')->once()->with('foreign_key', 1);
         $parent->shouldReceive('setAttribute')->once()->with('morph_type', 'Model');
@@ -538,6 +538,9 @@ class DatabaseEloquentMorphToTest extends TestCase
     public function testMatchToMorphParentsNormalizesKeyWhenOwnerKeyIsNullAndResultKeyIsObject(): void
     {
         $uuidObject = new class {
+            /**
+             * Get the string representation of the key.
+             */
             public function __toString(): string
             {
                 return 'uuid-value';
@@ -546,13 +549,13 @@ class DatabaseEloquentMorphToTest extends TestCase
 
         $builder = m::mock(Builder::class);
         $related = m::mock(Model::class);
-        $builder->shouldReceive('getModel')->andReturn($related);
+        $builder->expects('getModel')->andReturn($related);
 
         $parent = new ModelStub;
         $parent->morph_type = 'type_1';
         $parent->foreign_key = 'uuid-value';
 
-        $relation = Relation::noConstraints(function () use ($builder, $parent) {
+        $relation = Relation::noConstraints(function () use ($builder, $parent): AccessibleMorphTo {
             return new AccessibleMorphTo($builder, $parent, 'foreign_key', null, 'morph_type', 'relation');
         });
 
@@ -566,15 +569,16 @@ class DatabaseEloquentMorphToTest extends TestCase
         $this->assertSame($result, $parent->getRelation('relation'));
     }
 
-    protected function getRelationAssociate($parent)
+    /**
+     * Create a morph relation with the existing parent key constrained.
+     */
+    protected function getRelationAssociate(Model $parent): MorphTo
     {
         $builder = m::mock(Builder::class);
-        $builder->shouldReceive('where')->with('relation.id', '=', 'foreign.value');
+        $builder->expects('where')->with('relation.id', '=', 'foreign.value');
         $related = m::mock(Model::class);
-        $related->shouldReceive('getKey')->andReturn(1);
-        $related->shouldReceive('getTable')->andReturn('relation');
-        $related->shouldReceive('qualifyColumn')->andReturnUsing(fn (string $column) => "relation.{$column}");
-        $builder->shouldReceive('getModel')->andReturn($related);
+        $related->expects('qualifyColumn')->andReturnUsing(fn (string $column): string => "relation.{$column}");
+        $builder->expects('getModel')->andReturn($related);
 
         return new MorphTo($builder, $parent, 'foreign_key', 'id', 'morph_type', 'relation');
     }
