@@ -206,8 +206,7 @@ class ViewTest extends TestCase
 
     public function testViewBadMethod(): void
     {
-        $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Method Hypervel\View\View::badMethodCall does not exist.');
+        $this->expectExceptionObject(new BadMethodCallException('Method Hypervel\View\View::badMethodCall does not exist.'));
 
         $view = $this->getView();
         $view->badMethodCall();

@@ -970,13 +970,12 @@ class ViewFactoryTest extends TestCase
         $factory->make('view');
     }
 
-    public function testExceptionsInSectionsAreThrown()
+    public function testExceptionsInSectionsAreThrown(): void
     {
-        $this->expectException(ErrorException::class);
-        $this->expectExceptionMessage('section exception message');
+        $this->expectExceptionObject(new ErrorException('section exception message'));
 
         $engine = new CompilerEngine(m::mock(CompilerInterface::class), new Filesystem);
-        $engine->getCompiler()->shouldReceive('getCompiledPath')->andReturnUsing(function ($path) {
+        $engine->getCompiler()->shouldReceive('getCompiledPath')->andReturnUsing(function (string $path): string {
             return $path;
         });
         $engine->getCompiler()->shouldReceive('isExpired')->twice()->andReturn(false);
@@ -989,10 +988,9 @@ class ViewFactoryTest extends TestCase
         $factory->make('view')->render();
     }
 
-    public function testExtraStopSectionCallThrowsException()
+    public function testExtraStopSectionCallThrowsException(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Cannot end a section without first starting one.');
+        $this->expectExceptionObject(new InvalidArgumentException('Cannot end a section without first starting one.'));
 
         $factory = $this->getFactory();
         $factory->startSection('foo');
@@ -1001,10 +999,9 @@ class ViewFactoryTest extends TestCase
         $factory->stopSection();
     }
 
-    public function testExtraAppendSectionCallThrowsException()
+    public function testExtraAppendSectionCallThrowsException(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Cannot end a section without first starting one.');
+        $this->expectExceptionObject(new InvalidArgumentException('Cannot end a section without first starting one.'));
 
         $factory = $this->getFactory();
         $factory->startSection('foo');

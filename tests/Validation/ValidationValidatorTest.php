@@ -1247,7 +1247,7 @@ class ValidationValidatorTest extends TestCase
         }
     }
 
-    public function testCustomExceptionMustExtendValidationException()
+    public function testCustomExceptionMustExtendValidationException(): void
     {
         $trans = $this->getArrayTranslator();
 
@@ -1255,6 +1255,7 @@ class ValidationValidatorTest extends TestCase
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageIs('Exception [RuntimeException] is invalid. It must extend [Hypervel\Validation\ValidationException].');
+        $this->expectExceptionCode(0);
 
         $v->setException(RuntimeException::class);
     }
@@ -7596,10 +7597,11 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    public function testExceptionThrownOnIncorrectParameterCount()
+    public function testExceptionThrownOnIncorrectParameterCount(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageIs('Validation rule required_if requires at least 2 parameters.');
+        $this->expectExceptionCode(0);
 
         $trans = $this->getTranslator();
         $v = new Validator($trans, [], ['foo' => 'required_if:foo']);
