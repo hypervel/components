@@ -10,6 +10,7 @@ use BadMethodCallException;
 use DateInterval;
 use DateTime;
 use DateTimeImmutable;
+use DateTimeInterface;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
@@ -155,12 +156,12 @@ class CacheRepositoryTest extends TestCase
         $this->assertEquals([1 => null, 2 => null, 3 => null], $repo->get([1, 2, 3]));
     }
 
-    public function testDefaultValueIsReturned()
+    public function testDefaultValueIsReturned(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->times(2)->andReturn(null);
+        $repo->getStore()->expects('get')->times(2)->andReturn(null);
         $this->assertSame('bar', $repo->get('foo', 'bar'));
-        $this->assertSame('baz', $repo->get('boom', function () {
+        $this->assertSame('baz', $repo->get('boom', function (): string {
             return 'baz';
         }));
     }
@@ -194,30 +195,25 @@ class CacheRepositoryTest extends TestCase
         $this->assertFalse($repo->missing('bar'));
     }
 
-    public function testRememberMethodCallsPutAndReturnsDefault()
+    public function testRememberMethodCallsPutAndReturnsDefault(): void
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->andReturn(null);
         $repo->getStore()->shouldReceive('put')->once()->with('foo', 'bar', 10);
-        $result = $repo->remember('foo', 10, function () {
+        $result = $repo->remember('foo', 10, function (): string {
             return 'bar';
         });
         $this->assertSame('bar', $result);
-
-        /*
-         * Use Carbon object...
-         */
-        CarbonImmutable::setTestNow(CarbonImmutable::now());
 
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('get')->times(2)->andReturn(null);
+        $repo->getStore()->expects('get')->times(2)->andReturn(null);
         $repo->getStore()->shouldReceive('put')->once()->with('foo', 'bar', 602);
         $repo->getStore()->shouldReceive('put')->once()->with('baz', 'qux', 598);
-        $result = $repo->remember('foo', CarbonImmutable::now()->addMinutes(10)->addSeconds(2), function () {
+        $result = $repo->remember('foo', CarbonImmutable::now()->addMinutes(10)->addSeconds(2), function (): string {
             return 'bar';
         });
         $this->assertSame('bar', $result);
-        $result = $repo->remember('baz', CarbonImmutable::now()->addMinutes(10)->subSeconds(2), function () {
+        $result = $repo->remember('baz', CarbonImmutable::now()->addMinutes(10)->subSeconds(2), function (): string {
             return 'qux';
         });
         $this->assertSame('qux', $result);
@@ -225,11 +221,11 @@ class CacheRepositoryTest extends TestCase
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->andReturn(null);
         $repo->getStore()->shouldReceive('put')->once()->with('foo', 'bar', 10);
-        $result = $repo->remember('foo', function ($value) {
+        $result = $repo->remember('foo', function (string $value): int {
             $this->assertSame('bar', $value);
 
             return 10;
-        }, fn () => 'bar');
+        }, fn (): string => 'bar');
         $this->assertSame('bar', $result);
     }
 
@@ -246,17 +242,17 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame(['bar', true], $result);
     }
 
-    public function testRememberWithWarmthCallsPutAndReturnsColdValue(): void
+    public function testRememberWithWarmthCallsPutAndReturnsDefault(): void
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(null);
         $repo->getStore()->shouldReceive('put')->once()->with('foo', 'bar', 10);
 
-        $result = $repo->rememberWithWarmth('foo', function ($value) {
+        $result = $repo->rememberWithWarmth('foo', function (string $value): int {
             $this->assertSame('bar', $value);
 
             return 10;
-        }, fn () => 'bar');
+        }, fn (): string => 'bar');
 
         $this->assertSame(['bar', false], $result);
     }
@@ -787,12 +783,11 @@ class CacheRepositoryTest extends TestCase
         $this->assertTrue($invoked);
     }
 
-    public function testPuttingMultipleItemsInCache()
+    public function testPuttingMultipleItemsInCache(): void
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('putMany')->once()->with(['foo' => 'bar', 'bar' => 'baz'], 1);
         $repo->put(['foo' => 'bar', 'bar' => 'baz'], 1);
-        $this->assertTrue(true);
     }
 
     public function testEmptyPutManyReturnsTrueWithoutStoreOrEvents(): void
@@ -830,31 +825,31 @@ class CacheRepositoryTest extends TestCase
         $this->assertTrue($repo->put('foo', 'bar'));
     }
 
-    public function testPutWithDatetimeInPastOrZeroSecondsRemovesOldItem()
+    public function testPutWithDatetimeInPastOrZeroSecondsRemovesOldItem(): void
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('put')->never();
-        $repo->getStore()->shouldReceive('forget')->twice()->andReturn(true);
+        $repo->getStore()->expects('forget')->times(2)->andReturn(true);
         $result = $repo->put('foo', 'bar', CarbonImmutable::now()->subMinutes(10));
         $this->assertTrue($result);
         $result = $repo->put('foo', 'bar', CarbonImmutable::now());
         $this->assertTrue($result);
     }
 
-    public function testPutManyWithNullTTLRemembersItemsForever()
+    public function testPutManyWithNullTTLRemembersItemsForever(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('forever')->with('foo', 'bar')->andReturn(true);
-        $repo->getStore()->shouldReceive('forever')->with('bar', 'baz')->andReturn(true);
+        $repo->getStore()->expects('forever')->with('foo', 'bar')->andReturn(true);
+        $repo->getStore()->expects('forever')->with('bar', 'baz')->andReturn(true);
         $this->assertTrue($repo->putMany(['foo' => 'bar', 'bar' => 'baz']));
     }
 
-    public function testAddWithStoreFailureReturnsFalse()
+    public function testAddWithStoreFailureReturnsFalse(): void
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('add')->never();
-        $repo->getStore()->shouldReceive('get')->andReturn(null);
-        $repo->getStore()->shouldReceive('put')->andReturn(false);
+        $repo->getStore()->expects('get')->andReturn(null);
+        $repo->getStore()->expects('put')->andReturn(false);
         $this->assertFalse($repo->add('foo', 'bar', 60));
     }
 
@@ -928,21 +923,18 @@ class CacheRepositoryTest extends TestCase
     }
 
     #[DataProvider('dataProviderTestGetSeconds')]
-    public function testGetSeconds($duration)
+    public function testGetSeconds(DateInterval|DateTimeInterface|int $duration): void
     {
-        CarbonImmutable::setTestNow(CarbonImmutable::parse($this->getTestDate()));
-
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('put')->once()->with($key = 'foo', $value = 'bar', 300);
         $repo->put($key, $value, $duration);
-
-        $this->assertTrue(true);
     }
 
-    public static function dataProviderTestGetSeconds()
+    /**
+     * Provide durations representing five minutes after the test date.
+     */
+    public static function dataProviderTestGetSeconds(): array
     {
-        CarbonImmutable::setTestNow(CarbonImmutable::parse(self::getTestDate()));
-
         return [
             [CarbonImmutable::parse(self::getTestDate())->addMinutes(5)],
             [(new DateTime(self::getTestDate()))->modify('+5 minutes')],
@@ -952,15 +944,11 @@ class CacheRepositoryTest extends TestCase
         ];
     }
 
-    public function testGetSecondsCeilsSubSecondTtl()
+    public function testGetSecondsCeilsSubSecondTtl(): void
     {
-        CarbonImmutable::setTestNow(CarbonImmutable::parse($this->getTestDate()));
-
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('put')->once()->with('foo', 'bar', 1);
         $repo->put('foo', 'bar', CarbonImmutable::parse($this->getTestDate())->addMilliseconds(400));
-
-        $this->assertTrue(true);
     }
 
     public function testRegisterMacroWithNonStaticCall()
@@ -972,39 +960,34 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame('Taylor', $repo->{__CLASS__}());
     }
 
-    public function testForgettingCacheKey()
+    public function testForgettingCacheKey(): void
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('forget')->once()->with('a-key')->andReturn(true);
         $repo->forget('a-key');
-
-        $this->assertTrue(true);
     }
 
-    public function testRemovingCacheKey()
+    public function testRemovingCacheKey(): void
     {
         // Alias of Forget
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('forget')->once()->with('a-key')->andReturn(true);
         $repo->delete('a-key');
-        $this->assertTrue(true);
     }
 
-    public function testSettingCache()
+    public function testSettingCache(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('put')->with($key = 'foo', $value = 'bar', 1)->andReturn(true);
+        $repo->getStore()->expects('put')->with($key = 'foo', $value = 'bar', 1)->andReturn(true);
         $result = $repo->set($key, $value, 1);
         $this->assertTrue($result);
     }
 
-    public function testClearingWholeCache()
+    public function testClearingWholeCache(): void
     {
         $repo = $this->getRepository();
-        $repo->getStore()->shouldReceive('flush')->andReturn(true);
+        $repo->getStore()->expects('flush')->andReturn(true);
         $repo->clear();
-
-        $this->assertTrue(true);
     }
 
     public function testGettingMultipleValuesFromCache()
@@ -1035,17 +1018,15 @@ class CacheRepositoryTest extends TestCase
         $this->assertFalse($repo->deleteMultiple(['a-key', 'a-second-key']));
     }
 
-    public function testAllTagsArePassedToTaggableStore()
+    public function testAllTagsArePassedToTaggableStore(): void
     {
         $store = m::mock(ArrayStore::class);
         $repo = new Repository($store);
 
         $taggedCache = m::mock(TaggedCache::class);
-        $taggedCache->shouldReceive('setDefaultCacheTime');
+        $taggedCache->expects('setDefaultCacheTime')->andReturnSelf();
         $store->shouldReceive('tags')->once()->with(['foo', 'bar', 'baz'])->andReturn($taggedCache);
         $repo->tags('foo', 'bar', 'baz');
-
-        $this->assertTrue(true);
     }
 
     public function testItThrowsExceptionWhenStoreDoesNotSupportTags()
@@ -1370,7 +1351,7 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame('2', $captured[1]->key);
     }
 
-    public function testStringTypedGetter(): void
+    public function testItGetsAsString(): void
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn('bar');
@@ -1378,7 +1359,7 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame('bar', $repo->string('foo'));
     }
 
-    public function testStringTypedGetterThrowsExceptionForNonString(): void
+    public function testItThrowsExceptionWhenGettingNonStringAsString(): void
     {
         $this->expectExceptionObject(new InvalidArgumentException('Cache value for key [foo] must be a string, integer given.'));
 
@@ -1388,7 +1369,7 @@ class CacheRepositoryTest extends TestCase
         $repo->string('foo');
     }
 
-    public function testStringTypedGetterReturnsDefaultWhenKeyNotFound(): void
+    public function testItGetsAsStringWithDefault(): void
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->twice()->with('foo')->andReturn(null);
@@ -1397,7 +1378,7 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame('resolved', $repo->string('foo', fn (): string => 'resolved'));
     }
 
-    public function testIntegerTypedGetter(): void
+    public function testItGetsAsInteger(): void
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(123);
@@ -1405,7 +1386,7 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame(123, $repo->integer('foo'));
     }
 
-    public function testIntegerTypedGetterParsesNumericString(): void
+    public function testItGetsAsIntegerFromNumericString(): void
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn('123');
@@ -1433,7 +1414,7 @@ class CacheRepositoryTest extends TestCase
         $repo->integer('foo');
     }
 
-    public function testIntegerTypedGetterReturnsDefaultWhenKeyNotFound(): void
+    public function testItGetsAsIntegerWithDefault(): void
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(null);
@@ -1450,7 +1431,7 @@ class CacheRepositoryTest extends TestCase
         $repo->integer('foo');
     }
 
-    public function testFloatTypedGetter(): void
+    public function testItGetsAsFloat(): void
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(1.5);
@@ -1458,7 +1439,7 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame(1.5, $repo->float('foo'));
     }
 
-    public function testFloatTypedGetterParsesNumericString(): void
+    public function testItGetsAsFloatFromNumericString(): void
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn('1.5');
@@ -1486,7 +1467,7 @@ class CacheRepositoryTest extends TestCase
         $repo->float('foo');
     }
 
-    public function testFloatTypedGetterReturnsDefaultWhenKeyNotFound(): void
+    public function testItGetsAsFloatWithDefault(): void
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(null);
@@ -1494,7 +1475,7 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame(2.5, $repo->float('foo', 2.5));
     }
 
-    public function testBooleanTypedGetter(): void
+    public function testItGetsAsBoolean(): void
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(true);
@@ -1530,7 +1511,7 @@ class CacheRepositoryTest extends TestCase
         $repo->boolean('foo');
     }
 
-    public function testBooleanTypedGetterReturnsDefaultWhenKeyNotFound(): void
+    public function testItGetsAsBooleanWithDefault(): void
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(null);
@@ -1538,7 +1519,7 @@ class CacheRepositoryTest extends TestCase
         $this->assertFalse($repo->boolean('foo', false));
     }
 
-    public function testArrayTypedGetter(): void
+    public function testItGetsAsArray(): void
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(['bar', 'baz']);
@@ -1554,7 +1535,7 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame(['key' => 'value'], $repo->array('foo'));
     }
 
-    public function testArrayTypedGetterThrowsExceptionForNonArray(): void
+    public function testItThrowsExceptionWhenGettingNonArrayAsArray(): void
     {
         $this->expectExceptionObject(new InvalidArgumentException('Cache value for key [foo] must be an array, string given.'));
 
@@ -1564,7 +1545,7 @@ class CacheRepositoryTest extends TestCase
         $repo->array('foo');
     }
 
-    public function testArrayTypedGetterReturnsDefaultWhenKeyNotFound(): void
+    public function testItGetsAsArrayWithDefault(): void
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(null);
@@ -1865,7 +1846,10 @@ class CacheRepositoryTest extends TestCase
         $this->assertSame('bar', $result);
     }
 
-    protected function getRepository()
+    /**
+     * Create a repository with mocked storage and event dispatching.
+     */
+    protected function getRepository(): Repository
     {
         $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
@@ -1877,7 +1861,10 @@ class CacheRepositoryTest extends TestCase
         return $repository;
     }
 
-    protected static function getTestDate()
+    /**
+     * Get the fixed date used by cache expiration tests.
+     */
+    protected static function getTestDate(): string
     {
         return '2030-07-25 12:13:14 UTC';
     }
