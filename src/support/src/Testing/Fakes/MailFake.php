@@ -107,6 +107,14 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
     }
 
     /**
+     * Assert if a mailable was sent exactly once.
+     */
+    public function assertSentOnce(string $mailable): void
+    {
+        $this->assertSentTimes($mailable, 1);
+    }
+
+    /**
      * Determine if a mailable was not sent or queued to be sent based on a truth-test callback.
      */
     public function assertNotOutgoing(Closure|string $mailable, ?callable $callback = null): void
@@ -211,6 +219,14 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
                 Str::plural('time', $times)
             )
         );
+    }
+
+    /**
+     * Assert if a mailable was queued exactly once.
+     */
+    public function assertQueuedOnce(string $mailable): void
+    {
+        $this->assertQueuedTimes($mailable, 1);
     }
 
     /**

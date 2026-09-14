@@ -25,6 +25,9 @@ class SupportTestingMailFakeTest extends TestCase
 
     private MailableStub $mailable;
 
+    /**
+     * Set up the mail fake.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -85,7 +88,7 @@ class SupportTestingMailFakeTest extends TestCase
 
         $this->fake->to($user)->send($this->mailable);
 
-        $this->fake->assertSent(MailableStub::class, function ($mail) use ($user) {
+        $this->fake->assertSent(MailableStub::class, function (MailableStub $mail) use ($user): bool {
             return $mail->hasTo($user) && $mail->locale === 'au';
         });
     }
@@ -94,7 +97,7 @@ class SupportTestingMailFakeTest extends TestCase
     {
         $this->fake->to('taylor@laravel.com')->send($this->mailable);
 
-        $this->fake->assertSent(MailableStub::class, function ($mail) {
+        $this->fake->assertSent(MailableStub::class, function (MailableStub $mail): bool {
             return $mail->hasTo('taylor@laravel.com');
         });
     }
@@ -103,7 +106,7 @@ class SupportTestingMailFakeTest extends TestCase
     {
         $this->fake->cc('taylor@laravel.com')->send($this->mailable);
 
-        $this->fake->assertSent(MailableStub::class, function ($mail) {
+        $this->fake->assertSent(MailableStub::class, function (MailableStub $mail): bool {
             return $mail->hasCc('taylor@laravel.com');
         });
     }
@@ -112,7 +115,7 @@ class SupportTestingMailFakeTest extends TestCase
     {
         $this->fake->bcc('taylor@laravel.com')->send($this->mailable);
 
-        $this->fake->assertSent(MailableStub::class, function ($mail) {
+        $this->fake->assertSent(MailableStub::class, function (MailableStub $mail): bool {
             return $mail->hasBcc('taylor@laravel.com');
         });
     }
@@ -133,7 +136,7 @@ class SupportTestingMailFakeTest extends TestCase
 
     public function testAssertNotSentWithClosure(): void
     {
-        $callback = function (MailableStub $mail) {
+        $callback = function (MailableStub $mail): bool {
             return $mail->hasTo('taylor@laravel.com');
         };
 
@@ -153,8 +156,7 @@ class SupportTestingMailFakeTest extends TestCase
 
         $this->fake->to('taylor@laravel.com')->send($this->mailable);
 
-        $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The unexpected [' . MailableStub::class . '] mailable was sent to address [taylor@laravel.com].');
+        $this->expectExceptionObject(new ExpectationFailedException('The unexpected [' . MailableStub::class . '] mailable was sent to address [taylor@laravel.com].'));
 
         $this->fake->assertNotSent(MailableStub::class, 'taylor@laravel.com');
     }
@@ -165,8 +167,7 @@ class SupportTestingMailFakeTest extends TestCase
 
         $this->fake->to('dries@laravel.com')->send($this->mailable);
 
-        $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The unexpected [' . MailableStub::class . '] mailable was sent to address [dries@laravel.com].');
+        $this->expectExceptionObject(new ExpectationFailedException('The unexpected [' . MailableStub::class . '] mailable was sent to address [dries@laravel.com].'));
 
         $this->fake->assertNotSent(MailableStub::class, ['taylor@laravel.com', 'dries@laravel.com']);
     }
@@ -258,6 +259,38 @@ class SupportTestingMailFakeTest extends TestCase
         $this->fake->assertQueued(MailableStub::class, 2);
     }
 
+    public function testAssertSentOnce(): void
+    {
+        $this->fake->to('taylor@hypervel.com')->send($this->mailable);
+
+        $this->fake->assertSentOnce(MailableStub::class);
+
+        $this->fake->to('taylor@hypervel.com')->send($this->mailable);
+
+        try {
+            $this->fake->assertSentOnce(MailableStub::class);
+            $this->fail();
+        } catch (ExpectationFailedException $e) {
+            $this->assertStringContainsString('The expected [' . MailableStub::class . '] mailable was sent 2 times instead of 1 time.', $e->getMessage());
+        }
+    }
+
+    public function testAssertQueuedOnce(): void
+    {
+        $this->fake->to('taylor@hypervel.com')->queue($this->mailable);
+
+        $this->fake->assertQueuedOnce(MailableStub::class);
+
+        $this->fake->to('taylor@hypervel.com')->queue($this->mailable);
+
+        try {
+            $this->fake->assertQueuedOnce(MailableStub::class);
+            $this->fail();
+        } catch (ExpectationFailedException $e) {
+            $this->assertStringContainsString('The expected [' . MailableStub::class . '] mailable was queued 2 times instead of 1 time.', $e->getMessage());
+        }
+    }
+
     public function testAssertQueuedTimesCalledDirectly(): void
     {
         $this->fake->to('taylor@laravel.com')->queue($this->mailable);
@@ -279,8 +312,7 @@ class SupportTestingMailFakeTest extends TestCase
 
         $this->fake->to('taylor@laravel.com')->queue($this->mailable);
 
-        $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The unexpected [' . MailableStub::class . '] mailable was queued to address [taylor@laravel.com].');
+        $this->expectExceptionObject(new ExpectationFailedException('The unexpected [' . MailableStub::class . '] mailable was queued to address [taylor@laravel.com].'));
 
         $this->fake->assertNotQueued(MailableStub::class, 'taylor@laravel.com');
     }
@@ -291,8 +323,7 @@ class SupportTestingMailFakeTest extends TestCase
 
         $this->fake->to('dries@laravel.com')->queue($this->mailable);
 
-        $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('The unexpected [' . MailableStub::class . '] mailable was queued to address [dries@laravel.com].');
+        $this->expectExceptionObject(new ExpectationFailedException('The unexpected [' . MailableStub::class . '] mailable was queued to address [dries@laravel.com].'));
 
         $this->fake->assertNotQueued(MailableStub::class, ['taylor@laravel.com', 'dries@laravel.com']);
     }
@@ -376,7 +407,7 @@ class SupportTestingMailFakeTest extends TestCase
     {
         $this->fake->to($user = new LocalizedRecipientStub)->queue($this->mailable);
 
-        $this->fake->assertQueued(function (MailableStub $mail) use ($user) {
+        $this->fake->assertQueued(function (MailableStub $mail) use ($user): bool {
             return $mail->hasTo($user);
         });
     }
@@ -385,7 +416,7 @@ class SupportTestingMailFakeTest extends TestCase
     {
         $this->fake->to($user = new LocalizedRecipientStub)->send($this->mailable);
 
-        $this->fake->assertSent(function (MailableStub $mail) use ($user) {
+        $this->fake->assertSent(function (MailableStub $mail) use ($user): bool {
             return $mail->hasTo($user);
         });
     }
@@ -401,25 +432,25 @@ class SupportTestingMailFakeTest extends TestCase
     {
         $this->fake->to('taylor@laravel.com')->send($this->mailable);
 
-        $this->fake->assertSent(MailableStub::class, function ($mail) {
+        $this->fake->assertSent(MailableStub::class, function (MailableStub $mail): bool {
             return $mail->usesMailer('smtp');
         });
 
         $this->fake->mailer('ses')->to('taylor@laravel.com')->send($this->mailable);
 
-        $this->fake->assertSent(MailableStub::class, function ($mail) {
+        $this->fake->assertSent(MailableStub::class, function (MailableStub $mail): bool {
             return $mail->usesMailer('ses');
         });
 
         $this->fake->mailer('sendgrid')->to('taylor@laravel.com')->queue($this->mailable);
 
-        $this->fake->assertQueued(MailableStub::class, function ($mail) {
+        $this->fake->assertQueued(MailableStub::class, function (MailableStub $mail): bool {
             return $mail->usesMailer('sendgrid');
         });
 
         $this->fake->mailer('mailjet')->to('taylor@laravel.com')->queue($this->mailable);
 
-        $this->fake->assertQueued(MailableStub::class, function ($mail) {
+        $this->fake->assertQueued(MailableStub::class, function (MailableStub $mail): bool {
             return $mail->usesMailer('mailjet');
         });
     }
@@ -428,24 +459,84 @@ class SupportTestingMailFakeTest extends TestCase
     {
         $this->fake->driver('ses')->to('taylor@laravel.com')->send($this->mailable);
 
-        $this->fake->assertSent(MailableStub::class, function ($mail) {
+        $this->fake->assertSent(MailableStub::class, function (MailableStub $mail): bool {
             return $mail->hasTo('taylor@laravel.com')
                 && $mail->usesMailer('ses');
         });
 
         $this->fake->driver('sendgrid')->to('taylor@laravel.com')->queue($this->mailable);
 
-        $this->fake->assertQueued(MailableStub::class, function ($mail) {
+        $this->fake->assertQueued(MailableStub::class, function (MailableStub $mail): bool {
             return $mail->hasTo('taylor@laravel.com')
                 && $mail->usesMailer('sendgrid');
         });
 
         $this->fake->driver('mailjet')->to('taylor@laravel.com')->queue($this->mailable);
 
-        $this->fake->assertQueued(MailableStub::class, function ($mail) {
+        $this->fake->assertQueued(MailableStub::class, function (MailableStub $mail): bool {
             return $mail->hasTo('taylor@laravel.com')
                 && $mail->usesMailer('mailjet');
         });
+    }
+
+    public function testQueueSetsQueueOnMailable(): void
+    {
+        $this->mailManager->shouldNotReceive('onQueue');
+        $this->mailManager->shouldNotReceive('queueOn');
+
+        $mailable1 = new QueueableMailableStub;
+        $this->fake->mailer('ses')->queue($mailable1, 'podcasts');
+
+        $this->fake->assertQueued(QueueableMailableStub::class, function (QueueableMailableStub $mail): bool {
+            return $mail->queue === 'podcasts';
+        });
+        $this->assertTrue($mailable1->usesMailer('ses'));
+
+        $mailable2 = new QueueableMailableStub;
+        $this->fake->queue($mailable2, MailFakeQueueName::Transactional);
+
+        $this->fake->assertQueued(QueueableMailableStub::class, function (QueueableMailableStub $mail): bool {
+            return $mail->queue === 'transactional-mail';
+        });
+
+        $mailable3 = new QueueableMailableStub;
+        $this->fake->onQueue('podcasts', $mailable3);
+
+        $this->fake->assertQueued(QueueableMailableStub::class, function (QueueableMailableStub $mail): bool {
+            return $mail->queue === 'podcasts';
+        });
+        $this->assertSame('podcasts', $mailable3->queue);
+
+        $mailable4 = new QueueableMailableStub;
+        $this->fake->queueOn('videos', $mailable4);
+
+        $this->fake->assertQueued(QueueableMailableStub::class, function (QueueableMailableStub $mail): bool {
+            return $mail->queue === 'videos';
+        });
+    }
+
+    public function testLaterSetsQueueOnMailable(): void
+    {
+        $this->mailManager->shouldNotReceive('laterOn');
+
+        $mailable1 = new QueueableMailableStub;
+        $this->fake->later(15, $mailable1, 'podcasts');
+
+        $this->fake->assertQueued(QueueableMailableStub::class, function (QueueableMailableStub $mail): bool {
+            return $mail->queue === 'podcasts';
+        });
+
+        $mailable2 = new QueueableMailableStub;
+        $this->fake->laterOn('videos', 45, $mailable2);
+
+        $this->fake->assertQueued(QueueableMailableStub::class, function (QueueableMailableStub $mail): bool {
+            return $mail->queue === 'videos';
+        });
+
+        $mailable3 = new QueueableMailableStub;
+        $this->fake->mailer('mailgun')->later(30, $mailable3, MailFakeQueueName::Transactional);
+        $this->assertTrue($mailable3->usesMailer('mailgun'));
+        $this->assertSame('transactional-mail', $mailable3->queue);
     }
 
     public function testSendNowSendsQueueableMailableSynchronouslyWithPendingRecipients(): void
@@ -530,20 +621,6 @@ class SupportTestingMailFakeTest extends TestCase
         $this->assertTrue($mailable->usesMailer('smtp'));
     }
 
-    public function testQueueMethodsPreserveMailerAndQueueSelection(): void
-    {
-        $queued = new QueueableMailableStub;
-        $delayed = new QueueableMailableStub;
-
-        $this->fake->mailer('ses')->queue($queued, 'emails');
-        $this->fake->mailer('mailgun')->later(30, $delayed, MailFakeQueueName::Transactional);
-
-        $this->assertTrue($queued->usesMailer('ses'));
-        $this->assertSame('emails', $queued->queue);
-        $this->assertTrue($delayed->usesMailer('mailgun'));
-        $this->assertSame('transactional-mail', $delayed->queue);
-    }
-
     public function testFailedQueueSelectionConsumesExplicitMailer(): void
     {
         try {
@@ -585,33 +662,24 @@ class SupportTestingMailFakeTest extends TestCase
         $this->assertTrue($plainNext->usesMailer('smtp'));
     }
 
-    public function testQueueHelpersDoNotCallTheRealManager(): void
+    public function testQueueHelpersAcceptEnumsWithoutCallingTheRealManager(): void
     {
         $this->mailManager->shouldNotReceive('onQueue');
         $this->mailManager->shouldNotReceive('queueOn');
         $this->mailManager->shouldNotReceive('laterOn');
 
-        $onQueueString = new QueueableMailableStub;
         $onQueueEnum = new QueueableMailableStub;
-        $queueOnString = new QueueableMailableStub;
         $queueOnEnum = new QueueableMailableStub;
-        $laterOnString = new QueueableMailableStub;
         $laterOnEnum = new QueueableMailableStub;
 
-        $this->fake->onQueue('on-queue', $onQueueString);
         $this->fake->onQueue(MailFakeQueueName::Transactional, $onQueueEnum);
-        $this->fake->queueOn('queue-on', $queueOnString);
         $this->fake->queueOn(MailFakeQueueName::Transactional, $queueOnEnum);
-        $this->fake->laterOn('later-on', 30, $laterOnString);
         $this->fake->laterOn(MailFakeQueueName::Transactional, 30, $laterOnEnum);
 
-        $this->assertSame('on-queue', $onQueueString->queue);
         $this->assertSame('transactional-mail', $onQueueEnum->queue);
-        $this->assertSame('queue-on', $queueOnString->queue);
         $this->assertSame('transactional-mail', $queueOnEnum->queue);
-        $this->assertSame('later-on', $laterOnString->queue);
         $this->assertSame('transactional-mail', $laterOnEnum->queue);
-        $this->fake->assertQueuedCount(6);
+        $this->fake->assertQueuedCount(3);
     }
 
     public function testNamedPendingRecipientsMatchTheRealMailer(): void
@@ -681,6 +749,9 @@ class LocalizedRecipientStub implements HasLocalePreference
 {
     public string $email = 'taylor@laravel.com';
 
+    /**
+     * Get the preferred locale.
+     */
     public function preferredLocale(): string
     {
         return 'au';
@@ -691,6 +762,9 @@ class FailingQueueMailableStub extends Mailable
 {
     use Queueable;
 
+    /**
+     * Reject queue selection.
+     */
     public function onQueue(UnitEnum|string|null $queue): static
     {
         throw new LogicException('Queue selection failed.');
