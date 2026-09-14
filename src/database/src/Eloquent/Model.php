@@ -2685,7 +2685,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public static function isSoftDeletable(): bool
     {
-        return static::$isSoftDeletable[static::class] ??= in_array(SoftDeletes::class, class_uses_recursive(static::class));
+        return static::$isSoftDeletable[static::class] ??= isset(class_uses_recursive(static::class)[SoftDeletes::class]);
     }
 
     /**
@@ -2693,7 +2693,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public static function isPrunable(): bool
     {
-        return self::$isPrunable[static::class] ??= in_array(Prunable::class, class_uses_recursive(static::class)) || static::isMassPrunable();
+        return self::$isPrunable[static::class] ??= isset(class_uses_recursive(static::class)[Prunable::class]) || static::isMassPrunable();
     }
 
     /**
@@ -2701,7 +2701,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public static function isMassPrunable(): bool
     {
-        return self::$isMassPrunable[static::class] ??= in_array(MassPrunable::class, class_uses_recursive(static::class));
+        return self::$isMassPrunable[static::class] ??= isset(class_uses_recursive(static::class)[MassPrunable::class]);
     }
 
     /**

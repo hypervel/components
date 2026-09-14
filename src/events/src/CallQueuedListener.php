@@ -201,7 +201,7 @@ class CallQueuedListener implements ShouldQueue
      */
     protected function setJobInstanceIfNecessary(Job $job, object $instance): object
     {
-        if (in_array(InteractsWithQueue::class, class_uses_recursive($instance))) {
+        if (isset(class_uses_recursive($instance)[InteractsWithQueue::class])) {
             // Container resolution may return a worker-shared listener. Clone the
             // configured instance before injecting the job owned by this execution.
             $instance = clone $instance;
