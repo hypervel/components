@@ -1085,6 +1085,7 @@ class DatabasePdoConnectionTest extends TestCase
             'old_',
             ['name' => 'test', 'driver' => 'sqlite', 'endpoint' => 'old']
         );
+        $connection->setReadWriteType('write');
         $manager = new DatabaseTransactionsManager;
         $connection->setTransactionManager($manager);
         $connection->beginTransaction();
@@ -1114,6 +1115,7 @@ class DatabasePdoConnectionTest extends TestCase
         $this->assertSame('fresh_database', $connection->getDatabaseName());
         $this->assertSame('fresh_', $connection->getTablePrefix());
         $this->assertSame('fresh', $connection->getConfig('endpoint'));
+        $this->assertSame('test::write', $connection->getNameWithReadWriteType());
         $this->assertTrue($connection->isReusable());
 
         $connection->setDatabaseName('tenant_database');

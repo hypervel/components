@@ -312,6 +312,7 @@ class DatabaseConnectionTest extends TestCase
             ['name' => 'analytics', 'driver' => 'http']
         );
         $fresh->driverGeneration = 'fresh';
+        $connection->setReadWriteType('write');
 
         $connection->refreshFrom($fresh);
 
@@ -320,6 +321,7 @@ class DatabaseConnectionTest extends TestCase
         $this->assertSame(1, $connection->forgetCalls);
         $this->assertTrue($connection->driverResourcesPresent);
         $this->assertSame('fresh', $connection->driverGeneration);
+        $this->assertSame('analytics::write', $connection->getNameWithReadWriteType());
 
         $connection->setDatabaseName('tenant_analytics');
         $connection->setTablePrefix('tenant_');
@@ -351,12 +353,14 @@ class DatabaseConnectionTest extends TestCase
         $connection->setDatabaseName('tenant_analytics');
         $connection->setTablePrefix('tenant_');
         $connection->setLatestReadWriteTypeForTest('write');
+        $connection->setReadWriteType('write');
 
         $connection->resetForPool();
 
         $this->assertSame('derived_analytics', $connection->getDatabaseName());
         $this->assertSame('derived_', $connection->getTablePrefix());
         $this->assertNull($connection->latestReadWriteTypeForTest());
+        $this->assertSame('analytics', $connection->getNameWithReadWriteType());
 
         $writeConnection = new NeutralConnectionForTest(
             'analytics',
@@ -368,10 +372,12 @@ class DatabaseConnectionTest extends TestCase
             ]
         );
         $writeConnection->setLatestReadWriteTypeForTest('read');
+        $writeConnection->setReadWriteType('read');
 
         $writeConnection->resetForPool();
 
         $this->assertSame('write', $writeConnection->latestReadWriteTypeForTest());
+        $this->assertSame('analytics::write', $writeConnection->getNameWithReadWriteType());
     }
 
     public function testNeutralNestedConcurrencyFailureInvalidatesOnceWithoutRollingBackTheDriver(): void
@@ -2679,8 +2685,10 @@ class DatabaseConnectionTest extends TestCase
             $this->fail('Expected QueryException was not thrown');
         } catch (QueryException $e) {
             $this->assertSame('read', $e->readWriteType);
+            $this->assertSame('mysql::read', $e->getConnectionName());
 
             $connectionDetails = $e->getConnectionDetails();
+            $this->assertSame('mysql::read', $connectionDetails['name']);
             $this->assertSame('192.168.1.20', $connectionDetails['host']);
             $this->assertSame('3307', $connectionDetails['port']);
             $this->assertSame('read_db', $connectionDetails['database']);
@@ -2781,6 +2789,23 @@ class DatabaseConnectionTest extends TestCase
             $this->assertSame('3306', $connectionDetails['port']);
             $this->assertSame('write_db', $connectionDetails['database']);
         }
+    }
+
+    // REMOVED: Direct PDO configuration, resolution, cleanup and exception details.
+    // Configure that endpoint as a separate named connection instead.
+
+    #[TestWith([null, null, null])]
+    #[TestWith(['0', null, '0'])]
+    #[TestWith(['pgsql', null, 'pgsql'])]
+    #[TestWith(['pgsql', 'read', 'pgsql::read'])]
+    #[TestWith(['pgsql', 'write', 'pgsql::write'])]
+    public function testNameWithReadWriteTypeIncludesRequestedType(?string $name, ?string $role, ?string $expected): void
+    {
+        $connection = new PdoConnection(new PDOStub, 'database', '', ['name' => $name]);
+
+        $this->assertSame($connection, $connection->setReadWriteType($role));
+        $this->assertSame($expected, $connection->getNameWithReadWriteType());
+        $this->assertSame($name, $connection->getName());
     }
 
     /**
@@ -2979,7 +3004,6 @@ class NeutralConnectionForTest extends Connection
         $configuredTablePrefix = $fresh->configuredTablePrefix;
         $config = $fresh->config;
         $readConnectionConfig = $fresh->readConnectionConfig;
-        $readWriteType = $fresh->readWriteType;
 
         try {
             $this->disconnectDriverResources();
@@ -2992,7 +3016,6 @@ class NeutralConnectionForTest extends Connection
             $this->configuredTablePrefix = $configuredTablePrefix;
             $this->config = $config;
             $this->readConnectionConfig = $readConnectionConfig;
-            $this->readWriteType = $readWriteType;
             $this->latestReadWriteTypeRetrieved = null;
         }
     }

@@ -20,16 +20,91 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use RuntimeException;
 
-class DatabaseMigratorConnectionRoutingTest extends TestCase
+class DatabaseMigratorTest extends TestCase
 {
-    protected function tearDown(): void
+    // REMOVED: Laravel's ::direct resolution and default-connection tests.
+    // Hypervel routes migrations through configured named connections instead.
+
+    public function testResolveConnectionLeavesExplicitSuffixesUntouched(): void
     {
-        Migrator::flushState();
+        $this->bindConfig([
+            'pgsql' => ['driver' => 'pgsql', 'migrations_connection' => 'pgsql-direct'],
+            'pgsql-direct' => ['driver' => 'pgsql'],
+        ]);
+        $resolver = m::mock(Resolver::class);
+        $connection = m::mock(Connection::class);
+        $resolver->expects('connection')->with('pgsql::write')->andReturn($connection);
 
-        CoroutineContext::forget(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
-        Container::setInstance(null);
+        $this->assertSame($connection, $this->migrator($resolver)->resolveConnection('pgsql::write'));
+    }
 
-        parent::tearDown();
+    public function testResolveConnectionPassesThroughWhenDirectConnectionIsNotConfigured(): void
+    {
+        $this->bindConfig(['sqlite' => ['driver' => 'sqlite']]);
+        $resolver = m::mock(Resolver::class);
+        $connection = m::mock(Connection::class);
+        $resolver->expects('connection')->with('sqlite')->andReturn($connection);
+
+        $this->assertSame($connection, $this->migrator($resolver)->resolveConnection('sqlite'));
+    }
+
+    public function testCustomConnectionResolverCallbackKeepsPriority(): void
+    {
+        $resolver = m::mock(Resolver::class);
+        $connection = m::mock(Connection::class);
+
+        Migrator::resolveConnectionsUsing(function (Resolver $resolver, ?string $name) use ($connection): Connection {
+            $this->assertSame('pgsql', $name);
+
+            return $connection;
+        });
+
+        $this->assertSame($connection, $this->migrator($resolver)->resolveConnection('pgsql'));
+    }
+
+    public function testSetConnectionNullPreservesDefaultConnectionBehaviorWithoutDirectConnection(): void
+    {
+        $this->bindConfig(['sqlite' => ['driver' => 'sqlite']], 'sqlite');
+        $resolver = m::mock(Resolver::class);
+        $repository = m::mock(MigrationRepositoryInterface::class);
+        $repository->expects('setSource')->with('sqlite');
+        $resolver->shouldNotReceive('setDefaultConnection');
+
+        $migrator = $this->migrator($resolver, $repository);
+        $migrator->setConnection(null);
+
+        $this->assertSame('sqlite', $migrator->getConnection());
+        $this->assertSame('sqlite', CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY));
+    }
+
+    public function testRunMethodPreservesWriteConnectionName(): void
+    {
+        CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, 'pgsql');
+        $resolver = m::mock(Resolver::class);
+        $migrator = $this->migrator($resolver);
+        $connection = m::mock(Connection::class);
+        $connection->expects('getNameWithReadWriteType')->andReturn('pgsql::write');
+
+        $migration = new class($this) {
+            /**
+             * Create a migration that checks its active connection name.
+             */
+            public function __construct(private TestCase $test)
+            {
+            }
+
+            /**
+             * Check the connection selected for the migration.
+             */
+            public function up(): void
+            {
+                $this->test->assertSame('pgsql::write', CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY));
+            }
+        };
+
+        $migrator->runMethodPublic($connection, $migration, 'up');
+
+        $this->assertSame('pgsql', CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY));
     }
 
     public function testFlushStateRestoresStaticState(): void
@@ -410,23 +485,6 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         $this->assertSame($resolvedConnection, $result);
     }
 
-    public function testResolveConnectionPassesOriginalNameWhenNoMigrationsConnection(): void
-    {
-        $this->bindConfig([
-            'pgsql' => ['driver' => 'pgsql'],
-        ]);
-
-        $resolver = m::mock(Resolver::class);
-        $repository = m::mock(MigrationRepositoryInterface::class);
-        $resolvedConnection = m::mock(Connection::class);
-
-        $resolver->shouldReceive('connection')->once()->with('pgsql')->andReturn($resolvedConnection);
-
-        $migrator = new Migrator($repository, $resolver, new Filesystem);
-
-        $this->assertSame($resolvedConnection, $migrator->resolveConnection('pgsql'));
-    }
-
     public function testSetConnectionWithNullAndPooledDefaultRoutesToDirect(): void
     {
         // Regression: null name must resolve via database.default. When the
@@ -708,6 +766,17 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         $this->assertSame(['stored' => null, 'context' => null], $observations['after-outer']);
     }
 
+    /**
+     * Create a migrator with the given connection resolver.
+     */
+    protected function migrator(Resolver $resolver, ?MigrationRepositoryInterface $repository = null): DatabaseMigratorTestMigrator
+    {
+        return new DatabaseMigratorTestMigrator($repository ?? m::mock(MigrationRepositoryInterface::class), $resolver, new Filesystem);
+    }
+
+    /**
+     * Configure the migration connection targets.
+     */
     protected function bindConfig(array $connections, ?string $default = null): void
     {
         $container = Container::getInstance();
@@ -717,5 +786,16 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
                 'connections' => $connections,
             ],
         ]));
+    }
+}
+
+class DatabaseMigratorTestMigrator extends Migrator
+{
+    /**
+     * Run a migration method on its resolved connection.
+     */
+    public function runMethodPublic(Connection $connection, object $migration, string $method): void
+    {
+        $this->runMethod($connection, $migration, $method);
     }
 }

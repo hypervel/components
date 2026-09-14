@@ -716,7 +716,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
             : QueryException::class;
 
         $queryException = new $exceptionType(
-            $this->getName(),
+            $this->getNameWithReadWriteType(),
             $query,
             $this->prepareBindings($bindings),
             $previous,
@@ -992,6 +992,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
      * resource-associated metadata, including the configured database and table
      * prefix baselines. Adopt it in a finally block around teardown. The original
      * teardown throwable must propagate unchanged.
+     * Preserve the existing read / write role, which belongs to the current borrow.
      */
     abstract protected function replaceDriverResources(Connection $fresh): void;
 
@@ -1095,6 +1096,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         // Reset connection metadata and routing
         $this->database = $this->configuredDatabase;
         $this->tablePrefix = $this->configuredTablePrefix;
+        $this->readWriteType = $this->config[self::READ_WRITE_TYPE_CONFIG_KEY] ?? null;
         $this->latestReadWriteTypeRetrieved = null;
         $this->readOnWriteConnection = false;
 
@@ -1347,6 +1349,16 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     }
 
     /**
+     * Get the database connection with its read / write type.
+     */
+    public function getNameWithReadWriteType(): ?string
+    {
+        $name = $this->getName() . ($this->readWriteType ? '::' . $this->readWriteType : '');
+
+        return $name === '' ? null : $name;
+    }
+
+    /**
      * Get an option from the configuration options.
      *
      * @return ($option is null ? array<string, mixed> : mixed)
@@ -1367,7 +1379,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
 
         return [
             'driver' => $this->getDriverName(),
-            'name' => $this->getName(),
+            'name' => $this->getNameWithReadWriteType(),
             'host' => $config['host'] ?? null,
             'port' => $config['port'] ?? null,
             'database' => $config['database'] ?? null,
@@ -1635,6 +1647,16 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     public function setDatabaseName(string $database): static
     {
         $this->database = $database;
+
+        return $this;
+    }
+
+    /**
+     * Set the read / write type of the connection.
+     */
+    public function setReadWriteType(?string $readWriteType): static
+    {
+        $this->readWriteType = $readWriteType;
 
         return $this;
     }
