@@ -645,24 +645,26 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
     }
 
     #[DataProvider('provideParametersAndExpectedMeaningfulExceptionMessages')]
-    public function testUrlGenerationThrowsExceptionForMissingParametersWithMeaningfulMessage($parameters, $expectedMeaningfulExceptionMessage)
+    public function testUrlGenerationThrowsExceptionForMissingParametersWithMeaningfulMessage(array $parameters, string $expectedMeaningfulExceptionMessage): void
     {
-        $this->expectException(UrlGenerationException::class);
-        $this->expectExceptionMessage($expectedMeaningfulExceptionMessage);
+        $this->expectExceptionObject(new UrlGenerationException($expectedMeaningfulExceptionMessage));
 
         $url = new UrlGenerator(
             $routes = new RouteCollection,
             Request::create('http://www.foo.com:8080/')
         );
 
-        $route = new Route(['GET'], 'foo/{one}/{two}/{three}/{four?}', ['as' => 'foo', function () {
+        $route = new Route(['GET'], 'foo/{one}/{two}/{three}/{four?}', ['as' => 'foo', function (): void {
         }]);
         $routes->add($route);
 
         $url->route('foo', $parameters);
     }
 
-    public static function provideParametersAndExpectedMeaningfulExceptionMessages()
+    /**
+     * Provide missing route parameters and their expected exception messages.
+     */
+    public static function provideParametersAndExpectedMeaningfulExceptionMessages(): array
     {
         return [
             'Missing parameters "one", "two" and "three"' => [
@@ -1027,10 +1029,9 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         $this->assertSame('/subdirfoo', $url->previousPath());
     }
 
-    public function testRouteNotDefinedException()
+    public function testRouteNotDefinedException(): void
     {
-        $this->expectException(RouteNotFoundException::class);
-        $this->expectExceptionMessage('Route [not_exists_route] not defined.');
+        $this->expectExceptionObject(new RouteNotFoundException('Route [not_exists_route] not defined.'));
 
         $url = new UrlGenerator(
             new RouteCollection,
@@ -1115,42 +1116,40 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         $this->assertFalse($url->hasValidSignature($request, false));
     }
 
-    public function testSignedUrlParameterCannotBeNamedSignature()
+    public function testSignedUrlParameterCannotBeNamedSignature(): void
     {
         $url = new UrlGenerator(
             $routes = new RouteCollection,
             $request = Request::create('http://www.foo.com/')
         );
-        $url->setKeyResolver(function () {
+        $url->setKeyResolver(function (): string {
             return 'secret';
         });
 
-        $route = new Route(['GET'], 'foo/{signature}', ['as' => 'foo', function () {
+        $route = new Route(['GET'], 'foo/{signature}', ['as' => 'foo', function (): void {
         }]);
         $routes->add($route);
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('reserved');
+        $this->expectExceptionObject(new InvalidArgumentException('reserved'));
 
         Request::create($url->signedRoute('foo', ['signature' => 'bar']));
     }
 
-    public function testSignedUrlParameterCannotBeNamedExpires()
+    public function testSignedUrlParameterCannotBeNamedExpires(): void
     {
         $url = new UrlGenerator(
             $routes = new RouteCollection,
             $request = Request::create('http://www.foo.com/')
         );
-        $url->setKeyResolver(function () {
+        $url->setKeyResolver(function (): string {
             return 'secret';
         });
 
-        $route = new Route(['GET'], 'foo/{expires}', ['as' => 'foo', function () {
+        $route = new Route(['GET'], 'foo/{expires}', ['as' => 'foo', function (): void {
         }]);
         $routes->add($route);
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('reserved');
+        $this->expectExceptionObject(new InvalidArgumentException('reserved'));
 
         Request::create($url->signedRoute('foo', ['expires' => 253402300799]));
     }

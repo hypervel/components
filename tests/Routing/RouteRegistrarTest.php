@@ -524,12 +524,11 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->assertInstanceOf(\Hypervel\Routing\Route::class, $routeCollection->match(Request::create('bar', 'GET')));
     }
 
-    public function testRegisteringNonApprovedAttributesThrows()
+    public function testRegisteringNonApprovedAttributesThrows(): void
     {
-        $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Method Hypervel\Routing\RouteRegistrar::unsupportedMethod does not exist.');
+        $this->expectExceptionObject(new BadMethodCallException('Method Hypervel\Routing\RouteRegistrar::unsupportedMethod does not exist.'));
 
-        $this->router->domain('foo')->unsupportedMethod('bar')->group(function ($router) {
+        $this->router->domain('foo')->unsupportedMethod('bar')->group(function (Router $router): void {
         });
     }
 
