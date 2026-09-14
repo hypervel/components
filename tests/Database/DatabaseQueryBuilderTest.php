@@ -5556,6 +5556,28 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals(1, $result);
     }
 
+    public function testUpdateFromWithJoinedSubqueryBindingsOnPostgres(): void
+    {
+        $builder = $this->getPostgresBuilder();
+        $builder->getConnection()->expects('update')->with(
+            'update "users" set "email" = ? from (select ? as marker) as "first", (select ? as marker) as "second", (select ? as marker) as "third" where "users"."name" = ? and "first"."marker" = ? and "second"."marker" = ?',
+            ['after', 7, 9, 11, 'before', 8, 10],
+        )->andReturn(1);
+
+        $builder->from('users')
+            ->joinSub($this->getPostgresBuilder()->selectRaw('? as marker', [7]), 'first', function (JoinClause $join): void {
+                $join->where('first.marker', 8);
+            })
+            ->joinSub($this->getPostgresBuilder()->selectRaw('? as marker', [9]), 'second', function (JoinClause $join): void {
+                $join->where('second.marker', 10);
+            })
+            ->crossJoinSub($this->getPostgresBuilder()->selectRaw('? as marker', [11]), 'third')
+            ->where('users.name', 'before');
+
+        $this->assertSame(1, $builder->updateFrom(['email' => 'after']));
+        $this->assertSame([7, 8, 9, 10, 11, 'before'], $builder->getBindings());
+    }
+
     public function testUpdateMethodRespectsRaw()
     {
         $builder = $this->getBuilder();
@@ -6084,6 +6106,17 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder = $this->getMySqlBuilder();
         $builder->getConnection()->shouldReceive('update')->once()->with('update `users` set `options` = json_set(`options`, \'$."size"\', 45)', []);
         $builder->from('users')->update(['options->size' => new Raw('45')]);
+
+        $builder = $this->getMySqlBuilder();
+        $builder->getConnection()->expects('update')->with(
+            'update `users` inner join (select ? as id) as `source` on `users`.`id` = `source`.`id` set `options` = json_set(`options`, \'$."a"\', ?, \'$."b"\', ?), `name` = ? where `active` = ?',
+            [7, 1, 2, 'John', 1],
+        )->andReturn(1);
+
+        $this->assertSame(1, $builder->from('users')
+            ->joinSub($this->getMySqlBuilder()->selectRaw('? as id', [7]), 'source', 'users.id', '=', 'source.id')
+            ->where('active', 1)
+            ->update(['options->a' => 1, 'name' => 'John', 'options->b' => 2]));
     }
 
     public function testPostgresUpdateWrappingJson()
@@ -6097,6 +6130,15 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder->getConnection()->shouldReceive('update')
             ->with('update "users" set "options" = jsonb_set("options"::jsonb, \'{"language"}\', \'null\')', []);
         $builder->from('users')->update(['options->language' => new Raw("'null'")]);
+
+        $builder = $this->getPostgresBuilder();
+        $builder->getConnection()->expects('update')->with(
+            'update "users" set "options" = jsonb_set(jsonb_set("options"::jsonb, \'{"a"}\', ?), \'{"b"}\', ?), "name" = ? where "active" = ?',
+            ['1', '2', 'John', 1],
+        )->andReturn(1);
+
+        $this->assertSame(1, $builder->from('users')->where('active', 1)
+            ->update(['options->a' => 1, 'name' => 'John', 'options->b' => 2]));
     }
 
     public function testPostgresUpdateWrappingJsonArray()
@@ -6152,10 +6194,12 @@ class DatabaseQueryBuilderTest extends TestCase
     public function testSQLiteUpdateWrappingNestedJsonArray()
     {
         $builder = $this->getSQLiteBuilder();
-        $builder->getConnection()->shouldReceive('update')
-            ->with('update "users" set "group_id" = 45, "created_at" = ?, "options" = json_patch(ifnull("options", json(\'{}\')), json(?))', [
+        $builder->getConnection()->expects('update')
+            ->with('update "users" set "options" = json_set(ifnull("options", json(\'{}\')), \'$."name"\', json(?), \'$."security"\', json(?), \'$."sharing"."twitter"\', json(?)), "group_id" = 45, "created_at" = ?', [
+                '"Taylor"',
+                json_encode(['2fa' => false, 'presets' => ['laravel', 'vue']]),
+                '"username"',
                 new DateTime('2019-08-06'),
-                json_encode(['name' => 'Taylor', 'security' => ['2fa' => false, 'presets' => ['laravel', 'vue']], 'sharing' => ['twitter' => 'username']]),
             ]);
 
         $builder->from('users')->update([
@@ -6170,10 +6214,10 @@ class DatabaseQueryBuilderTest extends TestCase
     public function testSQLiteUpdateWrappingJsonPathArrayIndex()
     {
         $builder = $this->getSQLiteBuilder();
-        $builder->getConnection()->shouldReceive('update')
-            ->with('update "users" set "options" = json_patch(ifnull("options", json(\'{}\')), json(?)), "meta" = json_patch(ifnull("meta", json(\'{}\')), json(?)) where json_extract("options", \'$[1]."2fa"\') = true', [
-                '{"[1]":{"2fa":false}}',
-                '{"tags[0][2]":"large"}',
+        $builder->getConnection()->expects('update')
+            ->with('update "users" set "options" = json_set(ifnull("options", json(\'{}\')), \'$[1]."2fa"\', json(?)), "meta" = json_set(ifnull("meta", json(\'{}\')), \'$."tags"[0][2]\', json(?)) where json_extract("options", \'$[1]."2fa"\') = true', [
+                'false',
+                '"large"',
             ]);
 
         $builder->from('users')->where('options->[1]->2fa', true)->update([

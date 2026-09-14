@@ -237,17 +237,15 @@ class SQLiteGrammar extends Grammar
      */
     protected function compileUpdateColumns(Builder $query, array $values): string
     {
-        $jsonGroups = $this->groupJsonColumnsForUpdate($values);
+        return (new Collection($this->groupJsonColumnsForUpdate($values)))
+            ->map(function (array $group, string $column): string {
+                $column = last(explode('.', $column));
 
-        return (new Collection($values))
-            ->reject(fn ($value, $key) => $this->isJsonSelector($key))
-            ->merge($jsonGroups)
-            ->map(function ($value, $key) use ($jsonGroups) {
-                $column = last(explode('.', $key));
+                if ($this->isJsonSelector(array_key_first($group))) {
+                    return $this->compileJsonUpdateColumn($column, $group);
+                }
 
-                $value = isset($jsonGroups[$key]) ? $this->compileJsonPatch($column, $value) : $this->parameter($value);
-
-                return $this->wrap($column) . ' = ' . $value;
+                return $this->wrap($column) . ' = ' . $this->parameter(reset($group));
             })
             ->implode(', ');
     }
@@ -271,27 +269,30 @@ class SQLiteGrammar extends Grammar
     }
 
     /**
-     * Group the nested JSON columns.
+     * Compile the JSON paths being updated on a column.
      */
-    protected function groupJsonColumnsForUpdate(array $values): array
+    protected function compileJsonUpdateColumn(string $column, array $values): string
     {
-        $groups = [];
+        $field = $this->wrap($column);
+        $value = "ifnull({$field}, json('{}'))";
 
-        foreach ($values as $key => $value) {
-            if ($this->isJsonSelector($key)) {
-                Arr::set($groups, str_replace('->', '.', Str::after($key, '.')), $value);
+        // SQLite before 3.48 permits 127 function arguments: one document and 63 path/value pairs.
+        foreach (array_chunk($values, 63, true) as $group) {
+            $paths = [];
+
+            foreach ($group as $key => $pathValue) {
+                $path = $this->wrapJsonPath(explode('->', $key, 2)[1]);
+                $parameter = $this->isExpression($pathValue)
+                    ? $this->getValue($pathValue)
+                    : 'json(?)';
+
+                $paths[] = ', ' . $path . ', ' . $parameter;
             }
+
+            $value = 'json_set(' . $value . implode('', $paths) . ')';
         }
 
-        return $groups;
-    }
-
-    /**
-     * Compile a "JSON" patch statement into SQL.
-     */
-    protected function compileJsonPatch(string $column, mixed $value): string
-    {
-        return "json_patch(ifnull({$this->wrap($column)}, json('{}')), json({$this->parameter($value)}))";
+        return "{$field} = {$value}";
     }
 
     /**
@@ -314,20 +315,10 @@ class SQLiteGrammar extends Grammar
     #[Override]
     public function prepareBindingsForUpdate(array $bindings, array $values): array
     {
-        $groups = $this->groupJsonColumnsForUpdate($values);
-
-        $values = (new Collection($values))
-            ->reject(fn ($value, $key) => $this->isJsonSelector($key))
-            ->merge($groups)
-            ->map(fn ($value) => is_array($value) ? json_encode($value, JSON_THROW_ON_ERROR) : $value)
-            ->all();
-
         $cleanBindings = Arr::except($bindings, 'select');
 
-        $values = Arr::flatten(array_map(fn ($value) => value($value), $values));
-
         return array_values(
-            array_merge($values, Arr::flatten($cleanBindings))
+            array_merge($this->prepareValueBindingsForUpdate($values), Arr::flatten($cleanBindings))
         );
     }
 

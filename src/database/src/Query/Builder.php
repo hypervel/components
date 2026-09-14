@@ -634,7 +634,12 @@ class Builder implements BuilderContract
 
         $this->addBinding($bindings, 'join');
 
-        return $this->join(new Expression($expression), $first, $operator, $second, $type, $where);
+        $this->join(new Expression($expression), $first, $operator, $second, $type, $where);
+
+        // UPDATE FROM places source bindings before all join conditions.
+        $this->joins[array_key_last($this->joins)]->addBinding($bindings, 'from');
+
+        return $this;
     }
 
     /**
@@ -650,7 +655,7 @@ class Builder implements BuilderContract
 
         $this->addBinding($bindings, 'join');
 
-        $this->joins[] = $this->newJoinLateralClause($this, $type, new Expression($expression));
+        $this->joins[] = $this->newJoinLateralClause($this, $type, new Expression($expression))->addBinding($bindings, 'from');
 
         return $this;
     }
@@ -742,7 +747,7 @@ class Builder implements BuilderContract
 
         $this->addBinding($bindings, 'join');
 
-        $this->joins[] = $this->newJoinClause($this, 'cross', new Expression($expression));
+        $this->joins[] = $this->newJoinClause($this, 'cross', new Expression($expression))->addBinding($bindings, 'from');
 
         return $this;
     }
@@ -3856,9 +3861,12 @@ class Builder implements BuilderContract
         });
 
         $sql = $this->grammar->compileUpdate($this, $values->map(fn ($value) => $value['value'])->all());
+        $bindings = $values->map(fn ($value) => $value['bindings'])->all();
 
         return $this->connection->update($sql, $this->cleanBindings(
-            $this->grammar->prepareBindingsForUpdate($this->bindings, $values->map(fn ($value) => $value['bindings'])->all())
+            isset($this->joins)
+                ? $this->grammar->prepareBindingsForUpdateWithJoins($this->bindings, $bindings)
+                : $this->grammar->prepareBindingsForUpdate($this->bindings, $bindings)
         ));
     }
 
@@ -3876,9 +3884,19 @@ class Builder implements BuilderContract
         // @phpstan-ignore method.notFound (driver-specific method checked by method_exists above)
         $sql = $this->grammar->compileUpdateFrom($this, $values);
 
+        $bindings = $this->bindings;
+        $bindings['join'] = [];
+
+        foreach ($this->joins ?? [] as $join) {
+            $joinBindings = $join->getRawBindings();
+
+            array_push($bindings['from'], ...$joinBindings['from']);
+            array_push($bindings['join'], ...Arr::flatten(Arr::except($joinBindings, 'from')));
+        }
+
         return $this->connection->update($sql, $this->cleanBindings(
             // @phpstan-ignore method.notFound (driver-specific method checked by method_exists above)
-            $this->grammar->prepareBindingsForUpdateFrom($this->bindings, $values)
+            $this->grammar->prepareBindingsForUpdateFrom($bindings, $values)
         ));
     }
 
