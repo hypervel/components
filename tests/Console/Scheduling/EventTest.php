@@ -759,17 +759,17 @@ class EventTest extends TestCase
     public function testBasicCronCompilation(): void
     {
         $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('isDownForMaintenance')->andReturn(false);
-        $app->shouldReceive('environment')->andReturn('production');
-        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback) => $callback());
+        $app->expects('isDownForMaintenance')->times(3)->andReturn(false);
+        $app->expects('environment')->times(3)->andReturn('production');
+        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback): bool => $callback());
 
         $event = new Event(m::mock(EventMutex::class), 'php foo');
         $this->assertSame('* * * * *', $event->getExpression());
         $this->assertTrue($event->isDue($app));
-        $this->assertTrue($event->skip(function () {
+        $this->assertTrue($event->skip(function (): bool {
             return true;
         })->isDue($app));
-        $this->assertFalse($event->skip(function () {
+        $this->assertFalse($event->skip(function (): bool {
             return true;
         })->filtersPass($app));
 
@@ -779,7 +779,7 @@ class EventTest extends TestCase
 
         $event = new Event(m::mock(EventMutex::class), 'php foo');
         $this->assertSame('* * * * *', $event->getExpression());
-        $this->assertFalse($event->when(function () {
+        $this->assertFalse($event->when(function (): bool {
             return false;
         })->filtersPass($app));
 
@@ -806,8 +806,8 @@ class EventTest extends TestCase
     public function testEventIsDueCheck(): void
     {
         $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('isDownForMaintenance')->andReturn(false);
-        $app->shouldReceive('environment')->andReturn('production');
+        $app->expects('isDownForMaintenance')->times(2)->andReturn(false);
+        $app->expects('environment')->times(2)->andReturn('production');
         CarbonImmutable::setTestNow(CarbonImmutable::create(2015, 1, 1, 0, 0, 0));
 
         $event = new Event(m::mock(EventMutex::class), 'php foo');
@@ -850,9 +850,7 @@ class EventTest extends TestCase
     public function testTimeBetweenChecks(): void
     {
         $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('isDownForMaintenance')->andReturn(false);
-        $app->shouldReceive('environment')->andReturn('production');
-        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback) => $callback());
+        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback): bool => $callback());
 
         CarbonImmutable::setTestNow(CarbonImmutable::today()->addHours(9));
 
@@ -878,9 +876,7 @@ class EventTest extends TestCase
     public function testTimeBetweenIsEvaluatedUsingTheCurrentTime(): void
     {
         $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('isDownForMaintenance')->andReturn(false);
-        $app->shouldReceive('environment')->andReturn('production');
-        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback) => $callback());
+        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback): bool => $callback());
 
         CarbonImmutable::setTestNow('2026-05-29 09:00:00');
 
@@ -894,27 +890,30 @@ class EventTest extends TestCase
         $this->assertFalse($event->filtersPass($app));
     }
 
-    public function testTimeBetweenUsesTimezoneConfiguredAfterTheConstraint(): void
+    public function testTimeBetweenChecksTimezoneCallOrder(): void
     {
         $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('isDownForMaintenance')->andReturn(false);
-        $app->shouldReceive('environment')->andReturn('production');
-        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback) => $callback());
+        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback): bool => $callback());
 
-        CarbonImmutable::setTestNow('2026-05-29 13:00:00 UTC');
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2024-07-01 09:00:00', 'UTC'));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo');
-        $event->between('8:00', '10:00')->timezone('America/New_York');
+        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $this->assertTrue($event->timezone('Europe/Rome')->between('10:00', '12:00')->filtersPass($app));
 
-        $this->assertTrue($event->filtersPass($app));
+        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $this->assertTrue($event->between('10:00', '12:00')->timezone('Europe/Rome')->filtersPass($app));
+
+        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $this->assertFalse($event->timezone('Europe/Rome')->unlessBetween('10:00', '12:00')->filtersPass($app));
+
+        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $this->assertFalse($event->unlessBetween('10:00', '12:00')->timezone('Europe/Rome')->filtersPass($app));
     }
 
     public function testTimeUnlessBetweenChecks(): void
     {
         $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('isDownForMaintenance')->andReturn(false);
-        $app->shouldReceive('environment')->andReturn('production');
-        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback) => $callback());
+        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback): bool => $callback());
 
         CarbonImmutable::setTestNow(CarbonImmutable::today()->addHours(9));
 
