@@ -18,72 +18,72 @@ use function Hypervel\Coroutine\parallel;
 
 class DatabaseMigrationCreatorTest extends TestCase
 {
-    public function testBasicCreateMethodStoresMigrationFile()
+    public function testBasicCreateMethodStoresMigrationFile(): void
     {
         $creator = $this->getCreator();
 
         $creator->expects($this->once())->method('getDatePrefix')->willReturn('foo');
-        $creator->getFilesystem()->shouldReceive('exists')->once()->with('stubs/migration.stub')->andReturn(false);
-        $creator->getFilesystem()->shouldReceive('get')->once()->with($creator->stubPath() . '/migration.stub')->andReturn('return new class');
-        $creator->getFilesystem()->shouldReceive('ensureDirectoryExists')->once()->with('foo');
-        $creator->getFilesystem()->shouldReceive('replace')->once()->with('foo/foo_create_bar.php', 'return new class');
-        $creator->getFilesystem()->shouldReceive('glob')->once()->with('foo/*.php')->andReturn(['foo/foo_create_bar.php']);
-        $creator->getFilesystem()->shouldReceive('requireOnce')->once()->with('foo/foo_create_bar.php');
+        $creator->getFilesystem()->expects('exists')->with('stubs/migration.stub')->andReturn(false);
+        $creator->getFilesystem()->expects('get')->with($creator->stubPath() . '/migration.stub')->andReturn('return new class');
+        $creator->getFilesystem()->expects('ensureDirectoryExists')->with('foo');
+        $creator->getFilesystem()->expects('replace')->with('foo/foo_create_bar.php', 'return new class');
+        $creator->getFilesystem()->expects('glob')->with('foo/*.php')->andReturn(['foo/foo_create_bar.php']);
+        $creator->getFilesystem()->expects('requireOnce')->with('foo/foo_create_bar.php');
 
         $creator->create('create_bar', 'foo');
     }
 
-    public function testBasicCreateMethodCallsPostCreateHooks()
+    public function testBasicCreateMethodCallsPostCreateHooks(): void
     {
         $table = 'baz';
 
         $creator = $this->getCreator();
         unset($_SERVER['__migration.creator.table'], $_SERVER['__migration.creator.path']);
-        $creator->afterCreate(function ($table, $path) {
+        $creator->afterCreate(function (?string $table, string $path): void {
             $_SERVER['__migration.creator.table'] = $table;
             $_SERVER['__migration.creator.path'] = $path;
         });
 
         $creator->expects($this->once())->method('getDatePrefix')->willReturn('foo');
-        $creator->getFilesystem()->shouldReceive('exists')->once()->with('stubs/migration.update.stub')->andReturn(false);
-        $creator->getFilesystem()->shouldReceive('get')->once()->with($creator->stubPath() . '/migration.update.stub')->andReturn('return new class DummyTable');
-        $creator->getFilesystem()->shouldReceive('ensureDirectoryExists')->once()->with('foo');
-        $creator->getFilesystem()->shouldReceive('replace')->once()->with('foo/foo_create_bar.php', 'return new class baz');
-        $creator->getFilesystem()->shouldReceive('glob')->once()->with('foo/*.php')->andReturn(['foo/foo_create_bar.php']);
-        $creator->getFilesystem()->shouldReceive('requireOnce')->once()->with('foo/foo_create_bar.php');
+        $creator->getFilesystem()->expects('exists')->with('stubs/migration.update.stub')->andReturn(false);
+        $creator->getFilesystem()->expects('get')->with($creator->stubPath() . '/migration.update.stub')->andReturn('return new class DummyTable');
+        $creator->getFilesystem()->expects('ensureDirectoryExists')->with('foo');
+        $creator->getFilesystem()->expects('replace')->with('foo/foo_create_bar.php', 'return new class baz');
+        $creator->getFilesystem()->expects('glob')->with('foo/*.php')->andReturn(['foo/foo_create_bar.php']);
+        $creator->getFilesystem()->expects('requireOnce')->with('foo/foo_create_bar.php');
 
         $creator->create('create_bar', 'foo', $table);
 
-        $this->assertEquals($_SERVER['__migration.creator.table'], $table);
-        $this->assertEquals($_SERVER['__migration.creator.path'], 'foo/foo_create_bar.php');
+        $this->assertSame($table, $_SERVER['__migration.creator.table']);
+        $this->assertSame('foo/foo_create_bar.php', $_SERVER['__migration.creator.path']);
 
         unset($_SERVER['__migration.creator.table'], $_SERVER['__migration.creator.path']);
     }
 
-    public function testTableUpdateMigrationStoresMigrationFile()
+    public function testTableUpdateMigrationStoresMigrationFile(): void
     {
         $creator = $this->getCreator();
         $creator->expects($this->once())->method('getDatePrefix')->willReturn('foo');
-        $creator->getFilesystem()->shouldReceive('exists')->once()->with('stubs/migration.update.stub')->andReturn(false);
-        $creator->getFilesystem()->shouldReceive('get')->once()->with($creator->stubPath() . '/migration.update.stub')->andReturn('return new class DummyTable');
-        $creator->getFilesystem()->shouldReceive('ensureDirectoryExists')->once()->with('foo');
-        $creator->getFilesystem()->shouldReceive('replace')->once()->with('foo/foo_create_bar.php', 'return new class baz');
-        $creator->getFilesystem()->shouldReceive('glob')->once()->with('foo/*.php')->andReturn(['foo/foo_create_bar.php']);
-        $creator->getFilesystem()->shouldReceive('requireOnce')->once()->with('foo/foo_create_bar.php');
+        $creator->getFilesystem()->expects('exists')->with('stubs/migration.update.stub')->andReturn(false);
+        $creator->getFilesystem()->expects('get')->with($creator->stubPath() . '/migration.update.stub')->andReturn('return new class DummyTable');
+        $creator->getFilesystem()->expects('ensureDirectoryExists')->with('foo');
+        $creator->getFilesystem()->expects('replace')->with('foo/foo_create_bar.php', 'return new class baz');
+        $creator->getFilesystem()->expects('glob')->with('foo/*.php')->andReturn(['foo/foo_create_bar.php']);
+        $creator->getFilesystem()->expects('requireOnce')->with('foo/foo_create_bar.php');
 
         $creator->create('create_bar', 'foo', 'baz');
     }
 
-    public function testTableCreationMigrationStoresMigrationFile()
+    public function testTableCreationMigrationStoresMigrationFile(): void
     {
         $creator = $this->getCreator();
         $creator->expects($this->once())->method('getDatePrefix')->willReturn('foo');
-        $creator->getFilesystem()->shouldReceive('exists')->once()->with('stubs/migration.create.stub')->andReturn(false);
-        $creator->getFilesystem()->shouldReceive('get')->once()->with($creator->stubPath() . '/migration.create.stub')->andReturn('return new class DummyTable');
-        $creator->getFilesystem()->shouldReceive('ensureDirectoryExists')->once()->with('foo');
-        $creator->getFilesystem()->shouldReceive('replace')->once()->with('foo/foo_create_bar.php', 'return new class baz');
-        $creator->getFilesystem()->shouldReceive('glob')->once()->with('foo/*.php')->andReturn(['foo/foo_create_bar.php']);
-        $creator->getFilesystem()->shouldReceive('requireOnce')->once()->with('foo/foo_create_bar.php');
+        $creator->getFilesystem()->expects('exists')->with('stubs/migration.create.stub')->andReturn(false);
+        $creator->getFilesystem()->expects('get')->with($creator->stubPath() . '/migration.create.stub')->andReturn('return new class DummyTable');
+        $creator->getFilesystem()->expects('ensureDirectoryExists')->with('foo');
+        $creator->getFilesystem()->expects('replace')->with('foo/foo_create_bar.php', 'return new class baz');
+        $creator->getFilesystem()->expects('glob')->with('foo/*.php')->andReturn(['foo/foo_create_bar.php']);
+        $creator->getFilesystem()->expects('requireOnce')->with('foo/foo_create_bar.php');
 
         $creator->create('create_bar', 'foo', 'baz', true);
     }
@@ -94,8 +94,8 @@ class DatabaseMigrationCreatorTest extends TestCase
 
         $creator = $this->getCreator([]);
 
-        $creator->getFilesystem()->shouldReceive('glob')->once()->with('foo/*.php')->andReturn(['foo/foo_create_bar.php']);
-        $creator->getFilesystem()->shouldReceive('requireOnce')->once()->with('foo/foo_create_bar.php');
+        $creator->getFilesystem()->expects('glob')->with('foo/*.php')->andReturn(['foo/foo_create_bar.php']);
+        $creator->getFilesystem()->expects('requireOnce')->with('foo/foo_create_bar.php');
 
         $creator->create('migration_creator_fake_migration', 'foo');
     }
@@ -313,7 +313,10 @@ class DatabaseMigrationCreatorTest extends TestCase
         }
     }
 
-    protected function getCreator(array $methods = ['getDatePrefix'])
+    /**
+     * Get a migration creator with mocked filesystem access.
+     */
+    protected function getCreator(array $methods = ['getDatePrefix']): MigrationCreator
     {
         $files = m::mock(Filesystem::class);
         $customStubs = 'stubs';
