@@ -144,7 +144,7 @@ class LotteryTest extends TestCase
         ], $result);
     }
 
-    public function testItCanHandleMissingSequenceItems()
+    public function testItCanHandleMissingSequenceItems(): void
     {
         $result = null;
         Lottery::forceResultWithSequence([
@@ -152,17 +152,16 @@ class LotteryTest extends TestCase
             1 => true,
             // 2 => ...
             3 => true,
-        ], fn () => throw new RuntimeException('Missing key in sequence.'));
+        ], fn (): never => throw new RuntimeException('Missing key in sequence.'));
 
-        $result = Lottery::odds(1, 10000)->winner(fn () => 'winner')->loser(fn () => 'loser')->choose();
+        $result = Lottery::odds(1, 10000)->winner(fn (): string => 'winner')->loser(fn (): string => 'loser')->choose();
         $this->assertSame('winner', $result);
 
-        $result = Lottery::odds(1, 10000)->winner(fn () => 'winner')->loser(fn () => 'loser')->choose();
+        $result = Lottery::odds(1, 10000)->winner(fn (): string => 'winner')->loser(fn (): string => 'loser')->choose();
         $this->assertSame('winner', $result);
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Missing key in sequence.');
-        Lottery::odds(1, 10000)->winner(fn () => 'winner')->loser(fn () => 'loser')->choose();
+        $this->expectExceptionObject(new RuntimeException('Missing key in sequence.'));
+        Lottery::odds(1, 10000)->winner(fn (): string => 'winner')->loser(fn (): string => 'loser')->choose();
     }
 
     public function testMissingSequenceFallbackRestoresTheSequenceWhenNormalResolutionThrows(): void
@@ -191,10 +190,9 @@ class LotteryTest extends TestCase
         $this->assertTrue(Lottery::odds(1, 1)->choose());
     }
 
-    public function testItThrowsForFloatsOverOne()
+    public function testItThrowsForFloatsOverOne(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Float must not be greater than 1.');
+        $this->expectExceptionObject(new RuntimeException('Float must not be greater than 1.'));
 
         new Lottery(1.1);
     }

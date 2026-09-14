@@ -13,6 +13,7 @@ use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Mockery\MockInterface;
 use SortDirection;
 
 class DatabaseEloquentMorphToManyTest extends TestCase
@@ -78,26 +79,26 @@ class DatabaseEloquentMorphToManyTest extends TestCase
         $value = 'pivot_value';
         $column = new Expression("CONCAT(foo, '_', bar)");
         $relation = $this->getRelation();
-        /** @var Builder|m\MockInterface $builder */
+        /** @var Builder&MockInterface $builder */
         $builder = $relation->getQuery();
 
-        $builder->shouldReceive('where')->with($column, '=', $value, 'and')->times(2)->andReturnSelf();
+        $builder->expects('where')->with($column, '=', $value, 'and')->times(2)->andReturnSelf();
         $relation->wherePivot($column, '=', $value);
         $relation->withPivotValue($column, $value);
 
-        $builder->shouldReceive('whereBetween')->with($column, [$value, $value], 'and', false)->once()->andReturnSelf();
+        $builder->expects('whereBetween')->with($column, [$value, $value], 'and', false)->andReturnSelf();
         $relation->wherePivotBetween($column, [$value, $value]);
 
-        $builder->shouldReceive('whereIn')->with($column, [$value], 'and', false)->once()->andReturnSelf();
+        $builder->expects('whereIn')->with($column, [$value], 'and', false)->andReturnSelf();
         $relation->wherePivotIn($column, [$value]);
 
-        $builder->shouldReceive('whereNull')->with($column, 'and', false)->once()->andReturnSelf();
+        $builder->expects('whereNull')->with($column, 'and', false)->andReturnSelf();
         $relation->wherePivotNull($column);
 
-        $builder->shouldReceive('orderBy')->with($column, SortDirection::Ascending)->once()->andReturnSelf();
+        $builder->expects('orderBy')->with($column, SortDirection::Ascending)->andReturnSelf();
         $relation->orderByPivot($column);
 
-        $builder->shouldReceive('orderBy')->with($column, SortDirection::Descending)->once()->andReturnSelf();
+        $builder->expects('orderBy')->with($column, SortDirection::Descending)->andReturnSelf();
         $relation->orderByPivotDesc($column);
     }
 

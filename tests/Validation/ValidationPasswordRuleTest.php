@@ -11,6 +11,7 @@ use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rules\Password;
 use Hypervel\Validation\Validator;
+use InvalidArgumentException;
 use Mockery as m;
 
 class ValidationPasswordRuleTest extends TestCase
@@ -285,10 +286,9 @@ class ValidationPasswordRuleTest extends TestCase
         $this->assertSame(['string', 'min:8'], [...Password::default()]);
     }
 
-    public function testItCannotSetDefaultUsingGivenString()
+    public function testItCannotSetDefaultUsingGivenString(): void
     {
-        $this->expectException('InvalidArgumentException');
-        $this->expectExceptionMessage('given callback should be callable');
+        $this->expectExceptionObject(new InvalidArgumentException('given callback should be callable'));
 
         Password::defaults('required|password');
     }

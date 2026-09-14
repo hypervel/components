@@ -27,7 +27,7 @@ use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
-class ConsoleApplicationResolveTest extends TestCase
+class ConsoleApplicationTest extends TestCase
 {
     /**
      * Create a console application for command resolution.
@@ -103,7 +103,7 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertArrayHasKey('test:alias', $map);
     }
 
-    public function testResolveEagerlyResolvesCommandWithoutStaticName(): void
+    public function testResolveAddsCommandViaApplicationResolution(): void
     {
         $command = new SymfonyCommand('test:dynamic');
         $container = $this->createMock(Application::class);
@@ -225,7 +225,7 @@ class ConsoleApplicationResolveTest extends TestCase
     // add (container propagation)
     // ---------------------------------------------------------------
 
-    public function testAddCommandSetsHypervelOnHypervelCommands(): void
+    public function testAddSetsHypervelInstance(): void
     {
         $artisan = $this->getMockConsole(['addToParent']);
 
@@ -238,7 +238,7 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertSame($command, $result);
     }
 
-    public function testAddCommandDoesNotSetHypervelOnSymfonyCommands(): void
+    public function testHypervelNotSetOnSymfonyCommands(): void
     {
         $artisan = $this->getMockConsole(['addToParent']);
 
@@ -383,7 +383,7 @@ class ConsoleApplicationResolveTest extends TestCase
     // Application::call()
     // ---------------------------------------------------------------
 
-    public function testCallStringAndArrayInputProduceSameResult(): void
+    public function testCallFullyStringCommandLine(): void
     {
         $app = $this->createApp(
             m::mock(Application::class, [

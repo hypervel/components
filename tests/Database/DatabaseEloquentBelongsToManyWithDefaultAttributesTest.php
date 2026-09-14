@@ -15,27 +15,30 @@ use Mockery as m;
 
 class DatabaseEloquentBelongsToManyWithDefaultAttributesTest extends TestCase
 {
-    public function testWithPivotValueMethodSetsWhereConditionsForFetching()
+    public function testWithPivotValueMethodSetsWhereConditionsForFetching(): void
     {
         $relation = new BelongsToMany(...$this->getRelationArguments());
         $relation->withPivotValue(['is_admin' => 1]);
     }
 
-    public function testWithPivotValueMethodSetsDefaultArgumentsForInsertion()
+    public function testWithPivotValueMethodSetsDefaultArgumentsForInsertion(): void
     {
         $relation = $this->getMockBuilder(BelongsToMany::class)->onlyMethods(['touchIfTouching'])->setConstructorArgs($this->getRelationArguments())->getMock();
         $relation->expects($this->once())->method('touchIfTouching');
         $relation->withPivotValue(['is_admin' => 1]);
 
         $query = m::mock(QueryBuilder::class);
-        $query->shouldReceive('from')->once()->with('club_user')->andReturn($query);
-        $query->shouldReceive('insert')->once()->with([['club_id' => 1, 'user_id' => 1, 'is_admin' => 1]])->andReturn(true);
-        $relation->getQuery()->getQuery()->shouldReceive('newQuery')->once()->andReturn($query);
+        $query->expects('from')->with('club_user')->andReturn($query);
+        $query->expects('insert')->with([['club_id' => 1, 'user_id' => 1, 'is_admin' => 1]])->andReturn(true);
+        $relation->getQuery()->getQuery()->expects('newQuery')->andReturn($query);
 
         $relation->attach(1);
     }
 
-    public function getRelationArguments()
+    /**
+     * Get the arguments for the relationship.
+     */
+    public function getRelationArguments(): array
     {
         $parent = m::mock(Model::class);
         $parent->shouldReceive('getKey')->andReturn(1);
@@ -51,15 +54,16 @@ class DatabaseEloquentBelongsToManyWithDefaultAttributesTest extends TestCase
         $related->shouldReceive('getKeyName')->andReturn('id');
         $related->shouldReceive('qualifyColumn')->with('id')->andReturn('users.id');
 
-        $builder->shouldReceive('join')->once()->with('club_user', 'users.id', '=', 'club_user.user_id');
-        $builder->shouldReceive('where')->once()->with('club_user.club_id', '=', 1)->andReturnSelf();
-        $builder->shouldReceive('where')->once()->with('club_user.is_admin', '=', 1, 'and')->andReturnSelf();
+        $builder->expects('join')->with('club_user', 'users.id', '=', 'club_user.user_id');
+        $builder->expects('where')->with('club_user.club_id', '=', 1)->andReturnSelf();
+        $builder->expects('where')->with('club_user.is_admin', '=', 1, 'and')->andReturnSelf();
 
-        $builder->shouldReceive('getQuery')->andReturn($mockQueryBuilder = m::mock(QueryBuilder::class));
+        $mockQueryBuilder = m::mock(QueryBuilder::class);
+        $builder->shouldReceive('getQuery')->andReturn($mockQueryBuilder);
         $mockQueryBuilder->shouldReceive('getGrammar')->andReturn(m::mock(Grammar::class, ['isExpression' => false]));
         $connection = m::mock(ConnectionInterface::class);
         $connection->shouldReceive('table')->andReturnUsing(
-            fn ($table) => $mockQueryBuilder->newQuery()->from($table)
+            fn (string $table): QueryBuilder => $mockQueryBuilder->newQuery()->from($table)
         );
         $mockQueryBuilder->shouldReceive('getConnection')->andReturn($connection);
 

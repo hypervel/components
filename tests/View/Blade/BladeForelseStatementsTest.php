@@ -84,10 +84,9 @@ empty
     }
 
     #[DataProvider('invalidForelseStatementsDataProvider')]
-    public function testForelseStatementsThrowHumanizedMessageWhenInvalidStatement($initialStatement)
+    public function testForelseStatementsThrowHumanizedMessageWhenInvalidStatement(string $initialStatement): void
     {
-        $this->expectException(ViewCompilationException::class);
-        $this->expectExceptionMessage('Malformed @forelse statement.');
+        $this->expectExceptionObject(new ViewCompilationException('Malformed @forelse statement.'));
         $string = "{$initialStatement}
 breeze
 @empty

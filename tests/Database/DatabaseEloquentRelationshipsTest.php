@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\EloquentRelationshipsTest;
+namespace Hypervel\Tests\Database\DatabaseEloquentRelationshipsTest;
 
 use Hypervel\Database\Connection;
 use Hypervel\Database\Eloquent\Builder;
@@ -27,7 +27,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
 {
     public function testStandardRelationships()
     {
-        $post = new RelationshipsPost;
+        $post = new Post;
 
         $this->assertInstanceOf(HasOne::class, $post->attachment());
         $this->assertInstanceOf(BelongsTo::class, $post->author());
@@ -43,7 +43,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
 
     public function testOverriddenRelationships()
     {
-        $post = new RelationshipsCustomPost;
+        $post = new CustomPost;
 
         $this->assertInstanceOf(CustomHasOne::class, $post->attachment());
         $this->assertInstanceOf(CustomBelongsTo::class, $post->author());
@@ -64,7 +64,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
         $user2 = (new FakeRelationship)->forceFill(['id' => 2]);
 
         // sync user 1 using Model
-        $post = new RelationshipsPost;
+        $post = new Post;
         $post->author()->associate($user1);
         $post->syncOriginal();
 
@@ -260,15 +260,20 @@ class DatabaseEloquentRelationshipsTest extends TestCase
 
 class MockedConnectionModel extends Model
 {
+    /**
+     * Get a mock connection that creates real query builders.
+     */
     public function getConnection(): Connection
     {
         $mock = m::mock(Connection::class);
-        $mock->shouldReceive('getQueryGrammar')->andReturn($grammar = m::mock(Grammar::class));
+        $grammar = m::mock(Grammar::class);
+        $mock->shouldReceive('getQueryGrammar')->andReturn($grammar);
         $grammar->shouldReceive('getBitwiseOperators')->andReturn([]);
         $grammar->shouldReceive('isExpression')->andReturn(false);
-        $mock->shouldReceive('getPostProcessor')->andReturn($processor = m::mock(Processor::class));
+        $processor = m::mock(Processor::class);
+        $mock->shouldReceive('getPostProcessor')->andReturn($processor);
         $mock->shouldReceive('getName')->andReturn('name');
-        $mock->shouldReceive('query')->andReturnUsing(function () use ($mock, $grammar, $processor) {
+        $mock->shouldReceive('query')->andReturnUsing(function () use ($mock, $grammar, $processor): BaseBuilder {
             return new BaseBuilder($mock, $grammar, $processor);
         });
 
@@ -280,7 +285,7 @@ class FakeRelationship extends MockedConnectionModel
 {
 }
 
-class RelationshipsPost extends MockedConnectionModel
+class Post extends MockedConnectionModel
 {
     public function attachment()
     {
@@ -333,7 +338,7 @@ class RelationshipsPost extends MockedConnectionModel
     }
 }
 
-class RelationshipsCustomPost extends RelationshipsPost
+class CustomPost extends Post
 {
     protected function newBelongsTo(Builder $query, Model $child, string $foreignKey, string $ownerKey, string $relation): BelongsTo
     {

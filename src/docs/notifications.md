@@ -1727,6 +1727,12 @@ class ExampleTest extends TestCase
 }
 ```
 
+To assert that a notification was sent to a recipient exactly once, use `assertSentToOnce`:
+
+```php
+Notification::assertSentToOnce($user, OrderShipped::class);
+```
+
 You may pass a closure to the `assertSentTo` or `assertNotSentTo` methods in order to assert that a notification was sent that passes a given "truth test". If at least one notification was sent that passes the given truth test then the assertion will be successful:
 
 ```php
@@ -1746,6 +1752,8 @@ If the code you are testing sends [on-demand notifications](#on-demand-notificat
 ```php
 Notification::assertSentOnDemand(OrderShipped::class);
 ```
+
+Use `Notification::assertSentOnDemandOnce(OrderShipped::class)` to assert that it was sent on-demand exactly once.
 
 By passing a closure as the second argument to the `assertSentOnDemand` method, you may determine if an on-demand notification was sent to the correct "route" address:
 

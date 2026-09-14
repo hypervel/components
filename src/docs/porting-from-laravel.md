@@ -167,6 +167,8 @@ Not every Laravel class has a one-for-one replacement. If a class or method is a
 
 Do not recreate missing Laravel framework internals or add local classes under `Hypervel` namespaces merely to make a mechanical namespace replacement pass. An intentional adapter around a public contract may be appropriate for an application-owned or third-party integration, but it should adapt that integration to Hypervel's documented API instead of imitating missing framework internals.
 
+Replace Laravel's real-time facades (`Facades\...`) with [explicit facade classes](/docs/{{version}}/facades#how-facades-work) or dependency injection.
+
 <a name="type-declarations"></a>
 ## Type Declarations
 

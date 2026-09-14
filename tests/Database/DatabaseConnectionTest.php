@@ -528,7 +528,7 @@ class DatabaseConnectionTest extends TestCase
         }
     }
 
-    public function testDisconnectClearsTransactionManagerStateEvenWhenTheLogicalLevelIsZero(): void
+    public function testDisconnectClearsTransactionManagerState(): void
     {
         $connection = $this->getSqliteTransactionConnection();
         $manager = new DatabaseTransactionsManager;
@@ -547,65 +547,71 @@ class DatabaseConnectionTest extends TestCase
         $this->assertNull($connection->getRawPdo());
     }
 
-    public function testBeganTransactionFiresEventsIfSet()
+    public function testBeganTransactionFiresEventsIfSet(): void
     {
         $pdo = $this->createStub(PDOStub::class);
         $connection = $this->getMockConnection([], $pdo);
-        $connection->setEventDispatcher($events = m::mock(Dispatcher::class));
-        $events->shouldReceive('hasListeners')->once()->with(TransactionBeginning::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->once()->with(m::type(TransactionBeginning::class));
+        $events = m::mock(Dispatcher::class);
+        $events->expects('hasListeners')->with(TransactionBeginning::class)->andReturn(true);
+        $events->expects('dispatch')->with(m::type(TransactionBeginning::class));
+        $connection->setEventDispatcher($events);
         $connection->beginTransaction();
     }
 
-    public function testCommittedFiresEventsIfSet()
+    public function testCommittedFiresEventsIfSet(): void
     {
         $pdo = $this->createStub(PDOStub::class);
         $connection = $this->getMockConnection([], $pdo);
-        $connection->setEventDispatcher($events = m::mock(Dispatcher::class));
-        $events->shouldReceive('hasListeners')->once()->with(TransactionCommitted::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->once()->with(m::type(TransactionCommitted::class));
+        $events = m::mock(Dispatcher::class);
+        $events->expects('hasListeners')->with(TransactionCommitted::class)->andReturn(true);
+        $events->expects('dispatch')->with(m::type(TransactionCommitted::class));
+        $connection->setEventDispatcher($events);
         $connection->commit();
     }
 
-    public function testCommittingFiresEventsIfSet()
+    public function testCommittingFiresEventsIfSet(): void
     {
         $pdo = $this->createStub(PDOStub::class);
         $connection = $this->getMockConnection([], $pdo);
         $connection->beginTransaction();
-        $connection->setEventDispatcher($events = m::mock(Dispatcher::class));
-        $events->shouldReceive('hasListeners')->once()->with(TransactionCommitting::class)->andReturn(true);
-        $events->shouldReceive('hasListeners')->once()->with(TransactionCommitted::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->once()->with(m::type(TransactionCommitting::class));
-        $events->shouldReceive('dispatch')->once()->with(m::type(TransactionCommitted::class));
+        $events = m::mock(Dispatcher::class);
+        $events->expects('hasListeners')->with(TransactionCommitting::class)->andReturn(true);
+        $events->expects('hasListeners')->with(TransactionCommitted::class)->andReturn(true);
+        $events->expects('dispatch')->with(m::type(TransactionCommitting::class));
+        $events->expects('dispatch')->with(m::type(TransactionCommitted::class));
+        $connection->setEventDispatcher($events);
         $connection->commit();
     }
 
-    public function testRollBackedFiresEventsIfSet()
+    public function testRollBackedFiresEventsIfSet(): void
     {
         $pdo = $this->createStub(PDOStub::class);
         $connection = $this->getMockConnection([], $pdo);
         $connection->beginTransaction();
-        $connection->setEventDispatcher($events = m::mock(Dispatcher::class));
-        $events->shouldReceive('hasListeners')->once()->with(TransactionRolledBack::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->once()->with(m::type(TransactionRolledBack::class));
+        $events = m::mock(Dispatcher::class);
+        $events->expects('hasListeners')->with(TransactionRolledBack::class)->andReturn(true);
+        $events->expects('dispatch')->with(m::type(TransactionRolledBack::class));
+        $connection->setEventDispatcher($events);
         $connection->rollBack();
     }
 
-    public function testBeganTransactionSkipsDispatchWhenNoListenersAreRegistered()
+    public function testBeganTransactionSkipsDispatchWhenNoListenersAreRegistered(): void
     {
         $pdo = $this->createStub(PDOStub::class);
         $connection = $this->getMockConnection([], $pdo);
-        $connection->setEventDispatcher($events = m::mock(Dispatcher::class));
-        $events->shouldReceive('hasListeners')->once()->with(TransactionBeginning::class)->andReturn(false);
+        $events = m::mock(Dispatcher::class);
+        $connection->setEventDispatcher($events);
+        $events->expects('hasListeners')->with(TransactionBeginning::class)->andReturn(false);
         $events->shouldNotReceive('dispatch');
         $connection->beginTransaction();
     }
 
-    public function testRedundantRollBackFiresNoEvent()
+    public function testRedundantRollBackFiresNoEvent(): void
     {
         $pdo = $this->createStub(PDOStub::class);
         $connection = $this->getMockConnection([], $pdo);
-        $connection->setEventDispatcher($events = m::mock(Dispatcher::class));
+        $events = m::mock(Dispatcher::class);
+        $connection->setEventDispatcher($events);
         $events->shouldNotReceive('dispatch');
         $connection->rollBack();
     }
@@ -622,7 +628,7 @@ class DatabaseConnectionTest extends TestCase
         $this->assertEquals($mock, $result);
     }
 
-    public function testTransactionRetriesOnCommitDeadlockAfterPhysicalRollback(): void
+    public function testTransactionRetriesOnCommitDeadlockWhenPDOHasActiveTransaction(): void
     {
         $pdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['inTransaction', 'beginTransaction', 'commit', 'rollBack'])->getMock();
         $connection = $this->getMockConnection([], $pdo);
@@ -1506,21 +1512,23 @@ class DatabaseConnectionTest extends TestCase
         $this->assertEquals(['test' => 'bar'], $result);
     }
 
-    public function testLogQueryFiresEventsIfSet()
+    public function testLogQueryFiresEventsIfSet(): void
     {
         $connection = $this->getMockConnection();
         $connection->logQuery('foo', [], time());
-        $connection->setEventDispatcher($events = m::mock(Dispatcher::class));
-        $events->shouldReceive('hasListeners')->once()->with(QueryExecuted::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->once()->with(m::type(QueryExecuted::class));
+        $events = m::mock(Dispatcher::class);
+        $events->expects('hasListeners')->with(QueryExecuted::class)->andReturn(true);
+        $events->expects('dispatch')->with(m::type(QueryExecuted::class));
+        $connection->setEventDispatcher($events);
         $connection->logQuery('foo', [], null);
     }
 
-    public function testLogQuerySkipsDispatchWhenNoListenersAreRegistered()
+    public function testLogQuerySkipsDispatchWhenNoListenersAreRegistered(): void
     {
         $connection = $this->getMockConnection();
-        $connection->setEventDispatcher($events = m::mock(Dispatcher::class));
-        $events->shouldReceive('hasListeners')->once()->with(QueryExecuted::class)->andReturn(false);
+        $events = m::mock(Dispatcher::class);
+        $connection->setEventDispatcher($events);
+        $events->expects('hasListeners')->with(QueryExecuted::class)->andReturn(false);
         $events->shouldNotReceive('dispatch');
         $connection->logQuery('foo', [], null);
     }

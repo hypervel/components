@@ -19,23 +19,22 @@ use Symfony\Component\Console\Question\Question;
 class InteractsWithIOTest extends TestCase
 {
     #[DataProvider('iterableDataProvider')]
-    public function testWithProgressBarIterable($iterable)
+    public function testWithProgressBarIterable(array $iterable): void
     {
         $command = new CommandInteractsWithIO;
         $bufferedOutput = new BufferedOutput;
         $output = m::mock(OutputStyle::class, [new ArgvInput, $bufferedOutput])->makePartial();
         $command->setOutput($output);
 
-        $output->shouldReceive('createProgressBar')
-            ->once()
+        $output->expects('createProgressBar')
             ->with(count($iterable))
-            ->andReturnUsing(function ($steps) use ($bufferedOutput) {
+            ->andReturnUsing(function (int $steps) use ($bufferedOutput): ProgressBar {
                 // we can't mock ProgressBar because it's final, so return a real one
                 return new ProgressBar($bufferedOutput, $steps);
             });
 
         $calledTimes = 0;
-        $result = $command->withProgressBar($iterable, function ($value, $bar, $key) use (&$calledTimes, $iterable) {
+        $result = $command->withProgressBar($iterable, function (string $value, ProgressBar $bar, int|string $key) use (&$calledTimes, $iterable): void {
             $this->assertInstanceOf(ProgressBar::class, $bar);
             $this->assertSame(array_values($iterable)[$calledTimes], $value);
             $this->assertSame(array_keys($iterable)[$calledTimes], $key);
@@ -46,6 +45,9 @@ class InteractsWithIOTest extends TestCase
         $this->assertSame($iterable, $result);
     }
 
+    /**
+     * Provide indexed and associative iterables.
+     */
     public static function iterableDataProvider(): Generator
     {
         yield [['a', 'b', 'c']];
@@ -53,7 +55,7 @@ class InteractsWithIOTest extends TestCase
         yield [['foo' => 'a', 'bar' => 'b', 'baz' => 'c']];
     }
 
-    public function testWithProgressBarInteger()
+    public function testWithProgressBarInteger(): void
     {
         $command = new CommandInteractsWithIO;
         $bufferedOutput = new BufferedOutput;
@@ -62,16 +64,15 @@ class InteractsWithIOTest extends TestCase
 
         $totalSteps = 5;
 
-        $output->shouldReceive('createProgressBar')
-            ->once()
+        $output->expects('createProgressBar')
             ->with($totalSteps)
-            ->andReturnUsing(function ($steps) use ($bufferedOutput) {
+            ->andReturnUsing(function (int $steps) use ($bufferedOutput): ProgressBar {
                 // we can't mock ProgressBar because it's final, so return a real one
                 return new ProgressBar($bufferedOutput, $steps);
             });
 
         $called = false;
-        $command->withProgressBar($totalSteps, function ($bar) use (&$called) {
+        $command->withProgressBar($totalSteps, function (ProgressBar $bar) use (&$called): void {
             $this->assertInstanceOf(ProgressBar::class, $bar);
             $called = true;
         });

@@ -23,77 +23,80 @@ class CacheEventMutexTest extends TestCase
 
     protected ?Repository $cacheRepository = null;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->cacheFactory = m::mock(CacheFactory::class);
         $this->cacheRepository = m::mock(Repository::class);
-        $this->cacheFactory->shouldReceive('store')->andReturn($this->cacheRepository);
+        $this->cacheFactory->shouldReceive('store')->andReturn($this->cacheRepository)->byDefault();
         $this->cacheMutex = new CacheEventMutex($this->cacheFactory);
         $this->event = new Event($this->cacheMutex, 'command');
     }
 
-    public function testPreventOverlap()
+    public function testPreventOverlap(): void
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(m::mock(Store::class));
-        $this->cacheRepository->shouldReceive('add')->once();
+        $this->cacheRepository->expects('getStore')->andReturn(m::mock(Store::class));
+        $this->cacheRepository->expects('add');
 
         $this->cacheMutex->create($this->event);
     }
 
-    public function testCustomConnection()
+    public function testCustomConnection(): void
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(m::mock(Store::class));
-        $this->cacheFactory->shouldReceive('store')->with('test')->andReturn($this->cacheRepository);
-        $this->cacheRepository->shouldReceive('add')->once();
+        $this->cacheRepository->expects('getStore')->andReturn(m::mock(Store::class));
+        $this->cacheFactory->expects('store')->with('test')->andReturn($this->cacheRepository);
+        $this->cacheRepository->expects('add');
         $this->cacheMutex->useStore('test');
 
         $this->cacheMutex->create($this->event);
     }
 
-    public function testPreventOverlapFails()
+    public function testPreventOverlapFails(): void
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(m::mock(Store::class));
-        $this->cacheRepository->shouldReceive('add')->once()->andReturn(false);
+        $this->cacheRepository->expects('getStore')->andReturn(m::mock(Store::class));
+        $this->cacheRepository->expects('add')->andReturn(false);
 
         $this->assertFalse($this->cacheMutex->create($this->event));
     }
 
-    public function testOverlapsForNonRunningTask()
+    public function testOverlapsForNonRunningTask(): void
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(m::mock(Store::class));
-        $this->cacheRepository->shouldReceive('has')->once()->andReturn(false);
+        $this->cacheRepository->expects('getStore')->andReturn(m::mock(Store::class));
+        $this->cacheRepository->expects('has')->andReturn(false);
 
         $this->assertFalse($this->cacheMutex->exists($this->event));
     }
 
-    public function testOverlapsForRunningTask()
+    public function testOverlapsForRunningTask(): void
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(m::mock(Store::class));
-        $this->cacheRepository->shouldReceive('has')->once()->andReturn(true);
+        $this->cacheRepository->expects('getStore')->andReturn(m::mock(Store::class));
+        $this->cacheRepository->expects('has')->andReturn(true);
 
         $this->assertTrue($this->cacheMutex->exists($this->event));
     }
 
-    public function testResetOverlap()
+    public function testResetOverlap(): void
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(m::mock(Store::class));
-        $this->cacheRepository->shouldReceive('forget')->once();
+        $this->cacheRepository->expects('getStore')->andReturn(m::mock(Store::class));
+        $this->cacheRepository->expects('forget');
 
         $this->cacheMutex->forget($this->event);
     }
 
-    public function testPreventOverlapWithLockProvider()
+    public function testPreventOverlapWithLockProvider(): void
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(new ArrayStore);
+        $this->cacheRepository->expects('getStore')->andReturn(new ArrayStore);
 
         $this->assertTrue($this->cacheMutex->create($this->event));
     }
 
-    public function testPreventOverlapFailsWithLockProvider()
+    public function testPreventOverlapFailsWithLockProvider(): void
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(new ArrayStore);
+        $this->cacheRepository->expects('getStore')->times(2)->andReturn(new ArrayStore);
 
         // first create the lock, so we can test that the next call fails.
         $this->cacheMutex->create($this->event);
@@ -101,25 +104,25 @@ class CacheEventMutexTest extends TestCase
         $this->assertFalse($this->cacheMutex->create($this->event));
     }
 
-    public function testOverlapsForNonRunningTaskWithLockProvider()
+    public function testOverlapsForNonRunningTaskWithLockProvider(): void
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(new ArrayStore);
+        $this->cacheRepository->expects('getStore')->andReturn(new ArrayStore);
 
         $this->assertFalse($this->cacheMutex->exists($this->event));
     }
 
-    public function testOverlapsForRunningTaskWithLockProvider()
+    public function testOverlapsForRunningTaskWithLockProvider(): void
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(new ArrayStore);
+        $this->cacheRepository->expects('getStore')->times(2)->andReturn(new ArrayStore);
 
         $this->cacheMutex->create($this->event);
 
         $this->assertTrue($this->cacheMutex->exists($this->event));
     }
 
-    public function testResetOverlapWithLockProvider()
+    public function testResetOverlapWithLockProvider(): void
     {
-        $this->cacheRepository->shouldReceive('getStore')->andReturn(new ArrayStore);
+        $this->cacheRepository->expects('getStore')->times(3)->andReturn(new ArrayStore);
 
         $this->cacheMutex->create($this->event);
 

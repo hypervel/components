@@ -216,9 +216,9 @@ class ComponentTest extends TestCase
         $this->assertSame('<p>Hello foo</p>', $view->toHtml());
     }
 
-    public function testResolveWithUnresolvableDependency()
+    public function testResolveWithUnresolvableDependency(): void
     {
-        $this->expectException(BindingResolutionException::class);
+        $this->expectExceptionObject(new BindingResolutionException('Unresolvable dependency resolving'));
 
         TestInlineViewComponentWhereRenderDependsOnProps::resolve([]);
     }

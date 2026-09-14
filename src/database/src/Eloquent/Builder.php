@@ -309,6 +309,26 @@ class Builder implements BuilderContract
     }
 
     /**
+     * Add an "or where" clause on the primary key to the query.
+     *
+     * @return $this
+     */
+    public function orWhereKey(mixed $id): static
+    {
+        return $this->where(fn (self $query): self => $query->whereKey($id), null, null, 'or');
+    }
+
+    /**
+     * Add an "or where not" clause on the primary key to the query.
+     *
+     * @return $this
+     */
+    public function orWhereKeyNot(mixed $id): static
+    {
+        return $this->where(fn (self $query): self => $query->whereKeyNot($id), null, null, 'or');
+    }
+
+    /**
      * Exclude the given models from the query results.
      */
     public function except(mixed $models): static
@@ -324,6 +344,7 @@ class Builder implements BuilderContract
      * Add a basic where clause to the query.
      *
      * @param array|(Closure(static): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
+     * @return $this
      */
     public function where(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {

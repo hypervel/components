@@ -376,6 +376,12 @@ If you would like to perform model operations without the model having its `upda
 Model::withoutTimestamps(fn () => $post->increment('reads'));
 ```
 
+To set one or more timestamp attributes to the current time and save the model, pass the attribute names to the `touch` method:
+
+```php
+$post->touch(['published_at', 'verified_at']);
+```
+
 <a name="database-connections"></a>
 ### Database Connections
 
@@ -492,6 +498,12 @@ $flights = Flight::where('active', 1)
 > [!NOTE]
 > Since Eloquent models are query builders, you should review all of the methods provided by Hypervel's [query builder](/docs/{{version}}/queries). You may use any of these methods when writing your Eloquent queries.
 
+The `whereKey` and `whereKeyNot` methods constrain a query using the model's primary key. Both accept a single key or multiple keys. To join these conditions with `or`, use `orWhereKey` or `orWhereKeyNot`:
+
+```php
+$flights = Flight::where('active', 1)->orWhereKey([1, 2])->get();
+```
+
 <a name="refreshing-models"></a>
 #### Refreshing Models
 
@@ -515,6 +527,16 @@ $flight->number = 'FR 456';
 $flight->refresh();
 
 $flight->number; // "FR 900"
+```
+
+If you need to refresh a model and acquire a pessimistic lock within a transaction, you may use the `refreshForUpdate` method. This method reloads the model using a `FOR UPDATE` lock:
+
+```php
+DB::transaction(function () use ($flight) {
+    $flight->refreshForUpdate();
+
+    // Update the locked model...
+});
 ```
 
 <a name="collections"></a>

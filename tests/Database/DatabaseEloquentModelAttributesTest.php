@@ -210,6 +210,7 @@ class DatabaseEloquentModelAttributesTest extends TestCase
         $model = new ModelWithTimestampsAttributeAndProperty;
 
         $this->assertFalse($model->usesTimestamps());
+        $this->assertTrue($model::isIgnoringTouch());
     }
 
     public function testDateFormatAttribute(): void
@@ -245,6 +246,7 @@ class DatabaseEloquentModelAttributesTest extends TestCase
         $model = new ModelWithWithoutTimestampsAttributeOverride;
 
         $this->assertFalse($model->usesTimestamps());
+        $this->assertTrue($model::isIgnoringTouch());
     }
 
     public function testFillableAttribute(): void
@@ -550,11 +552,21 @@ class DatabaseEloquentModelAttributesTest extends TestCase
         $this->assertFalse(ModelWithFillableAttribute::isIgnoringTouch());
     }
 
-    public function testIsIgnoringTouchWithTimestampsAttributeAfterTableAttributeCacheIsWarmed(): void
+    public function testIsIgnoringTouchAfterModelIsConstructed(): void
     {
-        new ModelWithTimestampsFalseAttribute;
+        new ModelWithTableAndTimestampsFalseAttribute;
 
-        $this->assertTrue(ModelWithTimestampsFalseAttribute::isIgnoringTouch());
+        $this->assertTrue(ModelWithTableAndTimestampsFalseAttribute::isIgnoringTouch());
+    }
+
+    public function testTableAndTimestampsAttributesApplyAfterIsIgnoringTouch(): void
+    {
+        ModelWithTableAndTimestampsFalseAttribute::isIgnoringTouch();
+
+        $model = new ModelWithTableAndTimestampsFalseAttribute;
+
+        $this->assertSame('collision_table', $model->getTable());
+        $this->assertFalse($model->usesTimestamps());
     }
 
     public function testVariadicAttributeWithNoArgumentsDoesNotWarn(): void
@@ -789,10 +801,15 @@ class ModelWithoutTimestampsAttribute extends Model
 {
 }
 
-#[Table(timestamps: false)]
+#[Table(timestamps: true)]
 class ModelWithTimestampsAttributeAndProperty extends Model
 {
     public bool $timestamps = false;
+}
+
+#[Table(name: 'collision_table', timestamps: false)]
+class ModelWithTableAndTimestampsFalseAttribute extends Model
+{
 }
 
 #[Table(dateFormat: 'U')]

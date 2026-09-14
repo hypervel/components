@@ -55,12 +55,11 @@ class BladeEchoHandlerTest extends AbstractBladeTestCase
     }
 
     #[DataProvider('handlerLogicDataProvider')]
-    public function testHandlerLogicWorksCorrectly($blade)
+    public function testHandlerLogicWorksCorrectly(string $blade): void
     {
-        $this->expectException(Exception::class);
-        $this->expectExceptionMessage('The fluent object has been successfully handled!');
+        $this->expectExceptionObject(new Exception('The fluent object has been successfully handled!'));
 
-        $this->compiler->stringable(Fluent::class, function ($object) {
+        $this->compiler->stringable(Fluent::class, function (Fluent $object): never {
             throw new Exception('The fluent object has been successfully handled!');
         });
 

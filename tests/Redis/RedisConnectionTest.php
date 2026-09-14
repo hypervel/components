@@ -3383,12 +3383,14 @@ class RedisConnectionTest extends TestCase
         $pool = $this->getMockedPool();
         $redis = m::mock(Redis::class);
 
-        $this->expectException(InvalidRedisOptionException::class);
-        $this->expectExceptionMessage('Algorithm [bogus] is not a valid PhpRedis backoff algorithm.');
+        $this->expectExceptionObject(new InvalidRedisOptionException('Algorithm [bogus] is not a valid PhpRedis backoff algorithm.'));
 
         $redis->shouldReceive('setOption')->andReturnTrue();
 
         new class($this->getContainer(), $pool, $this->standaloneConfig(['backoff_algorithm' => 'bogus']), $redis) extends PhpRedisConnection {
+            /**
+             * Create the connection with a fake Redis client.
+             */
             public function __construct(
                 ContainerContract $container,
                 ConnectionPool $pool,
@@ -3398,6 +3400,9 @@ class RedisConnectionTest extends TestCase
                 parent::__construct($container, $pool, $config);
             }
 
+            /**
+             * Return the fake Redis client.
+             */
             protected function createRedis(array $config): Redis
             {
                 return $this->fakeRedis;

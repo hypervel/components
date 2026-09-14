@@ -1472,6 +1472,13 @@ Mail::assertNothingQueued();
 Mail::assertQueuedCount(3);
 ```
 
+To assert that a mailable was sent or queued exactly once, use `assertSentOnce` or `assertQueuedOnce`:
+
+```php
+Mail::assertSentOnce(OrderShipped::class);
+Mail::assertQueuedOnce(OrderShipped::class);
+```
+
 You can also assert the total number of mailables that have been sent or queued using the `assertOutgoingCount` method:
 
 ```php

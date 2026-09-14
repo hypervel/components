@@ -91,6 +91,14 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
     }
 
     /**
+     * Assert if a notification was sent on-demand exactly once.
+     */
+    public function assertSentOnDemandOnce(string $notification): void
+    {
+        $this->assertSentOnDemandTimes($notification, 1);
+    }
+
+    /**
      * Assert if a notification was sent a number of times.
      */
     public function assertSentToTimes(mixed $notifiable, string $notification, int $times = 1): void
@@ -102,6 +110,14 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
             $count,
             "Expected [{$notification}] to be sent {$times} times, but was sent {$count} times."
         );
+    }
+
+    /**
+     * Assert if a notification was sent exactly once.
+     */
+    public function assertSentToOnce(mixed $notifiable, string $notification): void
+    {
+        $this->assertSentToTimes($notifiable, $notification, 1);
     }
 
     /**

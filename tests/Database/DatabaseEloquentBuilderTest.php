@@ -37,7 +37,7 @@ use Stringable;
 
 class DatabaseEloquentBuilderTest extends TestCase
 {
-    public function testFindMethod()
+    public function testFindMethod(): void
     {
         $builder = m::mock(Builder::class . '[first]', [$this->getMockQueryBuilder()]);
         $model = $this->getMockModel();
@@ -45,13 +45,13 @@ class DatabaseEloquentBuilderTest extends TestCase
         $model->shouldReceive('getKeyType')->once()->andReturn('int');
         $builder->getQuery()->shouldReceive('where')->once()->with('foo_table.foo', '=', 'bar');
         $expectedModel = m::mock(Model::class);
-        $builder->shouldReceive('first')->with(['column'])->andReturn($expectedModel);
+        $builder->expects('first')->with(['column'])->andReturn($expectedModel);
 
         $result = $builder->find('bar', ['column']);
         $this->assertSame($expectedModel, $result);
     }
 
-    public function testFindSoleMethod()
+    public function testFindSoleMethod(): void
     {
         $builder = m::mock(Builder::class . '[sole]', [$this->getMockQueryBuilder()]);
         $model = $this->getMockModel();
@@ -59,22 +59,22 @@ class DatabaseEloquentBuilderTest extends TestCase
         $model->shouldReceive('getKeyType')->once()->andReturn('int');
         $builder->getQuery()->shouldReceive('where')->once()->with('foo_table.foo', '=', 'bar');
         $expectedModel = m::mock(Model::class);
-        $builder->shouldReceive('sole')->with(['column'])->andReturn($expectedModel);
+        $builder->expects('sole')->with(['column'])->andReturn($expectedModel);
 
         $result = $builder->findSole('bar', ['column']);
         $this->assertSame($expectedModel, $result);
     }
 
-    public function testFindManyMethod()
+    public function testFindManyMethod(): void
     {
         // ids are not empty
         $builder = m::mock(Builder::class . '[get]', [$this->getMockQueryBuilder()]);
         $model = $this->getMockModel();
-        $model->shouldReceive('getKeyType')->andReturn('int');
+        $model->expects('getKeyType')->andReturn('int');
         $builder->setModel($model);
         $builder->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('foo_table.foo', ['one', 'two']);
         $expectedCollection = new Collection(['baz']);
-        $builder->shouldReceive('get')->with(['column'])->andReturn($expectedCollection);
+        $builder->expects('get')->with(['column'])->andReturn($expectedCollection);
 
         $result = $builder->findMany(['one', 'two'], ['column']);
         $this->assertEquals($expectedCollection, $result);
@@ -105,7 +105,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame($emptyCollection2, $result);
     }
 
-    public function testFindOrNewMethodModelFound()
+    public function testFindOrNewMethodModelFound(): void
     {
         $model = $this->getMockModel();
         $model->shouldReceive('getKeyType')->once()->andReturn('int');
@@ -115,14 +115,14 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder = m::mock(Builder::class . '[first]', [$this->getMockQueryBuilder()]);
         $builder->setModel($model);
         $builder->getQuery()->shouldReceive('where')->once()->with('foo_table.foo', '=', 'bar');
-        $builder->shouldReceive('first')->with(['column'])->andReturn($expectedModel);
+        $builder->expects('first')->with(['column'])->andReturn($expectedModel);
 
         $expected = $model->findOrNew('bar', ['column']);
         $result = $builder->find('bar', ['column']);
         $this->assertEquals($expected, $result);
     }
 
-    public function testFindOrNewMethodModelNotFound()
+    public function testFindOrNewMethodModelNotFound(): void
     {
         $model = $this->getMockModel();
         $model->shouldReceive('getKeyType')->once()->andReturn('int');
@@ -131,7 +131,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder = m::mock(Builder::class . '[first]', [$this->getMockQueryBuilder()]);
         $builder->setModel($model);
         $builder->getQuery()->shouldReceive('where')->once()->with('foo_table.foo', '=', 'bar');
-        $builder->shouldReceive('first')->with(['column'])->andReturn(null);
+        $builder->expects('first')->with(['column'])->andReturn(null);
 
         $result = $model->findOrNew('bar', ['column']);
         $findResult = $builder->find('bar', ['column']);
@@ -139,7 +139,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertInstanceOf(Model::class, $result);
     }
 
-    public function testFindOrFailMethodThrowsModelNotFoundException()
+    public function testFindOrFailMethodThrowsModelNotFoundException(): void
     {
         $this->expectException(ModelNotFoundException::class);
 
@@ -148,7 +148,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $model->shouldReceive('getKeyType')->once()->andReturn('int');
         $builder->setModel($model);
         $builder->getQuery()->shouldReceive('where')->once()->with('foo_table.foo', '=', 'bar');
-        $builder->shouldReceive('first')->with(['column'])->andReturn(null);
+        $builder->expects('first')->with(['column'])->andReturn(null);
         $builder->findOrFail('bar', ['column']);
     }
 
@@ -170,209 +170,206 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame(['Baz'], $exception->getIds());
     }
 
-    public function testFindOrFailMethodWithManyThrowsModelNotFoundException()
+    public function testFindOrFailMethodWithManyThrowsModelNotFoundException(): void
     {
         $this->expectException(ModelNotFoundException::class);
 
         $model = $this->getMockModel();
-        $model->shouldReceive('getKey')->andReturn(1);
-        $model->shouldReceive('getKeyType')->andReturn('int');
+        $model->expects('getKey')->andReturn(1);
+        $model->expects('getKeyType')->andReturn('int');
 
         $builder = m::mock(Builder::class . '[get]', [$this->getMockQueryBuilder()]);
         $builder->setModel($model);
         $builder->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('foo_table.foo', [1, 2]);
-        $builder->shouldReceive('get')->with(['column'])->andReturn(new Collection([$model]));
+        $builder->expects('get')->with(['column'])->andReturn(new Collection([$model]));
         $builder->findOrFail([1, 2], ['column']);
     }
 
-    public function testFindOrFailMethodWithManyUsingCollectionThrowsModelNotFoundException()
+    public function testFindOrFailMethodWithManyUsingCollectionThrowsModelNotFoundException(): void
     {
         $this->expectException(ModelNotFoundException::class);
 
         $model = $this->getMockModel();
-        $model->shouldReceive('getKey')->andReturn(1);
-        $model->shouldReceive('getKeyType')->andReturn('int');
+        $model->expects('getKey')->andReturn(1);
+        $model->expects('getKeyType')->andReturn('int');
 
         $builder = m::mock(Builder::class . '[get]', [$this->getMockQueryBuilder()]);
         $builder->setModel($model);
         $builder->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('foo_table.foo', [1, 2]);
-        $builder->shouldReceive('get')->with(['column'])->andReturn(new Collection([$model]));
+        $builder->expects('get')->with(['column'])->andReturn(new Collection([$model]));
         $builder->findOrFail(new Collection([1, 2]), ['column']);
     }
 
-    public function testFindOrMethod()
+    public function testFindOrMethod(): void
     {
         $builder = m::mock(Builder::class . '[first]', [$this->getMockQueryBuilder()]);
         $model = $this->getMockModel();
-        $model->shouldReceive('getKeyType')->andReturn('int');
+        $model->expects('getKeyType')->times(3)->andReturn('int');
         $builder->setModel($model);
-        $builder->getQuery()->shouldReceive('where')->with('foo_table.foo', '=', 1)->twice();
-        $builder->getQuery()->shouldReceive('where')->with('foo_table.foo', '=', 2)->once();
-        $builder->shouldReceive('first')->andReturn($model)->once();
-        $builder->shouldReceive('first')->with(['column'])->andReturn($model)->once();
-        $builder->shouldReceive('first')->andReturn(null)->once();
+        $builder->getQuery()->expects('where')->with('foo_table.foo', '=', 1)->times(2);
+        $builder->getQuery()->expects('where')->with('foo_table.foo', '=', 2);
+        $builder->expects('first')->andReturn($model);
+        $builder->expects('first')->with(['column'])->andReturn($model);
+        $builder->expects('first')->andReturn(null);
 
-        $this->assertSame($model, $builder->findOr(1, fn () => 'callback result'));
-        $this->assertSame($model, $builder->findOr(1, ['column'], fn () => 'callback result'));
-        $this->assertSame('callback result', $builder->findOr(2, fn () => 'callback result'));
+        $this->assertSame($model, $builder->findOr(1, fn (): string => 'callback result'));
+        $this->assertSame($model, $builder->findOr(1, ['column'], fn (): string => 'callback result'));
+        $this->assertSame('callback result', $builder->findOr(2, fn (): string => 'callback result'));
     }
 
-    public function testFindOrMethodWithMany()
+    public function testFindOrMethodWithMany(): void
     {
         $builder = m::mock(Builder::class . '[get]', [$this->getMockQueryBuilder()]);
         $model1 = $this->getMockModel();
         $model2 = $this->getMockModel();
-        $model1->shouldReceive('getKeyType')->andReturn('int');
+        $model1->expects('getKeyType')->times(3)->andReturn('int');
         $model2->shouldReceive('getKeyType')->andReturn('int');
         $builder->setModel($model1);
-        $builder->getQuery()->shouldReceive('whereIntegerInRaw')->with('foo_table.foo', [1, 2])->twice();
-        $builder->getQuery()->shouldReceive('whereIntegerInRaw')->with('foo_table.foo', [1, 2, 3])->once();
-        $builder->shouldReceive('get')->andReturn(new Collection([$model1, $model2]))->once();
-        $builder->shouldReceive('get')->with(['column'])->andReturn(new Collection([$model1, $model2]))->once();
-        // findOr with multiple IDs always returns Collection (even empty) - callback is NOT triggered
-        // because find() only returns null for single non-existent ID, not for arrays
-        $builder->shouldReceive('get')->andReturn(new Collection)->once();
+        $builder->getQuery()->expects('whereIntegerInRaw')->with('foo_table.foo', [1, 2])->times(2);
+        $builder->getQuery()->expects('whereIntegerInRaw')->with('foo_table.foo', [1, 2, 3]);
+        $builder->expects('get')->andReturn(new Collection([$model1, $model2]));
+        $builder->expects('get')->with(['column'])->andReturn(new Collection([$model1, $model2]));
+        // Multiple IDs return a collection, so an empty result does not invoke the callback.
+        $builder->expects('get')->andReturn(new Collection);
 
-        $result = $builder->findOr([1, 2], fn () => 'callback result');
+        $result = $builder->findOr([1, 2], fn (): string => 'callback result');
         $this->assertInstanceOf(Collection::class, $result);
         $this->assertSame($model1, $result[0]);
         $this->assertSame($model2, $result[1]);
 
-        $result = $builder->findOr([1, 2], ['column'], fn () => 'callback result');
+        $result = $builder->findOr([1, 2], ['column'], fn (): string => 'callback result');
         $this->assertInstanceOf(Collection::class, $result);
         $this->assertSame($model1, $result[0]);
         $this->assertSame($model2, $result[1]);
 
         // When no models found, still returns empty Collection (not callback result)
-        $result = $builder->findOr([1, 2, 3], fn () => 'callback result');
+        $result = $builder->findOr([1, 2, 3], fn (): string => 'callback result');
         $this->assertInstanceOf(Collection::class, $result);
         $this->assertCount(0, $result);
     }
 
-    public function testFindOrMethodWithManyUsingCollection()
+    public function testFindOrMethodWithManyUsingCollection(): void
     {
         $builder = m::mock(Builder::class . '[get]', [$this->getMockQueryBuilder()]);
         $model1 = $this->getMockModel();
         $model2 = $this->getMockModel();
-        $model1->shouldReceive('getKeyType')->andReturn('int');
+        $model1->expects('getKeyType')->times(3)->andReturn('int');
         $model2->shouldReceive('getKeyType')->andReturn('int');
         $builder->setModel($model1);
-        $builder->getQuery()->shouldReceive('whereIntegerInRaw')->with('foo_table.foo', [1, 2])->twice();
-        $builder->getQuery()->shouldReceive('whereIntegerInRaw')->with('foo_table.foo', [1, 2, 3])->once();
-        $builder->shouldReceive('get')->andReturn(new Collection([$model1, $model2]))->once();
-        $builder->shouldReceive('get')->with(['column'])->andReturn(new Collection([$model1, $model2]))->once();
-        // findOr with multiple IDs always returns Collection (even empty) - callback is NOT triggered
-        $builder->shouldReceive('get')->andReturn(new Collection)->once();
+        $builder->getQuery()->expects('whereIntegerInRaw')->with('foo_table.foo', [1, 2])->times(2);
+        $builder->getQuery()->expects('whereIntegerInRaw')->with('foo_table.foo', [1, 2, 3]);
+        $builder->expects('get')->andReturn(new Collection([$model1, $model2]));
+        $builder->expects('get')->with(['column'])->andReturn(new Collection([$model1, $model2]));
+        // Multiple IDs return a collection, so an empty result does not invoke the callback.
+        $builder->expects('get')->andReturn(new Collection);
 
-        $result = $builder->findOr(new Collection([1, 2]), fn () => 'callback result');
+        $result = $builder->findOr(new Collection([1, 2]), fn (): string => 'callback result');
         $this->assertInstanceOf(Collection::class, $result);
         $this->assertSame($model1, $result[0]);
         $this->assertSame($model2, $result[1]);
 
-        $result = $builder->findOr(new Collection([1, 2]), ['column'], fn () => 'callback result');
+        $result = $builder->findOr(new Collection([1, 2]), ['column'], fn (): string => 'callback result');
         $this->assertInstanceOf(Collection::class, $result);
         $this->assertSame($model1, $result[0]);
         $this->assertSame($model2, $result[1]);
 
         // When no models found, still returns empty Collection (not callback result)
-        $result = $builder->findOr(new Collection([1, 2, 3]), fn () => 'callback result');
+        $result = $builder->findOr(new Collection([1, 2, 3]), fn (): string => 'callback result');
         $this->assertInstanceOf(Collection::class, $result);
         $this->assertCount(0, $result);
     }
 
-    public function testFirstOrFailMethodThrowsModelNotFoundException()
+    public function testFirstOrFailMethodThrowsModelNotFoundException(): void
     {
         $this->expectException(ModelNotFoundException::class);
 
         $builder = m::mock(Builder::class . '[first]', [$this->getMockQueryBuilder()]);
         $builder->setModel($this->getMockModel());
-        $builder->shouldReceive('first')->with(['column'])->andReturn(null);
+        $builder->expects('first')->with(['column'])->andReturn(null);
         $builder->firstOrFail(['column']);
     }
 
-    public function testFindWithMany()
+    public function testFindWithMany(): void
     {
         $builder = m::mock(Builder::class . '[get]', [$this->getMockQueryBuilder()]);
         $model = $this->getMockModel();
-        $model->shouldReceive('getKeyType')->andReturn('int');
+        $model->expects('getKeyType')->andReturn('int');
         $builder->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('foo_table.foo', [1, 2]);
         $builder->setModel($model);
         $expectedCollection = new Collection(['baz']);
-        $builder->shouldReceive('get')->with(['column'])->andReturn($expectedCollection);
+        $builder->expects('get')->with(['column'])->andReturn($expectedCollection);
 
         $result = $builder->find([1, 2], ['column']);
         $this->assertSame($expectedCollection, $result);
     }
 
-    public function testFindWithManyUsingCollection()
+    public function testFindWithManyUsingCollection(): void
     {
         $ids = collect([1, 2]);
         $builder = m::mock(Builder::class . '[get]', [$this->getMockQueryBuilder()]);
         $model = $this->getMockModel();
-        $model->shouldReceive('getKeyType')->andReturn('int');
+        $model->expects('getKeyType')->andReturn('int');
         $builder->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('foo_table.foo', [1, 2]);
         $builder->setModel($model);
         $expectedCollection = new Collection(['baz']);
-        $builder->shouldReceive('get')->with(['column'])->andReturn($expectedCollection);
+        $builder->expects('get')->with(['column'])->andReturn($expectedCollection);
 
         $result = $builder->find($ids, ['column']);
         $this->assertSame($expectedCollection, $result);
     }
 
-    public function testFirstMethod()
+    public function testFirstMethod(): void
     {
         $builder = m::mock(Builder::class . '[get,take]', [$this->getMockQueryBuilder()]);
-        $builder->shouldReceive('limit')->with(1)->andReturnSelf();
-        $builder->shouldReceive('get')->with(['*'])->andReturn(new Collection(['bar']));
+        $builder->expects('limit')->with(1)->andReturnSelf();
+        $builder->expects('get')->with(['*'])->andReturn(new Collection(['bar']));
 
         $result = $builder->first();
         $this->assertSame('bar', $result);
     }
 
-    public function testQualifyColumn()
+    public function testQualifyColumn(): void
     {
         $builder = new Builder(m::mock(BaseBuilder::class));
-        $builder->shouldReceive('from')->with('foo_table');
+        $builder->expects('from')->with('foo_table');
 
         $builder->setModel(new StubStringPrimaryKey);
 
         $this->assertSame('foo_table.column', $builder->qualifyColumn('column'));
     }
 
-    public function testQualifyColumns()
+    public function testQualifyColumns(): void
     {
         $builder = new Builder(m::mock(BaseBuilder::class));
-        $builder->shouldReceive('from')->with('foo_table');
+        $builder->expects('from')->with('foo_table');
 
         $builder->setModel(new StubStringPrimaryKey);
 
         $this->assertEquals(['foo_table.column', 'foo_table.name'], $builder->qualifyColumns(['column', 'name']));
     }
 
-    public function testGetMethodLoadsModelsAndHydratesEagerRelations()
+    public function testGetMethodLoadsModelsAndHydratesEagerRelations(): void
     {
         $builder = m::mock(Builder::class . '[getModels,eagerLoadRelations]', [$this->getMockQueryBuilder()]);
-        $builder->shouldReceive('applyScopes')->andReturnSelf();
-        $builder->shouldReceive('getModels')->with(['foo'])->andReturn(['bar']);
-        $builder->shouldReceive('eagerLoadRelations')->with(['bar'])->andReturn(['bar', 'baz']);
+        $builder->expects('getModels')->with(['foo'])->andReturn(['bar']);
+        $builder->expects('eagerLoadRelations')->with(['bar'])->andReturn(['bar', 'baz']);
         $builder->setModel($this->getMockModel());
-        $builder->getModel()->shouldReceive('newCollection')->with(['bar', 'baz'])->andReturn(new Collection(['bar', 'baz']));
+        $builder->getModel()->expects('newCollection')->with(['bar', 'baz'])->andReturn(new Collection(['bar', 'baz']));
 
         $results = $builder->get(['foo']);
         $this->assertEquals(['bar', 'baz'], $results->all());
     }
 
-    public function testGetMethodDoesntHydrateEagerRelationsWhenNoResultsAreReturned()
+    public function testGetMethodDoesntHydrateEagerRelationsWhenNoResultsAreReturned(): void
     {
         $builder = m::mock(Builder::class . '[getModels,eagerLoadRelations]', [$this->getMockQueryBuilder()]);
-        $builder->shouldReceive('applyScopes')->andReturnSelf();
-        $builder->shouldReceive('getModels')->with(['foo'])->andReturn([]);
+        $builder->expects('getModels')->with(['foo'])->andReturn([]);
         $builder->shouldReceive('eagerLoadRelations')->never();
         $builder->setModel($this->getMockModel());
-        $builder->getModel()->shouldReceive('newCollection')->with([])->andReturn(new Collection([]));
+        $builder->getModel()->expects('newCollection')->with([])->andReturn(new Collection([]));
 
         $results = $builder->get(['foo']);
-        $this->assertEquals([], $results->all());
+        $this->assertSame([], $results->all());
     }
 
     public function testValueMethodWithModelFound(): void
@@ -380,30 +377,30 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder = m::mock(Builder::class . '[first]', [$this->getMockQueryBuilder()]);
         $mockModel = new class extends Model {};
         $mockModel->name = 'foo';
-        $builder->shouldReceive('first')->with(['name'])->andReturn($mockModel);
+        $builder->expects('first')->with(['name'])->andReturn($mockModel);
 
         $this->assertSame('foo', $builder->value('name'));
     }
 
-    public function testValueMethodWithModelNotFound()
+    public function testValueMethodWithModelNotFound(): void
     {
         $builder = m::mock(Builder::class . '[first]', [$this->getMockQueryBuilder()]);
-        $builder->shouldReceive('first')->with(['name'])->andReturn(null);
+        $builder->expects('first')->with(['name'])->andReturn(null);
 
         $this->assertNull($builder->value('name'));
     }
 
-    public function testValueOrFailMethodWithModelFound()
+    public function testValueOrFailMethodWithModelFound(): void
     {
         $builder = m::mock(Builder::class . '[first]', [$this->getMockQueryBuilder()]);
         $mockModel = m::mock(Model::class)->makePartial();
         $mockModel->forceFill(['name' => 'foo']);
-        $builder->shouldReceive('first')->with(['name'])->andReturn($mockModel);
+        $builder->expects('first')->with(['name'])->andReturn($mockModel);
 
         $this->assertSame('foo', $builder->valueOrFail('name'));
     }
 
-    public function testValueOrFailMethodWithModelNotFoundThrowsModelNotFoundException()
+    public function testValueOrFailMethodWithModelNotFoundThrowsModelNotFoundException(): void
     {
         $this->expectException(ModelNotFoundException::class);
 
@@ -412,11 +409,11 @@ class DatabaseEloquentBuilderTest extends TestCase
         $model->shouldReceive('getKeyType')->once()->andReturn('int');
         $builder->setModel($model);
         $builder->getQuery()->shouldReceive('where')->once()->with('foo_table.foo', '=', 'bar');
-        $builder->shouldReceive('first')->with(['column'])->andReturn(null);
+        $builder->expects('first')->with(['column'])->andReturn(null);
         $builder->whereKey('bar')->valueOrFail('column');
     }
 
-    public function testChunkWithLastChunkComplete()
+    public function testChunkWithLastChunkComplete(): void
     {
         $builder = m::mock(Builder::class . '[getOffset,getLimit,offset,limit,get]', [$this->getMockQueryBuilder()]);
         $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
@@ -430,20 +427,20 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->shouldReceive('offset')->once()->with(0)->andReturnSelf();
         $builder->shouldReceive('offset')->once()->with(2)->andReturnSelf();
         $builder->shouldReceive('offset')->once()->with(4)->andReturnSelf();
-        $builder->shouldReceive('limit')->times(3)->with(2)->andReturnSelf();
-        $builder->shouldReceive('get')->times(3)->andReturn($chunk1, $chunk2, $chunk3);
+        $builder->expects('limit')->times(3)->with(2)->andReturnSelf();
+        $builder->expects('get')->times(3)->andReturn($chunk1, $chunk2, $chunk3);
 
         $callbackAssertor = m::mock(stdClass::class);
         $callbackAssertor->shouldReceive('doSomething')->once()->with($chunk1);
         $callbackAssertor->shouldReceive('doSomething')->once()->with($chunk2);
         $callbackAssertor->shouldReceive('doSomething')->never()->with($chunk3);
 
-        $builder->chunk(2, function ($results) use ($callbackAssertor) {
+        $builder->chunk(2, function (Collection $results) use ($callbackAssertor): void {
             $callbackAssertor->doSomething($results);
         });
     }
 
-    public function testChunkWithLastChunkPartial()
+    public function testChunkWithLastChunkPartial(): void
     {
         $builder = m::mock(Builder::class . '[getOffset,getLimit,offset,limit,get]', [$this->getMockQueryBuilder()]);
         $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
@@ -454,19 +451,19 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->shouldReceive('getLimit')->once()->andReturn(null);
         $builder->shouldReceive('offset')->once()->with(0)->andReturnSelf();
         $builder->shouldReceive('offset')->once()->with(2)->andReturnSelf();
-        $builder->shouldReceive('limit')->twice()->with(2)->andReturnSelf();
-        $builder->shouldReceive('get')->times(2)->andReturn($chunk1, $chunk2);
+        $builder->expects('limit')->times(2)->with(2)->andReturnSelf();
+        $builder->expects('get')->times(2)->andReturn($chunk1, $chunk2);
 
         $callbackAssertor = m::mock(stdClass::class);
         $callbackAssertor->shouldReceive('doSomething')->once()->with($chunk1);
         $callbackAssertor->shouldReceive('doSomething')->once()->with($chunk2);
 
-        $builder->chunk(2, function ($results) use ($callbackAssertor) {
+        $builder->chunk(2, function (Collection $results) use ($callbackAssertor): void {
             $callbackAssertor->doSomething($results);
         });
     }
 
-    public function testChunkCanBeStoppedByReturningFalse()
+    public function testChunkCanBeStoppedByReturningFalse(): void
     {
         $builder = m::mock(Builder::class . '[getOffset,getLimit,offset,limit,get]', [$this->getMockQueryBuilder()]);
         $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
@@ -478,20 +475,20 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->shouldReceive('getLimit')->once()->andReturn(null);
         $builder->shouldReceive('offset')->once()->with(0)->andReturnSelf();
         $builder->shouldReceive('limit')->once()->with(2)->andReturnSelf();
-        $builder->shouldReceive('get')->times(1)->andReturn($chunk1);
+        $builder->expects('get')->andReturn($chunk1);
 
         $callbackAssertor = m::mock(stdClass::class);
         $callbackAssertor->shouldReceive('doSomething')->once()->with($chunk1);
         $callbackAssertor->shouldReceive('doSomething')->never()->with($chunk2);
 
-        $builder->chunk(2, function ($results) use ($callbackAssertor) {
+        $builder->chunk(2, function (Collection $results) use ($callbackAssertor): bool {
             $callbackAssertor->doSomething($results);
 
             return false;
         });
     }
 
-    public function testChunkRejectsNonpositiveCounts()
+    public function testChunkWithCountZero(): void
     {
         $builder = m::mock(Builder::class . '[getOffset,getLimit,offset,limit,get]', [$this->getMockQueryBuilder()]);
         $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
@@ -504,7 +501,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         foreach ([0, -1] as $count) {
             try {
-                $builder->chunk($count, function () {
+                $builder->chunk($count, function (): never {
                     $this->fail('Should not be called.');
                 });
                 $this->fail('The nonpositive chunk size was accepted.');
@@ -514,7 +511,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         }
     }
 
-    public function testChunkPaginatesUsingIdWithLastChunkComplete()
+    public function testChunkPaginatesUsingIdWithLastChunkComplete(): void
     {
         $builder = m::mock(Builder::class . '[getOffset,getLimit,forPageAfterId,get]', [$this->getMockQueryBuilder()]);
         $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
@@ -522,46 +519,46 @@ class DatabaseEloquentBuilderTest extends TestCase
         $chunk1 = new Collection([(object) ['someIdField' => 1], (object) ['someIdField' => 2]]);
         $chunk2 = new Collection([(object) ['someIdField' => 10], (object) ['someIdField' => 11]]);
         $chunk3 = new Collection([]);
-        $builder->shouldReceive('getOffset')->andReturnNull();
-        $builder->shouldReceive('getLimit')->andReturnNull();
+        $builder->expects('getOffset')->andReturnNull();
+        $builder->expects('getLimit')->andReturnNull();
         $builder->shouldReceive('forPageAfterId')->once()->with(2, 0, 'someIdField')->andReturnSelf();
         $builder->shouldReceive('forPageAfterId')->once()->with(2, 2, 'someIdField')->andReturnSelf();
         $builder->shouldReceive('forPageAfterId')->once()->with(2, 11, 'someIdField')->andReturnSelf();
-        $builder->shouldReceive('get')->times(3)->andReturn($chunk1, $chunk2, $chunk3);
+        $builder->expects('get')->times(3)->andReturn($chunk1, $chunk2, $chunk3);
 
         $callbackAssertor = m::mock(stdClass::class);
         $callbackAssertor->shouldReceive('doSomething')->once()->with($chunk1);
         $callbackAssertor->shouldReceive('doSomething')->once()->with($chunk2);
         $callbackAssertor->shouldReceive('doSomething')->never()->with($chunk3);
 
-        $builder->chunkById(2, function ($results) use ($callbackAssertor) {
+        $builder->chunkById(2, function (Collection $results) use ($callbackAssertor): void {
             $callbackAssertor->doSomething($results);
         }, 'someIdField');
     }
 
-    public function testChunkPaginatesUsingIdWithLastChunkPartial()
+    public function testChunkPaginatesUsingIdWithLastChunkPartial(): void
     {
         $builder = m::mock(Builder::class . '[getOffset,getLimit,forPageAfterId,get]', [$this->getMockQueryBuilder()]);
         $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
 
         $chunk1 = new Collection([(object) ['someIdField' => 1], (object) ['someIdField' => 2]]);
         $chunk2 = new Collection([(object) ['someIdField' => 10]]);
-        $builder->shouldReceive('getOffset')->andReturnNull();
-        $builder->shouldReceive('getLimit')->andReturnNull();
+        $builder->expects('getOffset')->andReturnNull();
+        $builder->expects('getLimit')->andReturnNull();
         $builder->shouldReceive('forPageAfterId')->once()->with(2, 0, 'someIdField')->andReturnSelf();
         $builder->shouldReceive('forPageAfterId')->once()->with(2, 2, 'someIdField')->andReturnSelf();
-        $builder->shouldReceive('get')->times(2)->andReturn($chunk1, $chunk2);
+        $builder->expects('get')->times(2)->andReturn($chunk1, $chunk2);
 
         $callbackAssertor = m::mock(stdClass::class);
         $callbackAssertor->shouldReceive('doSomething')->once()->with($chunk1);
         $callbackAssertor->shouldReceive('doSomething')->once()->with($chunk2);
 
-        $builder->chunkById(2, function ($results) use ($callbackAssertor) {
+        $builder->chunkById(2, function (Collection $results) use ($callbackAssertor): void {
             $callbackAssertor->doSomething($results);
         }, 'someIdField');
     }
 
-    public function testChunkByIdRejectsNonpositiveCounts()
+    public function testChunkPaginatesUsingIdWithCountZero(): void
     {
         $builder = m::mock(Builder::class . '[getOffset,getLimit,forPageAfterId,get]', [$this->getMockQueryBuilder()]);
         $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
@@ -573,7 +570,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         foreach ([0, -1] as $count) {
             try {
-                $builder->chunkById($count, function () {
+                $builder->chunkById($count, function (): never {
                     $this->fail('Should never be called.');
                 }, 'someIdField');
                 $this->fail('The nonpositive chunk size was accepted.');
@@ -583,15 +580,18 @@ class DatabaseEloquentBuilderTest extends TestCase
         }
     }
 
-    public function testLazyWithLastChunkComplete()
+    public function testLazyWithLastChunkComplete(): void
     {
-        $builder = m::mock(Builder::class . '[forPage,get]', [$this->getMockQueryBuilder()]);
+        $builder = m::mock(Builder::class . '[getOffset,getLimit,offset,limit,get]', [$this->getMockQueryBuilder()]);
         $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
 
-        $builder->shouldReceive('forPage')->once()->with(1, 2)->andReturnSelf();
-        $builder->shouldReceive('forPage')->once()->with(2, 2)->andReturnSelf();
-        $builder->shouldReceive('forPage')->once()->with(3, 2)->andReturnSelf();
-        $builder->shouldReceive('get')->times(3)->andReturn(
+        $builder->expects('getOffset')->andReturnNull();
+        $builder->expects('getLimit')->andReturnNull();
+        $builder->expects('offset')->with(0)->andReturnSelf();
+        $builder->expects('offset')->with(2)->andReturnSelf();
+        $builder->expects('offset')->with(4)->andReturnSelf();
+        $builder->expects('limit')->times(3)->with(2)->andReturnSelf();
+        $builder->expects('get')->times(3)->andReturn(
             new Collection(['foo1', 'foo2']),
             new Collection(['foo3', 'foo4']),
             new Collection([])
@@ -603,14 +603,17 @@ class DatabaseEloquentBuilderTest extends TestCase
         );
     }
 
-    public function testLazyWithLastChunkPartial()
+    public function testLazyWithLastChunkPartial(): void
     {
-        $builder = m::mock(Builder::class . '[forPage,get]', [$this->getMockQueryBuilder()]);
+        $builder = m::mock(Builder::class . '[getOffset,getLimit,offset,limit,get]', [$this->getMockQueryBuilder()]);
         $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
 
-        $builder->shouldReceive('forPage')->once()->with(1, 2)->andReturnSelf();
-        $builder->shouldReceive('forPage')->once()->with(2, 2)->andReturnSelf();
-        $builder->shouldReceive('get')->times(2)->andReturn(
+        $builder->expects('getOffset')->andReturnNull();
+        $builder->expects('getLimit')->andReturnNull();
+        $builder->expects('offset')->with(0)->andReturnSelf();
+        $builder->expects('offset')->with(2)->andReturnSelf();
+        $builder->expects('limit')->twice()->with(2)->andReturnSelf();
+        $builder->expects('get')->times(2)->andReturn(
             new Collection(['foo1', 'foo2']),
             new Collection(['foo3'])
         );
@@ -621,29 +624,34 @@ class DatabaseEloquentBuilderTest extends TestCase
         );
     }
 
-    public function testLazyIsLazy()
+    public function testLazyIsLazy(): void
     {
-        $builder = m::mock(Builder::class . '[forPage,get]', [$this->getMockQueryBuilder()]);
+        $builder = m::mock(Builder::class . '[getOffset,getLimit,offset,limit,get]', [$this->getMockQueryBuilder()]);
         $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
 
-        $builder->shouldReceive('forPage')->once()->with(1, 2)->andReturnSelf();
-        $builder->shouldReceive('get')->once()->andReturn(new Collection(['foo1', 'foo2']));
+        $builder->expects('getOffset')->andReturnNull();
+        $builder->expects('getLimit')->andReturnNull();
+        $builder->expects('offset')->with(0)->andReturnSelf();
+        $builder->expects('limit')->with(2)->andReturnSelf();
+        $builder->expects('get')->andReturn(new Collection(['foo1', 'foo2']));
 
         $this->assertEquals(['foo1', 'foo2'], $builder->lazy(2)->take(2)->all());
     }
 
-    public function testLazyByIdWithLastChunkComplete()
+    public function testLazyByIdWithLastChunkComplete(): void
     {
-        $builder = m::mock(Builder::class . '[forPageAfterId,get]', [$this->getMockQueryBuilder()]);
+        $builder = m::mock(Builder::class . '[getOffset,getLimit,forPageAfterId,get]', [$this->getMockQueryBuilder()]);
         $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
 
         $chunk1 = new Collection([(object) ['someIdField' => 1], (object) ['someIdField' => 2]]);
         $chunk2 = new Collection([(object) ['someIdField' => 10], (object) ['someIdField' => 11]]);
         $chunk3 = new Collection([]);
+        $builder->expects('getOffset')->andReturnNull();
+        $builder->expects('getLimit')->andReturnNull();
         $builder->shouldReceive('forPageAfterId')->once()->with(2, 0, 'someIdField')->andReturnSelf();
         $builder->shouldReceive('forPageAfterId')->once()->with(2, 2, 'someIdField')->andReturnSelf();
         $builder->shouldReceive('forPageAfterId')->once()->with(2, 11, 'someIdField')->andReturnSelf();
-        $builder->shouldReceive('get')->times(3)->andReturn($chunk1, $chunk2, $chunk3);
+        $builder->expects('get')->times(3)->andReturn($chunk1, $chunk2, $chunk3);
 
         $this->assertEquals(
             [
@@ -656,16 +664,18 @@ class DatabaseEloquentBuilderTest extends TestCase
         );
     }
 
-    public function testLazyByIdWithLastChunkPartial()
+    public function testLazyByIdWithLastChunkPartial(): void
     {
-        $builder = m::mock(Builder::class . '[forPageAfterId,get]', [$this->getMockQueryBuilder()]);
+        $builder = m::mock(Builder::class . '[getOffset,getLimit,forPageAfterId,get]', [$this->getMockQueryBuilder()]);
         $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
 
         $chunk1 = new Collection([(object) ['someIdField' => 1], (object) ['someIdField' => 2]]);
         $chunk2 = new Collection([(object) ['someIdField' => 10]]);
+        $builder->expects('getOffset')->andReturnNull();
+        $builder->expects('getLimit')->andReturnNull();
         $builder->shouldReceive('forPageAfterId')->once()->with(2, 0, 'someIdField')->andReturnSelf();
         $builder->shouldReceive('forPageAfterId')->once()->with(2, 2, 'someIdField')->andReturnSelf();
-        $builder->shouldReceive('get')->times(2)->andReturn($chunk1, $chunk2);
+        $builder->expects('get')->times(2)->andReturn($chunk1, $chunk2);
 
         $this->assertEquals(
             [
@@ -677,12 +687,14 @@ class DatabaseEloquentBuilderTest extends TestCase
         );
     }
 
-    public function testLazyByIdIsLazy()
+    public function testLazyByIdIsLazy(): void
     {
-        $builder = m::mock(Builder::class . '[forPageAfterId,get]', [$this->getMockQueryBuilder()]);
+        $builder = m::mock(Builder::class . '[getOffset,getLimit,forPageAfterId,get]', [$this->getMockQueryBuilder()]);
         $builder->getQuery()->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
 
         $chunk1 = new Collection([(object) ['someIdField' => 1], (object) ['someIdField' => 2]]);
+        $builder->expects('getOffset')->andReturnNull();
+        $builder->expects('getLimit')->andReturnNull();
         $builder->shouldReceive('forPageAfterId')->once()->with(2, 0, 'someIdField')->andReturnSelf();
         $builder->shouldReceive('get')->once()->andReturn($chunk1);
 
@@ -695,147 +707,122 @@ class DatabaseEloquentBuilderTest extends TestCase
         );
     }
 
-    public function testPluckReturnsTheMutatedAttributesOfAModel()
+    public function testPluckReturnsTheMutatedAttributesOfAModel(): void
     {
         $builder = $this->getBuilder();
-        $builder->getQuery()->shouldReceive('pluck')->with('name', '')->andReturn(new BaseCollection(['bar', 'baz']));
+        $builder->getQuery()->expects('pluck')->with('name', '')->andReturn(new BaseCollection(['bar', 'baz']));
         $model = m::mock(PluckStub::class)->makePartial();
         $model->shouldReceive('getKeyName')->andReturn('foo');
         $model->shouldReceive('getTable')->andReturn('foo_table');
         $model->shouldReceive('getQualifiedKeyName')->andReturn('foo_table.foo');
-        $model->shouldReceive('hasAnyGetMutator')->with('name')->andReturn(true);
-        // Return fresh partial mocks with getAttribute configured to return the expected value
-        $model->shouldReceive('newFromBuilder')->andReturnUsing(function ($attributes) {
-            $stub = m::mock(PluckStub::class)->makePartial();
-            $value = $attributes[array_key_first($attributes)];
-            $stub->shouldReceive('getAttribute')->andReturn('foo_' . $value);
-            return $stub;
-        });
+        $model->expects('hasAnyGetMutator')->with('name')->andReturn(true);
+        $model->expects('newFromBuilder')->with(['name' => 'bar'])->andReturn(m::mock(PluckStub::class)->makePartial()->setRawAttributes(['name' => 'bar']));
+        $model->expects('newFromBuilder')->with(['name' => 'baz'])->andReturn(m::mock(PluckStub::class)->makePartial()->setRawAttributes(['name' => 'baz']));
         $builder->setModel($model);
 
         $this->assertEquals(['foo_bar', 'foo_baz'], $builder->pluck('name')->all());
     }
 
-    public function testPluckReturnsTheCastedAttributesOfAModel()
+    public function testPluckReturnsTheCastedAttributesOfAModel(): void
     {
         $builder = $this->getBuilder();
-        $builder->getQuery()->shouldReceive('pluck')->with('name', '')->andReturn(new BaseCollection(['bar', 'baz']));
+        $builder->getQuery()->expects('pluck')->with('name', '')->andReturn(new BaseCollection(['bar', 'baz']));
         $model = m::mock(PluckStub::class)->makePartial();
         $model->shouldReceive('getKeyName')->andReturn('foo');
         $model->shouldReceive('getTable')->andReturn('foo_table');
         $model->shouldReceive('getQualifiedKeyName')->andReturn('foo_table.foo');
-        $model->shouldReceive('hasAnyGetMutator')->with('name')->andReturn(false);
-        $model->shouldReceive('hasCast')->with('name')->andReturn(true);
-        $model->shouldReceive('newFromBuilder')->andReturnUsing(function ($attributes) {
-            $stub = m::mock(PluckStub::class)->makePartial();
-            $value = $attributes[array_key_first($attributes)];
-            $stub->shouldReceive('getAttribute')->andReturn('foo_' . $value);
-            return $stub;
-        });
+        $model->expects('hasAnyGetMutator')->with('name')->andReturn(false);
+        $model->expects('hasCast')->with('name')->andReturn(true);
+        $model->expects('newFromBuilder')->with(['name' => 'bar'])->andReturn(m::mock(PluckStub::class)->makePartial()->setRawAttributes(['name' => 'bar']));
+        $model->expects('newFromBuilder')->with(['name' => 'baz'])->andReturn(m::mock(PluckStub::class)->makePartial()->setRawAttributes(['name' => 'baz']));
         $builder->setModel($model);
 
         $this->assertEquals(['foo_bar', 'foo_baz'], $builder->pluck('name')->all());
     }
 
-    public function testPluckReturnsTheDateAttributesOfAModel()
+    public function testPluckReturnsTheDateAttributesOfAModel(): void
     {
         $builder = $this->getBuilder();
-        $builder->getQuery()->shouldReceive('pluck')->with('created_at', '')->andReturn(new BaseCollection(['2010-01-01 00:00:00', '2011-01-01 00:00:00']));
+        $builder->getQuery()->expects('pluck')->with('created_at', '')->andReturn(new BaseCollection(['2010-01-01 00:00:00', '2011-01-01 00:00:00']));
         $model = m::mock(PluckDatesStub::class)->makePartial();
         $model->shouldReceive('getKeyName')->andReturn('foo');
         $model->shouldReceive('getTable')->andReturn('foo_table');
         $model->shouldReceive('getQualifiedKeyName')->andReturn('foo_table.foo');
-        $model->shouldReceive('hasAnyGetMutator')->with('created_at')->andReturn(false);
-        $model->shouldReceive('hasCast')->with('created_at')->andReturn(false);
-        $model->shouldReceive('getDates')->andReturn(['created_at']);
-        $model->shouldReceive('newFromBuilder')->andReturnUsing(function ($attributes) {
-            $stub = m::mock(PluckDatesStub::class)->makePartial();
-            $value = $attributes[array_key_first($attributes)];
-            $stub->shouldReceive('getAttribute')->andReturn('date_' . $value);
-            return $stub;
-        });
+        $model->expects('hasAnyGetMutator')->with('created_at')->andReturn(false);
+        $model->expects('hasCast')->with('created_at')->andReturn(false);
+        $model->expects('getDates')->andReturn(['created_at']);
+        $model->expects('newFromBuilder')->with(['created_at' => '2010-01-01 00:00:00'])->andReturn(m::mock(PluckDatesStub::class)->makePartial()->setRawAttributes(['created_at' => '2010-01-01 00:00:00']));
+        $model->expects('newFromBuilder')->with(['created_at' => '2011-01-01 00:00:00'])->andReturn(m::mock(PluckDatesStub::class)->makePartial()->setRawAttributes(['created_at' => '2011-01-01 00:00:00']));
         $builder->setModel($model);
 
         $this->assertEquals(['date_2010-01-01 00:00:00', 'date_2011-01-01 00:00:00'], $builder->pluck('created_at')->all());
     }
 
-    public function testQualifiedPluckReturnsTheMutatedAttributesOfAModel()
+    public function testQualifiedPluckReturnsTheMutatedAttributesOfAModel(): void
     {
         $model = m::mock(PluckStub::class)->makePartial();
         $model->shouldReceive('getKeyName')->andReturn('foo');
         $model->shouldReceive('getTable')->andReturn('foo_table');
         $model->shouldReceive('getQualifiedKeyName')->andReturn('foo_table.foo');
-        $model->shouldReceive('qualifyColumn')->with('name')->andReturn('foo_table.name');
-        $model->shouldReceive('hasAnyGetMutator')->with('name')->andReturn(true);
-        $model->shouldReceive('newFromBuilder')->andReturnUsing(function ($attributes) {
-            $stub = m::mock(PluckStub::class)->makePartial();
-            $value = $attributes[array_key_first($attributes)];
-            $stub->shouldReceive('getAttribute')->andReturn('foo_' . $value);
-            return $stub;
-        });
+        $model->expects('qualifyColumn')->times(2)->with('name')->andReturn('foo_table.name');
+        $model->expects('hasAnyGetMutator')->with('name')->andReturn(true);
+        $model->expects('newFromBuilder')->with(['name' => 'bar'])->andReturn(m::mock(PluckStub::class)->makePartial()->setRawAttributes(['name' => 'bar']));
+        $model->expects('newFromBuilder')->with(['name' => 'baz'])->andReturn(m::mock(PluckStub::class)->makePartial()->setRawAttributes(['name' => 'baz']));
 
         $builder = $this->getBuilder();
-        $builder->getQuery()->shouldReceive('pluck')->with($model->qualifyColumn('name'), '')->andReturn(new BaseCollection(['bar', 'baz']));
+        $builder->getQuery()->expects('pluck')->with($model->qualifyColumn('name'), '')->andReturn(new BaseCollection(['bar', 'baz']));
         $builder->setModel($model);
 
         $this->assertEquals(['foo_bar', 'foo_baz'], $builder->pluck($model->qualifyColumn('name'))->all());
     }
 
-    public function testQualifiedPluckReturnsTheCastedAttributesOfAModel()
+    public function testQualifiedPluckReturnsTheCastedAttributesOfAModel(): void
     {
         $model = m::mock(PluckStub::class)->makePartial();
         $model->shouldReceive('getKeyName')->andReturn('foo');
         $model->shouldReceive('getTable')->andReturn('foo_table');
         $model->shouldReceive('getQualifiedKeyName')->andReturn('foo_table.foo');
-        $model->shouldReceive('qualifyColumn')->with('name')->andReturn('foo_table.name');
-        $model->shouldReceive('hasAnyGetMutator')->with('name')->andReturn(false);
-        $model->shouldReceive('hasCast')->with('name')->andReturn(true);
-        $model->shouldReceive('newFromBuilder')->andReturnUsing(function ($attributes) {
-            $stub = m::mock(PluckStub::class)->makePartial();
-            $value = $attributes[array_key_first($attributes)];
-            $stub->shouldReceive('getAttribute')->andReturn('foo_' . $value);
-            return $stub;
-        });
+        $model->expects('qualifyColumn')->times(2)->with('name')->andReturn('foo_table.name');
+        $model->expects('hasAnyGetMutator')->with('name')->andReturn(false);
+        $model->expects('hasCast')->with('name')->andReturn(true);
+        $model->expects('newFromBuilder')->with(['name' => 'bar'])->andReturn(m::mock(PluckStub::class)->makePartial()->setRawAttributes(['name' => 'bar']));
+        $model->expects('newFromBuilder')->with(['name' => 'baz'])->andReturn(m::mock(PluckStub::class)->makePartial()->setRawAttributes(['name' => 'baz']));
 
         $builder = $this->getBuilder();
-        $builder->getQuery()->shouldReceive('pluck')->with($model->qualifyColumn('name'), '')->andReturn(new BaseCollection(['bar', 'baz']));
+        $builder->getQuery()->expects('pluck')->with($model->qualifyColumn('name'), '')->andReturn(new BaseCollection(['bar', 'baz']));
         $builder->setModel($model);
 
         $this->assertEquals(['foo_bar', 'foo_baz'], $builder->pluck($model->qualifyColumn('name'))->all());
     }
 
-    public function testQualifiedPluckReturnsTheDateAttributesOfAModel()
+    public function testQualifiedPluckReturnsTheDateAttributesOfAModel(): void
     {
         $model = m::mock(PluckDatesStub::class)->makePartial();
         $model->shouldReceive('getKeyName')->andReturn('foo');
         $model->shouldReceive('getTable')->andReturn('foo_table');
         $model->shouldReceive('getQualifiedKeyName')->andReturn('foo_table.foo');
-        $model->shouldReceive('qualifyColumn')->with('created_at')->andReturn('foo_table.created_at');
-        $model->shouldReceive('hasAnyGetMutator')->with('created_at')->andReturn(false);
-        $model->shouldReceive('hasCast')->with('created_at')->andReturn(false);
-        $model->shouldReceive('getDates')->andReturn(['created_at']);
-        $model->shouldReceive('newFromBuilder')->andReturnUsing(function ($attributes) {
-            $stub = m::mock(PluckDatesStub::class)->makePartial();
-            $value = $attributes[array_key_first($attributes)];
-            $stub->shouldReceive('getAttribute')->andReturn('date_' . $value);
-            return $stub;
-        });
+        $model->expects('qualifyColumn')->times(2)->with('created_at')->andReturn('foo_table.created_at');
+        $model->expects('hasAnyGetMutator')->with('created_at')->andReturn(false);
+        $model->expects('hasCast')->with('created_at')->andReturn(false);
+        $model->expects('getDates')->andReturn(['created_at']);
+        $model->expects('newFromBuilder')->with(['created_at' => '2010-01-01 00:00:00'])->andReturn(m::mock(PluckDatesStub::class)->makePartial()->setRawAttributes(['created_at' => '2010-01-01 00:00:00']));
+        $model->expects('newFromBuilder')->with(['created_at' => '2011-01-01 00:00:00'])->andReturn(m::mock(PluckDatesStub::class)->makePartial()->setRawAttributes(['created_at' => '2011-01-01 00:00:00']));
 
         $builder = $this->getBuilder();
-        $builder->getQuery()->shouldReceive('pluck')->with($model->qualifyColumn('created_at'), '')->andReturn(new BaseCollection(['2010-01-01 00:00:00', '2011-01-01 00:00:00']));
+        $builder->getQuery()->expects('pluck')->with($model->qualifyColumn('created_at'), '')->andReturn(new BaseCollection(['2010-01-01 00:00:00', '2011-01-01 00:00:00']));
         $builder->setModel($model);
 
         $this->assertEquals(['date_2010-01-01 00:00:00', 'date_2011-01-01 00:00:00'], $builder->pluck($model->qualifyColumn('created_at'))->all());
     }
 
-    public function testPluckWithoutModelGetterJustReturnsTheAttributesFoundInDatabase()
+    public function testPluckWithoutModelGetterJustReturnsTheAttributesFoundInDatabase(): void
     {
         $builder = $this->getBuilder();
-        $builder->getQuery()->shouldReceive('pluck')->with('name', '')->andReturn(new BaseCollection(['bar', 'baz']));
+        $builder->getQuery()->expects('pluck')->with('name', '')->andReturn(new BaseCollection(['bar', 'baz']));
         $builder->setModel($this->getMockModel());
-        $builder->getModel()->shouldReceive('hasAnyGetMutator')->with('name')->andReturn(false);
-        $builder->getModel()->shouldReceive('hasCast')->with('name')->andReturn(false);
-        $builder->getModel()->shouldReceive('getDates')->andReturn(['created_at']);
+        $builder->getModel()->expects('hasAnyGetMutator')->with('name')->andReturn(false);
+        $builder->getModel()->expects('hasCast')->with('name')->andReturn(false);
+        $builder->getModel()->expects('getDates')->andReturn(['created_at']);
 
         $this->assertEquals(['bar', 'baz'], $builder->pluck('name')->all());
     }
@@ -900,15 +887,15 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(['hydrated'], $models);
     }
 
-    public function testEagerLoadRelationsLoadTopLevelRelationships()
+    public function testEagerLoadRelationsLoadTopLevelRelationships(): void
     {
         $builder = m::mock(Builder::class . '[eagerLoadRelation]', [$this->getMockQueryBuilder()]);
-        $nop1 = function () {
+        $nop1 = function (): void {
         };
-        $nop2 = function () {
+        $nop2 = function (): void {
         };
         $builder->setEagerLoads(['foo' => $nop1, 'foo.bar' => $nop2]);
-        $builder->shouldAllowMockingProtectedMethods()->shouldReceive('eagerLoadRelation')->with(['models'], 'foo', $nop1)->andReturn(['foo']);
+        $builder->shouldAllowMockingProtectedMethods()->expects('eagerLoadRelation')->with(['models'], 'foo', $nop1)->andReturn(['foo']);
 
         $results = $builder->eagerLoadRelations(['models']);
         $this->assertEquals(['foo'], $results);
@@ -970,35 +957,35 @@ class DatabaseEloquentBuilderTest extends TestCase
         unset($_SERVER['__eloquent.constrain']);
     }
 
-    public function testGetRelationProperlySetsNestedRelationships()
+    public function testGetRelationProperlySetsNestedRelationships(): void
     {
         $builder = $this->getBuilder();
         $builder->setModel($this->getMockModel());
         $relation = m::mock(Relation::class);
-        $builder->getModel()->shouldReceive('newInstance->orders')->once()->andReturn($relation);
+        $builder->getModel()->expects('newInstance->orders')->andReturn($relation);
         $relationQuery = m::mock(Builder::class);
-        $relation->shouldReceive('getQuery')->andReturn($relationQuery);
-        $relationQuery->shouldReceive('with')->once()->with(['lines' => null, 'lines.details' => null]);
+        $relation->expects('getQuery')->andReturn($relationQuery);
+        $relationQuery->expects('with')->with(['lines' => null, 'lines.details' => null]);
         $builder->setEagerLoads(['orders' => null, 'orders.lines' => null, 'orders.lines.details' => null]);
 
         $builder->getRelation('orders');
     }
 
-    public function testGetRelationProperlySetsNestedRelationshipsWithSimilarNames()
+    public function testGetRelationProperlySetsNestedRelationshipsWithSimilarNames(): void
     {
         $builder = $this->getBuilder();
         $builder->setModel($this->getMockModel());
         $relation = m::mock(Relation::class);
         $groupsRelation = m::mock(Relation::class);
-        $builder->getModel()->shouldReceive('newInstance->orders')->once()->andReturn($relation);
-        $builder->getModel()->shouldReceive('newInstance->ordersGroups')->once()->andReturn($groupsRelation);
+        $builder->getModel()->expects('newInstance->orders')->andReturn($relation);
+        $builder->getModel()->expects('newInstance->ordersGroups')->andReturn($groupsRelation);
 
         $relationQuery = m::mock(Builder::class);
         $relation->shouldReceive('getQuery')->andReturn($relationQuery);
 
         $groupRelationQuery = m::mock(Builder::class);
-        $groupsRelation->shouldReceive('getQuery')->andReturn($groupRelationQuery);
-        $groupRelationQuery->shouldReceive('with')->once()->with(['lines' => null, 'lines.details' => null]);
+        $groupsRelation->expects('getQuery')->andReturn($groupRelationQuery);
+        $groupRelationQuery->expects('with')->with(['lines' => null, 'lines.details' => null]);
 
         $builder->setEagerLoads(['orders' => null, 'ordersGroups' => null, 'ordersGroups.lines' => null, 'ordersGroups.lines.details' => null]);
 
@@ -2609,7 +2596,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals([ModelCloseRelatedStub::class], $builder->getBindings());
     }
 
-    public function testWhereNotMorphedToUsesMySqlNullSafeEquality(): void
+    public function testWhereNotMorphedToWithMySQL(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, 'MySql');
@@ -2623,7 +2610,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame([$relatedModel->getMorphClass(), $relatedModel->getKey()], $builder->getBindings());
     }
 
-    public function testWhereNotMorphedToClassUsesMySqlNullSafeEquality(): void
+    public function testWhereNotMorphedToClassWithMySQL(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, 'MySql');
@@ -2634,7 +2621,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame([ModelCloseRelatedStub::class], $builder->getBindings());
     }
 
-    public function testWhereNotMorphedToUsesPostgresNullSafeEquality(): void
+    public function testWhereNotMorphedToWithPostgres(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, 'Postgres');
@@ -2648,7 +2635,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame([$relatedModel->getMorphClass(), $relatedModel->getKey()], $builder->getBindings());
     }
 
-    public function testWhereNotMorphedToClassUsesPostgresNullSafeEquality(): void
+    public function testWhereNotMorphedToClassWithPostgres(): void
     {
         $model = new ModelParentStub;
         $this->mockConnectionForModel($model, 'Postgres');
@@ -2785,10 +2772,10 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->whereKey(null);
     }
 
-    public function testWhereKeyMethodWithArray()
+    public function testWhereKeyMethodWithArray(): void
     {
         $model = $this->getMockModel();
-        $model->shouldReceive('getKeyType')->andReturn('int');
+        $model->expects('getKeyType')->andReturn('int');
         $builder = $this->getBuilder()->setModel($model);
         $keyName = $model->getQualifiedKeyName();
 
@@ -2799,10 +2786,10 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->whereKey($array);
     }
 
-    public function testWhereKeyMethodWithCollection()
+    public function testWhereKeyMethodWithCollection(): void
     {
         $model = $this->getMockModel();
-        $model->shouldReceive('getKeyType')->andReturn('int');
+        $model->expects('getKeyType')->andReturn('int');
         $builder = $this->getBuilder()->setModel($model);
         $keyName = $model->getQualifiedKeyName();
 
@@ -2895,10 +2882,10 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->whereKeyNot($int);
     }
 
-    public function testWhereKeyNotMethodWithArray()
+    public function testWhereKeyNotMethodWithArray(): void
     {
         $model = $this->getMockModel();
-        $model->shouldReceive('getKeyType')->andReturn('int');
+        $model->expects('getKeyType')->andReturn('int');
         $builder = $this->getBuilder()->setModel($model);
         $keyName = $model->getQualifiedKeyName();
 
@@ -2909,10 +2896,10 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->whereKeyNot($array);
     }
 
-    public function testWhereKeyNotMethodWithCollection()
+    public function testWhereKeyNotMethodWithCollection(): void
     {
         $model = $this->getMockModel();
-        $model->shouldReceive('getKeyType')->andReturn('int');
+        $model->expects('getKeyType')->andReturn('int');
         $builder = $this->getBuilder()->setModel($model);
         $keyName = $model->getQualifiedKeyName();
 
@@ -2963,6 +2950,83 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->getQuery()->shouldReceive('where')->once()->with($model->getQualifiedKeyName(), '!=', 'stringable-key');
 
         $builder->whereKeyNot($identifier);
+    }
+
+    public function testOrWhereKeyMethodWithInt(): void
+    {
+        $model = new Stub;
+        $this->mockConnectionForModel($model, 'SQLite');
+
+        $query = $model->newQuery()->whereKey(1)->orWhereKey(2);
+
+        $this->assertSame('select * from "table" where "table"."id" = ? or ("table"."id" = ?)', $query->toSql());
+        $this->assertEquals([1, 2], $query->getBindings());
+    }
+
+    public function testOrWhereKeyMethodWithArray(): void
+    {
+        $model = new Stub;
+        $this->mockConnectionForModel($model, 'SQLite');
+
+        $query = $model->newQuery()->whereKey(1)->orWhereKey([2, 3]);
+
+        $this->assertSame('select * from "table" where "table"."id" = ? or ("table"."id" in (2, 3))', $query->toSql());
+        $this->assertEquals([1], $query->getBindings());
+    }
+
+    public function testOrWhereKeyMethodWithCollection(): void
+    {
+        $model = new Stub;
+        $this->mockConnectionForModel($model, 'SQLite');
+
+        $query = $model->newQuery()->whereKey(1)->orWhereKey(new Collection([2, 3]));
+
+        $this->assertSame('select * from "table" where "table"."id" = ? or ("table"."id" in (2, 3))', $query->toSql());
+        $this->assertEquals([1], $query->getBindings());
+    }
+
+    public function testOrWhereKeyNotMethodWithInt(): void
+    {
+        $model = new Stub;
+        $this->mockConnectionForModel($model, 'SQLite');
+
+        $query = $model->newQuery()->whereKey(1)->orWhereKeyNot(2);
+
+        $this->assertSame('select * from "table" where "table"."id" = ? or ("table"."id" != ?)', $query->toSql());
+        $this->assertEquals([1, 2], $query->getBindings());
+    }
+
+    public function testOrWhereKeyNotMethodWithArray(): void
+    {
+        $model = new Stub;
+        $this->mockConnectionForModel($model, 'SQLite');
+
+        $query = $model->newQuery()->whereKey(1)->orWhereKeyNot([2, 3]);
+
+        $this->assertSame('select * from "table" where "table"."id" = ? or ("table"."id" not in (2, 3))', $query->toSql());
+        $this->assertEquals([1], $query->getBindings());
+    }
+
+    public function testOrWhereKeyNotMethodWithCollection(): void
+    {
+        $model = new Stub;
+        $this->mockConnectionForModel($model, 'SQLite');
+
+        $query = $model->newQuery()->whereKey(1)->orWhereKeyNot(new Collection([2, 3]));
+
+        $this->assertSame('select * from "table" where "table"."id" = ? or ("table"."id" not in (2, 3))', $query->toSql());
+        $this->assertEquals([1], $query->getBindings());
+    }
+
+    public function testOrWhereKeyMethodsHonorWhereKeyOverrides(): void
+    {
+        $model = new WhereKeyOverrideStub;
+        $this->mockConnectionForModel($model, 'SQLite');
+
+        $query = $model->newQuery()->whereKey(1)->orWhereKey(2)->orWhereKeyNot(3);
+
+        $this->assertSame('select * from "table" where ("tenant_id" = ? and "local_id" = ?) or (("tenant_id" = ? and "local_id" = ?)) or (not ("tenant_id" = ? and "local_id" = ?))', $query->toSql());
+        $this->assertEquals([1, 1, 2, 2, 3, 3], $query->getBindings());
     }
 
     public function testExceptMethodWithModel()
@@ -3033,10 +3097,10 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals($expected, $query->toSql());
     }
 
-    public function testLatestWithoutColumnWithCreatedAt()
+    public function testLatestWithoutColumnWithCreatedAt(): void
     {
         $model = $this->getMockModel();
-        $model->shouldReceive('getCreatedAtColumn')->andReturn('foo');
+        $model->expects('getCreatedAtColumn')->andReturn('foo');
         $builder = $this->getBuilder()->setModel($model);
 
         $builder->getQuery()->shouldReceive('latest')->once()->with('foo');
@@ -3044,10 +3108,10 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->latest();
     }
 
-    public function testLatestWithoutColumnWithoutCreatedAt()
+    public function testLatestWithoutColumnWithoutCreatedAt(): void
     {
         $model = $this->getMockModel();
-        $model->shouldReceive('getCreatedAtColumn')->andReturn(null);
+        $model->expects('getCreatedAtColumn')->andReturn(null);
         $builder = $this->getBuilder()->setModel($model);
 
         $builder->getQuery()->shouldReceive('latest')->once()->with('created_at');
@@ -3091,10 +3155,10 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame([true], $oldest->getBindings());
     }
 
-    public function testOldestWithoutColumnWithCreatedAt()
+    public function testOldestWithoutColumnWithCreatedAt(): void
     {
         $model = $this->getMockModel();
-        $model->shouldReceive('getCreatedAtColumn')->andReturn('foo');
+        $model->expects('getCreatedAtColumn')->andReturn('foo');
         $builder = $this->getBuilder()->setModel($model);
 
         $builder->getQuery()->shouldReceive('oldest')->once()->with('foo');
@@ -3102,10 +3166,10 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->oldest();
     }
 
-    public function testOldestWithoutColumnWithoutCreatedAt()
+    public function testOldestWithoutColumnWithoutCreatedAt(): void
     {
         $model = $this->getMockModel();
-        $model->shouldReceive('getCreatedAtColumn')->andReturn(null);
+        $model->expects('getCreatedAtColumn')->andReturn(null);
         $builder = $this->getBuilder()->setModel($model);
 
         $builder->getQuery()->shouldReceive('oldest')->once()->with('created_at');
@@ -3141,10 +3205,10 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(1, $result);
     }
 
-    public function testUpdateWithTimestampValue()
+    public function testUpdateWithTimestampValue(): void
     {
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getTablePrefix')->andReturn('');
+        $connection->expects('getTablePrefix')->times(2)->andReturn('');
         $query = new BaseBuilder($connection, new Grammar($connection), m::mock(Processor::class));
         $builder = new Builder($query);
         $model = new Stub;
@@ -3173,10 +3237,10 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(1, $result);
     }
 
-    public function testUpdateWithoutTimestamp()
+    public function testUpdateWithoutTimestamp(): void
     {
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getTablePrefix')->andReturn('');
+        $connection->expects('getTablePrefix')->andReturn('');
         $query = new BaseBuilder($connection, new Grammar($connection), m::mock(Processor::class));
         $builder = new Builder($query);
         $model = new StubWithoutTimestamp;
@@ -3352,12 +3416,12 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame($processor, $builder->getProcessor());
     }
 
-    public function testUpsert()
+    public function testUpsert(): void
     {
         CarbonImmutable::setTestNow($now = '2017-10-10 10:10:10');
 
         $query = m::mock(BaseBuilder::class);
-        $query->shouldReceive('from')->with('foo_table')->andReturnSelf();
+        $query->expects('from')->with('foo_table')->andReturnSelf();
         $query->from = 'foo_table';
 
         $builder = new Builder($query);
@@ -3375,12 +3439,12 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(2, $result);
     }
 
-    public function testTouch()
+    public function testTouch(): void
     {
         CarbonImmutable::setTestNow($now = '2017-10-10 10:10:10');
 
         $query = m::mock(BaseBuilder::class);
-        $query->shouldReceive('from')->with('foo_table')->andReturnSelf();
+        $query->expects('from')->with('foo_table')->andReturnSelf();
         $query->from = 'foo_table';
 
         $builder = new Builder($query);
@@ -3394,12 +3458,12 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertEquals(2, $result);
     }
 
-    public function testTouchWithCustomColumn()
+    public function testTouchWithCustomColumn(): void
     {
         CarbonImmutable::setTestNow($now = '2017-10-10 10:10:10');
 
         $query = m::mock(BaseBuilder::class);
-        $query->shouldReceive('from')->with('foo_table')->andReturnSelf();
+        $query->expects('from')->with('foo_table')->andReturnSelf();
         $query->from = 'foo_table';
 
         $builder = new Builder($query);
@@ -3418,7 +3482,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         CarbonImmutable::setTestNow($now = '2017-10-10 10:10:10');
 
         $query = m::mock(BaseBuilder::class);
-        $query->shouldReceive('from')->with('foo_table')->andReturnSelf();
+        $query->expects('from')->with('foo_table')->andReturnSelf();
         $query->from = 'foo_table';
 
         $builder = new Builder($query);
@@ -3435,10 +3499,10 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame(2, $result);
     }
 
-    public function testTouchWithoutUpdatedAtColumn()
+    public function testTouchWithoutUpdatedAtColumn(): void
     {
         $query = m::mock(BaseBuilder::class);
-        $query->shouldReceive('from')->with('table')->andReturnSelf();
+        $query->expects('from')->with('table')->andReturnSelf();
         $query->from = 'table';
 
         $builder = new Builder($query);
@@ -3452,20 +3516,20 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertFalse($result);
     }
 
-    public function testWithCastsMethod()
+    public function testWithCastsMethod(): void
     {
         $builder = new Builder($this->getMockQueryBuilder());
         $model = $this->getMockModel();
         $builder->setModel($model);
 
-        $model->shouldReceive('mergeCasts')->with(['foo' => 'bar'])->once();
+        $model->expects('mergeCasts')->with(['foo' => 'bar']);
         $builder->withCasts(['foo' => 'bar']);
     }
 
-    public function testClone()
+    public function testClone(): void
     {
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getTablePrefix')->andReturn('');
+        $connection->expects('getTablePrefix')->times(2)->andReturn('');
         $query = new BaseBuilder($connection, new Grammar($connection), m::mock(Processor::class));
         $builder = new Builder($query);
         $builder->select('*')->from('users');
@@ -3533,10 +3597,10 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select * from "table" where "name" = ?', $builder->toSql());
     }
 
-    public function testCloneModelMakesAFreshCopyOfTheModel()
+    public function testCloneModelMakesAFreshCopyOfTheModel(): void
     {
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getTablePrefix')->andReturn('');
+        $connection->expects('getTablePrefix')->times(2)->andReturn('');
         $query = new BaseBuilder($connection, new Grammar($connection), m::mock(Processor::class));
         $builder = (new Builder($query))->setModel(new Stub);
         $builder->select('*')->from('users');
@@ -3545,7 +3609,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         $onCloneQuery = null;
 
-        $builder->onClone(function (Builder $query) use (&$onCloneCallbackCalledCount, &$onCloneQuery) {
+        $builder->onClone(function (Builder $query) use (&$onCloneCallbackCalledCount, &$onCloneQuery): void {
             ++$onCloneCallbackCalledCount;
 
             $onCloneQuery = $query;
@@ -3561,10 +3625,10 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame($onCloneQuery, $clone);
     }
 
-    public function testToRawSql()
+    public function testToRawSql(): void
     {
         $query = m::mock(BaseBuilder::class);
-        $query->shouldReceive('toRawSql')
+        $query->expects('toRawSql')
             ->andReturn('select * from "users" where "email" = \'foo\'');
 
         $builder = new Builder($query);
@@ -3572,13 +3636,13 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame('select * from "users" where "email" = \'foo\'', $builder->toRawSql());
     }
 
-    public function testPassthruMethodsCallsAreNotCaseSensitive()
+    public function testPassthruMethodsCallsAreNotCaseSensitive(): void
     {
         $query = m::mock(BaseBuilder::class);
 
         $mockResponse = 'select 1';
         $query
-            ->shouldReceive('toRawSql')
+            ->expects('toRawSql')
             ->andReturn($mockResponse)
             ->times(3);
 
@@ -3640,21 +3704,21 @@ class DatabaseEloquentBuilderTest extends TestCase
     public function testIncrementEachCallsToBaseWithUpdatedAt(): void
     {
         $query = m::mock(BaseBuilder::class);
-        $query->shouldReceive('from')->with('foo_table');
-        $query->shouldReceive('getFromAlias')->andReturn('foo_table');
-        $query->shouldReceive('incrementEach')->once()->withArgs(function ($columns, $extra) {
+        $query->expects('from')->with('foo_table');
+        $query->expects('getFromAlias')->andReturn('foo_table');
+        $query->expects('incrementEach')->withArgs(function (array $columns, array $extra): bool {
             return $columns === ['votes' => 5]
                 && array_key_exists('foo_table.updated_at', $extra);
         })->andReturn(1);
 
         $builder = new Builder($query);
         $model = $this->getMockModel();
-        $model->shouldReceive('usesTimestamps')->andReturn(true);
-        $model->shouldReceive('getUpdatedAtColumn')->andReturn('updated_at');
-        $model->shouldReceive('freshTimestampString')->andReturn('2026-03-26 00:00:00');
-        $model->shouldReceive('hasSetMutator')->andReturn(false);
-        $model->shouldReceive('hasAttributeSetMutator')->andReturn(false);
-        $model->shouldReceive('hasCast')->andReturn(false);
+        $model->expects('usesTimestamps')->andReturn(true);
+        $model->expects('getUpdatedAtColumn')->times(2)->andReturn('updated_at');
+        $model->expects('freshTimestampString')->andReturn('2026-03-26 00:00:00');
+        $model->expects('hasSetMutator')->andReturn(false);
+        $model->expects('hasAttributeSetMutator')->andReturn(false);
+        $model->expects('hasCast')->andReturn(false);
         $builder->setModel($model);
 
         $result = $builder->incrementEach(['votes' => 5]);
@@ -3665,21 +3729,21 @@ class DatabaseEloquentBuilderTest extends TestCase
     public function testDecrementEachCallsToBaseWithUpdatedAt(): void
     {
         $query = m::mock(BaseBuilder::class);
-        $query->shouldReceive('from')->with('foo_table');
-        $query->shouldReceive('getFromAlias')->andReturn('foo_table');
-        $query->shouldReceive('decrementEach')->once()->withArgs(function ($columns, $extra) {
+        $query->expects('from')->with('foo_table');
+        $query->expects('getFromAlias')->andReturn('foo_table');
+        $query->expects('decrementEach')->withArgs(function (array $columns, array $extra): bool {
             return $columns === ['votes' => 3]
                 && array_key_exists('foo_table.updated_at', $extra);
         })->andReturn(1);
 
         $builder = new Builder($query);
         $model = $this->getMockModel();
-        $model->shouldReceive('usesTimestamps')->andReturn(true);
-        $model->shouldReceive('getUpdatedAtColumn')->andReturn('updated_at');
-        $model->shouldReceive('freshTimestampString')->andReturn('2026-03-26 00:00:00');
-        $model->shouldReceive('hasSetMutator')->andReturn(false);
-        $model->shouldReceive('hasAttributeSetMutator')->andReturn(false);
-        $model->shouldReceive('hasCast')->andReturn(false);
+        $model->expects('usesTimestamps')->andReturn(true);
+        $model->expects('getUpdatedAtColumn')->times(2)->andReturn('updated_at');
+        $model->expects('freshTimestampString')->andReturn('2026-03-26 00:00:00');
+        $model->expects('hasSetMutator')->andReturn(false);
+        $model->expects('hasAttributeSetMutator')->andReturn(false);
+        $model->expects('hasCast')->andReturn(false);
         $builder->setModel($model);
 
         $result = $builder->decrementEach(['votes' => 3]);
@@ -3690,12 +3754,12 @@ class DatabaseEloquentBuilderTest extends TestCase
     public function testIncrementEachWithoutTimestamps(): void
     {
         $query = m::mock(BaseBuilder::class);
-        $query->shouldReceive('from')->with('foo_table');
-        $query->shouldReceive('incrementEach')->once()->with(['votes' => 1], [])->andReturn(1);
+        $query->expects('from')->with('foo_table');
+        $query->expects('incrementEach')->with(['votes' => 1], [])->andReturn(1);
 
         $builder = new Builder($query);
         $model = $this->getMockModel();
-        $model->shouldReceive('usesTimestamps')->andReturn(false);
+        $model->expects('usesTimestamps')->andReturn(false);
         $builder->setModel($model);
 
         $result = $builder->incrementEach(['votes' => 1]);
@@ -3836,12 +3900,9 @@ class NestedStub extends Model
 
 class PluckStub extends Model
 {
-    public function __construct(array $attributes = [])
-    {
-        // Don't call parent - directly set attributes for this test stub
-        $this->attributes = $attributes;
-    }
-
+    /**
+     * Get the decorated attribute value.
+     */
     public function getAttribute(string $key): mixed
     {
         return 'foo_' . $this->attributes[$key];
@@ -3850,15 +3911,12 @@ class PluckStub extends Model
 
 class PluckDatesStub extends Model
 {
-    public function __construct(array $attributes)
+    /**
+     * Get the decorated date attribute value.
+     */
+    public function getAttribute(string $key): mixed
     {
-        // Don't call parent - directly set attributes for this test stub
-        $this->attributes = $attributes;
-    }
-
-    protected function asDateTime(mixed $value): \Carbon\CarbonInterface
-    {
-        return CarbonImmutable::parse('date_' . $value);
+        return 'date_' . $this->attributes[$key];
     }
 }
 
@@ -4002,6 +4060,38 @@ class StubStringPrimaryKey extends Model
     protected ?string $table = 'foo_table';
 
     protected string $keyType = 'string';
+}
+
+class WhereKeyOverrideStub extends Model
+{
+    protected ?string $table = 'table';
+
+    /**
+     * Create a new Eloquent query builder for the model.
+     */
+    public function newEloquentBuilder(BaseBuilder $query): Builder
+    {
+        return new WhereKeyOverrideBuilder($query);
+    }
+}
+
+class WhereKeyOverrideBuilder extends Builder
+{
+    /**
+     * Add a where clause on both key columns.
+     */
+    public function whereKey(mixed $id): static
+    {
+        return $this->where(fn (Builder $query): Builder => $query->where('tenant_id', '=', $id)->where('local_id', '=', $id));
+    }
+
+    /**
+     * Add a where not clause on both key columns.
+     */
+    public function whereKeyNot(mixed $id): static
+    {
+        return $this->whereNot(fn (Builder $query): Builder => $query->where('tenant_id', '=', $id)->where('local_id', '=', $id));
+    }
 }
 
 enum BuilderTestBackedEnum: string

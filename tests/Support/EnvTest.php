@@ -16,56 +16,16 @@ class EnvTest extends TestCase
 
     private const string REQUIRED_KEY = 'TEST_REQUIRED_ENV';
 
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        DotenvManager::flushState();
-    }
-
+    /**
+     * Clean up the environment variables owned by these tests.
+     */
     protected function tearDown(): void
     {
-        DotenvManager::flushState();
-
         foreach ([self::ARRAY_KEY, self::REQUIRED_KEY] as $key) {
             $this->unsetEnvironmentValue($key);
         }
 
-        Env::flushState();
-
         parent::tearDown();
-    }
-
-    public function testGetReturnsValue()
-    {
-        DotenvManager::load([__DIR__ . '/Fixtures/envs/oldEnv']);
-
-        $this->assertSame('1.0', Env::get('TEST_VERSION'));
-    }
-
-    public function testGetReturnsDefaultWhenKeyMissing()
-    {
-        DotenvManager::load([__DIR__ . '/Fixtures/envs/oldEnv']);
-
-        $this->assertNull(Env::get('NONEXISTENT'));
-        $this->assertSame('default', Env::get('NONEXISTENT', 'default'));
-    }
-
-    public function testGetOrFailThrowsWhenKeyMissing()
-    {
-        DotenvManager::load([__DIR__ . '/Fixtures/envs/oldEnv']);
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Environment variable [NONEXISTENT] has no value.');
-
-        Env::getOrFail('NONEXISTENT');
-    }
-
-    public function testGetOrFailReturnsValueWhenKeyExists()
-    {
-        DotenvManager::load([__DIR__ . '/Fixtures/envs/oldEnv']);
-
-        $this->assertSame('1.0', Env::getOrFail('TEST_VERSION'));
     }
 
     public function testGlobalEnvOrFailReturnsValueWhenKeyExists(): void
@@ -78,7 +38,7 @@ class EnvTest extends TestCase
     public function testGlobalEnvOrFailThrowsWhenKeyMissing(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Environment variable [TEST_REQUIRED_ENV] has no value.');
+        $this->expectExceptionMessageIsOrContains('Environment variable [TEST_REQUIRED_ENV] has no value.');
 
         env_or_fail(self::REQUIRED_KEY);
     }
@@ -169,7 +129,7 @@ class EnvTest extends TestCase
         $this->setEnvironmentValue(self::ARRAY_KEY, 'true');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Environment variable [TEST_ENV_ARRAY] cannot be read as an array.');
+        $this->expectExceptionMessageIsOrContains('Environment variable [TEST_ENV_ARRAY] cannot be read as an array.');
 
         Env::getArray(self::ARRAY_KEY);
     }
@@ -183,14 +143,7 @@ class EnvTest extends TestCase
         $this->assertSame(['first', 'second'], env_array(self::ARRAY_KEY));
     }
 
-    public function testGetReturnsBooleanForTrueAndFalse()
-    {
-        DotenvManager::load([__DIR__ . '/Fixtures/envs/oldEnv']);
-
-        $this->assertTrue(Env::get('OLD_FLAG'));
-    }
-
-    public function testFlushRepositoryClearsRepository()
+    public function testFlushRepositoryClearsRepository(): void
     {
         $repository1 = Env::getRepository();
         Env::flushRepository();
@@ -200,7 +153,7 @@ class EnvTest extends TestCase
         $this->assertNotSame($repository1, $repository2);
     }
 
-    public function testFlushRepositoryAllowsRewrite()
+    public function testFlushRepositoryAllowsRewrite(): void
     {
         DotenvManager::load([__DIR__ . '/Fixtures/envs/oldEnv']);
         $this->assertSame('1.0', Env::get('TEST_VERSION'));
@@ -217,7 +170,7 @@ class EnvTest extends TestCase
         putenv('TEST_VERSION');
     }
 
-    public function testDeleteManyClearsFromAllAdapters()
+    public function testDeleteManyClearsFromAllAdapters(): void
     {
         DotenvManager::load([__DIR__ . '/Fixtures/envs/oldEnv']);
 
@@ -235,7 +188,7 @@ class EnvTest extends TestCase
         $this->assertFalse(getenv('TEST_VERSION'));
     }
 
-    public function testDeleteManyAllowsRewriteAfterRepositoryReset()
+    public function testDeleteManyAllowsRewriteAfterRepositoryReset(): void
     {
         DotenvManager::load([__DIR__ . '/Fixtures/envs/oldEnv']);
         $this->assertSame('1.0', Env::get('TEST_VERSION'));

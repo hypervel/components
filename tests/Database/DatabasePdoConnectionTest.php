@@ -790,16 +790,16 @@ class DatabasePdoConnectionTest extends TestCase
         $pdo = m::mock(PDO::class);
 
         $statement = m::mock(PDOStatement::class);
-        $statement->shouldReceive('execute')->once()->andThrow(new PDOException('server has gone away'));
-        $statement->shouldReceive('execute')->once()->andReturn(true);
+        $statement->expects('execute')->andThrow(new PDOException('server has gone away'));
+        $statement->expects('execute')->andReturn(true);
 
-        $pdo->shouldReceive('prepare')->twice()->andReturn($statement);
+        $pdo->expects('prepare')->times(2)->andReturn($statement);
 
         $connection = new PdoConnection($pdo, '', '', ['name' => 'test', 'driver' => 'mysql']);
 
         $called = false;
 
-        $connection->setReconnector(function ($connection) use (&$called) {
+        $connection->setReconnector(function (Connection $connection) use (&$called): void {
             $called = true;
         });
 

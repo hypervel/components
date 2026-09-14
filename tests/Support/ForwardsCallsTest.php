@@ -25,34 +25,31 @@ class ForwardsCallsTest extends TestCase
         $this->assertEquals(['foo', 'bar'], $results);
     }
 
-    public function testMissingForwardedCallThrowsCorrectError()
+    public function testMissingForwardedCallThrowsCorrectError(): void
     {
-        $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Call to undefined method Hypervel\Tests\Support\ForwardsCallsOne::missingMethod()');
+        $this->expectExceptionObject(new BadMethodCallException('Call to undefined method Hypervel\Tests\Support\ForwardsCallsOne::missingMethod()'));
 
         (new ForwardsCallsOne)->missingMethod('foo', 'bar');
     }
 
-    public function testMissingAlphanumericForwardedCallThrowsCorrectError()
+    public function testMissingAlphanumericForwardedCallThrowsCorrectError(): void
     {
-        $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Call to undefined method Hypervel\Tests\Support\ForwardsCallsOne::this1_shouldWork_too()');
+        $this->expectExceptionObject(new BadMethodCallException('Call to undefined method Hypervel\Tests\Support\ForwardsCallsOne::this1_shouldWork_too()'));
 
         (new ForwardsCallsOne)->this1_shouldWork_too('foo', 'bar');
     }
 
-    public function testNonForwardedErrorIsNotTamperedWith()
+    public function testNonForwardedErrorIsNotTamperedWith(): void
     {
         $this->expectException(Error::class);
-        $this->expectExceptionMessage('Call to undefined method Hypervel\Tests\Support\ForwardsCallsBase::missingMethod()');
+        $this->expectExceptionMessageIsOrContains('Call to undefined method Hypervel\Tests\Support\ForwardsCallsBase::missingMethod()');
 
         (new ForwardsCallsOne)->baseError('foo', 'bar');
     }
 
-    public function testThrowBadMethodCallException()
+    public function testThrowBadMethodCallException(): void
     {
-        $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Call to undefined method Hypervel\Tests\Support\ForwardsCallsOne::test()');
+        $this->expectExceptionObject(new BadMethodCallException('Call to undefined method Hypervel\Tests\Support\ForwardsCallsOne::test()'));
 
         (new ForwardsCallsOne)->throwTestException('test');
     }
