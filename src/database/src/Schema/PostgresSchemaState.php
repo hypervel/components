@@ -77,12 +77,19 @@ class PostgresSchemaState extends SchemaState
     {
         $config['host'] ??= '';
 
-        return array_map(strval(...), [
+        $variables = [
             'HYPERVEL_LOAD_HOST' => is_array($config['host']) ? $config['host'][0] : $config['host'],
             'HYPERVEL_LOAD_PORT' => $config['port'] ?? '',
             'HYPERVEL_LOAD_USER' => $config['username'],
             'PGPASSWORD' => $config['password'],
-            'HYPERVEL_LOAD_DATABASE' => $config['database'],
-        ]);
+        ];
+
+        if (! empty($config['sslmode'])) {
+            $variables['PGSSLMODE'] = $config['sslmode'];
+        }
+
+        $variables['HYPERVEL_LOAD_DATABASE'] = $config['database'];
+
+        return array_map(strval(...), $variables);
     }
 }

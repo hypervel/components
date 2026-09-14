@@ -8,6 +8,7 @@ use BadMethodCallException;
 use Exception;
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Eloquent\SoftDeletingScope;
@@ -219,16 +220,19 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
         $this->assertFalse($user->exists);
     }
 
-    public function testForceDeleteDoesntUpdateExistsPropertyIfFailed()
+    public function testForceDeleteDoesntUpdateExistsPropertyIfFailed(): void
     {
-        $user = new class extends User {
+        $user = new class(['id' => 1]) extends User {
             public bool $exists = true;
 
-            public function newModelQuery(): \Hypervel\Database\Eloquent\Builder
+            /**
+             * Get a query builder that fails when deleting the model.
+             */
+            public function newModelQuery(): EloquentBuilder
             {
-                $mock = m::mock(\Hypervel\Database\Eloquent\Builder::class);
-                $mock->shouldReceive('where')->andReturnSelf();
-                $mock->shouldReceive('forceDelete')->andThrow(new Exception);
+                $mock = m::mock(EloquentBuilder::class);
+                $mock->expects('where')->with('id', '=', 1)->andReturnSelf();
+                $mock->expects('forceDelete')->andThrow(new Exception);
 
                 return $mock;
             }

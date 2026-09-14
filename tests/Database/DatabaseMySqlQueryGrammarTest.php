@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Connection;
+use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\Query\Processors\Processor;
@@ -12,9 +13,41 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use JsonException;
 use Mockery as m;
+use PDO;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseMySqlQueryGrammarTest extends TestCase
 {
+    #[DataProvider('jsonPathEscapingProvider')]
+    public function testJsonPathsEscapeKeysUsingTheConfiguredSqlMode(array $modes, string $path): void
+    {
+        $connection = new MySqlConnection(m::mock(PDO::class), config: ['modes' => $modes]);
+        $builder = $connection->table('users')->select('options->App\Models\User->a"b[0]');
+
+        $this->assertSame("select json_unquote(json_extract(`options`, {$path})) from `users`", $builder->toSql());
+        $this->assertSame(
+            "update `users` set `options` = json_set(`options`, {$path}, ?)",
+            $builder->getGrammar()->compileUpdate($builder, ['options->App\Models\User->a"b[0]' => 'John']),
+        );
+    }
+
+    /**
+     * Provide SQL modes and their JSON path literals.
+     *
+     * @return array<string, array{list<string>, string}>
+     */
+    public static function jsonPathEscapingProvider(): array
+    {
+        return [
+            'backslash escapes' => [[], <<<'SQL'
+'$."App\\\\Models\\\\User"."a\\"b"[0]'
+SQL],
+            'literal backslashes' => [['STRICT_TRANS_TABLES,no_backslash_escapes'], <<<'SQL'
+'$."App\\Models\\User"."a\"b"[0]'
+SQL],
+        ];
+    }
+
     public function testUpdateBindingsRejectUnencodableArrays(): void
     {
         $this->expectException(JsonException::class);
@@ -26,7 +59,7 @@ class DatabaseMySqlQueryGrammarTest extends TestCase
     public function testToRawSql(): void
     {
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('escape')->with('foo', false)->andReturn("'foo'");
+        $connection->expects('escape')->with('foo', false)->andReturn("'foo'");
         $grammar = new MySqlGrammar($connection);
 
         $query = $grammar->substituteBindingsIntoRawSql(
@@ -48,7 +81,7 @@ class DatabaseMySqlQueryGrammarTest extends TestCase
         );
     }
 
-    public function testTimeoutWithDistinctAndAggregateQueries(): void
+    public function testTimeoutWithDistinct(): void
     {
         $builder = $this->getBuilder();
         $builder->distinct()->select('*')->from('users')->timeout(30);
@@ -56,7 +89,10 @@ class DatabaseMySqlQueryGrammarTest extends TestCase
             'select /*+ MAX_EXECUTION_TIME(30000) */ distinct * from `users`',
             $builder->toSql()
         );
+    }
 
+    public function testTimeoutWithAggregate(): void
+    {
         $builder = $this->getBuilder();
         $builder->from('users')->timeout(10);
         $builder->aggregate = ['function' => 'count', 'columns' => ['*']];
@@ -134,7 +170,7 @@ class DatabaseMySqlQueryGrammarTest extends TestCase
         $this->assertSame(1, substr_count($sql, 'MAX_EXECUTION_TIME'));
     }
 
-    public function testTimeoutCanBeCleared(): void
+    public function testTimeoutNullRemovesTimeout(): void
     {
         $builder = $this->getBuilder();
         $builder->select('*')->from('users')->timeout(60)->timeout(null);
@@ -142,7 +178,7 @@ class DatabaseMySqlQueryGrammarTest extends TestCase
         $this->assertSame('select * from `users`', $builder->toSql());
     }
 
-    public function testTimeoutRejectsNonPositiveValues(): void
+    public function testTimeoutThrowsExceptionForNegativeValue(): void
     {
         foreach ([0, -1] as $timeout) {
             try {
@@ -154,6 +190,9 @@ class DatabaseMySqlQueryGrammarTest extends TestCase
         }
     }
 
+    /**
+     * Create a query builder with the MySQL grammar.
+     */
     protected function getBuilder(): Builder
     {
         $connection = m::mock(Connection::class);

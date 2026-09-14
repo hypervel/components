@@ -32,6 +32,25 @@ class DatabaseMariaDbSchemaBuilderTest extends MariaDbTestCase
         Schema::drop('users');
     }
 
+    public function testJsonPathEscapingPreservesStoredValues(): void
+    {
+        $key = 'App\Models\User';
+        Schema::create('quoted_values', function (Blueprint $table) use ($key): void {
+            $table->json('options');
+            $table->string('label')->virtualAsJson('options->' . $key);
+        });
+
+        DB::table('quoted_values')->insert(['options' => json_encode([$key => 'before'], JSON_THROW_ON_ERROR)]);
+        $this->assertSame('before', DB::table('quoted_values')->value('label'));
+        $this->assertSame('before', DB::table('quoted_values')->value('options->' . $key));
+
+        $this->assertSame(1, DB::table('quoted_values')->update(['options->a"b' => 'after']));
+        $this->assertSame(
+            [$key => 'before', 'a"b' => 'after'],
+            json_decode(DB::table('quoted_values')->value('options'), true, flags: JSON_THROW_ON_ERROR),
+        );
+    }
+
     public function testWithoutForeignKeyConstraintsPreservesIncomingStateAndNests(): void
     {
         $connection = DB::connection();

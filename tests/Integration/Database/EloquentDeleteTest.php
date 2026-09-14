@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\EloquentDeleteTest;
 
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Blueprint;
-use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use Hypervel\Tests\Integration\Database\Fixtures\Post;
 use Hypervel\Tests\Integration\Database\Fixtures\PostStringyKey;
 
@@ -17,7 +17,7 @@ class EloquentDeleteTest extends DatabaseTestCase
 {
     /**
      * Check if the current MariaDB version supports DELETE with JOIN + ORDER BY + LIMIT.
-     * MariaDB 11.0+ supports this syntax; older versions do not.
+     * MariaDB 11.8.1 added support for multi-table DELETE with ORDER BY and LIMIT.
      */
     protected function mariaDbSupportsDeleteJoinLimit(): bool
     {
@@ -25,9 +25,7 @@ class EloquentDeleteTest extends DatabaseTestCase
             return false;
         }
 
-        $version = DB::scalar('SELECT VERSION()');
-
-        return version_compare($version, '11.0', '>=');
+        return version_compare($this->getConnection()->getServerVersion(), '11.8.1', '>=');
     }
 
     protected function afterRefreshingDatabase(): void
@@ -69,14 +67,13 @@ class EloquentDeleteTest extends DatabaseTestCase
 
     public function testDeleteUseLimitWithJoins(): void
     {
-        // MySQL does not support DELETE with JOIN + ORDER BY + LIMIT
-        // MariaDB 10.x does not support it, but MariaDB 11+ does
+        // MySQL and MariaDB before 11.8.1 do not support limited joined deletes.
         if ($this->driver === 'mysql') {
             $this->markTestSkipped('MySQL does not support LIMIT on DELETE statements with JOIN clauses.');
         }
 
         if ($this->driver === 'mariadb' && ! $this->mariaDbSupportsDeleteJoinLimit()) {
-            $this->markTestSkipped('MariaDB < 11.0 does not support LIMIT on DELETE statements with JOIN clauses.');
+            $this->markTestSkipped('MariaDB < 11.8.1 does not support LIMIT on DELETE statements with JOIN clauses.');
         }
 
         $totalPosts = 10;
@@ -102,13 +99,12 @@ class EloquentDeleteTest extends DatabaseTestCase
 
     public function testDeleteWithLimitAndJoinThrowsExceptionOnMySql(): void
     {
-        if (! in_array($this->driver, ['mysql', 'mariadb'])) {
+        if (! in_array($this->driver, ['mysql', 'mariadb'], true)) {
             $this->markTestSkipped('This test only applies to MySQL/MariaDB.');
         }
 
-        // MariaDB 11+ supports DELETE with JOIN + ORDER BY + LIMIT, so no exception is thrown
         if ($this->mariaDbSupportsDeleteJoinLimit()) {
-            $this->markTestSkipped('MariaDB 11+ supports LIMIT on DELETE statements with JOIN clauses.');
+            $this->markTestSkipped('MariaDB 11.8.1+ supports LIMIT on DELETE statements with JOIN clauses.');
         }
 
         $this->expectException(QueryException::class);
@@ -127,7 +123,7 @@ class EloquentDeleteTest extends DatabaseTestCase
             ->delete();
     }
 
-    public function testForceDeletedEventIsFired()
+    public function testForceDeletedEventIsFired(): void
     {
         $role = Role::create([]);
         $this->assertInstanceOf(Role::class, $role);
@@ -141,7 +137,7 @@ class EloquentDeleteTest extends DatabaseTestCase
         $this->assertEquals($role->id, RoleObserver::$model->id);
     }
 
-    public function testForceDeletingEventIsFired()
+    public function testForceDeletingEventIsFired(): void
     {
         $role = Role::create([]);
         $this->assertInstanceOf(Role::class, $role);
@@ -152,7 +148,7 @@ class EloquentDeleteTest extends DatabaseTestCase
         $this->assertEquals($role->id, RoleObserver::$model->id);
     }
 
-    public function testDeleteQuietly()
+    public function testDeleteQuietly(): void
     {
         $_SERVER['(-_-)'] = '\(^_^)/';
         Post::deleting(fn () => $_SERVER['(-_-)'] = null);
@@ -176,7 +172,7 @@ class EloquentDeleteTest extends DatabaseTestCase
         unset($_SERVER['(-_-)']);
     }
 
-    public function testDestroy()
+    public function testDestroy(): void
     {
         Schema::create('my_posts', function (Blueprint $table) {
             $table->increments('my_id');

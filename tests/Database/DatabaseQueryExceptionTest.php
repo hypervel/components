@@ -14,7 +14,7 @@ use PDOException;
 
 class DatabaseQueryExceptionTest extends TestCase
 {
-    public function testIfItEmbedsBindingsIntoSql()
+    public function testIfItEmbedsBindingsIntoSql(): void
     {
         $connection = $this->getMockConnection();
 
@@ -32,7 +32,7 @@ class DatabaseQueryExceptionTest extends TestCase
         $this->assertSame($expectedSql, $result);
     }
 
-    public function testIfItReturnsSameSqlWhenThereAreNoBindings()
+    public function testIfItReturnsSameSqlWhenThereAreNoBindings(): void
     {
         $connection = $this->getMockConnection();
 
@@ -50,52 +50,52 @@ class DatabaseQueryExceptionTest extends TestCase
         $this->assertSame($expectedSql, $result);
     }
 
-    public function testMessageIncludesConnectionInfo()
+    public function testMessageIncludesConnectionInfo(): void
     {
         $pdoException = new PDOException('SQLSTATE[HY000] [2002] No such file or directory');
-        $exception = new QueryException('mysql_replica', 'SELECT * FROM users', [], $pdoException, [
+        $exception = new QueryException('mysql::read', 'SELECT * FROM users', [], $pdoException, [
             'driver' => 'mysql',
-            'name' => 'mysql_replica',
+            'name' => 'mysql::read',
             'host' => '192.168.1.10',
             'port' => '3306',
-            'database' => 'laravel_db',
+            'database' => 'hypervel_db',
             'unix_socket' => null,
         ]);
 
         $this->assertStringContainsString('Host: 192.168.1.10', $exception->getMessage());
         $this->assertStringContainsString('Port: 3306', $exception->getMessage());
-        $this->assertStringContainsString('Database: laravel_db', $exception->getMessage());
-        $this->assertStringContainsString('Connection: mysql_replica', $exception->getMessage());
+        $this->assertStringContainsString('Database: hypervel_db', $exception->getMessage());
+        $this->assertStringContainsString('Connection: mysql::read', $exception->getMessage());
     }
 
-    public function testMessageIncludesUnixSocket()
+    public function testMessageIncludesUnixSocket(): void
     {
         $pdoException = new PDOException('SQLSTATE[HY000] [2002] No such file or directory');
         $exception = new QueryException('mysql', 'SELECT * FROM users', [], $pdoException, [
             'driver' => 'mysql',
             'unix_socket' => '/tmp/mysql.sock',
-            'database' => 'laravel_db',
+            'database' => 'hypervel_db',
         ]);
 
         $this->assertStringContainsString('Socket: /tmp/mysql.sock', $exception->getMessage());
-        $this->assertStringContainsString('Database: laravel_db', $exception->getMessage());
+        $this->assertStringContainsString('Database: hypervel_db', $exception->getMessage());
         $this->assertStringNotContainsString('Host:', $exception->getMessage());
     }
 
-    public function testMessageHandlesArrayHosts()
+    public function testMessageHandlesArrayHosts(): void
     {
         $pdoException = new PDOException('SQLSTATE[HY000] [2002] No such file or directory');
-        $exception = new QueryException('mysql_replica', 'SELECT * FROM users', [], $pdoException, [
+        $exception = new QueryException('mysql::read', 'SELECT * FROM users', [], $pdoException, [
             'driver' => 'mysql',
             'host' => ['192.168.1.10', '192.168.1.11'],
             'port' => '3306',
-            'database' => 'laravel_db',
+            'database' => 'hypervel_db',
         ]);
 
         $this->assertStringContainsString('Host: 192.168.1.10, 192.168.1.11', $exception->getMessage());
     }
 
-    public function testMessageHandlesEmptyConnectionInfo()
+    public function testMessageHandlesEmptyConnectionInfo(): void
     {
         $pdoException = new PDOException('SQLSTATE[HY000] [2002] No such file or directory');
         $exception = new QueryException('mysql', 'SELECT * FROM users', [], $pdoException, [
@@ -109,7 +109,7 @@ class DatabaseQueryExceptionTest extends TestCase
         $this->assertStringContainsString('Database: ', $exception->getMessage());
     }
 
-    public function testMessageForSqliteOnlyShowsDatabase()
+    public function testMessageForSqliteOnlyShowsDatabase(): void
     {
         $pdoException = new PDOException('SQLSTATE[HY000]: General error: 1 no such table');
         $exception = new QueryException('sqlite', 'SELECT * FROM users', [], $pdoException, [
@@ -126,23 +126,23 @@ class DatabaseQueryExceptionTest extends TestCase
         $this->assertStringNotContainsString('Port:', $exception->getMessage());
     }
 
-    public function testGetConnectionInfoReturnsConnectionInfo()
+    public function testGetConnectionInfoReturnsConnectionInfo(): void
     {
         $pdoException = new PDOException('Mock error');
         $connectionInfo = [
             'driver' => 'mysql',
-            'name' => 'mysql_replica',
+            'name' => 'mysql::read',
             'host' => '192.168.1.10',
             'port' => '3306',
-            'database' => 'laravel_db',
+            'database' => 'hypervel_db',
             'unix_socket' => null,
         ];
-        $exception = new QueryException('mysql_replica', 'SELECT * FROM users', [], $pdoException, $connectionInfo);
+        $exception = new QueryException('mysql::read', 'SELECT * FROM users', [], $pdoException, $connectionInfo);
 
         $this->assertSame($connectionInfo, $exception->getConnectionDetails());
     }
 
-    public function testBackwardCompatibilityWithoutConnectionInfo()
+    public function testBackwardCompatibilityWithoutConnectionInfo(): void
     {
         $pdoException = new PDOException('Mock SQL error');
         $exception = new QueryException('mysql', 'SELECT * FROM users WHERE id = ?', [1], $pdoException);
@@ -176,7 +176,10 @@ class DatabaseQueryExceptionTest extends TestCase
         $this->assertSame('SELECT * FROM users WHERE email = ?', $exception->getSql());
     }
 
-    protected function getMockConnection()
+    /**
+     * Create a connection for SQL rendering assertions.
+     */
+    protected function getMockConnection(): Connection
     {
         $connection = m::mock(Connection::class);
 

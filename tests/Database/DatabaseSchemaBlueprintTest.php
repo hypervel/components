@@ -6,6 +6,8 @@ namespace Hypervel\Tests\Database;
 
 use Closure;
 use Hypervel\Database\Connection;
+use Hypervel\Database\MariaDbConnection;
+use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Database\Schema\ColumnDefinition;
@@ -19,17 +21,11 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use LogicException;
 use Mockery as m;
+use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseSchemaBlueprintTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Builder::$defaultMorphKeyType = 'int';
-
-        parent::tearDown();
-    }
-
     public function testBuildDelegatesToTheConnectionOwnedBuilder(): void
     {
         $connection = m::mock(Connection::class);
@@ -973,14 +969,21 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table `posts` add `note` tinytext not null default \'this\'\'ll work too\''], $getSql('MySql'));
     }
 
-    protected function getConnection(?string $grammar = null, string $prefix = '')
+    /**
+     * Get a connection mock.
+     */
+    protected function getConnection(?string $grammar = null, string $prefix = ''): Connection&MockInterface
     {
-        $connection = m::mock(Connection::class)
+        $grammar ??= 'MySql';
+        $connection = m::mock(match ($grammar) {
+            'MySql' => MySqlConnection::class,
+            'MariaDb' => MariaDbConnection::class,
+            default => Connection::class,
+        })
             ->shouldReceive('getTablePrefix')->andReturn($prefix)
             ->shouldReceive('getConfig')->with('prefix_indexes')->andReturn(true)
             ->getMock();
 
-        $grammar ??= 'MySql';
         $grammarClass = 'Hypervel\Database\Schema\Grammars\\' . $grammar . 'Grammar';
         $builderClass = 'Hypervel\Database\Schema\\' . $grammar . 'Builder';
 
@@ -995,9 +998,17 @@ class DatabaseSchemaBlueprintTest extends TestCase
             $connection->shouldReceive('isMaria')->andReturn(false);
         }
 
+        if ($connection instanceof MySqlConnection) {
+            $connection->shouldReceive('usesBackslashEscapes')->passthru();
+            $connection->shouldReceive('getConfig')->with('modes')->andReturn(null);
+        }
+
         return $connection;
     }
 
+    /**
+     * Get a blueprint for the schema grammar.
+     */
     protected function getBlueprint(
         ?string $grammar = null,
         string $table = '',

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\Postgres;
 
+use Hypervel\Database\Query\JoinClause;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
@@ -20,6 +21,7 @@ class DatabasePostgresConnectionTest extends PostgresTestCase
         if (! Schema::hasTable('json_table')) {
             Schema::create('json_table', function (Blueprint $table) {
                 $table->json('json_col')->nullable();
+                $table->string('label')->nullable();
             });
         }
     }
@@ -88,6 +90,77 @@ class DatabasePostgresConnectionTest extends PostgresTestCase
             'json_col->foo[0][0]' => 'updated',
         ]);
         $this->assertSame(1, $updatedCount);
+    }
+
+    public function testJsonPathEscaping(): void
+    {
+        foreach (['App\Models\User', 'a"b', "O'Brien\\\"x"] as $key) {
+            $path = 'json_col->' . $key . '[0]';
+            DB::table('json_table')->insert(['json_col' => json_encode([$key => ['before']], JSON_THROW_ON_ERROR)]);
+
+            $this->assertSame('before', DB::table('json_table')->where($path, 'before')->value($path));
+            $this->assertSame(1, DB::table('json_table')->where($path, 'before')->update([$path => 'after']));
+            $this->assertSame(
+                [$key => ['after']],
+                json_decode(DB::table('json_table')->where($path, 'after')->value('json_col'), true, flags: JSON_THROW_ON_ERROR),
+            );
+        }
+    }
+
+    #[DataProvider('jsonUpdateOperations')]
+    public function testJsonUpdatesKeepAllPathsAndBindings(string $method, bool $join, bool $limit): void
+    {
+        DB::table('json_table')->insert(['json_col' => '{"a.b":0,"object":{"old":1},"keep":2}', 'label' => 'before']);
+
+        $query = DB::table('json_table', 'target')->where('label', 'before');
+
+        if ($join) {
+            $query->joinSub(DB::query()->selectRaw('?::integer as marker, ?::jsonb as json_col', [7, '{"keep":99}']), 'source', function (JoinClause $join): void {
+                $join->where('source.marker', 7);
+            });
+        }
+
+        if ($limit) {
+            $query->limit(1);
+        }
+
+        $values = [
+            'target.json_col->a.b' => 3,
+            'label' => 'after',
+            'json_col->object' => ['new' => true],
+            'json_col->nullable' => null,
+            'target.json_col->raw' => DB::raw("'4'::jsonb"),
+        ];
+
+        if ($method === 'update') {
+            $values['target.json_col->subquery'] = DB::query()->selectRaw('?::jsonb', ['5']);
+        }
+
+        $this->assertSame(1, $query->{$method}($values));
+
+        $expected = ['a.b' => 3, 'object' => ['new' => true], 'keep' => 2, 'nullable' => null, 'raw' => 4];
+        if ($method === 'update') {
+            $expected['subquery'] = 5;
+        }
+
+        $actual = json_decode(DB::table('json_table')->where('label', 'after')->value('json_col'), true, flags: JSON_THROW_ON_ERROR);
+        ksort($expected);
+        ksort($actual);
+
+        $this->assertSame($expected, $actual);
+    }
+
+    /**
+     * Provide PostgreSQL update compilation paths.
+     */
+    public static function jsonUpdateOperations(): array
+    {
+        return [
+            'update' => ['update', false, false],
+            'joined update' => ['update', true, false],
+            'limited update' => ['update', false, true],
+            'update from' => ['updateFrom', true, false],
+        ];
     }
 
     #[DataProvider('jsonContainsKeyDataProvider')]

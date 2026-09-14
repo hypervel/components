@@ -602,7 +602,7 @@ class MySqlGrammar extends Grammar
         return sprintf(
             'alter table %s comment = %s',
             $this->wrapTable($blueprint),
-            "'" . str_replace("'", "''", $command->comment) . "'"
+            $this->quoteString($command->comment)
         );
     }
 
@@ -1128,10 +1128,26 @@ class MySqlGrammar extends Grammar
     protected function modifyComment(Blueprint $blueprint, Fluent $column): ?string
     {
         if (! is_null($column->comment)) {
-            return " comment '" . addslashes($column->comment) . "'";
+            return ' comment ' . $this->quoteString($column->comment);
         }
 
         return null;
+    }
+
+    /**
+     * Quote the given string literal.
+     *
+     * @param array<string>|string $value
+     */
+    #[Override]
+    public function quoteString(string|array $value): string
+    {
+        // The parent quotes array members through this method.
+        if (is_string($value) && $this->connection->usesBackslashEscapes()) {
+            $value = str_replace('\\', '\\\\', $value);
+        }
+
+        return parent::quoteString($value);
     }
 
     /**

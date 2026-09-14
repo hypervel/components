@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Connectors;
 
+use InvalidArgumentException;
 use PDO;
 
 class MariaDbConnector extends MySqlConnector
 {
     /**
      * Get the sql_mode value.
+     *
+     * @throws InvalidArgumentException
      */
     protected function getSqlMode(PDO $connection, array $config): ?string
     {
@@ -18,7 +21,7 @@ class MariaDbConnector extends MySqlConnector
         }
 
         if (! isset($config['strict'])) {
-            return null;
+            throw new InvalidArgumentException('MariaDB connections must configure [strict] or [modes] so SQL literals can be escaped correctly.');
         }
 
         if (! $config['strict']) {

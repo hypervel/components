@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\MariaDb;
 
+use Hypervel\Database\Query\JoinClause;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
@@ -130,6 +131,72 @@ class DatabaseMariaDbConnectionTest extends MariaDbTestCase
             self::JSON_COL . '->foo[0]' => 'updated',
         ]);
         $this->assertSame(1, $updatedCount);
+    }
+
+    public function testJsonUpdateReplacesObjectsAndArrays(): void
+    {
+        DB::table(self::TABLE)->insert([self::JSON_COL => '{"object":{"old":1},"tags":[1]}']);
+
+        DB::table(self::TABLE)->update([
+            'json_col->object' => ['new' => true],
+            'json_col->tags' => [2, 3],
+        ]);
+
+        $this->assertSame(
+            ['object' => ['new' => true], 'tags' => [2, 3]],
+            json_decode(DB::table(self::TABLE)->value(self::JSON_COL), true, flags: JSON_THROW_ON_ERROR),
+        );
+    }
+
+    #[DataProvider('jsonUpdateJoins')]
+    public function testJoinedJsonUpdatesKeepAllPathsAndBindings(bool $subquery): void
+    {
+        DB::table(self::TABLE)->insert([self::JSON_COL => '{}', self::FLOAT_COL => 7]);
+        $query = DB::table(self::TABLE);
+
+        if ($subquery) {
+            $query->joinSub(DB::query()->selectRaw('? as marker', [7]), 'source', function (JoinClause $join): void {
+                $join->where('source.marker', 7);
+            });
+        } else {
+            $query->join(self::TABLE . ' as other', 'player.float_col', '=', 'other.float_col');
+        }
+
+        $this->assertSame(1, $query->where('player.float_col', 7)->update([
+            'player.json_col->name' => 'John',
+            'player.float_col' => 8,
+            'player.json_col->tags' => [1, 2],
+            'player.json_col->active' => true,
+            'player.json_col->nullable' => null,
+            'player.json_col->raw' => DB::raw('9'),
+            'player.json_col->rating' => DB::query()->selectRaw('cast(? as signed)', [4]),
+        ]));
+
+        $actual = json_decode(DB::table(self::TABLE)->where(self::FLOAT_COL, 8)->value(self::JSON_COL), true, flags: JSON_THROW_ON_ERROR);
+        ksort($actual);
+        $this->assertSame(['active' => true, 'name' => 'John', 'nullable' => null, 'rating' => 4, 'raw' => 9, 'tags' => [1, 2]], $actual);
+    }
+
+    /**
+     * Provide joins with and without source and condition bindings.
+     */
+    public static function jsonUpdateJoins(): array
+    {
+        return ['column join' => [false], 'subquery join' => [true]];
+    }
+
+    public function testSingleTableJsonUpdatesPreserveAssignmentOrder(): void
+    {
+        DB::table(self::TABLE)->insert([self::JSON_COL => '{"a":0,"b":0}', self::FLOAT_COL => 7]);
+
+        DB::table(self::TABLE)->update([
+            'json_col->a' => 1,
+            'float_col' => DB::raw("json_extract(json_col, '$.a')"),
+            'json_col->b' => DB::raw('float_col + 1'),
+        ]);
+
+        $this->assertSame(1.0, DB::table(self::TABLE)->value(self::FLOAT_COL));
+        $this->assertEquals(['a' => 1, 'b' => 2], json_decode(DB::table(self::TABLE)->value(self::JSON_COL), true, flags: JSON_THROW_ON_ERROR));
     }
 
     #[DataProvider('jsonContainsKeyDataProvider')]

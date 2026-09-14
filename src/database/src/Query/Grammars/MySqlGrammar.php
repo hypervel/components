@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Query\Grammars;
 
+use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\IndexHint;
 use Hypervel\Database\Query\JoinLateralClause;
@@ -12,6 +13,9 @@ use Hypervel\Support\Str;
 use InvalidArgumentException;
 use Override;
 
+/**
+ * @property MySqlConnection $connection
+ */
 class MySqlGrammar extends Grammar
 {
     /**
@@ -328,13 +332,42 @@ class MySqlGrammar extends Grammar
      */
     protected function compileUpdateColumns(Builder $query, array $values): string
     {
+        if (isset($query->joins)) {
+            // Joined updates cannot rely on earlier assignments to the same column.
+            return (new Collection($this->groupJsonColumnsForUpdate($values)))
+                ->map(function (array $group, string $column): string {
+                    return $this->isJsonSelector(array_key_first($group))
+                        ? $this->compileJsonUpdateColumn($column, $group)
+                        : $this->wrap($column) . ' = ' . $this->parameter(reset($group));
+                })->implode(', ');
+        }
+
         return (new Collection($values))->map(function ($value, $key) {
             if ($this->isJsonSelector($key)) {
-                return $this->compileJsonUpdateColumn($key, $value);
+                return $this->compileJsonUpdateColumn(explode('->', $key, 2)[0], [$key => $value]);
             }
 
             return $this->wrap($key) . ' = ' . $this->parameter($value);
         })->implode(', ');
+    }
+
+    /**
+     * Group update values by column in order of first appearance.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    protected function groupJsonColumnsForUpdate(array $values): array
+    {
+        $groups = [];
+
+        foreach ($values as $key => $value) {
+            // Joined updates can assign columns belonging to different tables.
+            $column = explode('->', $key, 2)[0];
+
+            $groups[$column][$key] = $value;
+        }
+
+        return $groups;
     }
 
     /**
@@ -384,19 +417,25 @@ class MySqlGrammar extends Grammar
     /**
      * Prepare a JSON column being updated using the JSON_SET function.
      */
-    protected function compileJsonUpdateColumn(string $key, mixed $value): string
+    protected function compileJsonUpdateColumn(string $key, array $values): string
     {
-        if (is_bool($value)) {
-            $value = $value ? 'true' : 'false';
-        } elseif (is_array($value)) {
-            $value = 'cast(? as json)';
-        } else {
-            $value = $this->parameter($value);
+        $field = $this->wrap($key);
+        $paths = [];
+
+        foreach ($values as $path => $value) {
+            if (is_bool($value)) {
+                $value = $value ? 'true' : 'false';
+            } elseif (is_array($value)) {
+                $value = $this->compileJsonValueCast('?');
+            } else {
+                $value = $this->parameter($value);
+            }
+
+            $path = $this->wrapJsonPath(explode('->', $path, 2)[1]);
+            $paths[] = ', ' . $path . ', ' . $value;
         }
 
-        [$field, $path] = $this->wrapJsonFieldAndPath($key);
-
-        return "{$field} = json_set({$field}{$path}, {$value})";
+        return "{$field} = json_set({$field}" . implode('', $paths) . ')';
     }
 
     /**
@@ -431,6 +470,22 @@ class MySqlGrammar extends Grammar
             ->all();
 
         return parent::prepareBindingsForUpdate($bindings, $values);
+    }
+
+    /**
+     * Prepare the bindings for an update statement with joins.
+     */
+    public function prepareBindingsForUpdateWithJoins(array $bindings, array $values): array
+    {
+        $ordered = [];
+
+        foreach ($this->groupJsonColumnsForUpdate($values) as $group) {
+            foreach ($group as $key => $value) {
+                $ordered[$key] = $value;
+            }
+        }
+
+        return $this->prepareBindingsForUpdate($bindings, $ordered);
     }
 
     /**
@@ -481,6 +536,22 @@ class MySqlGrammar extends Grammar
     public function compileThreadCount(): string
     {
         return 'select variable_value as `Value` from performance_schema.session_status where variable_name = \'threads_connected\'';
+    }
+
+    /**
+     * Quote the given string literal.
+     *
+     * @param array<string>|string $value
+     */
+    #[Override]
+    public function quoteString(string|array $value): string
+    {
+        // The parent quotes array members through this method.
+        if (is_string($value) && $this->connection->usesBackslashEscapes()) {
+            $value = str_replace('\\', '\\\\', $value);
+        }
+
+        return parent::quoteString($value);
     }
 
     /**

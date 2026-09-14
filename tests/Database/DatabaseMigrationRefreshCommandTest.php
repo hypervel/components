@@ -14,6 +14,7 @@ use Hypervel\Database\Events\DatabaseRefreshed;
 use Hypervel\Foundation\Application;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Mockery\Matcher\MatcherInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Symfony\Component\Console\Application as ConsoleApplication;
@@ -24,9 +25,11 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
 {
     public function testRefreshCommandCallsCommandsWithProperArguments(): void
     {
-        $app = new ApplicationDatabaseRefreshStub(['path.database' => __DIR__]);
-        $dispatcher = $app->instance(Dispatcher::class, $events = m::mock(Dispatcher::class)->shouldIgnoreMissing());
         $command = new RefreshCommand;
+
+        $app = new ApplicationDatabaseRefreshStub(['path.database' => __DIR__]);
+        $events = m::mock(Dispatcher::class)->shouldIgnoreMissing();
+        $dispatcher = $app->instance(Dispatcher::class, $events);
         $console = m::mock(ConsoleApplication::class)->makePartial();
         $console->__construct();
         $command->setHypervel($app);
@@ -35,27 +38,29 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
         $resetCommand = m::mock(ResetCommand::class);
         $migrateCommand = m::mock(MigrateCommand::class);
 
-        $console->shouldReceive('find')->with('migrate:reset')->andReturn($resetCommand);
-        $console->shouldReceive('find')->with('migrate')->andReturn($migrateCommand);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(DatabaseRefreshed::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->once()->with(m::type(DatabaseRefreshed::class));
+        $console->expects('find')->with('migrate:reset')->andReturn($resetCommand);
+        $console->expects('find')->with('migrate')->andReturn($migrateCommand);
+        $dispatcher->expects('hasListeners')->with(DatabaseRefreshed::class)->andReturnTrue();
+        $dispatcher->expects('dispatch')->with(m::type(DatabaseRefreshed::class));
 
         $quote = DIRECTORY_SEPARATOR === '\\' ? '"' : "'";
-        $resetCommand->shouldReceive('setApplication')->once()->with($console);
-        $resetCommand->shouldReceive('setHypervel')->once()->with($app);
-        $resetCommand->shouldReceive('run')->with(new InputMatcher("--force=1 {$quote}migrate:reset{$quote}"), m::any());
-        $migrateCommand->shouldReceive('setApplication')->once()->with($console);
-        $migrateCommand->shouldReceive('setHypervel')->once()->with($app);
-        $migrateCommand->shouldReceive('run')->with(new InputMatcher('--force=1 migrate'), m::any());
+        $resetCommand->expects('setApplication')->with($console);
+        $resetCommand->expects('setHypervel')->with($app);
+        $resetCommand->expects('run')->with(new InputMatcher("--force=1 {$quote}migrate:reset{$quote}"), m::any());
+        $migrateCommand->expects('setApplication')->with($console);
+        $migrateCommand->expects('setHypervel')->with($app);
+        $migrateCommand->expects('run')->with(new InputMatcher('--force=1 migrate'), m::any());
 
         $this->runCommand($command);
     }
 
     public function testRefreshCommandCallsCommandsWithStep(): void
     {
-        $app = new ApplicationDatabaseRefreshStub(['path.database' => __DIR__]);
-        $dispatcher = $app->instance(Dispatcher::class, $events = m::mock(Dispatcher::class)->shouldIgnoreMissing());
         $command = new RefreshCommand;
+
+        $app = new ApplicationDatabaseRefreshStub(['path.database' => __DIR__]);
+        $events = m::mock(Dispatcher::class)->shouldIgnoreMissing();
+        $dispatcher = $app->instance(Dispatcher::class, $events);
         $console = m::mock(ConsoleApplication::class)->makePartial();
         $console->__construct();
         $command->setHypervel($app);
@@ -64,18 +69,18 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
         $rollbackCommand = m::mock(RollbackCommand::class);
         $migrateCommand = m::mock(MigrateCommand::class);
 
-        $console->shouldReceive('find')->with('migrate:rollback')->andReturn($rollbackCommand);
-        $console->shouldReceive('find')->with('migrate')->andReturn($migrateCommand);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(DatabaseRefreshed::class)->andReturnTrue();
-        $dispatcher->shouldReceive('dispatch')->once()->with(m::type(DatabaseRefreshed::class));
+        $console->expects('find')->with('migrate:rollback')->andReturn($rollbackCommand);
+        $console->expects('find')->with('migrate')->andReturn($migrateCommand);
+        $dispatcher->expects('hasListeners')->with(DatabaseRefreshed::class)->andReturnTrue();
+        $dispatcher->expects('dispatch')->with(m::type(DatabaseRefreshed::class));
 
         $quote = DIRECTORY_SEPARATOR === '\\' ? '"' : "'";
-        $rollbackCommand->shouldReceive('setApplication')->once()->with($console);
-        $rollbackCommand->shouldReceive('setHypervel')->once()->with($app);
-        $rollbackCommand->shouldReceive('run')->with(new InputMatcher("--step=2 --force=1 {$quote}migrate:rollback{$quote}"), m::any());
-        $migrateCommand->shouldReceive('setApplication')->once()->with($console);
-        $migrateCommand->shouldReceive('setHypervel')->once()->with($app);
-        $migrateCommand->shouldReceive('run')->with(new InputMatcher('--force=1 migrate'), m::any());
+        $rollbackCommand->expects('setApplication')->with($console);
+        $rollbackCommand->expects('setHypervel')->with($app);
+        $rollbackCommand->expects('run')->with(new InputMatcher("--step=2 --force=1 {$quote}migrate:rollback{$quote}"), m::any());
+        $migrateCommand->expects('setApplication')->with($console);
+        $migrateCommand->expects('setHypervel')->with($app);
+        $migrateCommand->expects('run')->with(new InputMatcher('--force=1 migrate'), m::any());
 
         $this->runCommand($command, ['--step' => '2']);
     }
@@ -137,9 +142,11 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
 
     public function testRefreshCommandExitsWhenProhibited(): void
     {
-        $app = new ApplicationDatabaseRefreshStub(['path.database' => __DIR__]);
-        $dispatcher = $app->instance(Dispatcher::class, $events = m::mock(Dispatcher::class)->shouldIgnoreMissing());
         $command = new RefreshCommand;
+
+        $app = new ApplicationDatabaseRefreshStub(['path.database' => __DIR__]);
+        $events = m::mock(Dispatcher::class)->shouldIgnoreMissing();
+        $dispatcher = $app->instance(Dispatcher::class, $events);
         $console = m::mock(ConsoleApplication::class)->makePartial();
         $console->__construct();
         $command->setHypervel($app);
@@ -151,8 +158,8 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
 
         $this->assertSame(1, $code);
 
-        $console->shouldNotHaveBeenCalled();
-        $dispatcher->shouldNotReceive('dispatch');
+        $console->shouldNotHaveReceived('find');
+        $dispatcher->shouldNotHaveReceived('dispatch');
     }
 
     /**
@@ -164,8 +171,15 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
     }
 }
 
-class InputMatcher extends m\Matcher\MatcherAbstract
+class InputMatcher implements MatcherInterface
 {
+    /**
+     * Create a new command input matcher.
+     */
+    public function __construct(protected string $expected)
+    {
+    }
+
     /**
      * Match the command input.
      *
@@ -173,7 +187,7 @@ class InputMatcher extends m\Matcher\MatcherAbstract
      */
     public function match(mixed &$actual): bool
     {
-        return (string) $actual === $this->_expected;
+        return (string) $actual === $this->expected;
     }
 
     /**

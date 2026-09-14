@@ -22,6 +22,33 @@ use UnexpectedValueException;
 
 class DatabaseDbCommandTest extends TestCase
 {
+    // REMOVED: Laravel's ::direct and --pooled command routing. Select the configured endpoint by name.
+
+    public function testDbCommandReadAndWriteOptionsUsePooledConnectionBranches(): void
+    {
+        $connections = [
+            'pgsql' => [
+                'driver' => 'pgsql',
+                'host' => 'pooler-host',
+                'port' => 6432,
+                'migrations_connection' => 'pgsql-direct',
+                'read' => [
+                    'host' => ['read-pooler-host', 'read-pooler-host-2'],
+                    'port' => 6433,
+                ],
+                'write' => ['host' => 'write-pooler-host', 'port' => 6434],
+            ],
+        ];
+
+        $readConnection = $this->getConnection($connections, ['connection' => 'pgsql', '--read' => true]);
+        $writeConnection = $this->getConnection($connections, ['connection' => 'pgsql', '--write' => true]);
+
+        $this->assertSame('read-pooler-host', $readConnection['host']);
+        $this->assertSame(6433, $readConnection['port']);
+        $this->assertSame('write-pooler-host', $writeConnection['host']);
+        $this->assertSame(6434, $writeConnection['port']);
+    }
+
     public function testReadOptionMergesFirstListConfigAndStripsReadWriteConfig(): void
     {
         $connection = $this->getConnection([
@@ -64,24 +91,6 @@ class DatabaseDbCommandTest extends TestCase
 
         $this->assertSame('write-one', $connection['host']);
         $this->assertSame('writer-one', $connection['username']);
-        $this->assertArrayNotHasKey('read', $connection);
-        $this->assertArrayNotHasKey('write', $connection);
-    }
-
-    public function testReadOptionUsesFirstHostFromHostArray(): void
-    {
-        $connection = $this->getConnection([
-            'mysql' => $this->mysqlConfig([
-                'read' => [
-                    'host' => ['read-one', 'read-two'],
-                ],
-            ]),
-        ], [
-            'connection' => 'mysql',
-            '--read' => true,
-        ]);
-
-        $this->assertSame('read-one', $connection['host']);
         $this->assertArrayNotHasKey('read', $connection);
         $this->assertArrayNotHasKey('write', $connection);
     }

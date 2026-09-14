@@ -17,7 +17,7 @@ class DatabaseEloquentCollectionQueueableTest extends TestCase
     public function testSerializesPivotsEntitiesId(): void
     {
         $spy = m::spy(Pivot::class);
-        $spy->shouldReceive('getQueueableId')->once()->andReturn('project_id:1:user_id:2');
+        $spy->expects('getQueueableId')->andReturn('project_id:1:user_id:2');
 
         $c = new Collection([$spy]);
 
@@ -27,7 +27,7 @@ class DatabaseEloquentCollectionQueueableTest extends TestCase
     public function testSerializesModelEntitiesById(): void
     {
         $spy = m::spy(Model::class);
-        $spy->shouldReceive('getQueueableId')->once()->andReturn(1);
+        $spy->expects('getQueueableId')->andReturn(1);
 
         $c = new Collection([$spy]);
 

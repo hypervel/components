@@ -723,7 +723,6 @@ class PdoConnection extends Connection
         $configuredTablePrefix = $fresh->configuredTablePrefix;
         $config = $fresh->config;
         $readConnectionConfig = $fresh->readConnectionConfig;
-        $readWriteType = $fresh->readWriteType;
 
         // Keep the current generation intact until both replacement handles
         // are ready so a failed refresh cannot leave a partial connection.
@@ -738,7 +737,6 @@ class PdoConnection extends Connection
             $this->configuredTablePrefix = $configuredTablePrefix;
             $this->config = $config;
             $this->readConnectionConfig = $readConnectionConfig;
-            $this->readWriteType = $readWriteType;
             $this->latestReadWriteTypeRetrieved = null;
         }
     }
