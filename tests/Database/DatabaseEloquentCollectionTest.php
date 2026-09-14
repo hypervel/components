@@ -228,10 +228,10 @@ class DatabaseEloquentCollectionTest extends TestCase
         }));
     }
 
-    public function testFindMethodFindsModelById()
+    public function testFindMethodFindsModelById(): void
     {
         $mockModel = m::mock(Model::class);
-        $mockModel->shouldReceive('getKey')->andReturn(1);
+        $mockModel->expects('getKey')->times(2)->andReturn(1);
         $c = new Collection([$mockModel]);
 
         $this->assertSame($mockModel, $c->find(1));
@@ -281,10 +281,10 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertSame([], (new Collection([$keyless]))->find([''])->all());
     }
 
-    public function testFindOrFailFindsModelById()
+    public function testFindOrFailFindsModelById(): void
     {
         $mockModel = m::mock(Model::class);
-        $mockModel->shouldReceive('getKey')->andReturn(1);
+        $mockModel->expects('getKey')->andReturn(1);
         $c = new Collection([$mockModel]);
 
         $this->assertSame($mockModel, $c->findOrFail(1));
@@ -331,13 +331,13 @@ class DatabaseEloquentCollectionTest extends TestCase
         $c->findOrFail(1);
     }
 
-    public function testLoadMethodEagerLoadsGivenRelationships()
+    public function testLoadMethodEagerLoadsGivenRelationships(): void
     {
         $c = $this->getMockBuilder(Collection::class)->onlyMethods(['first'])->setConstructorArgs([['foo']])->getMock();
         $mockItem = m::mock(stdClass::class);
         $c->expects($this->once())->method('first')->willReturn($mockItem);
         $mockItem->shouldReceive('newQueryWithoutRelationships')->once()->andReturn($mockItem);
-        $mockItem->shouldReceive('with')->with(['bar', 'baz'])->andReturn($mockItem);
+        $mockItem->expects('with')->with(['bar', 'baz'])->andReturn($mockItem);
         $mockItem->shouldReceive('eagerLoadRelations')->once()->with(['foo'])->andReturn(['results']);
         $c->load('bar', 'baz');
 
@@ -515,7 +515,7 @@ class DatabaseEloquentCollectionTest extends TestCase
         );
     }
 
-    public function testCollectionIntersectWithNull()
+    public function testCollectionIntersectWithNull(): void
     {
         $one = m::mock(Model::class);
         $one->shouldReceive('getKey')->andReturn(1);
@@ -528,7 +528,7 @@ class DatabaseEloquentCollectionTest extends TestCase
 
         $c1 = new Collection([$one, $two, $three]);
 
-        $this->assertEquals([], $c1->intersect(null)->all());
+        $this->assertSame([], $c1->intersect(null)->all());
     }
 
     public function testCollectionIntersectsWithGivenCollection()
@@ -723,12 +723,12 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertEquals(['hidden', 'visible'], $c[0]->getHidden());
     }
 
-    public function testMakeVisibleRemovesHiddenFromEntireCollection()
+    public function testMakeVisibleRemovesHiddenFromEntireCollection(): void
     {
         $c = new Collection([new CollectionModel]);
         $c = $c->makeVisible(['hidden']);
 
-        $this->assertEquals([], $c[0]->getHidden());
+        $this->assertSame([], $c[0]->getHidden());
     }
 
     #[DataProvider('mergeAttributesProvider')]
@@ -796,11 +796,11 @@ class DatabaseEloquentCollectionTest extends TestCase
         );
     }
 
-    public function testWithoutAppendsRemovesAppendsOnEntireCollection()
+    public function testWithoutAppendsRemovesAppendsOnEntireCollection(): void
     {
         $this->seedData();
         $c = AppendingUser::query()->get();
-        $this->assertEquals('hello', $c->toArray()[0]['appended_field']);
+        $this->assertSame('hello', $c->toArray()[0]['appended_field']);
 
         $c = $c->withoutAppends();
         $this->assertArrayNotHasKey('appended_field', $c->toArray()[0]);
@@ -844,24 +844,24 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertSame(['bar'], $groups->get('a')->get('bar')->pluck('name')->all());
     }
 
-    public function testMakeVisibleRemovesHiddenAndIncludesVisible()
+    public function testMakeVisibleRemovesHiddenAndIncludesVisible(): void
     {
         $c = new Collection([new CollectionModel]);
         $c = $c->makeVisible('hidden');
 
-        $this->assertEquals([], $c[0]->getHidden());
+        $this->assertSame([], $c[0]->getHidden());
         $this->assertEquals(['visible', 'hidden'], $c[0]->getVisible());
     }
 
-    public function testMultiply()
+    public function testMultiply(): void
     {
         $a = new CollectionModel;
         $b = new CollectionModel;
 
         $c = new Collection([$a, $b]);
 
-        $this->assertEquals([], $c->multiply(-1)->all());
-        $this->assertEquals([], $c->multiply(0)->all());
+        $this->assertSame([], $c->multiply(-1)->all());
+        $this->assertSame([], $c->multiply(0)->all());
 
         $this->assertEquals([$a, $b], $c->multiply(1)->all());
 
@@ -903,24 +903,30 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertEquals(['user'], $c->getQueueableRelations());
     }
 
-    public function testQueueableRelationshipsIgnoreCollectionKeys()
+    public function testQueueableRelationshipsIgnoreCollectionKeys(): void
     {
         $c = new Collection([
             'foo' => new class {
-                public function getQueueableRelations()
+                /**
+                 * Get the relationships for the queueable entity.
+                 */
+                public function getQueueableRelations(): array
                 {
                     return [];
                 }
             },
             'bar' => new class {
-                public function getQueueableRelations()
+                /**
+                 * Get the relationships for the queueable entity.
+                 */
+                public function getQueueableRelations(): array
                 {
                     return [];
                 }
             },
         ]);
 
-        $this->assertEquals([], $c->getQueueableRelations());
+        $this->assertSame([], $c->getQueueableRelations());
     }
 
     public function testEmptyCollectionStayEmptyOnFresh()

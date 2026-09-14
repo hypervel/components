@@ -34,16 +34,20 @@ use ReflectionClass;
 
 class DatabaseEloquentFactoryTest extends TestCase
 {
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
 
         $container = Container::getInstance();
-        $container->singleton(Generator::class, function ($app, $parameters) {
+        $container->singleton(Generator::class, function (Container $app, array $parameters): Generator {
             return FakerFactory::create('en_US');
         });
-        $container->instance(Application::class, $app = m::mock(Application::class));
+        $app = m::mock(Application::class);
         $app->shouldReceive('getNamespace')->andReturn('App\\');
+        $container->instance(Application::class, $app);
 
         $db = new DB;
 
@@ -191,16 +195,16 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertSame('taylor-options', $user->options);
     }
 
-    public function testExpandedClosureAttributeReturningAFactoryIsResolved()
+    public function testExpandedClosureAttributeReturningAFactoryIsResolved(): void
     {
         $post = PostFactory::new()->create([
             'title' => 'post',
-            'user_id' => fn ($attributes) => UserFactory::new([
+            'user_id' => fn (array $attributes): UserFactory => UserFactory::new([
                 'options' => $attributes['title'] . '-options',
             ]),
         ]);
 
-        $this->assertEquals('post-options', $post->user->options);
+        $this->assertSame('post-options', $post->user->options);
     }
 
     public function testMakeCreatesUnpersistedModelInstance()
@@ -755,10 +759,11 @@ class DatabaseEloquentFactoryTest extends TestCase
         }
     }
 
-    public function testResolveNestedModelNameFromFactory()
+    public function testResolveNestedModelNameFromFactory(): void
     {
-        Container::getInstance()->instance(Application::class, $app = m::mock(Application::class));
+        $app = m::mock(Application::class);
         $app->shouldReceive('getNamespace')->andReturn('Hypervel\Tests\Database\Fixtures\\');
+        Container::getInstance()->instance(Application::class, $app);
 
         Factory::useNamespace('Hypervel\Tests\Database\Fixtures\Factories\\');
 
@@ -767,10 +772,11 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertSame(Price::class, $factory->modelName());
     }
 
-    public function testResolveNonAppNestedModelFactories()
+    public function testResolveNonAppNestedModelFactories(): void
     {
-        Container::getInstance()->instance(Application::class, $app = m::mock(Application::class));
+        $app = m::mock(Application::class);
         $app->shouldReceive('getNamespace')->andReturn('Foo\\');
+        Container::getInstance()->instance(Application::class, $app);
 
         Factory::useNamespace('Factories\\');
 
@@ -1175,72 +1181,72 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertSame('Database\Factories\\', Factory::$namespace);
     }
 
-    public function testFactoryModelHasManyRelationshipHasPendingAttributes()
+    public function testFactoryModelHasManyRelationshipHasPendingAttributes(): void
     {
-        Factory::guessFactoryNamesUsing(fn (string $model) => $model . 'Factory');
+        Factory::guessFactoryNamesUsing(fn (string $model): string => $model . 'Factory');
 
         User::factory()->has(new PostFactory, 'postsWithFooBarBazAsTitle')->create();
 
-        $this->assertEquals('foo bar baz', Post::first()->title);
+        $this->assertSame('foo bar baz', Post::first()->title);
     }
 
-    public function testFactoryModelHasManyRelationshipHasPendingAttributesOverride()
+    public function testFactoryModelHasManyRelationshipHasPendingAttributesOverride(): void
     {
-        Factory::guessFactoryNamesUsing(fn (string $model) => $model . 'Factory');
+        Factory::guessFactoryNamesUsing(fn (string $model): string => $model . 'Factory');
 
         User::factory()->has((new PostFactory)->state(['title' => 'other title']), 'postsWithFooBarBazAsTitle')->create();
 
-        $this->assertEquals('other title', Post::first()->title);
+        $this->assertSame('other title', Post::first()->title);
     }
 
-    public function testFactoryModelHasOneRelationshipHasPendingAttributes()
+    public function testFactoryModelHasOneRelationshipHasPendingAttributes(): void
     {
-        Factory::guessFactoryNamesUsing(fn (string $model) => $model . 'Factory');
+        Factory::guessFactoryNamesUsing(fn (string $model): string => $model . 'Factory');
 
         User::factory()->has(new PostFactory, 'postWithFooBarBazAsTitle')->create();
 
-        $this->assertEquals('foo bar baz', Post::first()->title);
+        $this->assertSame('foo bar baz', Post::first()->title);
     }
 
-    public function testFactoryModelHasOneRelationshipHasPendingAttributesOverride()
+    public function testFactoryModelHasOneRelationshipHasPendingAttributesOverride(): void
     {
-        Factory::guessFactoryNamesUsing(fn (string $model) => $model . 'Factory');
+        Factory::guessFactoryNamesUsing(fn (string $model): string => $model . 'Factory');
 
         User::factory()->has((new PostFactory)->state(['title' => 'other title']), 'postWithFooBarBazAsTitle')->create();
 
-        $this->assertEquals('other title', Post::first()->title);
+        $this->assertSame('other title', Post::first()->title);
     }
 
-    public function testFactoryModelBelongsToManyRelationshipHasPendingAttributes()
+    public function testFactoryModelBelongsToManyRelationshipHasPendingAttributes(): void
     {
-        Factory::guessFactoryNamesUsing(fn (string $model) => $model . 'Factory');
+        Factory::guessFactoryNamesUsing(fn (string $model): string => $model . 'Factory');
 
         User::factory()->has(new RoleFactory, 'rolesWithFooBarBazAsName')->create();
 
-        $this->assertEquals('foo bar baz', Role::first()->name);
+        $this->assertSame('foo bar baz', Role::first()->name);
     }
 
-    public function testFactoryModelBelongsToManyRelationshipHasPendingAttributesOverride()
+    public function testFactoryModelBelongsToManyRelationshipHasPendingAttributesOverride(): void
     {
-        Factory::guessFactoryNamesUsing(fn (string $model) => $model . 'Factory');
+        Factory::guessFactoryNamesUsing(fn (string $model): string => $model . 'Factory');
 
         User::factory()->has((new RoleFactory)->state(['name' => 'other name']), 'rolesWithFooBarBazAsName')->create();
 
-        $this->assertEquals('other name', Role::first()->name);
+        $this->assertSame('other name', Role::first()->name);
     }
 
-    public function testFactoryModelMorphManyRelationshipHasPendingAttributes()
+    public function testFactoryModelMorphManyRelationshipHasPendingAttributes(): void
     {
         (new PostFactory)->has(new CommentFactory, 'commentsWithFooBarBazAsBody')->create();
 
-        $this->assertEquals('foo bar baz', Comment::first()->body);
+        $this->assertSame('foo bar baz', Comment::first()->body);
     }
 
-    public function testFactoryModelMorphManyRelationshipHasPendingAttributesOverride()
+    public function testFactoryModelMorphManyRelationshipHasPendingAttributesOverride(): void
     {
         (new PostFactory)->has((new CommentFactory)->state(['body' => 'other body']), 'commentsWithFooBarBazAsBody')->create();
 
-        $this->assertEquals('other body', Comment::first()->body);
+        $this->assertSame('other body', Comment::first()->body);
     }
 
     public function testFactoryCanInsert(): void
