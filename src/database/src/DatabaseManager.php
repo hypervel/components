@@ -29,6 +29,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
+ * @mixin \Hypervel\Database\Connection
  * @mixin \Hypervel\Database\PdoConnection
  */
 class DatabaseManager implements ConnectionResolverInterface

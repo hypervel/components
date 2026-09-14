@@ -21,17 +21,11 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use LogicException;
 use Mockery as m;
+use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseSchemaBlueprintTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Builder::$defaultMorphKeyType = 'int';
-
-        parent::tearDown();
-    }
-
     public function testBuildDelegatesToTheConnectionOwnedBuilder(): void
     {
         $connection = m::mock(Connection::class);
@@ -975,7 +969,10 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table `posts` add `note` tinytext not null default \'this\'\'ll work too\''], $getSql('MySql'));
     }
 
-    protected function getConnection(?string $grammar = null, string $prefix = '')
+    /**
+     * Get a connection mock.
+     */
+    protected function getConnection(?string $grammar = null, string $prefix = ''): Connection&MockInterface
     {
         $grammar ??= 'MySql';
         $connection = m::mock(match ($grammar) {
@@ -1009,6 +1006,9 @@ class DatabaseSchemaBlueprintTest extends TestCase
         return $connection;
     }
 
+    /**
+     * Get a blueprint for the schema grammar.
+     */
     protected function getBlueprint(
         ?string $grammar = null,
         string $table = '',
