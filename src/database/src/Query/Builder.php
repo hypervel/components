@@ -2632,7 +2632,9 @@ class Builder implements BuilderContract
     }
 
     /**
-     * Add an order clause for a given sequence of values.
+     * Add an "order by" clause to order results by a given sequence of values.
+     *
+     * @param array<bool|float|int|string|UnitEnum>|Arrayable $values
      */
     public function inOrderOf(ExpressionContract|string $column, Arrayable|array $values): static
     {

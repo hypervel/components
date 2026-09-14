@@ -40,6 +40,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Tests\Database\Fixtures\Enums\Bar;
 use Hypervel\Tests\Database\Fixtures\Enums\IntegerStatus;
 use Hypervel\Tests\Database\Fixtures\Enums\NonBackedStatus;
+use Hypervel\Tests\Database\Fixtures\Enums\StringStatus;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -835,6 +836,151 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame('select * from "posts" where "id" = ? or "published_at" > ? or "held_at" > ?', $builder->toSql());
         $this->assertEquals([0 => 1, 1 => $testDate, 2 => $testDate], $builder->getBindings());
     }
+
+    public function testWhereNowOrPast(): void
+    {
+        CarbonImmutable::setTestNow('2022-04-20 23:45:06.123456');
+
+        $testDate = CarbonImmutable::create('2022-04-20 23:45:06.123456');
+
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('posts')->whereNowOrPast('published_at');
+        $this->assertSame('select * from "posts" where "published_at" <= ?', $builder->toSql());
+        $this->assertEquals([0 => $testDate], $builder->getBindings());
+
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('posts')->where('id', '=', 1)->orWhereNowOrPast('published_at');
+        $this->assertSame('select * from "posts" where "id" = ? or "published_at" <= ?', $builder->toSql());
+        $this->assertEquals([0 => 1, 1 => $testDate], $builder->getBindings());
+    }
+
+    public function testWhereNowOrPastUsesArray(): void
+    {
+        CarbonImmutable::setTestNow('2022-04-20 12:34:56.123456');
+
+        $testDate = CarbonImmutable::create('2022-04-20 12:34:56.123456');
+
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('posts')->whereNowOrPast(['published_at', 'held_at']);
+        $this->assertSame('select * from "posts" where "published_at" <= ? and "held_at" <= ?', $builder->toSql());
+        $this->assertEquals([0 => $testDate, 1 => $testDate], $builder->getBindings());
+
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('posts')->where('id', '=', 1)->orWhereNowOrPast(['published_at', 'held_at']);
+        $this->assertSame('select * from "posts" where "id" = ? or "published_at" <= ? or "held_at" <= ?', $builder->toSql());
+        $this->assertEquals([0 => 1, 1 => $testDate, 2 => $testDate], $builder->getBindings());
+    }
+
+    public function testWhereNowOrFuture(): void
+    {
+        CarbonImmutable::setTestNow('2022-04-22 21:01:23.123456');
+
+        $testDate = CarbonImmutable::create('2022-04-22 21:01:23.123456');
+
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('posts')->whereNowOrFuture('published_at');
+        $this->assertSame('select * from "posts" where "published_at" >= ?', $builder->toSql());
+        $this->assertEquals([0 => $testDate], $builder->getBindings());
+
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('posts')->where('id', '=', 1)->orWhereNowOrFuture('published_at');
+        $this->assertSame('select * from "posts" where "id" = ? or "published_at" >= ?', $builder->toSql());
+        $this->assertEquals([0 => 1, 1 => $testDate], $builder->getBindings());
+    }
+
+    public function testWhereNowOrFutureUsesArray(): void
+    {
+        CarbonImmutable::setTestNow('2022-04-22 01:23:45.123456');
+
+        $testDate = CarbonImmutable::create('2022-04-22 01:23:45.123456');
+
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('posts')->whereNowOrFuture(['published_at', 'held_at']);
+        $this->assertSame('select * from "posts" where "published_at" >= ? and "held_at" >= ?', $builder->toSql());
+        $this->assertEquals([0 => $testDate, 1 => $testDate], $builder->getBindings());
+
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('posts')->where('id', '=', 1)->orWhereNowOrFuture(['published_at', 'held_at']);
+        $this->assertSame('select * from "posts" where "id" = ? or "published_at" >= ? or "held_at" >= ?', $builder->toSql());
+        $this->assertEquals([0 => 1, 1 => $testDate, 2 => $testDate], $builder->getBindings());
+    }
+
+    public function testWhereBeforeTodayMySQL(): void
+    {
+        CarbonImmutable::setTestNow('2022-04-20 12:34:56.123456');
+
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('posts')->whereBeforeToday('published_at');
+        $this->assertSame('select * from `posts` where date(`published_at`) < ?', $builder->toSql());
+        $this->assertEquals([0 => '2022-04-20'], $builder->getBindings());
+
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('posts')->where('id', '=', 1)->orWhereBeforeToday('published_at');
+        $this->assertSame('select * from `posts` where `id` = ? or date(`published_at`) < ?', $builder->toSql());
+        $this->assertEquals([0 => 1, 1 => '2022-04-20'], $builder->getBindings());
+    }
+
+    public function testWhereTodayOrBeforeMySQL(): void
+    {
+        CarbonImmutable::setTestNow('2022-04-20 12:34:56.123456');
+
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('posts')->whereTodayOrBefore('published_at');
+        $this->assertSame('select * from `posts` where date(`published_at`) <= ?', $builder->toSql());
+        $this->assertEquals([0 => '2022-04-20'], $builder->getBindings());
+
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('posts')->where('id', '=', 1)->orWhereTodayOrBefore('published_at');
+        $this->assertSame('select * from `posts` where `id` = ? or date(`published_at`) <= ?', $builder->toSql());
+        $this->assertEquals([0 => 1, 1 => '2022-04-20'], $builder->getBindings());
+    }
+
+    public function testWhereAfterTodayMySQL(): void
+    {
+        CarbonImmutable::setTestNow('2022-04-20 12:34:56.123456');
+
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('posts')->whereAfterToday('published_at');
+        $this->assertSame('select * from `posts` where date(`published_at`) > ?', $builder->toSql());
+        $this->assertEquals([0 => '2022-04-20'], $builder->getBindings());
+
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('posts')->where('id', '=', 1)->orWhereAfterToday('published_at');
+        $this->assertSame('select * from `posts` where `id` = ? or date(`published_at`) > ?', $builder->toSql());
+        $this->assertEquals([0 => 1, 1 => '2022-04-20'], $builder->getBindings());
+    }
+
+    public function testWhereTodayOrAfterMySQL(): void
+    {
+        CarbonImmutable::setTestNow('2022-04-20 12:34:56.123456');
+
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('posts')->whereTodayOrAfter('published_at');
+        $this->assertSame('select * from `posts` where date(`published_at`) >= ?', $builder->toSql());
+        $this->assertEquals([0 => '2022-04-20'], $builder->getBindings());
+
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('posts')->where('id', '=', 1)->orWhereTodayOrAfter('published_at');
+        $this->assertSame('select * from `posts` where `id` = ? or date(`published_at`) >= ?', $builder->toSql());
+        $this->assertEquals([0 => 1, 1 => '2022-04-20'], $builder->getBindings());
+    }
+
+    public function testPassingArrayToTodayRelativeWhereMySQL(): void
+    {
+        CarbonImmutable::setTestNow('2022-04-20 12:34:56.123456');
+
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('posts')->whereBeforeToday(['published_at', 'held_at']);
+        $this->assertSame('select * from `posts` where date(`published_at`) < ? and date(`held_at`) < ?', $builder->toSql());
+        $this->assertEquals([0 => '2022-04-20', 1 => '2022-04-20'], $builder->getBindings());
+
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('posts')->whereTodayOrAfter(['published_at', 'held_at']);
+        $this->assertSame('select * from `posts` where date(`published_at`) >= ? and date(`held_at`) >= ?', $builder->toSql());
+        $this->assertEquals([0 => '2022-04-20', 1 => '2022-04-20'], $builder->getBindings());
+    }
+
+    // REMOVED: Relative-date SQL Server tests; this driver is not supported.
 
     public function testWhereBinaryClauseMariaDb(): void
     {
@@ -2371,6 +2517,20 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame('select * from "users" order by RANDOM()', $builder->toSql());
     }
 
+    public function testInRandomOrderMySqlGrammarWithoutSeed(): void
+    {
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('users')->inRandomOrder();
+        $this->assertSame('select * from `users` order by RAND()', $builder->toSql());
+    }
+
+    public function testInRandomOrderMySqlGrammarWithSeed(): void
+    {
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('users')->inRandomOrder(123);
+        $this->assertSame('select * from `users` order by RAND(123)', $builder->toSql());
+    }
+
     public function testInRandomOrderPostgres()
     {
         $builder = $this->getPostgresBuilder();
@@ -2387,6 +2547,81 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame(['active', 'pending', 'inactive'], $builder->getBindings());
     }
 
+    public function testInOrderOfWithExistingOrders(): void
+    {
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->inOrderOf('status', ['active', 'pending'])->orderBy('name');
+        $this->assertSame('select * from "users" order by case when "status" = ? then 0 when "status" = ? then 1 else 2 end, "name" asc', $builder->toSql());
+        $this->assertEquals(['active', 'pending'], $builder->getBindings());
+    }
+
+    public function testInOrderOfWithEmptyValues(): void
+    {
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->inOrderOf('status', []);
+
+        $this->assertSame('select * from "users"', $builder->toSql());
+        $this->assertSame([], $builder->getBindings());
+    }
+
+    public function testInOrderOfWithSingleValue(): void
+    {
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->inOrderOf('status', ['active']);
+        $this->assertSame('select * from "users" order by case when "status" = ? then 0 else 1 end', $builder->toSql());
+        $this->assertEquals(['active'], $builder->getBindings());
+    }
+
+    public function testInOrderOfMySql(): void
+    {
+        $builder = $this->getMySqlBuilder();
+        $builder->select('*')->from('users')->inOrderOf('status', ['active', 'pending']);
+        $this->assertSame('select * from `users` order by case when `status` = ? then 0 when `status` = ? then 1 else 2 end', $builder->toSql());
+        $this->assertEquals(['active', 'pending'], $builder->getBindings());
+    }
+
+    public function testInOrderOfPostgres(): void
+    {
+        $builder = $this->getPostgresBuilder();
+        $builder->select('*')->from('users')->inOrderOf('status', ['active', 'pending']);
+        $this->assertSame('select * from "users" order by case when "status" = ? then 0 when "status" = ? then 1 else 2 end', $builder->toSql());
+        $this->assertEquals(['active', 'pending'], $builder->getBindings());
+    }
+
+    // REMOVED: inOrderOf SQL Server test; this driver is not supported.
+
+    public function testInOrderOfWithIntegerValues(): void
+    {
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->inOrderOf('id', [5, 2, 8]);
+        $this->assertSame('select * from "users" order by case when "id" = ? then 0 when "id" = ? then 1 when "id" = ? then 2 else 3 end', $builder->toSql());
+        $this->assertEquals([5, 2, 8], $builder->getBindings());
+    }
+
+    public function testInOrderOfWithWhereClause(): void
+    {
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->where('active', true)->inOrderOf('status', ['pending', 'approved']);
+        $this->assertSame('select * from "users" where "active" = ? order by case when "status" = ? then 0 when "status" = ? then 1 else 2 end', $builder->toSql());
+        $this->assertEquals([true, 'pending', 'approved'], $builder->getBindings());
+    }
+
+    public function testInOrderOfWithBackedEnumValues(): void
+    {
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->inOrderOf('status', [StringStatus::Pending, StringStatus::Done, StringStatus::Draft]);
+        $this->assertSame('select * from "users" order by case when "status" = ? then 0 when "status" = ? then 1 when "status" = ? then 2 else 3 end', $builder->toSql());
+        $this->assertEquals(['pending', 'done', 'draft'], $builder->getBindings());
+    }
+
+    public function testInOrderOfWithIntegerBackedEnumValues(): void
+    {
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->inOrderOf('status', [IntegerStatus::Done, IntegerStatus::Pending]);
+        $this->assertSame('select * from "users" order by case when "status" = ? then 0 when "status" = ? then 1 else 2 end', $builder->toSql());
+        $this->assertEquals([2, 1], $builder->getBindings());
+    }
+
     public function testInOrderOfAcceptsArrayableValuesAndPreservesDuplicates(): void
     {
         $builder = $this->getBuilder();
@@ -2394,15 +2629,6 @@ class DatabaseQueryBuilderTest extends TestCase
 
         $this->assertSame('select * from "users" order by case when "status" = ? then 0 when "status" = ? then 1 when "status" = ? then 2 else 3 end', $builder->toSql());
         $this->assertSame(['active', 'active', 'pending'], $builder->getBindings());
-    }
-
-    public function testInOrderOfIsANoOpForEmptyValues(): void
-    {
-        $builder = $this->getBuilder();
-        $builder->select('*')->from('users')->inOrderOf('status', []);
-
-        $this->assertSame('select * from "users"', $builder->toSql());
-        $this->assertSame([], $builder->getBindings());
     }
 
     public function testInOrderOfAppliesToUnionOrders(): void
@@ -8016,6 +8242,13 @@ SQL, ['"John"'])->andReturn(1);
         $builder = $this->getPostgresBuilder();
         $builder->select('*')->from('users')->whereColumn('foo', '?&', '_foo');
         $this->assertSame('select * from "users" where "foo" ??& "_foo"', $builder->toSql());
+    }
+
+    public function testJoinQuestionMarkOperatorOnPostgres(): void
+    {
+        $builder = $this->getPostgresBuilder();
+        $builder->select(['countries.*', new Raw('count(users.*) as "users"')])->from('countries')->join('users', 'users.country_codes', '?', 'countries.code');
+        $this->assertSame('select "countries".*, count(users.*) as "users" from "countries" inner join "users" on "users"."country_codes" ?? "countries"."code"', $builder->toSql());
     }
 
     public function testUseIndexMySql(): void
