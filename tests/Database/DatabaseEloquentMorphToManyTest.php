@@ -22,9 +22,9 @@ class DatabaseEloquentMorphToManyTest extends TestCase
     {
         $relation = $this->getRelation();
         $relation->getParent()->shouldReceive('getKeyName')->andReturn('id');
-        $relation->getParent()->shouldReceive('getKeyType')->once()->andReturn('int');
-        $relation->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('taggables.taggable_id', [1, 2]);
-        $relation->getQuery()->shouldReceive('where')->once()->with('taggables.taggable_type', get_class($relation->getParent()));
+        $relation->getParent()->expects('getKeyType')->andReturn('int');
+        $relation->getQuery()->expects('whereIntegerInRaw')->with('taggables.taggable_id', [1, 2]);
+        $relation->getQuery()->expects('where')->with('taggables.taggable_type', get_class($relation->getParent()));
         $model1 = new ModelStub;
         $model1->id = 1;
         $model2 = new ModelStub;
@@ -36,9 +36,9 @@ class DatabaseEloquentMorphToManyTest extends TestCase
     {
         $relation = $this->getMockBuilder(MorphToMany::class)->onlyMethods(['touchIfTouching'])->setConstructorArgs($this->getRelationArguments())->getMock();
         $query = m::mock(QueryBuilder::class);
-        $query->shouldReceive('from')->once()->with('taggables')->andReturn($query);
-        $query->shouldReceive('insert')->once()->with([['taggable_id' => 1, 'taggable_type' => get_class($relation->getParent()), 'tag_id' => 2, 'foo' => 'bar']])->andReturn(true);
-        $relation->getQuery()->getQuery()->shouldReceive('newQuery')->once()->andReturn($query);
+        $query->expects('from')->with('taggables')->andReturn($query);
+        $query->expects('insert')->with([['taggable_id' => 1, 'taggable_type' => get_class($relation->getParent()), 'tag_id' => 2, 'foo' => 'bar']])->andReturn(true);
+        $relation->getQuery()->getQuery()->expects('newQuery')->andReturn($query);
         $relation->expects($this->once())->method('touchIfTouching');
 
         $relation->attach(2, ['foo' => 'bar']);
@@ -48,12 +48,12 @@ class DatabaseEloquentMorphToManyTest extends TestCase
     {
         $relation = $this->getMockBuilder(MorphToMany::class)->onlyMethods(['touchIfTouching'])->setConstructorArgs($this->getRelationArguments())->getMock();
         $query = m::mock(QueryBuilder::class);
-        $query->shouldReceive('from')->once()->with('taggables')->andReturn($query);
-        $query->shouldReceive('where')->once()->with('taggables.taggable_id', 1)->andReturn($query);
-        $query->shouldReceive('where')->once()->with('taggable_type', get_class($relation->getParent()))->andReturn($query);
-        $query->shouldReceive('whereIn')->once()->with('taggables.tag_id', [1, 2, 3]);
-        $query->shouldReceive('delete')->once()->andReturn(3);
-        $relation->getQuery()->getQuery()->shouldReceive('newQuery')->once()->andReturn($query);
+        $query->expects('from')->with('taggables')->andReturn($query);
+        $query->expects('where')->with('taggables.taggable_id', 1)->andReturn($query);
+        $query->expects('where')->with('taggable_type', get_class($relation->getParent()))->andReturn($query);
+        $query->expects('whereIn')->with('taggables.tag_id', [1, 2, 3]);
+        $query->expects('delete')->andReturn(3);
+        $relation->getQuery()->getQuery()->expects('newQuery')->andReturn($query);
         $relation->expects($this->once())->method('touchIfTouching');
 
         $this->assertSame(3, $relation->detach([1, 2, 3]));
@@ -63,12 +63,12 @@ class DatabaseEloquentMorphToManyTest extends TestCase
     {
         $relation = $this->getMockBuilder(MorphToMany::class)->onlyMethods(['touchIfTouching'])->setConstructorArgs($this->getRelationArguments())->getMock();
         $query = m::mock(QueryBuilder::class);
-        $query->shouldReceive('from')->once()->with('taggables')->andReturn($query);
-        $query->shouldReceive('where')->once()->with('taggables.taggable_id', 1)->andReturn($query);
-        $query->shouldReceive('where')->once()->with('taggable_type', get_class($relation->getParent()))->andReturn($query);
+        $query->expects('from')->with('taggables')->andReturn($query);
+        $query->expects('where')->with('taggables.taggable_id', 1)->andReturn($query);
+        $query->expects('where')->with('taggable_type', get_class($relation->getParent()))->andReturn($query);
         $query->shouldReceive('whereIn')->never();
-        $query->shouldReceive('delete')->once()->andReturn(1);
-        $relation->getQuery()->getQuery()->shouldReceive('newQuery')->once()->andReturn($query);
+        $query->expects('delete')->andReturn(1);
+        $relation->getQuery()->getQuery()->expects('newQuery')->andReturn($query);
         $relation->expects($this->once())->method('touchIfTouching');
 
         $this->assertSame(1, $relation->detach());
@@ -128,9 +128,9 @@ class DatabaseEloquentMorphToManyTest extends TestCase
         $related->shouldReceive('qualifyColumn')->with('id')->andReturn('tags.id');
         $related->shouldReceive('getMorphClass')->andReturn(get_class($related));
 
-        $builder->shouldReceive('join')->once()->with('taggables', 'tags.id', '=', 'taggables.tag_id');
-        $builder->shouldReceive('where')->once()->with('taggables.taggable_id', '=', 1);
-        $builder->shouldReceive('where')->once()->with('taggables.taggable_type', get_class($parent));
+        $builder->expects('join')->with('taggables', 'tags.id', '=', 'taggables.tag_id');
+        $builder->expects('where')->with('taggables.taggable_id', '=', 1);
+        $builder->expects('where')->with('taggables.taggable_type', get_class($parent));
 
         $grammar = m::mock(Grammar::class);
         $grammar->shouldReceive('isExpression')->with(m::type(Expression::class))->andReturnTrue();

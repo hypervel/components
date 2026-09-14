@@ -54,7 +54,7 @@ class DatabaseEloquentRelationTest extends TestCase
         $related->expects('getUpdatedAtColumn')->andReturn('updated_at');
         $now = CarbonImmutable::now()->toDateTimeString();
         $related->expects('freshTimestampString')->andReturn($now);
-        $builder->shouldReceive('update')->once()->with(['updated_at' => $now])->andReturn(1);
+        $builder->expects('update')->with(['updated_at' => $now])->andReturn(1);
 
         $relation->touch();
     }
@@ -124,7 +124,7 @@ class DatabaseEloquentRelationTest extends TestCase
             $anotherRelation = new HasOne($anotherBuilder, $anotherParent, 'foreign_key', 'id');
             $now = CarbonImmutable::now()->toDateTimeString();
             $anotherRelated->expects('freshTimestampString')->andReturn($now);
-            $anotherBuilder->shouldReceive('update')->once()->with(['updated_at' => $now])->andReturn(1);
+            $anotherBuilder->expects('update')->with(['updated_at' => $now])->andReturn(1);
 
             $anotherRelation->touch();
         });

@@ -40,15 +40,15 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
 
         $console->expects('find')->with('migrate:reset')->andReturn($resetCommand);
         $console->expects('find')->with('migrate')->andReturn($migrateCommand);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(DatabaseRefreshed::class)->andReturnTrue();
+        $dispatcher->expects('hasListeners')->with(DatabaseRefreshed::class)->andReturnTrue();
         $dispatcher->expects('dispatch')->with(m::type(DatabaseRefreshed::class));
 
         $quote = DIRECTORY_SEPARATOR === '\\' ? '"' : "'";
-        $resetCommand->shouldReceive('setApplication')->once()->with($console);
-        $resetCommand->shouldReceive('setHypervel')->once()->with($app);
+        $resetCommand->expects('setApplication')->with($console);
+        $resetCommand->expects('setHypervel')->with($app);
         $resetCommand->expects('run')->with(new InputMatcher("--force=1 {$quote}migrate:reset{$quote}"), m::any());
-        $migrateCommand->shouldReceive('setApplication')->once()->with($console);
-        $migrateCommand->shouldReceive('setHypervel')->once()->with($app);
+        $migrateCommand->expects('setApplication')->with($console);
+        $migrateCommand->expects('setHypervel')->with($app);
         $migrateCommand->expects('run')->with(new InputMatcher('--force=1 migrate'), m::any());
 
         $this->runCommand($command);
@@ -71,15 +71,15 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
 
         $console->expects('find')->with('migrate:rollback')->andReturn($rollbackCommand);
         $console->expects('find')->with('migrate')->andReturn($migrateCommand);
-        $dispatcher->shouldReceive('hasListeners')->once()->with(DatabaseRefreshed::class)->andReturnTrue();
+        $dispatcher->expects('hasListeners')->with(DatabaseRefreshed::class)->andReturnTrue();
         $dispatcher->expects('dispatch')->with(m::type(DatabaseRefreshed::class));
 
         $quote = DIRECTORY_SEPARATOR === '\\' ? '"' : "'";
-        $rollbackCommand->shouldReceive('setApplication')->once()->with($console);
-        $rollbackCommand->shouldReceive('setHypervel')->once()->with($app);
+        $rollbackCommand->expects('setApplication')->with($console);
+        $rollbackCommand->expects('setHypervel')->with($app);
         $rollbackCommand->expects('run')->with(new InputMatcher("--step=2 --force=1 {$quote}migrate:rollback{$quote}"), m::any());
-        $migrateCommand->shouldReceive('setApplication')->once()->with($console);
-        $migrateCommand->shouldReceive('setHypervel')->once()->with($app);
+        $migrateCommand->expects('setApplication')->with($console);
+        $migrateCommand->expects('setHypervel')->with($app);
         $migrateCommand->expects('run')->with(new InputMatcher('--force=1 migrate'), m::any());
 
         $this->runCommand($command, ['--step' => '2']);

@@ -119,8 +119,8 @@ class CommandTest extends TestCase
     public function testSignalHandlersAreRemovedWhenTraitSetupFails(): void
     {
         $registry = m::mock(SignalRegistry::class);
-        $registry->shouldReceive('register')->once()->with(SIGTERM, m::type('callable'));
-        $registry->shouldReceive('unregister')->once()->with(null);
+        $registry->expects('register')->with(SIGTERM, m::type('callable'));
+        $registry->expects('unregister')->with(null);
 
         $command = new CommandTestFailingTraitSetupCommand;
         $command->setHypervel($this->app);
@@ -489,8 +489,8 @@ class CommandTest extends TestCase
     public function testTheInputSetterOverwrite()
     {
         $input = m::mock(InputInterface::class);
-        $input->shouldReceive('hasArgument')->once()->with('foo')->andReturn(false);
-        $input->shouldReceive('hasArgument')->once()->with('0')->andReturn(true);
+        $input->expects('hasArgument')->with('foo')->andReturn(false);
+        $input->expects('hasArgument')->with('0')->andReturn(true);
 
         $command = new CommandTestStubCommand;
         $command->setInput($input);
@@ -502,7 +502,7 @@ class CommandTest extends TestCase
     public function testTheOutputSetterOverwrite()
     {
         $output = m::mock(OutputStyle::class);
-        $output->shouldReceive('writeln')->once()->withArgs(function (...$args) {
+        $output->expects('writeln')->withArgs(function (...$args) {
             return $args[0] === '<info>foo</info>';
         });
 
@@ -564,7 +564,7 @@ class CommandTest extends TestCase
     public function testChoiceIsSingleSelectByDefault()
     {
         $output = m::mock(OutputStyle::class);
-        $output->shouldReceive('askQuestion')->once()->withArgs(function (ChoiceQuestion $question) {
+        $output->expects('askQuestion')->withArgs(function (ChoiceQuestion $question) {
             return $question->isMultiselect() === false;
         })->andReturn('yes');
 
@@ -577,7 +577,7 @@ class CommandTest extends TestCase
     public function testChoiceWithMultiselect()
     {
         $output = m::mock(OutputStyle::class);
-        $output->shouldReceive('askQuestion')->once()->withArgs(function (ChoiceQuestion $question) {
+        $output->expects('askQuestion')->withArgs(function (ChoiceQuestion $question) {
             return $question->isMultiselect() === true;
         })->andReturn(['option-1']);
 

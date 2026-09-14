@@ -35,8 +35,8 @@ class DatabaseConnectorTest extends TestCase
         $connection = m::mock(PDO::class);
         $connector->expects($this->once())->method('getOptions')->with($config)->willReturn(['options']);
         $connector->expects($this->once())->method('createConnection')->with($dsn, $config, ['options'])->willReturn($connection);
-        $connection->shouldReceive('exec')->once()->with('use `bar`;')->andReturn(true);
-        $connection->shouldReceive('exec')->once()->with("SET NAMES 'utf8' COLLATE 'utf8_unicode_ci', SESSION sql_mode='';")->andReturn(true);
+        $connection->expects('exec')->with('use `bar`;')->andReturn(true);
+        $connection->expects('exec')->with("SET NAMES 'utf8' COLLATE 'utf8_unicode_ci', SESSION sql_mode='';")->andReturn(true);
         $result = $connector->connect($config);
 
         $this->assertSame($result, $connection);
@@ -71,8 +71,8 @@ class DatabaseConnectorTest extends TestCase
         $connector = $this->getMockBuilder(MySqlConnector::class)->onlyMethods(['createConnection'])->getMock();
         $connection = m::mock(PDO::class);
         $connector->expects($this->once())->method('createConnection')->willReturn($connection);
-        $connection->shouldReceive('exec')->once()->with('use `app``tenant`;')->andReturn(true);
-        $connection->shouldReceive('exec')->once()->with("SET SESSION sql_mode='';")->andReturn(true);
+        $connection->expects('exec')->with('use `app``tenant`;')->andReturn(true);
+        $connection->expects('exec')->with("SET SESSION sql_mode='';")->andReturn(true);
 
         $this->assertSame($connection, $connector->connect($config));
     }
@@ -86,9 +86,9 @@ class DatabaseConnectorTest extends TestCase
         $connection = m::mock(PDO::class);
         $connector->expects($this->once())->method('getOptions')->with($config)->willReturn(['options']);
         $connector->expects($this->once())->method('createConnection')->with($dsn, $config, ['options'])->willReturn($connection);
-        $connection->shouldReceive('exec')->once()->with('use `bar`;')->andReturn(true);
-        $connection->shouldReceive('exec')->once()->with('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;')->andReturn(true);
-        $connection->shouldReceive('exec')->once()->with("SET NAMES 'utf8' COLLATE 'utf8_unicode_ci', SESSION sql_mode='';")->andReturn(true);
+        $connection->expects('exec')->with('use `bar`;')->andReturn(true);
+        $connection->expects('exec')->with('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;')->andReturn(true);
+        $connection->expects('exec')->with("SET NAMES 'utf8' COLLATE 'utf8_unicode_ci', SESSION sql_mode='';")->andReturn(true);
         $result = $connector->connect($config);
 
         $this->assertSame($result, $connection);
@@ -108,8 +108,8 @@ class DatabaseConnectorTest extends TestCase
         $connection = m::mock(PDO::class);
         $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);
         $connector->expects($this->once())->method('createConnection')->willReturn($connection);
-        $connection->shouldReceive('exec')->once()->with('use `bar`;')->andReturn(true);
-        $connection->shouldReceive('exec')->once()->with("SET NAMES 'utf8', SESSION innodb_lock_wait_timeout=2, SESSION lock_wait_timeout=2, SESSION sql_mode='NO_ENGINE_SUBSTITUTION';")->andReturn(true);
+        $connection->expects('exec')->with('use `bar`;')->andReturn(true);
+        $connection->expects('exec')->with("SET NAMES 'utf8', SESSION innodb_lock_wait_timeout=2, SESSION lock_wait_timeout=2, SESSION sql_mode='NO_ENGINE_SUBSTITUTION';")->andReturn(true);
 
         $this->assertSame($connection, $connector->connect($config));
     }

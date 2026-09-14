@@ -19,7 +19,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
     public function testGetReturnsNullWhenNotFound(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('get')->once()->with('prefix:foo')->andReturn(null);
+        $connection->expects('get')->with('prefix:foo')->andReturn(null);
 
         $store = $this->createStore($connection);
         $this->assertNull($store->get('foo'));
@@ -28,7 +28,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
     public function testRedisValueIsReturned(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('get')->once()->with('prefix:foo')->andReturn(serialize('foo'));
+        $connection->expects('get')->with('prefix:foo')->andReturn(serialize('foo'));
 
         $store = $this->createStore($connection);
         $this->assertSame('foo', $store->get('foo'));
@@ -37,13 +37,11 @@ class CacheRedisStoreTest extends RedisCacheTestCase
     public function testSerializableClassesControlRedisValues(): void
     {
         $denyingConnection = $this->mockConnection();
-        $denyingConnection->shouldReceive('get')
-            ->once()
+        $denyingConnection->expects('get')
             ->with('prefix:object')
             ->andReturn(serialize(new stdClass));
         $allowingConnection = $this->mockConnection();
-        $allowingConnection->shouldReceive('get')
-            ->once()
+        $allowingConnection->expects('get')
             ->with('prefix:object')
             ->andReturn(serialize(new stdClass));
 
@@ -67,8 +65,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
     public function testSerializableClassPolicyControlsRedisValues(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('get')
-            ->once()
+        $connection->expects('get')
             ->with('prefix:object')
             ->andReturn(serialize(new stdClass));
         $store = new RedisStore(
@@ -84,7 +81,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
     public function testRedisMultipleValuesAreReturned(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('mget')->once()->with(['prefix:foo', 'prefix:fizz', 'prefix:norf', 'prefix:null'])
+        $connection->expects('mget')->with(['prefix:foo', 'prefix:fizz', 'prefix:norf', 'prefix:null'])
             ->andReturn([
                 serialize('bar'),
                 serialize('buzz'),
@@ -104,7 +101,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
     public function testRedisValueIsReturnedForNumerics(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('get')->once()->with('prefix:foo')->andReturn(1);
+        $connection->expects('get')->with('prefix:foo')->andReturn(1);
 
         $store = $this->createStore($connection);
         $this->assertEquals(1, $store->get('foo'));
@@ -113,7 +110,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
     public function testSetMethodProperlyCallsRedis(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('setex')->once()->with('prefix:foo', 60, serialize('foo'))->andReturn('OK');
+        $connection->expects('setex')->with('prefix:foo', 60, serialize('foo'))->andReturn('OK');
 
         $store = $this->createStore($connection);
         $result = $store->put('foo', 'foo', 60);
@@ -125,7 +122,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
         $connection = $this->mockConnection();
         // Hypervel uses a Lua script for putMany in standard mode (more performant than multi/exec).
         // The Lua script receives all keys and serialized values in a single EVALSHA call.
-        $connection->shouldReceive('evalWithShaCache')->once()
+        $connection->expects('evalWithShaCache')
             ->with(
                 m::type('string'),
                 ['prefix:foo', 'prefix:baz', 'prefix:bar'],
@@ -145,7 +142,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
     public function testSetMethodProperlyCallsRedisForNumerics(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('setex')->once()->with('prefix:foo', 60, 1);
+        $connection->expects('setex')->with('prefix:foo', 60, 1);
 
         $store = $this->createStore($connection);
         $result = $store->put('foo', 1, 60);
@@ -155,7 +152,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
     public function testIncrementMethodProperlyCallsRedis(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('incrBy')->once()->with('prefix:foo', 5)->andReturn(5);
+        $connection->expects('incrBy')->with('prefix:foo', 5)->andReturn(5);
 
         $store = $this->createStore($connection);
         $store->increment('foo', 5);
@@ -164,7 +161,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
     public function testDecrementMethodProperlyCallsRedis(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('decrBy')->once()->with('prefix:foo', 5)->andReturn(-5);
+        $connection->expects('decrBy')->with('prefix:foo', 5)->andReturn(-5);
 
         $store = $this->createStore($connection);
         $store->decrement('foo', 5);
@@ -173,7 +170,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
     public function testStoreItemForeverProperlyCallsRedis(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('set')->once()->with('prefix:foo', serialize('foo'))->andReturn('OK');
+        $connection->expects('set')->with('prefix:foo', serialize('foo'))->andReturn('OK');
 
         $store = $this->createStore($connection);
         $result = $store->forever('foo', 'foo');
@@ -183,7 +180,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
     public function testTouchMethodProperlyCallsRedis(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('expire')->once()->with('prefix:key', 60)->andReturn(true);
+        $connection->expects('expire')->with('prefix:key', 60)->andReturn(true);
 
         $store = $this->createStore($connection);
         $this->assertTrue($store->touch('key', 60));
@@ -192,7 +189,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
     public function testForgetMethodProperlyCallsRedis(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('del')->once()->with('prefix:foo');
+        $connection->expects('del')->with('prefix:foo');
 
         $store = $this->createStore($connection);
         $store->forget('foo');
@@ -201,7 +198,7 @@ class CacheRedisStoreTest extends RedisCacheTestCase
     public function testFlushesCached(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('flushdb')->once()->andReturn('ok');
+        $connection->expects('flushdb')->andReturn('ok');
 
         $store = $this->createStore($connection);
         $result = $store->flush();
@@ -211,10 +208,10 @@ class CacheRedisStoreTest extends RedisCacheTestCase
     public function testFlushesCachedLocks(): void
     {
         $lockProxy = m::mock(RedisProxy::class);
-        $lockProxy->shouldReceive('flushdb')->once()->andReturn('ok');
+        $lockProxy->expects('flushdb')->andReturn('ok');
 
         $redis = m::mock(Factory::class);
-        $redis->shouldReceive('connection')->with('locks')->once()->andReturn($lockProxy);
+        $redis->expects('connection')->with('locks')->andReturn($lockProxy);
 
         $store = new RedisStore(
             $redis,
