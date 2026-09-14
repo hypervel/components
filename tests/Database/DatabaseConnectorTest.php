@@ -180,7 +180,7 @@ class DatabaseConnectorTest extends TestCase
      * @param string $expectedSearchPath Quoted search path (output of quoteSearchPath)
      */
     #[DataProvider('provideSearchPaths')]
-    public function testPostgresSearchPathIsBakedIntoDsn(array|string $searchPath, string $expectedSearchPath): void
+    public function testPostgresSearchPathIsSet(array|string $searchPath, string $expectedSearchPath): void
     {
         $config = ['host' => 'foo', 'database' => 'bar', 'search_path' => $searchPath, 'charset' => 'utf8'];
         // Two backslashes land in the DSN; PDO consumes one while parsing the
@@ -198,7 +198,10 @@ class DatabaseConnectorTest extends TestCase
         $this->assertSame($result, $connection);
     }
 
-    public static function provideSearchPaths()
+    /**
+     * Provide search paths and their quoted identifiers.
+     */
+    public static function provideSearchPaths(): array
     {
         return [
             'all-lowercase' => [
@@ -268,7 +271,7 @@ class DatabaseConnectorTest extends TestCase
         ];
     }
 
-    public function testPostgresSearchPathFallbackToConfigKeySchemaIsBakedIntoDsn(): void
+    public function testPostgresSearchPathFallbackToConfigKeySchema(): void
     {
         $config = ['host' => 'foo', 'database' => 'bar', 'schema' => ['public', '"user"'], 'charset' => 'utf8'];
         $dsn = 'pgsql:host=foo;dbname=\'bar\';client_encoding=\'utf8\';options=\'-c search_path="public",\\\ "user"\'';
@@ -347,7 +350,7 @@ class DatabaseConnectorTest extends TestCase
         $this->assertSame($result, $connection);
     }
 
-    public function testPostgresIsolationLevelIsBakedIntoDsn(): void
+    public function testPostgresConnectorReadsIsolationLevelFromConfig(): void
     {
         $dsn = 'pgsql:host=foo;dbname=\'bar\';port=111;options=\'-c default_transaction_isolation=SERIALIZABLE\'';
         $config = ['host' => 'foo', 'database' => 'bar', 'port' => 111, 'isolation_level' => 'SERIALIZABLE'];
