@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Carbon\CarbonInterval;
 use Hypervel\Contracts\Support\DeferringDisplayableValue;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Database\Eloquent\Model;
@@ -81,13 +82,13 @@ if (! function_exists('class_basename')) {
     /**
      * Get the class "basename" of the given object / class.
      *
-     * @param object|string $class
+     * @param int|object|string $class
      */
     function class_basename($class): string
     {
         $class = is_object($class) ? get_class($class) : $class;
 
-        return basename(str_replace('\\', '/', $class));
+        return basename(str_replace('\\', '/', (string) $class));
     }
 }
 
@@ -222,13 +223,15 @@ if (! function_exists('object_get')) {
      * @template TValue of object
      *
      * @param TValue $object
-     * @param null|string $key
+     * @param null|bool|int|string $key
      * @param mixed $default
-     * @return ($key is empty ? TValue : mixed)
+     * @return ($key is null|''|false ? TValue : mixed)
      */
     function object_get($object, $key, $default = null)
     {
-        if (is_null($key) || trim($key) === '') {
+        $key = (string) $key;
+
+        if (trim($key) === '') {
             return $object;
         }
 
@@ -307,9 +310,9 @@ if (! function_exists('retry')) {
      *
      * @template TValue
      *
-     * @param array<int, int>|int $times
+     * @param array<int, float|int>|int $times
      * @param callable(int): TValue $callback
-     * @param \Closure(int, \Throwable): int|int $sleepMilliseconds
+     * @param CarbonInterval|(Closure(int, Throwable): CarbonInterval|float|int)|float|int $sleepMilliseconds
      * @param null|(callable(\Throwable): bool) $when
      * @return TValue
      *
@@ -343,7 +346,11 @@ if (! function_exists('retry')) {
                 $sleepMilliseconds = $backoff[$attempts - 1] ?? $sleepMilliseconds;
 
                 if ($sleepMilliseconds) {
-                    Sleep::usleep(value($sleepMilliseconds, $attempts, $e) * 1000);
+                    $duration = value($sleepMilliseconds, $attempts, $e);
+
+                    Sleep::usleep((int) ($duration instanceof CarbonInterval
+                        ? $duration->totalMicroseconds
+                        : $duration * 1000));
                 }
             }
         }
