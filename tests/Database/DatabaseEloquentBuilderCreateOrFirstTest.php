@@ -615,6 +615,17 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
         $this->assertSame('bar', $result->val);
     }
 
+    /**
+     * Provide array and closure creation values.
+     */
+    public static function createOrFirstValues(): array
+    {
+        return [
+            'array' => [['val' => 'bar']],
+            'closure' => [fn () => ['val' => 'bar']],
+        ];
+    }
+
     public function testFirstOrNewDoesNotInvokeClosureWhenRecordExists(): void
     {
         $model = new TestModel;
@@ -643,17 +654,6 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
         $this->assertSame(0, $callCount);
         $this->assertTrue($result->exists);
         $this->assertSame('bar', $result->val);
-    }
-
-    /**
-     * Provide array and closure creation values.
-     */
-    public static function createOrFirstValues(): array
-    {
-        return [
-            'array' => [['val' => 'bar']],
-            'closure' => [fn () => ['val' => 'bar']],
-        ];
     }
 
     /**
