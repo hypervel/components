@@ -13,27 +13,27 @@ use Mockery as m;
 
 class DatabaseConcernsHasAttributesTest extends TestCase
 {
-    public function testWithoutConstructor()
+    public function testWithoutConstructor(): void
     {
         $instance = new HasAttributesWithoutConstructor;
         $attributes = $instance->getMutatedAttributes();
         $this->assertEquals(['some_attribute'], $attributes);
     }
 
-    public function testWithConstructorArguments()
+    public function testWithConstructorArguments(): void
     {
         $instance = new HasAttributesWithConstructorArguments(null);
         $attributes = $instance->getMutatedAttributes();
         $this->assertEquals(['some_attribute'], $attributes);
     }
 
-    public function testRelationsToArray()
+    public function testRelationsToArray(): void
     {
         $mock = m::mock(HasAttributesWithoutConstructor::class)
             ->makePartial()
             ->shouldAllowMockingProtectedMethods()
-            ->shouldReceive('getArrayableRelations')->andReturn([
-                'arrayable_relation' => Collection::make(['foo' => 'bar']),
+            ->expects('getArrayableRelations')->andReturn([
+                'arrayable_relation' => new Collection(['foo' => 'bar']),
                 'invalid_relation' => 'invalid',
                 'null_relation' => null,
             ])
@@ -45,18 +45,18 @@ class DatabaseConcernsHasAttributesTest extends TestCase
         ], $mock->relationsToArray());
     }
 
-    public function testCastingEmptyStringToArrayDoesNotError()
+    public function testCastingEmptyStringToArrayDoesNotError(): void
     {
         $instance = new HasAttributesWithArrayCast;
         $this->assertEquals(['foo' => null], $instance->attributesToArray());
 
-        $this->assertTrue(json_last_error() === JSON_ERROR_NONE);
+        $this->assertSame(JSON_ERROR_NONE, json_last_error());
     }
 
-    public function testUnsettingCachedAttribute()
+    public function testUnsettingCachedAttribute(): void
     {
         $instance = new HasCacheableAttributeWithAccessor;
-        $this->assertEquals('foo', $instance->getAttribute('cacheableProperty'));
+        $this->assertSame('foo', $instance->getAttribute('cacheableProperty'));
         $this->assertTrue($instance->cachedAttributeIsset('cacheableProperty'));
 
         unset($instance->cacheableProperty);
@@ -69,16 +69,22 @@ class HasAttributesWithoutConstructor
 {
     use HasAttributes;
 
+    /**
+     * Get the attribute definition.
+     */
     public function someAttribute(): Attribute
     {
-        return new Attribute(function () {
+        return new Attribute(function (): void {
         });
     }
 }
 
 class HasAttributesWithConstructorArguments extends HasAttributesWithoutConstructor
 {
-    public function __construct($someValue)
+    /**
+     * Create a fixture with a required constructor argument.
+     */
+    public function __construct(mixed $someValue)
     {
     }
 }
@@ -87,16 +93,25 @@ class HasAttributesWithArrayCast
 {
     use HasAttributes;
 
+    /**
+     * Get the fixture attributes.
+     */
     public function getArrayableAttributes(): array
     {
         return ['foo' => ''];
     }
 
+    /**
+     * Get the fixture casts.
+     */
     public function getCasts(): array
     {
         return ['foo' => 'array'];
     }
 
+    /**
+     * Determine whether the fixture uses timestamps.
+     */
     public function usesTimestamps(): bool
     {
         return false;
@@ -108,14 +123,20 @@ class HasAttributesWithArrayCast
  */
 class HasCacheableAttributeWithAccessor extends Model
 {
+    /**
+     * Get the cacheable attribute definition.
+     */
     public function cacheableProperty(): Attribute
     {
         return Attribute::make(
-            get: fn () => 'foo'
+            get: fn (): string => 'foo'
         )->shouldCache();
     }
 
-    public function cachedAttributeIsset($attribute): bool
+    /**
+     * Determine whether an attribute value is cached.
+     */
+    public function cachedAttributeIsset(string $attribute): bool
     {
         return isset($this->attributeCastCache[$attribute]);
     }
