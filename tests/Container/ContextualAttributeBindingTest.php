@@ -342,7 +342,7 @@ class ContextualAttributeBindingTest extends TestCase
         $container->make(RouteParameterTest::class);
     }
 
-    public function testRouteParameterAttributeWithoutParameterName(): void
+    public function testRouteParameterAttributeWithouthParameterName(): void
     {
         $container = new Container;
         $container->singleton('request', function (): Request {
