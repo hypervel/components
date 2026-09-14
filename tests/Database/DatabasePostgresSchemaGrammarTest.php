@@ -1422,10 +1422,10 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertSame('alter table "geo" add column "coordinates" geometry(multipolygon) not null', $statements[0]);
     }
 
-    public function testCreateDatabase()
+    public function testCreateDatabase(): void
     {
         $connection = $this->getConnection();
-        $connection->shouldReceive('getConfig')->once()->once()->with('charset')->andReturn('utf8_foo');
+        $connection->expects('getConfig')->with('charset')->andReturn('utf8_foo');
         $statement = $this->getGrammar($connection)->compileCreateDatabase('my_database_a');
 
         $this->assertSame(
@@ -1434,7 +1434,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         );
 
         $connection = $this->getConnection();
-        $connection->shouldReceive('getConfig')->once()->once()->with('charset')->andReturn('utf8_bar');
+        $connection->expects('getConfig')->with('charset')->andReturn('utf8_bar');
         $statement = $this->getGrammar($connection)->compileCreateDatabase('my_database_b');
 
         $this->assertSame(
@@ -1513,10 +1513,10 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertSame('drop domain "schema"."alpha", "schema"."beta", "schema"."gamma" cascade', $statement);
     }
 
-    public function testCompileColumns()
+    public function testCompileColumns(): void
     {
         $connection = $this->getConnection();
-        $connection->shouldReceive('getServerVersion')->once()->andReturn('12.0.0');
+        $connection->expects('getServerVersion')->andReturn('12.0.0');
 
         $statement = $connection->getSchemaGrammar()->compileColumns('public', 'table');
 
@@ -1528,7 +1528,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
     public function testCompileColumnsOnLegacyServer(): void
     {
         $connection = $this->getConnection();
-        $connection->shouldReceive('getServerVersion')->once()->andReturn('8.0.2');
+        $connection->expects('getServerVersion')->andReturn('8.0.2');
 
         $statement = $connection->getSchemaGrammar()->compileColumns('public', 'table');
 
@@ -1539,31 +1539,64 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertStringNotContainsString('a.attgenerated', $statement);
     }
 
+    public function testAddUsingKeywordToColumnOnChange(): void
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'currency_rates');
+        $blueprint->date('name')->using('name::date')->change();
+        $statements = $blueprint->toSql();
+
+        $this->assertSame(
+            'alter table "currency_rates" alter column "name" type date using name::date, alter column "name" set not null, alter column "name" drop default, alter column "name" drop identity if exists',
+            $statements[0]
+        );
+    }
+
+    public function testUsingAcceptsRawAndZeroExpressions(): void
+    {
+        foreach ([new Expression('0'), '0'] as $expression) {
+            $blueprint = new Blueprint($this->getConnection(), 'currency_rates');
+            $blueprint->integer('name')->using($expression)->change();
+
+            $this->assertSame(
+                'alter table "currency_rates" alter column "name" type integer using 0, alter column "name" set not null, alter column "name" drop default, alter column "name" drop identity if exists',
+                $blueprint->toSql()[0]
+            );
+        }
+    }
+
+    /**
+     * Create a connection mock for schema compilation.
+     */
     protected function getConnection(
         ?PostgresGrammar $grammar = null,
         ?PostgresBuilder $builder = null,
         string $prefix = ''
-    ) {
-        $connection = m::mock(Connection::class)
-            ->shouldReceive('getTablePrefix')->andReturn($prefix)
-            ->shouldReceive('getConfig')->with('prefix_indexes')->andReturn(null)
-            ->getMock();
+    ): Connection {
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getTablePrefix')->andReturn($prefix);
+        $connection->shouldReceive('getConfig')->with('prefix_indexes')->andReturn(null);
 
         $grammar ??= $this->getGrammar($connection);
         $builder ??= $this->getBuilder();
 
-        return $connection
-            ->shouldReceive('getSchemaGrammar')->andReturn($grammar)
-            ->shouldReceive('getSchemaBuilder')->andReturn($builder)
-            ->getMock();
+        $connection->shouldReceive('getSchemaGrammar')->andReturn($grammar);
+        $connection->shouldReceive('getSchemaBuilder')->andReturn($builder);
+
+        return $connection;
     }
 
-    public function getGrammar(?Connection $connection = null)
+    /**
+     * Create the PostgreSQL schema grammar.
+     */
+    public function getGrammar(?Connection $connection = null): PostgresGrammar
     {
         return new PostgresGrammar($connection ?? $this->getConnection());
     }
 
-    public function getBuilder()
+    /**
+     * Create a PostgreSQL schema builder mock.
+     */
+    public function getBuilder(): PostgresBuilder
     {
         return mock(PostgresBuilder::class);
     }
