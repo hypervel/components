@@ -25,8 +25,7 @@ class CursorResourceTest extends TestCase
 
     public function testItThrowsExceptionWhenResourceCannotBeFound(): void
     {
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Failed to find resource class for model [Hypervel\Tests\Pagination\Fixtures\Models\CursorResourceTestModel].');
+        $this->expectExceptionObject(new LogicException('Failed to find resource class for model [Hypervel\Tests\Pagination\Fixtures\Models\CursorResourceTestModel].'));
 
         $paginator = new CursorResourceTestPaginator([
             new CursorResourceTestModel,

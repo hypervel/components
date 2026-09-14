@@ -25,8 +25,7 @@ class PaginatorResourceTest extends TestCase
 
     public function testItThrowsExceptionWhenResourceCannotBeFound(): void
     {
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Failed to find resource class for model [Hypervel\Tests\Pagination\Fixtures\Models\PaginatorResourceTestModel].');
+        $this->expectExceptionObject(new LogicException('Failed to find resource class for model [Hypervel\Tests\Pagination\Fixtures\Models\PaginatorResourceTestModel].'));
 
         $paginator = new PaginatorResourceTestPaginator([
             new PaginatorResourceTestModel,
