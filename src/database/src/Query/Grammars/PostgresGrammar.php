@@ -378,9 +378,12 @@ class PostgresGrammar extends Grammar
      */
     protected function compileUpdateColumns(Builder $query, array $values): string
     {
-        return (new Collection($this->groupJsonColumnsForUpdate($values)))->map(function (array $group, string $column): string {
+        // Joined sources can share the JSON column name; its source must name the updated table.
+        $alias = $query->joins ? $query->getFromAlias() : null;
+
+        return (new Collection($this->groupJsonColumnsForUpdate($values)))->map(function (array $group, string $column) use ($alias): string {
             if ($this->isJsonSelector(array_key_first($group))) {
-                return $this->compileJsonUpdateColumn($column, $group);
+                return $this->compileJsonUpdateColumn($alias === null ? $column : $alias . '.' . $column, $group);
             }
 
             return $this->wrap($column) . ' = ' . $this->parameter(reset($group));
@@ -429,7 +432,8 @@ class PostgresGrammar extends Grammar
             $value = "jsonb_set({$value}, {$path}, {$this->parameter($pathValue)})";
         }
 
-        return "{$field} = {$value}";
+        // PostgreSQL requires an unqualified SET target even when the source is qualified.
+        return $this->wrap(last(explode('.', $key))) . " = {$value}";
     }
 
     /**

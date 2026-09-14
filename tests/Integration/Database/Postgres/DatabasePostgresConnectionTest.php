@@ -112,10 +112,10 @@ class DatabasePostgresConnectionTest extends PostgresTestCase
     {
         DB::table('json_table')->insert(['json_col' => '{"a.b":0,"object":{"old":1},"keep":2}', 'label' => 'before']);
 
-        $query = DB::table('json_table')->where('label', 'before');
+        $query = DB::table('json_table', 'target')->where('label', 'before');
 
         if ($join) {
-            $query->joinSub(DB::query()->selectRaw('?::integer as marker', [7]), 'source', function (JoinClause $join): void {
+            $query->joinSub(DB::query()->selectRaw('?::integer as marker, ?::jsonb as json_col', [7, '{"keep":99}']), 'source', function (JoinClause $join): void {
                 $join->where('source.marker', 7);
             });
         }
@@ -125,15 +125,15 @@ class DatabasePostgresConnectionTest extends PostgresTestCase
         }
 
         $values = [
-            'json_table.json_col->a.b' => 3,
+            'target.json_col->a.b' => 3,
             'label' => 'after',
             'json_col->object' => ['new' => true],
             'json_col->nullable' => null,
-            'json_table.json_col->raw' => DB::raw("'4'::jsonb"),
+            'target.json_col->raw' => DB::raw("'4'::jsonb"),
         ];
 
         if ($method === 'update') {
-            $values['json_table.json_col->subquery'] = DB::query()->selectRaw('?::jsonb', ['5']);
+            $values['target.json_col->subquery'] = DB::query()->selectRaw('?::jsonb', ['5']);
         }
 
         $this->assertSame(1, $query->{$method}($values));

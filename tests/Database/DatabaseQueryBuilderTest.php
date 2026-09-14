@@ -5526,11 +5526,11 @@ class DatabaseQueryBuilderTest extends TestCase
     {
         $builder = $this->getPostgresBuilder();
         $builder->getConnection()->expects('update')->with(
-            'update "users" set "email" = ? from (select ? as marker) as "first", (select ? as marker) as "second", (select ? as marker) as "third" where "users"."name" = ? and "first"."marker" = ? and "second"."marker" = ?',
-            ['after', 7, 9, 11, 'before', 8, 10],
+            'update "users" as "target" set "email" = ?, "options" = jsonb_set("target"."options"::jsonb, \'{"enabled"}\', ?) from (select ? as marker) as "first", (select ? as marker) as "second", (select ? as marker) as "third" where "target"."name" = ? and "first"."marker" = ? and "second"."marker" = ?',
+            ['after', 'true', 7, 9, 11, 'before', 8, 10],
         )->andReturn(1);
 
-        $builder->from('users')
+        $builder->from('users', 'target')
             ->joinSub($this->getPostgresBuilder()->selectRaw('? as marker', [7]), 'first', function (JoinClause $join): void {
                 $join->where('first.marker', 8);
             })
@@ -5538,9 +5538,9 @@ class DatabaseQueryBuilderTest extends TestCase
                 $join->where('second.marker', 10);
             })
             ->crossJoinSub($this->getPostgresBuilder()->selectRaw('? as marker', [11]), 'third')
-            ->where('users.name', 'before');
+            ->where('target.name', 'before');
 
-        $this->assertSame(1, $builder->updateFrom(['email' => 'after']));
+        $this->assertSame(1, $builder->updateFrom(['email' => 'after', 'options->enabled' => true]));
         $this->assertSame([7, 8, 9, 10, 11, 'before'], $builder->getBindings());
     }
 
