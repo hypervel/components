@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Queue\Middleware;
+namespace Hypervel\Tests\Integration\Queue;
 
 use Hypervel\Bus\Dispatcher;
 use Hypervel\Bus\Queueable;
@@ -25,6 +25,9 @@ use Throwable;
 
 class FailOnExceptionMiddlewareTest extends TestCase
 {
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -59,6 +62,8 @@ class FailOnExceptionMiddlewareTest extends TestCase
     }
 
     /**
+     * Provide exceptions and their failure predicates.
+     *
      * @return array<string, array{class-string<Throwable>, FailOnException, bool}>
      */
     public static function middlewareDataProvider(): array
@@ -82,7 +87,7 @@ class FailOnExceptionMiddlewareTest extends TestCase
     public function testCanTestAgainstJobProperties(mixed $value, bool $expectedToFail): void
     {
         FailOnExceptionMiddlewareTestJob::$_middleware = [
-            new FailOnException(fn (Throwable $thrown, FailOnExceptionMiddlewareTestJob $job) => $job->value === 'abc'),
+            new FailOnException(fn (Throwable $thrown, FailOnExceptionMiddlewareTestJob $job): bool => $job->value === 'abc'),
         ];
 
         $job = new FailOnExceptionMiddlewareTestJob(InvalidArgumentException::class, $value);

@@ -1093,6 +1093,8 @@ Mail::mailer('postmark')
     ->send(new OrderShipped($order));
 ```
 
+The `mailer` method also accepts an enum case whose value or name matches a configured mailer.
+
 <a name="queueing-mail"></a>
 ### Queueing Mail
 

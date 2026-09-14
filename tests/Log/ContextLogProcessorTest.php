@@ -9,6 +9,7 @@ use Hypervel\Log\Context\ContextLogProcessor;
 use Hypervel\Log\Context\Repository;
 use Hypervel\Testbench\TestCase;
 use Monolog\Handler\TestHandler;
+use Monolog\Level;
 use Monolog\Logger as Monolog;
 use Monolog\LogRecord;
 use Monolog\Processor\ProcessorInterface;
@@ -28,6 +29,23 @@ class ContextLogProcessorTest extends TestCase
         $record = $handler->getRecords()[0];
         $this->assertSame('abc-123', $record->extra['trace_id']);
         $this->assertSame(42, $record->extra['user_id']);
+    }
+
+    public function testContextPreservesNumericKeysInLogRecords(): void
+    {
+        Repository::getInstance()->add('123', 'new');
+
+        $record = new LogRecord(
+            datetime: new DateTimeImmutable,
+            channel: 'test',
+            level: Level::Info,
+            message: 'test',
+            extra: [123 => 'old', 456 => 'kept'],
+        );
+
+        $record = (new ContextLogProcessor)($record);
+
+        $this->assertSame([123 => 'new', 456 => 'kept'], $record->extra);
     }
 
     public function testHiddenContextIsNotAddedToLogRecords()

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Mail;
+namespace Hypervel\Tests\Integration\Mail;
 
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
@@ -11,10 +11,12 @@ use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Log\LogManager;
 use Hypervel\Mail\Mailable;
 use Hypervel\Mail\MailManager;
+use Hypervel\Mail\Message;
 use Hypervel\Mail\Transport\LogTransport;
 use Hypervel\Mail\TransportPoolProxy;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Support\Testing\Fakes\MailFake;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -32,6 +34,9 @@ use Symfony\Component\Mime\RawMessage;
 
 class MailManagerTest extends TestCase
 {
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -40,7 +45,7 @@ class MailManagerTest extends TestCase
 
     public function testSetApplicationRefreshesConfigWithoutRebuildingResolvedMailers(): void
     {
-        $this->app->make('config')->set('mail.mailers.existing', ['transport' => 'array']);
+        config(['mail.mailers.existing' => ['transport' => 'array']]);
 
         $manager = new MailManager($this->app);
         $resolved = $manager->mailer('existing');
@@ -56,7 +61,7 @@ class MailManagerTest extends TestCase
 
     public function testIntegerEnumMailerNamesAreNormalizedWithoutTreatingZeroAsAbsent(): void
     {
-        $this->app->make('config')->set('mail.mailers.0', ['transport' => 'array']);
+        config(['mail.mailers.0' => ['transport' => 'array']]);
 
         $manager = new MailManager($this->app);
         $manager->setDefaultDriver(MailManagerTestIntIdentifier::Zero);
@@ -74,7 +79,7 @@ class MailManagerTest extends TestCase
 
     public function testFakeDriverNormalizesIntegerEnumsWithoutEscapingToTheManager(): void
     {
-        $this->app->make('config')->set('mail.default', 'array');
+        config(['mail.default' => 'array']);
 
         $fake = new MailFake(new MailManager($this->app));
         $mailable = new Mailable;
@@ -89,24 +94,25 @@ class MailManagerTest extends TestCase
     #[DataProvider('emptyTransportConfigDataProvider')]
     public function testEmptyTransportConfig(mixed $transport): void
     {
-        $this->app->make('config')
-            ->set('mail.mailers.custom_smtp', [
-                'transport' => $transport,
-                'host' => null,
-                'port' => null,
-                'encryption' => null,
-                'username' => null,
-                'password' => null,
-                'timeout' => null,
-            ]);
+        config(['mail.mailers.custom_smtp' => [
+            'transport' => $transport,
+            'host' => null,
+            'port' => null,
+            'encryption' => null,
+            'username' => null,
+            'password' => null,
+            'timeout' => null,
+        ]]);
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("Unsupported mail transport [{$transport}]");
+        $this->expectExceptionObject(new InvalidArgumentException("Unsupported mail transport [{$transport}]"));
 
         (new MailManager($this->app))
             ->mailer('custom_smtp');
     }
 
+    /**
+     * Provide empty transport configurations.
+     */
     public static function emptyTransportConfigDataProvider(): array
     {
         return [
@@ -124,16 +130,15 @@ class MailManagerTest extends TestCase
     #[TestWith(['smtp', 465])]
     public function testMailUrlConfig(?string $scheme, int $port): void
     {
-        $this->app->make('config')
-            ->set('mail.mailers.smtp_url', [
-                'scheme' => $scheme,
-                'url' => "smtp://usr:pwd@127.0.0.2:{$port}",
-            ]);
+        config(['mail.mailers.smtp_url' => [
+            'scheme' => $scheme,
+            'url' => "smtp://usr:pwd@127.0.0.2:{$port}",
+        ]]);
 
         $transport = (new MailManager($this->app))
             ->removePoolableDriver('smtp')
             ->mailer('smtp_url')
-            ->getSymfonyTransport(); // @phpstan-ignore-line
+            ->getSymfonyTransport();
 
         $this->assertInstanceOf(EsmtpTransport::class, $transport);
         $this->assertSame('usr', $transport->getUsername());
@@ -152,16 +157,15 @@ class MailManagerTest extends TestCase
     #[TestWith(['smtp', 465])]
     public function testMailUrlConfigWithAutoTls(?string $scheme, int $port): void
     {
-        $this->app->make('config')
-            ->set('mail.mailers.smtp_url', [
-                'scheme' => $scheme,
-                'url' => "smtp://usr:pwd@127.0.0.2:{$port}?auto_tls=true",
-            ]);
+        config(['mail.mailers.smtp_url' => [
+            'scheme' => $scheme,
+            'url' => "smtp://usr:pwd@127.0.0.2:{$port}?auto_tls=true",
+        ]]);
 
         $transport = (new MailManager($this->app))
             ->removePoolableDriver('smtp')
             ->mailer('smtp_url')
-            ->getSymfonyTransport(); // @phpstan-ignore-line
+            ->getSymfonyTransport();
 
         $this->assertInstanceOf(EsmtpTransport::class, $transport);
         $this->assertSame('usr', $transport->getUsername());
@@ -180,16 +184,15 @@ class MailManagerTest extends TestCase
     #[TestWith(['smtp', 465])]
     public function testMailUrlConfigWithAutoTlsDisabled(?string $scheme, int $port): void
     {
-        $this->app->make('config')
-            ->set('mail.mailers.smtp_url', [
-                'scheme' => $scheme,
-                'url' => "smtp://usr:pwd@127.0.0.2:{$port}?auto_tls=false",
-            ]);
+        config(['mail.mailers.smtp_url' => [
+            'scheme' => $scheme,
+            'url' => "smtp://usr:pwd@127.0.0.2:{$port}?auto_tls=false",
+        ]]);
 
         $transport = (new MailManager($this->app))
             ->removePoolableDriver('smtp')
             ->mailer('smtp_url')
-            ->getSymfonyTransport(); // @phpstan-ignore-line
+            ->getSymfonyTransport();
 
         $this->assertInstanceOf(EsmtpTransport::class, $transport);
         $this->assertSame('usr', $transport->getUsername());
@@ -217,8 +220,67 @@ class MailManagerTest extends TestCase
         $second = $manager->build(['name' => 'second', ...$config])->getSymfonyTransport();
 
         $this->assertInstanceOf(EsmtpTransport::class, $first);
+        $this->assertSame('usr', $first->getUsername());
+        $this->assertSame('pwd', $first->getPassword());
+        $this->assertSame('127.0.0.2', $first->getStream()->getHost());
+        $this->assertSame(5876, $first->getStream()->getPort());
         $this->assertInstanceOf(EsmtpTransport::class, $second);
         $this->assertNotSame($first, $second);
+    }
+
+    public function testMailManagerCanResolveBackedEnumMailer(): void
+    {
+        config(['mail.mailers.array' => ['transport' => 'array']]);
+
+        $mailer1 = $this->app->make('mail.manager')->mailer(MailerName::ArrayMailer);
+        $mailer2 = $this->app->make('mail.manager')->mailer('array');
+
+        $this->assertSame($mailer1, $mailer2);
+    }
+
+    public function testMailManagerCanResolveBackedEnumDriver(): void
+    {
+        config(['mail.mailers.array' => ['transport' => 'array']]);
+
+        $mailer1 = $this->app->make('mail.manager')->driver(MailerName::ArrayMailer);
+        $mailer2 = $this->app->make('mail.manager')->driver('array');
+
+        $this->assertSame($mailer1, $mailer2);
+    }
+
+    public function testSetDefaultDriverAcceptsBackedEnum(): void
+    {
+        config(['mail.mailers.array' => ['transport' => 'array']]);
+
+        $this->app->make('mail.manager')->setDefaultDriver(MailerName::ArrayMailer);
+
+        $this->assertSame('array', config('mail.default'));
+    }
+
+    public function testPurgeAcceptsBackedEnum(): void
+    {
+        config(['mail.mailers.array' => ['transport' => 'array']]);
+
+        $manager = $this->app->make('mail.manager');
+
+        $mailer1 = $manager->mailer(MailerName::ArrayMailer);
+        $manager->purge(MailerName::ArrayMailer);
+        $mailer2 = $manager->mailer(MailerName::ArrayMailer);
+
+        $this->assertNotSame($mailer1, $mailer2);
+    }
+
+    #[WithConfig('mail.mailers.array', ['transport' => 'array'])]
+    #[WithConfig('mail.to', ['address' => 'taylor@hypervel.com'])]
+    public function testGlobalToAddressWithoutName(): void
+    {
+        $mailer = $this->app->make('mail.manager')->mailer('array');
+
+        $sentMessage = $mailer->raw('Hello World', function (Message $message): void {
+            $message->to('jack@hypervel.com');
+        });
+
+        $this->assertStringContainsString('To: taylor@hypervel.com', $sentMessage->toString());
     }
 
     #[DataProvider('onDemandPoolConfigProvider')]
@@ -242,6 +304,9 @@ class MailManagerTest extends TestCase
         $this->assertSame($maxObjects, $first->getDefinition()->options->maxObjects);
     }
 
+    /**
+     * Provide explicit pool configurations.
+     */
     public static function onDemandPoolConfigProvider(): array
     {
         return [
@@ -253,10 +318,10 @@ class MailManagerTest extends TestCase
 
     public function testMailTransportPoolsNamedMailersButKeepsOnDemandBuildsDirectByDefault(): void
     {
-        $this->app->make('config')->set('mail.mailers.php', [
+        config(['mail.mailers.php' => [
             'transport' => 'mail',
             'pool' => ['max_objects' => 2],
-        ]);
+        ]]);
 
         $manager = new MailManager($this->app);
         $named = $manager->mailer('php')->getSymfonyTransport();
@@ -271,8 +336,8 @@ class MailManagerTest extends TestCase
 
     public function testOnDemandTransportsDoNotInheritNamedMailerFallbacks(): void
     {
-        $this->app->make('config')->set('mail.sendmail', '/usr/sbin/sendmail -bs -i');
-        $this->app->make('config')->set('mail.log_channel', 'legacy-channel');
+        config(['mail.sendmail' => '/usr/sbin/sendmail -bs -i']);
+        config(['mail.log_channel' => 'legacy-channel']);
 
         $logger = m::mock(LoggerInterface::class);
         $logManager = m::mock(LogManager::class);
@@ -297,7 +362,7 @@ class MailManagerTest extends TestCase
             'port' => 5876,
             'pool' => false,
         ];
-        $this->app->make('config')->set('mail.mailers.direct', $config);
+        config(['mail.mailers.direct' => $config]);
         $manager = new MailManager($this->app);
 
         $this->assertInstanceOf(EsmtpTransport::class, $manager->mailer('direct')->getSymfonyTransport());
@@ -307,8 +372,7 @@ class MailManagerTest extends TestCase
     #[DataProvider('invalidPoolConfigProvider')]
     public function testInvalidPoolConfigurationIsRejected(mixed $poolConfig): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('must be false, true, or an array');
+        $this->expectExceptionObject(new InvalidArgumentException('must be false, true, or an array'));
 
         (new MailManager($this->app))->build([
             'transport' => 'smtp',
@@ -318,6 +382,9 @@ class MailManagerTest extends TestCase
         ]);
     }
 
+    /**
+     * Provide invalid pool configurations.
+     */
     public static function invalidPoolConfigProvider(): array
     {
         return [[null], [1], ['enabled']];
@@ -325,8 +392,7 @@ class MailManagerTest extends TestCase
 
     public function testExplicitPoolingRejectsANonPoolableTransport(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Mail transport [array] is not registered as poolable.');
+        $this->expectExceptionObject(new InvalidArgumentException('Mail transport [array] is not registered as poolable.'));
 
         (new MailManager($this->app))->build(['transport' => 'array', 'pool' => true]);
     }
@@ -349,14 +415,13 @@ class MailManagerTest extends TestCase
 
     public function testPoolableMailUrlConfig(): void
     {
-        $this->app->make('config')
-            ->set('mail.mailers.smtp_url', [
-                'url' => 'smtp://usr:pwd@127.0.0.2:5876',
-            ]);
+        config(['mail.mailers.smtp_url' => [
+            'url' => 'smtp://usr:pwd@127.0.0.2:5876',
+        ]]);
 
         $transport = (new MailManager($this->app))
             ->mailer('smtp_url')
-            ->getSymfonyTransport(); // @phpstan-ignore-line
+            ->getSymfonyTransport();
 
         $this->assertInstanceOf(TransportPoolProxy::class, $transport);
     }
@@ -389,24 +454,26 @@ class MailManagerTest extends TestCase
     #[DataProvider('poolableTransportDataProvider')]
     public function testConfiguredPoolableTransportsResolveToPoolProxy(string $transport): void
     {
-        $this->app->make('config')
-            ->set("mail.mailers.{$transport}", [
-                'transport' => $transport,
-                'host' => '127.0.0.1',
-                'port' => 2525,
-                'username' => null,
-                'password' => null,
-                'path' => '/usr/sbin/sendmail -bs -i',
-                'mailers' => ['smtp', 'log'],
-            ]);
+        config(["mail.mailers.{$transport}" => [
+            'transport' => $transport,
+            'host' => '127.0.0.1',
+            'port' => 2525,
+            'username' => null,
+            'password' => null,
+            'path' => '/usr/sbin/sendmail -bs -i',
+            'mailers' => ['smtp', 'log'],
+        ]]);
 
         $transport = (new MailManager($this->app))
             ->mailer($transport)
-            ->getSymfonyTransport(); // @phpstan-ignore-line
+            ->getSymfonyTransport();
 
         $this->assertInstanceOf(TransportPoolProxy::class, $transport);
     }
 
+    /**
+     * Provide poolable transports.
+     */
     public static function poolableTransportDataProvider(): array
     {
         return [
@@ -433,14 +500,14 @@ class MailManagerTest extends TestCase
             'password' => 'secret',
         ];
 
-        $this->app->make('config')->set('mail.mailers.first', [
+        config(['mail.mailers.first' => [
             ...$transportConfig,
             'from' => ['address' => 'first@example.com', 'name' => 'First'],
-        ]);
-        $this->app->make('config')->set('mail.mailers.second', [
+        ]]);
+        config(['mail.mailers.second' => [
             ...$transportConfig,
             'from' => ['address' => 'second@example.com', 'name' => 'Second'],
-        ]);
+        ]]);
 
         $manager = new MailManager($this->app);
         $first = $manager->mailer('first')->getSymfonyTransport();
@@ -453,10 +520,10 @@ class MailManagerTest extends TestCase
 
     public function testGlobalAddressMayOmitTheOptionalName(): void
     {
-        $this->app->make('config')->set('mail.mailers.array', [
+        config(['mail.mailers.array' => [
             'transport' => 'array',
             'from' => ['address' => 'sender@example.com'],
-        ]);
+        ]]);
 
         $mailer = (new MailManager($this->app))->mailer('array');
 
@@ -468,18 +535,18 @@ class MailManagerTest extends TestCase
 
     public function testCustomPresentationKeysRemainConstructionInput(): void
     {
-        $this->app->make('config')->set('mail.mailers.first', [
+        config(['mail.mailers.first' => [
             'transport' => 'custom',
             'from' => ['address' => 'first@example.com'],
-        ]);
-        $this->app->make('config')->set('mail.mailers.second', [
+        ]]);
+        config(['mail.mailers.second' => [
             'transport' => 'custom',
             'from' => ['address' => 'second@example.com'],
-        ]);
+        ]]);
 
         $manager = (new MailManager($this->app))->extend(
             'custom',
-            fn (array $config) => new MailManagerTestTransport,
+            fn (array $config): MailManagerTestTransport => new MailManagerTestTransport,
             poolable: true,
         );
         $first = $manager->mailer('first')->getSymfonyTransport();
@@ -495,7 +562,7 @@ class MailManagerTest extends TestCase
         $received = null;
         $manager = (new MailManager($this->app))->extend(
             'custom',
-            function (array $config) use (&$received) {
+            function (array $config) use (&$received): MailManagerTestTransport {
                 $received = $config;
 
                 return new MailManagerTestTransport;
@@ -525,13 +592,13 @@ class MailManagerTest extends TestCase
         string $changedKey,
         string $changedValue,
     ): void {
-        $this->app->make('config')->set('mail.mailers.service', ['transport' => $transport]);
-        $this->app->make('config')->set("services.{$service}", $serviceConfig);
+        config(['mail.mailers.service' => ['transport' => $transport]]);
+        config(["services.{$service}" => $serviceConfig]);
 
         $manager = new MailManager($this->app);
         $first = $manager->mailer('service')->getSymfonyTransport();
         $manager->forgetMailers();
-        $this->app->make('config')->set("services.{$service}.{$changedKey}", $changedValue);
+        config(["services.{$service}.{$changedKey}" => $changedValue]);
         $second = $manager->mailer('service')->getSymfonyTransport();
 
         $this->assertInstanceOf(TransportPoolProxy::class, $first);
@@ -539,6 +606,9 @@ class MailManagerTest extends TestCase
         $this->assertNotSame($first->getPoolName(), $second->getPoolName());
     }
 
+    /**
+     * Provide transports with service configuration.
+     */
     public static function serviceBackedTransportDataProvider(): array
     {
         return [
@@ -570,7 +640,7 @@ class MailManagerTest extends TestCase
 
     public function testCompositeFingerprintTracksChildConstructionAndOrder(): void
     {
-        $this->app->make('config')->set('mail.mailers', [
+        config(['mail.mailers' => [
             'composite' => [
                 'transport' => 'failover',
                 'mailers' => ['primary', 'backup'],
@@ -586,15 +656,15 @@ class MailManagerTest extends TestCase
                 'transport' => 'sendmail',
                 'path' => '/usr/sbin/sendmail -bs',
             ],
-        ]);
+        ]]);
 
         $manager = new MailManager($this->app);
         $first = $manager->mailer('composite')->getSymfonyTransport();
         $manager->forgetMailers();
-        $this->app->make('config')->set('mail.mailers.primary.password', 'second-secret');
+        config(['mail.mailers.primary.password' => 'second-secret']);
         $second = $manager->mailer('composite')->getSymfonyTransport();
         $manager->forgetMailers();
-        $this->app->make('config')->set('mail.mailers.composite.mailers', ['backup', 'primary']);
+        config(['mail.mailers.composite.mailers' => ['backup', 'primary']]);
         $reordered = $manager->mailer('composite')->getSymfonyTransport();
 
         $this->assertInstanceOf(TransportPoolProxy::class, $first);
@@ -606,14 +676,14 @@ class MailManagerTest extends TestCase
 
     public function testCompositeUsesItsOwnRetryAfterAndDirectChildTransports(): void
     {
-        $this->app->make('config')->set('mail.mailers', [
+        config(['mail.mailers' => [
             'array' => ['transport' => 'array'],
             'sendmail' => [
                 'transport' => 'sendmail',
                 'path' => '/usr/sbin/sendmail -bs',
                 'retry_after' => 999,
             ],
-        ]);
+        ]]);
 
         $transport = (new MailManager($this->app))->createSymfonyTransport([
             'transport' => 'roundrobin',
@@ -634,7 +704,7 @@ class MailManagerTest extends TestCase
 
     public function testCompositeDefinitionCyclesAreRejected(): void
     {
-        $this->app->make('config')->set('mail.mailers', [
+        config(['mail.mailers' => [
             'first' => [
                 'transport' => 'failover',
                 'mailers' => ['second'],
@@ -643,21 +713,20 @@ class MailManagerTest extends TestCase
                 'transport' => 'roundrobin',
                 'mailers' => ['first'],
             ],
-        ]);
+        ]]);
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Circular mailer transport definition detected: first -> second -> first.');
+        $this->expectExceptionObject(new InvalidArgumentException('Circular mailer transport definition detected: first -> second -> first.'));
 
         (new MailManager($this->app))->mailer('first');
     }
 
     public function testPurgeInvalidatesACachedTransportPool(): void
     {
-        $this->app->make('config')->set('mail.mailers.smtp', [
+        config(['mail.mailers.smtp' => [
             'transport' => 'smtp',
             'host' => '127.0.0.1',
             'port' => 2525,
-        ]);
+        ]]);
 
         $manager = new MailManager($this->app);
         $transport = $manager->mailer('smtp')->getSymfonyTransport();
@@ -677,11 +746,11 @@ class MailManagerTest extends TestCase
 
     public function testForgetIsCacheOnlyAndUncachedPurgeDerivesThePoolIdentity(): void
     {
-        $this->app->make('config')->set('mail.mailers.smtp', [
+        config(['mail.mailers.smtp' => [
             'transport' => 'smtp',
             'host' => '127.0.0.1',
             'port' => 2525,
-        ]);
+        ]]);
 
         $manager = new MailManager($this->app);
         $transport = $manager->mailer('smtp')->getSymfonyTransport();
@@ -703,7 +772,7 @@ class MailManagerTest extends TestCase
         MailManagerTestTransport::$sent = 0;
 
         $transport = (new MailManager($this->app))
-            ->extend('custom', fn (array $config) => new MailManagerTestTransport, poolable: true)
+            ->extend('custom', fn (array $config): MailManagerTestTransport => new MailManagerTestTransport, poolable: true)
             ->build(['transport' => 'custom', 'pool' => true])
             ->getSymfonyTransport();
 
@@ -716,7 +785,7 @@ class MailManagerTest extends TestCase
     public function testCustomOnDemandTransportRequiresPerBuildOptIn(): void
     {
         $manager = (new MailManager($this->app))
-            ->extend('custom', fn (array $config) => new MailManagerTestTransport, poolable: true);
+            ->extend('custom', fn (array $config): MailManagerTestTransport => new MailManagerTestTransport, poolable: true);
 
         $direct = $manager->build(['transport' => 'custom'])->getSymfonyTransport();
         $pooled = $manager->build(['transport' => 'custom', 'pool' => true])->getSymfonyTransport();
@@ -745,6 +814,11 @@ class MailManagerTest extends TestCase
     }
 }
 
+enum MailerName: string
+{
+    case ArrayMailer = 'array';
+}
+
 enum MailManagerTestIntIdentifier: int
 {
     case Zero = 0;
@@ -754,6 +828,9 @@ class MailManagerTestTransport implements TransportInterface
 {
     public static int $sent = 0;
 
+    /**
+     * Record the send attempt.
+     */
     public function send(RawMessage $message, ?Envelope $envelope = null): ?SentMessage
     {
         ++static::$sent;
@@ -761,6 +838,9 @@ class MailManagerTestTransport implements TransportInterface
         return null;
     }
 
+    /**
+     * Get the transport's name.
+     */
     public function __toString(): string
     {
         return 'mail-manager-test';

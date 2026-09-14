@@ -1404,12 +1404,11 @@ SQL);
         }
     }
 
-    public function testItEnsuresDroppingForeignKeyIsAvailable()
+    public function testItEnsuresDroppingForeignKeyIsAvailable(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('This database driver does not support dropping foreign keys by name.');
+        $this->expectExceptionObject(new RuntimeException('This database driver does not support dropping foreign keys by name.'));
 
-        Schema::table('users', function (Blueprint $table) {
+        Schema::table('users', function (Blueprint $table): void {
             $table->dropForeign('something');
         });
     }

@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Log;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
 use Hypervel\Log\Context\Repository;
+use Hypervel\Support\Facades\Context;
 use Hypervel\Testbench\TestCase;
 
 use function Hypervel\Coroutine\go;
@@ -49,6 +50,40 @@ class ContextCoroutineTest extends TestCase
         $this->assertNull($channel->pop());
         // Parent still has its data
         $this->assertSame('parent_value', Repository::getInstance()->get('parent_key'));
+    }
+
+    public function testContextHelperUsesTheCurrentCoroutineRepository(): void
+    {
+        $repository = context(['trace_id' => 'parent']);
+
+        $this->assertSame($repository, app(Repository::class));
+        $this->assertSame($repository, Context::getFacadeRoot());
+
+        $channel = new Channel(1);
+
+        Coroutine::create(static function () use ($channel): void {
+            $channel->push(context('trace_id'));
+        });
+
+        $this->assertNull($channel->pop(1));
+        $this->assertSame('parent', context('trace_id'));
+    }
+
+    public function testContextHelperUsesTheForkedRepository(): void
+    {
+        context(['trace_id' => 'parent']);
+
+        $channel = new Channel(1);
+
+        Coroutine::fork(static function () use ($channel): void {
+            $inherited = context('trace_id');
+            context(['trace_id' => 'child']);
+
+            $channel->push([$inherited, Context::get('trace_id')]);
+        });
+
+        $this->assertSame(['parent', 'child'], $channel->pop(1));
+        $this->assertSame('parent', context('trace_id'));
     }
 
     public function testForkedCoroutineMutatingContextDoesNotAffectParent()

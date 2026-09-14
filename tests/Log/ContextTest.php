@@ -60,6 +60,16 @@ class ContextTest extends TestCase
         $this->assertSame('val2', $this->context->get('key2'));
     }
 
+    public function testItPreservesNumericStringKeys(): void
+    {
+        $this->context->add('123', 'first');
+        $this->assertSame('first', $this->context->get('123'));
+
+        $this->context->add(['123' => 'updated', '456' => 'second']);
+
+        $this->assertSame([123 => 'updated', 456 => 'second'], $this->context->all());
+    }
+
     public function testItCanAddValuesWhenNotAlreadyPresent()
     {
         $this->context->addIf('key', 'first');
@@ -297,6 +307,16 @@ class ContextTest extends TestCase
 
         $this->assertSame('data', $this->context->getHidden('secret'));
         $this->assertNull($this->context->get('secret'));
+    }
+
+    public function testItPreservesNumericStringHiddenKeys(): void
+    {
+        $this->context->addHidden('123', 'first');
+        $this->assertSame('first', $this->context->getHidden('123'));
+
+        $this->context->addHidden(['123' => 'updated', '456' => 'second']);
+
+        $this->assertSame([123 => 'updated', 456 => 'second'], $this->context->allHidden());
     }
 
     public function testItCanAddHiddenValuesWhenNotAlreadyPresent()

@@ -33,6 +33,10 @@
 
 - Replace PHPUnit 13's [soft-deprecated `expectExceptionMessage()`](https://github.com/sebastianbergmann/phpunit/issues/6560) calls across the test suite. Preserve intended matching semantics: use `expectExceptionObject()` for combined class/message/code expectations, `expectExceptionMessageIs()` for exact messages, and `expectExceptionMessageIsOrContains()` for substring matching. Audit each assertion's intent and run its owning test file as it is changed.
 
+## Filesystem
+
+- Investigate FTP support with Swoole's built-in coroutine FTP implementation. It supplies `ftp_*` functions but is not discoverable as `ext-ftp`, so Composer rejects `league/flysystem-ftp` and `RequiresPhpExtension('ftp')` skips the driver test. Resolve normal development and production installation without bypassing dependency checks, then add the adapter to root `require-dev`, use a test requirement that accepts either FTP implementation, and update the installation guidance. Basic transfers through Hypervel and Flysystem have been verified inside a Swoole coroutine.
+
 ## HTTP Server
 
 - Remove trailer-stream one-chunk lookahead once the minimum supported Swoole release includes [swoole-src#6124](https://github.com/swoole/swoole-src/pull/6124). Current releases send an empty `END_STREAM` DATA frame before trailer HEADERS when `end()` receives no body after `write()`, so `ResponseBridge` retains the final chunk for `end($chunk)` and delays delivery by one chunk. Once fixed, raise the `ext-swoole` constraint, write every chunk immediately, emit trailers, call bare `end()`, invert the deterministic bridge ordering tests, and add real gRPC incremental-delivery coverage.

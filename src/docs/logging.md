@@ -41,6 +41,7 @@ Each log channel is powered by a "driver". The driver determines how and where t
 | ------------ | -------------------------------------------------------------------- |
 | `custom`     | A driver that calls a specified factory to create a channel.         |
 | `daily`      | A `RotatingFileHandler` based Monolog driver which rotates daily.    |
+| `monthly`    | A `RotatingFileHandler` based Monolog driver which rotates monthly.  |
 | `errorlog`   | An `ErrorLogHandler` based Monolog driver.                           |
 | `monolog`    | A Monolog factory driver that may use any supported Monolog handler. |
 | `single`     | A single file or path based logger channel (`StreamHandler`).        |
@@ -69,10 +70,10 @@ By default, Monolog is instantiated with a "channel name" that matches the curre
 <a name="channel-prerequisites"></a>
 ### Channel Prerequisites
 
-<a name="configuring-the-single-and-daily-channels"></a>
-#### Configuring the Single and Daily Channels
+<a name="configuring-the-single-daily-and-monthly-channels"></a>
+#### Configuring the Single, Daily, and Monthly Channels
 
-The `single` and `daily` channels have three optional configuration options: `bubble`, `permission`, and `locking`.
+The `single`, `daily`, and `monthly` channels have three optional configuration options: `bubble`, `permission`, and `locking`.
 
 <div class="overflow-auto">
 
@@ -86,15 +87,7 @@ The `single` and `daily` channels have three optional configuration options: `bu
 
 When `permission` is `null`, the operating system determines the log file's permissions.
 
-Additionally, the retention policy for the `daily` channel can be configured via the `LOG_DAILY_DAYS` environment variable or by setting the `days` configuration option.
-
-<div class="overflow-auto">
-
-| Name   | Description                                                 | Default |
-| ------ | ----------------------------------------------------------- | ------- |
-| `days` | The number of days that daily log files should be retained. | `14`    |
-
-</div>
+Additionally, the retention policy for the `daily` and `monthly` channels can be configured via the `max_files` configuration option. The `LOG_DAILY_DAYS` environment variable may also be used to configure retention for the `daily` channel. If no retention is configured, daily channels keep seven files and monthly channels keep three.
 
 <a name="configuring-the-papertrail-channel"></a>
 #### Configuring the Papertrail Channel

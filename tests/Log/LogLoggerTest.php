@@ -20,6 +20,7 @@ use Monolog\Handler\TestHandler;
 use Monolog\Level;
 use Monolog\Logger as Monolog;
 use Monolog\LogRecord;
+use Monolog\Processor\PsrLogMessageProcessor;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 
@@ -45,6 +46,21 @@ class LogLoggerTest extends TestCase
         $monolog->shouldReceive('error')->once()->with('foo', ['bar' => 'baz']);
 
         $writer->error('foo');
+    }
+
+    public function testNumericContextKeysArePreservedAndOverridden(): void
+    {
+        $handler = new TestHandler;
+        $writer = new Logger(new Monolog('test', [$handler], [new PsrLogMessageProcessor]));
+        $writer->withContext(['123' => 'first', '456' => 'kept']);
+        $writer->withContext(['123' => 'updated']);
+
+        $writer->info('{123}/{456}', ['123' => 'override']);
+
+        $record = $handler->getRecords()[0];
+        $this->assertSame('override/kept', $record->message);
+        $this->assertSame([123 => 'override', 456 => 'kept'], $record->context);
+        $this->assertSame([123 => 'updated', 456 => 'kept'], $writer->getContext());
     }
 
     public function testContextIsFlushed()
@@ -94,13 +110,12 @@ class LogLoggerTest extends TestCase
         $this->assertEquals([], $context['event_context']);
     }
 
-    public function testListenShortcutFailsWithNoDispatcher()
+    public function testListenShortcutFailsWithNoDispatcher(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Events dispatcher has not been set.');
+        $this->expectExceptionObject(new RuntimeException('Events dispatcher has not been set.'));
 
         $writer = new Logger($this->mockMonolog());
-        $writer->listen(function () {
+        $writer->listen(function (): void {
         });
     }
 

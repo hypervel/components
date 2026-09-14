@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Queue;
+namespace Hypervel\Tests\Integration\Queue\QueueSizeTest;
 
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Queue\ShouldQueue;
@@ -11,7 +11,7 @@ use Hypervel\Testbench\TestCase;
 
 class QueueSizeTest extends TestCase
 {
-    public function testQueueSize()
+    public function testQueueSize(): void
     {
         Queue::fake();
 

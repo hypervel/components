@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Log;
+namespace Hypervel\Tests\Integration\Log;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Log\Context\ResolvedContextLogProcessor;
+use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Log\Handlers\FingersCrossedHandler as HypervelFingersCrossedHandler;
 use Hypervel\Log\Handlers\RotatingFileHandler as HypervelRotatingFileHandler;
 use Hypervel\Log\Handlers\StreamHandler as HypervelStreamHandler;
@@ -27,6 +29,7 @@ use Monolog\Logger as Monolog;
 use Monolog\Processor\MemoryUsageProcessor;
 use Monolog\Processor\PsrLogMessageProcessor;
 use Monolog\Processor\UidProcessor;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LoggerTrait;
 use ReflectionProperty;
@@ -35,15 +38,33 @@ use Stringable;
 
 class LogManagerTest extends TestCase
 {
+    protected string $logDirectory;
+
+    /**
+     * Configure the test environment.
+     */
     protected function defineEnvironment(ApplicationContract $app): void
     {
+        $this->logDirectory = $app->storagePath('logs/log-manager');
+        $app->make(Filesystem::class)->ensureDirectoryExists($this->logDirectory);
+
         $app->make('config')->set('logging.channels.single', [
             'driver' => 'single',
-            'path' => __DIR__,
+            'path' => $this->logDirectory . '/hypervel.log',
         ]);
     }
 
-    public function testLogManagerCachesLoggerInstances()
+    /**
+     * Remove the test's log files.
+     */
+    protected function tearDown(): void
+    {
+        $this->app->make(Filesystem::class)->deleteDirectory($this->logDirectory);
+
+        parent::tearDown();
+    }
+
+    public function testLogManagerCachesLoggerInstances(): void
     {
         $manager = new LogManager($this->app);
 
@@ -53,30 +74,27 @@ class LogManagerTest extends TestCase
         $this->assertSame($logger1, $logger2);
     }
 
-    public function testLogManagerGetDefaultDriver()
+    public function testLogManagerGetDefaultDriver(): void
     {
         $manager = new LogManager($this->app);
-        $this->app->make('config')
-            ->set('logging.default', 'single');
+        config(['logging.default' => 'single']);
         $this->assertEmpty($manager->getChannels());
 
         // we don't specify any channel name
         $manager->channel();
         $this->assertCount(1, $manager->getChannels());
-        $this->assertEquals('single', $manager->getDefaultDriver());
+        $this->assertSame('single', $manager->getDefaultDriver());
     }
 
-    public function testStackChannel()
+    public function testStackChannel(): void
     {
         $manager = new LogManager($this->app);
-        $config = $this->app->make('config');
-
-        $config->set('logging.channels.stack', [
+        config(['logging.channels.stack' => [
             'driver' => 'stack',
             'channels' => ['stderr', 'stdout'],
-        ]);
+        ]]);
 
-        $config->set('logging.channels.stderr', [
+        config(['logging.channels.stderr' => [
             'driver' => 'monolog',
             'handler' => StreamHandler::class,
             'level' => 'notice',
@@ -85,9 +103,9 @@ class LogManagerTest extends TestCase
                 'bubble' => false,
             ],
             'processors' => [PsrLogMessageProcessor::class],
-        ]);
+        ]]);
 
-        $config->set('logging.channels.stdout', [
+        config(['logging.channels.stdout' => [
             'driver' => 'monolog',
             'handler' => StreamHandler::class,
             'level' => 'info',
@@ -95,7 +113,7 @@ class LogManagerTest extends TestCase
                 'stream' => 'php://stdout',
                 'bubble' => true,
             ],
-        ]);
+        ]]);
 
         // create logger with handler specified from configuration
         $logger = $manager->channel('stack');
@@ -122,28 +140,26 @@ class LogManagerTest extends TestCase
         $this->assertSame('audit', $logger->getName());
     }
 
-    public function testParsingStackChannels()
+    public function testParsingStackChannels(): void
     {
         $manager = new LogManager($this->app);
-        $config = $this->app->make('config');
-
-        $config->set('logging.channels.stack', [
+        config(['logging.channels.stack' => [
             'driver' => 'stack',
             'channels' => 'single, daily, stderr',
-        ]);
+        ]]);
 
-        $config->set('logging.channels.daily', [
+        config(['logging.channels.daily' => [
             'driver' => 'daily',
-            'path' => __DIR__ . '/logs/hypervel.log',
-        ]);
+            'path' => $this->logDirectory . '/hypervel.log',
+        ]]);
 
-        $config->set('logging.channels.stderr', [
+        config(['logging.channels.stderr' => [
             'driver' => 'monolog',
             'handler' => StreamHandler::class,
             'with' => [
                 'stream' => 'php://stderr',
             ],
-        ]);
+        ]]);
 
         $manager->channel('stack');
 
@@ -153,11 +169,10 @@ class LogManagerTest extends TestCase
         );
     }
 
-    public function testLogManagerCreatesConfiguredMonologHandler()
+    public function testLogManagerCreatesConfiguredMonologHandler(): void
     {
         $manager = new LogManager($this->app);
-        $config = $this->app->make('config');
-        $config->set('logging.channels.nonbubblingstream', [
+        config(['logging.channels.nonbubblingstream' => [
             'driver' => 'monolog',
             'name' => 'foobar',
             'handler' => StreamHandler::class,
@@ -166,7 +181,7 @@ class LogManagerTest extends TestCase
                 'stream' => 'php://stderr',
                 'bubble' => false,
             ],
-        ]);
+        ]]);
 
         // create logger with handler specified from configuration
         $logger = $manager->channel('nonbubblingstream');
@@ -182,14 +197,14 @@ class LogManagerTest extends TestCase
         $url = new ReflectionProperty(get_class($handlers[0]), 'url');
         $this->assertSame('php://stderr', $url->getValue($handlers[0]));
 
-        $config->set('logging.channels.logentries', [
+        config(['logging.channels.logentries' => [
             'driver' => 'monolog',
             'name' => 'le',
             'handler' => LogEntriesHandler::class,
             'with' => [
                 'token' => '123456789',
             ],
-        ]);
+        ]]);
 
         $logger = $manager->channel('logentries');
         $handlers = $logger->getLogger()->getHandlers();
@@ -200,16 +215,15 @@ class LogManagerTest extends TestCase
         $this->assertSame('123456789', $logToken->getValue($handlers[0]));
     }
 
-    public function testLogManagerCreatesMonologHandlerWithConfiguredFormatter()
+    public function testLogManagerCreatesMonologHandlerWithConfiguredFormatter(): void
     {
         $manager = new LogManager($this->app);
-        $config = $this->app->make('config');
-        $config->set('logging.channels.newrelic', [
+        config(['logging.channels.newrelic' => [
             'driver' => 'monolog',
             'name' => 'nr',
             'handler' => NewRelicHandler::class,
             'formatter' => 'default',
-        ]);
+        ]]);
 
         // create logger with handler specified from configuration
         $logger = $manager->channel('newrelic');
@@ -218,7 +232,7 @@ class LogManagerTest extends TestCase
         $this->assertInstanceOf(NewRelicHandler::class, $handler);
         $this->assertInstanceOf(NormalizerFormatter::class, $handler->getFormatter());
 
-        $config->set('logging.channels.newrelic2', [
+        config(['logging.channels.newrelic2' => [
             'driver' => 'monolog',
             'name' => 'nr',
             'handler' => NewRelicHandler::class,
@@ -226,7 +240,7 @@ class LogManagerTest extends TestCase
             'formatter_with' => [
                 'dateFormat' => 'Y/m/d--test',
             ],
-        ]);
+        ]]);
 
         $logger = $manager->channel('newrelic2');
         $handler = $logger->getLogger()->getHandlers()[0];
@@ -240,15 +254,14 @@ class LogManagerTest extends TestCase
         $this->assertSame('Y/m/d--test', $dateFormat->getValue($formatter));
     }
 
-    public function testLogManagerCreatesMonologHandlerWithProperFormatter()
+    public function testLogManagerCreatesMonologHandlerWithProperFormatter(): void
     {
         $manager = new LogManager($this->app);
-        $config = $this->app->make('config');
-        $config->set('logging.channels.null', [
+        config(['logging.channels.null' => [
             'driver' => 'monolog',
             'handler' => NullHandler::class,
             'formatter' => HtmlFormatter::class,
-        ]);
+        ]]);
 
         // create logger with handler specified from configuration
         $logger = $manager->channel('null');
@@ -256,10 +269,10 @@ class LogManagerTest extends TestCase
 
         $this->assertInstanceOf(NullHandler::class, $handler);
 
-        $config->set('logging.channels.null2', [
+        config(['logging.channels.null2' => [
             'driver' => 'monolog',
             'handler' => NullHandler::class,
-        ]);
+        ]]);
 
         $logger = $manager->channel('null2');
         $handler = $logger->getLogger()->getHandlers()[0];
@@ -267,11 +280,10 @@ class LogManagerTest extends TestCase
         $this->assertInstanceOf(NullHandler::class, $handler);
     }
 
-    public function testLogManagerCreatesMonologHandlerWithProcessors()
+    public function testLogManagerCreatesMonologHandlerWithProcessors(): void
     {
         $manager = new LogManager($this->app);
-        $config = $this->app->make('config');
-        $config->set('logging.channels.memory', [
+        config(['logging.channels.memory' => [
             'driver' => 'monolog',
             'name' => 'memory',
             'handler' => StreamHandler::class,
@@ -282,7 +294,7 @@ class LogManagerTest extends TestCase
                 MemoryUsageProcessor::class,
                 ['processor' => PsrLogMessageProcessor::class, 'with' => ['removeUsedContextFields' => true]],
             ],
-        ]);
+        ]]);
 
         // create logger with handler specified from configuration
         $logger = $manager->channel('memory');
@@ -302,21 +314,20 @@ class LogManagerTest extends TestCase
     public function testExactVendorHandlersAndUidProcessorsUseCoroutineSafeImplementations(): void
     {
         $manager = new LogManager($this->app);
-        $config = $this->app->make('config');
-        $config->set('logging.channels.safe', [
+        config(['logging.channels.safe' => [
             'driver' => 'monolog',
             'handler' => StreamHandler::class,
             'with' => ['stream' => 'php://memory'],
             'processors' => [
                 ['processor' => UidProcessor::class, 'with' => ['length' => 16]],
             ],
-        ]);
-        $config->set('logging.channels.custom', [
+        ]]);
+        config(['logging.channels.custom' => [
             'driver' => 'monolog',
             'handler' => CustomStreamHandler::class,
             'with' => ['stream' => 'php://memory'],
             'processors' => [CustomUidProcessor::class],
-        ]);
+        ]]);
 
         $safe = $manager->channel('safe')->getLogger();
         $custom = $manager->channel('custom')->getLogger();
@@ -331,10 +342,10 @@ class LogManagerTest extends TestCase
     public function testDailyDriverUsesCoroutineSafeRotatingHandler(): void
     {
         $manager = new LogManager($this->app);
-        $this->app->make('config')->set('logging.channels.daily-safe', [
+        config(['logging.channels.daily-safe' => [
             'driver' => 'daily',
-            'path' => __DIR__ . '/logs/daily-safe.log',
-        ]);
+            'path' => $this->logDirectory . '/daily-safe.log',
+        ]]);
 
         $handler = $manager->channel('daily-safe')->getLogger()->getHandlers()[0];
 
@@ -351,12 +362,11 @@ class LogManagerTest extends TestCase
         };
 
         $this->app->instance('env', 'testing');
-        $config = $this->app->make('config');
-        $config->set('logging.default', null);
-        $config->set('logging.channels.null', [
+        config(['logging.default' => null]);
+        config(['logging.channels.null' => [
             'driver' => 'monolog',
             'handler' => NullHandler::class,
-        ]);
+        ]]);
 
         // In tests, this should not need to create the emergency logger...
         $manager->info('message');
@@ -367,23 +377,25 @@ class LogManagerTest extends TestCase
         $this->assertCount(0, $manager->getChannels());
 
         // However in production we want it to fallback to the emergency logger...
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Emergency logger was created.');
-
         $this->app->instance('env', 'production');
-        $manager->info('message');
+        try {
+            $manager->info('message');
+
+            $this->fail('Emergency logger was not created as expected.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Emergency logger was created.', $exception->getMessage());
+        }
     }
 
-    public function testLogManagerCreateSingleDriverWithConfiguredFormatter()
+    public function testLogManagerCreateSingleDriverWithConfiguredFormatter(): void
     {
         $manager = new LogManager($this->app);
-        $config = $this->app->make('config');
-        $config->set('logging.channels.defaultsingle', [
+        config(['logging.channels.defaultsingle' => [
             'driver' => 'single',
             'name' => 'ds',
-            'path' => $path = __DIR__ . '/logs/hypervel.log',
+            'path' => $path = $this->logDirectory . '/hypervel.log',
             'replace_placeholders' => true,
-        ]);
+        ]]);
 
         // create logger with handler specified from configuration
         $logger = $manager->channel('defaultsingle');
@@ -395,7 +407,7 @@ class LogManagerTest extends TestCase
         $this->assertInstanceOf(ResolvedContextLogProcessor::class, $logger->getLogger()->getProcessors()[0]);
         $this->assertInstanceOf(PsrLogMessageProcessor::class, $logger->getLogger()->getProcessors()[1]);
 
-        $config->set('logging.channels.formattedsingle', [
+        config(['logging.channels.formattedsingle' => [
             'driver' => 'single',
             'name' => 'fs',
             'path' => $path,
@@ -404,7 +416,7 @@ class LogManagerTest extends TestCase
                 'dateFormat' => 'Y/m/d--test',
             ],
             'replace_placeholders' => false,
-        ]);
+        ]]);
 
         $logger = $manager->channel('formattedsingle');
         $handler = $logger->getLogger()->getHandlers()[0];
@@ -420,28 +432,27 @@ class LogManagerTest extends TestCase
         $this->assertSame('Y/m/d--test', $dateFormat->getValue($formatter));
     }
 
-    public function testLogManagerCreateDailyDriverWithConfiguredFormatter()
+    public function testLogManagerCreateDailyDriverWithConfiguredFormatter(): void
     {
         $manager = new LogManager($this->app);
-        $config = $this->app->make('config');
-        $config->set('logging.channels.defaultdaily', [
+        config(['logging.channels.defaultdaily' => [
             'driver' => 'daily',
             'name' => 'dd',
-            'path' => $path = __DIR__ . '/logs/hypervel.log',
+            'path' => $path = $this->logDirectory . '/hypervel.log',
             'replace_placeholders' => true,
-        ]);
+        ]]);
 
         // create logger with handler specified from configuration
         $logger = $manager->channel('defaultdaily');
         $handler = $logger->getLogger()->getHandlers()[0];
         $formatter = $handler->getFormatter();
 
-        $this->assertInstanceOf(StreamHandler::class, $handler);
+        $this->assertInstanceOf(HypervelRotatingFileHandler::class, $handler);
         $this->assertInstanceOf(LineFormatter::class, $formatter);
         $this->assertInstanceOf(ResolvedContextLogProcessor::class, $logger->getLogger()->getProcessors()[0]);
         $this->assertInstanceOf(PsrLogMessageProcessor::class, $logger->getLogger()->getProcessors()[1]);
 
-        $config->set('logging.channels.formatteddaily', [
+        config(['logging.channels.formatteddaily' => [
             'driver' => 'daily',
             'name' => 'fd',
             'path' => $path,
@@ -450,13 +461,13 @@ class LogManagerTest extends TestCase
                 'dateFormat' => 'Y/m/d--test',
             ],
             'replace_placeholders' => false,
-        ]);
+        ]]);
 
         $logger = $manager->channel('formatteddaily');
         $handler = $logger->getLogger()->getHandlers()[0];
         $formatter = $handler->getFormatter();
 
-        $this->assertInstanceOf(StreamHandler::class, $handler);
+        $this->assertInstanceOf(HypervelRotatingFileHandler::class, $handler);
         $this->assertInstanceOf(HtmlFormatter::class, $formatter);
         $this->assertCount(1, $logger->getLogger()->getProcessors());
         $this->assertInstanceOf(ResolvedContextLogProcessor::class, $logger->getLogger()->getProcessors()[0]);
@@ -466,15 +477,63 @@ class LogManagerTest extends TestCase
         $this->assertSame('Y/m/d--test', $dateFormat->getValue($formatter));
     }
 
-    public function testLogManagerCreateSyslogDriverWithConfiguredFormatter()
+    #[DataProvider('rotatingFileDriverDataProvider')]
+    public function testRotatingFileDriversLogToADateStampedFileAndPruneOldOnes(string $driver, string $dateFormat, array $staleDates): void
+    {
+        $stalePaths = array_map(fn (string $date): string => $this->logDirectory . "/rotating-{$driver}-{$date}.log", $staleDates);
+
+        foreach ($stalePaths as $stalePath) {
+            file_put_contents($stalePath, 'stale');
+        }
+
+        config(["logging.channels.rotating-{$driver}" => [
+            'driver' => $driver,
+            'path' => $this->logDirectory . "/rotating-{$driver}.log",
+            'level' => 'warning',
+            'max_files' => 3,
+        ]]);
+
+        $logger = (new LogManager($this->app))->channel("rotating-{$driver}");
+
+        $logger->warning('Something went wrong');
+
+        $handler = $logger->getLogger()->getHandlers()[0];
+
+        $handler->close();
+
+        $expectedPath = $this->logDirectory . "/rotating-{$driver}-" . date($dateFormat) . '.log';
+
+        $this->assertInstanceOf(HypervelRotatingFileHandler::class, $handler);
+        $this->assertSame(Level::Warning, $handler->getLevel());
+        $this->assertFileExists($expectedPath);
+        $this->assertSame($expectedPath, $handler->getUrl());
+        $this->assertStringContainsString('WARNING: Something went wrong', file_get_contents($expectedPath));
+
+        // max_files = 3, the oldest 4th file was deleted
+        $this->assertFileDoesNotExist($stalePaths[0]);
+        $this->assertFileExists($stalePaths[1]);
+        $this->assertFileExists($stalePaths[2]);
+    }
+
+    /**
+     * Provide rotating log drivers and their stale files.
+     */
+    public static function rotatingFileDriverDataProvider(): array
+    {
+        return [
+            'daily' => ['daily', 'Y-m-d', ['2026-01-01', '2026-01-02', '2026-01-03']],
+            'monthly' => ['monthly', 'Y-m', ['2026-01', '2026-02', '2026-03']],
+        ];
+    }
+
+    public function testLogManagerCreateSyslogDriverWithConfiguredFormatter(): void
     {
         $manager = new LogManager($this->app);
-        $config = $this->app->make('config');
-        $config->set('logging.channels.defaultsyslog', [
+        config(['logging.channels.defaultsyslog' => [
             'driver' => 'syslog',
             'name' => 'ds',
             'replace_placeholders' => true,
-        ]);
+        ]]);
 
         // create logger with handler specified from configuration
         $logger = $manager->channel('defaultsyslog');
@@ -486,7 +545,7 @@ class LogManagerTest extends TestCase
         $this->assertInstanceOf(ResolvedContextLogProcessor::class, $logger->getLogger()->getProcessors()[0]);
         $this->assertInstanceOf(PsrLogMessageProcessor::class, $logger->getLogger()->getProcessors()[1]);
 
-        $config->set('logging.channels.formattedsyslog', [
+        config(['logging.channels.formattedsyslog' => [
             'driver' => 'syslog',
             'name' => 'fs',
             'formatter' => HtmlFormatter::class,
@@ -494,7 +553,7 @@ class LogManagerTest extends TestCase
                 'dateFormat' => 'Y/m/d--test',
             ],
             'replace_placeholders' => false,
-        ]);
+        ]]);
 
         $logger = $manager->channel('formattedsyslog');
         $handler = $logger->getLogger()->getHandlers()[0];
@@ -510,7 +569,7 @@ class LogManagerTest extends TestCase
         $this->assertSame('Y/m/d--test', $dateFormat->getValue($formatter));
     }
 
-    public function testLogManagerPurgeResolvedChannels()
+    public function testLogManagerPurgeResolvedChannels(): void
     {
         $manager = new LogManager($this->app);
 
@@ -525,13 +584,13 @@ class LogManagerTest extends TestCase
         $this->assertEmpty($manager->getChannels());
     }
 
-    public function testLogManagerCanBuildOnDemandChannel()
+    public function testLogManagerCanBuildOnDemandChannel(): void
     {
         $manager = new LogManager($this->app);
 
         $logger = $manager->build([
             'driver' => 'single',
-            'path' => $path = __DIR__ . '/logs/on-demand.log',
+            'path' => $path = $this->logDirectory . '/on-demand.log',
         ]);
         $handler = $logger->getLogger()->getHandlers()[0];
 
@@ -548,7 +607,7 @@ class LogManagerTest extends TestCase
         $config = [
             'driver' => 'single',
             'tap' => [CustomizeFormatter::class],
-            'path' => __DIR__ . '/logs/on-demand-tapped.log',
+            'path' => $this->logDirectory . '/on-demand-tapped.log',
         ];
 
         $first = $manager->build($config);
@@ -570,21 +629,23 @@ class LogManagerTest extends TestCase
         $this->assertSame([], $first->getContext());
     }
 
-    public function testLogManagerCanUseOnDemandChannelInOnDemandStack()
+    public function testLogManagerCanUseOnDemandChannelInOnDemandStack(): void
     {
         $manager = new LogManager($this->app);
-        $this->app->make('config')
-            ->set('logging.channels.test', [
-                'driver' => 'single',
-                'path' => $path = __DIR__ . '/logs/custom.log',
-            ]);
+        config(['logging.channels.test' => [
+            'driver' => 'single',
+            'path' => $path = $this->logDirectory . '/custom.log',
+        ]]);
 
         $factory = new class {
-            public function __invoke()
+            /**
+             * Create the logger.
+             */
+            public function __invoke(): Monolog
             {
                 return new Monolog(
                     'uuid',
-                    [new StreamHandler(__DIR__ . '/logs/custom.log')],
+                    [new StreamHandler(storage_path('logs/log-manager/custom.log'))],
                     [new UidProcessor]
                 );
             }
@@ -607,20 +668,28 @@ class LogManagerTest extends TestCase
         $this->assertSame($path, $url->getValue($handler));
     }
 
-    public function testWrappingHandlerInFingersCrossedWhenActionLevelIsUsed()
+    public function testLogManagerCanSetChannelNameForOnDemandStack(): void
     {
         $manager = new LogManager($this->app);
-        $this->app->make('config')
-            ->set('logging.channels.fingerscrossed', [
-                'driver' => 'monolog',
-                'handler' => StreamHandler::class,
-                'level' => 'debug',
-                'action_level' => 'critical',
-                'with' => [
-                    'stream' => 'php://stderr',
-                    'bubble' => false,
-                ],
-            ]);
+
+        $logger = $manager->stack(['single'], 'custom');
+
+        $this->assertSame('custom', $logger->getName());
+    }
+
+    public function testWrappingHandlerInFingersCrossedWhenActionLevelIsUsed(): void
+    {
+        $manager = new LogManager($this->app);
+        config(['logging.channels.fingerscrossed' => [
+            'driver' => 'monolog',
+            'handler' => StreamHandler::class,
+            'level' => 'debug',
+            'action_level' => 'critical',
+            'with' => [
+                'stream' => 'php://stderr',
+                'bubble' => false,
+            ],
+        ]]);
 
         // create logger with handler specified from configuration
         $logger = $manager->channel('fingerscrossed');
@@ -641,30 +710,24 @@ class LogManagerTest extends TestCase
 
         $this->assertEquals(Level::Critical, $actionLevelValue);
 
-        if (method_exists($expectedFingersCrossedHandler, 'getHandler')) {
-            $expectedStreamHandler = $expectedFingersCrossedHandler->getHandler();
-        } else {
-            $handlerProp = new ReflectionProperty(get_class($expectedFingersCrossedHandler), 'handler');
-            $expectedStreamHandler = $handlerProp->getValue($expectedFingersCrossedHandler);
-        }
+        $expectedStreamHandler = $expectedFingersCrossedHandler->getHandler();
         $this->assertInstanceOf(StreamHandler::class, $expectedStreamHandler);
         $this->assertEquals(Level::Debug, $expectedStreamHandler->getLevel());
     }
 
-    public function testFingersCrossedHandlerStopsRecordBufferingAfterFirstFlushByDefault()
+    public function testFingersCrossedHandlerStopsRecordBufferingAfterFirstFlushByDefault(): void
     {
         $manager = new LogManager($this->app);
-        $this->app->make('config')
-            ->set('logging.channels.fingerscrossed', [
-                'driver' => 'monolog',
-                'handler' => StreamHandler::class,
-                'level' => 'debug',
-                'action_level' => 'critical',
-                'with' => [
-                    'stream' => 'php://stderr',
-                    'bubble' => false,
-                ],
-            ]);
+        config(['logging.channels.fingerscrossed' => [
+            'driver' => 'monolog',
+            'handler' => StreamHandler::class,
+            'level' => 'debug',
+            'action_level' => 'critical',
+            'with' => [
+                'stream' => 'php://stderr',
+                'bubble' => false,
+            ],
+        ]]);
 
         // create logger with handler specified from configuration
         $logger = $manager->channel('fingerscrossed');
@@ -678,21 +741,20 @@ class LogManagerTest extends TestCase
         $this->assertTrue($stopBufferingValue);
     }
 
-    public function testFingersCrossedHandlerCanBeConfiguredToResumeBufferingAfterFlushing()
+    public function testFingersCrossedHandlerCanBeConfiguredToResumeBufferingAfterFlushing(): void
     {
         $manager = new LogManager($this->app);
-        $this->app->make('config')
-            ->set('logging.channels.fingerscrossed', [
-                'driver' => 'monolog',
-                'handler' => StreamHandler::class,
-                'level' => 'debug',
-                'action_level' => 'critical',
-                'stop_buffering' => false,
-                'with' => [
-                    'stream' => 'php://stderr',
-                    'bubble' => false,
-                ],
-            ]);
+        config(['logging.channels.fingerscrossed' => [
+            'driver' => 'monolog',
+            'handler' => StreamHandler::class,
+            'level' => 'debug',
+            'action_level' => 'critical',
+            'stop_buffering' => false,
+            'with' => [
+                'stream' => 'php://stderr',
+                'bubble' => false,
+            ],
+        ]]);
 
         // create logger with handler specified from configuration
         $logger = $manager->channel('fingerscrossed');
@@ -706,19 +768,18 @@ class LogManagerTest extends TestCase
         $this->assertFalse($stopBufferingValue);
     }
 
-    public function testItSharesContextWithAlreadyResolvedChannels()
+    public function testItSharesContextWithAlreadyResolvedChannels(): void
     {
         $manager = new LogManager($this->app);
-        $config = $this->app->make('config');
-        $config->set('logging.default', null);
-        $config->set('logging.channels.null', [
+        config(['logging.default' => null]);
+        config(['logging.channels.null' => [
             'driver' => 'monolog',
             'handler' => NullHandler::class,
-        ]);
+        ]]);
         $channel = $manager->channel('null');
         $context = null;
 
-        $channel->listen(function ($message) use (&$context) {
+        $channel->listen(function (MessageLogged $message) use (&$context): void {
             $context = $message->context;
         });
         $manager->shareContext([
@@ -729,22 +790,21 @@ class LogManagerTest extends TestCase
         $this->assertSame(['invocation-id' => 'expected-id'], $context);
     }
 
-    public function testItSharesContextWithFreshlyResolvedChannels()
+    public function testItSharesContextWithFreshlyResolvedChannels(): void
     {
         $manager = new LogManager($this->app);
-        $config = $this->app->make('config');
-        $config->set('logging.default', null);
-        $config->set('logging.channels.null', [
+        config(['logging.default' => null]);
+        config(['logging.channels.null' => [
             'driver' => 'monolog',
             'handler' => NullHandler::class,
-        ]);
+        ]]);
         $channel = $manager->channel('null');
         $context = null;
 
         $manager->shareContext([
             'invocation-id' => 'expected-id',
         ]);
-        $manager->channel('null')->listen(function ($message) use (&$context) {
+        $manager->channel('null')->listen(function (MessageLogged $message) use (&$context): void {
             $context = $message->context;
         });
         $manager->channel('null')->info('xxxx');
@@ -752,7 +812,7 @@ class LogManagerTest extends TestCase
         $this->assertSame(['invocation-id' => 'expected-id'], $context);
     }
 
-    public function testContextCanBePubliclyAccessedByOtherLoggingSystems()
+    public function testContextCanBePubliclyAccessedByOtherLoggingSystems(): void
     {
         $manager = new LogManager($this->app);
         $manager->shareContext([
@@ -762,15 +822,14 @@ class LogManagerTest extends TestCase
         $this->assertSame($manager->sharedContext(), ['invocation-id' => 'expected-id']);
     }
 
-    public function testItSharesContextWithStacksWhenTheyAreResolved()
+    public function testItSharesContextWithStacksWhenTheyAreResolved(): void
     {
         $manager = new LogManager($this->app);
-        $config = $this->app->make('config');
-        $config->set('logging.default', null);
-        $config->set('logging.channels.null', [
+        config(['logging.default' => null]);
+        config(['logging.channels.null' => [
             'driver' => 'monolog',
             'handler' => NullHandler::class,
-        ]);
+        ]]);
         $channel = $manager->channel('null');
         $context = null;
 
@@ -778,7 +837,7 @@ class LogManagerTest extends TestCase
             'invocation-id' => 'expected-id',
         ]);
         $stack = $manager->stack(['null']);
-        $stack->listen(function ($message) use (&$context) {
+        $stack->listen(function (MessageLogged $message) use (&$context): void {
             $context = $message->context;
         });
         $stack->info('xxxx');
@@ -786,15 +845,14 @@ class LogManagerTest extends TestCase
         $this->assertSame(['invocation-id' => 'expected-id'], $context);
     }
 
-    public function testItMergesSharedContextRatherThanReplacing()
+    public function testItMergesSharedContextRatherThanReplacing(): void
     {
         $manager = new LogManager($this->app);
-        $config = $this->app->make('config');
-        $config->set('logging.default', null);
-        $config->set('logging.channels.null', [
+        config(['logging.default' => null]);
+        config(['logging.channels.null' => [
             'driver' => 'monolog',
             'handler' => NullHandler::class,
-        ]);
+        ]]);
         $channel = $manager->channel('null');
         $context = null;
 
@@ -804,7 +862,7 @@ class LogManagerTest extends TestCase
         $manager->shareContext([
             'invocation-start' => 1651800456,
         ]);
-        $manager->channel('null')->listen(function ($message) use (&$context) {
+        $manager->channel('null')->listen(function (MessageLogged $message) use (&$context): void {
             $context = $message->context;
         });
         $manager->channel('null')->info('xxxx', [
@@ -822,7 +880,27 @@ class LogManagerTest extends TestCase
         ], $manager->sharedContext());
     }
 
-    public function testFlushSharedContext()
+    public function testSharedContextPreservesNumericKeys(): void
+    {
+        config(['logging.channels.first' => [
+            'driver' => 'monolog',
+            'handler' => NullHandler::class,
+        ], 'logging.channels.second' => [
+            'driver' => 'monolog',
+            'handler' => NullHandler::class,
+        ]]);
+        $manager = new LogManager($this->app);
+        $first = $manager->channel('first');
+
+        $manager->shareContext(['123' => 'first', '456' => 'kept']);
+        $manager->shareContext(['123' => 'updated']);
+
+        $this->assertSame([123 => 'updated', 456 => 'kept'], $manager->sharedContext());
+        $this->assertSame([123 => 'updated', 456 => 'kept'], $first->getContext());
+        $this->assertSame([123 => 'updated', 456 => 'kept'], $manager->channel('second')->getContext());
+    }
+
+    public function testFlushSharedContext(): void
     {
         $manager = new LogManager($this->app);
 
@@ -835,15 +913,14 @@ class LogManagerTest extends TestCase
         $this->assertEmpty($manager->sharedContext());
     }
 
-    public function testLogManagerCreateCustomFormatterWithTap()
+    public function testLogManagerCreateCustomFormatterWithTap(): void
     {
         $manager = new LogManager($this->app);
-        $this->app->make('config')
-            ->set('logging.channels.custom', [
-                'driver' => 'single',
-                'tap' => [CustomizeFormatter::class],
-                'path' => __DIR__ . '/logs/custom.log',
-            ]);
+        config(['logging.channels.custom' => [
+            'driver' => 'single',
+            'tap' => [CustomizeFormatter::class],
+            'path' => $this->logDirectory . '/custom.log',
+        ]]);
 
         $logger = $manager->channel('custom');
         $handler = $logger->getLogger()->getHandlers()[0];
@@ -853,23 +930,22 @@ class LogManagerTest extends TestCase
 
         $format = new ReflectionProperty(get_class($formatter), 'format');
 
-        $this->assertEquals(
+        $this->assertSame(
             '[%datetime%] %channel%.%level_name%: %message% %context% %extra%',
             rtrim($format->getValue($formatter))
         );
     }
 
-    public function testDriverUsersPsrLoggerManagerReturnsLogger()
+    public function testDriverUsersPsrLoggerManagerReturnsLogger(): void
     {
-        $config = $this->app->make('config');
-        $config->set('logging.channels.spy', [
+        config(['logging.channels.spy' => [
             'driver' => 'spy',
-        ]);
+        ]]);
 
         $manager = new LogManager($this->app);
 
         $loggerSpy = new LoggerSpy;
-        $manager->extend('spy', fn () => $loggerSpy);
+        $manager->extend('spy', fn (): LoggerSpy => $loggerSpy);
 
         // When
         $logger = $manager->channel('spy');
@@ -877,35 +953,34 @@ class LogManagerTest extends TestCase
 
         // Then
         $this->assertCount(1, $loggerSpy->logs);
-        $this->assertEquals('some alert', $loggerSpy->logs[0]['message']);
+        $this->assertSame('some alert', $loggerSpy->logs[0]['message']);
     }
 
-    public function testCustomDriverClosureBoundObjectIsLogManager()
+    public function testCustomDriverClosureBoundObjectIsLogManager(): void
     {
-        $config = $this->app->make('config');
-        $config->set('logging.channels.' . __CLASS__, [
+        config(['logging.channels.' . __CLASS__ => [
             'driver' => __CLASS__,
-        ]);
+        ]]);
 
         $manager = new LogManager($this->app);
-        $manager->extend(__CLASS__, fn () => $this);
+        $manager->extend(__CLASS__, fn (): LogManager => $this);
         $this->assertSame($manager, $manager->channel(__CLASS__)->getLogger());
     }
 
     public function testCustomDriverAcceptsStaticAnonymousClosure(): void
     {
-        $this->app->make('config')->set('logging.channels.static', ['driver' => 'static']);
+        config(['logging.channels.static' => ['driver' => 'static']]);
         $manager = new LogManager($this->app);
         $logger = new LoggerSpy;
 
-        $manager->extend('static', static fn () => $logger);
+        $manager->extend('static', static fn (): LoggerSpy => $logger);
 
         $this->assertSame($logger, $manager->channel('static')->getLogger());
     }
 
     public function testCustomDriverAcceptsFirstClassCallable(): void
     {
-        $this->app->make('config')->set('logging.channels.callable', ['driver' => 'callable']);
+        config(['logging.channels.callable' => ['driver' => 'callable']]);
         $manager = new LogManager($this->app);
         $logger = new LoggerSpy;
         $factory = new LogCreator($logger);
@@ -937,8 +1012,7 @@ class LogManagerTest extends TestCase
 
     public function testLogManagerCanResolveZeroBackedEnumChannel(): void
     {
-        $config = $this->app->make('config');
-        $config->set('logging.channels.0', $config->get('logging.channels.single'));
+        config(['logging.channels.0' => config('logging.channels.single')]);
 
         $manager = new LogManager($this->app);
 
@@ -946,6 +1020,10 @@ class LogManagerTest extends TestCase
         $logger2 = $manager->channel('0');
 
         $this->assertSame($logger1, $logger2);
+
+        $manager->forgetChannel(NumericLogChannelName::Zero);
+
+        $this->assertNotSame($logger1, $manager->channel('0'));
     }
 
     public function testLogManagerCanResolveBackedEnumDriver(): void
@@ -963,25 +1041,36 @@ class LogManagerTest extends TestCase
         $manager = new LogManager($this->app);
         $manager->setDefaultDriver(LogChannelName::Single);
 
-        $this->assertSame('single', $this->app->make('config')->get('logging.default'));
+        $this->assertSame('single', config('logging.default'));
+    }
+
+    public function testForgetChannelAcceptsBackedEnum(): void
+    {
+        $manager = new LogManager($this->app);
+        $logger = $manager->channel(LogChannelName::Single);
+
+        $this->assertSame($logger, $manager->channel('single'));
+
+        $manager->forgetChannel(LogChannelName::Single);
+
+        $this->assertNotSame($logger, $manager->channel('single'));
     }
 
     // -- Hypervel-specific tests --
 
-    public function testItSharesContextWithChannelsResolvedAfterSharing()
+    public function testItSharesContextWithChannelsResolvedAfterSharing(): void
     {
         $manager = new LogManager($this->app);
-        $config = $this->app->make('config');
-        $config->set('logging.channels.null', [
+        config(['logging.channels.null' => [
             'driver' => 'monolog',
             'handler' => NullHandler::class,
-        ]);
+        ]]);
 
         // Share context BEFORE resolving any channel
         $manager->shareContext(['invocation-id' => 'expected-id']);
 
         $context = null;
-        $manager->channel('null')->listen(function ($message) use (&$context) {
+        $manager->channel('null')->listen(function (MessageLogged $message) use (&$context): void {
             $context = $message->context;
         });
         $manager->channel('null')->info('xxxx');
@@ -989,21 +1078,20 @@ class LogManagerTest extends TestCase
         $this->assertSame(['invocation-id' => 'expected-id'], $context);
     }
 
-    public function testItSharesContextWithStacksResolvedAfterSharing()
+    public function testItSharesContextWithStacksResolvedAfterSharing(): void
     {
         $manager = new LogManager($this->app);
-        $config = $this->app->make('config');
-        $config->set('logging.channels.null', [
+        config(['logging.channels.null' => [
             'driver' => 'monolog',
             'handler' => NullHandler::class,
-        ]);
+        ]]);
 
         // Share context BEFORE resolving any stack
         $manager->shareContext(['invocation-id' => 'expected-id']);
 
         $context = null;
         $stack = $manager->stack(['null']);
-        $stack->listen(function ($message) use (&$context) {
+        $stack->listen(function (MessageLogged $message) use (&$context): void {
             $context = $message->context;
         });
         $stack->info('xxxx');
@@ -1014,7 +1102,10 @@ class LogManagerTest extends TestCase
 
 class CustomizeFormatter
 {
-    public function __invoke($logger)
+    /**
+     * Customize the logger's formatters.
+     */
+    public function __invoke(Logger $logger): void
     {
         foreach ($logger->getHandlers() as $handler) {
             $handler->setFormatter(new LineFormatter(
@@ -1030,7 +1121,10 @@ class LoggerSpy implements LoggerInterface
 
     public array $logs = [];
 
-    public function log($level, Stringable|string $message, array $context = []): void
+    /**
+     * Record the log message.
+     */
+    public function log(mixed $level, Stringable|string $message, array $context = []): void
     {
         $this->logs[] = [
             'level' => $level,
@@ -1050,11 +1144,17 @@ class CustomUidProcessor extends UidProcessor
 
 class LogCreator
 {
+    /**
+     * Create the logger factory.
+     */
     public function __construct(
         private readonly LoggerInterface $logger
     ) {
     }
 
+    /**
+     * Return the logger.
+     */
     public function create(): LoggerInterface
     {
         return $this->logger;

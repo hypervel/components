@@ -2,16 +2,38 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Filesystem;
+namespace Hypervel\Tests\Integration\Support;
 
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Support\Facades\ParallelTesting;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Testbench\TestCase;
 use League\Flysystem\UnableToReadFile;
 
-class StorageFakeTest extends TestCase
+class StorageFacadeTest extends TestCase
 {
+    /**
+     * Configure an isolated storage directory.
+     */
+    protected function defineEnvironment(Application $app): void
+    {
+        $app->useStoragePath(ParallelTesting::tempDir('StorageFacadeTest'));
+
+        (new Filesystem)->deleteDirectory($app->storagePath());
+    }
+
+    /**
+     * Remove the storage directory.
+     */
+    protected function tearDown(): void
+    {
+        (new Filesystem)->deleteDirectory($this->app->storagePath());
+
+        parent::tearDown();
+    }
+
     public function testFakeWhenDiskNotConfiguredDoesNotThrowExceptionOnError(): void
     {
         $result = Storage::fake('test')->get('nonExistentFile');
@@ -107,7 +129,7 @@ class StorageFakeTest extends TestCase
 
     public function testFakeUsesParallelTestingTokenSuffix(): void
     {
-        ParallelTesting::resolveTokenUsing(fn () => '42');
+        ParallelTesting::resolveTokenUsing(fn (): string => '42');
 
         try {
             $fake = Storage::fake('local');

@@ -14,11 +14,13 @@ class ResponseTest extends TestCase
 {
     public function testResponseWithInvalidJsonThrowsException(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Malformed UTF-8 characters, possibly incorrectly encoded');
+        $this->expectExceptionObject(new InvalidArgumentException('Malformed UTF-8 characters, possibly incorrectly encoded'));
 
-        Route::get('/response', function () {
+        Route::get('/response', function (): Response {
             return (new Response)->setContent(new class implements JsonSerializable {
+                /**
+                 * Return malformed UTF-8 text.
+                 */
                 public function jsonSerialize(): string
                 {
                     return "\xB1\x31";

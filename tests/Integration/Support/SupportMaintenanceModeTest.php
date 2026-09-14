@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Support\SupportMaintenanceModeTest;
+namespace Hypervel\Tests\Integration\Support\SupportMaintenanceModeTest;
 
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
 use Hypervel\Foundation\MaintenanceModeManager;
@@ -11,11 +11,11 @@ use Hypervel\Testbench\TestCase;
 
 class SupportMaintenanceModeTest extends TestCase
 {
-    public function testExtend(): void
+    public function testExtends(): void
     {
-        MaintenanceMode::extend('test', fn () => new TestMaintenanceMode);
+        MaintenanceMode::extend('test', fn (): TestMaintenanceMode => new TestMaintenanceMode);
 
-        $this->app->make('config')->set('app.maintenance.driver', 'test');
+        config(['app.maintenance.driver' => 'test']);
 
         $driver = $this->app->make(MaintenanceModeManager::class)->driver();
 
@@ -24,9 +24,7 @@ class SupportMaintenanceModeTest extends TestCase
 
     public function testCacheDriverPreservesZeroStoreAndEmptyFallback(): void
     {
-        $config = $this->app->make('config');
-
-        $config->set([
+        config([
             'app.maintenance.driver' => 'cache',
             'cache.default' => 'array',
             'cache.stores.0' => ['driver' => 'array'],
@@ -34,7 +32,7 @@ class SupportMaintenanceModeTest extends TestCase
         ]);
 
         $this->app->make('cache')->store('0')->put('hypervel:foundation:down', ['store' => 'zero']);
-        $config->set('app.maintenance.store', '0');
+        config(['app.maintenance.store' => '0']);
 
         $this->assertSame(
             ['store' => 'zero'],
@@ -42,7 +40,7 @@ class SupportMaintenanceModeTest extends TestCase
         );
 
         $this->app->make('cache')->store('array')->put('hypervel:foundation:down', ['store' => 'default']);
-        $config->set('app.maintenance.store', '');
+        config(['app.maintenance.store' => '']);
 
         $this->assertSame(
             ['store' => 'default'],
@@ -53,19 +51,31 @@ class SupportMaintenanceModeTest extends TestCase
 
 class TestMaintenanceMode implements MaintenanceModeContract
 {
+    /**
+     * Activate maintenance mode.
+     */
     public function activate(array $payload): void
     {
     }
 
+    /**
+     * Deactivate maintenance mode.
+     */
     public function deactivate(): void
     {
     }
 
+    /**
+     * Determine whether maintenance mode is active.
+     */
     public function active(): bool
     {
         return false;
     }
 
+    /**
+     * Get the maintenance mode payload.
+     */
     public function data(): array
     {
         return [];

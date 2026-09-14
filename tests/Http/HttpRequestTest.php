@@ -1853,8 +1853,7 @@ class HttpRequestTest extends TestCase
 
     public function testSessionMethod(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Session store not set on request.');
+        $this->expectExceptionObject(new RuntimeException('Session store not set on request.'));
 
         $request = Request::create('/');
         $request->session();
@@ -1888,8 +1887,7 @@ class HttpRequestTest extends TestCase
 
     public function testGetSessionMethodWithoutHypervelSession(): void
     {
-        $this->expectException(SessionNotFoundException::class);
-        $this->expectExceptionMessage('There is currently no session available.');
+        $this->expectExceptionObject(new SessionNotFoundException('There is currently no session available.'));
 
         $request = Request::create('/');
 
@@ -1923,8 +1921,7 @@ class HttpRequestTest extends TestCase
 
     public function testFingerprintThrowsWhenRouteIsUnavailable(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to generate fingerprint. Route unavailable.');
+        $this->expectExceptionObject(new RuntimeException('Unable to generate fingerprint. Route unavailable.'));
 
         $request = Request::create('/', 'GET', [], [], [], []);
         $request->fingerprint();

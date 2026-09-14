@@ -142,8 +142,7 @@ class ModelSerializationTest extends TestCase
 
     public function testItFailsIfModelsOnMultiConnections(): void
     {
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Queueing collections with multiple model connections is not supported.');
+        $this->expectExceptionObject(new LogicException('Queueing collections with multiple model connections is not supported.'));
 
         $user = ModelSerializationTestUser::on('custom')->create([
             'email' => 'mohamed@laravel.com',

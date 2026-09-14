@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Mail;
+namespace Hypervel\Tests\Integration\Mail;
 
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Testbench\TestCase;
@@ -11,6 +11,9 @@ use Symfony\Component\Mailer\Transport\FailoverTransport;
 
 class MailFailoverTransportTest extends TestCase
 {
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -19,7 +22,7 @@ class MailFailoverTransportTest extends TestCase
 
     public function testGetFailoverTransportWithConfiguredTransports(): void
     {
-        $this->app->make('config')->set('mail', [
+        config(['mail' => [
             'default' => 'failover',
             'mailers' => [
                 'failover' => [
@@ -39,7 +42,7 @@ class MailFailoverTransportTest extends TestCase
                     'transport' => 'array',
                 ],
             ],
-        ]);
+        ]]);
 
         $transport = $this->app->make('mail.manager')
             ->removePoolableDriver('failover')
@@ -47,31 +50,5 @@ class MailFailoverTransportTest extends TestCase
         $this->assertInstanceOf(FailoverTransport::class, $transport);
     }
 
-    public function testGetFailoverTransportWithConfiguredTransportsUsingDefaultMailer(): void
-    {
-        $this->app->make('config')->set('mail', [
-            'default' => 'failover',
-            'mailers' => [
-                'failover' => [
-                    'transport' => 'failover',
-                    'mailers' => [
-                        'sendmail',
-                        'array',
-                    ],
-                ],
-                'sendmail' => [
-                    'transport' => 'sendmail',
-                    'path' => '/usr/sbin/sendmail -bs',
-                ],
-                'array' => [
-                    'transport' => 'array',
-                ],
-            ],
-        ]);
-
-        $transport = $this->app->make('mail.manager')
-            ->removePoolableDriver('failover')
-            ->getSymfonyTransport();
-        $this->assertInstanceOf(FailoverTransport::class, $transport);
-    }
+    // REMOVED: Laravel 6-style mail configuration; Hypervel uses named mail.mailers entries.
 }

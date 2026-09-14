@@ -477,10 +477,9 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         }
     }
 
-    public function testFindOrFailMethod()
+    public function testFindOrFailMethod(): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Integration\Database\EloquentBelongsToManyTest\Tag] 10');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Integration\Database\EloquentBelongsToManyTest\Tag] 10'));
 
         $post = Post::create(['title' => Str::random()]);
 
@@ -491,10 +490,9 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $post->tags()->findOrFail(10);
     }
 
-    public function testFindOrFailMethodWithMany()
+    public function testFindOrFailMethodWithMany(): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Integration\Database\EloquentBelongsToManyTest\Tag] 10, 11');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Integration\Database\EloquentBelongsToManyTest\Tag] 10, 11'));
 
         $post = Post::create(['title' => Str::random()]);
 
@@ -505,10 +503,9 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $post->tags()->findOrFail([10, 11]);
     }
 
-    public function testFindOrFailMethodWithManyUsingCollection()
+    public function testFindOrFailMethodWithManyUsingCollection(): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Integration\Database\EloquentBelongsToManyTest\Tag] 10, 11');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Integration\Database\EloquentBelongsToManyTest\Tag] 10, 11'));
 
         $post = Post::create(['title' => Str::random()]);
 

@@ -108,16 +108,14 @@ class FoundationFormRequestTest extends TestCase
 
     public function testValidateMethodThrowsWhenAuthorizationFails(): void
     {
-        $this->expectException(AuthorizationException::class);
-        $this->expectExceptionMessage('This action is unauthorized.');
+        $this->expectExceptionObject(new AuthorizationException('This action is unauthorized.'));
 
         $this->createRequest([], FoundationTestFormRequestForbiddenStub::class)->validateResolved();
     }
 
     public function testValidateThrowsExceptionFromAuthorizationResponse(): void
     {
-        $this->expectException(AuthorizationException::class);
-        $this->expectExceptionMessage('foo');
+        $this->expectExceptionObject(new AuthorizationException('foo'));
 
         $this->createRequest([], FoundationTestFormRequestForbiddenWithResponseStub::class)->validateResolved();
     }
