@@ -58,4 +58,5 @@ return [
     '477b05cd-7f78-4fe7-b629-27247f296138' => 'WALLIX Vault',
     '53e7a7a5-e75f-4d3d-9483-12fc779cdf23' => 'Password Depot',
     'cb6f6666-38ea-4873-9161-ff456a82d316' => 'iPass Secure Auth',
+    '9f8a3b2c-1d4e-4f6a-8b0c-2e1d3c4b5a69' => 'U2 Secured',
 ];
