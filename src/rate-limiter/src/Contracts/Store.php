@@ -19,6 +19,18 @@ interface Store
     public function consume(string $key, AdmissionPolicy $policy): LimitResult;
 
     /**
+     * Consume policies together, returning decisions through the first denial.
+     *
+     * Repeated keys accumulate their costs. Atomic stores charge nothing on denial.
+     * Redis Cluster checks first, then consumes: a preflight denial charges nothing,
+     * but a consumption denial can leave earlier charges.
+     *
+     * @param list<array{key: string, policy: AdmissionPolicy}> $policies
+     * @return list<LimitResult>
+     */
+    public function consumeMany(array $policies): array;
+
+    /**
      * Atomically extend a cooldown block.
      */
     public function block(string $key, int $durationMicroseconds): CooldownResult;

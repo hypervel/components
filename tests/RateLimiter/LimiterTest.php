@@ -35,7 +35,58 @@ class LimiterTest extends TestCase
         $this->assertTrue($limiter->inspect($policy)->allowed());
         $this->assertTrue($limiter->clear($policy));
         $this->assertSame('executed', $limiter->attempt($policy, static fn (): string => 'executed'));
+        $this->assertSame([], $limiter->consumeMany([]));
+        $this->assertCount(2, $limiter->consumeMany([$policy, $policy]));
         $this->assertSame(0, $store->calls);
+        $this->assertSame(0, $store->groupCalls);
+    }
+
+    public function testGroupUsesOneScalarCallForOneLimitedPolicy(): void
+    {
+        $store = new LimiterCountingStore;
+        $limiter = new Limiter($store, new KeyResolver('app', static fn (): ?string => null));
+
+        $results = $limiter->consumeMany([Limit::none(), Limit::perMinute(1), Limit::none()]);
+
+        $this->assertCount(3, $results);
+        $this->assertSame(0, $results[1]->remaining());
+        $this->assertSame(1, $store->calls);
+        $this->assertSame(0, $store->groupCalls);
+
+        $limiter->consumeMany([Limit::perMinute(1)]);
+        $this->assertSame(2, $store->calls);
+        $this->assertSame(0, $store->groupCalls);
+
+        $limiter->consumeMany([Limit::perMinute(1), Limit::perMinute(2)]);
+        $this->assertSame(2, $store->calls);
+        $this->assertSame(1, $store->groupCalls);
+    }
+
+    public function testGroupPreservesUnlimitedPositionsAndTheLimiterNameOnDenial(): void
+    {
+        $limiter = new Limiter(new WorkerArrayStore, new KeyResolver('app', static fn (): ?string => null));
+        $policy = Limit::perMinute(1);
+        $limiter->consume($policy, 'api');
+
+        $results = $limiter->consumeMany([Limit::none(), $policy, Limit::none()], 'api');
+
+        $this->assertCount(2, $results);
+        $this->assertTrue($results[0]->allowed());
+        $this->assertTrue($results[1]->denied());
+        $this->assertTrue($limiter->consumeMany([$policy], 'other')[0]->allowed());
+    }
+
+    public function testGroupValidatesEveryPolicyBeforeChargingAnyCapacity(): void
+    {
+        $limiter = new Limiter(new WorkerArrayStore, new KeyResolver('app', static fn (): ?string => null));
+        $policy = Limit::perMinute(1);
+
+        try {
+            $limiter->consumeMany([$policy, $policy->cost(2)]);
+            $this->fail('Expected an invalid rate limit exception.');
+        } catch (InvalidRateLimitException) {
+            $this->assertSame(1, $limiter->inspect($policy)->remaining());
+        }
     }
 
     public function testCrossFieldValidationHappensBeforeKeyOrStoreAccess(): void
@@ -242,6 +293,8 @@ class LimiterCountingStore implements Store
 {
     public int $calls = 0;
 
+    public int $groupCalls = 0;
+
     /**
      * Count the call and return an allowed decision.
      */
@@ -250,6 +303,16 @@ class LimiterCountingStore implements Store
         ++$this->calls;
 
         return new LimitResult(true, 1, 0, 0, 1_000_000);
+    }
+
+    /**
+     * Count the group call and return allowed decisions.
+     */
+    public function consumeMany(array $policies): array
+    {
+        ++$this->groupCalls;
+
+        return array_map(static fn (array $entry): LimitResult => new LimitResult(true, 1, 0, 0, 1_000_000), $policies);
     }
 
     /**

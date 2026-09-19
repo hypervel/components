@@ -126,26 +126,49 @@ class ThrottleRequests
         Limiter $limiter,
         ?string $limiterName = null,
     ): Response {
-        /** @var list<array{AdmissionPolicy, LimitResult}> $decisions */
-        $decisions = [];
+        $ordinary = [];
+        $deferred = [];
 
-        // Laravel preflights every policy before recording hits. Atomic stores
-        // consume in order, so an earlier accepted decision is never rolled back.
-        foreach ($limits as $limit) {
-            $result = $limit->afterCallback === null
-                ? $limiter->consume($limit, $limiterName)
-                : $limiter->inspect($limit, $limiterName);
+        foreach ($limits as $index => $limit) {
+            if ($limit->afterCallback === null) {
+                $ordinary[] = $limit;
+
+                continue;
+            }
+
+            $result = $limiter->inspect($limit, $limiterName);
 
             if ($result->denied()) {
+                // A response-based denial must not charge ordinary policies, but
+                // an earlier ordinary denial still owns the response and headers.
+                foreach ($ordinary as $earlier) {
+                    $inspection = $limiter->inspect($earlier, $limiterName);
+
+                    if ($inspection->denied()) {
+                        throw $this->buildException($request, $inspection, $earlier->responseCallback);
+                    }
+                }
+
                 throw $this->buildException($request, $result, $limit->responseCallback);
             }
 
-            $decisions[] = [$limit, $result];
+            $deferred[$index] = $result;
+        }
+
+        $decisions = $limiter->consumeMany($ordinary, $limiterName);
+
+        foreach ($decisions as $index => $result) {
+            if ($result->denied()) {
+                throw $this->buildException($request, $result, $ordinary[$index]->responseCallback);
+            }
         }
 
         $response = $next($request);
+        $ordinaryIndex = 0;
 
-        foreach ($decisions as [$limit, $result]) {
+        foreach ($limits as $index => $limit) {
+            $result = $deferred[$index] ?? $decisions[$ordinaryIndex++];
+
             if ($limit->afterCallback !== null && ($limit->afterCallback)($response)) {
                 $result = $limiter->consume($limit, $limiterName);
             }
