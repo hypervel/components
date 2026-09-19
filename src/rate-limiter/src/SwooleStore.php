@@ -76,6 +76,71 @@ class SwooleStore implements Store
     }
 
     /**
+     * Consume all policies while holding their shared table locks.
+     *
+     * @param list<array{key: string, policy: AdmissionPolicy}> $policies
+     * @return list<LimitResult>
+     */
+    public function consumeMany(array $policies): array
+    {
+        $keys = array_column($policies, 'key');
+
+        for ($attempt = 0; $attempt < 2; ++$attempt) {
+            $results = $this->state->withLocks($keys, function () use ($policies): ?array {
+                $states = [];
+                $existing = [];
+
+                foreach ($policies as $entry) {
+                    $key = $entry['key'];
+                    $states[$key] ??= $this->storedState($key);
+                    $existing[$key] ??= $this->state->table()->exist($key);
+                }
+
+                $originalStates = $states;
+                $results = $this->calculateMany($policies, $this->currentTimeInMicroseconds(), $states);
+
+                if ($results !== [] && end($results)->denied()) {
+                    return $results;
+                }
+
+                $written = [];
+
+                foreach ($states as $key => $values) {
+                    if (! $this->writeState($key, ...$values)) {
+                        // A full table can reject a later allocation. Restore the
+                        // preceding writes before releasing any of the group locks.
+                        foreach ($written as $writtenKey) {
+                            if ($existing[$writtenKey]) {
+                                $this->writeState($writtenKey, ...$originalStates[$writtenKey]);
+                            } else {
+                                $this->state->table()->del($writtenKey);
+                            }
+                        }
+
+                        return null;
+                    }
+
+                    $written[] = $key;
+                }
+
+                return $results;
+            });
+
+            if ($results !== null) {
+                return $results;
+            }
+
+            if ($attempt === 0) {
+                $this->pruneExpiredRows();
+            }
+        }
+
+        throw new SwooleTableFullException(
+            "Swoole rate limiter table [{$this->state->name()}] cannot allocate a new entry after pruning expired state."
+        );
+    }
+
+    /**
      * Atomically extend a cooldown block.
      */
     public function block(string $key, int $durationMicroseconds): CooldownResult
