@@ -202,7 +202,7 @@ class OverriddenRemoveFromSearch extends RemoveFromSearch
 
     public $maxExceptions = 3;
 
-    public $failOnTimeout = false;
+    public bool $failOnTimeout = false;
 
     /**
      * Calculate the number of seconds to wait before retrying the job.
