@@ -818,7 +818,7 @@ $table->foreignUlid('user_id');
 <a name="column-method-foreignUlidFor"></a>
 #### `foreignUlidFor()` {.collection-method}
 
-The `foreignUlidFor` method adds a ULID column for the given model. By default, the column name, referenced table, and referenced model key are derived from the model:
+The `foreignUlidFor` method adds a ULID column for a model that uses ULID keys. By default, the column name, referenced table, and referenced model key are derived from the model:
 
 ```php
 $table->foreignUlidFor(User::class);
@@ -836,7 +836,7 @@ $table->foreignUuid('user_id');
 <a name="column-method-foreignUuidFor"></a>
 #### `foreignUuidFor()` {.collection-method}
 
-The `foreignUuidFor` method adds a UUID column for the given model. By default, the column name, referenced table, and referenced model key are derived from the model:
+The `foreignUuidFor` method adds a UUID column for a model that uses UUID keys. By default, the column name, referenced table, and referenced model key are derived from the model:
 
 ```php
 $table->foreignUuidFor(User::class);

@@ -501,6 +501,8 @@ $request->withBasicAuth($username, $password);
 $request->withDigestAuth($username, $password);
 ```
 
+Built-in NTLM authentication is not provided. Integrations requiring NTLM must supply their own authenticator and transport middleware.
+
 You may create a reusable authenticator by implementing `Hypervel\Saloon\Contracts\Authenticator`:
 
 ```php

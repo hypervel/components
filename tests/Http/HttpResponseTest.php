@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Http\HttpResponseTest;
 
 use BadMethodCallException;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Cookie\Factory as CookieFactory;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Contracts\Support\MessageProvider;
 use Hypervel\Contracts\Support\Renderable;
+use Hypervel\Cookie\CookieJar;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
@@ -124,6 +127,14 @@ class HttpResponseTest extends TestCase
         $cookies = $response->headers->getCookies();
         $this->assertCount(1, $cookies);
         $this->assertSame('foo', $cookies[0]->getName());
+
+        Container::getInstance()->instance(CookieFactory::class, new CookieJar);
+
+        $this->assertSame($response, $response->withoutCookie('foo'));
+        $cookies = $response->headers->getCookies();
+        $this->assertCount(1, $cookies);
+        $this->assertSame('foo', $cookies[0]->getName());
+        $this->assertTrue($cookies[0]->isCleared());
     }
 
     public function testWithoutCookies(): void
@@ -138,6 +149,22 @@ class HttpResponseTest extends TestCase
         $this->assertCount(2, $cookies);
         $this->assertSame('foo', $cookies[0]->getName());
         $this->assertSame('baz', $cookies[1]->getName());
+
+        Container::getInstance()->instance(CookieFactory::class, new CookieJar);
+
+        $response = (new Response)->withCookies([
+            new Cookie('foo', 'bar', path: '/admin', domain: 'example.com'),
+            new Cookie('baz', 'qux', path: '/admin', domain: 'example.com'),
+        ]);
+        $this->assertSame($response, $response->withoutCookies(['foo', 'baz'], '/admin', 'example.com'));
+        $cookies = $response->headers->getCookies();
+        $this->assertCount(2, $cookies);
+        $this->assertSame(['foo', 'baz'], array_map(fn (Cookie $cookie): string => $cookie->getName(), $cookies));
+        foreach ($cookies as $cookie) {
+            $this->assertSame('/admin', $cookie->getPath());
+            $this->assertSame('example.com', $cookie->getDomain());
+            $this->assertTrue($cookie->isCleared());
+        }
     }
 
     public function testResponseCookiesInheritRequestSecureState(): void
