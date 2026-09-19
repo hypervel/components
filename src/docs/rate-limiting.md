@@ -344,7 +344,7 @@ foreach ($results as $result) {
 // Perform the operation...
 ```
 
-Results follow the supplied order and stop at the first denied limit. If any limit denies the operation, the group consumes no capacity. Repeating the same limit combines its costs; `Unlimited` entries require no storage. You may pass a named limiter as the second argument, just as with `consume`.
+Results follow the supplied order and stop at the first denied limit. Except on Redis Cluster, a denied group consumes no capacity. Repeating the same limit combines its costs; `Unlimited` entries require no storage. You may pass a named limiter as the second argument, just as with `consume`.
 
 Standalone Redis handles a group in a single round trip once its script is cached. A group containing only one non-unlimited limit uses the same operation as `consume`.
 
