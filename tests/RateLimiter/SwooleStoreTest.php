@@ -35,18 +35,18 @@ class SwooleStoreTest extends TestCase
         [$store, $state] = $this->store();
         $policy = Limit::perMinute(5)->cost(2);
 
-        $first = $store->consume('fixed', $policy);
-        $second = $store->consume('fixed', $policy);
-        $denied = $store->consume('fixed', $policy);
+        $first = $store->consume('123', $policy);
+        $second = $store->consumeMany([['key' => '123', 'policy' => $policy]])[0];
+        $denied = $store->consumeMany([['key' => '123', 'policy' => $policy]])[0];
 
         $this->assertTrue($first->allowed());
         $this->assertSame(3, $first->remaining());
         $this->assertSame(1, $second->remaining());
         $this->assertTrue($denied->denied());
         $this->assertSame(1, $denied->remaining());
-        $this->assertSame(4, $state->table()->get('fixed', 'value'));
-        $this->assertTrue($store->clear('fixed'));
-        $this->assertFalse($store->clear('fixed'));
+        $this->assertSame(4, $state->table()->get('123', 'value'));
+        $this->assertTrue($store->clear('123'));
+        $this->assertFalse($store->clear('123'));
     }
 
     public function testInspectingMissingStateDoesNotCreateARow(): void

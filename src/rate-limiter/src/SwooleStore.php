@@ -106,6 +106,8 @@ class SwooleStore implements Store
                 $written = [];
 
                 foreach ($states as $key => $values) {
+                    $key = (string) $key;
+
                     if (! $this->writeState($key, ...$values)) {
                         // A full table can reject a later allocation. Restore the
                         // preceding writes before releasing any of the group locks.
