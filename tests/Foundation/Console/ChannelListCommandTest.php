@@ -16,7 +16,7 @@ class ChannelListCommandTest extends TestCase
             ->assertSuccessful();
     }
 
-    public function testOutputsErrorWhenNoChannelsRegistered(): void
+    public function testItDisplaysAnErrorWhenThereAreNoChannels(): void
     {
         $this->artisan('channel:list')
             ->expectsOutputToContain("Your application doesn't have any private broadcasting channels.")
