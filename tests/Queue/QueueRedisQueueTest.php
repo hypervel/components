@@ -93,7 +93,7 @@ class QueueRedisQueueTest extends TestCase
         ];
     }
 
-    public function testBulkUsesOneLuaCallAndHonorsJobDelays(): void
+    public function testBulkRespectsDelayAttributeWhenPushingOntoRedis(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
 

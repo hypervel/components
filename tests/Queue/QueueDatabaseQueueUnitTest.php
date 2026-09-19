@@ -510,7 +510,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertFalse(DispatchLockContext::has($second));
     }
 
-    public function testBulkHonorsTheDelayAttribute(): void
+    public function testDelayAttributeIsRespectedWhenBulkPushing(): void
     {
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(1732502704));
 

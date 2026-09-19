@@ -1251,6 +1251,19 @@ class PodcastController extends Controller
 }
 ```
 
+You may also configure a job's default delay using the `Delay` attribute. Job delays apply when dispatching jobs individually, in bulk, or as part of a batch:
+
+```php
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Queue\Attributes\Delay;
+
+#[Delay(60)]
+class ProcessPodcast implements ShouldQueue
+{
+    // ...
+}
+```
+
 In some cases, jobs may have a default delay configured. If you need to bypass this delay and dispatch a job for immediate processing, you may use the `withoutDelay` method:
 
 ```php
