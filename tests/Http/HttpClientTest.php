@@ -745,7 +745,7 @@ class HttpClientTest extends TestCase
         ], $response->movieFields());
     }
 
-    public function testResponseRespectsDefaultJsonDecodingFlags(): void
+    public function testRespectsDefaultFlags(): void
     {
         Response::$defaultJsonDecodingFlags = JSON_BIGINT_AS_STRING;
 
@@ -1614,7 +1614,7 @@ class HttpClientTest extends TestCase
     public function testEmptyRequestDataIsDecodedOnlyOnce(): void
     {
         $body = m::mock(StreamInterface::class);
-        $body->shouldReceive('__toString')->once()->andReturn('[]');
+        $body->expects('__toString')->andReturn('[]');
         $request = new Request(new GuzzleRequest(
             'POST',
             'https://example.test',
@@ -3357,9 +3357,9 @@ class HttpClientTest extends TestCase
         $this->factory->fakeSequence()->push('abc123');
         $failure = new RuntimeException('Unable to rewind PSR stream');
         $stream = m::mock(StreamInterface::class);
-        $stream->shouldReceive('write')->once()->with('abc123')->andReturn(6);
-        $stream->shouldReceive('isSeekable')->once()->andReturnTrue();
-        $stream->shouldReceive('rewind')->once()->andThrow($failure);
+        $stream->expects('write')->with('abc123')->andReturn(6);
+        $stream->expects('isSeekable')->andReturnTrue();
+        $stream->expects('rewind')->andThrow($failure);
 
         try {
             $this->factory->sink($stream)->get('https://example.com');
@@ -4062,10 +4062,10 @@ class HttpClientTest extends TestCase
     public function testTheRequestSendingAndResponseReceivedEventsAreFiredWhenARequestIsSent(): void
     {
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->times(5)->with(RequestSending::class)->andReturn(true);
-        $events->shouldReceive('hasListeners')->times(5)->with(ResponseReceived::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->times(5)->with(m::type(RequestSending::class));
-        $events->shouldReceive('dispatch')->times(5)->with(m::type(ResponseReceived::class));
+        $events->expects('hasListeners')->times(5)->with(RequestSending::class)->andReturn(true);
+        $events->expects('hasListeners')->times(5)->with(ResponseReceived::class)->andReturn(true);
+        $events->expects('dispatch')->times(5)->with(m::type(RequestSending::class));
+        $events->expects('dispatch')->times(5)->with(m::type(ResponseReceived::class));
 
         $factory = new Factory($events);
         $factory->fake();
@@ -4080,10 +4080,10 @@ class HttpClientTest extends TestCase
     public function testTheRequestSendingAndResponseReceivedEventsAreFiredWhenARequestIsSentAsync(): void
     {
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->times(5)->with(RequestSending::class)->andReturn(true);
-        $events->shouldReceive('hasListeners')->times(5)->with(ResponseReceived::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->times(5)->with(m::type(RequestSending::class));
-        $events->shouldReceive('dispatch')->times(5)->with(m::type(ResponseReceived::class));
+        $events->expects('hasListeners')->times(5)->with(RequestSending::class)->andReturn(true);
+        $events->expects('hasListeners')->times(5)->with(ResponseReceived::class)->andReturn(true);
+        $events->expects('dispatch')->times(5)->with(m::type(RequestSending::class));
+        $events->expects('dispatch')->times(5)->with(m::type(ResponseReceived::class));
 
         $factory = new Factory($events);
         $factory->fake();
@@ -4099,10 +4099,10 @@ class HttpClientTest extends TestCase
     {
         Sleep::fake();
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->times(2)->with(RequestSending::class)->andReturn(true);
-        $events->shouldReceive('hasListeners')->times(2)->with(ResponseReceived::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->times(2)->with(m::type(RequestSending::class));
-        $events->shouldReceive('dispatch')->times(2)->with(m::type(ResponseReceived::class));
+        $events->expects('hasListeners')->times(2)->with(RequestSending::class)->andReturn(true);
+        $events->expects('hasListeners')->times(2)->with(ResponseReceived::class)->andReturn(true);
+        $events->expects('dispatch')->times(2)->with(m::type(RequestSending::class));
+        $events->expects('dispatch')->times(2)->with(m::type(ResponseReceived::class));
 
         $factory = new Factory($events);
         $factory->fake([
@@ -4149,10 +4149,10 @@ class HttpClientTest extends TestCase
     public function testClonedClientsWorkSuccessfullyWithTheRequestObject(): void
     {
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(RequestSending::class)->andReturn(true);
-        $events->shouldReceive('hasListeners')->once()->with(ResponseReceived::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->once()->with(m::type(RequestSending::class));
-        $events->shouldReceive('dispatch')->once()->with(m::type(ResponseReceived::class));
+        $events->expects('hasListeners')->with(RequestSending::class)->andReturn(true);
+        $events->expects('hasListeners')->with(ResponseReceived::class)->andReturn(true);
+        $events->expects('dispatch')->with(m::type(RequestSending::class));
+        $events->expects('dispatch')->with(m::type(ResponseReceived::class));
 
         $factory = new Factory($events);
         $factory->fake(['example.com' => $factory->response('foo', 200)]);
@@ -4166,10 +4166,10 @@ class HttpClientTest extends TestCase
     public function testTheConnectionFailedEventIsFiredWhenARequestFailsToConnect(): void
     {
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(RequestSending::class)->andReturn(true);
-        $events->shouldReceive('hasListeners')->once()->with(ConnectionFailedEvent::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->once()->with(m::type(RequestSending::class));
-        $events->shouldReceive('dispatch')->once()->with(m::type(ConnectionFailedEvent::class));
+        $events->expects('hasListeners')->with(RequestSending::class)->andReturn(true);
+        $events->expects('hasListeners')->with(ConnectionFailedEvent::class)->andReturn(true);
+        $events->expects('dispatch')->with(m::type(RequestSending::class));
+        $events->expects('dispatch')->with(m::type(ConnectionFailedEvent::class));
 
         $factory = new Factory($events);
         $factory->fake($factory->failedConnection('Fake'));
@@ -6424,8 +6424,7 @@ class HttpClientTest extends TestCase
         $onStatsFunctionCalled = false;
 
         $client = m::mock(ClientInterface::class);
-        $client->shouldReceive('request')
-            ->once()
+        $client->expects('request')
             ->withArgs(function ($method, $url, $options) {
                 $options['on_stats'](new TransferStats(
                     new \GuzzleHttp\Psr7\Request($method, $url),
