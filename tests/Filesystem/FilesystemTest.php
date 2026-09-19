@@ -522,14 +522,14 @@ class FilesystemTest extends TestCase
         $this->assertDirectoryDoesNotExist($this->tempDir . '/tmp4');
     }
 
-    public function testMoveDirectoryReturnsFalseWhileOverwritingAndUnableToDeleteDestinationDirectory()
+    public function testMoveDirectoryReturnsFalseWhileOverwritingAndUnableToDeleteDestinationDirectory(): void
     {
         mkdir($this->tempDir . '/tmp6', 0777, true);
         file_put_contents($this->tempDir . '/tmp6/foo.txt', '');
         mkdir($this->tempDir . '/tmp7', 0777, true);
 
         $files = m::mock(Filesystem::class)->makePartial();
-        $files->shouldReceive('deleteDirectory')->once()->andReturn(false);
+        $files->expects('deleteDirectory')->andReturn(false);
         $this->assertFalse($files->moveDirectory($this->tempDir . '/tmp6', $this->tempDir . '/tmp7', true));
     }
 
