@@ -34,7 +34,7 @@ class QueueRetryCommandTest extends TestCase
 
         $failer->shouldReceive('find')->once()->with('5')->andReturn($job);
         $queue->shouldReceive('pushRaw')->once()->with($this->retriedPayload(id: '5'), 'default', []);
-        $failer->shouldReceive('forget')->once()->with('5');
+        $failer->shouldReceive('forget')->once()->with(m::isSame('5'));
 
         $this->runRetryCommand(['id' => ['5']], $failer, ['database' => $queue]);
     }
@@ -76,13 +76,13 @@ class QueueRetryCommandTest extends TestCase
 
         $failer->shouldReceive('ids')->once()->withNoArgs()->andReturn($ids);
 
-        $failer->shouldReceive('find')->once()->with('1')->andReturn($this->failedJob(id: '1', connection: 'database', queue: 'default'));
+        $failer->shouldReceive('find')->once()->with(m::isSame($ids[0]))->andReturn($this->failedJob(id: '1', connection: 'database', queue: 'default'));
         $queue->shouldReceive('pushRaw')->once()->with($this->retriedPayload(id: '1'), 'default', []);
-        $failer->shouldReceive('forget')->once()->with(m::on(fn (mixed $id): bool => $id === 1));
+        $failer->shouldReceive('forget')->once()->with(m::isSame($ids[0]));
 
-        $failer->shouldReceive('find')->once()->with('2')->andReturn($this->failedJob(id: '2', connection: 'database', queue: 'emails'));
+        $failer->shouldReceive('find')->once()->with(m::isSame($ids[1]))->andReturn($this->failedJob(id: '2', connection: 'database', queue: 'emails'));
         $queue->shouldReceive('pushRaw')->once()->with($this->retriedPayload(id: '2'), 'emails', []);
-        $failer->shouldReceive('forget')->once()->with('2');
+        $failer->shouldReceive('forget')->once()->with(m::isSame($ids[1]));
 
         $output = $this->runRetryCommand(['id' => ['all']], $failer, ['database' => $queue]);
 

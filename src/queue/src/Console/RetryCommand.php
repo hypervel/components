@@ -6,6 +6,7 @@ namespace Hypervel\Queue\Console;
 
 use __PHP_Incomplete_Class;
 use DateTimeInterface;
+use Generator;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -14,8 +15,8 @@ use Hypervel\Queue\Events\JobRetryRequested;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Queue\QueuePoolProxy;
 use Hypervel\Queue\SqsQueue;
-use Hypervel\Support\Collection;
 use Hypervel\Support\Enumerable;
+use Hypervel\Support\LazyCollection;
 use RuntimeException;
 use stdClass;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -60,7 +61,8 @@ class RetryCommand extends Command
             }
 
             if (! $found instanceof Enumerable) {
-                $found = new Collection([$id => $found]);
+                // A generator preserves numeric-string IDs that array keys would coerce.
+                $found = new LazyCollection(fn (): Generator => yield $id => $found);
             }
 
             // Checking isEmpty() first would start a lazy provider's supplier twice.
