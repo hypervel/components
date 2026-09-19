@@ -14,6 +14,7 @@ use Hypervel\Database\Schema\PostgresBuilder;
 use Hypervel\Tests\Database\Fixtures\Enums\Foo;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 
@@ -1571,7 +1572,7 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         ?PostgresGrammar $grammar = null,
         ?PostgresBuilder $builder = null,
         string $prefix = ''
-    ): Connection {
+    ): Connection&MockInterface {
         $connection = m::mock(Connection::class);
         $connection->shouldReceive('getTablePrefix')->andReturn($prefix);
         $connection->shouldReceive('getConfig')->with('prefix_indexes')->andReturn(null);

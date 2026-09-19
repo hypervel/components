@@ -13,22 +13,21 @@ use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use stdClass;
 
 class DatabaseSoftDeletingScopeTest extends TestCase
 {
-    public function testApplyingScopeToABuilder()
+    public function testApplyingScopeToABuilder(): void
     {
         $scope = m::mock(SoftDeletingScope::class . '[extend]');
         $builder = m::mock(EloquentBuilder::class);
         $model = m::mock(Model::class);
-        $model->shouldReceive('getQualifiedDeletedAtColumn')->once()->andReturn('table.deleted_at');
-        $builder->shouldReceive('whereNull')->once()->with('table.deleted_at');
+        $model->expects('getQualifiedDeletedAtColumn')->andReturn('table.deleted_at');
+        $builder->expects('whereNull')->with('table.deleted_at');
 
         $scope->apply($builder, $model);
     }
 
-    public function testRestoreExtension()
+    public function testRestoreExtension(): void
     {
         $builder = new EloquentBuilder(new BaseBuilder(
             m::mock(ConnectionInterface::class),
@@ -39,15 +38,16 @@ class DatabaseSoftDeletingScopeTest extends TestCase
         $scope->extend($builder);
         $callback = $builder->getMacro('restore');
         $givenBuilder = m::mock(EloquentBuilder::class);
-        $givenBuilder->shouldReceive('withTrashed')->once();
-        $givenBuilder->shouldReceive('getModel')->once()->andReturn($model = m::mock(Model::class));
-        $model->shouldReceive('getDeletedAtColumn')->once()->andReturn('deleted_at');
-        $givenBuilder->shouldReceive('update')->once()->with(['deleted_at' => null]);
+        $givenBuilder->expects('withTrashed');
+        $model = m::mock(Model::class);
+        $givenBuilder->expects('getModel')->andReturn($model);
+        $model->expects('getDeletedAtColumn')->andReturn('deleted_at');
+        $givenBuilder->expects('update')->with(['deleted_at' => null]);
 
         $callback($givenBuilder);
     }
 
-    public function testRestoreOrCreateExtension()
+    public function testRestoreOrCreateExtension(): void
     {
         $builder = new EloquentBuilder(new BaseBuilder(
             m::mock(ConnectionInterface::class),
@@ -59,17 +59,18 @@ class DatabaseSoftDeletingScopeTest extends TestCase
         $scope->extend($builder);
         $callback = $builder->getMacro('restoreOrCreate');
         $givenBuilder = m::mock(EloquentBuilder::class);
-        $givenBuilder->shouldReceive('withTrashed')->once();
+        $givenBuilder->expects('withTrashed');
         $attributes = ['name' => 'foo'];
         $values = ['email' => 'bar'];
-        $givenBuilder->shouldReceive('firstOrCreate')->once()->with($attributes, $values)->andReturn($model = m::mock(Model::class));
-        $model->shouldReceive('restore')->once()->andReturn(true);
+        $model = m::mock(Model::class);
+        $givenBuilder->expects('firstOrCreate')->with($attributes, $values)->andReturn($model);
+        $model->expects('restore')->andReturn(true);
         $result = $callback($givenBuilder, $attributes, $values);
 
         $this->assertEquals($model, $result);
     }
 
-    public function testCreateOrRestoreExtension()
+    public function testCreateOrRestoreExtension(): void
     {
         $builder = new EloquentBuilder(new BaseBuilder(
             m::mock(ConnectionInterface::class),
@@ -81,17 +82,18 @@ class DatabaseSoftDeletingScopeTest extends TestCase
         $scope->extend($builder);
         $callback = $builder->getMacro('createOrRestore');
         $givenBuilder = m::mock(EloquentBuilder::class);
-        $givenBuilder->shouldReceive('withTrashed')->once();
+        $givenBuilder->expects('withTrashed');
         $attributes = ['name' => 'foo'];
         $values = ['email' => 'bar'];
-        $givenBuilder->shouldReceive('createOrFirst')->once()->with($attributes, $values)->andReturn($model = m::mock(Model::class));
-        $model->shouldReceive('restore')->once()->andReturn(true);
+        $model = m::mock(Model::class);
+        $givenBuilder->expects('createOrFirst')->with($attributes, $values)->andReturn($model);
+        $model->expects('restore')->andReturn(true);
         $result = $callback($givenBuilder, $attributes, $values);
 
         $this->assertEquals($model, $result);
     }
 
-    public function testWithTrashedExtension()
+    public function testWithTrashedExtension(): void
     {
         $builder = new EloquentBuilder(new BaseBuilder(
             m::mock(ConnectionInterface::class),
@@ -102,54 +104,49 @@ class DatabaseSoftDeletingScopeTest extends TestCase
         $scope->extend($builder);
         $callback = $builder->getMacro('withTrashed');
         $givenBuilder = m::mock(EloquentBuilder::class);
-        $givenBuilder->shouldReceive('getModel')->andReturn($model = m::mock(Model::class));
-        $givenBuilder->shouldReceive('withoutGlobalScope')->with($scope)->andReturn($givenBuilder);
+        $givenBuilder->expects('withoutGlobalScope')->with($scope)->andReturn($givenBuilder);
         $result = $callback($givenBuilder);
 
         $this->assertEquals($givenBuilder, $result);
     }
 
-    public function testOnlyTrashedExtension()
+    public function testOnlyTrashedExtension(): void
     {
         $builder = new EloquentBuilder(new BaseBuilder(
             m::mock(ConnectionInterface::class),
             m::mock(Grammar::class),
             m::mock(Processor::class)
         ));
-        $model = m::mock(Model::class);
-        $model->makePartial();
+        $model = m::mock(Model::class)->makePartial();
         $scope = m::mock(SoftDeletingScope::class . '[remove]');
         $scope->extend($builder);
         $callback = $builder->getMacro('onlyTrashed');
         $givenBuilder = m::mock(EloquentBuilder::class);
-        $givenBuilder->shouldReceive('getQuery')->andReturn($query = m::mock(stdClass::class));
-        $givenBuilder->shouldReceive('getModel')->andReturn($model);
-        $givenBuilder->shouldReceive('withoutGlobalScope')->with($scope)->andReturn($givenBuilder);
-        $model->shouldReceive('getQualifiedDeletedAtColumn')->andReturn('table.deleted_at');
-        $givenBuilder->shouldReceive('whereNotNull')->once()->with('table.deleted_at');
+        $givenBuilder->expects('getModel')->andReturn($model);
+        $givenBuilder->expects('withoutGlobalScope')->with($scope)->andReturn($givenBuilder);
+        $model->expects('getQualifiedDeletedAtColumn')->andReturn('table.deleted_at');
+        $givenBuilder->expects('whereNotNull')->with('table.deleted_at');
         $result = $callback($givenBuilder);
 
         $this->assertEquals($givenBuilder, $result);
     }
 
-    public function testWithoutTrashedExtension()
+    public function testWithoutTrashedExtension(): void
     {
         $builder = new EloquentBuilder(new BaseBuilder(
             m::mock(ConnectionInterface::class),
             m::mock(Grammar::class),
             m::mock(Processor::class)
         ));
-        $model = m::mock(Model::class);
-        $model->makePartial();
+        $model = m::mock(Model::class)->makePartial();
         $scope = m::mock(SoftDeletingScope::class . '[remove]');
         $scope->extend($builder);
         $callback = $builder->getMacro('withoutTrashed');
         $givenBuilder = m::mock(EloquentBuilder::class);
-        $givenBuilder->shouldReceive('getQuery')->andReturn($query = m::mock(stdClass::class));
-        $givenBuilder->shouldReceive('getModel')->andReturn($model);
-        $givenBuilder->shouldReceive('withoutGlobalScope')->with($scope)->andReturn($givenBuilder);
-        $model->shouldReceive('getQualifiedDeletedAtColumn')->andReturn('table.deleted_at');
-        $givenBuilder->shouldReceive('whereNull')->once()->with('table.deleted_at');
+        $givenBuilder->expects('getModel')->andReturn($model);
+        $givenBuilder->expects('withoutGlobalScope')->with($scope)->andReturn($givenBuilder);
+        $model->expects('getQualifiedDeletedAtColumn')->andReturn('table.deleted_at');
+        $givenBuilder->expects('whereNull')->with('table.deleted_at');
         $result = $callback($givenBuilder);
 
         $this->assertEquals($givenBuilder, $result);

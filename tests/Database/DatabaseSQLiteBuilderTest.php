@@ -22,58 +22,51 @@ use RuntimeException;
 
 class DatabaseSQLiteBuilderTest extends TestCase
 {
-    public function testCreateDatabase()
+    public function testCreateDatabase(): void
     {
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(new SQLiteGrammar($connection));
+        $connection->expects('getSchemaGrammar')->andReturn(new SQLiteGrammar($connection));
 
         $builder = new SQLiteBuilder($connection);
 
-        File::shouldReceive('put')
-            ->once()
+        File::expects('put')
             ->with('my_temporary_database_a', '')
             ->andReturn(20); // bytes
 
         $this->assertTrue($builder->createDatabase('my_temporary_database_a'));
 
-        File::shouldReceive('put')
-            ->once()
+        File::expects('put')
             ->with('my_temporary_database_b', '')
             ->andReturn(false);
 
         $this->assertFalse($builder->createDatabase('my_temporary_database_b'));
     }
 
-    public function testDropDatabaseIfExists()
+    public function testDropDatabaseIfExists(): void
     {
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(new SQLiteGrammar($connection));
+        $connection->expects('getSchemaGrammar')->andReturn(new SQLiteGrammar($connection));
 
         $builder = new SQLiteBuilder($connection);
 
-        File::shouldReceive('exists')
-            ->once()
+        File::expects('exists')
             ->andReturn(true);
 
-        File::shouldReceive('delete')
-            ->once()
+        File::expects('delete')
             ->with('my_temporary_database_b')
             ->andReturn(true);
 
         $this->assertTrue($builder->dropDatabaseIfExists('my_temporary_database_b'));
 
-        File::shouldReceive('exists')
-            ->once()
+        File::expects('exists')
             ->andReturn(false);
 
         $this->assertTrue($builder->dropDatabaseIfExists('my_temporary_database_c'));
 
-        File::shouldReceive('exists')
-            ->once()
+        File::expects('exists')
             ->andReturn(true);
 
-        File::shouldReceive('delete')
-            ->once()
+        File::expects('delete')
             ->with('my_temporary_database_c')
             ->andReturn(false);
 

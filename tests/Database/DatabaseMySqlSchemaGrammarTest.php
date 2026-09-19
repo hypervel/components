@@ -14,6 +14,7 @@ use Hypervel\Database\Schema\MySqlBuilder;
 use Hypervel\Tests\Database\Fixtures\Enums\Foo;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Mockery\MockInterface;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -1652,7 +1653,7 @@ SQL],
         ?MySqlGrammar $grammar = null,
         ?MySqlBuilder $builder = null,
         string $prefix = ''
-    ): Connection {
+    ): Connection&MockInterface {
         $connection = m::mock(MySqlConnection::class);
         $connection->shouldReceive('usesBackslashEscapes')->passthru();
         $connection->shouldReceive('getConfig')->with('modes')->andReturn(null);
