@@ -828,12 +828,13 @@ class RedisQueueTest extends TestCase
         $this->assertSame(1050, $this->redisConnection()->llen("{$redisKey}:notify"));
     }
 
-    public function testAllQueueNamesReturnsQueuesAcrossMultipleQueues(): void
+    public function testAllQueueNamesStripsClusterBraces(): void
     {
         $default = $this->defaultQueueName();
         $this->setQueue($default);
 
         $this->queue->push(new RedisQueueIntegrationTestJob(1));
+        $this->queue->later(60, new RedisQueueIntegrationTestJob(4));
         $this->queue->pushOn('emails', new RedisQueueIntegrationTestJob(2));
         $this->queue->pushOn('notifications', new RedisQueueIntegrationTestJob(3));
 
