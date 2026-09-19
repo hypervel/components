@@ -59,18 +59,22 @@ class ThrottlesExceptionsTest extends TestCase
         $this->assertJobWasFailed(CircuitBreakerFailedJob::class);
     }
 
-    protected function assertJobWasReleasedImmediately($class): void
+    /**
+     * Assert the failing job is released without a delay.
+     *
+     * @param class-string<CircuitBreakerTestJob> $class
+     */
+    protected function assertJobWasReleasedImmediately(string $class): void
     {
         $class::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
         $job = m::mock(Job::class);
 
-        $job->shouldReceive('hasFailed')->once()->andReturn(false);
-        $job->shouldReceive('release')->with(0)->once();
-        $job->shouldReceive('isReleased')->andReturn(true);
-        $job->shouldReceive('isDeletedOrReleased')->once()->andReturn(true);
-        $job->shouldReceive('uuid')->andReturn('simple-test-uuid');
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('release')->with(0);
+        $job->expects('isReleased')->times(2)->andReturn(true);
+        $job->expects('isDeletedOrReleased')->andReturn(true);
 
         $instance->call($job, [
             'command' => serialize($command = new $class),
@@ -79,20 +83,26 @@ class ThrottlesExceptionsTest extends TestCase
         $this->assertTrue($class::$handled);
     }
 
-    protected function assertJobWasReleasedWithDelay($class): void
+    /**
+     * Assert the throttled job is released with a delay.
+     *
+     * @param class-string<CircuitBreakerTestJob> $class
+     */
+    protected function assertJobWasReleasedWithDelay(string $class): void
     {
         $class::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
         $job = m::mock(Job::class);
 
-        $job->shouldReceive('hasFailed')->once()->andReturn(false);
-        $job->shouldReceive('release')->withArgs(function ($delay) {
-            return $delay >= 600;
-        })->once();
-        $job->shouldReceive('isReleased')->andReturn(true);
-        $job->shouldReceive('isDeletedOrReleased')->once()->andReturn(true);
-        $job->shouldReceive('uuid')->andReturn('simple-test-uuid');
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('release')->withArgs(function (int $delay): bool {
+            // The delay is the remainder of the decay window, less wall clock
+            // seconds elapsed since the first exception opened the circuit.
+            return $delay >= 590 && $delay <= 610;
+        });
+        $job->expects('isReleased')->times(2)->andReturn(true);
+        $job->expects('isDeletedOrReleased')->andReturn(true);
 
         $instance->call($job, [
             'command' => serialize($command = new $class),
@@ -101,19 +111,22 @@ class ThrottlesExceptionsTest extends TestCase
         $this->assertFalse($class::$handled);
     }
 
-    protected function assertJobWasDeleted($class): void
+    /**
+     * Assert the failing job is deleted.
+     *
+     * @param class-string<CircuitBreakerSkipJob> $class
+     */
+    protected function assertJobWasDeleted(string $class): void
     {
         $class::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
         $job = m::mock(Job::class);
 
-        $job->shouldReceive('hasFailed')->once()->andReturn(false);
-        $job->shouldReceive('delete')->once();
-        $job->shouldReceive('isDeleted')->andReturn(true);
-        $job->shouldReceive('isReleased')->twice()->andReturn(false);
-        $job->shouldReceive('isDeletedOrReleased')->once()->andReturn(true);
-        $job->shouldReceive('uuid')->andReturn('simple-test-uuid');
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('delete');
+        $job->expects('isReleased')->times(2)->andReturn(false);
+        $job->expects('isDeletedOrReleased')->andReturn(true);
 
         $instance->call($job, [
             'command' => serialize($command = new $class),
@@ -122,19 +135,22 @@ class ThrottlesExceptionsTest extends TestCase
         $this->assertTrue($class::$handled);
     }
 
-    protected function assertJobWasFailed($class): void
+    /**
+     * Assert the job is marked as failed.
+     *
+     * @param class-string<CircuitBreakerFailedJob> $class
+     */
+    protected function assertJobWasFailed(string $class): void
     {
         $class::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
         $job = m::mock(Job::class);
 
-        $job->shouldReceive('hasFailed')->once()->andReturn(true);
-        $job->shouldReceive('fail')->once();
-        $job->shouldReceive('isDeleted')->andReturn(true);
-        $job->shouldReceive('isReleased')->once()->andReturn(false);
-        $job->shouldReceive('isDeletedOrReleased')->once()->andReturn(true);
-        $job->shouldReceive('uuid')->andReturn('simple-test-uuid');
+        $job->expects('hasFailed')->andReturn(true);
+        $job->expects('fail');
+        $job->expects('isReleased')->andReturn(false);
+        $job->expects('isDeletedOrReleased')->andReturn(true);
 
         $instance->call($job, [
             'command' => serialize($command = new $class),
@@ -143,18 +159,22 @@ class ThrottlesExceptionsTest extends TestCase
         $this->assertTrue($class::$handled);
     }
 
-    protected function assertJobRanSuccessfully($class): void
+    /**
+     * Assert the successful job runs and is deleted.
+     *
+     * @param class-string<CircuitBreakerSuccessfulJob> $class
+     */
+    protected function assertJobRanSuccessfully(string $class): void
     {
         $class::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
         $job = m::mock(Job::class);
 
-        $job->shouldReceive('hasFailed')->once()->andReturn(false);
-        $job->shouldReceive('isReleased')->andReturn(false);
-        $job->shouldReceive('isDeletedOrReleased')->once()->andReturn(false);
-        $job->shouldReceive('delete')->once();
-        $job->shouldReceive('uuid')->andReturn('simple-test-uuid');
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('isReleased')->times(2)->andReturn(false);
+        $job->expects('isDeletedOrReleased')->andReturn(false);
+        $job->expects('delete');
 
         $instance->call($job, [
             'command' => serialize($command = new $class),
@@ -165,19 +185,22 @@ class ThrottlesExceptionsTest extends TestCase
 
     public function testItCanLimitPerMinute(): void
     {
-        $jobFactory = fn () => new class {
-            public $released = false;
+        $jobFactory = fn (): object => new class {
+            public bool $released = false;
 
-            public $handled = false;
+            public bool $handled = false;
 
-            public function release()
+            /**
+             * Release the job.
+             */
+            public function release(): static
             {
                 $this->released = true;
 
                 return $this;
             }
         };
-        $next = function ($job) {
+        $next = function (object $job): never {
             $job->handled = true;
 
             throw new RuntimeException('Whoops!');
@@ -218,19 +241,22 @@ class ThrottlesExceptionsTest extends TestCase
 
     public function testItCanLimitPerSecond(): void
     {
-        $jobFactory = fn () => new class {
-            public $released = false;
+        $jobFactory = fn (): object => new class {
+            public bool $released = false;
 
-            public $handled = false;
+            public bool $handled = false;
 
-            public function release()
+            /**
+             * Release the job.
+             */
+            public function release(): static
             {
                 $this->released = true;
 
                 return $this;
             }
         };
-        $next = function ($job) {
+        $next = function (object $job): never {
             $job->handled = true;
 
             throw new RuntimeException('Whoops!');
@@ -271,19 +297,22 @@ class ThrottlesExceptionsTest extends TestCase
 
     public function testLimitingWithDefaultValues(): void
     {
-        $jobFactory = fn () => new class {
-            public $released = false;
+        $jobFactory = fn (): object => new class {
+            public bool $released = false;
 
-            public $handled = false;
+            public bool $handled = false;
 
-            public function release()
+            /**
+             * Release the job.
+             */
+            public function release(): static
             {
                 $this->released = true;
 
                 return $this;
             }
         };
-        $next = function ($job) {
+        $next = function (object $job): never {
             $job->handled = true;
 
             throw new RuntimeException('Whoops!');
@@ -327,6 +356,9 @@ class ThrottlesExceptionsTest extends TestCase
         $job = new class {
             public ?int $releasedAfter = null;
 
+            /**
+             * Release the job with a delay.
+             */
             public function release(int $delay): static
             {
                 $this->releasedAfter = $delay;
@@ -364,6 +396,9 @@ class ThrottlesExceptionsTest extends TestCase
         $job = new class {
             public ?int $releasedAfter = null;
 
+            /**
+             * Release the job with a delay.
+             */
             public function release(int $delay): static
             {
                 $this->releasedAfter = $delay;
@@ -388,14 +423,13 @@ class ThrottlesExceptionsTest extends TestCase
     public function testCancellationBypassesFailurePolicyAndRateLimitAccounting(): void
     {
         $limiter = m::mock(Limiter::class);
-        $limiter->shouldReceive('inspect')
-            ->once()
+        $limiter->expects('inspect')
             ->with(m::type(Limit::class))
             ->andReturn(new LimitResult(true, 10, 10, 0, 0));
         $limiter->shouldNotReceive('clear', 'consume');
 
         $rateLimiter = m::mock(RateLimiter::class);
-        $rateLimiter->shouldReceive('store')->once()->with(null)->andReturn($limiter);
+        $rateLimiter->expects('store')->with(null)->andReturn($limiter);
         $this->app->instance(RateLimiter::class, $rateLimiter);
 
         $callbacksCalled = false;
@@ -440,17 +474,20 @@ class ThrottlesExceptionsTest extends TestCase
     public function testReportingExceptions(): void
     {
         $this->spy(ExceptionHandler::class)
-            ->shouldReceive('report')
-            ->twice()
+            ->expects('report')
+            ->times(2)
             ->with(m::type(RuntimeException::class));
 
         $job = new class {
-            public function release()
+            /**
+             * Release the job.
+             */
+            public function release(): static
             {
                 return $this;
             }
         };
-        $next = function () {
+        $next = function (): never {
             throw new RuntimeException('Whoops!');
         };
 
@@ -459,10 +496,10 @@ class ThrottlesExceptionsTest extends TestCase
         $middleware->report();
         $middleware->handle($job, $next);
 
-        $middleware->report(fn () => true);
+        $middleware->report(fn (): bool => true);
         $middleware->handle($job, $next);
 
-        $middleware->report(fn () => false);
+        $middleware->report(fn (): bool => false);
         $middleware->handle($job, $next);
     }
 
@@ -478,6 +515,9 @@ class ThrottlesExceptionsTest extends TestCase
         $whenLimiter = null;
         $reportLimiter = null;
         $job = new class {
+            /**
+             * Release the job.
+             */
             public function release(): static
             {
                 return $this;
@@ -518,6 +558,9 @@ class ThrottlesExceptionsTest extends TestCase
     public function testUsesRawDisplayNameForRateLimiterKeyWhenAvailable(): void
     {
         $job = new class {
+            /**
+             * Get the job display name.
+             */
             public function displayName(): string
             {
                 return 'App\Actions\ThrottlesExceptionsTestAction';
@@ -554,6 +597,9 @@ class CircuitBreakerTestJob
 
     public static bool $handled = false;
 
+    /**
+     * Handle the job.
+     */
     public function handle(): void
     {
         static::$handled = true;
@@ -561,6 +607,9 @@ class CircuitBreakerTestJob
         throw new Exception;
     }
 
+    /**
+     * Get the job middleware.
+     */
     public function middleware(): array
     {
         return [(new ThrottlesExceptions(2, 10 * 60))->by('test')];
@@ -574,6 +623,9 @@ class CircuitBreakerSkipJob
 
     public static bool $handled = false;
 
+    /**
+     * Handle the job.
+     */
     public function handle(): void
     {
         static::$handled = true;
@@ -581,6 +633,9 @@ class CircuitBreakerSkipJob
         throw new Exception;
     }
 
+    /**
+     * Get the job middleware.
+     */
     public function middleware(): array
     {
         return [(new ThrottlesExceptions(2, 10 * 60))->deleteWhen(Exception::class)];
@@ -594,6 +649,9 @@ class CircuitBreakerFailedJob
 
     public static bool $handled = false;
 
+    /**
+     * Handle the job.
+     */
     public function handle(): void
     {
         static::$handled = true;
@@ -601,6 +659,9 @@ class CircuitBreakerFailedJob
         throw new Exception;
     }
 
+    /**
+     * Get the job middleware.
+     */
     public function middleware(): array
     {
         return [(new ThrottlesExceptions(2, 10 * 60))->failWhen(Exception::class)];
@@ -614,11 +675,17 @@ class CircuitBreakerSuccessfulJob
 
     public static bool $handled = false;
 
+    /**
+     * Handle the job.
+     */
     public function handle(): void
     {
         static::$handled = true;
     }
 
+    /**
+     * Get the job middleware.
+     */
     public function middleware(): array
     {
         return [(new ThrottlesExceptions(2, 10 * 60))->by('test')];
@@ -627,6 +694,9 @@ class CircuitBreakerSuccessfulJob
 
 class ExposesThrottlesExceptions extends ThrottlesExceptions
 {
+    /**
+     * Get the rate limiter key for the job.
+     */
     public function getKeyForTest(mixed $job): string
     {
         return $this->getKey($job);

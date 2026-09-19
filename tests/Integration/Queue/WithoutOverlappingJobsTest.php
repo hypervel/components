@@ -17,17 +17,17 @@ use Mockery as m;
 
 class WithoutOverlappingJobsTest extends QueueTestCase
 {
-    public function testNonOverlappingJobsAreExecuted()
+    public function testNonOverlappingJobsAreExecuted(): void
     {
         OverlappingTestJob::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
         $job = m::mock(Job::class);
 
-        $job->shouldReceive('hasFailed')->andReturn(false);
-        $job->shouldReceive('isReleased')->andReturn(false);
-        $job->shouldReceive('isDeletedOrReleased')->andReturn(false);
-        $job->shouldReceive('delete')->once();
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('isReleased')->times(2)->andReturn(false);
+        $job->expects('isDeletedOrReleased')->andReturn(false);
+        $job->expects('delete');
 
         $instance->call($job, [
             'command' => serialize($command = new OverlappingTestJob),
@@ -39,16 +39,12 @@ class WithoutOverlappingJobsTest extends QueueTestCase
         $this->assertTrue($this->app->get(Cache::class)->lock($lockKey, 10)->acquire());
     }
 
-    public function testLockIsReleasedOnJobExceptions()
+    public function testLockIsReleasedOnJobExceptions(): void
     {
         FailedOverlappingTestJob::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
         $job = m::mock(Job::class);
-
-        $job->shouldReceive('hasFailed')->andReturn(false);
-        $job->shouldReceive('isReleased')->andReturn(false);
-        $job->shouldReceive('isDeletedOrReleased')->andReturn(false);
 
         $this->expectException(Exception::class);
 
@@ -64,7 +60,7 @@ class WithoutOverlappingJobsTest extends QueueTestCase
         }
     }
 
-    public function testOverlappingJobsAreReleased()
+    public function testOverlappingJobsAreReleased(): void
     {
         OverlappingTestJob::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
@@ -74,10 +70,10 @@ class WithoutOverlappingJobsTest extends QueueTestCase
 
         $job = m::mock(Job::class);
 
-        $job->shouldReceive('release')->once();
-        $job->shouldReceive('hasFailed')->andReturn(false);
-        $job->shouldReceive('isReleased')->andReturn(true);
-        $job->shouldReceive('isDeletedOrReleased')->andReturn(true);
+        $job->expects('release');
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('isReleased')->times(2)->andReturn(true);
+        $job->expects('isDeletedOrReleased')->andReturn(true);
 
         $instance->call($job, [
             'command' => serialize($command),
@@ -86,7 +82,7 @@ class WithoutOverlappingJobsTest extends QueueTestCase
         $this->assertFalse(OverlappingTestJob::$handled);
     }
 
-    public function testOverlappingJobsCanBeSkipped()
+    public function testOverlappingJobsCanBeSkipped(): void
     {
         SkipOverlappingTestJob::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
@@ -96,10 +92,10 @@ class WithoutOverlappingJobsTest extends QueueTestCase
 
         $job = m::mock(Job::class);
 
-        $job->shouldReceive('hasFailed')->andReturn(false);
-        $job->shouldReceive('isReleased')->andReturn(false);
-        $job->shouldReceive('isDeletedOrReleased')->andReturn(false);
-        $job->shouldReceive('delete')->once();
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('isReleased')->times(2)->andReturn(false);
+        $job->expects('isDeletedOrReleased')->andReturn(false);
+        $job->expects('delete');
 
         $instance->call($job, [
             'command' => serialize($command),
@@ -108,7 +104,7 @@ class WithoutOverlappingJobsTest extends QueueTestCase
         $this->assertFalse(SkipOverlappingTestJob::$handled);
     }
 
-    public function testCanShareKeyAcrossJobs()
+    public function testCanShareKeyAcrossJobs(): void
     {
         OverlappingTestJobWithSharedKeyOne::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
@@ -118,19 +114,19 @@ class WithoutOverlappingJobsTest extends QueueTestCase
 
         $job = m::mock(Job::class);
 
-        $job->shouldReceive('release')->once();
-        $job->shouldReceive('hasFailed')->andReturn(false);
-        $job->shouldReceive('isReleased')->andReturn(true);
-        $job->shouldReceive('isDeletedOrReleased')->andReturn(true);
+        $job->expects('release');
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('isReleased')->times(2)->andReturn(true);
+        $job->expects('isDeletedOrReleased')->andReturn(true);
 
         $instance->call($job, [
             'command' => serialize(new OverlappingTestJobWithSharedKeyOne),
         ]);
 
-        $this->assertFalse(OverlappingTestJob::$handled);
+        $this->assertFalse(OverlappingTestJobWithSharedKeyOne::$handled);
     }
 
-    public function testGetLock()
+    public function testGetLock(): void
     {
         $job = new OverlappingTestJob;
 
@@ -145,7 +141,7 @@ class WithoutOverlappingJobsTest extends QueueTestCase
         );
 
         $this->assertSame(
-            'prefix:Hypervel\Tests\Integration\Queue\WithoutOverlappingJobsTest\OverlappingTestJob:key',
+            'prefix:' . OverlappingTestJob::class . ':key',
             (new WithoutOverlapping('key'))->withPrefix('prefix:')->getLockKey($job)
         );
 
@@ -155,7 +151,7 @@ class WithoutOverlappingJobsTest extends QueueTestCase
         );
     }
 
-    public function testGetLockUsesDisplayName()
+    public function testGetLockUsesDisplayName(): void
     {
         $job = new OverlappingTestJobWithDisplayName;
 
@@ -218,11 +214,17 @@ class OverlappingTestJob
 
     public static bool $handled = false;
 
+    /**
+     * Handle the job.
+     */
     public function handle(): void
     {
         static::$handled = true;
     }
 
+    /**
+     * Get the job middleware.
+     */
     public function middleware(): array
     {
         return [new WithoutOverlapping];
@@ -231,6 +233,9 @@ class OverlappingTestJob
 
 class SkipOverlappingTestJob extends OverlappingTestJob
 {
+    /**
+     * Get the job middleware.
+     */
     public function middleware(): array
     {
         return [(new WithoutOverlapping)->dontRelease()];
@@ -239,6 +244,9 @@ class SkipOverlappingTestJob extends OverlappingTestJob
 
 class FailedOverlappingTestJob extends OverlappingTestJob
 {
+    /**
+     * Handle the job.
+     */
     public function handle(): void
     {
         static::$handled = true;
@@ -254,11 +262,17 @@ class OverlappingTestJobWithSharedKeyOne
 
     public static bool $handled = false;
 
+    /**
+     * Handle the job.
+     */
     public function handle(): void
     {
         static::$handled = true;
     }
 
+    /**
+     * Get the job middleware.
+     */
     public function middleware(): array
     {
         return [(new WithoutOverlapping)->shared()];
@@ -272,11 +286,17 @@ class OverlappingTestJobWithSharedKeyTwo
 
     public static bool $handled = false;
 
+    /**
+     * Handle the job.
+     */
     public function handle(): void
     {
         static::$handled = true;
     }
 
+    /**
+     * Get the job middleware.
+     */
     public function middleware(): array
     {
         return [(new WithoutOverlapping)->shared()];
@@ -285,6 +305,9 @@ class OverlappingTestJobWithSharedKeyTwo
 
 class OverlappingTestJobWithDisplayName extends OverlappingTestJob
 {
+    /**
+     * Get the job display name.
+     */
     public function displayName(): string
     {
         return 'App\Actions\WithoutOverlappingTestAction';

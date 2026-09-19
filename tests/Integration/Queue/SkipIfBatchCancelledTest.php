@@ -28,28 +28,37 @@ class SkipIfBatchCancelledTest extends TestCase
         $this->assertJobWasSkipped($afterCancelled);
     }
 
-    protected function assertJobRanSuccessfully($class): void
+    /**
+     * Assert the job runs.
+     */
+    protected function assertJobRanSuccessfully(SkipCancelledBatchableTestJob $class): void
     {
         $this->assertJobHandled($class, true);
     }
 
-    protected function assertJobWasSkipped($class): void
+    /**
+     * Assert the job is skipped.
+     */
+    protected function assertJobWasSkipped(SkipCancelledBatchableTestJob $class): void
     {
         $this->assertJobHandled($class, false);
     }
 
-    protected function assertJobHandled($class, bool $expectedHandledValue): void
+    /**
+     * Assert whether the job is handled.
+     */
+    protected function assertJobHandled(SkipCancelledBatchableTestJob $class, bool $expectedHandledValue): void
     {
         $class::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
         $job = m::mock(Job::class);
 
-        $job->shouldReceive('uuid')->once()->andReturn('simple-test-uuid');
-        $job->shouldReceive('hasFailed')->once()->andReturn(false);
+        $job->expects('uuid')->andReturn('simple-test-uuid');
+        $job->expects('hasFailed')->andReturn(false);
         $job->shouldReceive('isReleased')->andReturn(false);
-        $job->shouldReceive('isDeletedOrReleased')->once()->andReturn(false);
-        $job->shouldReceive('delete')->once();
+        $job->expects('isDeletedOrReleased')->andReturn(false);
+        $job->expects('delete');
 
         $instance->call($job, [
             'command' => serialize($command = $class),
@@ -67,11 +76,17 @@ class SkipCancelledBatchableTestJob
 
     public static bool $handled = false;
 
+    /**
+     * Handle the job.
+     */
     public function handle(): void
     {
         static::$handled = true;
     }
 
+    /**
+     * Get the job middleware.
+     */
     public function middleware(): array
     {
         return [new SkipIfBatchCancelled];
