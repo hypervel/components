@@ -13,6 +13,7 @@ use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Queue\Attributes\Backoff;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
+use Hypervel\Queue\Attributes\FailOnTimeout;
 use Hypervel\Queue\Attributes\MaxExceptions;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
 use Hypervel\Queue\Attributes\Timeout;
@@ -70,6 +71,11 @@ class SendQueuedNotifications implements ShouldQueue
     public bool $deleteWhenMissingModels = false;
 
     /**
+     * Indicates if the job should be marked as failed on timeout.
+     */
+    public bool $failOnTimeout = false;
+
+    /**
      * Create a new job instance.
      */
     public function __construct(mixed $notifiables, mixed $notification, ?array $channels = null)
@@ -81,6 +87,7 @@ class SendQueuedNotifications implements ShouldQueue
         $this->timeout = $this->getAttributeValue($notification, Timeout::class, 'timeout');
         $this->maxExceptions = $this->getAttributeValue($notification, MaxExceptions::class, 'maxExceptions');
         $this->deleteWhenMissingModels = $this->getAttributeValue($notification, DeleteWhenMissingModels::class, 'deleteWhenMissingModels') ?? false;
+        $this->failOnTimeout = $this->getAttributeValue($notification, FailOnTimeout::class, 'failOnTimeout') ?? false;
 
         if ($notification instanceof ShouldQueueAfterCommit) {
             $this->afterCommit = true;
