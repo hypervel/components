@@ -812,10 +812,14 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      */
     public function merge(array $input): static
     {
-        return tap($this, function (Request $request) use ($input) {
+        return tap($this, function (Request $request) use ($input): void {
             $request->getInputSource()
                 ->replace((new Collection($input))->reduce(
-                    fn ($requestInput, $value, $key) => data_set($requestInput, $key, $value),
+                    function (array $requestInput, mixed $value, int|string $key): array {
+                        Arr::set($requestInput, $key, $value);
+
+                        return $requestInput;
+                    },
                     $this->getInputSource()->all()
                 ));
         });

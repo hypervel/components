@@ -837,6 +837,8 @@ $file = $request->file('photo');
 $file = $request->photo;
 ```
 
+When a text field and an uploaded file share a name, `all()` and dynamic properties return the text value. Use `file()` to retrieve the upload. This also applies when validating data from `all()`; give upload metadata a different field name or explicitly validate the value returned by `file()`.
+
 You may determine if a file is present on the request using the `hasFile` method:
 
 ```php

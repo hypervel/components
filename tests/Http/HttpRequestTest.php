@@ -1352,6 +1352,39 @@ class HttpRequestTest extends TestCase
         $this->assertSame('Dayle', $request->input('buddy'));
     }
 
+    public function testMergeMethodTreatsAsterisksAsLiteralKeys(): void
+    {
+        $request = Request::create('/', 'GET', []);
+        $request->merge(['*' => 226]);
+        $this->assertSame(226, $request->all()['*']);
+
+        $request = Request::create('/', 'GET', ['organisation_id' => 10, 'name' => 'Taylor']);
+        $request->merge(['*' => 226]);
+        $this->assertSame(10, $request->input('organisation_id'));
+        $this->assertSame('Taylor', $request->input('name'));
+        $this->assertSame(226, $request->all()['*']);
+
+        $request = Request::create('/', 'GET', ['profile' => ['name' => 'Taylor', 'email' => 'taylor@hypervel.org']]);
+        $request->merge(['profile.*' => 'masked']);
+        $this->assertSame('Taylor', $request->input('profile.name'));
+        $this->assertSame('taylor@hypervel.org', $request->input('profile.email'));
+        $this->assertSame('masked', $request->all()['profile']['*']);
+
+        $request = Request::create('/', 'GET', ['profile' => ['name' => 'Taylor', 'email' => 'taylor@hypervel.org']]);
+        $request->merge(['profile.name' => 'Otwell']);
+        $this->assertSame('Otwell', $request->input('profile.name'));
+        $this->assertSame('taylor@hypervel.org', $request->input('profile.email'));
+    }
+
+    public function testMergeMethodTreatsAsterisksAsLiteralKeysOnJsonRequests(): void
+    {
+        $request = Request::create('/', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], json_encode(['organisation_id' => 10, 'name' => 'Taylor']));
+        $request->merge(['*' => 226]);
+        $this->assertSame(10, $request->input('organisation_id'));
+        $this->assertSame('Taylor', $request->input('name'));
+        $this->assertSame(226, $request->all()['*']);
+    }
+
     public function testMergeIfMissingMethod(): void
     {
         $request = Request::create('/', 'GET', ['name' => 'Taylor']);
@@ -1375,6 +1408,15 @@ class HttpRequestTest extends TestCase
         $merge = ['user.first_name' => 'John'];
         $request->mergeIfMissing($merge);
         $this->assertSame('Taylor', $request->input('user.first_name'));
+    }
+
+    public function testMergeIfMissingMethodTreatsAsterisksAsLiteralKeys(): void
+    {
+        $request = Request::create('/', 'GET', ['organisation_id' => 10, 'name' => 'Taylor']);
+        $request->mergeIfMissing(['*' => 226]);
+        $this->assertSame(10, $request->input('organisation_id'));
+        $this->assertSame('Taylor', $request->input('name'));
+        $this->assertSame(226, $request->all()['*']);
     }
 
     public function testReplaceMethod(): void
@@ -1505,6 +1547,32 @@ class HttpRequestTest extends TestCase
         $this->assertEquals(['foo' => ['bar' => 'baz', 'photo' => $file], 'boom' => 'breeze'], $request->all());
     }
 
+    public function testAllInputPrefersInputOverFilesForCollidingKeys(): void
+    {
+        $file = new SymfonyUploadedFile(__FILE__, 'email.txt');
+        $request = Request::create('/', 'POST', ['email' => 'taylor@hypervel.org'], [], ['email' => $file]);
+
+        $this->assertSame(['email' => 'taylor@hypervel.org'], $request->all());
+        $this->assertSame(['email' => 'taylor@hypervel.org'], $request->only('email'));
+        $this->assertInstanceOf(UploadedFile::class, $request->file('email'));
+    }
+
+    public function testAllInputPreservesInputKeyOrderWhenFilesAreMerged(): void
+    {
+        $file = new SymfonyUploadedFile(__FILE__, 'photo.jpg');
+        $request = Request::create('/', 'POST', [
+            'items' => [0 => ['name' => 'first'], 1 => ['name' => 'second']],
+        ], [], [
+            'items' => [1 => ['photo' => $file]],
+        ]);
+
+        $items = $request->all()['items'];
+
+        $this->assertSame([0, 1], array_keys($items));
+        $this->assertSame('second', $items[1]['name']);
+        $this->assertInstanceOf(UploadedFile::class, $items[1]['photo']);
+    }
+
     public function testAllInputReturnsInputAfterReplace(): void
     {
         $request = Request::create('/?boom=breeze', 'GET', ['foo' => ['bar' => 'baz']]);
@@ -1563,7 +1631,7 @@ class HttpRequestTest extends TestCase
     {
         $request = Request::create('/');
         $session = m::mock(Store::class);
-        $session->shouldReceive('getOldInput')->once()->with('foo', 'bar')->andReturn('boom');
+        $session->expects('getOldInput')->with('foo', 'bar')->andReturn('boom');
         $request->setHypervelSession($session);
         $this->assertSame('boom', $request->old('foo', 'bar'));
     }
@@ -1572,7 +1640,7 @@ class HttpRequestTest extends TestCase
     {
         $request = Request::create('/');
         $session = m::mock(Store::class);
-        $session->shouldReceive('getOldInput')->once()->with('foo', ['bar'])->andReturn(['bar']);
+        $session->expects('getOldInput')->with('foo', ['bar'])->andReturn(['bar']);
         $request->setHypervelSession($session);
         $this->assertSame(['bar'], $request->old('foo', ['bar']));
     }
@@ -1581,9 +1649,9 @@ class HttpRequestTest extends TestCase
     {
         $request = Request::create('/');
         $model = m::mock(Price::class);
-        $model->shouldReceive('getAttribute')->once()->with('name')->andReturn('foobar');
+        $model->expects('getAttribute')->with('name')->andReturn('foobar');
         $session = m::mock(Store::class);
-        $session->shouldReceive('getOldInput')->once()->with('name', 'foobar')->andReturn('foobar');
+        $session->expects('getOldInput')->with('name', 'foobar')->andReturn('foobar');
         $request->setHypervelSession($session);
         $this->assertSame('foobar', $request->old('name', $model));
     }
@@ -1592,7 +1660,7 @@ class HttpRequestTest extends TestCase
     {
         $request = Request::create('/');
         $session = m::mock(Store::class);
-        $session->shouldReceive('flashInput')->once();
+        $session->expects('flashInput');
         $request->setHypervelSession($session);
         $request->flush();
     }
@@ -1669,6 +1737,19 @@ class HttpRequestTest extends TestCase
 
         $request = Request::create('/', 'GET', [], [], [], ['HTTP_ACCEPT' => 'application/json']);
         $this->assertFalse($request->acceptsMarkdown());
+    }
+
+    public function testMatchesType(): void
+    {
+        $this->assertTrue(Request::matchesType('application/json', 'application/json'));
+
+        $this->assertTrue(Request::matchesType('application/json', 'application/vnd.api+json'));
+        $this->assertTrue(Request::matchesType('application/xml', 'application/atom+xml'));
+
+        $this->assertFalse(Request::matchesType('application/vnd.api+json', 'application/json'));
+        $this->assertFalse(Request::matchesType('application/json', 'application/xml'));
+        $this->assertFalse(Request::matchesType('application/json', 'text/json'));
+        $this->assertFalse(Request::matchesType('json', 'application/json'));
     }
 
     public function testFormatReturnsAcceptsJson(): void
@@ -1881,7 +1962,7 @@ class HttpRequestTest extends TestCase
         $session = $request->getSession();
         $this->assertInstanceOf(SessionInterface::class, $session);
 
-        $hypervelSession->shouldReceive('start')->once()->andReturn(true);
+        $hypervelSession->expects('start')->andReturn(true);
         $session->start();
     }
 
@@ -1903,12 +1984,12 @@ class HttpRequestTest extends TestCase
         $this->assertSame('user', $request->user());
     }
 
-    public function testFingerprintReturnsXxh128HashForRouteAndIp(): void
+    public function testFingerprintMethod(): void
     {
         $request = Request::create('/users', 'GET', [], [], [], ['REMOTE_ADDR' => '127.0.0.1']);
-        $route = new Route(['GET', 'HEAD'], '/users', ['uses' => fn () => null]);
+        $route = new Route(['GET', 'HEAD'], '/users', ['uses' => fn (): null => null]);
 
-        $request->setRouteResolver(fn () => $route);
+        $request->setRouteResolver(fn (): Route => $route);
 
         $this->assertSame(
             hash('xxh128', implode('|', array_merge(
@@ -1919,7 +2000,7 @@ class HttpRequestTest extends TestCase
         );
     }
 
-    public function testFingerprintThrowsWhenRouteIsUnavailable(): void
+    public function testFingerprintWithoutRoute(): void
     {
         $this->expectExceptionObject(new RuntimeException('Unable to generate fingerprint. Route unavailable.'));
 
@@ -2043,10 +2124,38 @@ class HttpRequestTest extends TestCase
         $this->assertEmpty($request->undefined);
     }
 
+    public function testMagicMethodsPreferInputOverFilesForCollidingKeys(): void
+    {
+        $file = new SymfonyUploadedFile(__FILE__, 'email.txt');
+        $request = Request::create('/', 'POST', ['email' => 'taylor@hypervel.org'], [], ['email' => $file]);
+
+        $this->assertSame('taylor@hypervel.org', $request->email);
+        $this->assertSame('taylor@hypervel.org', $request['email']);
+    }
+
+    public function testMagicMethodsMergeNestedInputAndFilesWhilePreferringInput(): void
+    {
+        $avatar = new SymfonyUploadedFile(__FILE__, 'avatar.jpg');
+        $collision = new SymfonyUploadedFile(__FILE__, 'name.txt');
+        $request = Request::create('/', 'POST', [
+            'profile' => ['name' => 'Taylor'],
+        ], [], [
+            'profile' => ['name' => $collision, 'avatar' => $avatar],
+        ]);
+
+        $expected = [
+            'name' => 'Taylor',
+            'avatar' => $request->file('profile.avatar'),
+        ];
+
+        $this->assertSame($expected, $request->profile);
+        $this->assertSame(['profile' => $expected], $request->all());
+    }
+
     public function testHttpRequestFlashCallsSessionFlashInputWithInputData(): void
     {
         $session = m::mock(Store::class);
-        $session->shouldReceive('flashInput')->once()->with(['name' => 'Taylor', 'email' => 'foo']);
+        $session->expects('flashInput')->with(['name' => 'Taylor', 'email' => 'foo']);
         $request = Request::create('/', 'GET', ['name' => 'Taylor', 'email' => 'foo']);
         $request->setHypervelSession($session);
         $request->flash();
@@ -2055,7 +2164,7 @@ class HttpRequestTest extends TestCase
     public function testHttpRequestFlashOnlyCallsFlashWithProperParameters(): void
     {
         $session = m::mock(Store::class);
-        $session->shouldReceive('flashInput')->once()->with(['name' => 'Taylor']);
+        $session->expects('flashInput')->with(['name' => 'Taylor']);
         $request = Request::create('/', 'GET', ['name' => 'Taylor', 'email' => 'foo']);
         $request->setHypervelSession($session);
         $request->flashOnly(['name']);
@@ -2064,7 +2173,7 @@ class HttpRequestTest extends TestCase
     public function testHttpRequestFlashExceptCallsFlashWithProperParameters(): void
     {
         $session = m::mock(Store::class);
-        $session->shouldReceive('flashInput')->once()->with(['name' => 'Taylor']);
+        $session->expects('flashInput')->with(['name' => 'Taylor']);
         $request = Request::create('/', 'GET', ['name' => 'Taylor', 'email' => 'foo']);
         $request->setHypervelSession($session);
         $request->flashExcept(['email']);
