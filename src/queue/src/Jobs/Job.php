@@ -455,7 +455,7 @@ abstract class Job implements JobContract
     }
 
     /**
-     * Get the resolved name of the queued job class.
+     * Get the resolved display name of the queued job class.
      *
      * Resolves the name of "wrapped" jobs such as class-based handlers.
      */

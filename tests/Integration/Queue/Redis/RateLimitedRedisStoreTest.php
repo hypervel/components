@@ -13,6 +13,7 @@ use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Middleware\RateLimited;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\RateLimiter;
+use Hypervel\RateLimiter\Unlimited;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -30,7 +31,7 @@ class RateLimitedRedisStoreTest extends TestCase
 
         $testJob = new RedisRateLimitedTestJob;
 
-        $rateLimiter->for($testJob->key, function ($job) {
+        $rateLimiter->for($testJob->key, function (RedisRateLimitedTestJob $job): Unlimited {
             return Limit::none();
         });
 
@@ -42,7 +43,7 @@ class RateLimitedRedisStoreTest extends TestCase
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
 
-        $rateLimiter->for(RedisBackedEnumNamedRateLimited::Zero, function ($job) {
+        $rateLimiter->for(RedisBackedEnumNamedRateLimited::Zero, function (RedisRateLimitedTestJob $job): Unlimited {
             return Limit::none();
         });
 
@@ -58,7 +59,7 @@ class RateLimitedRedisStoreTest extends TestCase
 
         $testJob = new RedisRateLimitedTestJob;
 
-        $rateLimiter->for($testJob->key, function ($job) {
+        $rateLimiter->for($testJob->key, function (RedisRateLimitedTestJob $job): Limit {
             return Limit::perMinute(1);
         });
 
@@ -72,7 +73,7 @@ class RateLimitedRedisStoreTest extends TestCase
 
         $testJob = new RedisRateLimitedZeroReleaseAfterTestJob;
 
-        $rateLimiter->for($testJob->key, function ($job) {
+        $rateLimiter->for($testJob->key, function (RedisRateLimitedTestJob $job): Limit {
             return Limit::perMinute(1);
         });
 
@@ -86,7 +87,7 @@ class RateLimitedRedisStoreTest extends TestCase
 
         $testJob = new RedisRateLimitedDontReleaseTestJob;
 
-        $rateLimiter->for($testJob->key, function ($job) {
+        $rateLimiter->for($testJob->key, function (RedisRateLimitedTestJob $job): Limit {
             return Limit::perMinute(1);
         });
 
@@ -100,7 +101,7 @@ class RateLimitedRedisStoreTest extends TestCase
 
         $adminJob = new RedisAdminTestJob;
 
-        $rateLimiter->for($adminJob->key, function ($job) {
+        $rateLimiter->for($adminJob->key, function (RedisAdminTestJob $job): Limit|Unlimited {
             if ($job->isAdmin()) {
                 return Limit::none();
             }
@@ -113,7 +114,7 @@ class RateLimitedRedisStoreTest extends TestCase
 
         $nonAdminJob = new RedisNonAdminTestJob;
 
-        $rateLimiter->for($nonAdminJob->key, function ($job) {
+        $rateLimiter->for($nonAdminJob->key, function (RedisNonAdminTestJob $job): Limit|Unlimited {
             if ($job->isAdmin()) {
                 return Limit::none();
             }
@@ -132,7 +133,7 @@ class RateLimitedRedisStoreTest extends TestCase
 
         $restoredRateLimited = unserialize(serialize($rateLimited));
 
-        $fetch = (function (string $name) {
+        $fetch = (function (string $name): mixed {
             return $this->{$name};
         })->bindTo($restoredRateLimited, RateLimited::class);
 
@@ -142,6 +143,9 @@ class RateLimitedRedisStoreTest extends TestCase
         $this->assertInstanceOf(RateLimiter::class, $fetch('limiter'));
     }
 
+    /**
+     * Assert the job runs and is deleted.
+     */
     protected function assertJobRanSuccessfully(RedisRateLimitedTestJob $testJob): void
     {
         $testJob::$handled = false;
@@ -149,10 +153,10 @@ class RateLimitedRedisStoreTest extends TestCase
 
         $job = m::mock(Job::class);
 
-        $job->shouldReceive('hasFailed')->once()->andReturn(false);
-        $job->shouldReceive('isReleased')->andReturn(false);
-        $job->shouldReceive('isDeletedOrReleased')->once()->andReturn(false);
-        $job->shouldReceive('delete')->once();
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('isReleased')->times(2)->andReturn(false);
+        $job->expects('isDeletedOrReleased')->andReturn(false);
+        $job->expects('delete');
 
         $instance->call($job, [
             'command' => serialize($testJob),
@@ -161,6 +165,9 @@ class RateLimitedRedisStoreTest extends TestCase
         $this->assertTrue($testJob::$handled);
     }
 
+    /**
+     * Assert the job is released without running.
+     */
     protected function assertJobWasReleased(RedisRateLimitedTestJob $testJob): void
     {
         $testJob::$handled = false;
@@ -168,10 +175,10 @@ class RateLimitedRedisStoreTest extends TestCase
 
         $job = m::mock(Job::class);
 
-        $job->shouldReceive('hasFailed')->once()->andReturn(false);
-        $job->shouldReceive('release')->once();
-        $job->shouldReceive('isReleased')->andReturn(true);
-        $job->shouldReceive('isDeletedOrReleased')->once()->andReturn(true);
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('release');
+        $job->expects('isReleased')->times(2)->andReturn(true);
+        $job->expects('isDeletedOrReleased')->andReturn(true);
 
         $instance->call($job, [
             'command' => serialize($testJob),
@@ -180,6 +187,9 @@ class RateLimitedRedisStoreTest extends TestCase
         $this->assertFalse($testJob::$handled);
     }
 
+    /**
+     * Assert the job is released with the given delay.
+     */
     protected function assertJobWasReleasedAfter(RedisRateLimitedTestJob $testJob, int $delay): void
     {
         $testJob::$handled = false;
@@ -187,10 +197,10 @@ class RateLimitedRedisStoreTest extends TestCase
 
         $job = m::mock(Job::class);
 
-        $job->shouldReceive('hasFailed')->once()->andReturn(false);
-        $job->shouldReceive('release')->once()->with($delay);
-        $job->shouldReceive('isReleased')->andReturn(true);
-        $job->shouldReceive('isDeletedOrReleased')->once()->andReturn(true);
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('release')->with($delay);
+        $job->expects('isReleased')->times(2)->andReturn(true);
+        $job->expects('isDeletedOrReleased')->andReturn(true);
 
         $instance->call($job, [
             'command' => serialize($testJob),
@@ -199,6 +209,9 @@ class RateLimitedRedisStoreTest extends TestCase
         $this->assertFalse($testJob::$handled);
     }
 
+    /**
+     * Assert the job is deleted without running.
+     */
     protected function assertJobWasSkipped(RedisRateLimitedTestJob $testJob): void
     {
         $testJob::$handled = false;
@@ -206,10 +219,10 @@ class RateLimitedRedisStoreTest extends TestCase
 
         $job = m::mock(Job::class);
 
-        $job->shouldReceive('hasFailed')->once()->andReturn(false);
-        $job->shouldReceive('isReleased')->andReturn(false);
-        $job->shouldReceive('isDeletedOrReleased')->once()->andReturn(false);
-        $job->shouldReceive('delete')->once();
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('isReleased')->times(2)->andReturn(false);
+        $job->expects('isDeletedOrReleased')->andReturn(false);
+        $job->expects('delete');
 
         $instance->call($job, [
             'command' => serialize($testJob),
@@ -228,16 +241,25 @@ class RedisRateLimitedTestJob
 
     public static bool $handled = false;
 
+    /**
+     * Create a job with a unique limiter name.
+     */
     public function __construct()
     {
         $this->key = Str::random(10);
     }
 
+    /**
+     * Handle the job.
+     */
     public function handle(): void
     {
         static::$handled = true;
     }
 
+    /**
+     * Get the job middleware.
+     */
     public function middleware(): array
     {
         return [(new RateLimited($this->key))->store('redis')];
@@ -246,6 +268,9 @@ class RedisRateLimitedTestJob
 
 class RedisAdminTestJob extends RedisRateLimitedTestJob
 {
+    /**
+     * Determine whether the job runs as an administrator.
+     */
     public function isAdmin(): bool
     {
         return true;
@@ -254,6 +279,9 @@ class RedisAdminTestJob extends RedisRateLimitedTestJob
 
 class RedisNonAdminTestJob extends RedisRateLimitedTestJob
 {
+    /**
+     * Determine whether the job runs as an administrator.
+     */
     public function isAdmin(): bool
     {
         return false;
@@ -262,6 +290,9 @@ class RedisNonAdminTestJob extends RedisRateLimitedTestJob
 
 class RedisRateLimitedDontReleaseTestJob extends RedisRateLimitedTestJob
 {
+    /**
+     * Get the job middleware.
+     */
     public function middleware(): array
     {
         return [(new RateLimited($this->key))->store('redis')->dontRelease()];
@@ -270,6 +301,9 @@ class RedisRateLimitedDontReleaseTestJob extends RedisRateLimitedTestJob
 
 class RedisRateLimitedZeroReleaseAfterTestJob extends RedisRateLimitedTestJob
 {
+    /**
+     * Get the job middleware.
+     */
     public function middleware(): array
     {
         return [(new RateLimited($this->key))->store('redis')->releaseAfter(0)];
@@ -283,6 +317,9 @@ enum RedisBackedEnumNamedRateLimited: int
 
 class RedisRateLimitedTestJobUsingBackedEnum extends RedisRateLimitedTestJob
 {
+    /**
+     * Get the job middleware.
+     */
     public function middleware(): array
     {
         return [(new RateLimited(RedisBackedEnumNamedRateLimited::Zero))->store('redis')];

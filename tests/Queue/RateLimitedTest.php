@@ -127,8 +127,8 @@ class RateLimitedTest extends TestCase
         $this->assertNull((new RateLimited('uploads'))->handle($job, fn () => 'handled'));
     }
 
-    // REMOVED: Laravel's preflight-all-then-hit-all behavior is replaced by
-    // sequential atomic policy consumption without rollback.
+    // REMOVED: Laravel #61449's preflight pass. Hypervel consumes policies
+    // atomically in order, retaining earlier charges when a later policy denies.
 
     public function testEarlierPoliciesRemainConsumedWhenALaterPolicyDenies(): void
     {
