@@ -1682,7 +1682,7 @@ protected function waitForRateLimits(): bool
 
 You may select another configured rate-limiter store by overriding `resolveRateLimitStore`. Fakes and cache hits do not consume capacity.
 
-When several policies apply, Saloon consumes them in declaration order. If a later policy denies the operation, earlier successful reservations remain consumed because the policies may live under different atomic keys or stores. Place broad, inexpensive policies first.
+Saloon [consumes each resource's policies together](/docs/{{version}}/rate-limiting#consuming-multiple-limits), subject to the documented Redis Cluster limitation. Connector and request limits are separate: the connector is admitted first, so its charge remains if the request's limits deny the operation. After waiting for capacity, Saloon checks the resource's cooldown again before retrying its policies.
 
 <a name="tenant-and-service-limits"></a>
 ### Tenant and Service Limits
