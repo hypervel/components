@@ -32,4 +32,6 @@ Laravel's deprecated `HandleExceptions::forgetApp()` is omitted. Use `HandleExce
 
 Laravel Mix and the `mix()` helper are not ported; use Vite instead.
 
+`FailOnUnknownFields` accepts the contents of an `array` field without child rules. Define child rules or allowed array keys to restrict those contents.
+
 Ported from: https://github.com/laravel/framework

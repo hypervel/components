@@ -514,6 +514,8 @@ When porting schemas that place sibling assertions beside a local `$ref` or use 
 
 Handwritten validation parameters use standard CSV quoting. Replace backslash-escaped quotes inside quoted parameters with doubled quotes; backslashes are literal. Fluent rule builders handle quoting for you. See [rule parameters](/docs/{{version}}/validation#rule-parameters).
 
+`FailOnUnknownFields` accepts the contents of `array` fields without child rules. Add child rules or allowed keys (`array:name,email`) when those contents must be restricted. See [unknown fields](/docs/{{version}}/validation#request-failing-on-unknown-fields).
+
 <a name="data-objects"></a>
 ### Data Objects
 
