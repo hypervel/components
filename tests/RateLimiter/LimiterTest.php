@@ -68,7 +68,9 @@ class LimiterTest extends TestCase
         $policy = Limit::perMinute(1);
         $limiter->consume($policy, 'api');
 
-        $results = $limiter->consumeMany([Limit::none(), $policy, Limit::none()], 'api');
+        $results = $limiter->consumeMany([
+            Limit::none(), $policy, Limit::perMinute(1)->by('secondary'), Limit::none(),
+        ], 'api');
 
         $this->assertCount(2, $results);
         $this->assertTrue($results[0]->allowed());
