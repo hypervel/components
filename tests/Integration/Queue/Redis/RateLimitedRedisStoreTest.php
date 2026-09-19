@@ -94,6 +94,48 @@ class RateLimitedRedisStoreTest extends TestCase
         $this->assertJobWasSkipped($testJob);
     }
 
+    public function testLimitsAreNotHitWhenAnotherLimitIsReached(): void
+    {
+        $rateLimiter = $this->app->make(RateLimiter::class);
+        $testJob = new RedisRateLimitedTestJob;
+
+        $rateLimiter->for($testJob->key, function (): array {
+            return [
+                Limit::perHour(10)->by('global'),
+                Limit::perHour(1)->by('tenant'),
+            ];
+        });
+
+        $this->assertJobRanSuccessfully($testJob);
+        $this->assertJobWasReleased($testJob);
+        $this->assertJobWasReleased($testJob);
+
+        $limiter = $rateLimiter->store('redis');
+        $this->assertSame(9, $limiter->inspect(Limit::perHour(10)->by('global'), $testJob->key)->remaining());
+        $this->assertSame(0, $limiter->inspect(Limit::perHour(1)->by('tenant'), $testJob->key)->remaining());
+    }
+
+    public function testLimitsAreNotHitWhenAnotherLimitIsReachedAndJobIsSkipped(): void
+    {
+        $rateLimiter = $this->app->make(RateLimiter::class);
+        $testJob = new RedisRateLimitedDontReleaseTestJob;
+
+        $rateLimiter->for($testJob->key, function (): array {
+            return [
+                Limit::perHour(10)->by('global'),
+                Limit::perHour(1)->by('tenant'),
+            ];
+        });
+
+        $this->assertJobRanSuccessfully($testJob);
+        $this->assertJobWasSkipped($testJob);
+        $this->assertJobWasSkipped($testJob);
+
+        $limiter = $rateLimiter->store('redis');
+        $this->assertSame(9, $limiter->inspect(Limit::perHour(10)->by('global'), $testJob->key)->remaining());
+        $this->assertSame(0, $limiter->inspect(Limit::perHour(1)->by('tenant'), $testJob->key)->remaining());
+    }
+
     public function testJobsCanHaveConditionalRateLimits(): void
     {
         $rateLimiter = $this->app->make(RateLimiter::class);

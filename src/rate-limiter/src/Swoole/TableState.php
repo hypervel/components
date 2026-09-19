@@ -46,4 +46,17 @@ class TableState
     {
         return $this->locks->withLock($key, $callback);
     }
+
+    /**
+     * Run the callback while holding the locks for a group of limiter keys.
+     *
+     * @template T
+     * @param list<string> $keys
+     * @param callable(): T $callback
+     * @return T
+     */
+    public function withLocks(array $keys, callable $callback): mixed
+    {
+        return $this->locks->withLocks($keys, $callback);
+    }
 }

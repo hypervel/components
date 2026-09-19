@@ -1015,7 +1015,7 @@ RateLimiter::for('uploads', function (Request $request) {
 });
 ```
 
-Hypervel consumes the rate limits in the order they are returned. If a later rate limit denies the request, capacity already consumed by earlier rate limits is not restored.
+Hypervel [consumes the limits together](/docs/{{version}}/rate-limiting#consuming-multiple-limits). A denied request does not consume capacity from the other limits, subject to the documented Redis Cluster limitation. The first denied limit determines the response.
 
 When several rate limits apply, the `X-RateLimit-Limit` and `X-RateLimit-Remaining` headers describe the rate limit with the least remaining capacity. Hypervel also leaves a lower `X-RateLimit-Remaining` value already set by your application in place.
 

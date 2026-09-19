@@ -760,7 +760,7 @@ return Limit::perMinute(50)->by($job->user->id);
 
 Named queue rate limiters use the same [key scope resolver](/docs/{{version}}/routing#scoping-named-rate-limits) as named route rate limiters.
 
-Queue rate limiters may use fixed-window, sliding-window, or leaky-bucket rate limits, and each operation may have a weighted cost. If a named limiter returns several rate limits, Hypervel consumes them in the listed order. When a later rate limit denies the job, capacity already consumed by earlier rate limits is not restored.
+Queue rate limiters may use fixed-window, sliding-window, or leaky-bucket rate limits, and each operation may have a weighted cost. If a named limiter returns several limits, Hypervel [consumes them together](/docs/{{version}}/rate-limiting#consuming-multiple-limits). A denied job does not consume capacity from the other limits, subject to the documented Redis Cluster limitation.
 
 Once you have defined your rate limit, you may attach the rate limiter to your job using the `Hypervel\Queue\Middleware\RateLimited` middleware. Each time the job exceeds the rate limit, this middleware will release the job back to the queue with an appropriate delay based on the rate limit duration:
 

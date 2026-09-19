@@ -14,6 +14,65 @@ use Hypervel\RateLimiter\SlidingWindow;
 
 trait RateLimiterStoreContract
 {
+    public function testStoreContractConsumesMixedPoliciesTogetherAndSharesScalarState(): void
+    {
+        $limiter = $this->rateLimiterStoreContract();
+        $key = $this->rateLimiterStoreContractKey('group');
+        $policies = [
+            Limit::perMinute(10)->cost(2)->by($key),
+            SlidingWindow::perMinute(10)->cost(3)->by($key),
+            LeakyBucket::perMinute(1)->burst(10)->cost(4)->by($key),
+        ];
+
+        foreach ($policies as $policy) {
+            $limiter->consume($policy->cost(1));
+        }
+
+        $results = $limiter->consumeMany($policies);
+
+        $this->assertCount(3, $results);
+
+        foreach ($results as $index => $result) {
+            $this->assertTrue($result->allowed());
+            $this->assertSame(9 - $policies[$index]->cost, $result->remaining());
+            $this->assertSame($result->remaining(), $limiter->inspect($policies[$index])->remaining());
+        }
+    }
+
+    public function testStoreContractDeniedGroupDoesNotChargeEarlierPolicies(): void
+    {
+        $limiter = $this->rateLimiterStoreContract();
+        $key = $this->rateLimiterStoreContractKey('group-denial');
+        $global = Limit::perMinute(10)->by($key);
+        $tenant = SlidingWindow::perMinute(1)->by($key);
+        $later = LeakyBucket::perMinute(1)->by($key);
+        $limiter->consume($tenant);
+        $limiter->consume($later);
+
+        $results = $limiter->consumeMany([$global, $tenant, $later]);
+
+        $this->assertCount(2, $results);
+        $this->assertTrue($results[0]->allowed());
+        $this->assertSame(10, $results[0]->remaining());
+        $this->assertTrue($results[1]->denied());
+        $this->assertGreaterThan(0, $results[1]->retryAfter());
+        $this->assertSame(10, $limiter->inspect($global)->remaining());
+        $this->assertSame(0, $limiter->inspect($global)->resetAfter());
+    }
+
+    public function testStoreContractRepeatedKeysConsumeTheCombinedCost(): void
+    {
+        $limiter = $this->rateLimiterStoreContract();
+        $policy = Limit::perMinute(10)->by($this->rateLimiterStoreContractKey('group-repeated'));
+
+        $results = $limiter->consumeMany([$policy->cost(2), $policy->cost(3)]);
+
+        $this->assertCount(2, $results);
+        $this->assertSame(8, $results[0]->remaining());
+        $this->assertSame(5, $results[1]->remaining());
+        $this->assertSame(5, $limiter->inspect($policy)->remaining());
+    }
+
     public function testStoreContractFixedWindowDecisionsAreAtomicAndComplete(): void
     {
         $limiter = $this->rateLimiterStoreContract();

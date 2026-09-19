@@ -28,7 +28,7 @@ class SwooleStoreConcurrencyTest extends TestCase
     protected bool $runTestsInCoroutine = false;
 
     #[DataProvider('admissionPolicyProvider')]
-    public function testForkedWorkersAdmitExactlyTheConfiguredCapacity(AdmissionPolicy $policy): void
+    public function testForkedWorkersAdmitExactlyTheConfiguredCapacity(AdmissionPolicy $policy, bool $group = false): void
     {
         $state = $this->state();
         $processCount = 8;
@@ -46,6 +46,8 @@ class SwooleStoreConcurrencyTest extends TestCase
                 $process = new Process(function (Process $process) use (
                     $state,
                     $policy,
+                    $group,
+                    $processIndex,
                     $attemptsPerProcess,
                     $ready,
                     $start,
@@ -60,9 +62,24 @@ class SwooleStoreConcurrencyTest extends TestCase
                         }
 
                         $store = $this->store($state);
+                        $policies = [
+                            ['key' => 'global', 'policy' => Limit::perMinute(1_000)],
+                            ['key' => 'workers', 'policy' => $policy],
+                        ];
+
+                        if ($processIndex % 2 === 1) {
+                            $policies = array_reverse($policies);
+                        }
 
                         for ($attempt = 0; $attempt < $attemptsPerProcess; ++$attempt) {
-                            if ($store->consume('workers', $policy)->allowed()) {
+                            if ($group) {
+                                $results = $store->consumeMany($policies);
+                                $result = end($results);
+                            } else {
+                                $result = $store->consume('workers', $policy);
+                            }
+
+                            if ($result->allowed()) {
                                 $allowed->add(1);
                             }
                         }
@@ -124,6 +141,10 @@ class SwooleStoreConcurrencyTest extends TestCase
 
             $this->assertSame(50, $allowed->get());
             $this->assertSame(0, $store->inspect('workers', $policy)->remaining());
+
+            if ($group) {
+                $this->assertSame(950, $store->inspect('global', Limit::perMinute(1_000))->remaining());
+            }
         } finally {
             $start->set(1);
             $this->cleanupProcesses($processes, $pids);
@@ -135,6 +156,8 @@ class SwooleStoreConcurrencyTest extends TestCase
         return [
             'fixed window' => [Limit::perMinute(50)],
             'sliding window' => [SlidingWindow::perMinute(50)],
+            'fixed window group' => [Limit::perMinute(50), true],
+            'sliding window group' => [SlidingWindow::perMinute(50), true],
         ];
     }
 

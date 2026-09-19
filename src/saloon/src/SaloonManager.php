@@ -496,7 +496,7 @@ class SaloonManager
             return;
         }
 
-        $policies = $resource->resolveRateLimitPolicies($pendingRequest);
+        $policies = array_values($resource->resolveRateLimitPolicies($pendingRequest));
 
         foreach ($policies as $policy) {
             if (! $policy instanceof AdmissionPolicy) {
@@ -517,14 +517,23 @@ class SaloonManager
         $limiterName = 'saloon:' . $resource::class;
         $cooldown = Cooldown::for($resource->resolveRateLimitCooldownKeyFor($pendingRequest));
 
-        while (($result = $limiter->inspect($cooldown, $limiterName))->denied()) {
-            $this->waitForRateLimit($resource, $cooldown, $result);
-        }
+        while (true) {
+            if (($result = $limiter->inspect($cooldown, $limiterName))->denied()) {
+                $this->waitForRateLimit($resource, $cooldown, $result);
 
-        foreach ($policies as $policy) {
-            while (($result = $limiter->consume($policy, $limiterName))->denied()) {
-                $this->waitForRateLimit($resource, $policy, $result);
+                continue;
             }
+
+            foreach ($limiter->consumeMany($policies, $limiterName) as $index => $result) {
+                if ($result->denied()) {
+                    $this->waitForRateLimit($resource, $policies[$index], $result);
+
+                    // Another request may publish a cooldown while this one waits.
+                    continue 2;
+                }
+            }
+
+            return;
         }
     }
 

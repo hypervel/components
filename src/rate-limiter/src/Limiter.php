@@ -55,6 +55,51 @@ class Limiter
     }
 
     /**
+     * Consume a group, returning decisions through the first denied policy.
+     *
+     * Groups are atomic except on Redis Cluster, where a concurrent denial
+     * during consumption may leave earlier policies charged.
+     *
+     * @param list<AdmissionPolicy> $policies
+     * @return list<LimitResult>
+     */
+    public function consumeMany(array $policies, UnitEnum|string|null $limiterName = null): array
+    {
+        if (count($policies) === 1) {
+            return [$this->consume(reset($policies), $limiterName)];
+        }
+
+        $entries = [];
+
+        foreach ($policies as $policy) {
+            if (! $policy instanceof Unlimited) {
+                $this->validateAdmission($policy);
+                $entries[] = ['key' => $this->resolveKey($policy, $limiterName), 'policy' => $policy];
+            }
+        }
+
+        $decisions = match (count($entries)) {
+            0 => [],
+            1 => [$this->store->consume($entries[0]['key'], $entries[0]['policy'])],
+            default => $this->store->consumeMany($entries),
+        };
+
+        $results = [];
+        $index = 0;
+
+        foreach ($policies as $policy) {
+            $result = $policy instanceof Unlimited ? $this->unlimitedResult() : $decisions[$index++];
+            $results[] = $result;
+
+            if ($result->denied()) {
+                break;
+            }
+        }
+
+        return $results;
+    }
+
+    /**
      * Atomically extend a cooldown block.
      */
     public function block(

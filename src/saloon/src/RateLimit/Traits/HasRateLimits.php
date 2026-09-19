@@ -26,7 +26,7 @@ trait HasRateLimits
     /**
      * Resolve the admission policies for an operation.
      *
-     * @return list<AdmissionPolicy>
+     * @return array<array-key, AdmissionPolicy>
      * @internal
      */
     final public function resolveRateLimitPolicies(PendingRequest $pendingRequest): array
@@ -77,7 +77,7 @@ trait HasRateLimits
     /**
      * Resolve the admission policies for an operation.
      *
-     * @return list<AdmissionPolicy>
+     * @return array<array-key, AdmissionPolicy>
      */
     abstract protected function resolveRateLimits(PendingRequest $pendingRequest): array;
 

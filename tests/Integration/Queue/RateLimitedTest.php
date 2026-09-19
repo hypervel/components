@@ -123,6 +123,44 @@ class RateLimitedTest extends TestCase
         $this->assertJobWasReleasedAfter(RateLimitedReleaseAfterTestJob::class, 60);
     }
 
+    public function testLimitsAreNotHitWhenAnotherLimitIsReached(): void
+    {
+        $rateLimiter = $this->app->make(RateLimiter::class);
+
+        $rateLimiter->for('test', function (): array {
+            return [
+                Limit::perHour(10)->by('global'),
+                Limit::perHour(1)->by('tenant'),
+            ];
+        });
+
+        $this->assertJobRanSuccessfully(RateLimitedTestJob::class);
+        $this->assertJobWasReleased(RateLimitedTestJob::class);
+        $this->assertJobWasReleased(RateLimitedTestJob::class);
+
+        $this->assertSame(9, $rateLimiter->inspect(Limit::perHour(10)->by('global'), 'test')->remaining());
+        $this->assertSame(0, $rateLimiter->inspect(Limit::perHour(1)->by('tenant'), 'test')->remaining());
+    }
+
+    public function testLimitsAreNotHitWhenAnotherLimitIsReachedAndJobIsSkipped(): void
+    {
+        $rateLimiter = $this->app->make(RateLimiter::class);
+
+        $rateLimiter->for('test', function (): array {
+            return [
+                Limit::perHour(10)->by('global'),
+                Limit::perHour(1)->by('tenant'),
+            ];
+        });
+
+        $this->assertJobRanSuccessfully(RateLimitedDontReleaseTestJob::class);
+        $this->assertJobWasSkipped(RateLimitedDontReleaseTestJob::class);
+        $this->assertJobWasSkipped(RateLimitedDontReleaseTestJob::class);
+
+        $this->assertSame(9, $rateLimiter->inspect(Limit::perHour(10)->by('global'), 'test')->remaining());
+        $this->assertSame(0, $rateLimiter->inspect(Limit::perHour(1)->by('tenant'), 'test')->remaining());
+    }
+
     public function testExplicitZeroReleaseDelayIsRespected(): void
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
