@@ -51,6 +51,37 @@ class WorkerArrayStore implements Store
     }
 
     /**
+     * Consume all policies together, leaving state unchanged on denial.
+     *
+     * @param list<array{key: string, policy: AdmissionPolicy}> $policies
+     * @return list<LimitResult>
+     */
+    public function consumeMany(array $policies): array
+    {
+        $states = [];
+
+        foreach ($policies as $entry) {
+            $states[$entry['key']] ??= $this->state($entry['key']);
+        }
+
+        $results = $this->calculateMany($policies, $this->currentTimeInMicroseconds(), $states);
+
+        if ($results !== [] && end($results)->denied()) {
+            return $results;
+        }
+
+        foreach ($states as $key => [$value, $secondaryValue, $expiresAt]) {
+            $this->states[$key] = [
+                'value' => $value,
+                'secondary_value' => $secondaryValue,
+                'expires_at' => $expiresAt,
+            ];
+        }
+
+        return $results;
+    }
+
+    /**
      * Atomically extend a cooldown block.
      */
     public function block(string $key, int $durationMicroseconds): CooldownResult
