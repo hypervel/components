@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Saloon\Pagination;
 
 use Closure;
+use GuzzleHttp\Psr7\Query;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
@@ -26,6 +27,7 @@ use Hypervel\Saloon\Pagination\Contracts\Paginatable;
 use Hypervel\Saloon\Pagination\CursorPaginator;
 use Hypervel\Saloon\Pagination\Exceptions\PaginationException;
 use Hypervel\Saloon\Pagination\LinkHeaderPaginator;
+use Hypervel\Saloon\Pagination\LinkPaginator;
 use Hypervel\Saloon\Pagination\OffsetPaginator;
 use Hypervel\Saloon\Pagination\PagedPaginator;
 use Hypervel\Saloon\SaloonManager;
@@ -34,6 +36,7 @@ use InvalidArgumentException;
 use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Psr\Http\Message\UriInterface;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Coroutine\Channel;
@@ -78,6 +81,7 @@ class PaginatorTest extends TestCase
 
             return MockResponse::make([
                 'data' => [$page], 'page' => $page, 'pages' => 2, 'next' => $page === 1 ? '2' : null,
+                'links' => $page === 1 ? ['next' => '?page=2'] : [],
             ], headers: $page === 1 ? ['Link' => '<?page=2>; rel=next'] : []);
         }]);
         $paginator = new $class(new PaginationConnectorStub($manager), $request);
@@ -121,6 +125,7 @@ class PaginatorTest extends TestCase
             'paged' => [PagedPaginatorStub::class, ['page=1', 'page=2']],
             'cursor' => [CursorPaginatorStub::class, ['', 'cursor=2']],
             'link' => [LinkPaginatorStub::class, ['page=1', 'page=2']],
+            'body link' => [BodyLinkPaginatorStub::class, ['page=1', 'page=2']],
         ] as $name => [$class, $queries]) {
             yield $name => [$class, $queries, 0];
             yield $name . ' mapping retry' => [$class, $queries, 4];
@@ -580,6 +585,113 @@ class PaginatorTest extends TestCase
             [RenamedOffsetPaginatorStub::class, [['take' => 2, 'skip' => 0], ['take' => 2, 'skip' => 2]]],
             [RenamedCursorPaginatorStub::class, [['size' => 2], ['after' => 'next-token', 'size' => 2]]],
         ];
+    }
+
+    public function testBodyLinksReplaceTheQueryAndResetOnRewind(): void
+    {
+        $manager = $this->manager();
+        $queries = [];
+        $manager->fake([PagedRequestStub::class => static function (PendingRequest $pendingRequest) use (&$queries): MockResponse {
+            $query = $pendingRequest->uri()->getQuery();
+            $queries[] = $query;
+            $first = ! str_contains($query, 'cursor=');
+
+            return MockResponse::make([
+                'data' => [$first ? 1 : 2],
+                'links' => $first ? ['next' => '?cursor=a%2Fb&tag=one&tag=two&per_page=7'] : [],
+            ]);
+        }]);
+        $request = (new PagedRequestStub)->withQueryString('old=value')->authenticate(new QueryAuthenticator('key', 'secret'));
+        $paginator = (new BodyLinkPaginatorStub(new PaginationConnectorStub($manager), $request))->perPageLimit(2);
+
+        $this->assertSame([1, 2], $paginator->collect()->all());
+        $this->assertSame([1, 2], $paginator->collect()->all());
+        $this->assertSame([
+            'old=value&page=1&per_page=2&key=secret',
+            'cursor=a%2Fb&tag=one&tag=two&per_page=7&key=secret',
+            'old=value&page=1&per_page=2&key=secret',
+            'cursor=a%2Fb&tag=one&tag=two&per_page=7&key=secret',
+        ], $queries);
+    }
+
+    public function testBodyLinksSupportNumberedPoolingAndReleaseContinuationStateOnRewind(): void
+    {
+        $manager = $this->manager();
+        $queries = [];
+        $manager->fake([PagedRequestStub::class => static function (PendingRequest $pendingRequest) use (&$queries): MockResponse {
+            $query = $pendingRequest->queryParameters();
+            $queries[] = $query;
+
+            return MockResponse::make(['data' => [$query['page']], 'links' => [
+                'next' => '?page=3&per_page=9', 'last' => '?page=4&per_page=9',
+            ]]);
+        }]);
+        $paginator = (new BodyLinkPaginatorStub(new PaginationConnectorStub($manager), new PagedRequestStub))->startPage(2)->perPageLimit(5);
+
+        $this->assertCount(3, $paginator->pool());
+        usort($queries, static fn (array $left, array $right): int => $left['page'] <=> $right['page']);
+        $this->assertSame([['page' => 2, 'per_page' => 5], ['page' => 3, 'per_page' => 5], ['page' => 4, 'per_page' => 5]], $queries);
+        $this->assertSame(3, $paginator->totalResults());
+
+        $manager->fake([PagedRequestStub::class => MockResponse::make(['data' => [2], 'links' => []])]);
+        $this->assertSame([2], $paginator->collect()->all());
+        $this->assertCount(1, $paginator->pool());
+    }
+
+    #[DataProvider('bodyLinkRelations')]
+    public function testBodyLinksUseTheSharedTargetRestrictions(string $relation): void
+    {
+        $manager = $this->manager();
+        $manager->fake([PagedRequestStub::class => MockResponse::make(['data' => [1], 'links' => [
+            $relation => 'https://other.example.com/paged?page=2',
+        ]])]);
+        $paginator = new BodyLinkPaginatorStub(new PaginationConnectorStub($manager), new PagedRequestStub);
+
+        $this->expectException(PaginationException::class);
+        $this->expectExceptionMessage('same scheme, host, port, and path');
+
+        $paginator->current();
+    }
+
+    /**
+     * Provide body relations that share continuation target validation.
+     */
+    public static function bodyLinkRelations(): iterable
+    {
+        yield 'next' => ['next'];
+        yield 'last' => ['last'];
+    }
+
+    public function testCustomLinkRelationsSupportIterationAndPooling(): void
+    {
+        $manager = $this->manager();
+        $manager->fake([PagedRequestStub::class => static function (PendingRequest $pendingRequest): MockResponse {
+            $page = (int) Query::parse($pendingRequest->uri()->getQuery())['page'];
+            $next = $page + 1;
+
+            return MockResponse::make(['data' => [$page]], headers: ['Link' => $page < 3
+                ? "<?page={$next}>; rel=\"https://example.com/rel/continue\", <?page=3>; rel=FINISH, <https://other.example.com>; rel=next"
+                : '<?page=3>; rel=finish']);
+        }]);
+        $paginator = new CustomRelationLinkPaginatorStub(new PaginationConnectorStub($manager), new PagedRequestStub);
+
+        $this->assertSame([1, 2, 3], $paginator->collect()->all());
+        $this->assertCount(3, $paginator->pool());
+        $this->assertSame(3, $paginator->totalResults());
+    }
+
+    public function testCustomLinkRelationsRetainDuplicateConflictDetection(): void
+    {
+        $manager = $this->manager();
+        $manager->fake([PagedRequestStub::class => MockResponse::make(['data' => [1]], headers: [
+            'Link' => '<?page=2>; rel=finish, <?page=3>; rel=FINISH',
+        ])]);
+        $paginator = new CustomRelationLinkPaginatorStub(new PaginationConnectorStub($manager), new PagedRequestStub);
+
+        $this->expectException(PaginationException::class);
+        $this->expectExceptionMessage('Conflicting [finish]');
+
+        $paginator->current();
     }
 
     public function testLinkContinuationReplacesRawQueryAndPageSizeAndResetsOnRewind(): void
@@ -1115,6 +1227,31 @@ class RenamedCursorPaginatorStub extends CursorPaginatorStub
     protected string $perPageName = 'size';
 }
 
+class BodyLinkPaginatorStub extends LinkPaginator
+{
+    /**
+     * Resolve the URLs supplied by the response body.
+     */
+    protected function getLinks(Response $response, UriInterface $currentUri): array
+    {
+        $links = [];
+
+        foreach ($response->json('links') as $relation => $target) {
+            $links[$relation] = $this->resolveLink($target, $currentUri);
+        }
+
+        return $links;
+    }
+
+    /**
+     * Map the items carried by the test API.
+     */
+    protected function getPageItems(Response $response, Request $request): array
+    {
+        return $response->json('data');
+    }
+}
+
 class LinkPaginatorStub extends LinkHeaderPaginator
 {
     /**
@@ -1131,4 +1268,11 @@ class RenamedLinkPaginatorStub extends LinkPaginatorStub
     protected string $pageName = 'number';
 
     protected string $perPageName = 'size';
+}
+
+class CustomRelationLinkPaginatorStub extends LinkPaginatorStub
+{
+    protected string $nextRelation = 'https://example.com/REL/Continue';
+
+    protected string $lastRelation = 'Finish';
 }
