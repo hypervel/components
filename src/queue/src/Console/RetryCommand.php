@@ -64,10 +64,10 @@ class RetryCommand extends Command
             }
 
             // Checking isEmpty() first would start a lazy provider's supplier twice.
-            $foundJobs = false;
+            $resolvedAny = false;
 
             foreach ($found as $id => $job) {
-                $foundJobs = true;
+                $resolvedAny = true;
 
                 /** @var Dispatcher $events */
                 $events = $this->hypervel->make('events');
@@ -81,7 +81,7 @@ class RetryCommand extends Command
                 $failer->forget($id);
             }
 
-            if (! $foundJobs) {
+            if (! $resolvedAny) {
                 $this->components->error("Unable to find any failed jobs with ID [{$id}].");
             }
         }
