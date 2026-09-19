@@ -31,6 +31,7 @@ final readonly class OAuthConfig
         public string $redirectUri = '',
         public string $authorizeEndpoint = 'authorize',
         public string $tokenEndpoint = 'token',
+        public ?string $refreshEndpoint = null,
         public string $userEndpoint = 'user',
         public array $defaultScopes = [],
         ?callable $requestModifier = null,
