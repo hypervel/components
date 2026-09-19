@@ -83,29 +83,29 @@ class FailoverQueueTest extends TestCase
         ];
     }
 
-    public function testPushFailsOverOnException()
+    public function testPushFailsOverOnException(): void
     {
-        $failover = new FailoverQueue($queue = m::mock(QueueManager::class), $events = m::mock(DispatcherContract::class), [
+        $queue = m::mock(QueueManager::class);
+        $events = m::mock(DispatcherContract::class);
+        $failover = new FailoverQueue($queue, $events, [
             'redis',
             'sync',
         ]);
 
-        $queue->shouldReceive('connection')->once()->with('redis')->andReturn(
-            $redis = m::mock(RedisQueue::class),
+        $redis = m::mock(RedisQueue::class);
+        $queue->expects('connection')->with('redis')->andReturn($redis);
+
+        $sync = m::mock(SyncQueue::class);
+        $queue->expects('connection')->with('sync')->andReturn($sync);
+
+        $events->expects('hasListeners')->with(QueueFailedOver::class)->andReturnTrue();
+        $events->expects('dispatch');
+
+        $redis->expects('push')->andReturnUsing(
+            fn (): never => throw new Exception('error')
         );
 
-        $queue->shouldReceive('connection')->once()->with('sync')->andReturn(
-            $sync = m::mock(SyncQueue::class),
-        );
-
-        $events->shouldReceive('hasListeners')->once()->with(QueueFailedOver::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->once();
-
-        $redis->shouldReceive('push')->once()->andReturnUsing(
-            fn () => throw new Exception('error')
-        );
-
-        $sync->shouldReceive('push')->once();
+        $sync->expects('push');
 
         $failover->push('some-job');
     }
@@ -198,10 +198,10 @@ class FailoverQueueTest extends TestCase
         $failover = new FailoverQueue($manager, m::mock(DispatcherContract::class), ['sync']);
         $sync = m::mock(SyncQueue::class);
 
-        $manager->shouldReceive('connection')->times(3)->with('sync')->andReturn($sync);
-        $sync->shouldReceive('later')->once()->with(15, m::type(FailoverJobWithDelayAttribute::class), '', null);
-        $sync->shouldReceive('later')->once()->with(30, m::type(FailoverJobWithDelayProperty::class), '', null);
-        $sync->shouldReceive('push')->once()->with('regular-job', '', null);
+        $manager->expects('connection')->times(3)->with('sync')->andReturn($sync);
+        $sync->expects('later')->with(15, m::type(FailoverJobWithDelayAttribute::class), '', null);
+        $sync->expects('later')->with(30, m::type(FailoverJobWithDelayProperty::class), '', null);
+        $sync->expects('push')->with('regular-job', '', null);
 
         $failover->bulk([
             new FailoverJobWithDelayAttribute,
@@ -531,7 +531,7 @@ class FailoverQueueTest extends TestCase
         $this->assertCount(2, $connection->pushedJobs);
     }
 
-    public function testFailingQueueStateIsIsolatedBetweenCoroutines()
+    public function testFailingQueueStateIsIsolatedBetweenCoroutines(): void
     {
         $events = new FailoverQueueFakeDispatcher;
         $failover = new FailoverQueue(
@@ -544,7 +544,7 @@ class FailoverQueueTest extends TestCase
         );
 
         $results = parallel([
-            'a' => function () use ($failover) {
+            'a' => function () use ($failover): bool {
                 $failover->push('job-a-first');
 
                 usleep(10000);
@@ -553,7 +553,7 @@ class FailoverQueueTest extends TestCase
 
                 return true;
             },
-            'b' => function () use ($failover) {
+            'b' => function () use ($failover): bool {
                 usleep(5000);
 
                 $failover->push('job-b-first');
@@ -564,7 +564,7 @@ class FailoverQueueTest extends TestCase
 
         $this->assertSame(['a' => true, 'b' => true], $results);
         $this->assertSame(['job-a-first', 'job-b-first'], array_map(
-            fn (QueueFailedOver $event) => $event->command,
+            fn (QueueFailedOver $event): object|string => $event->command,
             $events->failedOverEvents
         ));
     }

@@ -31,6 +31,9 @@ class QueueBeanstalkdJobTest extends TestCase
     /** @var list<CallbackObjectPool> */
     private array $pools = [];
 
+    /**
+     * Close the pools created by the test.
+     */
     protected function tearDownInCoroutine(): void
     {
         foreach ($this->pools as $pool) {
@@ -41,9 +44,10 @@ class QueueBeanstalkdJobTest extends TestCase
     public function testFireProperlyCallsTheJobHandler(): void
     {
         $job = $this->getJob();
-        $job->getPheanstalkJob()->shouldReceive('getData')->once()->andReturn(json_encode(['job' => 'foo', 'data' => ['data']]));
-        $job->getContainer()->shouldReceive('make')->once()->with('foo')->andReturn($handler = m::mock(stdClass::class));
-        $handler->shouldReceive('fire')->once()->with($job, ['data']);
+        $job->getPheanstalkJob()->expects('getData')->andReturn(json_encode(['job' => 'foo', 'data' => ['data']]));
+        $handler = m::mock(stdClass::class);
+        $job->getContainer()->expects('make')->with('foo')->andReturn($handler);
+        $handler->expects('fire')->with($job, ['data']);
 
         $job->fire();
     }
@@ -51,13 +55,16 @@ class QueueBeanstalkdJobTest extends TestCase
     public function testFailProperlyCallsTheJobHandler(): void
     {
         $job = $this->getJob();
-        $job->getPheanstalkJob()->shouldReceive('getData')->andReturn(json_encode(['job' => 'foo', 'uuid' => 'test-uuid', 'data' => ['data']]));
-        $job->getContainer()->shouldReceive('make')->once()->with('foo')->andReturn($handler = m::mock(BeanstalkdJobTestFailedTest::class));
-        $job->getPheanstalk()->shouldReceive('delete')->once()->with($job->getPheanstalkJob())->andReturnSelf();
-        $handler->shouldReceive('failed')->once()->with(['data'], m::type(Exception::class), 'test-uuid', m::type(BeanstalkdJob::class));
-        $job->getContainer()->shouldReceive('make')->once()->with(Dispatcher::class)->andReturn($events = m::mock(Dispatcher::class));
-        $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->once()->with(m::type(JobFailed::class))->andReturnNull();
+        // Failure handling reuses the decoded payload after its first read.
+        $job->getPheanstalkJob()->expects('getData')->andReturn(json_encode(['job' => 'foo', 'uuid' => 'test-uuid', 'data' => ['data']]));
+        $handler = m::mock(BeanstalkdJobTestFailedTest::class);
+        $job->getContainer()->expects('make')->with('foo')->andReturn($handler);
+        $job->getPheanstalk()->expects('delete')->with($job->getPheanstalkJob())->andReturnSelf();
+        $handler->expects('failed')->with(['data'], m::type(Exception::class), 'test-uuid', m::type(BeanstalkdJob::class));
+        $events = m::mock(Dispatcher::class);
+        $job->getContainer()->expects('make')->with(Dispatcher::class)->andReturn($events);
+        $events->expects('hasListeners')->with(JobFailed::class)->andReturnTrue();
+        $events->expects('dispatch')->with(m::type(JobFailed::class))->andReturnNull();
 
         $job->fail(new Exception);
     }
@@ -89,7 +96,7 @@ class QueueBeanstalkdJobTest extends TestCase
     public function testDeleteRemovesTheJobFromBeanstalkd(): void
     {
         $job = $this->getJob();
-        $job->getPheanstalk()->shouldReceive('delete')->once()->with($job->getPheanstalkJob());
+        $job->getPheanstalk()->expects('delete')->with($job->getPheanstalkJob());
 
         $job->delete();
     }
@@ -97,7 +104,7 @@ class QueueBeanstalkdJobTest extends TestCase
     public function testReleaseProperlyReleasesJobOntoBeanstalkd(): void
     {
         $job = $this->getJob();
-        $job->getPheanstalk()->shouldReceive('release')->once()->with($job->getPheanstalkJob(), Pheanstalk::DEFAULT_PRIORITY, 0);
+        $job->getPheanstalk()->expects('release')->with($job->getPheanstalkJob(), Pheanstalk::DEFAULT_PRIORITY, 0);
 
         $job->release();
     }
@@ -105,7 +112,7 @@ class QueueBeanstalkdJobTest extends TestCase
     public function testBuryProperlyBuryTheJobFromBeanstalkd(): void
     {
         $job = $this->getJob();
-        $job->getPheanstalk()->shouldReceive('bury')->once()->with($job->getPheanstalkJob());
+        $job->getPheanstalk()->expects('bury')->with($job->getPheanstalkJob());
 
         $job->bury();
     }
@@ -199,7 +206,7 @@ class QueueBeanstalkdJobTest extends TestCase
         $this->assertSame(0, $pool->getBorrowedCount());
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('backend is no longer available');
+        $this->expectExceptionMessageIsOrContains('backend is no longer available');
 
         $job->getPheanstalk();
     }
@@ -212,7 +219,7 @@ class QueueBeanstalkdJobTest extends TestCase
     protected function lease(?Closure $destroyCallback = null): array
     {
         $pool = new CallbackObjectPool(
-            fn () => new stdClass,
+            fn (): stdClass => new stdClass,
             PoolOptions::fromArray([]),
             $destroyCallback,
         );
@@ -244,6 +251,9 @@ class QueueBeanstalkdJobTest extends TestCase
         ]);
     }
 
+    /**
+     * Create a Beanstalkd job with mocked dependencies.
+     */
     protected function getJob(): BeanstalkdJob
     {
         return new BeanstalkdJob(
@@ -258,6 +268,9 @@ class QueueBeanstalkdJobTest extends TestCase
 
 class BeanstalkdJobTestFailedTest
 {
+    /**
+     * Handle a failed job.
+     */
     public function failed(array $data, Exception $exception, string $uuid, BeanstalkdJob $job): void
     {
     }
