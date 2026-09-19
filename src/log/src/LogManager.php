@@ -36,6 +36,7 @@ use Psr\Log\LoggerInterface;
 use ReflectionException;
 use RuntimeException;
 use Stringable;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -167,6 +168,8 @@ class LogManager implements LoggerInterface
             }
 
             return $logger;
+        } catch (CanceledException $e) {
+            throw $e;
         } catch (Throwable $e) {
             return tap($this->createEmergencyLogger(), function ($logger) use ($e) {
                 $logger->emergency('Unable to create configured logger. Using emergency logger.', [

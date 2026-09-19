@@ -26,6 +26,8 @@ Laravel's default Pail process is omitted because Hypervel has no Pail-equivalen
 
 Laravel's optional Whoops exception renderer is omitted. Hypervel's built-in renderer provides framework-aware query details and Blade source mapping while applications may still bind a custom `ExceptionRenderer` implementation.
 
+Laravel's deprecated `HandleExceptions::forgetApp()` is omitted. Use `HandleExceptions::flushState()` for test cleanup.
+
 Laravel Mix and the `mix()` helper are not ported; use Vite instead.
 
 Ported from: https://github.com/laravel/framework
