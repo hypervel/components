@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Image;
 
-use GuzzleHttp\Psr7\Response as Psr7Response;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
@@ -15,7 +14,6 @@ use Hypervel\Contracts\Image\Transformation;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Http\Client\Factory as HttpFactory;
 use Hypervel\Http\Client\RequestException;
-use Hypervel\Http\Client\Response as ClientResponse;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Image\Drivers\InterventionDriver;
 use Hypervel\Image\Image;
@@ -38,6 +36,8 @@ class ImageManagerTest extends TestCase
 
         $this->assertSame('imagick', $manager->getDefaultDriver());
     }
+
+    // REMOVED: The default driver is required configuration, not a source fallback.
 
     public function testExtendRegistersCustomDriver(): void
     {
@@ -273,14 +273,16 @@ class ImageManagerTest extends TestCase
         fwrite($stream, $contents);
         rewind($stream);
 
-        $app = $this->makeApp([]);
-        $manager = new ImageManager($app);
-        $image = $manager->fromStream($stream);
+        try {
+            $app = $this->makeApp([]);
+            $manager = new ImageManager($app);
+            $image = $manager->fromStream($stream);
 
-        $this->assertInstanceOf(Image::class, $image);
-        $this->assertSame($contents, $image->toBytes());
-
-        fclose($stream);
+            $this->assertInstanceOf(Image::class, $image);
+            $this->assertSame($contents, $image->toBytes());
+        } finally {
+            fclose($stream);
+        }
     }
 
     public function testFromStreamIsLazy(): void
@@ -290,14 +292,99 @@ class ImageManagerTest extends TestCase
         fwrite($stream, $contents);
         rewind($stream);
 
+        try {
+            $app = $this->makeApp([]);
+            $manager = new ImageManager($app);
+            $image = $manager->fromStream($stream);
+
+            $this->assertInstanceOf(Image::class, $image);
+            $this->assertSame(0, ftell($stream));
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    public function testFromStreamContentsAreOnlyReadOnce(): void
+    {
+        $contents = $this->fakeImageContents();
+        $stream = fopen('php://memory', 'r+');
+        fwrite($stream, $contents);
+        rewind($stream);
+
+        try {
+            $app = $this->makeApp([]);
+            $manager = new ImageManager($app);
+            $image = $manager->fromStream($stream);
+
+            $this->assertSame($contents, $image->toBytes());
+            $this->assertSame($contents, $image->toBytes());
+            $this->assertSame([100, 100], $image->dimensions());
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    public function testFromStreamContentsAreSharedBetweenClones(): void
+    {
+        $contents = $this->fakeImageContents();
+        $stream = fopen('php://memory', 'r+');
+        fwrite($stream, $contents);
+        rewind($stream);
+
+        try {
+            $app = $this->makeApp([]);
+            $manager = new ImageManager($app);
+            $image = $manager->fromStream($stream);
+
+            $first = $image->usingGd();
+            $second = $image->usingImagick();
+
+            $this->assertSame($contents, $first->toBytes());
+            $this->assertSame($contents, $second->toBytes());
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    public function testLazyContentsAreNotSharedBetweenDifferentImages(): void
+    {
         $app = $this->makeApp([]);
         $manager = new ImageManager($app);
-        $image = $manager->fromStream($stream);
 
-        $this->assertInstanceOf(Image::class, $image);
-        $this->assertSame(0, ftell($stream));
+        $first = $manager->fromBase64(base64_encode('first'));
+        $second = $manager->fromBase64(base64_encode('second'));
 
-        fclose($stream);
+        $this->assertSame('first', $first->toBytes());
+        $this->assertSame('second', $second->toBytes());
+        $this->assertSame('first', $first->toBytes());
+    }
+
+    public function testFromUrlIsOnlyFetchedOnce(): void
+    {
+        $contents = $this->fakeImageContents();
+
+        $http = new HttpFactory;
+        $http->fake([
+            'https://example.com/photo.jpg' => HttpFactory::response($contents, 200, ['Content-Type' => 'image/jpeg']),
+        ]);
+
+        $app = $this->makeApp([]);
+        $app->expects('make')
+            ->with(HttpFactory::class)
+            ->andReturn($http);
+
+        $manager = new ImageManager($app);
+        $image = $manager->fromUrl('https://example.com/photo.jpg');
+        $first = $image->using('first');
+        $second = $image->using('second');
+
+        $this->assertSame($contents, $image->toBytes());
+        $this->assertSame($contents, $image->toBytes());
+        $this->assertSame([100, 100], $image->dimensions());
+        $this->assertSame($contents, $first->toBytes());
+        $this->assertSame($contents, $second->toBytes());
+
+        $http->assertSentCount(1);
     }
 
     public function testFromStreamThrowsForInvalidData(): void
@@ -348,11 +435,14 @@ class ImageManagerTest extends TestCase
     {
         $contents = $this->fakeImageContents();
 
-        $http = m::mock(HttpFactory::class);
-        $response = m::mock(ClientResponse::class);
-        $response->expects('throw')->once()->andReturnSelf();
-        $response->expects('body')->andReturn($contents);
-        $http->expects('get')->with('https://example.com/photo.jpg')->andReturn($response);
+        $http = new HttpFactory;
+        $http->fake([
+            'https://example.com/photo.jpg' => HttpFactory::response(
+                $contents,
+                200,
+                ['Content-Type' => 'image/jpeg'],
+            ),
+        ]);
 
         $app = $this->makeApp([]);
         $app->expects('make')
@@ -366,49 +456,21 @@ class ImageManagerTest extends TestCase
         $this->assertSame($contents, $image->toBytes());
     }
 
-    public function testFromUrlIsLazy(): void
+    #[DataProvider('httpErrorStatusProvider')]
+    public function testFromUrlThrowsForUnsuccessfulResponse(int $status): void
     {
+        $http = new HttpFactory;
+        $http->fake([
+            'https://example.com/missing.jpg' => HttpFactory::response('not found', $status),
+        ]);
+
         $app = $this->makeApp([]);
-        $app->shouldNotReceive('make')->with(HttpFactory::class);
+        $app->expects('make')->with(HttpFactory::class)->andReturn($http);
 
         $manager = new ImageManager($app);
-        $image = $manager->fromUrl('https://example.com/photo.jpg');
+        $image = $manager->fromUrl('https://example.com/missing.jpg');
 
         $this->assertInstanceOf(Image::class, $image);
-    }
-
-    public function testFromUrlResolvesOnceAcrossSequentialVariants(): void
-    {
-        $http = m::mock(HttpFactory::class);
-        $response = m::mock(ClientResponse::class);
-        $response->expects('throw')->once()->andReturnSelf();
-        $response->expects('body')->once()->andReturn('shared image');
-        $http->expects('get')->once()->with('https://example.com/photo.jpg')->andReturn($response);
-
-        $app = $this->makeApp([]);
-        $app->expects('make')->once()->with(HttpFactory::class)->andReturn($http);
-
-        $manager = new ImageManager($app);
-        $image = $manager->fromUrl('https://example.com/photo.jpg');
-        $first = $image->using('first');
-        $second = $image->using('second');
-
-        $this->assertSame('shared image', $first->toBytes());
-        $this->assertSame('shared image', $second->toBytes());
-    }
-
-    #[DataProvider('httpErrorStatusProvider')]
-    public function testFromUrlRejectsClientAndServerErrors(int $status): void
-    {
-        $response = new ClientResponse(new Psr7Response($status, [], '<html>Request Failed</html>'));
-
-        $http = m::mock(HttpFactory::class);
-        $http->expects('get')->once()->with('https://example.com/missing.jpg')->andReturn($response);
-
-        $app = $this->makeApp([]);
-        $app->expects('make')->once()->with(HttpFactory::class)->andReturn($http);
-
-        $image = (new ImageManager($app))->fromUrl('https://example.com/missing.jpg');
 
         $this->expectException(RequestException::class);
         $this->expectExceptionCode($status);
@@ -419,6 +481,17 @@ class ImageManagerTest extends TestCase
     public static function httpErrorStatusProvider(): array
     {
         return [[404], [500]];
+    }
+
+    public function testFromUrlIsLazy(): void
+    {
+        $app = $this->makeApp([]);
+        $app->shouldNotReceive('make')->with(HttpFactory::class);
+
+        $manager = new ImageManager($app);
+        $image = $manager->fromUrl('https://example.com/photo.jpg');
+
+        $this->assertInstanceOf(Image::class, $image);
     }
 
     public function testFromBase64ReturnsImage(): void
