@@ -17,8 +17,9 @@ class QueueRedisJobTest extends TestCase
     public function testFireProperlyCallsTheJobHandler(): void
     {
         $job = $this->getJob();
-        $job->getContainer()->shouldReceive('make')->once()->with('foo')->andReturn($handler = m::mock(stdClass::class));
-        $handler->shouldReceive('fire')->once()->with($job, ['data']);
+        $handler = m::mock(stdClass::class);
+        $job->getContainer()->expects('make')->with('foo')->andReturn($handler);
+        $handler->expects('fire')->with($job, ['data']);
 
         $job->fire();
     }
@@ -26,7 +27,7 @@ class QueueRedisJobTest extends TestCase
     public function testDeleteRemovesTheJobFromRedis(): void
     {
         $job = $this->getJob();
-        $job->getRedisQueue()->shouldReceive('deleteReserved')->once()
+        $job->getRedisQueue()->expects('deleteReserved')
             ->with('default', $job);
 
         $job->delete();
@@ -35,7 +36,7 @@ class QueueRedisJobTest extends TestCase
     public function testReleaseProperlyReleasesJobOntoRedis(): void
     {
         $job = $this->getJob();
-        $job->getRedisQueue()->shouldReceive('deleteAndRelease')->once()
+        $job->getRedisQueue()->expects('deleteAndRelease')
             ->with('default', $job, 1);
 
         $job->release(1);
@@ -81,6 +82,9 @@ class QueueRedisJobTest extends TestCase
         $this->assertSame('{invalid', $first->value);
     }
 
+    /**
+     * Capture the job's invalid-payload exception.
+     */
     protected function capturePayloadException(RedisJob $job): InvalidPayloadException
     {
         try {
