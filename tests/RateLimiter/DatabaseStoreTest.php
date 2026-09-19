@@ -368,6 +368,7 @@ class DatabaseStoreTest extends TestCase
 
         match ($operation) {
             'consume' => $store->consume('physical-key', Limit::perMinute(10)),
+            'consumeMany' => $store->consumeMany([['key' => 'physical-key', 'policy' => Limit::perMinute(10)]]),
             'block' => $store->block('physical-key', 1_000_000),
             'recordFailure' => $store->recordFailure('physical-key', Backoff::exponential()),
             'clear' => $store->clear('physical-key'),
@@ -456,6 +457,7 @@ class DatabaseStoreTest extends TestCase
 
         match ($operation) {
             'consume' => $store->consume('physical-key', Limit::perMinute(10)),
+            'consumeMany' => $store->consumeMany([['key' => 'physical-key', 'policy' => Limit::perMinute(10)]]),
             'block' => $store->block('physical-key', 1_000_000),
             'recordFailure' => $store->recordFailure('physical-key', Backoff::exponential()),
             'clear' => $store->clear('physical-key'),
@@ -467,6 +469,7 @@ class DatabaseStoreTest extends TestCase
     {
         return [
             'consume' => ['consume'],
+            'consume group' => ['consumeMany'],
             'block' => ['block'],
             'record failure' => ['recordFailure'],
             'clear' => ['clear'],

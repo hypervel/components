@@ -60,6 +60,77 @@ class DatabaseStore implements PrunableStore, Store
     }
 
     /**
+     * Consume all policies in one transaction, leaving capacity unchanged on denial.
+     *
+     * @param list<array{key: string, policy: AdmissionPolicy}> $policies
+     * @return list<LimitResult>
+     */
+    public function consumeMany(array $policies): array
+    {
+        if ($policies === []) {
+            return [];
+        }
+
+        $connection = $this->connections->connection($this->connectionName);
+        $this->ensureCanMutate($connection);
+        $keys = array_values(array_unique(array_column($policies, 'key')));
+        sort($keys, SORT_STRING);
+
+        $results = $connection->transaction(function (ConnectionInterface $connection) use ($keys, $policies): ?array {
+            $states = [];
+
+            // Acquire locks in key order even when callers list policies differently.
+            foreach ($keys as $key) {
+                $state = $this->stateForUpdate($connection, $key);
+
+                if ($state === null) {
+                    return null;
+                }
+
+                $states[$key] = $state;
+            }
+
+            return $this->consumeStates($connection, $policies, $states);
+        }, attempts: 3);
+
+        if ($results !== null) {
+            return $results;
+        }
+
+        // Release missing-row gap locks before initialization, as for scalar consumes.
+        // Initialize every key inside the transaction so clear/prune cannot remove it.
+        return $connection->transaction(function (ConnectionInterface $connection) use ($keys, $policies): array {
+            $states = [];
+
+            foreach ($keys as $key) {
+                $states[$key] = $this->initializeStateRowForUpdate($connection, $key);
+            }
+
+            return $this->consumeStates($connection, $policies, $states);
+        }, attempts: 3);
+    }
+
+    /**
+     * Calculate a locked group and persist its accepted state.
+     *
+     * @param list<array{key: string, policy: AdmissionPolicy}> $policies
+     * @param array<string, array{int, int, int}> $states
+     * @return list<LimitResult>
+     */
+    protected function consumeStates(ConnectionInterface $connection, array $policies, array $states): array
+    {
+        $results = $this->calculateMany($policies, $this->currentDatabaseTimeInMicroseconds($connection), $states);
+
+        if (end($results)->allowed()) {
+            foreach ($states as $key => $values) {
+                $this->writeState($connection, $key, ...$values);
+            }
+        }
+
+        return $results;
+    }
+
+    /**
      * Atomically extend a cooldown block.
      */
     public function block(string $key, int $durationMicroseconds): CooldownResult
