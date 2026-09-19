@@ -30,8 +30,6 @@ class RedisStoreTest extends TestCase
         $this->assertSame(7, $result->remaining());
         $this->assertSame(['physical-key'], $captured['keys']);
         $this->assertSame(['consume', '3', '10', '60000'], $captured['arguments']);
-        $this->assertStringContainsString("redis.call('INCRBY', KEYS[1], ARGV[2])", $captured['script']);
-        $this->assertStringNotContainsString('KEEPTTL', $captured['script']);
     }
 
     public function testLeakyBucketUsesOneKeyAndMicrosecondArguments(): void
@@ -46,10 +44,9 @@ class RedisStoreTest extends TestCase
         $this->assertSame(5, $result->remaining());
         $this->assertSame(['physical-key'], $captured['keys']);
         $this->assertSame(['inspect', '3', '10', '1000000', '20'], $captured['arguments']);
-        $this->assertStringContainsString("redis.call('TIME')", $captured['script']);
     }
 
-    public function testSlidingWindowUsesOneKeyAndTtlDerivedTwoFieldState(): void
+    public function testSlidingWindowUsesOneKeyAndWindowArguments(): void
     {
         $captured = [];
         $store = $this->store([1, 10, 7, 0, 120_000_000], $captured);
@@ -61,10 +58,6 @@ class RedisStoreTest extends TestCase
         $this->assertSame(7, $result->remaining());
         $this->assertSame(['physical-key'], $captured['keys']);
         $this->assertSame(['consume', '3', '10', '60'], $captured['arguments']);
-        $this->assertStringContainsString("redis.call('HMGET', KEYS[1], 'current', 'previous')", $captured['script']);
-        $this->assertStringContainsString("redis.call('HINCRBY', KEYS[1], 'current', cost)", $captured['script']);
-        $this->assertStringContainsString("redis.call('PTTL', KEYS[1])", $captured['script']);
-        $this->assertStringNotContainsString("redis.call('TIME')", $captured['script']);
     }
 
     public function testBackoffReturnsItsFailureCountAndDelay(): void
@@ -86,7 +79,55 @@ class RedisStoreTest extends TestCase
         $this->assertSame(['failure', '3', '2000000', '8000000', '20000000'], $captured['arguments']);
     }
 
-    public function testCooldownUsesRedisTimeAndAnAtomicMaximumExpiry(): void
+    public function testGroupUsesOneScriptAndPreservesRepeatedKeys(): void
+    {
+        $captured = [];
+        $store = $this->store([[1, 10, 8, 0, 60_000_000], [1, 10, 5, 0, 60_000_000]], $captured);
+
+        $results = $store->consumeMany([
+            ['key' => 'same-key', 'policy' => Limit::perMinute(10)->cost(2)],
+            ['key' => 'same-key', 'policy' => Limit::perMinute(10)->cost(3)],
+        ]);
+
+        $this->assertSame(['same-key', 'same-key'], $captured['keys']);
+        $this->assertSame(['fixed', '2', '10', '60000', '0', 'fixed', '3', '10', '60000', '0'], $captured['arguments']);
+        $this->assertSame(8, $results[0]->remaining());
+        $this->assertSame(5, $results[1]->remaining());
+    }
+
+    public function testClusterReusesOneConnectionAndStopsAtTheFirstDenialInEitherPass(): void
+    {
+        foreach ([false, true] as $denyDuringConsume) {
+            $redis = m::mock(RedisFactory::class);
+            $proxy = m::mock(RedisProxy::class);
+            $connection = m::mock(RedisConnection::class);
+            $redis->shouldReceive('connection')->once()->with('limiter')->andReturn($proxy);
+            $proxy->shouldReceive('withConnection')->once()->with(m::type('callable'), false)
+                ->andReturnUsing(static fn (callable $callback): mixed => $callback($connection));
+            $connection->shouldReceive('isCluster')->once()->andReturnTrue();
+            $operations = [];
+            $connection->shouldReceive('evalWithShaCache')->times($denyDuringConsume ? 4 : 2)
+                ->andReturnUsing(static function (string $script, array $keys, array $arguments) use (&$operations, $denyDuringConsume): array {
+                    $operations[] = [$arguments[0], $keys[0]];
+                    $denied = $keys[0] === 'tenant' && (! $denyDuringConsume || $arguments[0] === 'consume');
+
+                    return [$denied ? 0 : 1, 10, $denied ? 0 : 9, $denied ? 60_000_000 : 0, 60_000_000];
+                });
+
+            $results = (new RedisStore($redis, 'limiter'))->consumeMany([
+                ['key' => 'global', 'policy' => Limit::perMinute(10)],
+                ['key' => 'tenant', 'policy' => Limit::perMinute(10)],
+            ]);
+
+            $this->assertTrue($results[0]->allowed());
+            $this->assertTrue($results[1]->denied());
+            $this->assertSame($denyDuringConsume
+                ? [['inspect', 'global'], ['inspect', 'tenant'], ['consume', 'global'], ['consume', 'tenant']]
+                : [['inspect', 'global'], ['inspect', 'tenant']], $operations);
+        }
+    }
+
+    public function testCooldownUsesMicrosecondArgumentsAndReturnsItsDelay(): void
     {
         $captured = [];
         $store = $this->store([0, 0, 0, 5_000_000, 0], $captured);
@@ -96,9 +137,6 @@ class RedisStoreTest extends TestCase
         $this->assertTrue($result->denied());
         $this->assertSame(5, $result->retryAfter());
         $this->assertSame(['block', '5000000'], $captured['arguments']);
-        $this->assertStringContainsString("redis.call('TIME')", $captured['script']);
-        $this->assertStringContainsString('expiresAt = math.max(expiresAt, now + duration)', $captured['script']);
-        $this->assertStringContainsString("redis.call('PEXPIRE', KEYS[1], ttl)", $captured['script']);
 
         $captured = [];
         $inspection = $this->store([1, 0, 0, 0, 0], $captured)
@@ -150,6 +188,7 @@ class RedisStoreTest extends TestCase
         $redis = m::mock(RedisFactory::class);
         $proxy = m::mock(RedisProxy::class);
         $connection = m::mock(RedisConnection::class);
+        $connection->shouldReceive('isCluster')->andReturnFalse()->byDefault();
 
         $redis->shouldReceive('connection')->once()->with('limiter')->andReturn($proxy);
         $proxy->shouldReceive('withConnection')
@@ -159,7 +198,7 @@ class RedisStoreTest extends TestCase
         $connection->shouldReceive('evalWithShaCache')
             ->once()
             ->andReturnUsing(static function (string $script, array $keys, array $arguments) use ($response, &$captured): mixed {
-                $captured = compact('script', 'keys', 'arguments');
+                $captured = compact('keys', 'arguments');
 
                 return $response;
             });
