@@ -12,7 +12,9 @@ use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Cookie\CookieJar;
 use GuzzleHttp\Cookie\SetCookie;
 use GuzzleHttp\Exception\ConnectException;
+use GuzzleHttp\Exception\NetworkException;
 use GuzzleHttp\Exception\RequestException as GuzzleRequestException;
+use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\Exception\TooManyRedirectsException;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
@@ -556,6 +558,106 @@ class HttpClientTest extends TestCase
 
         $response->json();
         $this->assertSame(1, $response->bodyCallCount);
+    }
+
+    public function testNetworkExceptionIsConvertedToConnectionException(): void
+    {
+        if (! class_exists(NetworkException::class)) {
+            $this->markTestSkipped('NetworkException requires guzzlehttp/guzzle ^8.0.');
+        }
+
+        $this->expectExceptionObject(new ConnectionException('Network error'));
+
+        $pendingRequest = new PendingRequest;
+
+        $pendingRequest->setHandler(function (): never {
+            throw new NetworkException(
+                'Network error',
+                new GuzzleRequest('GET', 'https://network-error.hypervel.example')
+            );
+        });
+
+        $pendingRequest->get('https://network-error.hypervel.example');
+    }
+
+    // REMOVED: testNetworkExceptionInPoolIsConsideredConnectionException uses
+    // the unsupported promise-based pool. Use coroutine-native parallel().
+
+    public function testAsyncNetworkExceptionIsConvertedAndRecordedOnce(): void
+    {
+        if (! class_exists(NetworkException::class)) {
+            $this->markTestSkipped('NetworkException requires guzzlehttp/guzzle ^8.0.');
+        }
+
+        $exception = new NetworkException('Network error', new GuzzleRequest('GET', 'https://network-error.hypervel.example'));
+        $this->factory->fake(['*' => Create::rejectionFor($exception)]);
+
+        $result = $this->factory->async()->get('https://network-error.hypervel.example')->wait();
+
+        $this->assertInstanceOf(ConnectionException::class, $result);
+        $this->assertSame($exception, $result->getPrevious());
+        $this->factory->assertSentCount(1);
+        $this->factory->assertSent(fn (Request $request, ?Response $response): bool => $response === null);
+    }
+
+    #[DataProvider('transportResponseModes')]
+    public function testTransportResponseIsConvertedAndRecordedOnce(bool $async): void
+    {
+        $request = new GuzzleRequest('GET', 'https://response-error.hypervel.example');
+        $response = new Psr7Response(500, [], 'Incomplete response');
+        $exception = class_exists(ResponseException::class)
+            ? new ResponseException('Response failed', $request, $response)
+            : new GuzzleRequestException('Response failed', $request, $response);
+        $this->factory->fake(['*' => Create::rejectionFor($exception)]);
+
+        if ($async) {
+            $result = $this->factory->async()->get('https://response-error.hypervel.example')->wait();
+        } else {
+            try {
+                $this->factory->get('https://response-error.hypervel.example');
+                $this->fail('RequestException was not thrown.');
+            } catch (RequestException $caught) {
+                $result = $caught->response;
+            }
+        }
+
+        $this->assertInstanceOf(Response::class, $result);
+        $this->assertSame($response, $result->toPsrResponse());
+        $this->factory->assertSentCount(1);
+        $this->factory->assertSent(fn (Request $request, ?Response $recorded): bool => $recorded?->toPsrResponse() === $response);
+    }
+
+    /**
+     * Provide synchronous and asynchronous request modes.
+     */
+    public static function transportResponseModes(): array
+    {
+        return [[false], [true]];
+    }
+
+    public function testUrlsWithoutTemplateExpressionsAreNotExpanded(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->withUrlParameters(['page' => 'docs'])->get('https://hypervel.com/docs');
+
+        $this->factory->assertSent(function (Request $request): bool {
+            return $request->url() === 'https://hypervel.com/docs';
+        });
+    }
+
+    public function testUrlsWithTemplateExpressionsAreStillExpanded(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->withUrlParameters([
+            'endpoint' => 'https://hypervel.com',
+            'page' => 'docs',
+        ])->get('{+endpoint}/{page}');
+
+        $this->factory->assertSent(function (Request $request): bool {
+            return $request->url() === 'https://hypervel.com/docs';
+        });
     }
 
     public function testDecodeUsingResetsCacheAndReDecodesWithNewCallback(): void
@@ -3559,7 +3661,7 @@ class HttpClientTest extends TestCase
 
     public function testRequestsCanBeAsync(): void
     {
-        $request = new PendingRequest($this->factory);
+        $request = $this->factory->fake()->createPendingRequest();
 
         $promise = $request->async()->get('http://foo.com');
 
@@ -5159,11 +5261,13 @@ class HttpClientTest extends TestCase
         $pendingRequest = new PendingRequest;
 
         $pendingRequest->setHandler(function (): never {
-            throw new GuzzleRequestException(
-                'cURL error 28: Operation timed out',
-                new GuzzleRequest('GET', 'https://timeout.hypervel.example'),
-                new Psr7Response(301)
-            );
+            $message = 'cURL error 28: Operation timed out';
+            $request = new GuzzleRequest('GET', 'https://timeout.hypervel.example');
+            $response = new Psr7Response(301);
+
+            throw class_exists(ResponseException::class)
+                ? new ResponseException($message, $request, $response)
+                : new GuzzleRequestException($message, $request, $response);
         });
 
         $pendingRequest->get('https://timeout.hypervel.example');
@@ -6415,7 +6519,7 @@ class HttpClientTest extends TestCase
         $this->factory->post('http://laravel.com');
 
         $this->assertSame(['Laravel Framework/1.0'], $requests[0]->header('User-Agent'));
-        $this->assertSame(['GuzzleHttp/7'], $requests[1]->header('User-Agent'));
+        $this->assertStringStartsWith('GuzzleHttp/', $requests[1]->header('User-Agent')[0]);
     }
 
     public function testItCanAddResponseMiddleware(): void

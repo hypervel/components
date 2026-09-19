@@ -7,7 +7,6 @@ namespace Hypervel\Saloon\Traits\Auth;
 use Hypervel\Saloon\Contracts\Authenticator;
 use Hypervel\Saloon\Http\Auth\BasicAuthenticator;
 use Hypervel\Saloon\Http\Auth\DigestAuthenticator;
-use Hypervel\Saloon\Http\Auth\NtlmAuthenticator;
 use Hypervel\Saloon\Http\Auth\TokenAuthenticator;
 use SensitiveParameter;
 
@@ -76,13 +75,5 @@ trait AuthenticatesRequests
         return $this->authenticate(new DigestAuthenticator($username, $password));
     }
 
-    /**
-     * Authenticate the request with NTLM authentication.
-     *
-     * @return $this
-     */
-    public function withNtlmAuth(string $username, #[SensitiveParameter] string $password): static
-    {
-        return $this->authenticate(new NtlmAuthenticator($username, $password));
-    }
+    // NtlmAuthenticator and withNtlmAuth() are omitted; use a custom authenticator if needed.
 }

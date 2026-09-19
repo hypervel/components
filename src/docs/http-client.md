@@ -34,6 +34,8 @@
 
 Hypervel provides an expressive, minimal API around the [Guzzle HTTP client](http://docs.guzzlephp.org/en/stable/), allowing you to quickly make outgoing HTTP requests to communicate with other web applications. Hypervel's wrapper around Guzzle is focused on its most common use cases and a wonderful developer experience.
 
+The HTTP client supports Guzzle 7 and 8.
+
 <a name="making-requests"></a>
 ## Making Requests
 
@@ -315,7 +317,7 @@ $response = Http::withHeaders([
 <a name="authentication"></a>
 ### Authentication
 
-You may specify basic, digest, and NTLM authentication credentials using the `withBasicAuth`, `withDigestAuth`, and `withNtlmAuth` methods, respectively:
+You may specify basic and digest authentication credentials using the `withBasicAuth` and `withDigestAuth` methods, respectively:
 
 ```php
 // Basic authentication...
@@ -323,10 +325,9 @@ $response = Http::withBasicAuth('johndoe@example.com', 'secret')->post(/* ... */
 
 // Digest authentication...
 $response = Http::withDigestAuth('johndoe@example.com', 'secret')->post(/* ... */);
-
-// NTLM authentication...
-$response = Http::withNtlmAuth('johndoe@example.com', 'secret')->post(/* ... */);
 ```
+
+Built-in NTLM authentication is not provided. Integrations requiring it must supply their own authentication middleware.
 
 <a name="bearer-tokens"></a>
 #### Bearer Tokens

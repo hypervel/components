@@ -499,7 +499,6 @@ Saloon provides the same familiar authentication methods as Hypervel's HTTP clie
 $request->withToken($token);
 $request->withBasicAuth($username, $password);
 $request->withDigestAuth($username, $password);
-$request->withNtlmAuth($username, $password);
 ```
 
 You may create a reusable authenticator by implementing `Hypervel\Saloon\Contracts\Authenticator`:
@@ -528,7 +527,7 @@ Apply a custom authenticator using `authenticate`, or return it from a connector
 $request->authenticate(new ApiKeyAuthenticator($key));
 ```
 
-Saloon also includes header, query, cookie, token, basic, digest, NTLM, certificate, access-token, and multi-authenticator implementations under `Hypervel\Saloon\Http\Auth`.
+Saloon also includes header, query, cookie, token, basic, digest, certificate, access-token, and multi-authenticator implementations under `Hypervel\Saloon\Http\Auth`.
 
 For APIs that authenticate using a cookie, use `CookieAuthenticator`:
 

@@ -110,7 +110,6 @@ use Hypervel\Http\Client\ResponseSequence;
  * @method static \Hypervel\Http\Client\PendingRequest withHeader(string $name, mixed $value)
  * @method static \Hypervel\Http\Client\PendingRequest withHeaders(array $headers)
  * @method static \Hypervel\Http\Client\PendingRequest withMiddleware(callable $middleware)
- * @method static \Hypervel\Http\Client\PendingRequest withNtlmAuth(string $username, string $password)
  * @method static \Hypervel\Http\Client\PendingRequest withOptions(array $options)
  * @method static \Hypervel\Http\Client\PendingRequest withoutRedirecting()
  * @method static \Hypervel\Http\Client\PendingRequest withoutTelescope()

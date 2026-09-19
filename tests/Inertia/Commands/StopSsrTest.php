@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Inertia\Commands;
 
-use GuzzleHttp\Exception\TransferException;
+use GuzzleHttp\Exception\ConnectException;
+use GuzzleHttp\Psr7\Request;
 use Hypervel\Inertia\Ssr\HttpGateway;
 use Hypervel\Tests\Inertia\TestCase;
 use Mockery as m;
@@ -51,7 +52,10 @@ class StopSsrTest extends TestCase
     {
         $gateway = m::mock(HttpGateway::class);
         $gateway->shouldReceive('isHealthy')->once()->andReturn(true);
-        $gateway->shouldReceive('shutdown')->once()->andThrow(new TransferException('Connection closed'));
+        $gateway->shouldReceive('shutdown')->once()->andThrow(new ConnectException(
+            'Connection closed',
+            new Request('GET', 'http://localhost:13714/shutdown'),
+        ));
         $this->app->instance(HttpGateway::class, $gateway);
 
         $this->artisan('inertia:stop-ssr')

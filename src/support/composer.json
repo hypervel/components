@@ -26,7 +26,7 @@
         "php": "^8.4",
         "ext-filter": "*",
         "doctrine/inflector": "^2.0.5",
-        "guzzlehttp/promises": "^2.5.2",
+        "guzzlehttp/promises": "^2.5.2 || ^3.0.2",
         "laravel/serializable-closure": "^2.0.11",
         "league/commonmark": "^2.10",
         "league/uri": "^7.5.1",
