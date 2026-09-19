@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Notifications;
 
+use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Mail\Factory as MailFactory;
 use Hypervel\Contracts\Mail\Mailable;
@@ -31,6 +32,9 @@ class SendingMailNotificationsTest extends TestCase
 
     public Markdown $markdown;
 
+    /**
+     * Define the test environment.
+     */
     protected function defineEnvironment(ApplicationContract $app): void
     {
         $this->mailFactory = m::mock(MailFactory::class);
@@ -38,26 +42,29 @@ class SendingMailNotificationsTest extends TestCase
         $this->mailFactory->shouldReceive('mailer')->andReturn($this->mailer);
         $this->markdown = m::mock(Markdown::class);
 
-        $app->extend(Markdown::class, function () {
+        $app->extend(Markdown::class, function (): Markdown {
             return $this->markdown;
         });
 
-        $app->extend(Mailer::class, function () {
+        $app->extend(Mailer::class, function (): Mailer {
             return $this->mailer;
         });
 
-        $app->extend(MailFactory::class, function () {
+        $app->extend(MailFactory::class, function (): MailFactory {
             return $this->mailFactory;
         });
 
         $app->make('view')->addLocation(__DIR__ . '/Fixtures');
     }
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
 
-        Schema::create('users', function (Blueprint $table) {
+        Schema::create('users', function (Blueprint $table): void {
             $table->increments('id');
             $table->string('email');
             $table->string('name')->nullable();
@@ -70,30 +77,30 @@ class SendingMailNotificationsTest extends TestCase
         $notification->id = Str::uuid()->toString();
 
         $user = NotifiableUser::forceCreate([
-            'email' => 'taylor@laravel.com',
+            'email' => 'taylor@hypervel.com',
         ]);
 
-        $this->markdown->shouldReceive('render')->once()
-            ->withArgs(fn (...$args) => ($args['theme'] ?? $args[3] ?? null) === 'default')
+        $this->markdown->expects('render')
+            ->withArgs(fn (mixed ...$args): bool => ($args['theme'] ?? $args[3] ?? null) === 'default')
             ->andReturn(new HtmlString('htmlContent'));
-        $this->markdown->shouldReceive('renderText')->once()->andReturn(new HtmlString('textContent'));
+        $this->markdown->expects('renderText')->andReturn(new HtmlString('textContent'));
 
-        $this->setMailerSendAssertions($notification, $user, function ($closure) {
+        $this->setMailerSendAssertions($notification, $user, function (Closure $closure): bool {
             $message = m::mock(Message::class);
 
-            $message->shouldReceive('to')->once()->with(['taylor@laravel.com']);
+            $message->expects('to')->with(['taylor@hypervel.com']);
 
-            $message->shouldReceive('cc')->once()->with('cc@deepblue.com', 'cc');
+            $message->expects('cc')->with('cc@deepblue.com', 'cc');
 
-            $message->shouldReceive('bcc')->once()->with('bcc@deepblue.com', 'bcc');
+            $message->expects('bcc')->with('bcc@deepblue.com', 'bcc');
 
-            $message->shouldReceive('from')->once()->with('jack@deepblue.com', 'Jacques Mayol');
+            $message->expects('from')->with('jack@deepblue.com', 'Jacques Mayol');
 
-            $message->shouldReceive('replyTo')->once()->with('jack@deepblue.com', 'Jacques Mayol');
+            $message->expects('replyTo')->with('jack@deepblue.com', 'Jacques Mayol');
 
-            $message->shouldReceive('subject')->once()->with('Test Mail Notification');
+            $message->expects('subject')->with('Test Mail Notification');
 
-            $message->shouldReceive('priority')->once()->with(1);
+            $message->expects('priority')->with(1);
 
             $closure($message);
 
@@ -109,30 +116,30 @@ class SendingMailNotificationsTest extends TestCase
         $notification->id = Str::uuid()->toString();
 
         $user = NotifiableUser::forceCreate([
-            'email' => 'taylor@laravel.com',
+            'email' => 'taylor@hypervel.com',
         ]);
 
-        $this->markdown->shouldReceive('render')->once()
-            ->withArgs(fn (...$args) => ($args['theme'] ?? $args[3] ?? null) === 'my-custom-theme')
+        $this->markdown->expects('render')
+            ->withArgs(fn (mixed ...$args): bool => ($args['theme'] ?? $args[3] ?? null) === 'my-custom-theme')
             ->andReturn(new HtmlString('htmlContent'));
-        $this->markdown->shouldReceive('renderText')->once()->andReturn(new HtmlString('textContent'));
+        $this->markdown->expects('renderText')->andReturn(new HtmlString('textContent'));
 
-        $this->setMailerSendAssertions($notification, $user, function ($closure) {
+        $this->setMailerSendAssertions($notification, $user, function (Closure $closure): bool {
             $message = m::mock(Message::class);
 
-            $message->shouldReceive('to')->once()->with(['taylor@laravel.com']);
+            $message->expects('to')->with(['taylor@hypervel.com']);
 
-            $message->shouldReceive('cc')->once()->with('cc@deepblue.com', 'cc');
+            $message->expects('cc')->with('cc@deepblue.com', 'cc');
 
-            $message->shouldReceive('bcc')->once()->with('bcc@deepblue.com', 'bcc');
+            $message->expects('bcc')->with('bcc@deepblue.com', 'bcc');
 
-            $message->shouldReceive('from')->once()->with('jack@deepblue.com', 'Jacques Mayol');
+            $message->expects('from')->with('jack@deepblue.com', 'Jacques Mayol');
 
-            $message->shouldReceive('replyTo')->once()->with('jack@deepblue.com', 'Jacques Mayol');
+            $message->expects('replyTo')->with('jack@deepblue.com', 'Jacques Mayol');
 
-            $message->shouldReceive('subject')->once()->with('Test Mail Notification With Custom Theme');
+            $message->expects('subject')->with('Test Mail Notification With Custom Theme');
 
-            $message->shouldReceive('priority')->once()->with(1);
+            $message->expects('priority')->with(1);
 
             $closure($message);
 
@@ -142,19 +149,22 @@ class SendingMailNotificationsTest extends TestCase
         $user->notify($notification);
     }
 
+    /**
+     * Expect the notification view, data, and message callback.
+     */
     private function setMailerSendAssertions(
         Notification $notification,
         NotifiableUser $user,
         callable $callbackExpectationClosure
-    ) {
-        $this->mailer->shouldReceive('send')->once()->withArgs(function (...$args) use ($notification, $user, $callbackExpectationClosure) {
+    ): void {
+        $this->mailer->expects('send')->withArgs(function (mixed ...$args) use ($notification, $user, $callbackExpectationClosure): bool {
             $viewArray = $args[0];
 
-            if (! m::on(fn ($closure) => (string) $closure([]) === 'htmlContent')->match($viewArray['html'])) {
+            if (! m::on(fn (Closure $closure): bool => (string) $closure([]) === 'htmlContent')->match($viewArray['html'])) {
                 return false;
             }
 
-            if (! m::on(fn ($closure) => (string) $closure([]) === 'textContent')->match($viewArray['text'])) {
+            if (! m::on(fn (Closure $closure): bool => (string) $closure([]) === 'textContent')->match($viewArray['text'])) {
                 return false;
             }
 
@@ -183,31 +193,31 @@ class SendingMailNotificationsTest extends TestCase
         $notification->id = Str::uuid()->toString();
 
         $user = NotifiableUserWithNamedAddress::forceCreate([
-            'email' => 'taylor@laravel.com',
+            'email' => 'taylor@hypervel.com',
             'name' => 'Taylor Otwell',
         ]);
 
-        $this->markdown->shouldReceive('render')->once()
-            ->withArgs(fn (...$args) => ($args['theme'] ?? $args[3] ?? null) === 'default')
+        $this->markdown->expects('render')
+            ->withArgs(fn (mixed ...$args): bool => ($args['theme'] ?? $args[3] ?? null) === 'default')
             ->andReturn(new HtmlString('htmlContent'));
-        $this->markdown->shouldReceive('renderText')->once()->andReturn(new HtmlString('textContent'));
+        $this->markdown->expects('renderText')->andReturn(new HtmlString('textContent'));
 
-        $this->setMailerSendAssertions($notification, $user, function ($closure) {
+        $this->setMailerSendAssertions($notification, $user, function (Closure $closure): bool {
             $message = m::mock(Message::class);
 
-            $message->shouldReceive('to')->once()->with(['taylor@laravel.com' => 'Taylor Otwell', 'foo_taylor@laravel.com']);
+            $message->expects('to')->with(['taylor@hypervel.com' => 'Taylor Otwell', 'foo_taylor@hypervel.com']);
 
-            $message->shouldReceive('cc')->once()->with('cc@deepblue.com', 'cc');
+            $message->expects('cc')->with('cc@deepblue.com', 'cc');
 
-            $message->shouldReceive('bcc')->once()->with('bcc@deepblue.com', 'bcc');
+            $message->expects('bcc')->with('bcc@deepblue.com', 'bcc');
 
-            $message->shouldReceive('from')->once()->with('jack@deepblue.com', 'Jacques Mayol');
+            $message->expects('from')->with('jack@deepblue.com', 'Jacques Mayol');
 
-            $message->shouldReceive('replyTo')->once()->with('jack@deepblue.com', 'Jacques Mayol');
+            $message->expects('replyTo')->with('jack@deepblue.com', 'Jacques Mayol');
 
-            $message->shouldReceive('subject')->once()->with('Test Mail Notification');
+            $message->expects('subject')->with('Test Mail Notification');
 
-            $message->shouldReceive('priority')->once()->with(1);
+            $message->expects('priority')->with(1);
 
             $closure($message);
 
@@ -223,20 +233,20 @@ class SendingMailNotificationsTest extends TestCase
         $notification->id = Str::uuid()->toString();
 
         $user = NotifiableUser::forceCreate([
-            'email' => 'taylor@laravel.com',
+            'email' => 'taylor@hypervel.com',
         ]);
 
-        $this->markdown->shouldReceive('render')->once()
-            ->withArgs(fn (...$args) => ($args['theme'] ?? $args[3] ?? null) === 'default')
+        $this->markdown->expects('render')
+            ->withArgs(fn (mixed ...$args): bool => ($args['theme'] ?? $args[3] ?? null) === 'default')
             ->andReturn(new HtmlString('htmlContent'));
-        $this->markdown->shouldReceive('renderText')->once()->andReturn(new HtmlString('textContent'));
+        $this->markdown->expects('renderText')->andReturn(new HtmlString('textContent'));
 
-        $this->setMailerSendAssertions($notification, $user, function ($closure) {
+        $this->setMailerSendAssertions($notification, $user, function (Closure $closure): bool {
             $message = m::mock(Message::class);
 
-            $message->shouldReceive('to')->once()->with(['taylor@laravel.com']);
+            $message->expects('to')->with(['taylor@hypervel.com']);
 
-            $message->shouldReceive('subject')->once()->with('mail custom subject');
+            $message->expects('subject')->with('mail custom subject');
 
             $closure($message);
 
@@ -252,20 +262,20 @@ class SendingMailNotificationsTest extends TestCase
         $notification->id = Str::uuid()->toString();
 
         $user = NotifiableUserWithMultipleAddresses::forceCreate([
-            'email' => 'taylor@laravel.com',
+            'email' => 'taylor@hypervel.com',
         ]);
 
-        $this->markdown->shouldReceive('render')->once()
-            ->withArgs(fn (...$args) => ($args['theme'] ?? $args[3] ?? null) === 'default')
+        $this->markdown->expects('render')
+            ->withArgs(fn (mixed ...$args): bool => ($args['theme'] ?? $args[3] ?? null) === 'default')
             ->andReturn(new HtmlString('htmlContent'));
-        $this->markdown->shouldReceive('renderText')->once()->andReturn(new HtmlString('textContent'));
+        $this->markdown->expects('renderText')->andReturn(new HtmlString('textContent'));
 
-        $this->setMailerSendAssertions($notification, $user, function ($closure) {
+        $this->setMailerSendAssertions($notification, $user, function (Closure $closure): bool {
             $message = m::mock(Message::class);
 
-            $message->shouldReceive('to')->once()->with(['foo_taylor@laravel.com', 'bar_taylor@laravel.com']);
+            $message->expects('to')->with(['foo_taylor@hypervel.com', 'bar_taylor@hypervel.com']);
 
-            $message->shouldReceive('subject')->once()->with('mail custom subject');
+            $message->expects('subject')->with('mail custom subject');
 
             $closure($message);
 
@@ -280,7 +290,7 @@ class SendingMailNotificationsTest extends TestCase
         $notification = new TestMailNotificationWithMailable;
 
         $user = NotifiableUser::forceCreate([
-            'email' => 'taylor@laravel.com',
+            'email' => 'taylor@hypervel.com',
         ]);
 
         $user->notify($notification);
@@ -292,22 +302,22 @@ class SendingMailNotificationsTest extends TestCase
         $notification->id = Str::uuid()->toString();
 
         $user = NotifiableUser::forceCreate([
-            'email' => 'taylor@laravel.com',
+            'email' => 'taylor@hypervel.com',
         ]);
 
-        $this->mailer->shouldReceive('send')->once()->with(
+        $this->mailer->expects('send')->with(
             ['html', 'plain'],
             array_merge($notification->toMail($user)->toArray(), [
                 '__hypervel_notification_id' => $notification->id,
                 '__hypervel_notification' => get_class($notification),
                 '__hypervel_notification_queued' => false,
             ]),
-            m::on(function ($closure) {
+            m::on(function (Closure $closure): bool {
                 $message = m::mock(Message::class);
 
-                $message->shouldReceive('to')->once()->with(['taylor@laravel.com']);
+                $message->expects('to')->with(['taylor@hypervel.com']);
 
-                $message->shouldReceive('subject')->once()->with('Test Mail Notification With Html And Plain');
+                $message->expects('subject')->with('Test Mail Notification With Html And Plain');
 
                 $closure($message);
 
@@ -324,22 +334,22 @@ class SendingMailNotificationsTest extends TestCase
         $notification->id = Str::uuid()->toString();
 
         $user = NotifiableUser::forceCreate([
-            'email' => 'taylor@laravel.com',
+            'email' => 'taylor@hypervel.com',
         ]);
 
-        $this->mailer->shouldReceive('send')->once()->with(
+        $this->mailer->expects('send')->with(
             'html',
             array_merge($notification->toMail($user)->toArray(), [
                 '__hypervel_notification_id' => $notification->id,
                 '__hypervel_notification' => get_class($notification),
                 '__hypervel_notification_queued' => false,
             ]),
-            m::on(function ($closure) {
+            m::on(function (Closure $closure): bool {
                 $message = m::mock(Message::class);
 
-                $message->shouldReceive('to')->once()->with(['taylor@laravel.com']);
+                $message->expects('to')->with(['taylor@hypervel.com']);
 
-                $message->shouldReceive('subject')->once()->with('Test Mail Notification With Html Only');
+                $message->expects('subject')->with('Test Mail Notification With Html Only');
 
                 $closure($message);
 
@@ -356,22 +366,22 @@ class SendingMailNotificationsTest extends TestCase
         $notification->id = Str::uuid()->toString();
 
         $user = NotifiableUser::forceCreate([
-            'email' => 'taylor@laravel.com',
+            'email' => 'taylor@hypervel.com',
         ]);
 
-        $this->mailer->shouldReceive('send')->once()->with(
+        $this->mailer->expects('send')->with(
             [null, 'plain'],
             array_merge($notification->toMail($user)->toArray(), [
                 '__hypervel_notification_id' => $notification->id,
                 '__hypervel_notification' => get_class($notification),
                 '__hypervel_notification_queued' => false,
             ]),
-            m::on(function ($closure) {
+            m::on(function (Closure $closure): bool {
                 $message = m::mock(Message::class);
 
-                $message->shouldReceive('to')->once()->with(['taylor@laravel.com']);
+                $message->expects('to')->with(['taylor@hypervel.com']);
 
-                $message->shouldReceive('subject')->once()->with('Test Mail Notification With Plain Only');
+                $message->expects('subject')->with('Test Mail Notification With Plain Only');
 
                 $closure($message);
 
@@ -385,7 +395,10 @@ class SendingMailNotificationsTest extends TestCase
 
 class NotifiableUserWithNamedAddress extends NotifiableUser
 {
-    public function routeNotificationForMail($notification)
+    /**
+     * Route the mail notification to named addresses.
+     */
+    public function routeNotificationForMail(Notification $notification): array
     {
         return [
             $this->email => $this->name,
@@ -396,7 +409,10 @@ class NotifiableUserWithNamedAddress extends NotifiableUser
 
 class NotifiableUserWithMultipleAddresses extends NotifiableUser
 {
-    public function routeNotificationForMail($notification)
+    /**
+     * Route the mail notification to multiple addresses.
+     */
+    public function routeNotificationForMail(Notification $notification): array
     {
         return [
             'foo_' . $this->email,
@@ -407,12 +423,18 @@ class NotifiableUserWithMultipleAddresses extends NotifiableUser
 
 class TestMailNotification extends Notification
 {
-    public function via($notifiable)
+    /**
+     * Get the notification's delivery channels.
+     */
+    public function via(NotifiableUser $notifiable): array
     {
         return [MailChannel::class];
     }
 
-    public function toMail($notifiable)
+    /**
+     * Build the mail representation of the notification.
+     */
+    public function toMail(NotifiableUser $notifiable): MailMessage
     {
         return (new MailMessage)
             ->priority(1)
@@ -427,12 +449,18 @@ class TestMailNotification extends Notification
 
 class TestMailNotificationWithSubject extends Notification
 {
-    public function via($notifiable)
+    /**
+     * Get the notification's delivery channels.
+     */
+    public function via(NotifiableUser $notifiable): array
     {
         return [MailChannel::class];
     }
 
-    public function toMail($notifiable)
+    /**
+     * Build the mail representation of the notification.
+     */
+    public function toMail(NotifiableUser $notifiable): MailMessage
     {
         return (new MailMessage)
             ->subject('mail custom subject')
@@ -442,16 +470,22 @@ class TestMailNotificationWithSubject extends Notification
 
 class TestMailNotificationWithMailable extends Notification
 {
-    public function via($notifiable)
+    /**
+     * Get the notification's delivery channels.
+     */
+    public function via(NotifiableUser $notifiable): array
     {
         return [MailChannel::class];
     }
 
-    public function toMail($notifiable)
+    /**
+     * Build the mail representation of the notification.
+     */
+    public function toMail(NotifiableUser $notifiable): Mailable
     {
         $mailable = m::mock(Mailable::class);
 
-        $mailable->shouldReceive('send')->once();
+        $mailable->expects('send');
 
         return $mailable;
     }
@@ -459,12 +493,18 @@ class TestMailNotificationWithMailable extends Notification
 
 class TestMailNotificationWithHtmlAndPlain extends Notification
 {
-    public function via($notifiable)
+    /**
+     * Get the notification's delivery channels.
+     */
+    public function via(NotifiableUser $notifiable): array
     {
         return [MailChannel::class];
     }
 
-    public function toMail($notifiable)
+    /**
+     * Build the mail representation of the notification.
+     */
+    public function toMail(NotifiableUser $notifiable): MailMessage
     {
         return (new MailMessage)
             ->view(['html', 'plain']);
@@ -473,12 +513,18 @@ class TestMailNotificationWithHtmlAndPlain extends Notification
 
 class TestMailNotificationWithHtmlOnly extends Notification
 {
-    public function via($notifiable)
+    /**
+     * Get the notification's delivery channels.
+     */
+    public function via(NotifiableUser $notifiable): array
     {
         return [MailChannel::class];
     }
 
-    public function toMail($notifiable)
+    /**
+     * Build the mail representation of the notification.
+     */
+    public function toMail(NotifiableUser $notifiable): MailMessage
     {
         return (new MailMessage)
             ->view('html');
@@ -487,12 +533,18 @@ class TestMailNotificationWithHtmlOnly extends Notification
 
 class TestMailNotificationWithPlainOnly extends Notification
 {
-    public function via($notifiable)
+    /**
+     * Get the notification's delivery channels.
+     */
+    public function via(NotifiableUser $notifiable): array
     {
         return [MailChannel::class];
     }
 
-    public function toMail($notifiable)
+    /**
+     * Build the mail representation of the notification.
+     */
+    public function toMail(NotifiableUser $notifiable): MailMessage
     {
         return (new MailMessage)
             ->view([null, 'plain']);
@@ -501,12 +553,18 @@ class TestMailNotificationWithPlainOnly extends Notification
 
 class TestMailNotificationWithCustomTheme extends Notification
 {
-    public function via($notifiable)
+    /**
+     * Get the notification's delivery channels.
+     */
+    public function via(NotifiableUser $notifiable): array
     {
         return [MailChannel::class];
     }
 
-    public function toMail($notifiable)
+    /**
+     * Build the mail representation of the notification.
+     */
+    public function toMail(NotifiableUser $notifiable): MailMessage
     {
         return (new MailMessage)
             ->priority(1)
