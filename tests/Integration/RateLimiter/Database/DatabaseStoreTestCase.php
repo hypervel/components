@@ -46,12 +46,12 @@ abstract class DatabaseStoreTestCase extends DatabaseTestCase
     public function testFixedWindowOperationsUseNumericDatabaseState(): void
     {
         $store = $this->store();
-        $key = str_repeat('a', 32);
+        $key = '123';
         $policy = Limit::perMinute(2);
 
         $first = $store->consume($key, $policy);
-        $second = $store->consume($key, $policy);
-        $denied = $store->consume($key, $policy);
+        $second = $store->consumeMany([['key' => $key, 'policy' => $policy]])[0];
+        $denied = $store->consumeMany([['key' => $key, 'policy' => $policy]])[0];
         $row = DB::table('rate_limits')->where('key', $key)->first();
 
         $this->assertTrue($first->allowed());

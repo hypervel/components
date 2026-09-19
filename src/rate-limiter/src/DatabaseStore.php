@@ -123,7 +123,7 @@ class DatabaseStore implements PrunableStore, Store
 
         if (end($results)->allowed()) {
             foreach ($states as $key => $values) {
-                $this->writeState($connection, $key, ...$values);
+                $this->writeState($connection, (string) $key, ...$values);
             }
         }
 
