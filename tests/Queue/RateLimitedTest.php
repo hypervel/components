@@ -61,10 +61,10 @@ class RateLimitedTest extends TestCase
     {
         $policy = Limit::perMinute(10)->by('user-1');
         $store = m::mock(Limiter::class);
-        $store->shouldReceive('consume')
+        $store->shouldReceive('consumeMany')
             ->once()
-            ->with($policy, 'uploads')
-            ->andReturn(new LimitResult(true, 10, 9, 0, 60_000_000));
+            ->with([$policy], 'uploads')
+            ->andReturn([new LimitResult(true, 10, 9, 0, 60_000_000)]);
 
         $manager = $this->mockRateLimiter();
         $manager->shouldReceive('limiter')->with('uploads')->once()->andReturn(fn () => $policy);
@@ -89,10 +89,10 @@ class RateLimitedTest extends TestCase
     {
         $policy = Limit::perMinute(10);
         $store = m::mock(Limiter::class);
-        $store->shouldReceive('consume')
+        $store->shouldReceive('consumeMany')
             ->once()
-            ->with($policy, 'uploads')
-            ->andReturn(new LimitResult(true, 10, 9, 0, 60_000_000));
+            ->with([$policy], 'uploads')
+            ->andReturn([new LimitResult(true, 10, 9, 0, 60_000_000)]);
 
         $manager = $this->mockRateLimiter();
         $manager->shouldReceive('limiter')->with('uploads')->once()->andReturn(fn () => $policy);
@@ -111,10 +111,10 @@ class RateLimitedTest extends TestCase
     {
         $policy = Limit::perMinute(1);
         $store = m::mock(Limiter::class);
-        $store->shouldReceive('consume')
+        $store->shouldReceive('consumeMany')
             ->once()
-            ->with($policy, 'uploads')
-            ->andReturn(new LimitResult(false, 1, 0, 7_000_000, 7_000_000));
+            ->with([$policy], 'uploads')
+            ->andReturn([new LimitResult(false, 1, 0, 7_000_000, 7_000_000)]);
 
         $manager = $this->mockRateLimiter();
         $manager->shouldReceive('limiter')->andReturn(fn () => $policy);
@@ -127,22 +127,18 @@ class RateLimitedTest extends TestCase
         $this->assertNull((new RateLimited('uploads'))->handle($job, fn () => 'handled'));
     }
 
-    // REMOVED: Laravel #61449's preflight pass. Hypervel consumes policies
-    // atomically in order, retaining earlier charges when a later policy denies.
-
-    public function testEarlierPoliciesRemainConsumedWhenALaterPolicyDenies(): void
+    public function testGroupUsesTheFirstDeniedPolicyToReleaseTheJob(): void
     {
         $first = Limit::perMinute(2)->by('first');
         $second = Limit::perMinute(1)->by('second');
         $store = m::mock(Limiter::class);
-        $store->shouldReceive('consume')
+        $store->shouldReceive('consumeMany')
             ->once()
-            ->with($first, 'uploads')
-            ->andReturn(new LimitResult(true, 2, 1, 0, 60_000_000));
-        $store->shouldReceive('consume')
-            ->once()
-            ->with($second, 'uploads')
-            ->andReturn(new LimitResult(false, 1, 0, 60_000_000, 60_000_000));
+            ->with([$first, $second], 'uploads')
+            ->andReturn([
+                new LimitResult(true, 2, 2, 0, 0),
+                new LimitResult(false, 1, 0, 60_000_000, 60_000_000),
+            ]);
 
         $manager = $this->mockRateLimiter();
         $manager->shouldReceive('limiter')->andReturn(fn () => [$first, $second]);

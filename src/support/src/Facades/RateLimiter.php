@@ -22,6 +22,7 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\RateLimiter\CooldownResult block(\Hypervel\RateLimiter\Cooldown $cooldown, int $seconds, \UnitEnum|string|null $limiterName = null)
  * @method static bool clear(\Hypervel\RateLimiter\AdmissionPolicy|\Hypervel\RateLimiter\Backoff|\Hypervel\RateLimiter\Cooldown $policy, \UnitEnum|string|null $limiterName = null)
  * @method static \Hypervel\RateLimiter\LimitResult consume(\Hypervel\RateLimiter\AdmissionPolicy $policy, \UnitEnum|string|null $limiterName = null)
+ * @method static array<int, \Hypervel\RateLimiter\LimitResult> consumeMany(array<int, \Hypervel\RateLimiter\AdmissionPolicy> $policies, \UnitEnum|string|null $limiterName = null)
  * @method static \Hypervel\RateLimiter\Contracts\Store getStore()
  * @method static ($policy is \Hypervel\RateLimiter\Backoff ? \Hypervel\RateLimiter\BackoffResult : ($policy is \Hypervel\RateLimiter\Cooldown ? \Hypervel\RateLimiter\CooldownResult : \Hypervel\RateLimiter\LimitResult)) inspect(\Hypervel\RateLimiter\AdmissionPolicy|\Hypervel\RateLimiter\Backoff|\Hypervel\RateLimiter\Cooldown $policy, \UnitEnum|string|null $limiterName = null)
  * @method static \Hypervel\RateLimiter\BackoffResult recordFailure(\Hypervel\RateLimiter\Backoff $backoff, \UnitEnum|string|null $limiterName = null)

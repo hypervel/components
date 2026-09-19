@@ -16,246 +16,271 @@ class RedisStore implements Store
     // increment-with-expiry semantics are supported by Redis and Valkey and exposed
     // by phpredis with prefix-aware Redis Cluster routing. Keep the portable Lua
     // path until then; docs/todo.md records the compatibility details.
-    private const string FIXED_WINDOW_SCRIPT = <<<'LUA'
-local mode = ARGV[1]
-local cost = tonumber(ARGV[2])
-local limit = tonumber(ARGV[3])
-local durationMilliseconds = tonumber(ARGV[4])
-local durationMicroseconds = durationMilliseconds * 1000
-
-local function empty_result()
-    if mode == 'inspect' then
-        return {1, limit, limit, 0, 0}
+    private const string FIXED_WINDOW_FUNCTIONS = <<<'LUA'
+local function load_fixed(key, policy)
+    local raw = redis.call('GET', key)
+    if not raw then
+        return {current = 0, ttl = 0, fresh = true}
     end
-
-    redis.call('SET', KEYS[1], ARGV[2], 'PX', ARGV[4])
-    return {1, limit, limit - cost, 0, durationMicroseconds}
-end
-
-local raw = redis.call('GET', KEYS[1])
-
-if not raw then
-    return empty_result()
-end
-
-if raw ~= '0' and not string.match(raw, '^[1-9]%d*$') then
-    return redis.error_reply('ERR corrupt rate limiter counter')
-end
-
-local current = tonumber(raw)
-if current > limit then
-    return redis.error_reply('ERR corrupt rate limiter counter')
-end
-
-local ttl = redis.call('PTTL', KEYS[1])
-if ttl == -1 then
-    return redis.error_reply('ERR corrupt rate limiter counter has no expiry')
-end
-if ttl <= 0 then
-    return empty_result()
-end
-
-local ttlMicroseconds = ttl * 1000
-
-if cost > limit - current then
-    return {0, limit, limit - current, ttlMicroseconds, ttlMicroseconds}
-end
-
-if mode == 'inspect' then
-    return {1, limit, limit - current, 0, ttlMicroseconds}
-end
-
-local incremented = redis.call('INCRBY', KEYS[1], ARGV[2])
-return {1, limit, limit - incremented, 0, ttlMicroseconds}
-LUA;
-
-    private const string SLIDING_WINDOW_SCRIPT = <<<'LUA'
-local WEIGHT_SCALE = 1000000
-local mode = ARGV[1]
-local cost = tonumber(ARGV[2])
-local limit = tonumber(ARGV[3])
-local windowSeconds = tonumber(ARGV[4])
-local windowMilliseconds = windowSeconds * 1000
-local fullLifetimeMilliseconds = windowMilliseconds * 2
-
-local function empty_result()
-    if mode == 'inspect' then
-        return {1, limit, limit, 0, 0}
-    end
-
-    redis.call('HSET', KEYS[1], 'current', cost, 'previous', 0)
-    redis.call('PEXPIRE', KEYS[1], fullLifetimeMilliseconds)
-    return {1, limit, limit - cost, 0, fullLifetimeMilliseconds * 1000}
-end
-
-local state = redis.call('HMGET', KEYS[1], 'current', 'previous')
-
-if not state[1] and not state[2] then
-    return empty_result()
-end
-
-if not state[1] or not state[2] then
-    return redis.error_reply('ERR corrupt rate limiter sliding-window state')
-end
-
-for _, raw in ipairs(state) do
     if raw ~= '0' and not string.match(raw, '^[1-9]%d*$') then
-        return redis.error_reply('ERR corrupt rate limiter sliding-window state')
+        error('corrupt rate limiter counter', 0)
     end
-end
-
-local current = tonumber(state[1])
-local previous = tonumber(state[2])
-
-if current > limit or previous > limit then
-    return redis.error_reply('ERR corrupt rate limiter sliding-window state')
-end
-
-local ttl = redis.call('PTTL', KEYS[1])
-if ttl == -1 then
-    return redis.error_reply('ERR corrupt rate limiter sliding-window state has no expiry')
-end
-if ttl <= 0 then
-    return empty_result()
-end
-if current == 0 then
-    return redis.error_reply('ERR corrupt rate limiter sliding-window state')
-end
-
-local remainingMilliseconds
-local rotated = false
-
-if ttl > windowMilliseconds then
-    remainingMilliseconds = ttl - windowMilliseconds
-else
-    previous = current
-    current = 0
-    remainingMilliseconds = ttl
-    rotated = true
-end
-
-local weight
-if remainingMilliseconds >= windowMilliseconds then
-    weight = WEIGHT_SCALE
-else
-    weight = math.floor(remainingMilliseconds * 1000 / windowSeconds)
-end
-
-local weightedPrevious = math.floor(previous * weight / WEIGHT_SCALE)
-local estimated = current + weightedPrevious
-local resetMicroseconds = ttl * 1000
-
-if estimated > limit - cost then
-    local available = limit - current - cost
-    local retryMicroseconds
-
-    if available >= 0 then
-        local maximumWeight = math.floor(((available + 1) * WEIGHT_SCALE - 1) / previous)
-        local maximumRemainingMilliseconds = math.floor(
-            ((maximumWeight + 1) * windowSeconds - 1) / 1000
-        )
-        retryMicroseconds = (remainingMilliseconds - maximumRemainingMilliseconds) * 1000
-    else
-        local nextAvailable = limit - cost
-        local maximumWeight = math.floor(((nextAvailable + 1) * WEIGHT_SCALE - 1) / current)
-        local maximumRemainingMilliseconds = math.floor(
-            ((maximumWeight + 1) * windowSeconds - 1) / 1000
-        )
-        retryMicroseconds = remainingMilliseconds * 1000
-            + (windowMilliseconds - maximumRemainingMilliseconds) * 1000
+    local current = tonumber(raw)
+    if current > policy[2] then
+        error('corrupt rate limiter counter', 0)
     end
-
-    return {0, limit, math.max(0, limit - estimated), retryMicroseconds, resetMicroseconds}
-end
-
-if mode == 'inspect' then
-    return {1, limit, limit - estimated, 0, resetMicroseconds}
-end
-
-if rotated then
-    local nextTtl = ttl + windowMilliseconds
-    redis.call('HSET', KEYS[1], 'current', cost, 'previous', previous)
-    redis.call('PEXPIRE', KEYS[1], nextTtl)
-    return {1, limit, limit - estimated - cost, 0, nextTtl * 1000}
-end
-
-redis.call('HINCRBY', KEYS[1], 'current', cost)
-return {1, limit, limit - estimated - cost, 0, resetMicroseconds}
-LUA;
-
-    private const string LEAKY_BUCKET_SCRIPT = <<<'LUA'
-local MAX_INTEGER = 9007199254740991
-local mode = ARGV[1]
-local cost = tonumber(ARGV[2])
-local rate = tonumber(ARGV[3])
-local period = tonumber(ARGV[4])
-local burst = tonumber(ARGV[5])
-local time = redis.call('TIME')
-local now = tonumber(time[1]) * 1000000 + tonumber(time[2])
-local emission = math.floor(period / rate)
-
-if period % rate ~= 0 then
-    emission = emission + 1
-end
-
-local burstDuration = emission * burst
-local costDuration = emission * cost
-local storedTat = now
-local raw = redis.call('GET', KEYS[1])
-
-if raw then
-    if raw ~= '0' and not string.match(raw, '^[1-9]%d*$') then
-        return redis.error_reply('ERR corrupt rate limiter TAT')
-    end
-
-    storedTat = tonumber(raw)
-    if storedTat > MAX_INTEGER then
-        return redis.error_reply('ERR corrupt rate limiter TAT')
-    end
-
-    local ttl = redis.call('PTTL', KEYS[1])
+    local ttl = redis.call('PTTL', key)
     if ttl == -1 then
-        return redis.error_reply('ERR corrupt rate limiter TAT has no expiry')
+        error('corrupt rate limiter counter has no expiry', 0)
     end
     if ttl <= 0 then
-        storedTat = now
+        return {current = 0, ttl = 0, fresh = true}
+    end
+    return {current = current, original = current, ttl = ttl, fresh = false}
+end
+
+local function calculate_fixed(state, policy, consume)
+    local cost, limit, duration = unpack(policy)
+    if cost > limit - state.current then
+        return {0, limit, limit - state.current, state.ttl * 1000, state.ttl * 1000}
+    end
+    if consume then
+        state.current = state.current + cost
+        if state.fresh then
+            state.ttl = duration
+        end
+    end
+    return {1, limit, limit - state.current, 0, state.ttl * 1000}
+end
+
+local function persist_fixed(key, state)
+    if state.fresh then
+        redis.call('SET', key, state.current, 'PX', state.ttl)
+    else
+        redis.call('INCRBY', key, state.current - state.original)
     end
 end
-
-local effectiveTat = math.max(storedTat, now)
-if effectiveTat > MAX_INTEGER - costDuration then
-    return redis.error_reply('ERR rate limiter TAT overflow')
-end
-
-local candidateTat = effectiveTat + costDuration
-local allowedAt = candidateTat - burstDuration
-local allowed = now >= allowedAt
-
-if now > MAX_INTEGER - burstDuration then
-    return redis.error_reply('ERR rate limiter capacity overflow')
-end
-
-local remaining = math.floor((now + burstDuration - effectiveTat) / emission)
-remaining = math.max(0, math.min(burst, remaining))
-local reset = math.max(effectiveTat - now, 0)
-
-if not allowed then
-    return {0, burst, remaining, allowedAt - now, reset}
-end
-
-if mode == 'inspect' then
-    return {1, burst, remaining, 0, reset}
-end
-
-local nextRemaining = math.floor((now + burstDuration - candidateTat) / emission)
-nextRemaining = math.max(0, math.min(burst, nextRemaining))
-local nextReset = candidateTat - now
-local ttl = math.max(1, math.floor((nextReset + 999) / 1000))
-
-redis.call('SET', KEYS[1], candidateTat, 'PX', ttl)
-
-return {1, burst, nextRemaining, 0, nextReset}
 LUA;
+
+    private const string SLIDING_WINDOW_FUNCTIONS = <<<'LUA'
+local function load_sliding(key, policy)
+    local limit, windowSeconds = policy[2], policy[3]
+    local windowMilliseconds = windowSeconds * 1000
+    local values = redis.call('HMGET', key, 'current', 'previous')
+    local function empty_state()
+        return {current = 0, previous = 0, ttl = 0, remaining = windowMilliseconds, fresh = true}
+    end
+    if not values[1] and not values[2] then
+        return empty_state()
+    end
+    if not values[1] or not values[2] then
+        error('corrupt rate limiter sliding-window state', 0)
+    end
+    for _, raw in ipairs(values) do
+        if raw ~= '0' and not string.match(raw, '^[1-9]%d*$') then
+            error('corrupt rate limiter sliding-window state', 0)
+        end
+    end
+    local current, previous = tonumber(values[1]), tonumber(values[2])
+    if current > limit or previous > limit then
+        error('corrupt rate limiter sliding-window state', 0)
+    end
+    local ttl = redis.call('PTTL', key)
+    if ttl == -1 then
+        error('corrupt rate limiter sliding-window state has no expiry', 0)
+    end
+    if ttl <= 0 then
+        return empty_state()
+    end
+    if current == 0 then
+        error('corrupt rate limiter sliding-window state', 0)
+    end
+    if ttl > windowMilliseconds then
+        return {current = current, original = current, previous = previous,
+            ttl = ttl, remaining = ttl - windowMilliseconds}
+    end
+    return {current = 0, previous = current, ttl = ttl, remaining = ttl, rotated = true}
+end
+
+local function calculate_sliding(state, policy, consume)
+    local WEIGHT_SCALE = 1000000
+    local cost, limit, windowSeconds = unpack(policy)
+    local windowMilliseconds = windowSeconds * 1000
+    local weight = WEIGHT_SCALE
+    if state.remaining < windowMilliseconds then
+        weight = math.floor(state.remaining * 1000 / windowSeconds)
+    end
+    local estimated = state.current + math.floor(state.previous * weight / WEIGHT_SCALE)
+    if estimated > limit - cost then
+        local available = limit - state.current - cost
+        local retryMicroseconds
+        if available >= 0 then
+            local maximumWeight = math.floor(((available + 1) * WEIGHT_SCALE - 1) / state.previous)
+            local maximumRemainingMilliseconds = math.floor(((maximumWeight + 1) * windowSeconds - 1) / 1000)
+            retryMicroseconds = (state.remaining - maximumRemainingMilliseconds) * 1000
+        else
+            local nextAvailable = limit - cost
+            local maximumWeight = math.floor(((nextAvailable + 1) * WEIGHT_SCALE - 1) / state.current)
+            local maximumRemainingMilliseconds = math.floor(((maximumWeight + 1) * windowSeconds - 1) / 1000)
+            retryMicroseconds = state.remaining * 1000 + (windowMilliseconds - maximumRemainingMilliseconds) * 1000
+        end
+        return {0, limit, math.max(0, limit - estimated), retryMicroseconds, state.ttl * 1000}
+    end
+    if consume then
+        state.current = state.current + cost
+        estimated = estimated + cost
+        if state.fresh or state.rotated then
+            state.ttl = state.remaining + windowMilliseconds
+        end
+    end
+    return {1, limit, limit - estimated, 0, state.ttl * 1000}
+end
+
+local function persist_sliding(key, state)
+    if state.fresh or state.rotated then
+        redis.call('HSET', key, 'current', state.current, 'previous', state.previous)
+        redis.call('PEXPIRE', key, state.ttl)
+    else
+        redis.call('HINCRBY', key, 'current', state.current - state.original)
+    end
+end
+LUA;
+
+    private const string LEAKY_BUCKET_FUNCTIONS = <<<'LUA'
+local function load_leaky(key, policy, now)
+    local storedTat = now
+    local raw = redis.call('GET', key)
+    if raw then
+        if raw ~= '0' and not string.match(raw, '^[1-9]%d*$') then
+            error('corrupt rate limiter TAT', 0)
+        end
+        storedTat = tonumber(raw)
+        if storedTat > 9007199254740991 then
+            error('corrupt rate limiter TAT', 0)
+        end
+        local ttl = redis.call('PTTL', key)
+        if ttl == -1 then
+            error('corrupt rate limiter TAT has no expiry', 0)
+        end
+        if ttl <= 0 then
+            storedTat = now
+        end
+    end
+    return {tat = math.max(storedTat, now), now = now}
+end
+
+local function calculate_leaky(state, policy, consume)
+    local MAX_INTEGER = 9007199254740991
+    local cost, rate, period, burst = unpack(policy)
+    local emission = math.floor(period / rate)
+    if period % rate ~= 0 then
+        emission = emission + 1
+    end
+    local burstDuration = emission * burst
+    local costDuration = emission * cost
+    if state.tat > MAX_INTEGER - costDuration then
+        error('rate limiter TAT overflow', 0)
+    end
+    if state.now > MAX_INTEGER - burstDuration then
+        error('rate limiter capacity overflow', 0)
+    end
+    local candidateTat = state.tat + costDuration
+    local allowedAt = candidateTat - burstDuration
+    local remaining = math.floor((state.now + burstDuration - state.tat) / emission)
+    remaining = math.max(0, math.min(burst, remaining))
+    if state.now < allowedAt then
+        return {0, burst, remaining, allowedAt - state.now, state.tat - state.now}
+    end
+    if consume then
+        state.tat = candidateTat
+        remaining = math.floor((state.now + burstDuration - candidateTat) / emission)
+        remaining = math.max(0, math.min(burst, remaining))
+    end
+    return {1, burst, remaining, 0, state.tat - state.now}
+end
+
+local function persist_leaky(key, state)
+    local ttl = math.max(1, math.floor((state.tat - state.now + 999) / 1000))
+    redis.call('SET', key, state.tat, 'PX', ttl)
+end
+LUA;
+
+    private const string CONSUME_MANY_SCRIPT = self::FIXED_WINDOW_FUNCTIONS . "\n"
+        . self::SLIDING_WINDOW_FUNCTIONS . "\n" . self::LEAKY_BUCKET_FUNCTIONS . <<<'LUA'
+
+local algorithms = {
+    fixed = {load_fixed, calculate_fixed, persist_fixed},
+    sliding = {load_sliding, calculate_sliding, persist_sliding},
+    leaky = {load_leaky, calculate_leaky, persist_leaky}
+}
+local states, originals, policies, results = {}, {}, {}, {}
+local now
+for index, key in ipairs(KEYS) do
+    local offset = (index - 1) * 5
+    local kind = ARGV[offset + 1]
+    local algorithm = algorithms[kind]
+    local policy = {tonumber(ARGV[offset + 2]), tonumber(ARGV[offset + 3]),
+        tonumber(ARGV[offset + 4]), tonumber(ARGV[offset + 5])}
+    policies[index] = {algorithm, policy}
+    if not states[key] then
+        if kind == 'leaky' and not now then
+            local time = redis.call('TIME')
+            now = tonumber(time[1]) * 1000000 + tonumber(time[2])
+        end
+        local state = algorithm[1](key, policy, now)
+        originals[key] = {}
+        for field, value in pairs(state) do
+            originals[key][field] = value
+        end
+        states[key] = state
+    end
+    results[index] = algorithm[2](states[key], policy, true)
+    if results[index][1] == 0 then
+        -- No writes have happened. Report capacity without the discarded charges.
+        for position = 1, index do
+            local entry = policies[position]
+            local inspection = entry[1][2](originals[KEYS[position]], entry[2], false)
+            if position == index then
+                results[position][3] = inspection[3]
+            else
+                results[position] = inspection
+            end
+        end
+        return results
+    end
+end
+for index, key in ipairs(KEYS) do
+    if states[key] then
+        policies[index][1][3](key, states[key])
+        states[key] = nil
+    end
+end
+return results
+LUA;
+
+    private const string SCALAR_ADMISSION_SCRIPT = <<<'LUA'
+local policy = {tonumber(ARGV[2]), tonumber(ARGV[3]), tonumber(ARGV[4]), tonumber(ARGV[5])}
+local state = load(KEYS[1], policy, now)
+local consume = ARGV[1] == 'consume'
+local result = calculate(state, policy, consume)
+if consume and result[1] == 1 then
+    persist(KEYS[1], state)
+end
+return result
+LUA;
+
+    private const string FIXED_WINDOW_SCRIPT = self::FIXED_WINDOW_FUNCTIONS
+        . "\nlocal load, calculate, persist = load_fixed, calculate_fixed, persist_fixed\nlocal now\n"
+        . self::SCALAR_ADMISSION_SCRIPT;
+
+    private const string SLIDING_WINDOW_SCRIPT = self::SLIDING_WINDOW_FUNCTIONS
+        . "\nlocal load, calculate, persist = load_sliding, calculate_sliding, persist_sliding\nlocal now\n"
+        . self::SCALAR_ADMISSION_SCRIPT;
+
+    private const string LEAKY_BUCKET_SCRIPT = self::LEAKY_BUCKET_FUNCTIONS
+        . "\nlocal load, calculate, persist = load_leaky, calculate_leaky, persist_leaky\n"
+        . "local time = redis.call('TIME')\nlocal now = tonumber(time[1]) * 1000000 + tonumber(time[2])\n"
+        . self::SCALAR_ADMISSION_SCRIPT;
 
     private const string BACKOFF_SCRIPT = <<<'LUA'
 local MAX_INTEGER = 9007199254740991
@@ -405,15 +430,84 @@ LUA;
      */
     public function consume(string $key, AdmissionPolicy $policy): LimitResult
     {
-        return match (true) {
-            $policy instanceof Limit => $this->executeFixedWindow($key, $policy, 'consume'),
-            $policy instanceof SlidingWindow => $this->executeSlidingWindow($key, $policy, 'consume'),
-            $policy instanceof LeakyBucket => $this->executeLeakyBucket($key, $policy, 'consume'),
-            default => throw new InvalidRateLimitException(sprintf(
-                'Admission policy [%s] is not supported.',
-                $policy::class,
-            )),
-        };
+        return $this->executeAdmission($key, $policy, 'consume');
+    }
+
+    /**
+     * Consume a group atomically, or inspect then consume on Redis Cluster.
+     *
+     * Cluster preflight denials charge nothing. A denial during consumption
+     * can leave earlier charges, including when a group repeats a key.
+     *
+     * @param list<array{key: string, policy: AdmissionPolicy}> $policies
+     * @return list<LimitResult>
+     */
+    public function consumeMany(array $policies): array
+    {
+        if ($policies === []) {
+            return [];
+        }
+
+        return $this->redis->connection($this->connection)->withConnection(function (RedisConnection $connection) use ($policies): array {
+            if ($connection->isCluster()) {
+                return $this->consumeManyOnCluster($connection, $policies);
+            }
+
+            $arguments = [];
+            $capacities = [];
+
+            foreach ($policies as $entry) {
+                [$kind, $parameters, $capacity] = $this->admissionParameters($entry['policy']);
+                $arguments[] = $kind;
+                $capacities[] = $capacity;
+
+                foreach ($parameters as $parameter) {
+                    $arguments[] = $parameter;
+                }
+
+                if (count($parameters) === 3) {
+                    $arguments[] = '0';
+                }
+            }
+
+            $tuples = $connection->evalWithShaCache(self::CONSUME_MANY_SCRIPT, array_column($policies, 'key'), $arguments);
+
+            if (! is_array($tuples) || ! array_is_list($tuples) || $tuples === [] || count($tuples) > count($policies)) {
+                throw new UnexpectedValueException('Redis returned a malformed rate limiter group result.');
+            }
+
+            $results = [];
+
+            foreach ($tuples as $index => $tuple) {
+                $results[] = $this->limitResult($tuple, $capacities[$index]);
+            }
+
+            return $results;
+        }, transform: false);
+    }
+
+    /**
+     * Check distributed keys before consuming them individually.
+     *
+     * @param list<array{key: string, policy: AdmissionPolicy}> $policies
+     * @return list<LimitResult>
+     */
+    protected function consumeManyOnCluster(RedisConnection $connection, array $policies): array
+    {
+        foreach (['inspect', 'consume'] as $operation) {
+            $results = [];
+
+            foreach ($policies as $entry) {
+                $result = $this->executeAdmission($entry['key'], $entry['policy'], $operation, $connection);
+                $results[] = $result;
+
+                if ($result->denied()) {
+                    return $results;
+                }
+            }
+        }
+
+        return $results;
     }
 
     /**
@@ -434,15 +528,9 @@ LUA;
         AdmissionPolicy|Backoff|Cooldown $policy,
     ): LimitResult|BackoffResult|CooldownResult {
         return match (true) {
-            $policy instanceof Limit => $this->executeFixedWindow($key, $policy, 'inspect'),
-            $policy instanceof SlidingWindow => $this->executeSlidingWindow($key, $policy, 'inspect'),
-            $policy instanceof LeakyBucket => $this->executeLeakyBucket($key, $policy, 'inspect'),
+            $policy instanceof AdmissionPolicy => $this->executeAdmission($key, $policy, 'inspect'),
             $policy instanceof Backoff => $this->executeBackoff($key, $policy, 'inspect'),
-            $policy instanceof Cooldown => $this->executeCooldown($key, 0, 'inspect'),
-            default => throw new InvalidRateLimitException(sprintf(
-                'Admission policy [%s] is not supported.',
-                $policy::class,
-            )),
+            default => $this->executeCooldown($key, 0, 'inspect'),
         };
     }
 
@@ -466,49 +554,48 @@ LUA;
     }
 
     /**
-     * Execute a fixed-window operation.
+     * Execute an admission operation, reusing a held connection for Cluster groups.
      */
-    protected function executeFixedWindow(string $key, Limit $policy, string $mode): LimitResult
-    {
-        $result = $this->execute(self::FIXED_WINDOW_SCRIPT, $key, [
-            $mode,
-            (string) $policy->cost,
-            (string) $policy->maxAttempts,
-            (string) ($policy->decaySeconds * 1000),
-        ]);
+    protected function executeAdmission(
+        string $key,
+        AdmissionPolicy $policy,
+        string $mode,
+        ?RedisConnection $connection = null,
+    ): LimitResult {
+        [$kind, $parameters, $capacity] = $this->admissionParameters($policy);
+        $script = match ($kind) {
+            'fixed' => self::FIXED_WINDOW_SCRIPT,
+            'sliding' => self::SLIDING_WINDOW_SCRIPT,
+            'leaky' => self::LEAKY_BUCKET_SCRIPT,
+        };
+        $arguments = [$mode, ...$parameters];
 
-        return $this->limitResult($result, $policy->maxAttempts);
+        $result = $connection === null
+            ? $this->execute($script, $key, $arguments)
+            : $connection->evalWithShaCache($script, [$key], $arguments);
+
+        return $this->limitResult($result, $capacity);
     }
 
     /**
-     * Execute a sliding-window operation.
+     * Return the algorithm, script parameters, and capacity for an admission policy.
+     *
+     * @return array{'fixed'|'leaky'|'sliding', list<string>, int}
      */
-    protected function executeSlidingWindow(string $key, SlidingWindow $policy, string $mode): LimitResult
+    protected function admissionParameters(AdmissionPolicy $policy): array
     {
-        $result = $this->execute(self::SLIDING_WINDOW_SCRIPT, $key, [
-            $mode,
-            (string) $policy->cost,
-            (string) $policy->maxAttempts,
-            (string) $policy->windowSeconds,
-        ]);
-
-        return $this->limitResult($result, $policy->maxAttempts);
-    }
-
-    /**
-     * Execute a leaky-bucket operation.
-     */
-    protected function executeLeakyBucket(string $key, LeakyBucket $policy, string $mode): LimitResult
-    {
-        $result = $this->execute(self::LEAKY_BUCKET_SCRIPT, $key, [
-            $mode,
-            (string) $policy->cost,
-            (string) $policy->rate,
-            (string) $policy->periodMicroseconds,
-            (string) $policy->burst,
-        ]);
-
-        return $this->limitResult($result, $policy->burst);
+        return match (true) {
+            $policy instanceof Limit => ['fixed', [
+                (string) $policy->cost, (string) $policy->maxAttempts, (string) ($policy->decaySeconds * 1000),
+            ], $policy->maxAttempts],
+            $policy instanceof SlidingWindow => ['sliding', [
+                (string) $policy->cost, (string) $policy->maxAttempts, (string) $policy->windowSeconds,
+            ], $policy->maxAttempts],
+            $policy instanceof LeakyBucket => ['leaky', [
+                (string) $policy->cost, (string) $policy->rate, (string) $policy->periodMicroseconds, (string) $policy->burst,
+            ], $policy->burst],
+            default => throw new InvalidRateLimitException(sprintf('Admission policy [%s] is not supported.', $policy::class)),
+        };
     }
 
     /**

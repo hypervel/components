@@ -20,6 +20,31 @@ class WorkerArrayStoreTest extends TestCase
 {
     use RateLimiterStoreContract;
 
+    public function testDeniedRepeatedKeysReportUnchargedCapacityAndRecoverAfterExpiry(): void
+    {
+        CarbonImmutable::setTestNow('2026-08-04 12:00:00');
+        $limiter = $this->limiter();
+
+        foreach ([Limit::perMinute(10), SlidingWindow::perMinute(10), LeakyBucket::perMinute(10)] as $policy) {
+            $limiter->consume($policy->cost(7));
+
+            $results = $limiter->consumeMany([$policy->cost(2), $policy->cost(2)]);
+
+            $this->assertTrue($results[0]->allowed());
+            $this->assertSame(3, $results[0]->remaining());
+            $this->assertTrue($results[1]->denied());
+            $this->assertSame(3, $results[1]->remaining());
+            $this->assertGreaterThan(0, $results[1]->retryAfter());
+            $this->assertSame(3, $limiter->inspect($policy)->remaining());
+
+            CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(2));
+            $recovered = $limiter->consumeMany([$policy->cost(2), $policy->cost(2)]);
+            $this->assertSame(8, $recovered[0]->remaining());
+            $this->assertSame(6, $recovered[1]->remaining());
+            $this->assertSame(6, $limiter->inspect($policy)->remaining());
+        }
+    }
+
     public function testFixedWindowConsumptionInspectionAndExpiration(): void
     {
         $now = CarbonImmutable::parse('2026-08-04 12:00:00.000000');

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Http;
 
 use Hypervel\Auth\GenericUser;
+use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Auth\User;
 use Hypervel\Http\Request;
@@ -370,23 +371,121 @@ class ThrottleRequestsTest extends TestCase
             ->assertHeaderMissing('Retry-After');
     }
 
-    // REMOVED: Laravel's preflight-all-then-hit-all behavior is replaced by
-    // sequential atomic policy consumption without rollback.
+    public function testMultipleDistinctKeysDoNotOverThrottle(): void
+    {
+        $rateLimiter = Container::getInstance()->make(RateLimiter::class);
+        $rateLimiter->for('test', fn (): array => [
+            Limit::perMinute(3)->by('minute-key'),
+            Limit::perSecond(1)->by('second-key'),
+            Limit::perDay(4)->by('day-key'),
+        ]);
+        Route::get('/', fn (): string => 'ok')->middleware(ThrottleRequests::using('test'));
 
-    public function testEarlierPoliciesRemainConsumedWhenALaterPolicyDenies(): void
+        // Running 2 requests in a single second is not allowed.
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00.000');
+        $this->get('/')->assertOk();
+        $this->get('/')->assertStatus(429);
+        $this->assertSame(2, $rateLimiter->inspect(Limit::perMinute(3)->by('minute-key'), 'test')->remaining());
+        $this->assertSame(0, $rateLimiter->inspect(Limit::perSecond(1)->by('second-key'), 'test')->remaining());
+
+        // After a second, the per-second limit resets.
+        CarbonImmutable::setTestNow('2000-01-01 00:00:01.000');
+        $this->get('/')->assertOk();
+        $this->get('/')->assertStatus(429);
+
+        // A third request is allowed in the same minute.
+        CarbonImmutable::setTestNow('2000-01-01 00:00:02.000');
+        $this->get('/')->assertOk();
+
+        // A fourth request is not allowed in the same minute.
+        CarbonImmutable::setTestNow('2000-01-01 00:00:03.000');
+        $this->get('/')->assertStatus(429);
+
+        // A fourth request is allowed in the same day, but not a fifth.
+        CarbonImmutable::setTestNow('2000-01-01 01:00:00.000');
+        $this->get('/')->assertOk();
+        $this->get('/')->assertStatus(429);
+
+        // The next day, all limits should reset.
+        CarbonImmutable::setTestNow('2000-01-02 00:01:00.000');
+        $this->get('/')->assertOk();
+        CarbonImmutable::setTestNow('2000-01-02 00:01:01.000');
+        $this->get('/')->assertOk();
+        CarbonImmutable::setTestNow('2000-01-02 00:01:02.000');
+        $this->get('/')->assertOk();
+        CarbonImmutable::setTestNow('2000-01-02 00:01:03.000');
+        $this->get('/')->assertStatus(429);
+        CarbonImmutable::setTestNow('2000-01-02 01:00:00.000');
+        $this->get('/')->assertOk();
+        $this->get('/')->assertStatus(429);
+    }
+
+    public function testLimitOrderDoesNotAffectBehavior(): void
+    {
+        $rateLimiter = Container::getInstance()->make(RateLimiter::class);
+        $rateLimiter->for('test', fn (): array => [
+            Limit::perDay(4)->by('day-key'),
+            Limit::perMinute(3)->by('minute-key'),
+        ]);
+        Route::get('/', fn (): string => 'ok')->middleware(ThrottleRequests::using('test'));
+
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00.000');
+
+        // Make 3 requests, each a second apart, that should all be successful.
+        for ($i = 0; $i < 3; ++$i) {
+            $this->get('/')->assertOk();
+            CarbonImmutable::setTestNow(CarbonImmutable::now()->addSecond());
+        }
+
+        $this->assertSame('2000-01-01 00:00:03.000', CarbonImmutable::now()->toDateTimeString('m'));
+        $this->get('/')->assertStatus(429);
+
+        // A fourth request is allowed in the same day but not a fifth.
+        CarbonImmutable::setTestNow('2000-01-01 00:01:00.000');
+        $this->get('/')->assertOk();
+        $this->get('/')->assertStatus(429);
+
+        // After a day, both limits should reset.
+        CarbonImmutable::setTestNow('2000-01-02 00:00:00.000');
+        $this->get('/')->assertOk();
+    }
+
+    public function testDeferredDenialDoesNotChargeOrdinaryPoliciesAndPreservesDenialOrder(): void
     {
         $manager = $this->app->make(RateLimiter::class);
-        $first = Limit::perMinute(2)->by('first');
-        $second = Limit::perMinute(1)->by('second');
-        $manager->for('stacked', fn (): array => [$first, $second]);
-        $manager->store()->consume($second, 'stacked');
+        $first = Limit::perMinute(2)->by('first')
+            ->response(fn (): Response => new Response('first', 429));
+        $second = Limit::perMinute(1)->by('second')
+            ->after(fn (): bool => true)
+            ->response(fn (): Response => new Response('second', 429));
+        $manager->for('mixed', fn (): array => [$first, $second]);
+        $manager->consume($second, 'mixed');
 
-        Route::get('/', fn (): string => 'yes')->middleware(ThrottleRequests::using('stacked'));
+        Route::get('/', fn (): string => 'yes')->middleware(ThrottleRequests::using('mixed'));
 
-        $this->get('/')->assertTooManyRequests();
+        $this->get('/')->assertTooManyRequests()->assertContent('second');
+        $this->assertSame(2, $manager->inspect($first, 'mixed')->remaining());
 
-        $this->assertSame(1, $manager->store()->inspect($first, 'stacked')->remaining());
-        $this->assertSame(0, $manager->store()->inspect($second, 'stacked')->remaining());
+        $manager->consume($first->cost(2), 'mixed');
+        $this->get('/')->assertTooManyRequests()->assertContent('first');
+    }
+
+    public function testMixedPoliciesKeepHeaderOrderAndChargeOnlyMatchingResponses(): void
+    {
+        $manager = $this->app->make(RateLimiter::class);
+        $deferred = Limit::perMinute(2)->by('deferred')->after(fn (): bool => true);
+        $ordinary = Limit::perMinute(2)->by('ordinary');
+        $manager->for('mixed', fn (): array => ['deferred' => $deferred, 'ordinary' => $ordinary]);
+
+        Route::get('/', fn (): string => 'yes')->middleware(ThrottleRequests::using('mixed'));
+
+        $this->get('/')->assertOk()->assertHeader('X-RateLimit-Remaining', 1);
+        $this->assertSame(1, $manager->inspect($deferred, 'mixed')->remaining());
+        $this->assertSame(1, $manager->inspect($ordinary, 'mixed')->remaining());
+
+        $manager->consume($ordinary, 'mixed');
+        $this->get('/')->assertTooManyRequests()->assertHeader('X-RateLimit-Remaining', 0);
+        $this->assertSame(1, $manager->inspect($deferred, 'mixed')->remaining());
     }
 
     public function testNestedSameKeyRequestsRetainTheirOwnDecisionHeaders(): void
@@ -484,6 +583,13 @@ class ThrottleRequestsCountingStore implements Store
         ++$this->consumeCalls;
 
         return $this->store->consume($key, $policy);
+    }
+
+    public function consumeMany(array $policies): array
+    {
+        ++$this->consumeCalls;
+
+        return $this->store->consumeMany($policies);
     }
 
     public function block(string $key, int $durationMicroseconds): CooldownResult

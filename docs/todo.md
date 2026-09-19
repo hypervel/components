@@ -61,6 +61,7 @@
 
 ## Redis
 
+- Investigate opt-in atomic multi-limit admission for Redis Cluster through named rate-limiter stores. The current inspect-then-consume path can charge earlier limits before a later denial, wasting private or shared quota. A store-level hash tag could co-locate its keys and reuse the grouped Lua script while leaving other stores distributed. Preserve key identity across all operations and document fresh counters when switching stores, connection-prefix interactions, and the one-primary capacity tradeoff.
 - Revisit the rate limiter's portable fixed-window Lua script once native bounded increment-with-expiry support is mature across the supported Redis-compatible ecosystem. Redis 8.8's `INCREX` can atomically reject increments above an upper bound and set expiry only for a new window, but Redis 8.6 and Valkey 9 do not provide it, [Valkey #3253](https://github.com/valkey-io/valkey/pull/3253) is still an open related proposal rather than equivalent `INCREX` support, and phpredis 6.3 exposes no typed `INCREX` method (while `rawCommand()` bypasses key prefixing and has different Redis Cluster routing semantics). Re-benchmark and switch only when Redis and Valkey expose equivalent semantics and phpredis has prefix-aware, cluster-aware client support; keep the corresponding focused `@TODO` beside the Lua script until then.
 
 ## Validation
