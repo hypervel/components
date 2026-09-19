@@ -218,6 +218,48 @@ class SwooleStoreTest extends TestCase
         @$store->consume($capacity['failed_key'], Limit::perMinute(1));
     }
 
+    public function testFullTableRestoresEarlierGroupChargesBeforeFailing(): void
+    {
+        CarbonImmutable::setTestNow('2026-08-04 00:00:00');
+        [$store, $state] = $this->store(rows: 64);
+        $now = (int) CarbonImmutable::now()->getPreciseTimestamp(6);
+        $capacity = $this->fillUntilAllocationFails($state, $now + 60_000_000);
+        $original = $state->table()->get('capacity:0');
+        $this->assertTrue($state->table()->del($capacity['conflict_key']));
+
+        try {
+            @$store->consumeMany([
+                ['key' => 'capacity:0', 'policy' => Limit::perMinute(10)],
+                ['key' => $capacity['conflict_key'], 'policy' => Limit::perMinute(10)],
+                ['key' => $capacity['failed_key'], 'policy' => Limit::perMinute(10)],
+            ]);
+            $this->fail('The full table must reject the group.');
+        } catch (SwooleTableFullException) {
+            $this->assertSame($original, $state->table()->get('capacity:0'));
+            $this->assertFalse($state->table()->exist($capacity['conflict_key']));
+            $this->assertFalse($state->table()->exist($capacity['failed_key']));
+        }
+    }
+
+    public function testFullTablePrunesAndRetriesTheWholeGroup(): void
+    {
+        CarbonImmutable::setTestNow('2026-08-04 00:00:00');
+        [$store, $state] = $this->store(rows: 64);
+        $now = (int) CarbonImmutable::now()->getPreciseTimestamp(6);
+        $capacity = $this->fillUntilAllocationFails($state, $now - 1);
+
+        $results = @$store->consumeMany([
+            ['key' => $capacity['conflict_key'], 'policy' => Limit::perMinute(10)],
+            ['key' => $capacity['failed_key'], 'policy' => Limit::perMinute(10)],
+        ]);
+
+        $this->assertSame(9, $results[0]->remaining());
+        $this->assertSame(9, $results[1]->remaining());
+        $this->assertSame(1, $state->table()->get($capacity['conflict_key'], 'value'));
+        $this->assertSame(1, $state->table()->get($capacity['failed_key'], 'value'));
+        $this->assertSame(2, $state->table()->count());
+    }
+
     public function testCorruptStateFailsClosed(): void
     {
         CarbonImmutable::setTestNow('2026-08-04 00:00:00');
