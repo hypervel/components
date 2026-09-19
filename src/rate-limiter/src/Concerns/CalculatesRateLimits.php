@@ -64,6 +64,53 @@ trait CalculatesRateLimits
     }
 
     /**
+     * Calculate ordered group decisions against staged state.
+     *
+     * @param list<array{key: string, policy: AdmissionPolicy}> $policies
+     * @param array<string, array{int, int, int}> $states
+     * @return list<LimitResult>
+     */
+    protected function calculateMany(array $policies, int $now, array &$states): array
+    {
+        $originalStates = $states;
+        $results = [];
+
+        foreach ($policies as $entry) {
+            $key = $entry['key'];
+            [$value, $secondaryValue, $expiresAt] = $states[$key];
+            $results[] = $this->calculateConsume(
+                $entry['policy'],
+                $now,
+                $value,
+                $secondaryValue,
+                $expiresAt,
+            );
+            $states[$key] = [$value, $secondaryValue, $expiresAt];
+
+            if (end($results)->denied()) {
+                // The group is not charged. Keep the denying decision's timing,
+                // but report real capacity rather than discarded staged charges.
+                foreach ($results as $index => $result) {
+                    $inspection = $this->calculateInspection(
+                        $policies[$index]['policy'],
+                        $now,
+                        ...$originalStates[$policies[$index]['key']],
+                    );
+                    $results[$index] = $result->denied()
+                        ? $result->withRemaining($inspection->remaining())
+                        : $inspection;
+                }
+
+                $states = $originalStates;
+
+                return $results;
+            }
+        }
+
+        return $results;
+    }
+
+    /**
      * Calculate a non-mutating policy inspection.
      *
      * @return ($policy is Backoff ? BackoffResult : ($policy is Cooldown ? CooldownResult : LimitResult))
