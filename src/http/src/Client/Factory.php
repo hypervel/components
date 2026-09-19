@@ -17,6 +17,7 @@ use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\TransferStats;
 use GuzzleHttp\Utils;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -36,6 +37,8 @@ class Factory
     use Macroable {
         __call as macroCall;
     }
+
+    protected const string GLOBAL_CONFIGURATION_DISABLED_CONTEXT_KEY_PREFIX = '__http.global_configuration_disabled.';
 
     /**
      * The middleware to apply to every request.
@@ -147,6 +150,29 @@ class Factory
         $this->globalOptions = $options;
 
         return $this;
+    }
+
+    /**
+     * Execute a callback while requests are created without global middleware or global options.
+     *
+     * @template TReturn
+     * @param Closure(): TReturn $callback
+     * @return TReturn
+     */
+    public function withoutGlobalConfiguration(Closure $callback): mixed
+    {
+        // Callbacks may yield while this factory is shared by other coroutines.
+        $contextKey = self::GLOBAL_CONFIGURATION_DISABLED_CONTEXT_KEY_PREFIX . spl_object_id($this);
+        $wasDisabled = CoroutineContext::has($contextKey);
+        CoroutineContext::set($contextKey, true);
+
+        try {
+            return $callback();
+        } finally {
+            if (! $wasDisabled) {
+                CoroutineContext::forget($contextKey);
+            }
+        }
     }
 
     /**
@@ -563,14 +589,15 @@ class Factory
      */
     protected function newPendingRequest(): PendingRequest
     {
-        $options = value($this->globalOptions);
+        $withoutGlobalConfiguration = CoroutineContext::has(self::GLOBAL_CONFIGURATION_DISABLED_CONTEXT_KEY_PREFIX . spl_object_id($this));
+        $options = $withoutGlobalConfiguration ? [] : value($this->globalOptions);
 
         if (! is_array($options)) {
             throw new InvalidArgumentException('The global HTTP client options callback must return an array.');
         }
 
         /** @var PendingRequest<false> $request */
-        $request = new PendingRequest($this, $this->globalMiddleware, $options);
+        $request = new PendingRequest($this, $withoutGlobalConfiguration ? [] : $this->globalMiddleware, $options);
 
         return $request;
     }
@@ -588,7 +615,9 @@ class Factory
      */
     public function getGlobalMiddleware(): array
     {
-        return $this->globalMiddleware;
+        return CoroutineContext::has(self::GLOBAL_CONFIGURATION_DISABLED_CONTEXT_KEY_PREFIX . spl_object_id($this))
+            ? []
+            : $this->globalMiddleware;
     }
 
     /**

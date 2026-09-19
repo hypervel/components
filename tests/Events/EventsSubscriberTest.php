@@ -11,21 +11,22 @@ use Mockery as m;
 
 class EventsSubscriberTest extends TestCase
 {
-    public function testEventSubscribers()
+    public function testEventSubscribers(): void
     {
-        $d = new Dispatcher($container = m::mock(Container::class));
+        $container = m::mock(Container::class);
+        $d = new Dispatcher($container);
         $subs = m::mock(ExampleSubscriber::class);
-        $subs->shouldReceive('subscribe')->once()->with($d);
-        $container->shouldReceive('make')->once()->with(ExampleSubscriber::class)->andReturn($subs);
+        $subs->expects('subscribe')->with($d);
+        $container->expects('make')->with(ExampleSubscriber::class)->andReturn($subs);
 
         $d->subscribe(ExampleSubscriber::class);
     }
 
-    public function testEventSubscribeCanAcceptObject()
+    public function testEventSubscribeCanAcceptObject(): void
     {
         $d = new Dispatcher;
         $subs = m::mock(ExampleSubscriber::class);
-        $subs->shouldReceive('subscribe')->once()->with($d);
+        $subs->expects('subscribe')->with($d);
 
         $d->subscribe($subs);
     }

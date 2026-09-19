@@ -9,7 +9,6 @@ use Hypervel\Auth\Middleware\Authenticate;
 use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Foundation\Application;
-use Hypervel\Contracts\Foundation\MaintenanceMode;
 use Hypervel\Cookie\Middleware\EncryptCookies;
 use Hypervel\Foundation\Configuration\Middleware;
 use Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
@@ -19,6 +18,7 @@ use Hypervel\Foundation\Http\Middleware\TrimStrings;
 use Hypervel\Http\Middleware\TrustHosts;
 use Hypervel\Http\Middleware\TrustProxies;
 use Hypervel\Http\Request;
+use Hypervel\Session\Middleware\AuthenticateSession;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionClass;
@@ -255,6 +255,33 @@ class MiddlewareTest extends TestCase
         $this->assertSame('/login', (new AuthenticationException)->redirectTo(Request::create('/')));
     }
 
+    public function testRedirectUsersToDoesNotOverwriteRedirectGuestsTo(): void
+    {
+        $middleware = new Middleware;
+
+        $middleware->redirectGuestsTo(static fn (): string => '/login');
+        $middleware->redirectUsersTo('/dashboard');
+
+        $authenticateCallback = (new ReflectionClass(Authenticate::class))
+            ->getProperty('redirectToCallback')->getValue();
+        $sessionCallback = (new ReflectionClass(AuthenticateSession::class))
+            ->getProperty('redirectToCallback')->getValue();
+        $exceptionCallback = (new ReflectionClass(AuthenticationException::class))
+            ->getProperty('redirectToCallback')->getValue();
+        $usersCallback = (new ReflectionClass(RedirectIfAuthenticated::class))
+            ->getProperty('redirectToCallback')->getValue();
+
+        $this->assertSame('/login', $authenticateCallback(null));
+        $this->assertSame('/login', $sessionCallback(null));
+        $this->assertSame('/login', $exceptionCallback(null));
+        $this->assertSame('/dashboard', $usersCallback(null));
+
+        $reflection = new ReflectionClass(RedirectIfAuthenticated::class);
+        $method = $reflection->getMethod('redirectTo');
+
+        $this->assertSame('/dashboard', $method->invoke(new RedirectIfAuthenticated, Request::create('/login')));
+    }
+
     public function testRedirectGuestsToNullRegistersNullCallback(): void
     {
         (new Middleware)->redirectGuestsTo(null);
@@ -266,25 +293,11 @@ class MiddlewareTest extends TestCase
         $this->assertNull($callback(null));
     }
 
-    public function testRedirectUsersToConfiguresAuthenticationRedirects(): void
-    {
-        (new Middleware)->redirectUsersTo('/panel');
-
-        $reflection = new ReflectionClass(RedirectIfAuthenticated::class);
-        $method = $reflection->getMethod('redirectTo');
-
-        $this->assertSame('/panel', $method->invoke(new RedirectIfAuthenticated, Request::create('/login')));
-    }
-
-    public function testPreventRequestsDuringMaintenance()
+    public function testPreventRequestsDuringMaintenance(): void
     {
         $configuration = new Middleware;
 
-        $mode = m::mock(MaintenanceMode::class);
-        $mode->shouldReceive('active')->andReturn(true);
-        $mode->shouldReceive('data')->andReturn([]);
         $app = m::mock(Application::class);
-        $app->shouldReceive('maintenanceMode')->andReturn($mode);
         $middleware = new PreventRequestsDuringMaintenance($app);
 
         $reflection = new ReflectionClass($middleware);

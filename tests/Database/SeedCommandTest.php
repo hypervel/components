@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Database;
 use Hypervel\Console\Command;
 use Hypervel\Console\CommandMutex;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Console\Seeds\SeedCommand;
@@ -41,9 +42,9 @@ class SeedCommandTest extends TestCase
     public function testHandle(): void
     {
         $seeder = m::mock(Seeder::class);
-        $seeder->shouldReceive('setContainer')->once()->andReturnSelf();
-        $seeder->shouldReceive('setCommand')->once()->andReturnSelf();
-        $seeder->shouldReceive('__invoke')->once()->andReturnUsing(function (): void {
+        $seeder->expects('setContainer')->andReturnSelf();
+        $seeder->expects('setCommand')->andReturnSelf();
+        $seeder->expects('__invoke')->andReturnUsing(function (): void {
             Assert::assertSame(
                 'sqlite',
                 CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY),
@@ -72,39 +73,7 @@ class SeedCommandTest extends TestCase
         );
     }
 
-    public function testWithoutModelEvents(): void
-    {
-        $instance = new UserWithoutModelEventsSeeder;
-
-        $seeder = m::mock($instance);
-        $seeder->shouldReceive('setContainer')->once()->andReturnSelf();
-        $seeder->shouldReceive('setCommand')->once()->andReturnSelf();
-
-        $resolver = m::mock(ConnectionResolverInterface::class);
-
-        $app = new ApplicationDatabaseSeedStub([
-            ConnectionResolverInterface::class => $resolver,
-            UserWithoutModelEventsSeeder::class => $seeder,
-        ]);
-
-        Model::setEventDispatcher($dispatcher = m::mock(\Hypervel\Contracts\Events\Dispatcher::class));
-
-        $command = new SeedCommand($resolver);
-        $command->setHypervel($app);
-
-        $command->run(
-            new ArrayInput([
-                '--force' => true,
-                '--database' => 'sqlite',
-                '--class' => UserWithoutModelEventsSeeder::class,
-            ]),
-            new NullOutput,
-        );
-
-        Assert::assertSame($dispatcher, Model::getEventDispatcher());
-    }
-
-    public function testHandleRestoresPreviousConnectionWhenSeederThrows(): void
+    public function testFailedSeederRestoresPreviousDefaultConnection(): void
     {
         // Simulate a pre-existing Context override (e.g., from an outer
         // migrator run) — seeding should restore that exact value if the
@@ -141,6 +110,39 @@ class SeedCommandTest extends TestCase
             CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY),
             'Context should be restored to the pre-seed value even on exception',
         );
+    }
+
+    public function testWithoutModelEvents(): void
+    {
+        $instance = new UserWithoutModelEventsSeeder;
+
+        $seeder = m::mock($instance);
+        $seeder->expects('setContainer')->andReturnSelf();
+        $seeder->expects('setCommand')->andReturnSelf();
+
+        $resolver = m::mock(ConnectionResolverInterface::class);
+
+        $app = new ApplicationDatabaseSeedStub([
+            ConnectionResolverInterface::class => $resolver,
+            UserWithoutModelEventsSeeder::class => $seeder,
+        ]);
+
+        $dispatcher = m::mock(Dispatcher::class);
+        Model::setEventDispatcher($dispatcher);
+
+        $command = new SeedCommand($resolver);
+        $command->setHypervel($app);
+
+        $command->run(
+            new ArrayInput([
+                '--force' => true,
+                '--database' => 'sqlite',
+                '--class' => UserWithoutModelEventsSeeder::class,
+            ]),
+            new NullOutput,
+        );
+
+        Assert::assertSame($dispatcher, Model::getEventDispatcher());
     }
 
     public function testProhibitable(): void

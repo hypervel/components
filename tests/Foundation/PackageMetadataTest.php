@@ -50,6 +50,7 @@ class PackageMetadataTest extends TestCase
             'league/flysystem',
             'league/uri',
             'monolog/monolog',
+            'psr/log',
         ] as $dependency) {
             $this->assertArrayHasKey($dependency, $rootComposer['require']);
             $this->assertArrayHasKey($dependency, $composer['require']);

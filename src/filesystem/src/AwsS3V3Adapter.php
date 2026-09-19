@@ -64,6 +64,14 @@ class AwsS3V3Adapter extends FilesystemAdapter
     }
 
     /**
+     * Determine if temporary upload URLs can be generated.
+     */
+    public function providesTemporaryUploadUrls(): bool
+    {
+        return true;
+    }
+
+    /**
      * Get a temporary URL for the file at the given path.
      */
     public function temporaryUrl(string $path, DateTimeInterface $expiration, array $options = []): string

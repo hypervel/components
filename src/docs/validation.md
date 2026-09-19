@@ -522,6 +522,8 @@ class PublicWebhookRequest extends FormRequest
 }
 ```
 
+An `array` field without child rules accepts its contents, including when declared as `items.*`. To restrict those contents, define child rules such as `items.*.name` or allowed keys such as `array:name,email`.
+
 Confirmation fields are accepted when the base field uses the `confirmed` rule, including custom `confirmed:...` field names.
 
 Rejecting unknown fields can provide additional protection against mass-assignment style issues by preventing unexpected input keys from flowing deeper into your application. However, you should still configure your model's `$fillable` / `$guarded` properties and only persist trusted, validated input.

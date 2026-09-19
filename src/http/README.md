@@ -7,6 +7,8 @@ Documentation: https://hypervel.org/docs/requests
 
 ## Differences From Laravel
 
+Laravel's `withNtlmAuth()` is omitted. Integrations requiring NTLM must supply their own authentication middleware.
+
 Laravel's deprecated `Request::get()` method is intentionally not ported because it mixes route attributes, query parameters, and request body input behind one ambiguous API. Use `input()`, `query()`, or `route()` to select the intended source explicitly.
 
 Hypervel creates requests from Swoole's server request instead of `Request::capture()`. Responses are also emitted by Hypervel's server bridge rather than by calling `Response::sendContent()` directly.

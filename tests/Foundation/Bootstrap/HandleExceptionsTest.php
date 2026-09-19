@@ -19,6 +19,7 @@ use InvalidArgumentException;
 use Mockery as m;
 use Monolog\Handler\NullHandler;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use ReflectionMethod;
 use RuntimeException;
@@ -79,14 +80,14 @@ class HandleExceptionsTest extends TestCase
         $logger->expects('warning')->with(sprintf(
             '%s in %s on line %s',
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         ));
 
         $this->handleExceptions()->handleError(
             E_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
     }
@@ -111,7 +112,7 @@ class HandleExceptionsTest extends TestCase
         }
     }
 
-    public function testPhpDeprecationsWithStackTraces()
+    public function testPhpDeprecationsWithStackTraces(): void
     {
         $logger = m::mock(LogManager::class);
         $this->app->instance(LogManager::class, $logger);
@@ -125,24 +126,22 @@ class HandleExceptionsTest extends TestCase
 
         $logger->expects('channel')->with('deprecations')->andReturnSelf();
         $logger->expects('warning')->with(
-            m::on(fn (string $message) => (bool) preg_match(
-                <<<'REGEXP'
-                #ErrorException: str_contains\(\): Passing null to parameter \#2 \(\$needle\) of type string is deprecated in /home/user/laravel/routes/web\.php:17
-                Stack trace:
-                \#0 .*helpers.php\(.*\): Hypervel\\Foundation\\Bootstrap\\HandleExceptions.*
-                \#1 .*HandleExceptions\.php\(.*\): with.*
-                \#2 .*HandleExceptions\.php\(.*\): Hypervel\\Foundation\\Bootstrap\\HandleExceptions->handleDeprecation.*
-                \#3 .*HandleExceptionsTest\.php\(.*\): Hypervel\\Foundation\\Bootstrap\\HandleExceptions->handleError.*
-                [\s\S]*#i
-                REGEXP,
-                $message
-            ))
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            m::on(function (array $context): bool {
+                $exception = $context['exception'] ?? null;
+
+                return $exception instanceof ErrorException
+                    && $exception->getSeverity() === E_DEPRECATED
+                    && $exception->getFile() === '/home/user/hypervel/routes/web.php'
+                    && $exception->getLine() === 17
+                    && $exception->getTrace() !== [];
+            })
         );
 
         $this->handleExceptions()->handleError(
             E_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
     }
@@ -168,14 +167,14 @@ class HandleExceptionsTest extends TestCase
         $logger->expects('warning')->with(sprintf(
             '%s in %s on line %s',
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         ));
 
         $this->handleExceptions()->handleError(
             E_USER_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
 
@@ -205,14 +204,14 @@ class HandleExceptionsTest extends TestCase
         $logger->expects('warning')->with(sprintf(
             '%s in %s on line %s',
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         ));
 
         $this->handleExceptions()->handleError(
             E_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
 
@@ -296,19 +295,19 @@ class HandleExceptionsTest extends TestCase
         $logger->expects('warning')->with(sprintf(
             '%s in %s on line %s',
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         ));
 
         $this->handleExceptions()->handleError(
             E_USER_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
     }
 
-    public function testUserDeprecationsWithStackTraces()
+    public function testUserDeprecationsWithStackTraces(): void
     {
         $logger = m::mock(LogManager::class);
         $this->app->instance(LogManager::class, $logger);
@@ -322,24 +321,22 @@ class HandleExceptionsTest extends TestCase
 
         $logger->expects('channel')->with('deprecations')->andReturnSelf();
         $logger->expects('warning')->with(
-            m::on(fn (string $message) => (bool) preg_match(
-                <<<'REGEXP'
-                #ErrorException: str_contains\(\): Passing null to parameter \#2 \(\$needle\) of type string is deprecated in /home/user/laravel/routes/web\.php:17
-                Stack trace:
-                \#0 .*helpers.php\(.*\): Hypervel\\Foundation\\Bootstrap\\HandleExceptions.*
-                \#1 .*HandleExceptions\.php\(.*\): with.*
-                \#2 .*HandleExceptions\.php\(.*\): Hypervel\\Foundation\\Bootstrap\\HandleExceptions->handleDeprecation.*
-                \#3 .*HandleExceptionsTest\.php\(.*\): Hypervel\\Foundation\\Bootstrap\\HandleExceptions->handleError.*
-                [\s\S]*#i
-                REGEXP,
-                $message
-            ))
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            m::on(function (array $context): bool {
+                $exception = $context['exception'] ?? null;
+
+                return $exception instanceof ErrorException
+                    && $exception->getSeverity() === E_USER_DEPRECATED
+                    && $exception->getFile() === '/home/user/hypervel/routes/web.php'
+                    && $exception->getLine() === 17
+                    && $exception->getTrace() !== [];
+            })
         );
 
         $this->handleExceptions()->handleError(
             E_USER_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
     }
@@ -357,7 +354,7 @@ class HandleExceptionsTest extends TestCase
         $this->handleExceptions()->handleError(
             E_USER_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
 
@@ -381,7 +378,7 @@ class HandleExceptionsTest extends TestCase
         $this->handleExceptions()->handleError(
             E_USER_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
 
@@ -409,7 +406,7 @@ class HandleExceptionsTest extends TestCase
         $this->handleExceptions()->handleError(
             E_USER_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
 
@@ -419,7 +416,7 @@ class HandleExceptionsTest extends TestCase
         );
     }
 
-    public function testDoesNotCreateDeprecationsDriverBeforeFirstDeprecation(): void
+    public function testNoDeprecationsDriverIfNoDeprecationsHereSend(): void
     {
         $this->assertNull($this->config->get('logging.channels.deprecations'));
     }
@@ -507,7 +504,7 @@ class HandleExceptionsTest extends TestCase
         }
     }
 
-    public function testIgnoresDeprecationsWithoutAnApplication(): void
+    public function testDeprecationErrorsAreIgnoredWhenAppIsNull(): void
     {
         HandleExceptions::flushState($this);
 
@@ -538,18 +535,56 @@ class HandleExceptionsTest extends TestCase
         );
     }
 
-    public function testIgnoreDeprecationIfLoggerUnresolvable()
+    #[TestWith([RuntimeException::class])]
+    #[TestWith([Error::class])]
+    public function testIgnoreDeprecationIfLoggerUnresolvable(string $exceptionClass): void
     {
-        $this->app->bind(LogManager::class, fn () => throw new RuntimeException);
+        $this->app->bind(LogManager::class, static fn (): never => throw new $exceptionClass);
         $this->app->expects('runningUnitTests')->andReturn(false);
         $this->app->expects('hasBeenBootstrapped')->andReturn(true);
 
         $this->handleExceptions()->handleError(
             E_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
+    }
+
+    public function testIgnoreDeprecationIfLoggingFails(): void
+    {
+        $logger = m::mock(LogManager::class);
+        $this->app->instance(LogManager::class, $logger);
+        $this->app->expects('runningUnitTests')->andReturn(false);
+        $this->app->expects('hasBeenBootstrapped')->andReturn(true);
+
+        $logger->expects('channel')->with('deprecations')->andThrow(new Error('Class "Monolog\Logger" not found'));
+
+        $this->handleExceptions()->handleError(
+            E_DEPRECATED,
+            'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
+            '/home/user/hypervel/routes/web.php',
+            17
+        );
+    }
+
+    public function testDeprecationLoggingPreservesCancellationDuringChannelCreation(): void
+    {
+        $cancellation = new CanceledException('canceled');
+        $logger = new LogManager($this->app);
+        $logger->extend('canceling', static fn (): never => throw $cancellation);
+        $this->config->set('logging.channels.deprecations', ['driver' => 'canceling']);
+        $this->app->instance(LogManager::class, $logger);
+        $this->app->expects('runningUnitTests')->twice()->andReturn(false);
+        $this->app->expects('hasBeenBootstrapped')->andReturn(true);
+
+        try {
+            $this->handleExceptions()->handleDeprecationError('Deprecated behavior', __FILE__, __LINE__);
+
+            $this->fail('The cancellation was not preserved.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testItIgnoreDeprecationLoggingWhenRunningUnitTests()
@@ -566,7 +601,7 @@ class HandleExceptionsTest extends TestCase
         $this->handleExceptions()->handleError(
             E_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
 
@@ -587,13 +622,14 @@ class HandleExceptionsTest extends TestCase
         $this->handleExceptions()->handleError(
             E_DEPRECATED,
             'str_contains(): Passing null to parameter #2 ($needle) of type string is deprecated',
-            '/home/user/laravel/routes/web.php',
+            '/home/user/hypervel/routes/web.php',
             17
         );
 
         Env::getRepository()->clear('LOG_DEPRECATIONS_WHILE_TESTING');
     }
 
+    // REMOVED: forgetApp() is deprecated; flushState() owns application cleanup.
     public function testHandlerForgetsPreviousApp()
     {
         $instance = $this->handleExceptions();

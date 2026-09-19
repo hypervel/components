@@ -6,6 +6,7 @@ namespace Hypervel\Queue\Console;
 
 use __PHP_Incomplete_Class;
 use DateTimeInterface;
+use Generator;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -14,6 +15,8 @@ use Hypervel\Queue\Events\JobRetryRequested;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Queue\QueuePoolProxy;
 use Hypervel\Queue\SqsQueue;
+use Hypervel\Support\Enumerable;
+use Hypervel\Support\LazyCollection;
 use RuntimeException;
 use stdClass;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -49,11 +52,25 @@ class RetryCommand extends Command
         $failer = $this->hypervel->make('queue.failer');
 
         foreach ($ids as $id) {
-            $job = $failer->find($id);
+            $found = $failer->find($id);
 
-            if (is_null($job)) {
+            if (is_null($found)) {
                 $this->components->error("Unable to find failed job with ID [{$id}].");
-            } else {
+
+                continue;
+            }
+
+            if (! $found instanceof Enumerable) {
+                // A generator preserves numeric-string IDs that array keys would coerce.
+                $found = new LazyCollection(fn (): Generator => yield $id => $found);
+            }
+
+            // Checking isEmpty() first would start a lazy provider's supplier twice.
+            $resolvedAny = false;
+
+            foreach ($found as $id => $job) {
+                $resolvedAny = true;
+
                 /** @var Dispatcher $events */
                 $events = $this->hypervel->make('events');
 
@@ -61,9 +78,13 @@ class RetryCommand extends Command
                     $events->dispatch(new JobRetryRequested($job));
                 }
 
-                $this->components->task($id, fn () => $this->retryJob($job));
+                $this->components->task((string) $id, fn () => $this->retryJob($job));
 
                 $failer->forget($id);
+            }
+
+            if (! $resolvedAny) {
+                $this->components->error("Unable to find any failed jobs with ID [{$id}].");
             }
         }
 

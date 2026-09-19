@@ -641,6 +641,7 @@ The schema builder blueprint offers a variety of methods that correspond to the 
 [foreignId](#column-method-foreignId)
 [foreignIdFor](#column-method-foreignIdFor)
 [foreignUlid](#column-method-foreignUlid)
+[foreignUlidFor](#column-method-foreignUlidFor)
 [foreignUuid](#column-method-foreignUuid)
 [foreignUuidFor](#column-method-foreignUuidFor)
 [morphs](#column-method-morphs)
@@ -814,6 +815,15 @@ The `foreignUlid` method creates a `ULID` equivalent column:
 $table->foreignUlid('user_id');
 ```
 
+<a name="column-method-foreignUlidFor"></a>
+#### `foreignUlidFor()` {.collection-method}
+
+The `foreignUlidFor` method adds a ULID column for a model that uses ULID keys. By default, the column name, referenced table, and referenced model key are derived from the model:
+
+```php
+$table->foreignUlidFor(User::class);
+```
+
 <a name="column-method-foreignUuid"></a>
 #### `foreignUuid()` {.collection-method}
 
@@ -826,7 +836,7 @@ $table->foreignUuid('user_id');
 <a name="column-method-foreignUuidFor"></a>
 #### `foreignUuidFor()` {.collection-method}
 
-The `foreignUuidFor` method adds a UUID column for the given model. By default, the column name, referenced table, and referenced model key are derived from the model:
+The `foreignUuidFor` method adds a UUID column for a model that uses UUID keys. By default, the column name, referenced table, and referenced model key are derived from the model:
 
 ```php
 $table->foreignUuidFor(User::class);

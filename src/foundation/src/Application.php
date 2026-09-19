@@ -666,6 +666,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
         return $this->instance('config_loaded_from_cache', is_file($this->getCachedConfigPath()));
     }
 
+    // Laravel's deferred-provider services.php manifest and getCachedServicesPath() are omitted.
+
     /**
      * Get the path to the configuration cache file.
      */
@@ -1096,6 +1098,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
         $this->loadedProviders[$class] = true;
     }
+
+    // Laravel's deferred-provider methods are omitted; providers register once at worker startup.
 
     /**
      * Determine if the application has booted.

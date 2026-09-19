@@ -12,7 +12,9 @@ use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Cookie\CookieJar;
 use GuzzleHttp\Cookie\SetCookie;
 use GuzzleHttp\Exception\ConnectException;
+use GuzzleHttp\Exception\NetworkException;
 use GuzzleHttp\Exception\RequestException as GuzzleRequestException;
+use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\Exception\TooManyRedirectsException;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
@@ -558,6 +560,106 @@ class HttpClientTest extends TestCase
         $this->assertSame(1, $response->bodyCallCount);
     }
 
+    public function testNetworkExceptionIsConvertedToConnectionException(): void
+    {
+        if (! class_exists(NetworkException::class)) {
+            $this->markTestSkipped('NetworkException requires guzzlehttp/guzzle ^8.0.');
+        }
+
+        $this->expectExceptionObject(new ConnectionException('Network error'));
+
+        $pendingRequest = new PendingRequest;
+
+        $pendingRequest->setHandler(function (): never {
+            throw new NetworkException(
+                'Network error',
+                new GuzzleRequest('GET', 'https://network-error.hypervel.example')
+            );
+        });
+
+        $pendingRequest->get('https://network-error.hypervel.example');
+    }
+
+    // REMOVED: testNetworkExceptionInPoolIsConsideredConnectionException uses
+    // the unsupported promise-based pool. Use coroutine-native parallel().
+
+    public function testAsyncNetworkExceptionIsConvertedAndRecordedOnce(): void
+    {
+        if (! class_exists(NetworkException::class)) {
+            $this->markTestSkipped('NetworkException requires guzzlehttp/guzzle ^8.0.');
+        }
+
+        $exception = new NetworkException('Network error', new GuzzleRequest('GET', 'https://network-error.hypervel.example'));
+        $this->factory->fake(['*' => Create::rejectionFor($exception)]);
+
+        $result = $this->factory->async()->get('https://network-error.hypervel.example')->wait();
+
+        $this->assertInstanceOf(ConnectionException::class, $result);
+        $this->assertSame($exception, $result->getPrevious());
+        $this->factory->assertSentCount(1);
+        $this->factory->assertSent(fn (Request $request, ?Response $response): bool => $response === null);
+    }
+
+    #[DataProvider('transportResponseModes')]
+    public function testTransportResponseIsConvertedAndRecordedOnce(bool $async): void
+    {
+        $request = new GuzzleRequest('GET', 'https://response-error.hypervel.example');
+        $response = new Psr7Response(500, [], 'Incomplete response');
+        $exception = class_exists(ResponseException::class)
+            ? new ResponseException('Response failed', $request, $response)
+            : new GuzzleRequestException('Response failed', $request, $response);
+        $this->factory->fake(['*' => Create::rejectionFor($exception)]);
+
+        if ($async) {
+            $result = $this->factory->async()->get('https://response-error.hypervel.example')->wait();
+        } else {
+            try {
+                $this->factory->get('https://response-error.hypervel.example');
+                $this->fail('RequestException was not thrown.');
+            } catch (RequestException $caught) {
+                $result = $caught->response;
+            }
+        }
+
+        $this->assertInstanceOf(Response::class, $result);
+        $this->assertSame($response, $result->toPsrResponse());
+        $this->factory->assertSentCount(1);
+        $this->factory->assertSent(fn (Request $request, ?Response $recorded): bool => $recorded?->toPsrResponse() === $response);
+    }
+
+    /**
+     * Provide synchronous and asynchronous request modes.
+     */
+    public static function transportResponseModes(): array
+    {
+        return [[false], [true]];
+    }
+
+    public function testUrlsWithoutTemplateExpressionsAreNotExpanded(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->withUrlParameters(['page' => 'docs'])->get('https://hypervel.com/docs');
+
+        $this->factory->assertSent(function (Request $request): bool {
+            return $request->url() === 'https://hypervel.com/docs';
+        });
+    }
+
+    public function testUrlsWithTemplateExpressionsAreStillExpanded(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->withUrlParameters([
+            'endpoint' => 'https://hypervel.com',
+            'page' => 'docs',
+        ])->get('{+endpoint}/{page}');
+
+        $this->factory->assertSent(function (Request $request): bool {
+            return $request->url() === 'https://hypervel.com/docs';
+        });
+    }
+
     public function testDecodeUsingResetsCacheAndReDecodesWithNewCallback(): void
     {
         $this->factory->fake([
@@ -643,7 +745,7 @@ class HttpClientTest extends TestCase
         ], $response->movieFields());
     }
 
-    public function testResponseRespectsDefaultJsonDecodingFlags(): void
+    public function testRespectsDefaultFlags(): void
     {
         Response::$defaultJsonDecodingFlags = JSON_BIGINT_AS_STRING;
 
@@ -1512,7 +1614,7 @@ class HttpClientTest extends TestCase
     public function testEmptyRequestDataIsDecodedOnlyOnce(): void
     {
         $body = m::mock(StreamInterface::class);
-        $body->shouldReceive('__toString')->once()->andReturn('[]');
+        $body->expects('__toString')->andReturn('[]');
         $request = new Request(new GuzzleRequest(
             'POST',
             'https://example.test',
@@ -3255,9 +3357,9 @@ class HttpClientTest extends TestCase
         $this->factory->fakeSequence()->push('abc123');
         $failure = new RuntimeException('Unable to rewind PSR stream');
         $stream = m::mock(StreamInterface::class);
-        $stream->shouldReceive('write')->once()->with('abc123')->andReturn(6);
-        $stream->shouldReceive('isSeekable')->once()->andReturnTrue();
-        $stream->shouldReceive('rewind')->once()->andThrow($failure);
+        $stream->expects('write')->with('abc123')->andReturn(6);
+        $stream->expects('isSeekable')->andReturnTrue();
+        $stream->expects('rewind')->andThrow($failure);
 
         try {
             $this->factory->sink($stream)->get('https://example.com');
@@ -3559,7 +3661,7 @@ class HttpClientTest extends TestCase
 
     public function testRequestsCanBeAsync(): void
     {
-        $request = new PendingRequest($this->factory);
+        $request = $this->factory->fake()->createPendingRequest();
 
         $promise = $request->async()->get('http://foo.com');
 
@@ -3886,13 +3988,84 @@ class HttpClientTest extends TestCase
         );
     }
 
+    public function testGlobalConfigurationCanBeDisabledForRequestsCreatedWithinCallback(): void
+    {
+        $this->factory->fake();
+        $this->factory->globalOptions(['force_ip_resolve' => 'v4']);
+        $this->factory->globalRequestMiddleware(fn (RequestInterface $request): RequestInterface => $request->withHeader('X-Global', 'Foo'));
+
+        $request = $this->factory->withoutGlobalConfiguration(fn (): PendingRequest => $this->factory->createPendingRequest());
+        $request->get('http://hypervel.com/agent');
+
+        $this->factory->createPendingRequest()->get('http://hypervel.com/global');
+
+        $this->assertArrayNotHasKey('force_ip_resolve', $request->getOptions());
+        $this->factory->assertSent(fn (Request $request): bool => $request->url() === 'http://hypervel.com/agent' && ! $request->hasHeader('X-Global'));
+        $this->factory->assertSent(fn (Request $request): bool => $request->url() === 'http://hypervel.com/global' && $request->hasHeader('X-Global'));
+    }
+
+    public function testGlobalConfigurationIsRestoredAfterWithoutGlobalConfigurationCallback(): void
+    {
+        $middleware = fn (callable $handler): callable => $handler;
+
+        $this->factory->globalOptions(['force_ip_resolve' => 'v4']);
+        $this->factory->globalMiddleware($middleware);
+
+        try {
+            $this->factory->withoutGlobalConfiguration(function (): never {
+                throw new Exception('boom');
+            });
+        } catch (Exception) {
+        }
+
+        $this->assertSame('v4', $this->factory->createPendingRequest()->getOptions()['force_ip_resolve']);
+        $this->assertSame([$middleware], $this->factory->getGlobalMiddleware());
+    }
+
+    public function testGlobalConfigurationSuppressionIsScopedToTheFactoryAndCoroutine(): void
+    {
+        $middleware = fn (callable $handler): callable => $handler;
+        $optionsResolved = 0;
+        $this->factory->globalOptions(function () use (&$optionsResolved): array {
+            ++$optionsResolved;
+
+            return ['force_ip_resolve' => 'v4'];
+        });
+        $this->factory->globalMiddleware($middleware);
+        $otherFactory = (new Factory)->globalOptions(['force_ip_resolve' => 'v6']);
+
+        run(function () use ($middleware, $otherFactory, &$optionsResolved): void {
+            $results = $this->factory->withoutGlobalConfiguration(fn (): array => parallel([
+                fn (): array => $this->factory->withoutGlobalConfiguration(function () use ($otherFactory): array {
+                    $this->factory->withoutGlobalConfiguration(fn (): PendingRequest => $this->factory->createPendingRequest());
+                    usleep(5000);
+
+                    return [
+                        $this->factory->createPendingRequest()->getOptions()['force_ip_resolve'] ?? null,
+                        $this->factory->getGlobalMiddleware(),
+                        $otherFactory->createPendingRequest()->getOptions()['force_ip_resolve'],
+                    ];
+                }),
+                fn (): array => [
+                    $this->factory->createPendingRequest()->getOptions()['force_ip_resolve'],
+                    $this->factory->getGlobalMiddleware(),
+                ],
+            ]));
+
+            $this->assertSame([[null, [], 'v6'], ['v4', [$middleware]]], $results);
+            $this->assertSame(1, $optionsResolved);
+            $this->assertSame('v4', $this->factory->createPendingRequest()->getOptions()['force_ip_resolve']);
+            $this->assertSame([$middleware], $this->factory->getGlobalMiddleware());
+        });
+    }
+
     public function testTheRequestSendingAndResponseReceivedEventsAreFiredWhenARequestIsSent(): void
     {
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->times(5)->with(RequestSending::class)->andReturn(true);
-        $events->shouldReceive('hasListeners')->times(5)->with(ResponseReceived::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->times(5)->with(m::type(RequestSending::class));
-        $events->shouldReceive('dispatch')->times(5)->with(m::type(ResponseReceived::class));
+        $events->expects('hasListeners')->times(5)->with(RequestSending::class)->andReturn(true);
+        $events->expects('hasListeners')->times(5)->with(ResponseReceived::class)->andReturn(true);
+        $events->expects('dispatch')->times(5)->with(m::type(RequestSending::class));
+        $events->expects('dispatch')->times(5)->with(m::type(ResponseReceived::class));
 
         $factory = new Factory($events);
         $factory->fake();
@@ -3907,10 +4080,10 @@ class HttpClientTest extends TestCase
     public function testTheRequestSendingAndResponseReceivedEventsAreFiredWhenARequestIsSentAsync(): void
     {
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->times(5)->with(RequestSending::class)->andReturn(true);
-        $events->shouldReceive('hasListeners')->times(5)->with(ResponseReceived::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->times(5)->with(m::type(RequestSending::class));
-        $events->shouldReceive('dispatch')->times(5)->with(m::type(ResponseReceived::class));
+        $events->expects('hasListeners')->times(5)->with(RequestSending::class)->andReturn(true);
+        $events->expects('hasListeners')->times(5)->with(ResponseReceived::class)->andReturn(true);
+        $events->expects('dispatch')->times(5)->with(m::type(RequestSending::class));
+        $events->expects('dispatch')->times(5)->with(m::type(ResponseReceived::class));
 
         $factory = new Factory($events);
         $factory->fake();
@@ -3926,10 +4099,10 @@ class HttpClientTest extends TestCase
     {
         Sleep::fake();
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->times(2)->with(RequestSending::class)->andReturn(true);
-        $events->shouldReceive('hasListeners')->times(2)->with(ResponseReceived::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->times(2)->with(m::type(RequestSending::class));
-        $events->shouldReceive('dispatch')->times(2)->with(m::type(ResponseReceived::class));
+        $events->expects('hasListeners')->times(2)->with(RequestSending::class)->andReturn(true);
+        $events->expects('hasListeners')->times(2)->with(ResponseReceived::class)->andReturn(true);
+        $events->expects('dispatch')->times(2)->with(m::type(RequestSending::class));
+        $events->expects('dispatch')->times(2)->with(m::type(ResponseReceived::class));
 
         $factory = new Factory($events);
         $factory->fake([
@@ -3976,10 +4149,10 @@ class HttpClientTest extends TestCase
     public function testClonedClientsWorkSuccessfullyWithTheRequestObject(): void
     {
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(RequestSending::class)->andReturn(true);
-        $events->shouldReceive('hasListeners')->once()->with(ResponseReceived::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->once()->with(m::type(RequestSending::class));
-        $events->shouldReceive('dispatch')->once()->with(m::type(ResponseReceived::class));
+        $events->expects('hasListeners')->with(RequestSending::class)->andReturn(true);
+        $events->expects('hasListeners')->with(ResponseReceived::class)->andReturn(true);
+        $events->expects('dispatch')->with(m::type(RequestSending::class));
+        $events->expects('dispatch')->with(m::type(ResponseReceived::class));
 
         $factory = new Factory($events);
         $factory->fake(['example.com' => $factory->response('foo', 200)]);
@@ -3993,10 +4166,10 @@ class HttpClientTest extends TestCase
     public function testTheConnectionFailedEventIsFiredWhenARequestFailsToConnect(): void
     {
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(RequestSending::class)->andReturn(true);
-        $events->shouldReceive('hasListeners')->once()->with(ConnectionFailedEvent::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->once()->with(m::type(RequestSending::class));
-        $events->shouldReceive('dispatch')->once()->with(m::type(ConnectionFailedEvent::class));
+        $events->expects('hasListeners')->with(RequestSending::class)->andReturn(true);
+        $events->expects('hasListeners')->with(ConnectionFailedEvent::class)->andReturn(true);
+        $events->expects('dispatch')->with(m::type(RequestSending::class));
+        $events->expects('dispatch')->with(m::type(ConnectionFailedEvent::class));
 
         $factory = new Factory($events);
         $factory->fake($factory->failedConnection('Fake'));
@@ -5159,11 +5332,13 @@ class HttpClientTest extends TestCase
         $pendingRequest = new PendingRequest;
 
         $pendingRequest->setHandler(function (): never {
-            throw new GuzzleRequestException(
-                'cURL error 28: Operation timed out',
-                new GuzzleRequest('GET', 'https://timeout.hypervel.example'),
-                new Psr7Response(301)
-            );
+            $message = 'cURL error 28: Operation timed out';
+            $request = new GuzzleRequest('GET', 'https://timeout.hypervel.example');
+            $response = new Psr7Response(301);
+
+            throw class_exists(ResponseException::class)
+                ? new ResponseException($message, $request, $response)
+                : new GuzzleRequestException($message, $request, $response);
         });
 
         $pendingRequest->get('https://timeout.hypervel.example');
@@ -6249,8 +6424,7 @@ class HttpClientTest extends TestCase
         $onStatsFunctionCalled = false;
 
         $client = m::mock(ClientInterface::class);
-        $client->shouldReceive('request')
-            ->once()
+        $client->expects('request')
             ->withArgs(function ($method, $url, $options) {
                 $options['on_stats'](new TransferStats(
                     new \GuzzleHttp\Psr7\Request($method, $url),
@@ -6415,7 +6589,7 @@ class HttpClientTest extends TestCase
         $this->factory->post('http://laravel.com');
 
         $this->assertSame(['Laravel Framework/1.0'], $requests[0]->header('User-Agent'));
-        $this->assertSame(['GuzzleHttp/7'], $requests[1]->header('User-Agent'));
+        $this->assertStringStartsWith('GuzzleHttp/', $requests[1]->header('User-Agent')[0]);
     }
 
     public function testItCanAddResponseMiddleware(): void

@@ -22,7 +22,7 @@ class PreventRequestForgeryTest extends TestCase
         $middleware = $this->createMiddleware();
         $request = $this->createRequest(['HTTP_SEC_FETCH_SITE' => 'same-origin']);
 
-        $response = $middleware->handle($request, fn () => new Response('OK'));
+        $response = $middleware->handle($request, fn (): Response => new Response('OK'));
 
         $this->assertSame('OK', $response->getContent());
     }
@@ -34,7 +34,7 @@ class PreventRequestForgeryTest extends TestCase
 
         $this->expectException(TokenMismatchException::class);
 
-        $middleware->handle($request, fn () => new Response('OK'));
+        $middleware->handle($request, fn (): Response => new Response('OK'));
     }
 
     public function testSameSiteHeaderPassesWhenAllowed(): void
@@ -44,7 +44,7 @@ class PreventRequestForgeryTest extends TestCase
         $middleware = $this->createMiddleware();
         $request = $this->createRequest(['HTTP_SEC_FETCH_SITE' => 'same-site']);
 
-        $response = $middleware->handle($request, fn () => new Response('OK'));
+        $response = $middleware->handle($request, fn (): Response => new Response('OK'));
 
         $this->assertSame('OK', $response->getContent());
     }
@@ -54,7 +54,7 @@ class PreventRequestForgeryTest extends TestCase
         $middleware = $this->createMiddleware();
         $request = $this->createRequest(['HTTP_SEC_FETCH_SITE' => 'cross-site'], 'test-token');
 
-        $response = $middleware->handle($request, fn () => new Response('OK'));
+        $response = $middleware->handle($request, fn (): Response => new Response('OK'));
 
         $this->assertSame('OK', $response->getContent());
     }
@@ -66,7 +66,7 @@ class PreventRequestForgeryTest extends TestCase
 
         $this->expectException(TokenMismatchException::class);
 
-        $middleware->handle($request, fn () => new Response('OK'));
+        $middleware->handle($request, fn (): Response => new Response('OK'));
     }
 
     public function testMissingHeaderWithoutTokenFails(): void
@@ -76,7 +76,7 @@ class PreventRequestForgeryTest extends TestCase
 
         $this->expectException(TokenMismatchException::class);
 
-        $middleware->handle($request, fn () => new Response('OK'));
+        $middleware->handle($request, fn (): Response => new Response('OK'));
     }
 
     public function testArrayTokenIsRejected(): void
@@ -88,7 +88,7 @@ class PreventRequestForgeryTest extends TestCase
 
         $this->expectException(TokenMismatchException::class);
 
-        $middleware->handle($request, fn () => new Response('OK'));
+        $middleware->handle($request, fn (): Response => new Response('OK'));
     }
 
     public function testOriginOnlyModeRejectsCrossSite(): void
@@ -101,7 +101,7 @@ class PreventRequestForgeryTest extends TestCase
 
         $this->expectException(OriginMismatchException::class);
 
-        $middleware->handle($request, fn () => new Response('OK'));
+        $middleware->handle($request, fn (): Response => new Response('OK'));
     }
 
     public function testOriginOnlyModeRejectsMissingHeader(): void
@@ -113,7 +113,7 @@ class PreventRequestForgeryTest extends TestCase
 
         $this->expectException(OriginMismatchException::class);
 
-        $middleware->handle($request, fn () => new Response('OK'));
+        $middleware->handle($request, fn (): Response => new Response('OK'));
     }
 
     public function testOriginOnlyModePassesSameOrigin(): void
@@ -123,7 +123,7 @@ class PreventRequestForgeryTest extends TestCase
         $middleware = $this->createMiddleware();
         $request = $this->createRequest(['HTTP_SEC_FETCH_SITE' => 'same-origin']);
 
-        $response = $middleware->handle($request, fn () => new Response('OK'));
+        $response = $middleware->handle($request, fn (): Response => new Response('OK'));
 
         $this->assertSame('OK', $response->getContent());
     }
