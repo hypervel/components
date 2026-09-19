@@ -3228,6 +3228,8 @@ If necessary, you may pass multiple IDs to the command:
 php artisan queue:retry ce7bb17c-cdd8-41f0-a8ec-7b4fef4e5ece 91401d2c-0784-4f43-824c-34f94a33c24d
 ```
 
+Custom failed-job providers may return a `Collection` or `LazyCollection` from `find()` to retry a group under one ID. Each collection key is passed to the provider's `forget()` method after that job is pushed.
+
 You may also retry all of the failed jobs for a particular queue:
 
 ```shell
