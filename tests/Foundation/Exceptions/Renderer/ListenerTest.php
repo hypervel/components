@@ -16,8 +16,8 @@ class ListenerTest extends TestCase
     {
         $connection = m::mock(Connection::class);
 
-        $connection->shouldReceive('getName')->once()->andReturn('testing');
-        $connection->shouldReceive('prepareBindings')->once()->with(['foo'])->andReturn(['foo']);
+        $connection->expects('getName')->andReturn('testing');
+        $connection->expects('prepareBindings')->with(['foo'])->andReturn(['foo']);
 
         $event = new QueryExecuted('select * from users where id = ?', ['foo'], 5.2, $connection);
 
@@ -48,8 +48,8 @@ class ListenerTest extends TestCase
         $listener = new Listener;
 
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getName')->times(150)->andReturn('testing');
-        $connection->shouldReceive('prepareBindings')->times(100)->andReturnUsing(fn (array $bindings): array => $bindings);
+        $connection->expects('getName')->times(150)->andReturn('testing');
+        $connection->expects('prepareBindings')->times(100)->andReturnUsing(fn (array $bindings): array => $bindings);
 
         for ($index = 0; $index < 150; ++$index) {
             $listener->onQueryExecuted(
@@ -67,8 +67,8 @@ class ListenerTest extends TestCase
         $listener = new Listener;
 
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getName')->once()->andReturn('testing');
-        $connection->shouldReceive('prepareBindings')->once()->andReturnUsing(fn (array $bindings): array => $bindings);
+        $connection->expects('getName')->andReturn('testing');
+        $connection->expects('prepareBindings')->andReturnUsing(fn (array $bindings): array => $bindings);
 
         $largeSql = str_repeat('x', 5000);
         $listener->onQueryExecuted(
@@ -83,8 +83,8 @@ class ListenerTest extends TestCase
         $listener = new Listener;
 
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getName')->once()->andReturn('testing');
-        $connection->shouldReceive('prepareBindings')->once()->andReturnUsing(fn (array $bindings): array => $bindings);
+        $connection->expects('getName')->andReturn('testing');
+        $connection->expects('prepareBindings')->andReturnUsing(fn (array $bindings): array => $bindings);
 
         // Build SQL with 1000 placeholders so truncation to 2000 bytes removes
         // some placeholders and their corresponding bindings.
@@ -108,8 +108,8 @@ class ListenerTest extends TestCase
         $listener = new Listener;
 
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getName')->once()->andReturn('testing');
-        $connection->shouldReceive('prepareBindings')->once()->andReturnUsing(fn (array $bindings): array => $bindings);
+        $connection->expects('getName')->andReturn('testing');
+        $connection->expects('prepareBindings')->andReturnUsing(fn (array $bindings): array => $bindings);
 
         // 1 placeholder but 1000 bindings — only 1 binding should be kept
         $listener->onQueryExecuted(
@@ -124,8 +124,8 @@ class ListenerTest extends TestCase
         $listener = new Listener;
 
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getName')->once()->andReturn('testing');
-        $connection->shouldReceive('prepareBindings')->once()->andReturnUsing(fn (array $bindings): array => $bindings);
+        $connection->expects('getName')->andReturn('testing');
+        $connection->expects('prepareBindings')->andReturnUsing(fn (array $bindings): array => $bindings);
 
         $sql = 'select * from users where name = ?';
         $listener->onQueryExecuted(
@@ -141,8 +141,8 @@ class ListenerTest extends TestCase
         $listener = new Listener;
 
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getName')->once()->andReturn('testing');
-        $connection->shouldReceive('prepareBindings')->once()->andReturnUsing(fn (array $bindings): array => $bindings);
+        $connection->expects('getName')->andReturn('testing');
+        $connection->expects('prepareBindings')->andReturnUsing(fn (array $bindings): array => $bindings);
 
         $listener->onQueryExecuted(
             new QueryExecuted('select count(*) from users', [], 1.0, $connection)
@@ -157,8 +157,8 @@ class ListenerTest extends TestCase
         $listener = new Listener;
 
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getName')->once()->andReturn('testing');
-        $connection->shouldReceive('prepareBindings')->once()->andReturnUsing(fn (array $bindings): array => $bindings);
+        $connection->expects('getName')->andReturn('testing');
+        $connection->expects('prepareBindings')->andReturnUsing(fn (array $bindings): array => $bindings);
 
         $sql = 'select * from users where id = ? and name = ? and email = ?';
         $bindings = [1, 'John', 'john@example.com'];
@@ -177,9 +177,8 @@ class ListenerTest extends TestCase
     public function testLongQueriesAndBindingsAreBounded(): void
     {
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getName')->once()->andReturn('testing');
-        $connection->shouldReceive('prepareBindings')
-            ->once()
+        $connection->expects('getName')->andReturn('testing');
+        $connection->expects('prepareBindings')
             ->with(['first', 'second', 'third'])
             ->andReturn(['first', 'second', 'third']);
 

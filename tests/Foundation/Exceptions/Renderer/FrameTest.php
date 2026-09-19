@@ -62,7 +62,7 @@ class FrameTest extends TestCase
     public static function unixIsFromVendorDataProvider(): iterable
     {
         yield 'vendor file' => [
-            ['file' => '/path/to/your-app/vendor/laravel/framework/src/File.php', 'line' => 10],
+            ['file' => '/path/to/your-app/vendor/hypervel/framework/src/File.php', 'line' => 10],
             '/path/to/your-app',
             true,
         ];
