@@ -25,6 +25,7 @@ use RuntimeException;
 use stdClass;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
+use UnitEnum;
 
 class RetryCommandTest extends TestCase
 {
@@ -389,7 +390,7 @@ class RetryCommandPooledQueue extends NullQueue
 
     public bool $pushed = false;
 
-    public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed
+    public function pushRaw(string $payload, UnitEnum|string|null $queue = null, array $options = []): mixed
     {
         $this->pushed = true;
         $this->options = $options;

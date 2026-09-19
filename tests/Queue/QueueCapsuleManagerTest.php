@@ -11,6 +11,7 @@ use Hypervel\Events\Dispatcher;
 use Hypervel\Queue\Capsule\Manager;
 use Hypervel\Queue\NullQueue;
 use Hypervel\Queue\QueueManager;
+use Hypervel\Tests\Queue\Fixtures\IntegerQueueName;
 use Hypervel\Tests\TestCase;
 
 class QueueCapsuleManagerTest extends TestCase
@@ -42,6 +43,19 @@ class QueueCapsuleManagerTest extends TestCase
 
         $this->assertSame($capsule->getQueueManager(), $queue->manager);
         $this->assertSame(0, $queue->size());
+    }
+
+    public function testStaticDispatchAcceptsEnumQueueAndConnectionNames(): void
+    {
+        $capsule = new Manager;
+        $capsule->addConnection(['driver' => 'sync'], '0');
+        $capsule->setAsGlobal();
+        $job = new QueueCapsuleTestJob;
+        $capsule->getContainer()->instance(QueueCapsuleTestJob::class, $job);
+
+        Manager::push(QueueCapsuleTestJob::class, 'payload', IntegerQueueName::Zero, IntegerQueueName::Zero);
+
+        $this->assertSame(['payload', '0', '0'], $job->received);
     }
 }
 

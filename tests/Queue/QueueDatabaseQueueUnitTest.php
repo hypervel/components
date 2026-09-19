@@ -42,6 +42,8 @@ use Hypervel\Queue\Jobs\InspectedJob;
 use Hypervel\Queue\Queue;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
+use Hypervel\Tests\Queue\Fixtures\IntegerQueueName;
+use Hypervel\Tests\Queue\Fixtures\UnitQueueName;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -83,6 +85,8 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertSame('default', $queue->getQueue(null));
         $this->assertSame('default', $queue->getQueue(''));
         $this->assertSame('0', $queue->getQueue('0'));
+        $this->assertSame('0', $queue->getQueue(IntegerQueueName::Zero));
+        $this->assertSame('Emails', $queue->getQueue(UnitQueueName::Emails));
     }
 
     public function testLockForPoppingUsesThePdoConnectionCapability(): void
@@ -806,10 +810,11 @@ class QueueDatabaseQueueUnitTest extends TestCase
             return $callback($deferredQueue);
         });
 
-        $this->assertTrue($queue->bulk(['immediate', new DatabaseBulkAfterCommitDelayJob], queue: 'emails'));
+        $this->assertTrue($queue->bulk(['immediate', new DatabaseBulkAfterCommitDelayJob], queue: IntegerQueueName::Zero));
         $this->assertFalse($reacquired);
         $this->assertCount(1, $immediateRecords);
         $this->assertSame(1732502704, $immediateRecords[0]['available_at']);
+        $this->assertSame('0', $immediateRecords[0]['queue']);
         $this->assertSame([], $deferredRecords);
 
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(1732502804));
@@ -818,6 +823,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
         $this->assertTrue($reacquired);
         $this->assertCount(1, $deferredRecords);
         $this->assertSame(1732502813, $deferredRecords[0]['available_at']);
+        $this->assertSame('0', $deferredRecords[0]['queue']);
         $this->assertSame(9, json_decode($deferredRecords[0]['payload'], true)['delay']);
         $this->assertSame(1732502704, json_decode($deferredRecords[0]['payload'], true)['createdAt']);
     }

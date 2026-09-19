@@ -104,6 +104,21 @@ ProcessPodcast::dispatch();
 ProcessPodcast::dispatch()->onQueue('emails');
 ```
 
+When dispatching or inspecting jobs, you may also use enums for connection and queue names. Backed enums use their value, while unbacked enums use their case name:
+
+```php
+use Hypervel\Support\Facades\Queue;
+
+enum QueueName: string
+{
+    case Emails = 'emails';
+}
+
+ProcessPodcast::dispatch()->onQueue(QueueName::Emails);
+
+$pending = Queue::connection()->pendingSize(QueueName::Emails);
+```
+
 Some applications may not need to ever push jobs onto multiple queues, instead preferring to have one simple queue. However, pushing jobs to multiple queues can be especially useful for applications that wish to prioritize or segment how jobs are processed, since the Hypervel queue worker allows you to specify which queues it should process by priority. For example, if you push jobs to a `high` queue, you may run a worker that gives them higher processing priority:
 
 ```shell

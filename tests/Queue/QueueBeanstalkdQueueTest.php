@@ -13,6 +13,8 @@ use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Jobs\BeanstalkdJob;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
+use Hypervel\Tests\Queue\Fixtures\IntegerQueueName;
+use Hypervel\Tests\Queue\Fixtures\UnitQueueName;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Pheanstalk\Contract\JobIdInterface;
@@ -40,6 +42,8 @@ class QueueBeanstalkdQueueTest extends TestCase
         $this->assertSame('default', $this->queue->getQueue(null));
         $this->assertSame('default', $this->queue->getQueue(''));
         $this->assertSame('0', $this->queue->getQueue('0'));
+        $this->assertSame('0', $this->queue->getQueue(IntegerQueueName::Zero));
+        $this->assertSame('Emails', $this->queue->getQueue(UnitQueueName::Emails));
     }
 
     public function testSizeIncludesPendingDelayedAndReservedJobsWithOneStatsRequest(): void
@@ -177,7 +181,7 @@ class QueueBeanstalkdQueueTest extends TestCase
 
         $jobId = m::mock(JobIdInterface::class);
         $pheanstalk = $this->queue->getPheanstalk();
-        $pheanstalk->shouldReceive('useTube')->once()->with(m::type(TubeName::class));
+        $pheanstalk->shouldReceive('useTube')->once()->with(m::on(fn (TubeName $tube): bool => $tube->value === '0'));
         $pheanstalk->shouldReceive('put')->once()->andReturn($jobId);
 
         $events = new Dispatcher;
@@ -190,9 +194,10 @@ class QueueBeanstalkdQueueTest extends TestCase
         $container->instance('events', $events);
         $this->queue->setContainer($container);
 
-        $this->assertSame($jobId, $this->queue->push('foo', ['data']));
+        $this->assertSame($jobId, $this->queue->push('foo', ['data'], IntegerQueueName::Zero));
         $this->assertInstanceOf(JobQueued::class, $queuedEvent);
         $this->assertSame($jobId, $queuedEvent->id);
+        $this->assertSame('0', $queuedEvent->queue);
     }
 
     public function testDelayedPushProperlyPushesJobOntoBeanstalkd(): void

@@ -35,6 +35,8 @@ use Hypervel\Tests\Queue\Fixtures\FakeSqsJob;
 use Hypervel\Tests\Queue\Fixtures\FakeSqsJobWithDeduplication;
 use Hypervel\Tests\Queue\Fixtures\FakeSqsJobWithDelayAttribute;
 use Hypervel\Tests\Queue\Fixtures\FakeSqsJobWithMessageGroup;
+use Hypervel\Tests\Queue\Fixtures\IntegerQueueName;
+use Hypervel\Tests\Queue\Fixtures\UnitQueueName;
 use Hypervel\Tests\TestCase;
 use Laravel\SerializableClosure\SerializableClosure;
 use LogicException;
@@ -387,6 +389,8 @@ class QueueSqsQueueTest extends TestCase
         $this->assertEquals($this->queueUrl, $queue->getQueue(null));
         $this->assertEquals($this->queueUrl, $queue->getQueue(''));
         $this->assertEquals($this->prefix . '0', $queue->getQueue('0'));
+        $this->assertSame($this->prefix . '0', $queue->getQueue(IntegerQueueName::Zero));
+        $this->assertSame($this->prefix . 'Emails', $queue->getQueue(UnitQueueName::Emails));
         $queueUrl = $this->baseUrl . '/' . $this->account . '/test';
         $this->assertEquals($queueUrl, $queue->getQueue('test'));
     }
@@ -457,20 +461,20 @@ class QueueSqsQueueTest extends TestCase
     public function testForwardedFifoQueueControlsOptionsAndDelayValidation(): void
     {
         $routes = new QueueRoutes;
-        $routes->forward(['jobs' => 'processing.fifo', 'processing.fifo' => 'archive'], connection: 'sqs');
+        $routes->forward(['0' => 'processing.fifo', 'processing.fifo' => 'archive'], connection: 'sqs');
         Container::getInstance()->instance('queue.routes', $routes);
         $queue = new SqsQueue($this->sqs, 'default', $this->prefix);
         $queue->setConnectionName('sqs');
 
-        $this->assertSame($this->prefix . 'processing.fifo', $queue->getQueue('jobs'));
-        $options = $queue->getQueueableOptions('job', 'jobs', 'payload');
+        $this->assertSame($this->prefix . 'processing.fifo', $queue->getQueue(IntegerQueueName::Zero));
+        $options = $queue->getQueueableOptions('job', IntegerQueueName::Zero, 'payload');
         $this->assertSame('processing.fifo', $options['MessageGroupId']);
         $this->assertArrayHasKey('MessageDeduplicationId', $options);
 
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('SQS FIFO queues do not support per-message delays.');
 
-        $queue->later(10, 'job', '', 'jobs');
+        $queue->later(10, 'job', '', IntegerQueueName::Zero);
     }
 
     public function testGetQueueEnsuresTheQueueIsOnlySuffixedOnce()

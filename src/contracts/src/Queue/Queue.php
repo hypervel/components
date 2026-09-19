@@ -6,68 +6,69 @@ namespace Hypervel\Contracts\Queue;
 
 use DateInterval;
 use DateTimeInterface;
+use UnitEnum;
 
 interface Queue
 {
     /**
      * Get the size of the queue.
      */
-    public function size(?string $queue = null): int;
+    public function size(UnitEnum|string|null $queue = null): int;
 
     /**
      * Get the number of pending jobs.
      */
-    public function pendingSize(?string $queue = null): int;
+    public function pendingSize(UnitEnum|string|null $queue = null): int;
 
     /**
      * Get the number of delayed jobs.
      */
-    public function delayedSize(?string $queue = null): int;
+    public function delayedSize(UnitEnum|string|null $queue = null): int;
 
     /**
      * Get the number of reserved jobs.
      */
-    public function reservedSize(?string $queue = null): int;
+    public function reservedSize(UnitEnum|string|null $queue = null): int;
 
     /**
      * Get the creation timestamp of the oldest pending job, excluding delayed jobs.
      */
-    public function creationTimeOfOldestPendingJob(?string $queue = null): ?int;
+    public function creationTimeOfOldestPendingJob(UnitEnum|string|null $queue = null): ?int;
 
     /**
      * Push a new job onto the queue.
      */
-    public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed;
+    public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed;
 
     /**
      * Push a new job onto the queue.
      */
-    public function pushOn(?string $queue, object|string $job, mixed $data = ''): mixed;
+    public function pushOn(UnitEnum|string|null $queue, object|string $job, mixed $data = ''): mixed;
 
     /**
      * Push a raw payload onto the queue.
      */
-    public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed;
+    public function pushRaw(string $payload, UnitEnum|string|null $queue = null, array $options = []): mixed;
 
     /**
      * Push a new job onto the queue after (n) seconds.
      */
-    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed;
+    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed;
 
     /**
      * Push a new job onto a specific queue after (n) seconds.
      */
-    public function laterOn(?string $queue, DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = ''): mixed;
+    public function laterOn(UnitEnum|string|null $queue, DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = ''): mixed;
 
     /**
      * Push an array of jobs onto the queue.
      */
-    public function bulk(array $jobs, mixed $data = '', ?string $queue = null): mixed;
+    public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed;
 
     /**
      * Pop the next job off of the queue.
      */
-    public function pop(?string $queue = null): ?Job;
+    public function pop(UnitEnum|string|null $queue = null): ?Job;
 
     /**
      * Get the connection name for the queue.

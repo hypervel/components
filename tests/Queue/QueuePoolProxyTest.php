@@ -26,6 +26,7 @@ use Hypervel\Queue\Jobs\SqsJob;
 use Hypervel\Queue\Queue as BaseQueue;
 use Hypervel\Queue\QueuePoolProxy;
 use Hypervel\Support\Collection;
+use Hypervel\Tests\Queue\Fixtures\IntegerQueueName;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Pheanstalk\Contract\JobIdInterface;
@@ -36,6 +37,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
+use UnitEnum;
 
 class QueuePoolProxyTest extends TestCase
 {
@@ -168,8 +170,8 @@ class QueuePoolProxyTest extends TestCase
         $queue = new QueuePoolProxyTestIndexAwareQueue;
         [$proxy, $pools] = $this->proxy(fn () => $queue);
 
-        $this->assertNull($proxy->pop('jobs', 2));
-        $this->assertSame(['jobs', 2], $queue->lastIndexedPop);
+        $this->assertNull($proxy->pop(IntegerQueueName::Zero, 2));
+        $this->assertSame([IntegerQueueName::Zero, 2], $queue->lastIndexedPop);
 
         $pool = $pools->get($proxy->getPoolName());
         $this->assertSame(0, $pool->getBorrowedCount());
@@ -184,8 +186,8 @@ class QueuePoolProxyTest extends TestCase
             proxyClass: ClearableQueuePoolProxy::class,
         );
         /** @var ClearableQueuePoolProxy $proxy */
-        $this->assertSame(3, $proxy->clear('jobs'));
-        $this->assertSame('jobs', $queue->lastClearedQueue);
+        $this->assertSame(3, $proxy->clear(IntegerQueueName::Zero));
+        $this->assertSame(IntegerQueueName::Zero, $queue->lastClearedQueue);
 
         $pool = $pools->get($proxy->getPoolName());
         $this->assertSame(0, $pool->getBorrowedCount());
@@ -546,7 +548,7 @@ class QueuePoolProxyTest extends TestCase
 
 class QueuePoolProxyTestQueue extends BaseQueue implements QueueContract
 {
-    /** @var list<null|int|string> */
+    /** @var list<null|int|string|UnitEnum> */
     public array $lastPopArguments = [];
 
     public function __construct(
@@ -555,37 +557,37 @@ class QueuePoolProxyTestQueue extends BaseQueue implements QueueContract
     ) {
     }
 
-    public function size(?string $queue = null): int
+    public function size(UnitEnum|string|null $queue = null): int
     {
         return 0;
     }
 
-    public function pendingSize(?string $queue = null): int
+    public function pendingSize(UnitEnum|string|null $queue = null): int
     {
         return 0;
     }
 
-    public function delayedSize(?string $queue = null): int
+    public function delayedSize(UnitEnum|string|null $queue = null): int
     {
         return 0;
     }
 
-    public function reservedSize(?string $queue = null): int
+    public function reservedSize(UnitEnum|string|null $queue = null): int
     {
         return 0;
     }
 
-    public function pendingJobs(?string $queue = null): Collection
+    public function pendingJobs(UnitEnum|string|null $queue = null): Collection
     {
         return new Collection;
     }
 
-    public function delayedJobs(?string $queue = null): Collection
+    public function delayedJobs(UnitEnum|string|null $queue = null): Collection
     {
         return new Collection;
     }
 
-    public function reservedJobs(?string $queue = null): Collection
+    public function reservedJobs(UnitEnum|string|null $queue = null): Collection
     {
         return new Collection;
     }
@@ -605,22 +607,22 @@ class QueuePoolProxyTestQueue extends BaseQueue implements QueueContract
         return new Collection;
     }
 
-    public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
+    public function creationTimeOfOldestPendingJob(UnitEnum|string|null $queue = null): ?int
     {
         return null;
     }
 
-    public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         return null;
     }
 
-    public function pushOn(?string $queue, object|string $job, mixed $data = ''): mixed
+    public function pushOn(UnitEnum|string|null $queue, object|string $job, mixed $data = ''): mixed
     {
         return null;
     }
 
-    public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed
+    public function pushRaw(string $payload, UnitEnum|string|null $queue = null, array $options = []): mixed
     {
         return null;
     }
@@ -629,13 +631,13 @@ class QueuePoolProxyTestQueue extends BaseQueue implements QueueContract
         DateInterval|DateTimeInterface|int $delay,
         object|string $job,
         mixed $data = '',
-        ?string $queue = null,
+        UnitEnum|string|null $queue = null,
     ): mixed {
         return null;
     }
 
     public function laterOn(
-        ?string $queue,
+        UnitEnum|string|null $queue,
         DateInterval|DateTimeInterface|int $delay,
         object|string $job,
         mixed $data = '',
@@ -643,12 +645,12 @@ class QueuePoolProxyTestQueue extends BaseQueue implements QueueContract
         return null;
     }
 
-    public function bulk(array $jobs, mixed $data = '', ?string $queue = null): mixed
+    public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         return null;
     }
 
-    public function pop(?string $queue = null): ?JobContract
+    public function pop(UnitEnum|string|null $queue = null): ?JobContract
     {
         $this->lastPopArguments = func_get_args();
 
@@ -682,10 +684,10 @@ class QueuePoolProxyTestQueue extends BaseQueue implements QueueContract
 
 class QueuePoolProxyTestIndexAwareQueue extends QueuePoolProxyTestQueue implements IndexAwareQueue
 {
-    /** @var null|array{null|string, int} */
+    /** @var null|array{null|string|UnitEnum, int} */
     public ?array $lastIndexedPop = null;
 
-    public function pop(?string $queue = null, int $index = 0): ?JobContract
+    public function pop(UnitEnum|string|null $queue = null, int $index = 0): ?JobContract
     {
         $this->lastIndexedPop = [$queue, $index];
 
@@ -695,9 +697,9 @@ class QueuePoolProxyTestIndexAwareQueue extends QueuePoolProxyTestQueue implemen
 
 class QueuePoolProxyTestClearableQueue extends QueuePoolProxyTestQueue implements ClearableQueue
 {
-    public ?string $lastClearedQueue = null;
+    public UnitEnum|string|null $lastClearedQueue = null;
 
-    public function clear(?string $queue): int
+    public function clear(UnitEnum|string|null $queue): int
     {
         $this->lastClearedQueue = $queue;
 

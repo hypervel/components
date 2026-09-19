@@ -24,6 +24,7 @@ use Hypervel\Support\Facades\Redis;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Queue\Fixtures\IntegerQueueName;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
@@ -933,21 +934,21 @@ class RedisQueueTest extends TestCase
 
     public function testForwardedJobIsReleasedToTheSameDestination(): void
     {
-        $this->setQueue('reports');
+        $this->setQueue('default');
         $destinationKey = $this->getQueueRedisKey('processing');
         $otherKey = $this->getQueueRedisKey('archive');
-        $this->app->make('queue.routes')->forward(['reports' => 'processing', 'processing' => 'archive']);
+        $this->app->make('queue.routes')->forward(['0' => 'processing', 'processing' => 'archive']);
 
-        $this->queue->push(new RedisQueueIntegrationTestJob(10));
-        $job = $this->queue->pop();
+        $this->queue->push(new RedisQueueIntegrationTestJob(10), queue: IntegerQueueName::Zero);
+        $job = $this->queue->pop(IntegerQueueName::Zero);
 
         $this->assertInstanceOf(RedisJob::class, $job);
-        $this->assertSame('reports', $job->getQueue());
+        $this->assertSame('0', $job->getQueue());
         $job->release(0);
 
         $this->assertSame(1, $this->redisConnection()->zcard($destinationKey . ':delayed'));
         $this->assertSame(0, $this->redisConnection()->zcard($otherKey . ':delayed'));
-        $retried = $this->queue->pop();
+        $retried = $this->queue->pop(IntegerQueueName::Zero);
         $this->assertInstanceOf(RedisJob::class, $retried);
         $this->assertSame($job->getJobId(), $retried->getJobId());
         $this->assertSame(2, $retried->attempts());

@@ -23,10 +23,13 @@ use Hypervel\Queue\LuaScripts;
 use Hypervel\Queue\Queue;
 use Hypervel\Queue\QueueRoutes;
 use Hypervel\Queue\RedisQueue;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use Hypervel\Tests\Queue\Fixtures\IntegerQueueName;
+use Hypervel\Tests\Queue\Fixtures\UnitQueueName;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -619,6 +622,9 @@ class QueueRedisQueueTest extends TestCase
         $this->assertSame('queues:default', $queue->getQueue(''));
         $this->assertSame('queues:0', $queue->getQueue('0'));
         $this->assertSame('queues:emails', $queue->getQueue('emails'));
+        $this->assertSame('queues:emails', $queue->getQueue(RedisQueueName::Emails));
+        $this->assertSame('queues:Emails', $queue->getQueue(UnitQueueName::Emails));
+        $this->assertSame('queues:0', $queue->getQueue(IntegerQueueName::Zero));
     }
 
     public function testGetQueueRemainsUnchangedForCluster(): void
@@ -949,6 +955,41 @@ class QueueRedisQueueTest extends TestCase
         $this->assertTrue($queue->testIsClusterConnection());
     }
 
+    public function testSizeResolvesTheQueueNameFromAnEnum(): void
+    {
+        $redis = m::mock(Redis::class);
+        $connection = m::mock(RedisProxy::class);
+        $redis->expects('connection')->twice()->with(null)->andReturn($connection);
+        $connection->expects('isCluster')->andReturnFalse();
+        $connection->expects('eval')->with(
+            LuaScripts::size(),
+            3,
+            'queues:emails',
+            'queues:emails:delayed',
+            'queues:emails:reserved'
+        )->andReturn(5);
+        $queue = new RedisQueue($redis, 'default');
+
+        $this->assertSame(5, $queue->size(RedisQueueName::Emails));
+    }
+
+    public function testPendingJobsResolvesTheQueueNameFromAnEnum(): void
+    {
+        $redis = m::mock(Redis::class);
+        $proxy = m::mock(RedisProxy::class);
+        $connection = m::mock(RedisConnection::class);
+        $redis->expects('connection')->with(null)->andReturn($proxy);
+        $proxy->expects('withConnection')->with(m::type('Closure'), false)
+            ->andReturnUsing(static fn (callable $callback): Collection => $callback($connection));
+        $connection->expects('isCluster')->andReturnFalse();
+        $connection->expects('lrange')->with('queues:emails', 0, -1)->andReturn([
+            json_encode(['uuid' => 'uuid', 'displayName' => 'foo', 'job' => 'foo', 'data' => []]),
+        ]);
+        $queue = new RedisQueue($redis, 'default');
+
+        $this->assertSame('emails', $queue->pendingJobs(RedisQueueName::Emails)->first()->queue);
+    }
+
     protected function mockUuid(): Uuid
     {
         $uuid = Str::uuid();
@@ -965,6 +1006,11 @@ class QueueRedisQueueTest extends TestCase
 
         return $connection;
     }
+}
+
+enum RedisQueueName: string
+{
+    case Emails = 'emails';
 }
 
 class TestableRedisQueue extends RedisQueue
