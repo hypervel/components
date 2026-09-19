@@ -275,10 +275,11 @@ class EventsDispatcherTest extends TestCase
         $this->assertEquals([0, [], '', null], $response);
     }
 
-    public function testContainerResolutionOfEventHandlers()
+    public function testContainerResolutionOfEventHandlers(): void
     {
-        $d = new Dispatcher($container = m::mock(Container::class));
-        $container->shouldReceive('make')->once()->with(TestEventListener::class)->andReturn(new TestEventListener);
+        $container = m::mock(Container::class);
+        $container->expects('make')->with(TestEventListener::class)->andReturn(new TestEventListener);
+        $d = new Dispatcher($container);
         $d->listen('foo', TestEventListener::class . '@onFooEvent');
         $response = $d->dispatch('foo', ['foo', 'bar']);
 
@@ -422,7 +423,7 @@ class EventsDispatcherTest extends TestCase
         $this->assertEquals(['regular', 'wildcard'], $response);
     }
 
-    public function testAddingWildcardListenerChangesResolvedListeners()
+    public function testWildcardListenersCacheFlushing(): void
     {
         unset($_SERVER['__event.test']);
         $d = new Dispatcher;
@@ -465,7 +466,7 @@ class EventsDispatcherTest extends TestCase
         $this->assertFalse(isset($_SERVER['__event.test']));
     }
 
-    public function testForgettingWildcardRemovesResolvedListeners()
+    public function testWildcardCacheIsClearedWhenListenersAreRemoved(): void
     {
         unset($_SERVER['__event.test']);
 
@@ -991,7 +992,7 @@ class EventsDispatcherTest extends TestCase
         unset($_SERVER['__event.test']);
     }
 
-    public function testListenerObjectCreationIsLazy()
+    public function testListenerObjectCreationIsLazy(): void
     {
         $d = new Dispatcher;
         $d->listen(TestEvent::class, TestListener1::class);
@@ -1520,9 +1521,8 @@ class EventsDispatcherTest extends TestCase
         $events = m::mock(Dispatcher::class);
         Container::getInstance()->instance('events', $events);
 
-        $events->shouldReceive('dispatch')
-            ->once()
-            ->with(m::on(function ($event): bool {
+        $events->expects('dispatch')
+            ->with(m::on(function (mixed $event): bool {
                 $this->assertInstanceOf(DispatchableNamedArgumentsEvent::class, $event);
                 $this->assertSame('first-value', $event->first);
                 $this->assertSame('second-value', $event->second);
