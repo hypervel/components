@@ -85,9 +85,7 @@ class RateLimited
      */
     protected function handleJob(mixed $job, callable $next, array $limits, Limiter $limiter): mixed
     {
-        foreach ($limits as $limit) {
-            $result = $limiter->consume($limit, $this->limiterName);
-
+        foreach ($limiter->consumeMany(array_values($limits), $this->limiterName) as $result) {
             if ($result->denied()) {
                 return $this->shouldRelease
                     ? $job->release($this->releaseAfter ?? $result->retryAfter() + 3)
