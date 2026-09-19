@@ -3988,6 +3988,77 @@ class HttpClientTest extends TestCase
         );
     }
 
+    public function testGlobalConfigurationCanBeDisabledForRequestsCreatedWithinCallback(): void
+    {
+        $this->factory->fake();
+        $this->factory->globalOptions(['force_ip_resolve' => 'v4']);
+        $this->factory->globalRequestMiddleware(fn (RequestInterface $request): RequestInterface => $request->withHeader('X-Global', 'Foo'));
+
+        $request = $this->factory->withoutGlobalConfiguration(fn (): PendingRequest => $this->factory->createPendingRequest());
+        $request->get('http://hypervel.com/agent');
+
+        $this->factory->createPendingRequest()->get('http://hypervel.com/global');
+
+        $this->assertArrayNotHasKey('force_ip_resolve', $request->getOptions());
+        $this->factory->assertSent(fn (Request $request): bool => $request->url() === 'http://hypervel.com/agent' && ! $request->hasHeader('X-Global'));
+        $this->factory->assertSent(fn (Request $request): bool => $request->url() === 'http://hypervel.com/global' && $request->hasHeader('X-Global'));
+    }
+
+    public function testGlobalConfigurationIsRestoredAfterWithoutGlobalConfigurationCallback(): void
+    {
+        $middleware = fn (callable $handler): callable => $handler;
+
+        $this->factory->globalOptions(['force_ip_resolve' => 'v4']);
+        $this->factory->globalMiddleware($middleware);
+
+        try {
+            $this->factory->withoutGlobalConfiguration(function (): never {
+                throw new Exception('boom');
+            });
+        } catch (Exception) {
+        }
+
+        $this->assertSame('v4', $this->factory->createPendingRequest()->getOptions()['force_ip_resolve']);
+        $this->assertSame([$middleware], $this->factory->getGlobalMiddleware());
+    }
+
+    public function testGlobalConfigurationSuppressionIsScopedToTheFactoryAndCoroutine(): void
+    {
+        $middleware = fn (callable $handler): callable => $handler;
+        $optionsResolved = 0;
+        $this->factory->globalOptions(function () use (&$optionsResolved): array {
+            ++$optionsResolved;
+
+            return ['force_ip_resolve' => 'v4'];
+        });
+        $this->factory->globalMiddleware($middleware);
+        $otherFactory = (new Factory)->globalOptions(['force_ip_resolve' => 'v6']);
+
+        run(function () use ($middleware, $otherFactory, &$optionsResolved): void {
+            $results = $this->factory->withoutGlobalConfiguration(fn (): array => parallel([
+                fn (): array => $this->factory->withoutGlobalConfiguration(function () use ($otherFactory): array {
+                    $this->factory->withoutGlobalConfiguration(fn (): PendingRequest => $this->factory->createPendingRequest());
+                    usleep(5000);
+
+                    return [
+                        $this->factory->createPendingRequest()->getOptions()['force_ip_resolve'] ?? null,
+                        $this->factory->getGlobalMiddleware(),
+                        $otherFactory->createPendingRequest()->getOptions()['force_ip_resolve'],
+                    ];
+                }),
+                fn (): array => [
+                    $this->factory->createPendingRequest()->getOptions()['force_ip_resolve'],
+                    $this->factory->getGlobalMiddleware(),
+                ],
+            ]));
+
+            $this->assertSame([[null, [], 'v6'], ['v4', [$middleware]]], $results);
+            $this->assertSame(1, $optionsResolved);
+            $this->assertSame('v4', $this->factory->createPendingRequest()->getOptions()['force_ip_resolve']);
+            $this->assertSame([$middleware], $this->factory->getGlobalMiddleware());
+        });
+    }
+
     public function testTheRequestSendingAndResponseReceivedEventsAreFiredWhenARequestIsSent(): void
     {
         $events = m::mock(Dispatcher::class);

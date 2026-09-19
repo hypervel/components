@@ -699,6 +699,16 @@ public function boot(): void
 
 Global options remain active for the lifetime of the worker, so they should not be changed during request handling.
 
+To create requests without global options or middleware, use the `withoutGlobalConfiguration` method. HTTP fakes and stray-request protection still apply:
+
+```php
+$response = Http::withoutGlobalConfiguration(
+    fn () => Http::get('https://example.com/users')
+);
+```
+
+The callback affects only the current coroutine. For parallel requests, call `withoutGlobalConfiguration` inside each task.
+
 <a name="telescope-recording"></a>
 ### Telescope Recording
 
