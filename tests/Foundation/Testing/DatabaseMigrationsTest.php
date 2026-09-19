@@ -46,18 +46,16 @@ class DatabaseMigrationsTest extends TestCase
         return [];
     }
 
-    public function testRefreshTestDatabaseDefault()
+    public function testRefreshTestDatabaseDefault(): void
     {
         $kernel = m::mock(KernelContract::class);
-        $kernel->shouldReceive('call')
-            ->once()
+        $kernel->expects('call')
             ->with('migrate:fresh', [
                 '--drop-views' => false,
                 '--drop-types' => false,
                 '--seed' => false,
             ])->andReturn(0);
-        $kernel->shouldReceive('call')
-            ->once()
+        $kernel->expects('call')
             ->with('migrate:rollback', [])
             ->andReturn(0);
         $this->app = new Application;
@@ -67,20 +65,18 @@ class DatabaseMigrationsTest extends TestCase
         $this->runDatabaseMigrations();
     }
 
-    public function testRefreshTestDatabaseWithDropViewsOption()
+    public function testRefreshTestDatabaseWithDropViewsOption(): void
     {
         $this->dropViews = true;
 
         $kernel = m::mock(KernelContract::class);
-        $kernel->shouldReceive('call')
-            ->once()
+        $kernel->expects('call')
             ->with('migrate:fresh', [
                 '--drop-views' => true,
                 '--drop-types' => false,
                 '--seed' => false,
             ])->andReturn(0);
-        $kernel->shouldReceive('call')
-            ->once()
+        $kernel->expects('call')
             ->with('migrate:rollback', [])
             ->andReturn(0);
         $this->app = new Application;
@@ -90,20 +86,18 @@ class DatabaseMigrationsTest extends TestCase
         $this->runDatabaseMigrations();
     }
 
-    public function testRefreshTestDatabaseWithDropTypesOption()
+    public function testRefreshTestDatabaseWithDropTypesOption(): void
     {
         $this->dropTypes = true;
 
         $kernel = m::mock(KernelContract::class);
-        $kernel->shouldReceive('call')
-            ->once()
+        $kernel->expects('call')
             ->with('migrate:fresh', [
                 '--drop-views' => false,
                 '--drop-types' => true,
                 '--seed' => false,
             ])->andReturn(0);
-        $kernel->shouldReceive('call')
-            ->once()
+        $kernel->expects('call')
             ->with('migrate:rollback', [])
             ->andReturn(0);
         $this->app = new Application;
@@ -113,20 +107,18 @@ class DatabaseMigrationsTest extends TestCase
         $this->runDatabaseMigrations();
     }
 
-    public function testRefreshTestDatabaseWithSeedOption()
+    public function testRefreshTestDatabaseWithSeedOption(): void
     {
         $this->seed = true;
 
         $kernel = m::mock(KernelContract::class);
-        $kernel->shouldReceive('call')
-            ->once()
+        $kernel->expects('call')
             ->with('migrate:fresh', [
                 '--drop-views' => false,
                 '--drop-types' => false,
                 '--seed' => true,
             ])->andReturn(0);
-        $kernel->shouldReceive('call')
-            ->once()
+        $kernel->expects('call')
             ->with('migrate:rollback', [])
             ->andReturn(0);
         $this->app = new Application;
@@ -136,20 +128,18 @@ class DatabaseMigrationsTest extends TestCase
         $this->runDatabaseMigrations();
     }
 
-    public function testRefreshTestDatabaseWithSeederOption()
+    public function testRefreshTestDatabaseWithSeederOption(): void
     {
         $this->seeder = 'seeder';
 
         $kernel = m::mock(KernelContract::class);
-        $kernel->shouldReceive('call')
-            ->once()
+        $kernel->expects('call')
             ->with('migrate:fresh', [
                 '--drop-views' => false,
                 '--drop-types' => false,
                 '--seeder' => 'seeder',
             ])->andReturn(0);
-        $kernel->shouldReceive('call')
-            ->once()
+        $kernel->expects('call')
             ->with('migrate:rollback', [])
             ->andReturn(0);
         $this->app = new Application;

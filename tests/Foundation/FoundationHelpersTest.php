@@ -207,19 +207,19 @@ class FoundationHelpersTest extends TestCase
         $this->assertInstanceOf(CacheManager::class, cache());
 
         // cache(['foo' => 'bar'], 1) puts
-        $cache->shouldReceive('put')->once()->with('foo', 'bar', 1);
+        $cache->expects('put')->with('foo', 'bar', 1);
         cache(['foo' => 'bar'], 1);
 
         // cache('foo') gets
-        $cache->shouldReceive('get')->once()->with('foo', null)->andReturn('bar');
+        $cache->expects('get')->with('foo', null)->andReturn('bar');
         $this->assertSame('bar', cache('foo'));
 
         // cache('foo', null) gets with null default
-        $cache->shouldReceive('get')->once()->with('foo', null)->andReturn('bar');
+        $cache->expects('get')->with('foo', null)->andReturn('bar');
         $this->assertSame('bar', cache('foo', null));
 
         // cache('baz', 'default') gets with default
-        $cache->shouldReceive('get')->once()->with('baz', 'default')->andReturn('default');
+        $cache->expects('get')->with('baz', 'default')->andReturn('default');
         $this->assertSame('default', cache('baz', 'default'));
     }
 
@@ -237,19 +237,19 @@ class FoundationHelpersTest extends TestCase
     {
         $manager = m::mock(LogManager::class);
         $logger = m::mock(LoggerInterface::class);
-        $manager->shouldReceive('driver')->once()->with('0')->andReturn($logger);
+        $manager->expects('driver')->with('0')->andReturn($logger);
         $this->app->instance('log', $manager);
 
         $this->assertSame($logger, logs('0'));
         $this->assertSame($manager, logs());
     }
 
-    public function testEvents()
+    public function testEvents(): void
     {
         $dispatcher = m::mock(Dispatcher::class);
         $this->app->instance('events', $dispatcher);
 
-        $dispatcher->shouldReceive('dispatch')->once()->with('test.event', ['payload'], false)->andReturn('foo');
+        $dispatcher->expects('dispatch')->with('test.event', ['payload'], false)->andReturn('foo');
         $this->assertSame('foo', event('test.event', ['payload'], false));
     }
 
