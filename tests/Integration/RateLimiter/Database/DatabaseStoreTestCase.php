@@ -240,18 +240,58 @@ abstract class DatabaseStoreTestCase extends DatabaseTestCase
     public function testConcurrentFirstUseAdmitsExactlyTheConfiguredCapacity(): void
     {
         $store = $this->store();
-        $key = str_repeat('h', 32);
         $policy = Limit::perMinute(5);
-        $operations = [];
 
-        for ($index = 0; $index < 10; ++$index) {
-            $operations[] = static fn (): bool => $store->consume($key, $policy)->allowed();
+        foreach ([false, true] as $group) {
+            $key = str_repeat($group ? 'k' : 'h', 32);
+            $globalKey = str_repeat('m', 32);
+            $operations = [];
+
+            for ($index = 0; $index < 10; ++$index) {
+                $policies = [
+                    ['key' => $globalKey, 'policy' => Limit::perMinute(100)],
+                    ['key' => $key, 'policy' => $policy],
+                ];
+
+                if ($index % 2 === 1) {
+                    $policies = array_reverse($policies);
+                }
+
+                $operations[] = static function () use ($store, $key, $policy, $group, $policies): bool {
+                    if (! $group) {
+                        return $store->consume($key, $policy)->allowed();
+                    }
+
+                    $results = $store->consumeMany($policies);
+
+                    return end($results)->allowed();
+                };
+            }
+
+            $results = parallel($operations);
+
+            $this->assertSame(5, count(array_filter($results)));
+            $this->assertSame(5, (int) DB::table('rate_limits')->where('key', $key)->value('value'));
+
+            if ($group) {
+                $this->assertSame(5, (int) DB::table('rate_limits')->where('key', $globalKey)->value('value'));
+            }
         }
+    }
 
-        $results = parallel($operations);
+    public function testDeniedRepeatedKeysLeaveTheStoredCapacityUnchanged(): void
+    {
+        $limiter = $this->rateLimiterStoreContract();
+        $policy = Limit::perMinute(10)->by('repeated-denial');
+        $limiter->consume($policy->cost(7));
 
-        $this->assertSame(5, count(array_filter($results)));
-        $this->assertSame(5, (int) DB::table('rate_limits')->where('key', $key)->value('value'));
+        $results = $limiter->consumeMany([$policy->cost(2), $policy->cost(2)]);
+
+        $this->assertTrue($results[0]->allowed());
+        $this->assertSame(3, $results[0]->remaining());
+        $this->assertTrue($results[1]->denied());
+        $this->assertSame(3, $results[1]->remaining());
+        $this->assertSame(3, $limiter->inspect($policy)->remaining());
     }
 
     public function testConcurrentSlidingWindowFirstUseAdmitsExactlyTheConfiguredCapacity(): void
