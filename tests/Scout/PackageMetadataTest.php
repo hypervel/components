@@ -46,6 +46,7 @@ class PackageMetadataTest extends TestCase
             'hypervel/pagination',
             'hypervel/queue',
             'hypervel/support',
+            'psr/http-client',
             'psr/http-message',
             'symfony/console',
         ] as $dependency) {
@@ -54,7 +55,7 @@ class PackageMetadataTest extends TestCase
             $this->assertNotSame('', trim($composer['require'][$dependency]));
         }
 
-        foreach (['guzzlehttp/guzzle', 'psr/http-message'] as $dependency) {
+        foreach (['guzzlehttp/guzzle', 'psr/http-client', 'psr/http-message'] as $dependency) {
             $this->assertArrayHasKey($dependency, $rootComposer['require']);
             $this->assertSame($rootComposer['require'][$dependency], $composer['require'][$dependency]);
         }

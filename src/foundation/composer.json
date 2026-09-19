@@ -35,6 +35,7 @@
         "monolog/monolog": "^3.4",
         "nesbot/carbon": "^3.13.1",
         "psr/clock": "^1.0",
+        "psr/log": "^3.0",
         "symfony/console": "^8.1",
         "symfony/error-handler": "^8.1",
         "symfony/finder": "^8.1",
