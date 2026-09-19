@@ -18,7 +18,6 @@ use Hypervel\Contracts\Foundation\ExceptionRenderer;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
-use Hypervel\Database\MultipleRecordsFoundException;
 use Hypervel\Database\RecordNotFoundException;
 use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Foundation\Exceptions\Renderer\Renderer;
@@ -181,7 +180,6 @@ class Handler implements ExceptionHandlerContract
         HttpException::class,
         HttpResponseException::class,
         ModelNotFoundException::class,
-        MultipleRecordsFoundException::class,
         OriginMismatchException::class,
         RecordNotFoundException::class,
         RecordsNotFoundException::class,
