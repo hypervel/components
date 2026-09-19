@@ -39,7 +39,7 @@ class JsonResourceTest extends TestCase
 
         $resource = m::mock(JsonResource::class, ['resource' => $model])
             ->makePartial()
-            ->shouldReceive('jsonSerialize')->andReturn(['foo' => 'bar'])
+            ->expects('jsonSerialize')->andReturn(['foo' => 'bar'])
             ->getMock();
 
         // Simulate a JSON error
@@ -56,7 +56,7 @@ class JsonResourceTest extends TestCase
 
         $resource = m::mock(JsonResource::class, ['resource' => $model])
             ->makePartial()
-            ->shouldReceive('jsonSerialize')->andReturn(['foo' => 'bar', 'bar' => 'foo', 'number' => 123])
+            ->expects('jsonSerialize')->times(3)->andReturn(['foo' => 'bar', 'bar' => 'foo', 'number' => 123])
             ->getMock();
 
         $results = $resource->toPrettyJson();

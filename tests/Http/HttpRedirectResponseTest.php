@@ -33,17 +33,19 @@ class HttpRedirectResponseTest extends TestCase
     {
         $response = new RedirectResponse('foo.bar');
         $response->setRequest(Request::create('/', 'GET', ['name' => 'Taylor', 'age' => 26]));
-        $response->setSession($session = m::mock(Store::class));
-        $session->shouldReceive('flash')->once()->with('0', 'name');
-        $session->shouldReceive('flash')->once()->with('1', 'age');
+        $session = m::mock(Store::class);
+        $response->setSession($session);
+        $session->expects('flash')->with('0', 'name');
+        $session->expects('flash')->with('1', 'age');
         $response->with(['name', 'age']);
     }
 
     public function testWithAssociativeArrayOnRedirect(): void
     {
         $response = new RedirectResponse('foo.bar');
-        $response->setSession($session = m::mock(Store::class));
-        $session->shouldReceive('flash')->once()->with('name', 'Taylor');
+        $session = m::mock(Store::class);
+        $session->expects('flash')->with('name', 'Taylor');
+        $response->setSession($session);
         $response->with(['name' => 'Taylor']);
     }
 
@@ -76,8 +78,9 @@ class HttpRedirectResponseTest extends TestCase
     {
         $response = new RedirectResponse('foo.bar');
         $response->setRequest(Request::create('/', 'GET', ['name' => 'Taylor', 'age' => 26]));
-        $response->setSession($session = m::mock(Store::class));
-        $session->shouldReceive('flashInput')->once()->with(['name' => 'Taylor', 'age' => 26]);
+        $session = m::mock(Store::class);
+        $session->expects('flashInput')->with(['name' => 'Taylor', 'age' => 26]);
+        $response->setSession($session);
         $response->withInput();
     }
 
@@ -97,8 +100,9 @@ class HttpRedirectResponseTest extends TestCase
     {
         $response = new RedirectResponse('foo.bar');
         $response->setRequest(Request::create('/', 'GET', ['name' => 'Taylor', 'age' => 26]));
-        $response->setSession($session = m::mock(Store::class));
-        $session->shouldReceive('flashInput')->once()->with(['name' => 'Taylor']);
+        $session = m::mock(Store::class);
+        $session->expects('flashInput')->with(['name' => 'Taylor']);
+        $response->setSession($session);
         $response->onlyInput('name');
     }
 
@@ -106,8 +110,9 @@ class HttpRedirectResponseTest extends TestCase
     {
         $response = new RedirectResponse('foo.bar');
         $response->setRequest(Request::create('/', 'GET', ['name' => 'Taylor', 'age' => 26]));
-        $response->setSession($session = m::mock(Store::class));
-        $session->shouldReceive('flashInput')->once()->with(['name' => 'Taylor']);
+        $session = m::mock(Store::class);
+        $session->expects('flashInput')->with(['name' => 'Taylor']);
+        $response->setSession($session);
         $response->exceptInput('age');
     }
 
@@ -115,11 +120,12 @@ class HttpRedirectResponseTest extends TestCase
     {
         $response = new RedirectResponse('foo.bar');
         $response->setRequest(Request::create('/', 'GET', ['name' => 'Taylor', 'age' => 26]));
-        $response->setSession($session = m::mock(Store::class));
-        $session->shouldReceive('get')->with('errors', m::type(ViewErrorBag::class))->andReturn(new ViewErrorBag);
-        $session->shouldReceive('flash')->once()->with('errors', m::type(ViewErrorBag::class));
+        $session = m::mock(Store::class);
+        $session->expects('get')->with('errors', m::type(ViewErrorBag::class))->andReturn(new ViewErrorBag);
+        $session->expects('flash')->with('errors', m::type(ViewErrorBag::class));
+        $response->setSession($session);
         $provider = m::mock(MessageProvider::class);
-        $provider->shouldReceive('getMessageBag')->once()->andReturn(new MessageBag);
+        $provider->expects('getMessageBag')->andReturn(new MessageBag);
         $response->withErrors($provider);
     }
 
@@ -204,9 +210,10 @@ class HttpRedirectResponseTest extends TestCase
     {
         $response = new RedirectResponse('foo.bar');
         $response->setRequest(Request::create('/', 'GET', ['name' => 'Taylor', 'age' => 26]));
-        $response->setSession($session = m::mock(Store::class));
-        $session->shouldReceive('get')->with('errors', m::type(ViewErrorBag::class))->andReturn(new ViewErrorBag);
-        $session->shouldReceive('flash')->once()->with('errors', m::type(ViewErrorBag::class));
+        $session = m::mock(Store::class);
+        $session->expects('get')->with('errors', m::type(ViewErrorBag::class))->andReturn(new ViewErrorBag);
+        $session->expects('flash')->with('errors', m::type(ViewErrorBag::class));
+        $response->setSession($session);
         $provider = ['foo' => 'bar'];
         $response->withErrors($provider);
     }
@@ -215,8 +222,9 @@ class HttpRedirectResponseTest extends TestCase
     {
         $response = new RedirectResponse('foo.bar');
         $response->setRequest(Request::create('/', 'GET', ['name' => 'Taylor', 'age' => 26]));
-        $response->setSession($session = m::mock(Store::class));
-        $session->shouldReceive('flash')->once()->with('foo', 'bar');
+        $session = m::mock(Store::class);
+        $session->expects('flash')->with('foo', 'bar');
+        $response->setSession($session);
         $response->withFoo('bar');
     }
 
