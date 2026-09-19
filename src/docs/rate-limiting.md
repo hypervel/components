@@ -14,6 +14,7 @@
     - [Unlimited](#unlimited)
 - [Using the Rate Limiter](#using-the-rate-limiter)
     - [Consuming Capacity](#consuming-capacity)
+    - [Consuming Multiple Limits](#consuming-multiple-limits)
     - [Inspecting State](#inspecting-state)
     - [Attempting Operations](#attempting-operations)
     - [Clearing State](#clearing-state)
@@ -323,6 +324,32 @@ A `LimitResult` provides:
 
 Durations are rounded up, ensuring a caller is never instructed to retry before capacity is actually available.
 
+<a name="consuming-multiple-limits"></a>
+### Consuming Multiple Limits
+
+Use `consumeMany` when an operation must satisfy several limits, such as an application-wide quota and a customer quota:
+
+```php
+$results = RateLimiter::consumeMany([
+    Limit::perHour(1000)->by('application')->globally(),
+    Limit::perHour(10)->by('customer:'.$customer->id),
+]);
+
+foreach ($results as $result) {
+    if ($result->denied()) {
+        return 'Try again in '.$result->retryAfter().' seconds.';
+    }
+}
+
+// Perform the operation...
+```
+
+Results follow the supplied order and stop at the first denied limit. If any limit denies the operation, the group consumes no capacity. Repeating the same limit combines its costs; `Unlimited` entries require no storage. You may pass a named limiter as the second argument, just as with `consume`.
+
+Standalone Redis handles a group in a single round trip once its script is cached. A group containing only one non-unlimited limit uses the same operation as `consume`.
+
+On Redis Cluster, keys remain distributed across slots. The store checks each limit before consuming them individually, requiring up to two calls per limit. A denial during the initial checks consumes nothing, but a denial during consumption can leave earlier charges. This can occur when another request consumes capacity between the two passes, or when repeated keys exhaust their combined capacity.
+
 <a name="inspecting-state"></a>
 ### Inspecting State
 
@@ -491,16 +518,26 @@ Custom drivers implement `Hypervel\RateLimiter\Contracts\Store`. The contract co
 use Hypervel\RateLimiter\AdmissionPolicy;
 use Hypervel\RateLimiter\Backoff;
 use Hypervel\RateLimiter\BackoffResult;
+use Hypervel\RateLimiter\Cooldown;
+use Hypervel\RateLimiter\CooldownResult;
 use Hypervel\RateLimiter\LimitResult;
 
 interface Store
 {
     public function consume(string $key, AdmissionPolicy $policy): LimitResult;
 
+    /**
+     * @param list<array{key: string, policy: AdmissionPolicy}> $policies
+     * @return list<LimitResult>
+     */
+    public function consumeMany(array $policies): array;
+
+    public function block(string $key, int $durationMicroseconds): CooldownResult;
+
     public function inspect(
         string $key,
-        AdmissionPolicy|Backoff $policy,
-    ): LimitResult|BackoffResult;
+        AdmissionPolicy|Backoff|Cooldown $policy,
+    ): LimitResult|BackoffResult|CooldownResult;
 
     public function recordFailure(string $key, Backoff $backoff): BackoffResult;
 
@@ -509,6 +546,8 @@ interface Store
 ```
 
 A custom store receives validated `Limit`, `SlidingWindow`, and `LeakyBucket` objects through the `AdmissionPolicy` type, while backoff operations receive a `Backoff` instance. The `$key` has already been hashed to a fixed length. The `consume` method must check and consume capacity atomically, while `inspect` must not change state. The `recordFailure` method updates backoff state, and `clear` removes state for a key. Custom stores should return the same decisions and timing values as Hypervel's built-in stores.
+
+The `consumeMany` method evaluates entries in order, including repeated keys, and returns results through the first denial. Store all accepted changes together; on denial, leave capacity unchanged and report remaining capacity without the discarded charges. The `block` method extends a cooldown without shortening an existing block.
 
 If your custom store retains expired state, it may also implement `Hypervel\RateLimiter\Contracts\PrunableStore` so it can be targeted by the `rate-limiter:prune` command.
 
