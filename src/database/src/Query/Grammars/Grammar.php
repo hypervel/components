@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Query\Grammars;
 
+use Closure;
 use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Concerns\CompilesJsonPaths;
@@ -1146,6 +1147,25 @@ class Grammar extends BaseGrammar
     }
 
     /**
+     * Group update values by column in order of first appearance.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    protected function groupJsonColumnsForUpdate(array $values): array
+    {
+        $groups = [];
+
+        foreach ($values as $key => $value) {
+            // Qualified and unqualified references must share one assignment.
+            $column = last(explode('.', explode('->', $key, 2)[0]));
+
+            $groups[$column][$key] = $value;
+        }
+
+        return $groups;
+    }
+
+    /**
      * Compile an update statement without joins into SQL.
      */
     protected function compileUpdateWithoutJoins(Builder $query, string $table, string $columns, string $where): string
@@ -1185,6 +1205,35 @@ class Grammar extends BaseGrammar
         return array_values(
             array_merge($bindings['join'], $values, Arr::flatten($cleanBindings))
         );
+    }
+
+    /**
+     * Prepare the bindings for an update statement with joins.
+     */
+    public function prepareBindingsForUpdateWithJoins(array $bindings, array $values): array
+    {
+        return $this->prepareBindingsForUpdate($bindings, $values);
+    }
+
+    /**
+     * Prepare update values in column order, encoding JSON assignments.
+     */
+    protected function prepareValueBindingsForUpdate(array $values): array
+    {
+        $bindings = [];
+
+        foreach ($this->groupJsonColumnsForUpdate($values) as $group) {
+            foreach ($group as $key => $value) {
+                // Subquery closures contain SQL bindings, not a JSON value to encode.
+                $bindings[] = $value instanceof Closure
+                    ? $value()
+                    : (is_array($value) || ($this->isJsonSelector($key) && ! $this->isExpression($value))
+                        ? json_encode($value, JSON_THROW_ON_ERROR)
+                        : $value);
+            }
+        }
+
+        return Arr::flatten($bindings);
     }
 
     /**

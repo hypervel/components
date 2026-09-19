@@ -336,9 +336,9 @@ class DatabaseEloquentCollectionTest extends TestCase
         $c = $this->getMockBuilder(Collection::class)->onlyMethods(['first'])->setConstructorArgs([['foo']])->getMock();
         $mockItem = m::mock(stdClass::class);
         $c->expects($this->once())->method('first')->willReturn($mockItem);
-        $mockItem->shouldReceive('newQueryWithoutRelationships')->once()->andReturn($mockItem);
+        $mockItem->expects('newQueryWithoutRelationships')->andReturn($mockItem);
         $mockItem->expects('with')->with(['bar', 'baz'])->andReturn($mockItem);
-        $mockItem->shouldReceive('eagerLoadRelations')->once()->with(['foo'])->andReturn(['results']);
+        $mockItem->expects('eagerLoadRelations')->with(['foo'])->andReturn(['results']);
         $c->load('bar', 'baz');
 
         $this->assertEquals(['results'], $c->all());
@@ -946,8 +946,8 @@ class DatabaseEloquentCollectionTest extends TestCase
         $c = new Collection([$one, $two]);
 
         $mocBuilder = m::mock(Builder::class);
-        $one->shouldReceive('newModelQuery')->once()->andReturn($mocBuilder);
-        $mocBuilder->shouldReceive('whereKey')->once()->with($c->modelKeys())->andReturn($mocBuilder);
+        $one->expects('newModelQuery')->andReturn($mocBuilder);
+        $mocBuilder->expects('whereKey')->with($c->modelKeys())->andReturn($mocBuilder);
         $this->assertInstanceOf(Builder::class, $c->toQuery());
     }
 
@@ -962,8 +962,8 @@ class DatabaseEloquentCollectionTest extends TestCase
     public function testConvertingCollectionWithoutModelKeysToQueryThrowsException(): void
     {
         $model = m::mock(CollectionModel::class)->makePartial();
-        $model->shouldReceive('getKey')->once()->andReturn(null);
-        $model->shouldReceive('getKeyName')->once()->andReturn('id');
+        $model->expects('getKey')->andReturn(null);
+        $model->expects('getKeyName')->andReturn('id');
         $model->shouldNotReceive('newModelQuery');
 
         $this->expectException(MissingAttributeException::class);

@@ -480,7 +480,7 @@ class Migrator
         $previousContext = CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
 
         try {
-            CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $connection->getName());
+            CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $connection->getNameWithReadWriteType());
 
             $migration->{$method}();
         } finally {

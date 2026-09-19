@@ -18,7 +18,7 @@ class AuthListenersSendEmailVerificationNotificationHandleFunctionTest extends T
     {
         $user = m::mock(Authenticatable::class, MustVerifyEmail::class);
         $user->shouldReceive('hasVerifiedEmail')->andReturn(false);
-        $user->shouldReceive('sendEmailVerificationNotification')->once();
+        $user->expects('sendEmailVerificationNotification');
 
         $listener = new SendEmailVerificationNotification;
 

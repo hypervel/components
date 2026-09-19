@@ -15,87 +15,95 @@ use Symfony\Component\Console\Output\NullOutput;
 
 class DatabaseMigrationRollbackCommandTest extends TestCase
 {
-    public function testRollbackCommandCallsMigratorWithProperArguments()
+    public function testRollbackCommandCallsMigratorWithProperArguments(): void
     {
+        $migrator = m::mock(Migrator::class);
+        $command = new RollbackCommand($migrator);
         $app = new ApplicationDatabaseRollbackStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
-        $command = new RollbackCommand($migrator = m::mock(Migrator::class));
         $command->setHypervel($app);
-        $migrator->shouldReceive('paths')->once()->andReturn([]);
-        $migrator->shouldReceive('usingConnection')->once()->andReturnUsing(function ($name, $callback) {
+        $migrator->expects('paths')->andReturn([]);
+        $migrator->expects('usingConnection')->andReturnUsing(function (?string $name, callable $callback): mixed {
             return $callback();
         });
-        $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
-        $migrator->shouldReceive('rollback')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => 0, 'batch' => 0]);
+        $migrator->expects('setOutput')->andReturn($migrator);
+        $migrator->expects('rollback')->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => 0, 'batch' => 0]);
 
         $this->runCommand($command);
     }
 
-    public function testRollbackCommandCallsMigratorWithStepOption()
+    public function testRollbackCommandCallsMigratorWithStepOption(): void
     {
+        $migrator = m::mock(Migrator::class);
+        $command = new RollbackCommand($migrator);
         $app = new ApplicationDatabaseRollbackStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
-        $command = new RollbackCommand($migrator = m::mock(Migrator::class));
         $command->setHypervel($app);
-        $migrator->shouldReceive('paths')->once()->andReturn([]);
-        $migrator->shouldReceive('usingConnection')->once()->andReturnUsing(function ($name, $callback) {
+        $migrator->expects('paths')->andReturn([]);
+        $migrator->expects('usingConnection')->andReturnUsing(function (?string $name, callable $callback): mixed {
             return $callback();
         });
-        $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
-        $migrator->shouldReceive('rollback')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => 2, 'batch' => 0]);
+        $migrator->expects('setOutput')->andReturn($migrator);
+        $migrator->expects('rollback')->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => 2, 'batch' => 0]);
 
         $this->runCommand($command, ['--step' => 2]);
     }
 
-    public function testRollbackCommandCanBePretended()
+    public function testRollbackCommandCanBePretended(): void
     {
+        $migrator = m::mock(Migrator::class);
+        $command = new RollbackCommand($migrator);
         $app = new ApplicationDatabaseRollbackStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
-        $command = new RollbackCommand($migrator = m::mock(Migrator::class));
         $command->setHypervel($app);
-        $migrator->shouldReceive('paths')->once()->andReturn([]);
-        $migrator->shouldReceive('usingConnection')->once()->andReturnUsing(function ($name, $callback) {
+        $migrator->expects('paths')->andReturn([]);
+        $migrator->expects('usingConnection')->andReturnUsing(function (?string $name, callable $callback): mixed {
             return $callback();
         });
-        $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
-        $migrator->shouldReceive('rollback')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => true, 'step' => 0, 'batch' => 0]);
+        $migrator->expects('setOutput')->andReturn($migrator);
+        $migrator->expects('rollback')->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => true, 'step' => 0, 'batch' => 0]);
 
         $this->runCommand($command, ['--pretend' => true, '--database' => 'foo']);
     }
 
-    public function testRollbackCommandCanBePretendedWithStepOption()
+    public function testRollbackCommandCanBePretendedWithStepOption(): void
     {
+        $migrator = m::mock(Migrator::class);
+        $command = new RollbackCommand($migrator);
         $app = new ApplicationDatabaseRollbackStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
-        $command = new RollbackCommand($migrator = m::mock(Migrator::class));
         $command->setHypervel($app);
-        $migrator->shouldReceive('paths')->once()->andReturn([]);
-        $migrator->shouldReceive('usingConnection')->once()->andReturnUsing(function ($name, $callback) {
+        $migrator->expects('paths')->andReturn([]);
+        $migrator->expects('usingConnection')->andReturnUsing(function (?string $name, callable $callback): mixed {
             return $callback();
         });
-        $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
-        $migrator->shouldReceive('rollback')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => true, 'step' => 2, 'batch' => 0]);
+        $migrator->expects('setOutput')->andReturn($migrator);
+        $migrator->expects('rollback')->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => true, 'step' => 2, 'batch' => 0]);
 
         $this->runCommand($command, ['--pretend' => true, '--database' => 'foo', '--step' => 2]);
     }
 
     public function testRollbackCommandCallsMigratorWithBatchOption(): void
     {
+        $migrator = m::mock(Migrator::class);
+        $command = new RollbackCommand($migrator);
         $app = new ApplicationDatabaseRollbackStub(['path.database' => __DIR__]);
         $app->useDatabasePath(__DIR__);
-        $command = new RollbackCommand($migrator = m::mock(Migrator::class));
         $command->setHypervel($app);
-        $migrator->shouldReceive('paths')->once()->andReturn([]);
-        $migrator->shouldReceive('usingConnection')->once()->andReturnUsing(function ($name, $callback) {
+        $migrator->expects('paths')->andReturn([]);
+        $migrator->expects('usingConnection')->andReturnUsing(function (?string $name, callable $callback): mixed {
             return $callback();
         });
-        $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
-        $migrator->shouldReceive('rollback')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => 0, 'batch' => 3]);
+        $migrator->expects('setOutput')->andReturn($migrator);
+        $migrator->expects('rollback')->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => 0, 'batch' => 3]);
 
         $this->runCommand($command, ['--batch' => 3]);
     }
 
-    protected function runCommand($command, $input = [])
+    /**
+     * Run the rollback command.
+     */
+    protected function runCommand(RollbackCommand $command, array $input = []): int
     {
         return $command->run(new ArrayInput($input), new NullOutput);
     }
@@ -103,6 +111,9 @@ class DatabaseMigrationRollbackCommandTest extends TestCase
 
 class ApplicationDatabaseRollbackStub extends Application
 {
+    /**
+     * Create a new test application instance.
+     */
     public function __construct(array $data = [])
     {
         $mutex = m::mock(CommandMutex::class);
@@ -118,7 +129,10 @@ class ApplicationDatabaseRollbackStub extends Application
         static::setInstance($this);
     }
 
-    public function environment(...$environments): bool|string
+    /**
+     * Get the application environment.
+     */
+    public function environment(array|string ...$environments): bool|string
     {
         return 'development';
     }

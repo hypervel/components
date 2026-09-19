@@ -13,34 +13,32 @@ use Mockery as m;
 
 class DatabaseMySQLSchemaBuilderTest extends TestCase
 {
-    public function testHasTable()
+    public function testHasTable(): void
     {
         $connection = m::mock(Connection::class);
         $grammar = m::mock(MySqlGrammar::class);
-        $connection->shouldReceive('getDatabaseName')->andReturn('db');
-        $connection->shouldReceive('getSchemaGrammar')->andReturn($grammar);
+        $connection->expects('getSchemaGrammar')->andReturn($grammar);
         $builder = new MySqlBuilder($connection);
-        $grammar->shouldReceive('compileTableExists')->once()->andReturn('sql');
-        $connection->shouldReceive('getTablePrefix')->once()->andReturn('prefix_');
-        $connection->shouldReceive('selectFromWriteConnection')->once()->with('sql')->andReturn([['exists' => 1]]);
+        $grammar->expects('compileTableExists')->andReturn('sql');
+        $connection->expects('getTablePrefix')->andReturn('prefix_');
+        $connection->expects('selectFromWriteConnection')->with('sql')->andReturn([['exists' => 1]]);
 
         $this->assertTrue($builder->hasTable('table'));
     }
 
-    public function testGetColumnListing()
+    public function testGetColumnListing(): void
     {
         $connection = m::mock(Connection::class);
         $grammar = m::mock(MySqlGrammar::class);
         $processor = m::mock(MySqlProcessor::class);
-        $connection->shouldReceive('getDatabaseName')->andReturn('db');
-        $connection->shouldReceive('getSchemaGrammar')->andReturn($grammar);
-        $connection->shouldReceive('getPostProcessor')->andReturn($processor);
-        $grammar->shouldReceive('compileColumns')->with(null, 'prefix_table')->once()->andReturn('sql');
-        $processor->shouldReceive('processColumns')->once()->andReturn([['name' => 'column']]);
+        $connection->expects('getSchemaGrammar')->andReturn($grammar);
+        $connection->expects('getPostProcessor')->andReturn($processor);
+        $grammar->expects('compileColumns')->with(null, 'prefix_table')->andReturn('sql');
+        $processor->expects('processColumns')->andReturn([['name' => 'column']]);
         $builder = new MySqlBuilder($connection);
-        $connection->shouldReceive('getTablePrefix')->once()->andReturn('prefix_');
-        $connection->shouldReceive('selectFromWriteConnection')->once()->with('sql')->andReturn([['name' => 'column']]);
+        $connection->expects('getTablePrefix')->andReturn('prefix_');
+        $connection->expects('selectFromWriteConnection')->with('sql')->andReturn([['name' => 'column']]);
 
-        $this->assertEquals(['column'], $builder->getColumnListing('table'));
+        $this->assertSame(['column'], $builder->getColumnListing('table'));
     }
 }

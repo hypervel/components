@@ -103,8 +103,8 @@ class DatabaseConnectionTest extends TestCase
     {
         $queryConnection = new PdoConnection(new PDO('sqlite::memory:'));
         $queryConnection->setEventDispatcher($queryEvents = m::mock(Dispatcher::class));
-        $queryEvents->shouldReceive('hasListeners')->once()->with(QueryExecuted::class)->andReturn(true);
-        $queryEvents->shouldReceive('dispatch')->once()->with(m::on(
+        $queryEvents->expects('hasListeners')->with(QueryExecuted::class)->andReturn(true);
+        $queryEvents->expects('dispatch')->with(m::on(
             static fn (object $event): bool => $event instanceof QueryExecuted
                 && $event->connectionName === null
         ));
@@ -113,8 +113,8 @@ class DatabaseConnectionTest extends TestCase
 
         $transactionConnection = new PdoConnection(new PDO('sqlite::memory:'));
         $transactionConnection->setEventDispatcher($transactionEvents = m::mock(Dispatcher::class));
-        $transactionEvents->shouldReceive('hasListeners')->once()->with(TransactionBeginning::class)->andReturn(true);
-        $transactionEvents->shouldReceive('dispatch')->once()->with(m::on(
+        $transactionEvents->expects('hasListeners')->with(TransactionBeginning::class)->andReturn(true);
+        $transactionEvents->expects('dispatch')->with(m::on(
             static fn (object $event): bool => $event instanceof TransactionBeginning
                 && $event->connectionName === null
         ));
@@ -312,6 +312,7 @@ class DatabaseConnectionTest extends TestCase
             ['name' => 'analytics', 'driver' => 'http']
         );
         $fresh->driverGeneration = 'fresh';
+        $connection->setReadWriteType('write');
 
         $connection->refreshFrom($fresh);
 
@@ -320,6 +321,7 @@ class DatabaseConnectionTest extends TestCase
         $this->assertSame(1, $connection->forgetCalls);
         $this->assertTrue($connection->driverResourcesPresent);
         $this->assertSame('fresh', $connection->driverGeneration);
+        $this->assertSame('analytics::write', $connection->getNameWithReadWriteType());
 
         $connection->setDatabaseName('tenant_analytics');
         $connection->setTablePrefix('tenant_');
@@ -351,12 +353,14 @@ class DatabaseConnectionTest extends TestCase
         $connection->setDatabaseName('tenant_analytics');
         $connection->setTablePrefix('tenant_');
         $connection->setLatestReadWriteTypeForTest('write');
+        $connection->setReadWriteType('write');
 
         $connection->resetForPool();
 
         $this->assertSame('derived_analytics', $connection->getDatabaseName());
         $this->assertSame('derived_', $connection->getTablePrefix());
         $this->assertNull($connection->latestReadWriteTypeForTest());
+        $this->assertSame('analytics', $connection->getNameWithReadWriteType());
 
         $writeConnection = new NeutralConnectionForTest(
             'analytics',
@@ -368,10 +372,12 @@ class DatabaseConnectionTest extends TestCase
             ]
         );
         $writeConnection->setLatestReadWriteTypeForTest('read');
+        $writeConnection->setReadWriteType('read');
 
         $writeConnection->resetForPool();
 
         $this->assertSame('write', $writeConnection->latestReadWriteTypeForTest());
+        $this->assertSame('analytics::write', $writeConnection->getNameWithReadWriteType());
     }
 
     public function testNeutralNestedConcurrencyFailureInvalidatesOnceWithoutRollingBackTheDriver(): void
@@ -782,8 +788,8 @@ class DatabaseConnectionTest extends TestCase
         );
         $connection->setEventDispatcher($events = m::mock(Dispatcher::class));
         $event = null;
-        $events->shouldReceive('hasListeners')->once()->with(QueryFailed::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->once()->withArgs(
+        $events->expects('hasListeners')->with(QueryFailed::class)->andReturnTrue();
+        $events->expects('dispatch')->withArgs(
             static function (QueryFailed $dispatched) use (&$event): bool {
                 $event = $dispatched;
 
@@ -823,8 +829,8 @@ class DatabaseConnectionTest extends TestCase
         });
         $connection->setEventDispatcher($events = m::mock(Dispatcher::class));
         $event = null;
-        $events->shouldReceive('hasListeners')->once()->with(QueryFailed::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->once()->withArgs(
+        $events->expects('hasListeners')->with(QueryFailed::class)->andReturnTrue();
+        $events->expects('dispatch')->withArgs(
             static function (QueryFailed $dispatched) use (&$event): bool {
                 $event = $dispatched;
 
@@ -854,8 +860,8 @@ class DatabaseConnectionTest extends TestCase
         $connection = $this->getMockConnection();
         $connection->setEventDispatcher($events = m::mock(Dispatcher::class));
         $event = null;
-        $events->shouldReceive('hasListeners')->once()->with(QueryFailed::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->once()->withArgs(
+        $events->expects('hasListeners')->with(QueryFailed::class)->andReturnTrue();
+        $events->expects('dispatch')->withArgs(
             static function (QueryFailed $dispatched) use (&$event): bool {
                 $event = $dispatched;
 
@@ -886,8 +892,8 @@ class DatabaseConnectionTest extends TestCase
         $connection->setReconnector(static function (Connection $connection): void {
         });
         $connection->setEventDispatcher($events = m::mock(Dispatcher::class));
-        $events->shouldReceive('hasListeners')->once()->with(QueryExecuted::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->once()->with(m::type(QueryExecuted::class));
+        $events->expects('hasListeners')->with(QueryExecuted::class)->andReturnTrue();
+        $events->expects('dispatch')->with(m::type(QueryExecuted::class));
         $events->shouldNotReceive('dispatch')->with(m::type(QueryFailed::class));
         $attempts = 0;
 
@@ -912,7 +918,7 @@ class DatabaseConnectionTest extends TestCase
         $method = (new ReflectionClass(Connection::class))->getMethod('run');
         $connection = $this->getMockConnection();
         $connection->setEventDispatcher($events = m::mock(Dispatcher::class));
-        $events->shouldReceive('hasListeners')->once()->with(QueryFailed::class)->andReturnFalse();
+        $events->expects('hasListeners')->with(QueryFailed::class)->andReturnFalse();
         $events->shouldNotReceive('dispatch');
 
         $this->expectException(QueryException::class);
@@ -935,8 +941,8 @@ class DatabaseConnectionTest extends TestCase
             $bindings = [2];
         });
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(QueryExecuted::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->once()->andReturnUsing(
+        $events->expects('hasListeners')->with(QueryExecuted::class)->andReturnTrue();
+        $events->expects('dispatch')->andReturnUsing(
             static function (QueryExecuted $dispatched) use (&$event): void {
                 $event = $dispatched;
             },
@@ -1038,8 +1044,8 @@ class DatabaseConnectionTest extends TestCase
             ++$reconnects;
         });
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(QueryExecuted::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->once()->with(m::type(QueryExecuted::class));
+        $events->expects('hasListeners')->with(QueryExecuted::class)->andReturnTrue();
+        $events->expects('dispatch')->with(m::type(QueryExecuted::class));
         $connection->setEventDispatcher($events);
 
         $stream = $this->runStreamingQuery($connection, static function () use ($connection, &$attempts): Generator {
@@ -1071,8 +1077,8 @@ class DatabaseConnectionTest extends TestCase
         });
         $event = null;
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(QueryFailed::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->once()->andReturnUsing(
+        $events->expects('hasListeners')->with(QueryFailed::class)->andReturnTrue();
+        $events->expects('dispatch')->andReturnUsing(
             static function (QueryFailed $dispatched) use (&$event): void {
                 $event = $dispatched;
             },
@@ -1108,8 +1114,8 @@ class DatabaseConnectionTest extends TestCase
         $failure = new RuntimeException('server has gone away');
         $event = null;
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(QueryFailed::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->once()->andReturnUsing(
+        $events->expects('hasListeners')->with(QueryFailed::class)->andReturnTrue();
+        $events->expects('dispatch')->andReturnUsing(
             static function (QueryFailed $dispatched) use (&$event): void {
                 $event = $dispatched;
             },
@@ -1502,11 +1508,11 @@ class DatabaseConnectionTest extends TestCase
     public function testPrepareBindings()
     {
         $date = m::mock(DateTime::class);
-        $date->shouldReceive('format')->once()->with('foo')->andReturn('bar');
+        $date->expects('format')->with('foo')->andReturn('bar');
         $bindings = ['test' => $date];
         $conn = $this->getMockConnection();
         $grammar = m::mock(Grammar::class);
-        $grammar->shouldReceive('getDateFormat')->once()->andReturn('foo');
+        $grammar->expects('getDateFormat')->andReturn('foo');
         $conn->setQueryGrammar($grammar);
         $result = $conn->prepareBindings($bindings);
         $this->assertEquals(['test' => 'bar'], $result);
@@ -1561,8 +1567,8 @@ class DatabaseConnectionTest extends TestCase
         $publicationFailure = new RuntimeException('manager begin failure');
         $cleanupFailure = new RuntimeException('manager rollback failure');
         $manager = m::mock(DatabaseTransactionsManager::class);
-        $manager->shouldReceive('begin')->once()->with('default', 1)->andThrow($publicationFailure);
-        $manager->shouldReceive('rollback')->once()->with('default', 0)->andThrow($cleanupFailure);
+        $manager->expects('begin')->with('default', 1)->andThrow($publicationFailure);
+        $manager->expects('rollback')->with('default', 0)->andThrow($cleanupFailure);
         $connection->setTransactionManager($manager);
 
         try {
@@ -1582,8 +1588,8 @@ class DatabaseConnectionTest extends TestCase
         $publicationFailure = new RuntimeException('manager begin failure');
         $cancellation = new CanceledException('rollback cleanup canceled');
         $manager = m::mock(DatabaseTransactionsManager::class);
-        $manager->shouldReceive('begin')->once()->with('default', 1)->andThrow($publicationFailure);
-        $manager->shouldReceive('rollback')->once()->with('default', 0)->andThrow($cancellation);
+        $manager->expects('begin')->with('default', 1)->andThrow($publicationFailure);
+        $manager->expects('rollback')->with('default', 0)->andThrow($cancellation);
         $connection->setTransactionManager($manager);
 
         try {
@@ -1603,8 +1609,8 @@ class DatabaseConnectionTest extends TestCase
         $cancellation = new CanceledException('manager begin canceled');
         $cleanupCancellation = new CanceledException('manager rollback canceled');
         $manager = m::mock(DatabaseTransactionsManager::class);
-        $manager->shouldReceive('begin')->once()->with('default', 1)->andThrow($cancellation);
-        $manager->shouldReceive('rollback')->once()->with('default', 0)->andThrow($cleanupCancellation);
+        $manager->expects('begin')->with('default', 1)->andThrow($cancellation);
+        $manager->expects('rollback')->with('default', 0)->andThrow($cleanupCancellation);
         $connection->setTransactionManager($manager);
 
         try {
@@ -1625,9 +1631,9 @@ class DatabaseConnectionTest extends TestCase
         $connection->setTransactionManager($manager);
         $failure = new RuntimeException('began listener failure');
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(TransactionBeginning::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->once()->with(m::type(TransactionBeginning::class))->andThrow($failure);
-        $events->shouldReceive('hasListeners')->once()->with(TransactionRolledBack::class)->andReturn(false);
+        $events->expects('hasListeners')->with(TransactionBeginning::class)->andReturn(true);
+        $events->expects('dispatch')->with(m::type(TransactionBeginning::class))->andThrow($failure);
+        $events->expects('hasListeners')->with(TransactionRolledBack::class)->andReturn(false);
         $connection->setEventDispatcher($events);
 
         try {
@@ -1649,10 +1655,10 @@ class DatabaseConnectionTest extends TestCase
         $connection->setTransactionManager($manager);
         $failure = new RuntimeException('committing listener failure');
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(TransactionBeginning::class)->andReturn(false);
-        $events->shouldReceive('hasListeners')->once()->with(TransactionCommitting::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->once()->with(m::type(TransactionCommitting::class))->andThrow($failure);
-        $events->shouldReceive('hasListeners')->once()->with(TransactionRolledBack::class)->andReturn(false);
+        $events->expects('hasListeners')->with(TransactionBeginning::class)->andReturn(false);
+        $events->expects('hasListeners')->with(TransactionCommitting::class)->andReturn(true);
+        $events->expects('dispatch')->with(m::type(TransactionCommitting::class))->andThrow($failure);
+        $events->expects('hasListeners')->with(TransactionRolledBack::class)->andReturn(false);
         $connection->setEventDispatcher($events);
 
         try {
@@ -1748,8 +1754,8 @@ class DatabaseConnectionTest extends TestCase
         $failure = new RuntimeException('transaction callback failure');
         $cancellation = new CanceledException('rollback cleanup canceled');
         $manager = m::mock(DatabaseTransactionsManager::class);
-        $manager->shouldReceive('begin')->once()->with('default', 1);
-        $manager->shouldReceive('rollback')->once()->with('default', 0)->andThrow($cancellation);
+        $manager->expects('begin')->with('default', 1);
+        $manager->expects('rollback')->with('default', 0)->andThrow($cancellation);
         $connection->setTransactionManager($manager);
 
         try {
@@ -1769,8 +1775,8 @@ class DatabaseConnectionTest extends TestCase
         $cancellation = new CanceledException('transaction callback canceled');
         $cleanupCancellation = new CanceledException('rollback cleanup canceled');
         $manager = m::mock(DatabaseTransactionsManager::class);
-        $manager->shouldReceive('begin')->once()->with('default', 1);
-        $manager->shouldReceive('rollback')->once()->with('default', 0)->andThrow($cleanupCancellation);
+        $manager->expects('begin')->with('default', 1);
+        $manager->expects('rollback')->with('default', 0)->andThrow($cleanupCancellation);
         $connection->setTransactionManager($manager);
 
         try {
@@ -1837,7 +1843,7 @@ class DatabaseConnectionTest extends TestCase
         $cancellation = new CanceledException('nested rollback cleanup canceled');
         $manager = m::mock(DatabaseTransactionsManager::class);
         $manager->shouldReceive('begin')->twice();
-        $manager->shouldReceive('rollback')->once()->with('analytics', 1)->andThrow($cancellation);
+        $manager->expects('rollback')->with('analytics', 1)->andThrow($cancellation);
         $connection->setTransactionManager($manager);
         $connection->beginTransaction();
         $failure = new QueryException(
@@ -1867,8 +1873,8 @@ class DatabaseConnectionTest extends TestCase
         $connection->beginTransaction();
         $failure = new RuntimeException('committing listener failure');
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(TransactionCommitting::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->once()->with(m::type(TransactionCommitting::class))->andThrow($failure);
+        $events->expects('hasListeners')->with(TransactionCommitting::class)->andReturn(true);
+        $events->expects('dispatch')->with(m::type(TransactionCommitting::class))->andThrow($failure);
         $connection->setEventDispatcher($events);
 
         try {
@@ -1890,17 +1896,16 @@ class DatabaseConnectionTest extends TestCase
         $connection = $this->getSqliteTransactionConnection();
         $failure = new RuntimeException('after commit callback failure');
         $manager = m::mock(DatabaseTransactionsManager::class);
-        $manager->shouldReceive('begin')->once()->with('default', 1);
-        $manager->shouldReceive('commit')->once()->with('default', 1, 0)->andThrow($failure);
+        $manager->expects('begin')->with('default', 1);
+        $manager->expects('commit')->with('default', 1, 0)->andThrow($failure);
         $connection->setTransactionManager($manager);
         $connection->beginTransaction();
 
         $eventDispatched = false;
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(TransactionCommitting::class)->andReturn(false);
-        $events->shouldReceive('hasListeners')->once()->with(TransactionCommitted::class)->andReturn(true);
-        $events->shouldReceive('dispatch')
-            ->once()
+        $events->expects('hasListeners')->with(TransactionCommitting::class)->andReturn(false);
+        $events->expects('hasListeners')->with(TransactionCommitted::class)->andReturn(true);
+        $events->expects('dispatch')
             ->with(m::type(TransactionCommitted::class))
             ->andReturnUsing(function () use (&$eventDispatched): void {
                 $eventDispatched = true;
@@ -1924,12 +1929,12 @@ class DatabaseConnectionTest extends TestCase
         $connection = $this->getSqliteTransactionConnection();
         $cancellation = new CanceledException('manager commit canceled');
         $manager = m::mock(DatabaseTransactionsManager::class);
-        $manager->shouldReceive('begin')->once()->with('default', 1);
-        $manager->shouldReceive('commit')->once()->with('default', 1, 0)->andThrow($cancellation);
+        $manager->expects('begin')->with('default', 1);
+        $manager->expects('commit')->with('default', 1, 0)->andThrow($cancellation);
         $connection->setTransactionManager($manager);
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(TransactionBeginning::class)->andReturn(false);
-        $events->shouldReceive('hasListeners')->once()->with(TransactionCommitting::class)->andReturn(false);
+        $events->expects('hasListeners')->with(TransactionBeginning::class)->andReturn(false);
+        $events->expects('hasListeners')->with(TransactionCommitting::class)->andReturn(false);
         $events->shouldNotReceive('hasListeners')->with(TransactionCommitted::class);
         $connection->setEventDispatcher($events);
 
@@ -1950,14 +1955,14 @@ class DatabaseConnectionTest extends TestCase
         $managerFailure = new RuntimeException('manager commit failure');
         $cancellation = new CanceledException('committed event canceled');
         $manager = m::mock(DatabaseTransactionsManager::class);
-        $manager->shouldReceive('begin')->once()->with('default', 1);
-        $manager->shouldReceive('commit')->once()->with('default', 1, 0)->andThrow($managerFailure);
+        $manager->expects('begin')->with('default', 1);
+        $manager->expects('commit')->with('default', 1, 0)->andThrow($managerFailure);
         $connection->setTransactionManager($manager);
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(TransactionBeginning::class)->andReturn(false);
-        $events->shouldReceive('hasListeners')->once()->with(TransactionCommitting::class)->andReturn(false);
-        $events->shouldReceive('hasListeners')->once()->with(TransactionCommitted::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->once()->with(m::type(TransactionCommitted::class))->andThrow($cancellation);
+        $events->expects('hasListeners')->with(TransactionBeginning::class)->andReturn(false);
+        $events->expects('hasListeners')->with(TransactionCommitting::class)->andReturn(false);
+        $events->expects('hasListeners')->with(TransactionCommitted::class)->andReturn(true);
+        $events->expects('dispatch')->with(m::type(TransactionCommitted::class))->andThrow($cancellation);
         $connection->setEventDispatcher($events);
 
         try {
@@ -1976,12 +1981,12 @@ class DatabaseConnectionTest extends TestCase
         $connection = $this->getSqliteTransactionConnection();
         $cancellation = new CanceledException('manager commit canceled');
         $manager = m::mock(DatabaseTransactionsManager::class);
-        $manager->shouldReceive('begin')->once()->with('default', 1);
-        $manager->shouldReceive('commit')->once()->with('default', 1, 0)->andThrow($cancellation);
+        $manager->expects('begin')->with('default', 1);
+        $manager->expects('commit')->with('default', 1, 0)->andThrow($cancellation);
         $connection->setTransactionManager($manager);
         $connection->beginTransaction();
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(TransactionCommitting::class)->andReturn(false);
+        $events->expects('hasListeners')->with(TransactionCommitting::class)->andReturn(false);
         $events->shouldNotReceive('hasListeners')->with(TransactionCommitted::class);
         $connection->setEventDispatcher($events);
 
@@ -2002,14 +2007,14 @@ class DatabaseConnectionTest extends TestCase
         $managerFailure = new RuntimeException('manager commit failure');
         $cancellation = new CanceledException('committed event canceled');
         $manager = m::mock(DatabaseTransactionsManager::class);
-        $manager->shouldReceive('begin')->once()->with('default', 1);
-        $manager->shouldReceive('commit')->once()->with('default', 1, 0)->andThrow($managerFailure);
+        $manager->expects('begin')->with('default', 1);
+        $manager->expects('commit')->with('default', 1, 0)->andThrow($managerFailure);
         $connection->setTransactionManager($manager);
         $connection->beginTransaction();
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(TransactionCommitting::class)->andReturn(false);
-        $events->shouldReceive('hasListeners')->once()->with(TransactionCommitted::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->once()->with(m::type(TransactionCommitted::class))->andThrow($cancellation);
+        $events->expects('hasListeners')->with(TransactionCommitting::class)->andReturn(false);
+        $events->expects('hasListeners')->with(TransactionCommitted::class)->andReturn(true);
+        $events->expects('dispatch')->with(m::type(TransactionCommitted::class))->andThrow($cancellation);
         $connection->setEventDispatcher($events);
 
         try {
@@ -2071,8 +2076,8 @@ class DatabaseConnectionTest extends TestCase
         );
         $connection = $this->getMockConnection([], $pdo);
         $manager = m::mock(DatabaseTransactionsManager::class);
-        $manager->shouldReceive('begin')->once()->with('test', 1);
-        $manager->shouldReceive('rollback')->once()->with('test', 0)->andThrow($cancellation);
+        $manager->expects('begin')->with('test', 1);
+        $manager->expects('rollback')->with('test', 0)->andThrow($cancellation);
         $connection->setTransactionManager($manager);
 
         try {
@@ -2100,8 +2105,8 @@ class DatabaseConnectionTest extends TestCase
         $pdo->expects($this->once())->method('rollBack');
         $connection = $this->getMockConnection([], $pdo);
         $manager = m::mock(DatabaseTransactionsManager::class);
-        $manager->shouldReceive('begin')->once()->with('test', 1);
-        $manager->shouldReceive('rollback')->once()->with('test', 0)->andThrow($cancellation);
+        $manager->expects('begin')->with('test', 1);
+        $manager->expects('rollback')->with('test', 0)->andThrow($cancellation);
         $connection->setTransactionManager($manager);
         $callbackCalls = 0;
 
@@ -2131,8 +2136,8 @@ class DatabaseConnectionTest extends TestCase
         $pdo->expects($this->once())->method('rollBack');
         $connection = $this->getMockConnection([], $pdo);
         $manager = m::mock(DatabaseTransactionsManager::class);
-        $manager->shouldReceive('begin')->once()->with('test', 1);
-        $manager->shouldReceive('rollback')->once()->with('test', 0)->andThrow($cleanupCancellation);
+        $manager->expects('begin')->with('test', 1);
+        $manager->expects('rollback')->with('test', 0)->andThrow($cleanupCancellation);
         $connection->setTransactionManager($manager);
 
         try {
@@ -2150,16 +2155,15 @@ class DatabaseConnectionTest extends TestCase
         $connection = $this->getSqliteTransactionConnection();
         $failure = new RuntimeException('manager rollback failure');
         $manager = m::mock(DatabaseTransactionsManager::class);
-        $manager->shouldReceive('begin')->once()->with('default', 1);
-        $manager->shouldReceive('rollback')->once()->with('default', 0)->andThrow($failure);
+        $manager->expects('begin')->with('default', 1);
+        $manager->expects('rollback')->with('default', 0)->andThrow($failure);
         $connection->setTransactionManager($manager);
         $connection->beginTransaction();
 
         $eventDispatched = false;
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(TransactionRolledBack::class)->andReturn(true);
-        $events->shouldReceive('dispatch')
-            ->once()
+        $events->expects('hasListeners')->with(TransactionRolledBack::class)->andReturn(true);
+        $events->expects('dispatch')
             ->with(m::type(TransactionRolledBack::class))
             ->andReturnUsing(function () use (&$eventDispatched): void {
                 $eventDispatched = true;
@@ -2183,8 +2187,8 @@ class DatabaseConnectionTest extends TestCase
         $connection = $this->getSqliteTransactionConnection();
         $cancellation = new CanceledException('manager rollback canceled');
         $manager = m::mock(DatabaseTransactionsManager::class);
-        $manager->shouldReceive('begin')->once()->with('default', 1);
-        $manager->shouldReceive('rollback')->once()->with('default', 0)->andThrow($cancellation);
+        $manager->expects('begin')->with('default', 1);
+        $manager->expects('rollback')->with('default', 0)->andThrow($cancellation);
         $connection->setTransactionManager($manager);
         $connection->beginTransaction();
         $events = m::mock(Dispatcher::class);
@@ -2208,13 +2212,13 @@ class DatabaseConnectionTest extends TestCase
         $managerFailure = new RuntimeException('manager rollback failure');
         $cancellation = new CanceledException('rolled back event canceled');
         $manager = m::mock(DatabaseTransactionsManager::class);
-        $manager->shouldReceive('begin')->once()->with('default', 1);
-        $manager->shouldReceive('rollback')->once()->with('default', 0)->andThrow($managerFailure);
+        $manager->expects('begin')->with('default', 1);
+        $manager->expects('rollback')->with('default', 0)->andThrow($managerFailure);
         $connection->setTransactionManager($manager);
         $connection->beginTransaction();
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(TransactionRolledBack::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->once()->with(m::type(TransactionRolledBack::class))->andThrow($cancellation);
+        $events->expects('hasListeners')->with(TransactionRolledBack::class)->andReturn(true);
+        $events->expects('dispatch')->with(m::type(TransactionRolledBack::class))->andThrow($cancellation);
         $connection->setEventDispatcher($events);
 
         try {
@@ -2236,8 +2240,8 @@ class DatabaseConnectionTest extends TestCase
         $connection->beginTransaction();
         $failure = new RuntimeException('rolled back listener failure');
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(TransactionRolledBack::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->once()->with(m::type(TransactionRolledBack::class))->andThrow($failure);
+        $events->expects('hasListeners')->with(TransactionRolledBack::class)->andReturn(true);
+        $events->expects('dispatch')->with(m::type(TransactionRolledBack::class))->andThrow($failure);
         $connection->setEventDispatcher($events);
 
         try {
@@ -2265,8 +2269,8 @@ class DatabaseConnectionTest extends TestCase
         );
         $connection = $this->getMockConnection([], $pdo);
         $manager = m::mock(DatabaseTransactionsManager::class);
-        $manager->shouldReceive('begin')->once()->with('test', 1);
-        $manager->shouldReceive('rollback')->once()->with('test', 0)->andThrow($cancellation);
+        $manager->expects('begin')->with('test', 1);
+        $manager->expects('rollback')->with('test', 0)->andThrow($cancellation);
         $connection->setTransactionManager($manager);
         $connection->beginTransaction();
 
@@ -2679,8 +2683,10 @@ class DatabaseConnectionTest extends TestCase
             $this->fail('Expected QueryException was not thrown');
         } catch (QueryException $e) {
             $this->assertSame('read', $e->readWriteType);
+            $this->assertSame('mysql::read', $e->getConnectionName());
 
             $connectionDetails = $e->getConnectionDetails();
+            $this->assertSame('mysql::read', $connectionDetails['name']);
             $this->assertSame('192.168.1.20', $connectionDetails['host']);
             $this->assertSame('3307', $connectionDetails['port']);
             $this->assertSame('read_db', $connectionDetails['database']);
@@ -2781,6 +2787,23 @@ class DatabaseConnectionTest extends TestCase
             $this->assertSame('3306', $connectionDetails['port']);
             $this->assertSame('write_db', $connectionDetails['database']);
         }
+    }
+
+    // REMOVED: Direct PDO configuration, resolution, cleanup and exception details.
+    // Configure that endpoint as a separate named connection instead.
+
+    #[TestWith([null, null, null])]
+    #[TestWith(['0', null, '0'])]
+    #[TestWith(['pgsql', null, 'pgsql'])]
+    #[TestWith(['pgsql', 'read', 'pgsql::read'])]
+    #[TestWith(['pgsql', 'write', 'pgsql::write'])]
+    public function testNameWithReadWriteTypeIncludesRequestedType(?string $name, ?string $role, ?string $expected): void
+    {
+        $connection = new PdoConnection(new PDOStub, 'database', '', ['name' => $name]);
+
+        $this->assertSame($connection, $connection->setReadWriteType($role));
+        $this->assertSame($expected, $connection->getNameWithReadWriteType());
+        $this->assertSame($name, $connection->getName());
     }
 
     /**
@@ -2979,7 +3002,6 @@ class NeutralConnectionForTest extends Connection
         $configuredTablePrefix = $fresh->configuredTablePrefix;
         $config = $fresh->config;
         $readConnectionConfig = $fresh->readConnectionConfig;
-        $readWriteType = $fresh->readWriteType;
 
         try {
             $this->disconnectDriverResources();
@@ -2992,7 +3014,6 @@ class NeutralConnectionForTest extends Connection
             $this->configuredTablePrefix = $configuredTablePrefix;
             $this->config = $config;
             $this->readConnectionConfig = $readConnectionConfig;
-            $this->readWriteType = $readWriteType;
             $this->latestReadWriteTypeRetrieved = null;
         }
     }

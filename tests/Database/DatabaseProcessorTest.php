@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\DatabaseProcessorTest;
+namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Connection;
 use Hypervel\Database\Query\Builder;
@@ -16,10 +16,10 @@ class DatabaseProcessorTest extends TestCase
     public function testInsertGetIdProcessing(): void
     {
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('insert')->once()->with('sql', ['foo']);
-        $connection->shouldReceive('getLastInsertId')->once()->with('id')->andReturn('1');
+        $connection->expects('insert')->with('sql', ['foo']);
+        $connection->expects('getLastInsertId')->with('id')->andReturn('1');
         $builder = m::mock(Builder::class);
-        $builder->shouldReceive('getConnection')->andReturn($connection);
+        $builder->expects('getConnection')->twice()->andReturn($connection);
         $processor = new Processor;
         $result = $processor->processInsertGetId($builder, 'sql', ['foo'], 'id');
         $this->assertSame(1, $result);

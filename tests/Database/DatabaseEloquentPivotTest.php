@@ -40,7 +40,7 @@ class DatabaseEloquentPivotTest extends TestCase
     public function testMutatorsAreCalledFromConstructor()
     {
         $parent = m::mock(Model::class . '[getConnectionName]');
-        $parent->shouldReceive('getConnectionName')->once()->andReturn('connection');
+        $parent->expects('getConnectionName')->andReturn('connection');
 
         $pivot = MutatorStub::fromAttributes($parent, ['foo' => 'bar'], 'table', true);
 
@@ -50,7 +50,7 @@ class DatabaseEloquentPivotTest extends TestCase
     public function testFromRawAttributesDoesNotDoubleMutate()
     {
         $parent = m::mock(Model::class . '[getConnectionName]');
-        $parent->shouldReceive('getConnectionName')->once()->andReturn('connection');
+        $parent->expects('getConnectionName')->andReturn('connection');
 
         $pivot = JsonCastStub::fromRawAttributes($parent, ['foo' => json_encode(['name' => 'Taylor'])], 'table', true);
 
@@ -60,7 +60,7 @@ class DatabaseEloquentPivotTest extends TestCase
     public function testFromRawAttributesDoesNotMutate()
     {
         $parent = m::mock(Model::class . '[getConnectionName]');
-        $parent->shouldReceive('getConnectionName')->once()->andReturn('connection');
+        $parent->expects('getConnectionName')->andReturn('connection');
 
         $pivot = MutatorStub::fromRawAttributes($parent, ['foo' => 'bar'], 'table', true);
 
@@ -70,7 +70,7 @@ class DatabaseEloquentPivotTest extends TestCase
     public function testPropertiesUnchangedAreNotDirty(): void
     {
         $parent = m::mock(Model::class . '[getConnectionName]');
-        $parent->shouldReceive('getConnectionName')->once()->andReturn('connection');
+        $parent->expects('getConnectionName')->andReturn('connection');
         $pivot = Pivot::fromAttributes($parent, ['foo' => 'bar', 'shimy' => 'shake'], 'table', true);
 
         $this->assertSame([], $pivot->getDirty());
@@ -79,7 +79,7 @@ class DatabaseEloquentPivotTest extends TestCase
     public function testPropertiesChangedAreDirty()
     {
         $parent = m::mock(Model::class . '[getConnectionName]');
-        $parent->shouldReceive('getConnectionName')->once()->andReturn('connection');
+        $parent->expects('getConnectionName')->andReturn('connection');
         $pivot = Pivot::fromAttributes($parent, ['foo' => 'bar', 'shimy' => 'shake'], 'table', true);
         $pivot->shimy = 'changed';
 
@@ -108,7 +108,7 @@ class DatabaseEloquentPivotTest extends TestCase
     public function testKeysCanBeSetProperly()
     {
         $parent = m::mock(Model::class . '[getConnectionName]');
-        $parent->shouldReceive('getConnectionName')->once()->andReturn('connection');
+        $parent->expects('getConnectionName')->andReturn('connection');
         $pivot = Pivot::fromAttributes($parent, ['foo' => 'bar'], 'table');
         $pivot->setPivotKeys('foreign', 'other');
 
@@ -123,8 +123,8 @@ class DatabaseEloquentPivotTest extends TestCase
         $pivot->foreign = 'foreign.value';
         $pivot->other = 'other.value';
         $query = m::mock(Builder::class);
-        $query->shouldReceive('where')->once()->with(['foreign' => 'foreign.value', 'other' => 'other.value'])->andReturn($query);
-        $query->shouldReceive('delete')->once()->andReturn(1);
+        $query->expects('where')->with(['foreign' => 'foreign.value', 'other' => 'other.value'])->andReturn($query);
+        $query->expects('delete')->andReturn(1);
         $pivot->expects($this->once())->method('newQueryWithoutRelationships')->willReturn($query);
 
         $rowsAffected = $pivot->delete();
@@ -137,8 +137,8 @@ class DatabaseEloquentPivotTest extends TestCase
         $pivot->exists = true;
 
         $pivot->setConnectionResolver($resolver = m::mock(ConnectionResolverInterface::class));
-        $resolver->shouldReceive('connection')->once()->andReturn($connection = m::mock(Connection::class));
-        $connection->shouldReceive('transaction')->once()->andReturnUsing(fn ($callback) => $callback());
+        $resolver->expects('connection')->andReturn($connection = m::mock(Connection::class));
+        $connection->expects('transaction')->andReturnUsing(fn ($callback) => $callback());
 
         $this->assertSame(1, $pivot->deleteQuietly());
         $this->assertSame(1, $pivot->deleteOrFail());

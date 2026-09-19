@@ -459,14 +459,21 @@ class PooledConnectionTest extends DatabaseTestCase
         $connection = $pooledConnection->getConnection();
 
         // Add some state that should be reset
-        $connection->beforeExecuting(function () {});
+        $callbackCalled = false;
+        $connection->beforeExecuting(function () use (&$callbackCalled): void {
+            $callbackCalled = true;
+        });
+        $connection->setReadWriteType('write');
 
         $pooledConnection->release();
 
         // After release, getting the connection again from pool should work
         /** @var PooledConnection $newPooledConnection */
         $newPooledConnection = $pool->borrow();
-        $this->assertInstanceOf(Connection::class, $newPooledConnection->getConnection());
+        $this->assertSame($connection, $newPooledConnection->getConnection());
+        $this->assertSame('pool_test', $connection->getNameWithReadWriteType());
+        $connection->select('select 1');
+        $this->assertFalse($callbackCalled);
         $newPooledConnection->release();
     }
 

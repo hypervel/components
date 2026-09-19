@@ -9,6 +9,7 @@ use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolver;
+use Hypervel\Database\PdoConnection;
 use Hypervel\Database\Pool\DatabasePool;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolManager;
@@ -159,7 +160,7 @@ class ConnectionResolverTest extends TestCase
         $poolManager = m::mock(PoolManager::class);
         $resolver = $this->makeResolver('mysql', $poolManager);
 
-        foreach (['mysql', 'mysql::read', 'mysql::write'] as $name) {
+        foreach (['mysql' => null, 'mysql::read' => 'read', 'mysql::write' => 'write'] as $name => $role) {
             $pool = m::mock(DatabasePool::class);
             $wrapper = m::mock(PooledConnection::class);
             $connection = m::mock(Connection::class);
@@ -170,11 +171,37 @@ class ConnectionResolverTest extends TestCase
             $wrapper->expects('getConnection')->andReturn($connection);
             $wrapper->expects('release');
 
+            if ($role !== null) {
+                $connection->expects('setReadWriteType')->with($role);
+            }
+
             if ($name === 'mysql::write') {
                 $connection->expects('useWriteConnectionWhenReading');
             }
 
             $this->assertSame($connection, $resolver->connection($name));
+        }
+
+        $resolver->releaseConnections();
+    }
+
+    public function testBorrowedConnectionRetainsItsRequestedRole(): void
+    {
+        $poolManager = m::mock(PoolManager::class);
+        $pool = m::mock(DatabasePool::class);
+        $resolver = $this->makeResolver('sqlite', $poolManager);
+        $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
+
+        foreach (['sqlite::write', 'sqlite'] as $name) {
+            $connection = new PdoConnection(new PDO('sqlite::memory:'), config: ['name' => 'sqlite']);
+            $wrapper = m::mock(PooledConnection::class);
+            $poolManager->expects('pool')->with($name)->andReturn($pool);
+            $pool->expects('borrow')->andReturn($wrapper);
+            $wrapper->expects('getConnection')->andReturn($connection);
+            $wrapper->expects('release');
+
+            $this->assertSame($connection, $resolver->connection($name));
+            $this->assertSame($name, $connection->getNameWithReadWriteType());
         }
 
         $resolver->releaseConnections();
@@ -187,11 +214,10 @@ class ConnectionResolverTest extends TestCase
         $wrapper = m::mock(PooledConnection::class);
         $connection = m::mock(Connection::class);
 
-        $poolManager->expects('pool')->once()->with('sqlite')->andReturn($pool);
         $poolManager->expects('pool')->once()->with('sqlite::read')->andReturn($pool);
         $poolManager->expects('pool')->once()->with('sqlite::write')->andReturn($pool);
-        $pool->expects('getSharedInMemorySqlitePdo')->times(3)->andReturn(m::mock(PDO::class));
-        $pool->expects('getName')->times(3)->andReturn('sqlite');
+        $pool->expects('getSharedInMemorySqlitePdo')->times(2)->andReturn(m::mock(PDO::class));
+        $pool->expects('getName')->times(2)->andReturn('sqlite');
         $pool->expects('borrow')->once()->andReturn($wrapper);
         $wrapper->expects('getConnection')->once()->andReturn($connection);
         $connection->expects('useWriteConnectionWhenReading')->once();
@@ -199,9 +225,9 @@ class ConnectionResolverTest extends TestCase
 
         $resolver = $this->makeResolver('sqlite', $poolManager);
 
-        $this->assertSame($connection, $resolver->connection('sqlite'));
-        $this->assertSame($connection, $resolver->connection('sqlite::read'));
         $this->assertSame($connection, $resolver->connection('sqlite::write'));
+        $this->assertSame($connection, $resolver->connection('sqlite::read'));
+        $this->assertSame($connection, $resolver->connection('sqlite'));
 
         $resolver->releaseConnections();
     }
@@ -361,6 +387,7 @@ class ConnectionResolverTest extends TestCase
         $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
         $pool->expects('borrow')->once()->andReturn($wrapper);
         $wrapper->expects('getConnection')->andReturn($connection);
+        $connection->expects('setReadWriteType')->with('write');
         $connection->expects('useWriteConnectionWhenReading')->andThrow($exception);
         $wrapper->expects('discard');
 

@@ -20,5 +20,8 @@ class DatabaseEmulatePreparesMySqlConnectionTest extends DatabaseMySqlConnection
         $app->make('config')->set('database.connections.mysql.options', [
             PDO::ATTR_EMULATE_PREPARES => true,
         ]);
+        $app->make('config')->set('database.connections.mysql_no_backslash_escapes.options', [
+            PDO::ATTR_EMULATE_PREPARES => true,
+        ]);
     }
 }

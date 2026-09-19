@@ -226,6 +226,10 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
         }
 
         if ($connection = static::$connections[$connectionName->requested] ?? null) {
+            if ($connectionName->role !== null && $connection instanceof Connection) {
+                $connection->setReadWriteType($connectionName->role);
+            }
+
             if ($connectionName->isWrite() && $connection instanceof Connection) {
                 // resetCachedConnections() runs resetForPool() between tests and clears this flag.
                 $connection->useWriteConnectionWhenReading();
@@ -263,6 +267,13 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
 
         if ($connectionName->isWrite() && $connection instanceof Connection) {
             $connection->useWriteConnectionWhenReading();
+        }
+
+        if ($connectionName->role !== null
+            && $cacheKey === $connectionName->requested
+            && $connection instanceof Connection
+        ) {
+            $connection->setReadWriteType($connectionName->role);
         }
 
         static::$pooledConnections[$cacheKey] = $pooled;

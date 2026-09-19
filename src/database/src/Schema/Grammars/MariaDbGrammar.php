@@ -66,6 +66,14 @@ class MariaDbGrammar extends MySqlGrammar
     }
 
     /**
+     * Compile a drop vector index command.
+     */
+    public function compileDropVectorIndex(Blueprint $blueprint, Fluent $command): string
+    {
+        return $this->compileDropIndex($blueprint, $command);
+    }
+
+    /**
      * Wrap the given JSON selector.
      */
     protected function wrapJsonSelector(string $value): string

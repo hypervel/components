@@ -55,7 +55,7 @@ class DatabaseEloquentInverseRelationTest extends TestCase
     {
         $builder = m::mock(Builder::class);
         $builder->expects('getModel')->times(2)->andReturn(new HasInverseRelationRelatedStub);
-        $builder->shouldReceive('afterQuery')->once()->andReturnSelf();
+        $builder->expects('afterQuery')->andReturnSelf();
 
         $relation = (new HasInverseRelationStub($builder, new HasInverseRelationParentStub));
         $this->assertNull($relation->getInverseRelationship());
@@ -233,7 +233,7 @@ class DatabaseEloquentInverseRelationTest extends TestCase
 
         $builder = m::mock(Builder::class);
         $builder->shouldReceive('getModel')->andReturn($related);
-        $builder->shouldReceive('afterQuery')->once()->andReturnSelf();
+        $builder->expects('afterQuery')->andReturnSelf();
 
         $relation = (new HasInverseRelationStub($builder, new HasInverseRelationParentStub))->inverse();
 
@@ -258,7 +258,7 @@ class DatabaseEloquentInverseRelationTest extends TestCase
 
         $builder = m::mock(Builder::class);
         $builder->expects('getModel')->times(7)->andReturn($related);
-        $builder->shouldReceive('afterQuery')->once()->andReturnSelf();
+        $builder->expects('afterQuery')->andReturnSelf();
 
         $relation = (new HasInverseRelationStub($builder, $parent))->inverse();
 
@@ -272,7 +272,7 @@ class DatabaseEloquentInverseRelationTest extends TestCase
 
         $builder = m::mock(Builder::class);
         $builder->expects('getModel')->times(4)->andReturn($related);
-        $builder->shouldReceive('afterQuery')->once()->andReturnSelf();
+        $builder->expects('afterQuery')->andReturnSelf();
 
         $relation = (new HasInverseRelationStub($builder, new HasInverseRelationParentStub, 'test_id'))->inverse();
 

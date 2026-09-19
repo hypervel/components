@@ -158,13 +158,13 @@ class CacheManagerTest extends TestCase
         ]);
         $failure = new RuntimeException('primary unavailable');
         $primary = m::mock(Store::class);
-        $primary->shouldReceive('get')->once()->with('key')->andThrow($failure);
+        $primary->expects('get')->with('key')->andThrow($failure);
         $secondary = m::mock(Store::class);
-        $secondary->shouldReceive('get')->once()->with('key')->andReturn('value');
+        $secondary->expects('get')->with('key')->andReturn('value');
         $captured = null;
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(CacheFailedOver::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->once()->andReturnUsing(function (CacheFailedOver $event) use (&$captured): void {
+        $events->expects('hasListeners')->with(CacheFailedOver::class)->andReturnTrue();
+        $events->expects('dispatch')->andReturnUsing(function (CacheFailedOver $event) use (&$captured): void {
             $captured = $event;
         });
         $app->instance(Dispatcher::class, $events);
@@ -207,7 +207,7 @@ class CacheManagerTest extends TestCase
         $app->instance('db', m::mock(ConnectionResolverInterface::class));
         $app->instance('files', new Filesystem);
         $filesystem = m::mock(FilesystemFactory::class);
-        $filesystem->shouldReceive('disk')->with('test')->once()->andReturn(new ArrayFilesystem);
+        $filesystem->expects('disk')->with('test')->andReturn(new ArrayFilesystem);
         $app->instance('filesystem', $filesystem);
         $app->instance(SwooleTableManager::class, new SwooleTableManager($app));
         $manager = new CacheManager($app);
@@ -595,13 +595,13 @@ class CacheManagerTest extends TestCase
             $repository = m::mock(CacheRepository::class);
 
             if ($count++ === 0) {
-                $repository->shouldReceive('forever')->with('foo', 'bar')->once();
-                $repository->shouldReceive('get')->with('foo')->once()->andReturn('bar');
+                $repository->expects('forever')->with('foo', 'bar');
+                $repository->expects('get')->with('foo')->andReturn('bar');
 
                 return $repository;
             }
 
-            $repository->shouldReceive('get')->with('foo')->once()->andReturnNull();
+            $repository->expects('get')->with('foo')->andReturnNull();
 
             return $repository;
         });

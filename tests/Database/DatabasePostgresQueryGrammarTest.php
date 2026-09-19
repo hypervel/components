@@ -35,10 +35,10 @@ class DatabasePostgresQueryGrammarTest extends TestCase
             ->prepareBindingsForUpdateFrom([], ['payload' => $value]);
     }
 
-    public function testToRawSql()
+    public function testToRawSql(): void
     {
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('escape')->with('foo', false)->andReturn("'foo'");
+        $connection->expects('escape')->with('foo', false)->andReturn("'foo'");
         $grammar = new PostgresGrammar($connection);
 
         $query = $grammar->substituteBindingsIntoRawSql(
@@ -49,7 +49,7 @@ class DatabasePostgresQueryGrammarTest extends TestCase
         $this->assertSame('select * from "users" where \'{}\' ? \'Hello\\\'\\\'World?\' AND "email" = \'foo\'', $query);
     }
 
-    public function testCustomOperators()
+    public function testCustomOperators(): void
     {
         PostgresGrammar::customOperators(['@@@', '@>', '']);
         PostgresGrammar::customOperators(['@@>', 1]);
@@ -67,10 +67,10 @@ class DatabasePostgresQueryGrammarTest extends TestCase
         $this->assertSame(array_unique($operators), $operators);
     }
 
-    public function testCompileTruncate()
+    public function testCompileTruncate(): void
     {
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getTablePrefix')->andReturn('');
+        $connection->expects('getTablePrefix')->times(3)->andReturn('');
 
         $postgres = new PostgresGrammar($connection);
         $builder = m::mock(Builder::class);
@@ -93,32 +93,28 @@ class DatabasePostgresQueryGrammarTest extends TestCase
         ], $postgres->compileTruncate($builder));
     }
 
-    public function testFlushStateRestoresDefaults()
+    public function testFlushStateRestoresDefaults(): void
     {
-        try {
-            $connection = m::mock(Connection::class);
-            $connection->shouldReceive('getTablePrefix')->andReturn('');
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getTablePrefix')->andReturn('');
 
-            $postgres = new PostgresGrammar($connection);
-            $builder = m::mock(Builder::class);
-            $builder->from = 'users';
+        $postgres = new PostgresGrammar($connection);
+        $builder = m::mock(Builder::class);
+        $builder->from = 'users';
 
-            PostgresGrammar::customOperators(['@@@']);
-            PostgresGrammar::cascadeOnTruncate(false);
+        PostgresGrammar::customOperators(['@@@']);
+        PostgresGrammar::cascadeOnTruncate(false);
 
-            $this->assertContains('@@@', $postgres->getOperators());
-            $this->assertSame([
-                'truncate "users" restart identity' => [],
-            ], $postgres->compileTruncate($builder));
+        $this->assertContains('@@@', $postgres->getOperators());
+        $this->assertSame([
+            'truncate "users" restart identity' => [],
+        ], $postgres->compileTruncate($builder));
 
-            PostgresGrammar::flushState();
+        PostgresGrammar::flushState();
 
-            $this->assertNotContains('@@@', $postgres->getOperators());
-            $this->assertSame([
-                'truncate "users" restart identity cascade' => [],
-            ], $postgres->compileTruncate($builder));
-        } finally {
-            PostgresGrammar::flushState();
-        }
+        $this->assertNotContains('@@@', $postgres->getOperators());
+        $this->assertSame([
+            'truncate "users" restart identity cascade' => [],
+        ], $postgres->compileTruncate($builder));
     }
 }

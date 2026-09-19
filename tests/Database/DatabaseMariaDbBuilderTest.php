@@ -12,15 +12,15 @@ use Mockery as m;
 
 class DatabaseMariaDbBuilderTest extends TestCase
 {
-    public function testCreateDatabase()
+    public function testCreateDatabase(): void
     {
         $connection = m::mock(Connection::class);
         $grammar = new MariaDbGrammar($connection);
 
-        $connection->shouldReceive('getConfig')->once()->with('charset')->andReturn('utf8mb4');
-        $connection->shouldReceive('getConfig')->once()->with('collation')->andReturn('utf8mb4_unicode_ci');
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $connection->shouldReceive('statement')->once()->with(
+        $connection->expects('getConfig')->with('charset')->andReturn('utf8mb4');
+        $connection->expects('getConfig')->with('collation')->andReturn('utf8mb4_unicode_ci');
+        $connection->expects('getSchemaGrammar')->andReturn($grammar);
+        $connection->expects('statement')->with(
             'create database `my_temporary_database` default character set `utf8mb4` default collate `utf8mb4_unicode_ci`'
         )->andReturn(true);
 
@@ -28,13 +28,13 @@ class DatabaseMariaDbBuilderTest extends TestCase
         $builder->createDatabase('my_temporary_database');
     }
 
-    public function testDropDatabaseIfExists()
+    public function testDropDatabaseIfExists(): void
     {
         $connection = m::mock(Connection::class);
         $grammar = new MariaDbGrammar($connection);
 
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn($grammar);
-        $connection->shouldReceive('statement')->once()->with(
+        $connection->expects('getSchemaGrammar')->andReturn($grammar);
+        $connection->expects('statement')->with(
             'drop database if exists `my_database_a`'
         )->andReturn(true);
 
