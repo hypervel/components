@@ -12,42 +12,42 @@ use Swoole\Coroutine\CanceledException;
 
 class SupportTimeboxTest extends TestCase
 {
-    public function testMakeExecutesCallback()
+    public function testMakeExecutesCallback(): void
     {
-        $callback = function () {
+        $callback = function (): void {
             $this->assertTrue(true);
         };
 
         (new Timebox)->call($callback, 0);
     }
 
-    public function testMakeWaitsForMicroseconds()
+    public function testMakeWaitsForMicroseconds(): void
     {
         $mock = m::spy(Timebox::class)->shouldAllowMockingProtectedMethods()->makePartial();
-        $mock->shouldReceive('usleep')->once();
+        $mock->expects('usleep');
 
-        $mock->call(function () {
+        $mock->call(function (): void {
         }, 10000);
 
         $mock->shouldHaveReceived('usleep')->once();
     }
 
-    public function testMakeShouldNotSleepWhenEarlyReturnHasBeenFlagged()
+    public function testMakeShouldNotSleepWhenEarlyReturnHasBeenFlagged(): void
     {
         $mock = m::spy(Timebox::class)->shouldAllowMockingProtectedMethods()->makePartial();
-        $mock->call(function ($timebox) {
+        $mock->call(function (Timebox $timebox): void {
             $timebox->returnEarly();
         }, 10000);
 
         $mock->shouldNotHaveReceived('usleep');
     }
 
-    public function testMakeShouldSleepWhenDontEarlyReturnHasBeenFlagged()
+    public function testMakeShouldSleepWhenDontEarlyReturnHasBeenFlagged(): void
     {
         $mock = m::spy(Timebox::class)->shouldAllowMockingProtectedMethods()->makePartial();
-        $mock->shouldReceive('usleep')->once();
+        $mock->expects('usleep');
 
-        $mock->call(function ($timebox) {
+        $mock->call(function (Timebox $timebox): void {
             $timebox->returnEarly();
             $timebox->dontReturnEarly();
         }, 10000);
@@ -58,7 +58,7 @@ class SupportTimeboxTest extends TestCase
     public function testMakeWaitsForMicrosecondsWhenExceptionIsThrown(): void
     {
         $mock = m::spy(Timebox::class)->shouldAllowMockingProtectedMethods()->makePartial();
-        $mock->shouldReceive('usleep')->once();
+        $mock->expects('usleep');
 
         try {
             $this->expectExceptionObject(new Exception('Exception within Timebox callback.'));
