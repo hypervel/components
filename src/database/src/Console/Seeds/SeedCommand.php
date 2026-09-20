@@ -13,8 +13,6 @@ use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Seeder;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputArgument;
-use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'db:seed')]
 class SeedCommand extends Command
@@ -23,9 +21,13 @@ class SeedCommand extends Command
     use Prohibitable;
 
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'db:seed';
+    protected ?string $signature = 'db:seed
+                    {class? : The class name of the root seeder}
+                    {--class=Database\Seeders\DatabaseSeeder : The class name of the root seeder}
+                    {--database= : The database connection to seed}
+                    {--force : Force the operation to run when in production}';
 
     /**
      * The console command description.
@@ -116,27 +118,5 @@ class SeedCommand extends Command
         return $database === null || $database === ''
             ? $this->resolver->getDefaultConnection()
             : $database;
-    }
-
-    /**
-     * Get the console command arguments.
-     */
-    protected function getArguments(): array
-    {
-        return [
-            ['class', InputArgument::OPTIONAL, 'The class name of the root seeder', null],
-        ];
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['class', null, InputOption::VALUE_OPTIONAL, 'The class name of the root seeder', 'Database\Seeders\DatabaseSeeder'],
-            ['database', null, InputOption::VALUE_OPTIONAL, 'The database connection to seed'],
-            ['force', null, InputOption::VALUE_NONE, 'Force the operation to run when in production'],
-        ];
     }
 }

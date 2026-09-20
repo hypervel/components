@@ -11,8 +11,6 @@ use Hypervel\Console\Prohibitable;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Filesystem\Filesystem;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputArgument;
-use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'cache:clear')]
 class ClearCommand extends Command
@@ -20,9 +18,12 @@ class ClearCommand extends Command
     use Prohibitable;
 
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'cache:clear';
+    protected ?string $signature = 'cache:clear
+                    {store? : The name of the store you would like to clear}
+                    {--tags= : The cache tags you would like to clear}
+                    {--locks : Only clear cache locks}';
 
     /**
      * The console command description.
@@ -138,26 +139,5 @@ class ClearCommand extends Command
     protected function tags(): array
     {
         return array_filter(explode(',', $this->option('tags') ?? ''));
-    }
-
-    /**
-     * Get the console command arguments.
-     */
-    protected function getArguments(): array
-    {
-        return [
-            ['store', InputArgument::OPTIONAL, 'The name of the store you would like to clear'],
-        ];
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['tags', null, InputOption::VALUE_OPTIONAL, 'The cache tags you would like to clear', null],
-            ['locks', null, InputOption::VALUE_NONE, 'Only clear cache locks'],
-        ];
     }
 }

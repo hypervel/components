@@ -11,7 +11,6 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 use function Hypervel\Prompts\confirm;
@@ -23,9 +22,22 @@ class ModelMakeCommand extends GeneratorCommand
     use CreatesMatchingTest;
 
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:model';
+    protected ?string $signature = 'make:model
+                    {name : The name of the model}
+                    {--a|all : Generate a migration, seeder, factory, policy, resource controller, and form request classes for the model}
+                    {--c|controller : Create a new controller for the model}
+                    {--f|factory : Create a new factory for the model}
+                    {--force : Create the class even if the model already exists}
+                    {--m|migration : Create a new migration file for the model}
+                    {--morph-pivot : Indicates if the generated model should be a custom polymorphic intermediate table model}
+                    {--policy : Create a new policy for the model}
+                    {--s|seed : Create a new seeder for the model}
+                    {--p|pivot : Indicates if the generated model should be a custom intermediate table model}
+                    {--r|resource : Indicates if the generated controller should be a resource controller}
+                    {--api : Indicates if the generated controller should be an API resource controller}
+                    {--R|requests : Create new form request classes and use them in the resource controller}';
 
     /**
      * The console command description.
@@ -255,27 +267,6 @@ class ModelMakeCommand extends GeneratorCommand
         }
 
         return $replacements;
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['all', 'a', InputOption::VALUE_NONE, 'Generate a migration, seeder, factory, policy, resource controller, and form request classes for the model'],
-            ['controller', 'c', InputOption::VALUE_NONE, 'Create a new controller for the model'],
-            ['factory', 'f', InputOption::VALUE_NONE, 'Create a new factory for the model'],
-            ['force', null, InputOption::VALUE_NONE, 'Create the class even if the model already exists'],
-            ['migration', 'm', InputOption::VALUE_NONE, 'Create a new migration file for the model'],
-            ['morph-pivot', null, InputOption::VALUE_NONE, 'Indicates if the generated model should be a custom polymorphic intermediate table model'],
-            ['policy', null, InputOption::VALUE_NONE, 'Create a new policy for the model'],
-            ['seed', 's', InputOption::VALUE_NONE, 'Create a new seeder for the model'],
-            ['pivot', 'p', InputOption::VALUE_NONE, 'Indicates if the generated model should be a custom intermediate table model'],
-            ['resource', 'r', InputOption::VALUE_NONE, 'Indicates if the generated controller should be a resource controller'],
-            ['api', null, InputOption::VALUE_NONE, 'Indicates if the generated controller should be an API resource controller'],
-            ['requests', 'R', InputOption::VALUE_NONE, 'Create new form request classes and use them in the resource controller'],
-        ];
     }
 
     /**

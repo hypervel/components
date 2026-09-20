@@ -6,15 +6,16 @@ namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'make:event')]
 class EventMakeCommand extends GeneratorCommand
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:event';
+    protected ?string $signature = 'make:event
+                    {name : The name of the event}
+                    {--f|force : Create the class even if the event already exists}';
 
     /**
      * The console command description.
@@ -59,15 +60,5 @@ class EventMakeCommand extends GeneratorCommand
     protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $rootNamespace . '\Events';
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['force', 'f', InputOption::VALUE_NONE, 'Create the class even if the event already exists'],
-        ];
     }
 }

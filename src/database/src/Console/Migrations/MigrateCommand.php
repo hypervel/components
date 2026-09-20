@@ -24,7 +24,7 @@ class MigrateCommand extends BaseCommand implements Isolatable
     /**
      * The name and signature of the console command.
      */
-    protected ?string $signature = 'migrate {--database= : The database connection to use}
+    protected ?string $signature = 'migrate {--database= : The default database connection to use}
                 {--force : Force the operation to run when in production}
                 {--path=* : The path(s) to the migrations files to be executed}
                 {--realpath : Indicate any provided migration file paths are pre-resolved absolute paths}

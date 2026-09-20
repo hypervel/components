@@ -6,15 +6,17 @@ namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'make:class')]
 class ClassMakeCommand extends GeneratorCommand
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:class';
+    protected ?string $signature = 'make:class
+                    {name : The name of the class}
+                    {--i|invokable : Generate a single method, invokable class}
+                    {--f|force : Create the class even if the class already exists}';
 
     /**
      * The console command description.
@@ -44,16 +46,5 @@ class ClassMakeCommand extends GeneratorCommand
         return file_exists($customPath = $this->hypervel->basePath(trim($stub, '/')))
             ? $customPath
             : __DIR__ . $stub;
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['invokable', 'i', InputOption::VALUE_NONE, 'Generate a single method, invokable class'],
-            ['force', 'f', InputOption::VALUE_NONE, 'Create the class even if the class already exists'],
-        ];
     }
 }

@@ -7,7 +7,6 @@ namespace Hypervel\Foundation\Console;
 use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 use function Hypervel\Prompts\select;
@@ -16,9 +15,13 @@ use function Hypervel\Prompts\select;
 class EnumMakeCommand extends GeneratorCommand
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:enum';
+    protected ?string $signature = 'make:enum
+                    {name : The name of the enum}
+                    {--s|string : Generate a string backed enum.}
+                    {--i|int : Generate an integer backed enum.}
+                    {--f|force : Create the enum even if the enum already exists}';
 
     /**
      * The console command description.
@@ -100,17 +103,5 @@ class EnumMakeCommand extends GeneratorCommand
         if ($type !== 'pure') {
             $input->setOption($type, true);
         }
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['string', 's', InputOption::VALUE_NONE, 'Generate a string backed enum.'],
-            ['int', 'i', InputOption::VALUE_NONE, 'Generate an integer backed enum.'],
-            ['force', 'f', InputOption::VALUE_NONE, 'Create the enum even if the enum already exists'],
-        ];
     }
 }

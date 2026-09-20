@@ -8,15 +8,16 @@ use Hypervel\Console\GeneratorCommand;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'make:factory')]
 class FactoryMakeCommand extends GeneratorCommand
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:factory';
+    protected ?string $signature = 'make:factory
+                    {name : The name of the factory}
+                    {--m|model= : The name of the model}';
 
     /**
      * The console command description.
@@ -112,15 +113,5 @@ class FactoryMakeCommand extends GeneratorCommand
         }
 
         return $this->rootNamespace() . 'Model';
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['model', 'm', InputOption::VALUE_OPTIONAL, 'The name of the model'],
-        ];
     }
 }

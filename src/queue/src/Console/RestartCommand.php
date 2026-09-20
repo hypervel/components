@@ -16,9 +16,9 @@ class RestartCommand extends Command
     use InteractsWithTime;
 
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'queue:restart';
+    protected ?string $signature = 'queue:restart';
 
     /**
      * The console command description.

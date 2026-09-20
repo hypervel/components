@@ -24,6 +24,8 @@ class DbCommand extends Command
                {--read : Connect to the read connection}
                {--write : Connect to the write connection}';
 
+    // Laravel's --pooled option is omitted; select external pooler endpoints by connection name.
+
     /**
      * The console command description.
      */

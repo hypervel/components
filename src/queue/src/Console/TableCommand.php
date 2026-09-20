@@ -13,9 +13,9 @@ use function Hypervel\Filesystem\join_paths;
 class TableCommand extends MigrationGeneratorCommand
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:queue-table';
+    protected ?string $signature = 'make:queue-table';
 
     /**
      * The console command name aliases.

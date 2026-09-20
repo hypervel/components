@@ -9,9 +9,9 @@ use Hypervel\Console\GeneratorCommand;
 use Hypervel\Foundation\Inspiring;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use Override;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 use function Hypervel\Prompts\select;
@@ -22,9 +22,13 @@ class MailMakeCommand extends GeneratorCommand
     use CreatesMatchingTest;
 
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:mail';
+    protected ?string $signature = 'make:mail
+                    {name : The name of the mailable}
+                    {--f|force : Create the class even if the mailable already exists}
+                    {--m|markdown= : Create a new Markdown template for the mailable}
+                    {--view= : Create a new Blade template for the mailable}';
 
     /**
      * The console command description.
@@ -35,6 +39,19 @@ class MailMakeCommand extends GeneratorCommand
      * The type of class being generated.
      */
     protected string $type = 'Mailable';
+
+    /**
+     * Configure the command's default values.
+     */
+    #[Override]
+    protected function configureDefaults(): void
+    {
+        // These default to false (not null) so that handle() can distinguish "not
+        // passed at all" from "passed with no value", which can't be expressed as a
+        // literal boolean default in the signature above.
+        $this->getDefinition()->getOption('markdown')->setDefault(false);
+        $this->getDefinition()->getOption('view')->setDefault(false);
+    }
 
     /**
      * Execute the console command.
@@ -186,18 +203,6 @@ class MailMakeCommand extends GeneratorCommand
     protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $rootNamespace . '\Mail';
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['force', 'f', InputOption::VALUE_NONE, 'Create the class even if the mailable already exists'],
-            ['markdown', 'm', InputOption::VALUE_OPTIONAL, 'Create a new Markdown template for the mailable', false],
-            ['view', null, InputOption::VALUE_OPTIONAL, 'Create a new Blade template for the mailable', false],
-        ];
     }
 
     /**
