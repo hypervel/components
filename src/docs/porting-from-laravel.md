@@ -21,6 +21,7 @@
     - [Coroutine-Aware Dependencies](#coroutine-aware-dependencies)
 - [Configuration](#configuration)
 - [Other API Differences](#other-api-differences)
+    - [Development Processes](#development-processes)
     - [Scheduling](#scheduling)
     - [Maintenance Mode](#maintenance-mode)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
@@ -472,6 +473,11 @@ Application code should keep request-specific values in the request, session, co
 ## Other API Differences
 
 Many Laravel APIs have direct Hypervel equivalents under the `Hypervel` namespace. The following differences commonly require more than a namespace replacement.
+
+<a name="development-processes"></a>
+### Development Processes
+
+For `artisan dev`, install `@laravel/multiplex` locally when using pnpm or Yarn. The default server process uses `hypervel/watcher`; Pail is not included. See [The Dev Command](/docs/{{version}}/artisan#the-dev-command).
 
 <a name="scheduling"></a>
 ### Scheduling

@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation;
 
 use Composer\InstalledVersions;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\DevCommand;
 use Hypervel\Foundation\DevCommandColor;
+use Hypervel\Foundation\DevCommandMode;
 use Hypervel\Foundation\DevCommands;
+use Hypervel\Support\Facades\File;
 use Hypervel\Tests\TestCase;
 use ReflectionClass;
 
@@ -23,6 +26,8 @@ class FoundationDevCommandsTest extends TestCase
         $app = new Application(__DIR__);
         $app->instance('env', 'testing');
         $app->setRunningInConsole(true);
+
+        File::swap(new Filesystem);
     }
 
     public function testRegisterAddsCommand(): void
@@ -356,6 +361,8 @@ class FoundationDevCommandsTest extends TestCase
 
     public function testRegisterDefaultsRegistersExpectedCommands(): void
     {
+        File::shouldReceive('exists')->with(base_path('package.json'))->once()->andReturnTrue();
+
         DevCommands::registerDefaults();
 
         $commands = DevCommands::commands();
@@ -373,6 +380,21 @@ class FoundationDevCommandsTest extends TestCase
         $this->assertSame('pnpm run dev', collect($commands)->firstWhere('name', 'vite')['command']);
     }
 
+    // REMOVED: Pail installation and Windows cases; Hypervel has no Pail runner and requires Swoole/POSIX.
+
+    public function testRegisterDefaultsExcludesViteWithoutPackageJson(): void
+    {
+        File::shouldReceive('exists')->with(base_path('package.json'))->once()->andReturnFalse();
+
+        DevCommands::registerDefaults();
+
+        $names = array_column(DevCommands::commands(), 'name');
+
+        $this->assertContains('server', $names);
+        $this->assertContains('queue', $names);
+        $this->assertNotContains('vite', $names);
+    }
+
     public function testRegisteredCommandIncludesSource(): void
     {
         DevCommands::register('echo hello', 'greeter');
@@ -382,6 +404,89 @@ class FoundationDevCommandsTest extends TestCase
         $this->assertArrayHasKey('source', $commands[0]);
         $this->assertIsArray($commands[0]['source']);
         $this->assertSame(__CLASS__, $commands[0]['source']['class']);
+    }
+
+    public function testVendorCommandsAreIncludedByDefault(): void
+    {
+        $ref = new ReflectionClass(DevCommands::class);
+        $ref->getProperty('commands')->setValue(null, [
+            'vendor' => new DevCommand('echo vendor', [], 'vendor', DevCommand::PRIORITY_VENDOR),
+        ]);
+
+        DevCommands::register('echo local', 'local');
+
+        $names = array_column(DevCommands::commands(), 'name');
+
+        $this->assertContains('vendor', $names);
+        $this->assertContains('local', $names);
+    }
+
+    public function testWithoutVendorCommandsExcludesOnlyVendorCommands(): void
+    {
+        $ref = new ReflectionClass(DevCommands::class);
+        $ref->getProperty('commands')->setValue(null, [
+            'server' => new DevCommand('php artisan watch', [], 'server', DevCommand::PRIORITY_DEFAULT),
+            'vendor' => new DevCommand('echo vendor', [], 'vendor', DevCommand::PRIORITY_VENDOR),
+        ]);
+
+        DevCommands::register('echo local', 'local');
+
+        DevCommands::withoutVendorCommands();
+
+        $names = array_column(DevCommands::commands(), 'name');
+
+        $this->assertNotContains('vendor', $names);
+        $this->assertContains('server', $names);
+        $this->assertContains('local', $names);
+    }
+
+    public function testWithoutDefaultCommandsExcludesOnlyFrameworkDefaultCommands(): void
+    {
+        $ref = new ReflectionClass(DevCommands::class);
+        $ref->getProperty('commands')->setValue(null, [
+            'server' => new DevCommand('php artisan watch', [], 'server', DevCommand::PRIORITY_DEFAULT),
+            'vendor' => new DevCommand('echo vendor', [], 'vendor', DevCommand::PRIORITY_VENDOR),
+        ]);
+
+        DevCommands::register('echo local', 'local');
+
+        DevCommands::withoutDefaultCommands();
+
+        $names = array_column(DevCommands::commands(), 'name');
+
+        $this->assertNotContains('server', $names);
+        $this->assertContains('vendor', $names);
+        $this->assertContains('local', $names);
+    }
+
+    public function testWithoutVendorAndDefaultCommandsKeepsOnlyLocalCommands(): void
+    {
+        $ref = new ReflectionClass(DevCommands::class);
+        $ref->getProperty('commands')->setValue(null, [
+            'server' => new DevCommand('php artisan watch', [], 'server', DevCommand::PRIORITY_DEFAULT),
+            'vendor' => new DevCommand('echo vendor', [], 'vendor', DevCommand::PRIORITY_VENDOR),
+        ]);
+
+        DevCommands::register('echo local', 'local');
+
+        DevCommands::withoutVendorCommands();
+        DevCommands::withoutDefaultCommands();
+
+        $names = array_column(DevCommands::commands(), 'name');
+
+        $this->assertSame(['local'], $names);
+    }
+
+    public function testModesCanBeConfigured(): void
+    {
+        DevCommands::inline();
+        $this->assertSame(DevCommandMode::INLINE, DevCommands::mode());
+
+        DevCommands::stream();
+        $this->assertSame(DevCommandMode::STREAM, DevCommands::mode());
+
+        DevCommands::tabs();
+        $this->assertSame(DevCommandMode::TABS, DevCommands::mode());
     }
 
     public function testFlushStateResetsAllRegistryState(): void
@@ -394,6 +499,13 @@ class FoundationDevCommandsTest extends TestCase
         DevCommands::commands();
         DevCommands::only('processes');
         DevCommands::except('server');
+        DevCommands::inline();
+        DevCommands::withTimestamps();
+        DevCommands::disableAutoRestart();
+        DevCommands::bufferSize(50);
+        DevCommands::streamBufferSize(100);
+        DevCommands::withoutVendorCommands();
+        DevCommands::withoutDefaultCommands();
 
         DevCommands::flushState();
 
@@ -404,5 +516,12 @@ class FoundationDevCommandsTest extends TestCase
         $this->assertSame([], $reflection->getProperty('commands')->getValue());
         $this->assertSame([], $reflection->getProperty('only')->getValue());
         $this->assertSame([], $reflection->getProperty('except')->getValue());
+        $this->assertSame(DevCommandMode::TABS, DevCommands::mode());
+        $this->assertFalse(DevCommands::shouldIncludeTimestamps());
+        $this->assertTrue(DevCommands::shouldAutoRestart());
+        $this->assertNull(DevCommands::getBufferSize());
+        $this->assertNull(DevCommands::getStreamBufferSize());
+        $this->assertFalse($reflection->getProperty('withoutVendorCommands')->getValue());
+        $this->assertFalse($reflection->getProperty('withoutDefaultCommands')->getValue());
     }
 }
