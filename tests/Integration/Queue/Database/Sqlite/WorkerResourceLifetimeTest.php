@@ -150,6 +150,7 @@ class WorkerResourceLifetimeTest extends TestCase
         $job->expects('retryUntil')->once()->andReturnNull();
         $job->expects('attempts')->once()->andReturn(1);
         $job->expects('isDeleted')->once()->andReturnFalse();
+        $job->expects('isReleased')->once()->andReturnFalse();
         $job->expects('timeout')->once()->andReturnNull();
         $job->expects('fire')->once()->andReturnUsing(static function (): void {
             DB::selectOne('SELECT 1');
