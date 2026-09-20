@@ -186,11 +186,11 @@ class AuthenticateSessionTest extends TestCase
         $request->setHypervelSession($session);
 
         $authFactory = m::mock(AuthFactory::class);
-        $authFactory->shouldReceive('viaRemember')->andReturn(true);
+        $authFactory->expects('viaRemember')->andReturn(true);
         $authFactory->expects('getRecallerName')->andReturn('recaller-name');
         $authFactory->expects('logoutCurrentDevice')->andReturn(null);
-        $authFactory->shouldReceive('getDefaultDriver')->andReturn('web');
-        $authFactory->shouldReceive('hashPasswordForCookie')->with('my-pass-(*&^%$#!@')->andReturn('mac:my-pass-(*&^%$#!@');
+        $authFactory->expects('getDefaultDriver')->andReturn('web');
+        $authFactory->expects('hashPasswordForCookie')->with('my-pass-(*&^%$#!@')->andReturn('mac:my-pass-(*&^%$#!@');
 
         try {
             (new AuthenticateSession($authFactory))->handle($request, fn (): string => 'next');
@@ -392,12 +392,11 @@ class AuthenticateSessionTest extends TestCase
         $request->setHypervelSession($session);
 
         $authFactory = m::mock(AuthFactory::class);
-        $authFactory->shouldReceive('viaRemember')->andReturn(true);
+        $authFactory->expects('viaRemember')->andReturn(true);
         $authFactory->expects('getRecallerName')->andReturn('recaller-name');
         $authFactory->expects('logoutCurrentDevice')->andReturn(null);
-        $authFactory->shouldReceive('getDefaultDriver')->andReturn('web');
-        $authFactory->shouldReceive('user')->andReturn(null);
-        $authFactory->shouldReceive('hashPasswordForCookie')->with('my-pass-(*&^%$#!@')->andReturn('mac:my-pass-(*&^%$#!@');
+        $authFactory->expects('getDefaultDriver')->andReturn('web');
+        $authFactory->expects('hashPasswordForCookie')->with('my-pass-(*&^%$#!@')->andReturn('mac:my-pass-(*&^%$#!@');
 
         $middleware = new AuthenticateSession($authFactory);
 
@@ -435,12 +434,11 @@ class AuthenticateSessionTest extends TestCase
         $request->setHypervelSession($session);
 
         $authFactory = m::mock(AuthFactory::class);
-        $authFactory->shouldReceive('viaRemember')->andReturn(false);
+        $authFactory->expects('viaRemember')->andReturn(false);
         $authFactory->shouldReceive('getRecallerName')->never();
         $authFactory->expects('logoutCurrentDevice')->andReturn(null);
-        $authFactory->shouldReceive('getDefaultDriver')->andReturn('web');
-        $authFactory->shouldReceive('user')->andReturn(null);
-        $authFactory->shouldReceive('hashPasswordForCookie')->with('my-pass-(*&^%$#!@')->andReturn('mac:my-pass-(*&^%$#!@');
+        $authFactory->expects('getDefaultDriver')->times(3)->andReturn('web');
+        $authFactory->expects('hashPasswordForCookie')->with('my-pass-(*&^%$#!@')->andReturn('mac:my-pass-(*&^%$#!@');
 
         $middleware = new AuthenticateSession($authFactory);
 
@@ -479,11 +477,10 @@ class AuthenticateSessionTest extends TestCase
         $request->setHypervelSession($session);
 
         $authFactory = m::mock(AuthFactory::class);
-        $authFactory->shouldReceive('viaRemember')->andReturn(false);
+        $authFactory->expects('viaRemember')->andReturn(false);
         $authFactory->shouldReceive('getRecallerName')->never();
         $authFactory->expects('logoutCurrentDevice')->andReturn(null);
-        $authFactory->shouldReceive('getDefaultDriver')->andReturn('web');
-        $authFactory->shouldReceive('user')->andReturn(null);
+        $authFactory->expects('getDefaultDriver')->times(3)->andReturn('web');
         $authFactory->shouldReceive('hashPasswordForCookie')->never();
 
         $middleware = new AuthenticateSession($authFactory);
