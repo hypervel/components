@@ -53,7 +53,7 @@ use Throwable;
  * @method false|int|Redis|RedisCluster sRem(string $key, mixed $value, mixed ...$other_values) Remove members from set
  * @method false|float|int|Redis|RedisCluster zadd(string $key, array|float $score_or_options, mixed ...$more_scores_and_mems) Add members to sorted set
  * @method false|int|Redis|RedisCluster zcard(string $key) Get sorted set cardinality
- * @method false|int|Redis|RedisCluster zcount(string $key, int|string $start, int|string $end) Count sorted set members by score range
+ * @method false|int|Redis|RedisCluster zcount(string $key, float|int|string $start, float|int|string $end) Count sorted set members by score range
  * @method array|false|Redis|RedisCluster zrangebyscore(string $key, float|int|string $min, float|int|string $max, array $options = []) Get sorted set members by score range
  * @method array|false|Redis|RedisCluster zrevrangebyscore(string $key, float|int|string $max, float|int|string $min, array $options = []) Get sorted set members by score range (reverse)
  * @method false|int|Redis|RedisCluster zinterstore(string $output, array $keys, array $options = []) Intersect sorted sets
@@ -282,23 +282,23 @@ use Throwable;
  * @method bool|Redis|RedisCluster watch(array|string $key, string ...$other_keys)
  * @method false|int wait(int $numreplicas, int $timeout)
  * @method false|int xack(string $key, string $group, array $ids)
- * @method false|Redis|RedisCluster|string xadd(string $key, string $id, array $values, int $maxlen = 0, bool $approx = false, bool $nomkstream = false)
- * @method array|bool|Redis|RedisCluster xautoclaim(string $key, string $group, string $consumer, int $min_idle, string $start, int $count = -1, bool $justid = false)
+ * @method false|Redis|RedisCluster|string xadd(string $key, int|string $id, array $values, int $maxlen = 0, bool $approx = false, bool $nomkstream = false)
+ * @method array|bool|Redis|RedisCluster xautoclaim(string $key, string $group, string $consumer, int $min_idle, int|string $start, int $count = -1, bool $justid = false)
  * @method array|bool|Redis|RedisCluster xclaim(string $key, string $group, string $consumer, int $min_idle, array $ids, array $options)
  * @method false|int|Redis|RedisCluster xdel(string $key, array $ids)
  * @method array|false|Redis|RedisCluster xdelex(string $key, array $ids, string|null $mode = null)
- * @method mixed xgroup(string $operation, string|null $key = null, string|null $group = null, string|null $id_or_consumer = null, bool $mkstream = false, int $entries_read = -2)
+ * @method mixed xgroup(string $operation, string|null $key = null, string|null $group = null, int|string|null $id_or_consumer = null, bool $mkstream = false, int $entries_read = -2)
  * @method mixed xinfo(string $operation, string|null $arg1 = null, string|null $arg2 = null, int $count = -1)
  * @method false|int|Redis|RedisCluster xlen(string $key)
- * @method array|false|Redis|RedisCluster xpending(string $key, string $group, string|null $start = null, string|null $end = null, int $count = -1, string|null $consumer = null)
- * @method array|bool|Redis|RedisCluster xrange(string $key, string $start, string $end, int $count = -1)
+ * @method array|false|Redis|RedisCluster xpending(string $key, string $group, int|string|null $start = null, int|string|null $end = null, int $count = -1, string|null $consumer = null)
+ * @method array|bool|Redis|RedisCluster xrange(string $key, int|string $start, int|string $end, int $count = -1)
  * @method array|bool|Redis|RedisCluster xread(array $streams, int $count = -1, int $block = -1)
  * @method array|bool|Redis|RedisCluster xreadgroup(string $group, string $consumer, array $streams, int $count = 1, int $block = 1)
- * @method array|bool|Redis|RedisCluster xrevrange(string $key, string $end, string $start, int $count = -1)
- * @method false|int|Redis|RedisCluster xtrim(string $key, string $threshold, bool $approx = false, bool $minid = false, int $limit = -1)
+ * @method array|bool|Redis|RedisCluster xrevrange(string $key, int|string $end, int|string $start, int $count = -1)
+ * @method false|int|Redis|RedisCluster xtrim(string $key, int|string $threshold, bool $approx = false, bool $minid = false, int $limit = -1)
  * @method false|float|int|Redis|RedisCluster zAdd(string $key, array|float $score_or_options, mixed ...$more_scores_and_mems) Add members to sorted set
  * @method false|int|Redis|RedisCluster zCard(string $key) Get sorted set cardinality
- * @method false|int|Redis|RedisCluster zCount(string $key, int|string $start, int|string $end) Count sorted set members by score range
+ * @method false|int|Redis|RedisCluster zCount(string $key, float|int|string $start, float|int|string $end) Count sorted set members by score range
  * @method false|float|Redis|RedisCluster zIncrBy(string $key, float $value, mixed $member)
  * @method false|int|Redis|RedisCluster zLexCount(string $key, string $min, string $max)
  * @method array|false|Redis|RedisCluster zMscore(string $key, mixed $member, mixed ...$other_members)
@@ -313,7 +313,7 @@ use Throwable;
  * @method false|int|Redis|RedisCluster zRem(mixed $key, mixed $member, mixed ...$other_members) Remove sorted set members
  * @method false|int|Redis|RedisCluster zRemRangeByLex(string $key, string $min, string $max)
  * @method false|int|Redis|RedisCluster zRemRangeByRank(string $key, int $start, int $end)
- * @method false|int|Redis|RedisCluster zRemRangeByScore(string $key, string $start, string $end)
+ * @method false|int|Redis|RedisCluster zRemRangeByScore(string $key, float|int|string $start, float|int|string $end)
  * @method array|false|Redis|RedisCluster zRevRange(string $key, int $start, int $end, mixed $scores = null)
  * @method array|false|Redis|RedisCluster zRevRangeByLex(string $key, string $max, string $min, int $offset = -1, int $count = -1)
  * @method array|false|Redis|RedisCluster zRevRangeByScore(string $key, float|int|string $max, float|int|string $min, array $options = []) Get sorted set members by score range (reverse)
@@ -541,6 +541,9 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
     {
         return $this->eventDispatcher;
     }
+
+    // REMOVED: setEventDispatcher()/unsetEventDispatcher(); pooled connections resolve
+    // the application's dispatcher from their events configuration on creation and reconnect.
 
     /**
      * Reconnect to Redis.
@@ -1273,6 +1276,166 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
     }
 
     /**
+     * Convert numeric arguments accepted as strings by phpredis.
+     *
+     * @param array<int|string, mixed> $arguments
+     * @param array<int|string> $keys
+     * @return array<int|string, mixed>
+     */
+    private function stringifyNumericArguments(array $arguments, array $keys): array
+    {
+        foreach ($keys as $key) {
+            $value = $arguments[$key] ?? null;
+
+            if (is_int($value) || is_float($value)) {
+                $arguments[$key] = (string) $value;
+            }
+        }
+
+        return $arguments;
+    }
+
+    /**
+     * Prepare arguments for the xadd command.
+     *
+     * @return array{string, array<int|string, mixed>}
+     */
+    protected function prepareXadd(mixed ...$arguments): array
+    {
+        return ['xAdd', $this->stringifyNumericArguments($arguments, [1, 'id'])];
+    }
+
+    /**
+     * Add an entry to a stream.
+     */
+    protected function callXadd(mixed ...$arguments): false|string
+    {
+        [$method, $arguments] = $this->prepareXadd(...$arguments);
+
+        return $this->connection->{$method}(...$arguments);
+    }
+
+    /**
+     * Prepare arguments for the xautoclaim command.
+     *
+     * @return array{string, array<int|string, mixed>}
+     */
+    protected function prepareXautoclaim(mixed ...$arguments): array
+    {
+        return ['xAutoClaim', $this->stringifyNumericArguments($arguments, [4, 'start'])];
+    }
+
+    /**
+     * Claim pending stream entries that have been idle long enough.
+     */
+    protected function callXautoclaim(mixed ...$arguments): array|bool
+    {
+        [$method, $arguments] = $this->prepareXautoclaim(...$arguments);
+
+        return $this->connection->{$method}(...$arguments);
+    }
+
+    /**
+     * Prepare arguments for the xgroup command.
+     *
+     * @return array{string, array<int|string, mixed>}
+     */
+    protected function prepareXgroup(mixed ...$arguments): array
+    {
+        return ['xGroup', $this->stringifyNumericArguments($arguments, [3, 'id_or_consumer'])];
+    }
+
+    /**
+     * Manage stream consumer groups.
+     */
+    protected function callXgroup(mixed ...$arguments): mixed
+    {
+        [$method, $arguments] = $this->prepareXgroup(...$arguments);
+
+        return $this->connection->{$method}(...$arguments);
+    }
+
+    /**
+     * Prepare arguments for the xpending command.
+     *
+     * @return array{string, array<int|string, mixed>}
+     */
+    protected function prepareXpending(mixed ...$arguments): array
+    {
+        return ['xPending', $this->stringifyNumericArguments($arguments, [2, 3, 'start', 'end'])];
+    }
+
+    /**
+     * Get pending entries in a stream consumer group.
+     */
+    protected function callXpending(mixed ...$arguments): array|false
+    {
+        [$method, $arguments] = $this->prepareXpending(...$arguments);
+
+        return $this->connection->{$method}(...$arguments);
+    }
+
+    /**
+     * Prepare arguments for the xrange command.
+     *
+     * @return array{string, array<int|string, mixed>}
+     */
+    protected function prepareXrange(mixed ...$arguments): array
+    {
+        return ['xRange', $this->stringifyNumericArguments($arguments, [1, 2, 'start', 'end'])];
+    }
+
+    /**
+     * Get stream entries within the given ID range.
+     */
+    protected function callXrange(mixed ...$arguments): array|bool
+    {
+        [$method, $arguments] = $this->prepareXrange(...$arguments);
+
+        return $this->connection->{$method}(...$arguments);
+    }
+
+    /**
+     * Prepare arguments for the xrevrange command.
+     *
+     * @return array{string, array<int|string, mixed>}
+     */
+    protected function prepareXrevrange(mixed ...$arguments): array
+    {
+        return ['xRevRange', $this->stringifyNumericArguments($arguments, [1, 2, 'start', 'end'])];
+    }
+
+    /**
+     * Get stream entries within the given ID range in reverse order.
+     */
+    protected function callXrevrange(mixed ...$arguments): array|bool
+    {
+        [$method, $arguments] = $this->prepareXrevrange(...$arguments);
+
+        return $this->connection->{$method}(...$arguments);
+    }
+
+    /**
+     * Prepare arguments for the xtrim command.
+     *
+     * @return array{string, array<int|string, mixed>}
+     */
+    protected function prepareXtrim(mixed ...$arguments): array
+    {
+        return ['xTrim', $this->stringifyNumericArguments($arguments, [1, 'threshold', 'maxlen'])];
+    }
+
+    /**
+     * Trim a stream by its length or minimum ID.
+     */
+    protected function callXtrim(mixed ...$arguments): false|int
+    {
+        [$method, $arguments] = $this->prepareXtrim(...$arguments);
+
+        return $this->connection->{$method}(...$arguments);
+    }
+
+    /**
      * Prepare arguments for the zadd command.
      *
      * @return array{string, array<int, mixed>}
@@ -1310,6 +1473,46 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
         [$method, $args] = $this->prepareZadd($key, ...$dictionary);
 
         return $this->connection->{$method}(...$args);
+    }
+
+    /**
+     * Prepare arguments for the zcount command.
+     *
+     * @return array{string, array<int|string, mixed>}
+     */
+    protected function prepareZcount(mixed ...$arguments): array
+    {
+        return ['zCount', $this->stringifyNumericArguments($arguments, [1, 2, 'start', 'end'])];
+    }
+
+    /**
+     * Count sorted set members within the given score range.
+     */
+    protected function callZcount(mixed ...$arguments): false|int
+    {
+        [$method, $arguments] = $this->prepareZcount(...$arguments);
+
+        return $this->connection->{$method}(...$arguments);
+    }
+
+    /**
+     * Prepare arguments for the zremrangebyscore command.
+     *
+     * @return array{string, array<int|string, mixed>}
+     */
+    protected function prepareZremrangebyscore(mixed ...$arguments): array
+    {
+        return ['zRemRangeByScore', $this->stringifyNumericArguments($arguments, [1, 2, 'start', 'end', 'min', 'max'])];
+    }
+
+    /**
+     * Remove sorted set members within the given score range.
+     */
+    protected function callZremrangebyscore(mixed ...$arguments): false|int
+    {
+        [$method, $arguments] = $this->prepareZremrangebyscore(...$arguments);
+
+        return $this->connection->{$method}(...$arguments);
     }
 
     /**

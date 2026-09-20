@@ -1283,6 +1283,59 @@ class RedisConnectionTest extends TestCase
         $this->assertSame($redis, $result);
     }
 
+    #[DataProvider('numericCommandArguments')]
+    public function testNumericArgumentsPreserveFailuresAndQueuedReturns(string $method, array $arguments, array $expected): void
+    {
+        foreach ([Redis::ATOMIC, Redis::MULTI, Redis::PIPELINE] as $mode) {
+            $connection = $this->mockRedisConnection(transform: true);
+            $redis = m::mock(Redis::class);
+            $redis->expects('getMode')->andReturn($mode);
+            $result = $mode === Redis::ATOMIC ? false : $redis;
+            $redis->expects($method)->with(...$expected)->andReturn($result);
+            $connection->setActiveConnection($redis);
+
+            $this->assertSame($result, $connection->__call($method, $arguments));
+        }
+    }
+
+    /**
+     * Provide numeric bounds and optional stream arguments.
+     *
+     * @return array<string, array{string, array<mixed>, array<mixed>}>
+     */
+    public static function numericCommandArguments(): array
+    {
+        return [
+            'score count' => ['zCount', ['set', 1, 2.5], ['set', '1', '2.5']],
+            'score removal' => ['zRemRangeByScore', ['set', 1.5, '+inf'], ['set', '1.5', '+inf']],
+            'stream append' => ['xAdd', ['stream', 1.0, ['field' => 'value']], ['stream', '1', ['field' => 'value']]],
+            'stream claim' => ['xAutoClaim', ['stream', 'group', 'consumer', 0, 0, 2, true], ['stream', 'group', 'consumer', 0, '0', 2, true]],
+            'stream group' => ['xGroup', ['CREATE', 'stream', 'group', 0], ['CREATE', 'stream', 'group', '0']],
+            'group help' => ['xGroup', ['HELP'], ['HELP']],
+            'pending range' => ['xPending', ['stream', 'group', 0, 2, 10], ['stream', 'group', '0', '2', 10]],
+            'pending summary' => ['xPending', ['stream', 'group'], ['stream', 'group']],
+            'pending null bounds' => ['xPending', ['stream', 'group', null, null], ['stream', 'group', null, null]],
+            'stream range' => ['xRange', ['stream', 0, 2, 1], ['stream', '0', '2', 1]],
+            'reverse stream range' => ['xRevRange', ['stream', 2, 0], ['stream', '2', '0']],
+            'stream trim' => ['xTrim', ['stream', 1, true, true, 10], ['stream', '1', true, true, 10]],
+        ];
+    }
+
+    public function testClusterScoreRemovalPreservesNamedBoundsAndQueuedReturns(): void
+    {
+        foreach ([Redis::ATOMIC, Redis::MULTI] as $mode) {
+            $connection = new PhpRedisClusterConnectionStub;
+            $connection->shouldTransform();
+            $redis = m::mock(RedisCluster::class);
+            $redis->expects('getMode')->andReturn($mode);
+            $result = $mode === Redis::ATOMIC ? false : $redis;
+            $redis->expects('zRemRangeByScore')->with('set', '1.5', '(2')->andReturn($result);
+            $connection->setActiveConnection($redis);
+
+            $this->assertSame($result, $connection->zRemRangeByScore('set', min: 1.5, max: '(2'));
+        }
+    }
+
     public function testPrepareEvalShapesArgumentsForQueueingMode(): void
     {
         $connection = new class extends PhpRedisConnectionStub {
@@ -1955,7 +2008,7 @@ class RedisConnectionTest extends TestCase
             ->shouldReceive('scan')
             ->with(null, $pattern, $count)
             ->once()
-            ->andReturnUsing(function (&$cursor): array {
+            ->andReturnUsing(function (?int &$cursor): array {
                 $cursor = 0;
 
                 return ['key1', 'key2'];
@@ -1964,6 +2017,7 @@ class RedisConnectionTest extends TestCase
         $result = $connection->scan($cursor, ...$options);
 
         $this->assertSame([0, ['key1', 'key2']], $result);
+        $this->assertSame(0, $cursor);
     }
 
     /**
@@ -2015,49 +2069,64 @@ class RedisConnectionTest extends TestCase
     public function testZscan(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
-        $cursor = 0;
+        $cursor = 5;
 
         $connection->getConnection()
             ->shouldReceive('zscan')
-            ->with('sortedset', 0, '*', 10)
+            ->with('sortedset', 5, '*', 10)
             ->once()
-            ->andReturn(['member1' => 1.0, 'member2' => 2.0]);
+            ->andReturnUsing(function (string $key, int &$cursor): array {
+                $cursor = 0;
+
+                return ['member1' => 1.0, 'member2' => 2.0];
+            });
 
         $result = $connection->zscan('sortedset', $cursor);
 
-        $this->assertEquals([0, ['member1' => 1.0, 'member2' => 2.0]], $result);
+        $this->assertSame([0, ['member1' => 1.0, 'member2' => 2.0]], $result);
+        $this->assertSame(0, $cursor);
     }
 
     public function testHscan(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
-        $cursor = 0;
+        $cursor = 5;
 
         $connection->getConnection()
             ->shouldReceive('hscan')
-            ->with('hash', 0, '*', 10)
+            ->with('hash', 5, '*', 10)
             ->once()
-            ->andReturn(['field1' => 'value1', 'field2' => 'value2']);
+            ->andReturnUsing(function (string $key, int &$cursor): array {
+                $cursor = 0;
+
+                return ['field1' => 'value1', 'field2' => 'value2'];
+            });
 
         $result = $connection->hscan('hash', $cursor);
 
-        $this->assertEquals([0, ['field1' => 'value1', 'field2' => 'value2']], $result);
+        $this->assertSame([0, ['field1' => 'value1', 'field2' => 'value2']], $result);
+        $this->assertSame(0, $cursor);
     }
 
     public function testSscan(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
-        $cursor = 0;
+        $cursor = 5;
 
         $connection->getConnection()
             ->shouldReceive('sscan')
-            ->with('set', 0, '*', 10)
+            ->with('set', 5, '*', 10)
             ->once()
-            ->andReturn(['member1', 'member2']);
+            ->andReturnUsing(function (string $key, int &$cursor): array {
+                $cursor = 0;
+
+                return ['member1', 'member2'];
+            });
 
         $result = $connection->sscan('set', $cursor);
 
-        $this->assertEquals([0, ['member1', 'member2']], $result);
+        $this->assertSame([0, ['member1', 'member2']], $result);
+        $this->assertSame(0, $cursor);
     }
 
     public function testEvalsha(): void

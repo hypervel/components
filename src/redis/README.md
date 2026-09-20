@@ -8,6 +8,8 @@ Ported from: https://github.com/hyperf/hyperf/tree/master/src/redis
 ## Differences From Laravel
 
 - Hypervel uses phpredis-only pooled connections. Cluster and Sentinel settings belong to each named connection instead of Laravel's top-level cluster configuration.
+- Native `persistent` and `persistent_id` options are omitted; the connection pool owns connection reuse.
+- `setEventDispatcher()` and `unsetEventDispatcher()` are omitted. Pooled connections use the application's event dispatcher; control command events through the connection's `events` setting or `Redis::enableEvents()` / `disableEvents()` during boot.
 - Hypervel never automatically replays a command after a Redis failure because the server may already have committed it. Native phpredis retry and backoff options remain supported.
 - Redis connection macros are observed as one proxy operation; native commands run inside a macro do not emit separate command events.
 - Laravel's connector-driver `extend()` and `setDriver()` APIs are intentionally omitted. Use Redis macros for custom commands or `withConnection()` for explicit access to a held connection.
