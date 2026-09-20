@@ -36,7 +36,7 @@ Two defects combine:
 | `boot()` listener guarded by `shouldNotPublishEvents()` | The same predicate `register()` branches on. Keeps the Redis branch lazy so no Redis connection opens before the fork. |
 | No `seal()` for Reverb | Cache and the rate limiter seal because tables are created by name on demand. Reverb has one fixed owner, resolved by the provider that binds it. |
 | `#[After]` on the trait, method named `destroySwooleTables()` | Most table tests extend the unit `Hypervel\Tests\TestCase`, which has no trait booting, so neither the `tearDown{Trait}` convention nor Testbench's `#[TearDown]` attribute would run there (both are driven by `setUpTraits()` on the foundation case). A `tearDownInteractsWithSwooleTables()` name would also be called a second time by `setUpTraits()`. |
-| Accept that a throwing `tearDown()` skips the hook | Running the hook before `tearDown()` would break `ReverbTestCase`, which tracks during `tearDown()`. The cost is one table per already-failing test. |
+| Accept that a throwing `tearDown()` skips the hook | Destroying tables before `tearDown()` would let application teardown touch a destroyed table, which is fatal. The cost is one table per already-failing test. |
 | Track every test-created table, including 64-row ones | A rule a reviewer can apply without measuring. |
 | No permanent memory assertion | Depends on machine, PHP version, and test order. The lazy-creation regression test covers the root cause; memory is checked once under Verification. |
 
@@ -130,7 +130,7 @@ Test `tests/Foundation/Testing/Concerns/InteractsWithSwooleTablesTest.php` (unit
 
 - `use InteractsWithSwooleTables;`
 - Class attributes `#[WithEnv('REVERB_SWOOLE_SHARED_STATE_ROWS', '64')]` and `#[WithEnv('REVERB_SWOOLE_SHARED_STATE_LOCK_ROWS', '64')]`.
-- Add `setUp()`: call `parent::setUp()`, then register a `beforeApplicationDestroyed` callback. If `$this->app->resolved(SharedState::class)` and the instance is a `SwooleTableSharedState`, track `table()` and `lockTable()`.
+- Add `setUp()`: call `parent::setUp()`, then register `$this->app->resolving(SwooleTableSharedState::class, ...)` to track `table()` and `lockTable()`. Tracking at resolve time also covers tests that use the real state and then swap in a mock (`ChannelTest`, `ChannelBroadcastPipeMessageTest`); a teardown-time lookup would only see the mock.
 
 Every `ReverbTestCase` subclass below inherits the trait; only `SwooleTableSharedStateLockTest` (unit base) adds it itself.
 
@@ -212,7 +212,7 @@ Run each changed test file with PHPUnit as it is edited. Then `composer lint:fix
 
 Confirm the real wiring with the multi-worker server. `composer test:parallel` skips these tests unless `TEST_SERVER_HOST` is set, so a green local suite says nothing about the listener being wired. Run `./bin/test-servers.sh reverb` in one terminal, then `TEST_SERVER_HOST=127.0.0.1 ./vendor/bin/phpunit --no-progress tests/Integration/Reverb/MultiWorkerServerTest.php`, and check the output reports no skipped tests.
 
-Green tests do not show released memory. For the single-process rows, measure peak process memory with `/usr/bin/time -v ./vendor/bin/phpunit --no-progress <path>` ("Maximum resident set size") next to PHPUnit's reported heap, before and after. `time -v` reports one process, so for the full suite sample the total across workers while it runs: `while sleep 1; do ps -C php -o rss= | awk '{s+=$1} END {print int(s/1024)}'; done`.
+Green tests do not show released memory. For the single-process rows, measure peak process memory with `/usr/bin/time -v ./vendor/bin/phpunit --no-progress <path>` ("Maximum resident set size") next to PHPUnit's reported heap, before and after. `time -v` reports one process, so for the full suite sample the total across workers while it runs: `while sleep 1; do ps -eo rss=,args= | grep '[c]omponents-swoole-table-lifecycle' | awk '{s+=$1} END {print int(s/1024)}'; done`. Match on the worktree path, not `ps -C php`: ParaTest workers run as `php8.4`, so matching the command name counts only the parent.
 
 | Suite | `0.4` baseline | Expected after |
 |---|---|---|
@@ -223,4 +223,4 @@ Green tests do not show released memory. For the single-process rows, measure pe
 
 ## Status
 
-Documentation (section 6) is done. Next step: section 1, `src/reverb/src/Servers/Hypervel/HypervelServerProvider.php`.
+All sections are implemented and verified. Next step: peer code review.
