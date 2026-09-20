@@ -14,12 +14,13 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use LogicException;
 use Mockery as m;
+use Mockery\MockInterface;
 use PHPUnit\Framework\ExpectationFailedException;
 use UnitEnum;
 
 class SupportTestingMailFakeTest extends TestCase
 {
-    private MailManager $mailManager;
+    private MailManager&MockInterface $mailManager;
 
     private MailFake $fake;
 
@@ -423,7 +424,7 @@ class SupportTestingMailFakeTest extends TestCase
 
     public function testMissingMethodsAreForwarded(): void
     {
-        $this->mailManager->shouldReceive('foo')->andReturn('bar');
+        $this->mailManager->expects('foo')->andReturn('bar');
 
         $this->assertSame('bar', $this->fake->foo());
     }
@@ -553,7 +554,7 @@ class SupportTestingMailFakeTest extends TestCase
     public function testDefaultMailerIsResolvedWhenEachOperationOccurs(): void
     {
         $manager = m::mock(MailManager::class);
-        $manager->shouldReceive('getDefaultDriver')->twice()->andReturn('smtp', 'ses');
+        $manager->expects('getDefaultDriver')->twice()->andReturn('smtp', 'ses');
         $fake = new MailFake($manager);
 
         $first = new MailableStub;
@@ -700,7 +701,7 @@ class SupportTestingMailFakeTest extends TestCase
     public function testShouldQueueSendResolvesTheDefaultMailerOnce(): void
     {
         $manager = m::mock(MailManager::class);
-        $manager->shouldReceive('getDefaultDriver')->once()->andReturn('smtp');
+        $manager->expects('getDefaultDriver')->andReturn('smtp');
         $fake = new MailFake($manager);
         $mailable = new QueueableMailableStub;
 
