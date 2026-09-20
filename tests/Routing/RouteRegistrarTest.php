@@ -280,6 +280,36 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->seeMiddleware('controller-middleware');
     }
 
+    public function testCanRegisterNamedRouteWithObjectMethodAction(): void
+    {
+        $route = $this->router->name('users.index')
+            ->metadata(['section' => 'users'])
+            ->get('users', [new RouteRegistrarControllerStub, 'index']);
+
+        $this->seeResponse('controller', Request::create('users', 'GET'));
+        $this->assertSame('users.index', $route->getName());
+        $this->assertSame('users', $route->getMetadata('section'));
+    }
+
+    public function testCanRegisterRouteWithInvokableObject(): void
+    {
+        $this->router->middleware('controller-middleware')
+            ->get('users', new InvokableRouteRegistrarControllerStub);
+
+        $this->seeResponse('controller', Request::create('users', 'GET'));
+        $this->seeMiddleware('controller-middleware');
+    }
+
+    public function testCanMatchRouteWithInvokableObject(): void
+    {
+        $this->router->middleware('controller-middleware')
+            ->match(['GET', 'POST'], 'users', new InvokableRouteRegistrarControllerStub);
+
+        $this->seeResponse('controller', Request::create('users', 'GET'));
+        $this->seeResponse('controller', Request::create('users', 'POST'));
+        $this->seeMiddleware('controller-middleware');
+    }
+
     public function testCanRegisterNamespacedGroupRouteWithControllerActionArray()
     {
         $this->router->group(['namespace' => 'WhatEver'], function () {
@@ -1282,6 +1312,26 @@ class RouteRegistrarTest extends RoutingTestCase
         }
     }
 
+    public function testWhereUlidRegistration(): void
+    {
+        $this->router->get('/{foo}')->whereUlid('foo');
+
+        $this->assertTrue($this->getRoute()->matches(Request::create('/01ARZ3NDEKTSV4RRFFQ69G5FAV', 'GET')));
+        $this->assertFalse($this->getRoute()->matches(Request::create('/01ARZ3NDEKTSV4RRFFQ69G5FA', 'GET')));
+        $this->assertFalse($this->getRoute()->matches(Request::create('/01ARZ3NDEKTSV4RRFFQ69G5FAI', 'GET')));
+        $this->assertFalse($this->getRoute()->matches(Request::create('/81ARZ3NDEKTSV4RRFFQ69G5FAV', 'GET')));
+    }
+
+    public function testWhereUuidRegistration(): void
+    {
+        $this->router->get('/{foo}')->whereUuid('foo');
+
+        $this->assertTrue($this->getRoute()->matches(Request::create('/2cd90b6d-3c34-4a0a-9d0d-9d0b7b1a2e6f', 'GET')));
+        $this->assertTrue($this->getRoute()->matches(Request::create('/2CD90B6D-3C34-4A0A-9D0D-9D0B7B1A2E6F', 'GET')));
+        $this->assertFalse($this->getRoute()->matches(Request::create('/2cd90b6d3c344a0a9d0d9d0b7b1a2e6f', 'GET')));
+        $this->assertFalse($this->getRoute()->matches(Request::create('/2cd90b6d-3c34-4a0a-9d0d-9d0b7b1a2e6', 'GET')));
+    }
+
     public function testWhereInRegistration()
     {
         $wheres = ['foo' => 'one|two', 'bar' => 'one|two'];
@@ -1462,6 +1512,14 @@ class RouteRegistrarTest extends RoutingTestCase
 
         $this->seeResponse('all-users', Request::create('users', 'GET'));
         $this->assertSame('users.index', $this->getRoute()->getName());
+    }
+
+    public function testCanSetRouteNameWithNonCallableControllerActionArray(): void
+    {
+        $this->router->name('users.missing')->get('users', [RouteRegistrarControllerStub::class, 'missing']);
+
+        $this->assertSame('users.missing', $this->getRoute()->getName());
+        $this->assertSame(RouteRegistrarControllerStub::class . '@missing', ltrim($this->getRoute()->getAction('uses'), '\\'));
     }
 
     public function testCanSetRouteNameUsingStringBackedEnum()
