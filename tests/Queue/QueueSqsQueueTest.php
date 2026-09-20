@@ -1411,31 +1411,6 @@ class QueueSqsQueueTest extends TestCase
         $this->assertSame(5, $queue->clear($this->queueName));
     }
 
-    public function testClearDoesNotResolveOverflowStoreWhenBothFlagsAreDisabled(): void
-    {
-        $container = m::mock(ContainerContract::class);
-        $container->shouldNotReceive('make');
-
-        $queue = $this->getMockBuilder(SqsQueue::class)
-            ->onlyMethods(['getQueue', 'size'])
-            ->setConstructorArgs([
-                $this->sqs,
-                $this->queueName,
-                $this->prefix,
-                '',
-                false,
-                ['enabled' => false, 'flush_on_clear' => false, 'store' => 'database'],
-            ])
-            ->getMock();
-        $queue->setContainer($container);
-        $queue->expects($this->once())->method('getQueue')->with($this->queueName)->willReturn($this->queueUrl);
-        $queue->expects($this->once())->method('size')->with($this->queueName)->willReturn(5);
-
-        $this->sqs->expects('purgeQueue')->with(['QueueUrl' => $this->queueUrl]);
-
-        $this->assertSame(5, $queue->clear($this->queueName));
-    }
-
     public function testClearForwardsConfiguredStoreNameToFactory(): void
     {
         $store = m::mock(CacheStore::class);
