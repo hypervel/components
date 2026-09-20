@@ -24,7 +24,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
 
         LazyCollection::make($closure);
 
-        $this->assertEquals([], $recorder->all());
+        $this->assertSame([], $recorder->all());
     }
 
     public function testMakeWithLazyCollectionIsLazy(): void
@@ -1334,7 +1334,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
                         tap($collection)
                             ->mockery_init($mock->mockery_getContainer())
                             ->shouldAllowMockingProtectedMethods()
-                            ->shouldReceive('now')
+                            ->expects('now')
                             ->times(1)
                             ->andReturn(
                                 $timeout->getTimestamp()
@@ -1354,7 +1354,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
                         tap($collection)
                             ->mockery_init($mock->mockery_getContainer())
                             ->shouldAllowMockingProtectedMethods()
-                            ->shouldReceive('now')
+                            ->expects('now')
                             ->times(2)
                             ->andReturn(
                                 $timeout->sub(1, 'minute')->getTimestamp(),
@@ -1375,7 +1375,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
                         tap($collection)
                             ->mockery_init($mock->mockery_getContainer())
                             ->shouldAllowMockingProtectedMethods()
-                            ->shouldReceive('now')
+                            ->expects('now')
                             ->times(100)
                             ->andReturn(
                                 $timeout->sub(1, 'minute')->getTimestamp()

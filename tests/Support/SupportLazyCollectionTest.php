@@ -238,7 +238,7 @@ class SupportLazyCollectionTest extends TestCase
                 tap($collection)
                     ->mockery_init($mock->mockery_getContainer())
                     ->shouldAllowMockingProtectedMethods()
-                    ->shouldReceive('now')
+                    ->expects('now')
                     ->times(3)
                     ->andReturn(
                         $timeout->sub(2, 'minute')->getTimestamp(),
