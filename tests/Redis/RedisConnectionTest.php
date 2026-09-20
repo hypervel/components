@@ -2531,6 +2531,35 @@ class RedisConnectionTest extends TestCase
         $this->assertFalse($connection->compressed());
     }
 
+    #[DataProvider('compressionAlgorithms')]
+    public function testCompressionAlgorithmInspection(string $constant, ?string $enabledMethod): void
+    {
+        if (! defined($constant)) {
+            $this->markTestSkipped("{$constant} is not defined.");
+        }
+
+        $redis = new Redis;
+        $redis->setOption(Redis::OPT_COMPRESSION, constant($constant));
+        $connection = (new PhpRedisConnectionStub)->setActiveConnection($redis);
+
+        foreach (['lzfCompressed', 'zstdCompressed', 'lz4Compressed'] as $method) {
+            $this->assertSame($method === $enabledMethod, $connection->{$method}());
+        }
+    }
+
+    /**
+     * Provide native compression settings and their matching inspection methods.
+     */
+    public static function compressionAlgorithms(): array
+    {
+        return [
+            'none' => ['Redis::COMPRESSION_NONE', null],
+            'lzf' => ['Redis::COMPRESSION_LZF', 'lzfCompressed'],
+            'zstd' => ['Redis::COMPRESSION_ZSTD', 'zstdCompressed'],
+            'lz4' => ['Redis::COMPRESSION_LZ4', 'lz4Compressed'],
+        ];
+    }
+
     #[DataProvider('scanPrefixOptions')]
     public function testWithoutScanPrefixPreservesOtherOptionsAndRestores(bool $retry, bool $prefix): void
     {

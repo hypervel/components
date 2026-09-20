@@ -165,6 +165,8 @@ namespace Hypervel\Support\Facades;
  * @method static false|int lrem(string $key, int $count, mixed $value) Remove list elements
  * @method static bool|\Redis|\RedisCluster lSet(string $key, int $index, mixed $value)
  * @method static bool|\Redis|\RedisCluster ltrim(string $key, int $start, int $end)
+ * @method static bool lz4Compressed()
+ * @method static bool lzfCompressed()
  * @method static array|false|\Redis|\RedisCluster mget(array $keys) Get the values of multiple keys
  * @method static bool|\Redis migrate(string $host, int $port, array|string $key, int $dstdb, int $timeout, bool $copy = false, bool $replace = false, mixed $credentials = null)
  * @method static bool|\Redis move(string $key, int $index)
@@ -299,6 +301,7 @@ namespace Hypervel\Support\Facades;
  * @method static array|false|\Redis|\RedisCluster zrevrangebyscore(string $key, float|int|string $max, float|int|string $min, array $options = []) Get sorted set members by score range (reverse)
  * @method static false|int|\Redis|\RedisCluster zRevRank(string $key, mixed $member)
  * @method static false|float|\Redis|\RedisCluster zScore(string $key, mixed $member)
+ * @method static bool zstdCompressed()
  * @method static array|false|\Redis|\RedisCluster zunion(array $keys, array|null $weights = null, array|null $options = null)
  * @method static false|int|\Redis|\RedisCluster zunionstore(string $output, array $keys, array $options = []) Union sorted sets
  *

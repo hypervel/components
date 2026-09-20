@@ -1858,6 +1858,33 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
     }
 
     /**
+     * Determine if LZF compression is enabled.
+     */
+    public function lzfCompressed(): bool
+    {
+        return defined('Redis::COMPRESSION_LZF')
+            && $this->connection->getOption(Redis::OPT_COMPRESSION) === Redis::COMPRESSION_LZF;
+    }
+
+    /**
+     * Determine if ZSTD compression is enabled.
+     */
+    public function zstdCompressed(): bool
+    {
+        return defined('Redis::COMPRESSION_ZSTD')
+            && $this->connection->getOption(Redis::OPT_COMPRESSION) === Redis::COMPRESSION_ZSTD;
+    }
+
+    /**
+     * Determine if LZ4 compression is enabled.
+     */
+    public function lz4Compressed(): bool
+    {
+        return defined('Redis::COMPRESSION_LZ4')
+            && $this->connection->getOption(Redis::OPT_COMPRESSION) === Redis::COMPRESSION_LZ4;
+    }
+
+    /**
      * Execute the given callback without prefixing scan patterns.
      *
      * Key prefixing remains unchanged. Hold this connection until the callback
