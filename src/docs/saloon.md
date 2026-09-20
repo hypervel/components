@@ -1458,6 +1458,15 @@ $request->invalidateCache();
 
 The request or its connector must implement `Cacheable` before these controls are used. `invalidateCache` removes the matching value and refreshes it from the network.
 
+To always keep a request type out of connector caching, override `cachingEnabled` on a request without the `HasCaching` trait. This is useful for live streams that must not be buffered:
+
+```php
+public function cachingEnabled(): bool
+{
+    return false;
+}
+```
+
 <a name="custom-cache-keys"></a>
 ### Custom Cache Keys
 
@@ -1608,6 +1617,8 @@ If a request implements `MapPaginatedResponseItems`, its `mapPaginatedResponseIt
 ### Offset and Cursor Pagination
 
 Extend `OffsetPaginator` for APIs that use `limit` and `offset`. A per-page limit must be configured before iteration. Extend `CursorPaginator` for APIs where each response supplies the next cursor, and implement `getNextCursor`.
+
+Cursors may be strings, numbers, booleans, or null. The default query encoding omits null and sends booleans as `1` or `0`. Override `applyPagination` when your API requires another encoding, and use `isLastPage` to determine when pagination ends.
 
 Cursor pagination is always sequential because a later request depends on the previous response. Rewinding a paginator clears its iterator state and begins again at the configured start page.
 

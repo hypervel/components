@@ -308,6 +308,62 @@ class PaginatorTest extends TestCase
         $this->assertSame([null, 'cursor-2'], $cursors);
     }
 
+    #[DataProvider('scalarCursorProvider')]
+    public function testCursorValuesRetainTheirKindsUntilQueryEncoding(int|bool $next, string $encoded): void
+    {
+        $manager = $this->manager();
+        $cursors = [];
+        $queries = [];
+        $manager->fake([
+            CursorRequestStub::class => static function (PendingRequest $pendingRequest) use (&$cursors, &$queries, $next): MockResponse {
+                $cursors[] = $pendingRequest->queryParameters()['cursor'] ?? null;
+                $queries[] = $pendingRequest->uri()->getQuery();
+
+                return MockResponse::make(count($cursors) === 1
+                    ? ['data' => [1], 'next' => $next]
+                    : ['data' => [2], 'next' => null]);
+            },
+        ]);
+        $paginator = new class(new PaginationConnectorStub($manager), new CursorRequestStub) extends CursorPaginator {
+            /**
+             * Retain the provider's scalar cursor.
+             */
+            protected function getNextCursor(Response $response): bool|float|int|string|null
+            {
+                return $response->json('next');
+            }
+
+            /**
+             * Stop at the provider's null marker.
+             */
+            protected function isLastPage(Response $response): bool
+            {
+                return $response->json('next') === null;
+            }
+
+            /**
+             * Return this page's items.
+             */
+            protected function getPageItems(Response $response, Request $request): array
+            {
+                return $response->json('data');
+            }
+        };
+
+        $this->assertSame([1, 2], iterator_to_array($paginator->items(), false));
+        $this->assertSame([null, $next], $cursors);
+        $this->assertSame(['', 'cursor=' . $encoded], $queries);
+    }
+
+    /**
+     * Cover integer cursors and boolean values through the ordinary query encoder.
+     */
+    public static function scalarCursorProvider(): iterable
+    {
+        yield 'integer zero' => [0, '0'];
+        yield 'boolean false' => [false, '0'];
+    }
+
     public function testRequestCanMapPaginatedItems(): void
     {
         $manager = $this->manager();

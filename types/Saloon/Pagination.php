@@ -23,7 +23,7 @@ class SaloonPaginationTypeItem
 }
 
 /**
- * @extends Request<mixed>
+ * @extends Request<list<SaloonPaginationTypeItem>>
  * @implements MapPaginatedResponseItems<SaloonPaginationTypeItem>
  * @implements HasRequestPagination<SaloonPaginationTypeItem>
  */
@@ -37,6 +37,17 @@ class SaloonPaginationTypeRequest extends Request implements Paginatable, MapPag
     public function resolveEndpoint(): string
     {
         return '/items';
+    }
+
+    /**
+     * Create the page's data objects.
+     *
+     * @param Response<mixed> $response
+     * @return list<SaloonPaginationTypeItem>
+     */
+    public function createDtoFromResponse(Response $response): array
+    {
+        return [new SaloonPaginationTypeItem];
     }
 
     /**
@@ -63,7 +74,7 @@ class SaloonPaginationTypeRequest extends Request implements Paginatable, MapPag
 }
 
 /**
- * @extends Connector<mixed>
+ * @extends Connector<list<SaloonPaginationTypeItem>>
  * @implements HasPagination<SaloonPaginationTypeItem>
  */
 class SaloonPaginationTypeConnector extends Connector implements HasPagination
@@ -156,6 +167,7 @@ function SaloonPaginationTypeAssertions(
     assertType('Hypervel\Saloon\Http\Response<mixed>', $link->current());
     assertType('Hypervel\Saloon\Pagination\Paginator<SaloonPaginationTypeItem>', $connector->paginate(new SaloonPaginationTypeRequest));
     assertType('Hypervel\Saloon\Pagination\Paginator<SaloonPaginationTypeItem>', $request->paginate(new SaloonPaginationTypeConnector));
+    assertType('list<SaloonPaginationTypeItem>', (new SaloonPaginationTypeConnector)->send(new SaloonPaginationTypeRequest)->dto());
 
     foreach ($paged as $key => $response) {
         assertType('int', $key);

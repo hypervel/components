@@ -23,7 +23,7 @@ use Hypervel\Support\Traits\Macroable;
 use LogicException;
 use UnitEnum;
 
-/** @template TDto */
+/** @template-covariant TDto */
 abstract class Request implements SelfBuilding
 {
     /** @use CreatesDtoFromResponse<TDto> */
@@ -92,8 +92,6 @@ abstract class Request implements SelfBuilding
 
     /**
      * Determine if caching is enabled for this request.
-     *
-     * @internal
      */
     public function cachingEnabled(): bool
     {
