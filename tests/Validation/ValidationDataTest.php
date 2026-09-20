@@ -82,6 +82,27 @@ class ValidationDataTest extends TestCase
         );
     }
 
+    public function testExpandsTerminalEmptyKeys(): void
+    {
+        $this->assertSame(['items.'], ValidationData::expandWildcardKeys('items.*', [
+            'items' => ['' => 'value'],
+        ]));
+
+        $this->assertSame(['items..'], ValidationData::expandWildcardKeys('items.*.*', [
+            'items' => ['' => ['' => 'value']],
+        ]));
+    }
+
+    public function testGathersWildcardValuesWithEmptyKeys(): void
+    {
+        $this->assertSame([
+            'items..name' => 'Taylor',
+            'items.' => ['name' => 'Taylor'],
+        ], ValidationData::initializeAndGatherData('items.*', [
+            'items' => ['' => ['name' => 'Taylor']],
+        ]));
+    }
+
     /**
      * Test matched wildcards emit missing fixed leaves for required rules.
      */

@@ -4614,6 +4614,19 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
+    public function testDistinctIncludesValuesAtEmptyKeys(): void
+    {
+        $validator = new Validator($this->getArrayTranslator(), [
+            'items' => ['' => 'same', 'other' => 'same'],
+        ], ['items.*' => 'distinct']);
+
+        $this->assertFalse($validator->passes());
+        $this->assertSame([
+            'items.' => ['validation.distinct'],
+            'items.other' => ['validation.distinct'],
+        ], $validator->errors()->toArray());
+    }
+
     public function testFirstDeclaredOverlappingWildcardDefinesDistinctScope(): void
     {
         $validator = new Validator($this->getArrayTranslator(), [
@@ -8592,6 +8605,22 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
         $this->assertTrue($v->messages()->has('foo.0.bar.0.name'));
         $this->assertTrue($v->messages()->has('foo.0.bar.1.name'));
+    }
+
+    public function testValidateImplicitEachWithAsterisksRequiredIfAndEmptyKey(): void
+    {
+        $trans = $this->getArrayTranslator();
+
+        $v = new Validator($trans, [
+            'users' => [
+                '' => ['role' => 'admin'],
+            ],
+        ], [
+            'users.*.invite_code' => ['Required_if:users.*.role,admin'],
+        ]);
+
+        $this->assertFalse($v->passes());
+        $this->assertTrue($v->messages()->has('users..invite_code'));
     }
 
     public function testValidateImplicitEachWithAsterisksRequiredUnless()

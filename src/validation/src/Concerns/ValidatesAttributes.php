@@ -908,7 +908,7 @@ trait ValidatesAttributes
             $this->data
         );
 
-        $pattern = str_replace('\*', '[^.]+', preg_quote($attribute, '#'));
+        $pattern = str_replace('\*', '[^.]*', preg_quote($attribute, '#'));
 
         return Arr::where(Arr::dot($attributeData), function ($value, $key) use ($pattern) {
             return (bool) preg_match('#^' . $pattern . '\z#u', (string) $key);
