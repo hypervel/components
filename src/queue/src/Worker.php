@@ -24,6 +24,7 @@ use Hypervel\Queue\Events\JobPopped;
 use Hypervel\Queue\Events\JobPopping;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
+use Hypervel\Queue\Events\JobReleased;
 use Hypervel\Queue\Events\JobReleasedAfterException;
 use Hypervel\Queue\Events\JobTimedOut;
 use Hypervel\Queue\Events\Looping;
@@ -893,6 +894,13 @@ class Worker
             }
 
             $this->raiseAfterJobEvent($connectionName, $job);
+
+            if ($job->isReleased() && ! $job->isDeleted() && $this->events->hasListeners(JobReleased::class)) {
+                $this->events->dispatch(new JobReleased(
+                    $connectionName,
+                    $job
+                ));
+            }
         } catch (CanceledException $exception) {
             $canceled = true;
 
