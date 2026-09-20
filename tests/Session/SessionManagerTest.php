@@ -83,7 +83,7 @@ class SessionManagerTest extends TestCase
         $this->assertNull($this->databaseConnectionFromHandler($this->handlerFromStore($store)));
     }
 
-    public function testRedisDriverDefaultsToSessionConnectionWhenUnset(): void
+    public function testRedisDriverUsesConfiguredSessionPrefix(): void
     {
         $container = $this->getContainer([
             'session.driver' => 'redis',
@@ -94,6 +94,7 @@ class SessionManagerTest extends TestCase
             'session.serialization' => 'php',
             'session.prefix' => 'application_session:',
             'session.track_user_sessions' => false,
+            'cache.prefix' => 'cache_prefix',
         ]);
         $container->instance(RedisFactory::class, m::mock(RedisFactory::class));
 
@@ -108,6 +109,9 @@ class SessionManagerTest extends TestCase
         $this->assertFalse($this->propertyFromObject($handler, 'trackUserSessions'));
         $this->assertFalse($container->bound('cache'));
     }
+
+    // REMOVED: testRedisDriverFallsBackToCachePrefixWhenNoSessionPrefix;
+    // the native Redis handler uses the required session prefix and never resolves a cache store.
 
     public function testExplicitSessionConnectionOverridesBothDrivers(): void
     {
