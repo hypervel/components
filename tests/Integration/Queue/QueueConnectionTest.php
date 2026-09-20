@@ -84,7 +84,7 @@ class QueueConnectionTest extends TestCase
 
         Bus::dispatch((new QueueConnectionTestJob)->beforeCommit());
 
-        $this->assertSame('SendMessage', $this->sqs->getLastCommand()->getName());
+        $this->assertSame('SendMessage', $this->sqs->getLastCommand()?->getName());
     }
 
     public function testJobWontGetDispatchedInsideATransactionWhenExplicitlyIndicated(): void
@@ -135,7 +135,7 @@ class QueueConnectionTest extends TestCase
 
         QueueConnectionTestUniqueJob::dispatch()->beforeCommit();
 
-        $this->assertSame('SendMessage', $this->sqs->getLastCommand()->getName());
+        $this->assertSame('SendMessage', $this->sqs->getLastCommand()?->getName());
     }
 
     public function testUniqueJobWontGetDispatchedInsideATransactionWhenExplicitlyIndicated(): void
