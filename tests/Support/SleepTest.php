@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use Carbon\CarbonInterval;
+use DateInterval;
 use Exception;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
@@ -17,7 +18,7 @@ use RuntimeException;
 
 class SleepTest extends TestCase
 {
-    public function testItSleepsForSeconds()
+    public function testItSleepsForSeconds(): void
     {
         $start = microtime(true);
         Sleep::for(1)->seconds();
@@ -26,21 +27,43 @@ class SleepTest extends TestCase
         $this->assertEqualsWithDelta(1, $end - $start, 0.03);
     }
 
-    public function testCallbacksMayBeExecutedUsingThen()
+    public function testCallbacksMayBeExecutedUsingThen(): void
     {
-        $this->assertEquals(123, Sleep::for(1)->milliseconds()->then(fn () => 123));
+        $this->assertEquals(123, Sleep::for(1)->milliseconds()->then(fn (): int => 123));
     }
 
-    public function testSleepRespectsWhile()
+    public function testFailedSleepIsNotRepeatedAfterThen(): void
+    {
+        $exception = new RuntimeException('Polling failed.');
+        $checks = 0;
+
+        try {
+            Sleep::for(0)->seconds()->while(function () use ($exception, &$checks): bool {
+                if (++$checks === 1) {
+                    throw $exception;
+                }
+
+                return false;
+            })->then(fn (): null => null);
+
+            $this->fail('The polling exception was not thrown.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertSame(1, $checks);
+    }
+
+    public function testSleepRespectsWhile(): void
     {
         $_SERVER['__sleep.while'] = 0;
 
-        $result = Sleep::for(10)->milliseconds()->while(function () {
+        $result = Sleep::for(10)->milliseconds()->while(function (): bool {
             static $results = [true, true, false];
             ++$_SERVER['__sleep.while'];
 
             return array_shift($results);
-        })->then(fn () => 100);
+        })->then(fn (): int => 100);
 
         $this->assertEquals(3, $_SERVER['__sleep.while']);
         $this->assertEquals(100, $result);
@@ -48,7 +71,43 @@ class SleepTest extends TestCase
         unset($_SERVER['__sleep.while']);
     }
 
-    public function testItSleepsForSecondsWithMilliseconds()
+    public function testItSleepsForTheFullDurationOnEveryWhileIteration(): void
+    {
+        $start = microtime(true);
+        Sleep::for(1.5)->seconds()->while(function (): bool {
+            static $results = [true, true, false];
+
+            return array_shift($results);
+        });
+        $elapsed = microtime(true) - $start;
+
+        $this->assertGreaterThanOrEqual(2.9, $elapsed);
+    }
+
+    #[TestWith([0])]
+    #[TestWith([2])]
+    public function testFakeSleepRespectsWhile(int $iterations): void
+    {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::parse('2000-01-01 00:00:00'));
+        Sleep::fake(syncWithCarbon: true);
+        $checks = 0;
+        $callbacks = 0;
+
+        Sleep::whenFakingSleep(function () use (&$callbacks): void {
+            ++$callbacks;
+        });
+
+        Sleep::for(1.5)->seconds()->while(function () use ($iterations, &$checks): bool {
+            return ++$checks <= $iterations;
+        });
+
+        $this->assertSame($iterations + 1, $checks);
+        Sleep::assertSleptTimes($iterations);
+        $this->assertSame($iterations, $callbacks);
+        $this->assertEquals($now->addSeconds(1.5 * $iterations), Date::now());
+    }
+
+    public function testItSleepsForSecondsWithMilliseconds(): void
     {
         $start = microtime(true);
         Sleep::for(1.5)->seconds();
@@ -57,7 +116,7 @@ class SleepTest extends TestCase
         $this->assertEqualsWithDelta(1.5, round($end - $start, 1, PHP_ROUND_HALF_DOWN), 0.03);
     }
 
-    public function testItCanFakeSleeping()
+    public function testItCanFakeSleeping(): void
     {
         Sleep::fake();
 
@@ -79,7 +138,7 @@ class SleepTest extends TestCase
         $this->assertSame($microseconds, $sleep->duration->totalMicroseconds);
     }
 
-    public function testItCanSpecifyMinute()
+    public function testItCanSpecifyMinute(): void
     {
         Sleep::fake();
 
@@ -99,7 +158,7 @@ class SleepTest extends TestCase
         $this->assertSame($microseconds, $sleep->duration->totalMicroseconds);
     }
 
-    public function testItCanSpecifySecond()
+    public function testItCanSpecifySecond(): void
     {
         Sleep::fake();
 
@@ -120,7 +179,7 @@ class SleepTest extends TestCase
         $this->assertSame($microseconds, $sleep->duration->totalMicroseconds);
     }
 
-    public function testItCanSpecifyMillisecond()
+    public function testItCanSpecifyMillisecond(): void
     {
         Sleep::fake();
 
@@ -141,7 +200,7 @@ class SleepTest extends TestCase
         $this->assertSame($microseconds, $sleep->duration->totalMicroseconds);
     }
 
-    public function testItCanSpecifyMicrosecond()
+    public function testItCanSpecifyMicrosecond(): void
     {
         Sleep::fake();
 
@@ -150,7 +209,7 @@ class SleepTest extends TestCase
         $this->assertSame((float) $sleep->duration->totalMicroseconds, 1.0);
     }
 
-    public function testItCanChainDurations()
+    public function testItCanChainDurations(): void
     {
         Sleep::fake();
 
@@ -160,7 +219,7 @@ class SleepTest extends TestCase
         $this->assertSame((float) $sleep->duration->totalMicroseconds, 1000500.0);
     }
 
-    public function testItCanUseDateInterval()
+    public function testItCanUseDateInterval(): void
     {
         Sleep::fake();
 
@@ -169,7 +228,7 @@ class SleepTest extends TestCase
         $this->assertSame((float) $sleep->duration->totalMicroseconds, 1_005_000.0);
     }
 
-    public function testItThrowsForUnknownTimeUnit()
+    public function testItThrowsForUnknownTimeUnit(): void
     {
         try {
             Sleep::for(5);
@@ -179,7 +238,7 @@ class SleepTest extends TestCase
         }
     }
 
-    public function testItCanAssertSequence()
+    public function testItCanAssertSequence(): void
     {
         Sleep::fake();
 
@@ -192,7 +251,7 @@ class SleepTest extends TestCase
         ]);
     }
 
-    public function testItFailsSequenceAssertion()
+    public function testItFailsSequenceAssertion(): void
     {
         Sleep::fake();
 
@@ -210,7 +269,7 @@ class SleepTest extends TestCase
         }
     }
 
-    public function testItCanUseSleep()
+    public function testItCanUseSleep(): void
     {
         Sleep::fake();
 
@@ -221,7 +280,7 @@ class SleepTest extends TestCase
         ]);
     }
 
-    public function testItCanUseUSleep()
+    public function testItCanUseUSleep(): void
     {
         Sleep::fake();
 
@@ -232,43 +291,43 @@ class SleepTest extends TestCase
         ]);
     }
 
-    public function testItCanSleepTillGivenTime()
+    public function testItCanSleepTillGivenTime(): void
     {
         Sleep::fake();
-        Carbon::setTestNow(now()->startOfDay());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
-        Sleep::until(now()->addMinute());
+        Sleep::until($now->addMinute());
 
         Sleep::assertSequence([
             Sleep::for(60)->seconds(),
         ]);
     }
 
-    public function testItCanSleepTillGivenTimestamp()
+    public function testItCanSleepTillGivenTimestamp(): void
     {
         Sleep::fake();
-        Carbon::setTestNow(now()->startOfDay());
+        CarbonImmutable::setTestNow($today = CarbonImmutable::today());
 
-        Sleep::until(now()->addMinute()->timestamp);
+        Sleep::until($today->addMinute()->getTimestamp());
 
         Sleep::assertSequence([
             Sleep::for(60)->seconds(),
         ]);
     }
 
-    public function testItCanSleepTillGivenTimestampAsString()
+    public function testItCanSleepTillGivenTimestampAsString(): void
     {
         Sleep::fake();
-        Carbon::setTestNow(now()->startOfDay());
+        CarbonImmutable::setTestNow($today = CarbonImmutable::today());
 
-        Sleep::until((string) now()->addMinute()->timestamp);
+        Sleep::until((string) $today->addMinute()->getTimestamp());
 
         Sleep::assertSequence([
             Sleep::for(60)->seconds(),
         ]);
     }
 
-    public function testItCanSleepTillGivenTimestampAsStringWithMilliseconds()
+    public function testItCanSleepTillGivenTimestampAsStringWithMilliseconds(): void
     {
         Sleep::fake();
         Carbon::setTestNow('2000-01-01 00:00:00.000'); // 946684800
@@ -282,19 +341,19 @@ class SleepTest extends TestCase
         ]);
     }
 
-    public function testItSleepsForZeroTimeWithNegativeDateTime()
+    public function testItSleepsForZeroTimeWithNegativeDateTime(): void
     {
         Sleep::fake();
-        Carbon::setTestNow(now()->startOfDay());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
-        Sleep::until(now()->subMinutes(100));
+        Sleep::until($now->subMinutes(100));
 
         Sleep::assertSequence([
             Sleep::for(0)->seconds(),
         ]);
     }
 
-    public function testSleepingForZeroTime()
+    public function testSleepingForZeroTime(): void
     {
         Sleep::fake();
 
@@ -310,7 +369,7 @@ class SleepTest extends TestCase
         }
     }
 
-    public function testItFailsWhenSequenceContainsTooManySleeps()
+    public function testItFailsWhenSequenceContainsTooManySleeps(): void
     {
         Sleep::fake();
 
@@ -327,7 +386,7 @@ class SleepTest extends TestCase
         }
     }
 
-    public function testSilentlySetsDurationToZeroForNegativeValues()
+    public function testSilentlySetsDurationToZeroForNegativeValues(): void
     {
         Sleep::fake();
 
@@ -338,7 +397,7 @@ class SleepTest extends TestCase
         ]);
     }
 
-    public function testItDoesntCaptureAssertionInstances()
+    public function testItDoesntCaptureAssertionInstances(): void
     {
         Sleep::fake();
 
@@ -359,7 +418,7 @@ class SleepTest extends TestCase
         }
     }
 
-    public function testAssertNeverSlept()
+    public function testAssertNeverSlept(): void
     {
         Sleep::fake();
 
@@ -375,7 +434,7 @@ class SleepTest extends TestCase
         }
     }
 
-    public function testAssertNeverAgainstZeroSecondSleep()
+    public function testAssertNeverAgainstZeroSecondSleep(): void
     {
         Sleep::fake();
 
@@ -391,7 +450,7 @@ class SleepTest extends TestCase
         }
     }
 
-    public function testItCanAssertNoSleepingOccurred()
+    public function testItCanAssertNoSleepingOccurred(): void
     {
         Sleep::fake();
 
@@ -412,7 +471,7 @@ class SleepTest extends TestCase
         }
     }
 
-    public function testItCanAssertSleepCount()
+    public function testItCanAssertSleepCount(): void
     {
         Sleep::fake();
 
@@ -437,14 +496,14 @@ class SleepTest extends TestCase
         }
     }
 
-    public function testAssertSlept()
+    public function testAssertSlept(): void
     {
         Sleep::fake();
 
-        Sleep::assertSlept(fn () => true, 0);
+        Sleep::assertSlept(fn (): bool => true, 0);
 
         try {
-            Sleep::assertSlept(fn () => true);
+            Sleep::assertSlept(fn (): bool => true);
             $this->fail();
         } catch (AssertionFailedError $e) {
             $this->assertSame("The expected sleep was found [0] times instead of [1].\nFailed asserting that 0 is identical to 1.", $e->getMessage());
@@ -452,37 +511,37 @@ class SleepTest extends TestCase
 
         Sleep::for(5)->seconds();
 
-        Sleep::assertSlept(fn (CarbonInterval $duration) => (float) $duration->totalSeconds === 5.0);
+        Sleep::assertSlept(fn (CarbonInterval $duration): bool => (float) $duration->totalSeconds === 5.0);
 
         try {
-            Sleep::assertSlept(fn (CarbonInterval $duration) => (float) $duration->totalSeconds === 5.0, 2);
+            Sleep::assertSlept(fn (CarbonInterval $duration): bool => (float) $duration->totalSeconds === 5.0, 2);
             $this->fail();
         } catch (AssertionFailedError $e) {
             $this->assertSame("The expected sleep was found [1] times instead of [2].\nFailed asserting that 1 is identical to 2.", $e->getMessage());
         }
 
         try {
-            Sleep::assertSlept(fn (CarbonInterval $duration) => (float) $duration->totalSeconds === 6.0);
+            Sleep::assertSlept(fn (CarbonInterval $duration): bool => (float) $duration->totalSeconds === 6.0);
             $this->fail();
         } catch (AssertionFailedError $e) {
             $this->assertSame("The expected sleep was found [0] times instead of [1].\nFailed asserting that 0 is identical to 1.", $e->getMessage());
         }
     }
 
-    public function testItCanCreateMacrosViaMacroable()
+    public function testItCanCreateMacrosViaMacroable(): void
     {
         Sleep::fake();
 
-        Sleep::macro('forSomeConfiguredAmountOfTime', static function () {
+        Sleep::macro('forSomeConfiguredAmountOfTime', static function (): Sleep {
             return Sleep::for(3)->seconds();
         });
 
-        Sleep::macro('useSomeOtherAmountOfTime', function () {
+        Sleep::macro('useSomeOtherAmountOfTime', function (): Sleep {
             /** @var Sleep $this */
             return $this->duration(1.234)->seconds();
         });
 
-        Sleep::macro('andSomeMoreGranularControl', function () {
+        Sleep::macro('andSomeMoreGranularControl', function (): Sleep {
             /** @var Sleep $this */
             return $this->and(567)->microseconds();
         });
@@ -500,11 +559,11 @@ class SleepTest extends TestCase
         $this->assertSame((float) $sleep->duration->totalMicroseconds, 1234567.0);
     }
 
-    public function testItCanReplacePreviouslyDefinedDurations()
+    public function testItCanReplacePreviouslyDefinedDurations(): void
     {
         Sleep::fake();
 
-        Sleep::macro('setDuration', function ($duration) {
+        Sleep::macro('setDuration', function (DateInterval|float|int $duration): Sleep {
             return $this->duration($duration);
         });
 
@@ -518,53 +577,53 @@ class SleepTest extends TestCase
         $this->assertSame((float) $sleep->duration->totalMicroseconds, 500000.0);
     }
 
-    public function testItCanSleepConditionallyWhen()
+    public function testItCanSleepConditionallyWhen(): void
     {
         Sleep::fake();
 
         // Control test
-        Sleep::assertSlept(fn () => true, 0);
+        Sleep::assertSlept(fn (): bool => true, 0);
         Sleep::for(1)->second();
-        Sleep::assertSlept(fn () => true, 1);
+        Sleep::assertSlept(fn (): bool => true, 1);
         Sleep::fake();
-        Sleep::assertSlept(fn () => true, 0);
+        Sleep::assertSlept(fn (): bool => true, 0);
 
         // Reset
         Sleep::fake();
 
         // Will not sleep if `when()` yields `false`
         Sleep::for(1)->second()->when(false);
-        Sleep::for(1)->second()->when(fn () => false);
+        Sleep::for(1)->second()->when(fn (): bool => false);
 
         // Will not sleep if `unless()` yields `true`
         Sleep::for(1)->second()->unless(true);
-        Sleep::for(1)->second()->unless(fn () => true);
+        Sleep::for(1)->second()->unless(fn (): bool => true);
 
         // Finish 'do not sleep' tests - assert no sleeping occurred
-        Sleep::assertSlept(fn () => true, 0);
+        Sleep::assertSlept(fn (): bool => true, 0);
 
         // Will sleep if `when()` yields `true`
         Sleep::for(1)->second()->when(true);
-        Sleep::assertSlept(fn () => true, 1);
-        Sleep::for(1)->second()->when(fn () => true);
-        Sleep::assertSlept(fn () => true, 2);
+        Sleep::assertSlept(fn (): bool => true, 1);
+        Sleep::for(1)->second()->when(fn (): bool => true);
+        Sleep::assertSlept(fn (): bool => true, 2);
 
         // Will sleep if `unless()` yields `false`
         Sleep::for(1)->second()->unless(false);
-        Sleep::assertSlept(fn () => true, 3);
-        Sleep::for(1)->second()->unless(fn () => false);
-        Sleep::assertSlept(fn () => true, 4);
+        Sleep::assertSlept(fn (): bool => true, 3);
+        Sleep::for(1)->second()->unless(fn (): bool => false);
+        Sleep::assertSlept(fn (): bool => true, 4);
     }
 
-    public function testItCanRegisterCallbacksToRunInTests()
+    public function testItCanRegisterCallbacksToRunInTests(): void
     {
         $countA = 0;
         $countB = 0;
         Sleep::fake();
-        Sleep::whenFakingSleep(function ($duration) use (&$countA) {
+        Sleep::whenFakingSleep(function (CarbonInterval $duration) use (&$countA): void {
             $countA += $duration->totalMilliseconds;
         });
-        Sleep::whenFakingSleep(function ($duration) use (&$countB) {
+        Sleep::whenFakingSleep(function (CarbonInterval $duration) use (&$countB): void {
             $countB += $duration->totalMilliseconds;
         });
 
@@ -580,9 +639,9 @@ class SleepTest extends TestCase
         $this->assertSame(3.0, (float) $countB);
     }
 
-    public function testItDoesntRunCallbacksWhenNotFaking()
+    public function testItDoesntRunCallbacksWhenNotFaking(): void
     {
-        Sleep::whenFakingSleep(function () {
+        Sleep::whenFakingSleep(function (): never {
             throw new Exception('Should not run without faking.');
         });
 
@@ -591,7 +650,7 @@ class SleepTest extends TestCase
         $this->assertTrue(true);
     }
 
-    public function testItDoesNotSyncCarbon()
+    public function testItDoesNotSyncCarbon(): void
     {
         Carbon::setTestNow('2000-01-01 00:00:00');
         Sleep::fake();
@@ -661,7 +720,7 @@ class SleepTest extends TestCase
         $this->assertSame($datetime, Date::now()->toDateTimeString());
     }
 
-    public function testFakeDoesNotNeedToSyncWithCarbon()
+    public function testFakeDoesNotNeedToSyncWithCarbon(): void
     {
         Carbon::setTestNow('2000-01-01 00:00:00');
         Sleep::fake();

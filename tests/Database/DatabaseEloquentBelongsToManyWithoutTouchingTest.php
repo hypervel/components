@@ -23,17 +23,17 @@ class DatabaseEloquentBelongsToManyWithoutTouchingTest extends TestCase
 
         $this->assertFalse($related::isIgnoringTouch());
 
-        Model::withoutTouching(function () use ($related) {
+        Model::withoutTouching(function () use ($related): void {
             $this->assertTrue($related::isIgnoringTouch());
 
             $builder = m::mock(Builder::class);
-            $builder->shouldReceive('join');
+            $builder->expects('join');
             $parent = m::mock(BelongsToManyWithoutTouchingUser::class);
 
-            $parent->shouldReceive('getAttribute')->with('id')->andReturn(1);
-            $builder->shouldReceive('getModel')->andReturn($related);
-            $builder->shouldReceive('where');
-            $builder->shouldReceive('getQuery')->andReturn(
+            $parent->expects('getAttribute')->with('id')->andReturn(1);
+            $builder->expects('getModel')->andReturn($related);
+            $builder->expects('where');
+            $builder->expects('getQuery')->times(2)->andReturn(
                 m::mock(QueryBuilder::class, ['getGrammar' => m::mock(Grammar::class, ['isExpression' => false])])
             );
             $relation = new BelongsToMany($builder, $parent, 'article_users', 'user_id', 'article_id', 'id', 'id');
@@ -52,6 +52,9 @@ class BelongsToManyWithoutTouchingUser extends Model
 
     protected array $fillable = ['id', 'email'];
 
+    /**
+     * Get the user's articles.
+     */
     public function articles(): BelongsToMany
     {
         return $this->belongsToMany(BelongsToManyWithoutTouchingArticle::class, 'article_user', 'user_id', 'article_id');
@@ -66,6 +69,9 @@ class BelongsToManyWithoutTouchingArticle extends Model
 
     protected array $touches = ['user'];
 
+    /**
+     * Get the article's users.
+     */
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(BelongsToManyWithoutTouchingUser::class, 'article_user', 'article_id', 'user_id');

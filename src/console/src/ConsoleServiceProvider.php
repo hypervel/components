@@ -27,6 +27,7 @@ class ConsoleServiceProvider extends ServiceProvider
         $this->commands([
             ScheduleClearCacheCommand::class,
             ScheduleListCommand::class,
+            // REMOVED: ScheduleWorkCommand; schedule:run already runs continuously in coroutines.
             ScheduleRunCommand::class,
             ScheduleInterruptCommand::class,
             SchedulePauseCommand::class,

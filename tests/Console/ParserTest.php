@@ -162,18 +162,16 @@ class ParserTest extends TestCase
         $this->assertSame('default', $results[2][0]->getDefault());
     }
 
-    public function testNameIsSpacesException()
+    public function testNameIsSpacesException(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unable to determine command name from signature.');
+        $this->expectExceptionObject(new InvalidArgumentException('Unable to determine command name from signature.'));
 
         Parser::parse(" \t\n\r\x0B\f");
     }
 
-    public function testNameInEmptyException()
+    public function testNameInEmptyException(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unable to determine command name from signature.');
+        $this->expectExceptionObject(new InvalidArgumentException('Unable to determine command name from signature.'));
 
         Parser::parse('');
     }

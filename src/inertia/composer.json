@@ -33,8 +33,8 @@
     },
     "require": {
         "php": "^8.4",
-        "guzzlehttp/guzzle": "^7.15.1",
-        "guzzlehttp/promises": "^2.5.2",
+        "guzzlehttp/guzzle": "^7.15.1 || ^8.2",
+        "guzzlehttp/promises": "^2.5.2 || ^3.0.2",
         "symfony/console": "^8.1",
         "symfony/http-foundation": "^8.1",
         "symfony/process": "^8.1",

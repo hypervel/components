@@ -24,8 +24,11 @@ class RedisBroadcasterTest extends TestCase
 
     protected Container $container;
 
-    protected Redis|m\MockInterface $redis;
+    protected Redis&m\MockInterface $redis;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -38,7 +41,7 @@ class RedisBroadcasterTest extends TestCase
 
     public function testAuthCallValidAuthenticationResponseWithPrivateChannelWhenCallbackReturnTrue(): void
     {
-        $this->broadcaster->channel('test', function () {
+        $this->broadcaster->channel('test', function (): bool {
             return true;
         });
 
@@ -64,7 +67,7 @@ class RedisBroadcasterTest extends TestCase
     {
         $this->expectException(AccessDeniedHttpException::class);
 
-        $this->broadcaster->channel('test', function () {
+        $this->broadcaster->channel('test', function (): bool {
             return false;
         });
 
@@ -77,7 +80,7 @@ class RedisBroadcasterTest extends TestCase
     {
         $this->expectException(AccessDeniedHttpException::class);
 
-        $this->broadcaster->channel('test', function () {
+        $this->broadcaster->channel('test', function (): bool {
             return true;
         });
 
@@ -89,7 +92,7 @@ class RedisBroadcasterTest extends TestCase
     public function testAuthCallValidAuthenticationResponseWithPresenceChannelWhenCallbackReturnAnArray(): void
     {
         $returnData = [1, 2, 3, 4];
-        $this->broadcaster->channel('test', function () use ($returnData) {
+        $this->broadcaster->channel('test', function () use ($returnData): array {
             return $returnData;
         });
 
@@ -110,7 +113,7 @@ class RedisBroadcasterTest extends TestCase
     {
         $this->expectException(AccessDeniedHttpException::class);
 
-        $this->broadcaster->channel('test', function () {
+        $this->broadcaster->channel('test', function (): void {
         });
 
         $this->broadcaster->auth(
@@ -122,7 +125,7 @@ class RedisBroadcasterTest extends TestCase
     {
         $this->expectException(AccessDeniedHttpException::class);
 
-        $this->broadcaster->channel('test', function () {
+        $this->broadcaster->channel('test', function (): array {
             return [1, 2, 3, 4];
         });
 
@@ -138,13 +141,13 @@ class RedisBroadcasterTest extends TestCase
             [$this->container, $this->redis, 'default', 'redis.'],
         )->makePartial();
         $user = m::mock('User');
-        $user->shouldReceive('getAuthIdentifier')->once()->andReturn(42);
+        $user->expects('getAuthIdentifier')->andReturn(42);
 
         $request = m::mock(Request::class);
         $request->shouldReceive('input')
             ->with('channel_name')
             ->andReturn('redis.presence-application.tenant.orders.5');
-        $request->shouldReceive('user')->times(3)->with('members')->andReturn($user);
+        $request->expects('user')->times(3)->with('members')->andReturn($user);
         $request->shouldNotReceive('user')->withNoArgs();
 
         $calls = 0;
@@ -158,7 +161,7 @@ class RedisBroadcasterTest extends TestCase
 
         $broadcaster->channel(
             'application.orders.{order}',
-            static fn ($authenticatedUser, string $order): array|false => $authenticatedUser === $user && $order === '5'
+            static fn (object $authenticatedUser, string $order): array|false => $authenticatedUser === $user && $order === '5'
                 ? ['role' => 'viewer']
                 : false,
             ['guards' => ['members']],
@@ -252,12 +255,12 @@ class RedisBroadcasterTest extends TestCase
     public function testBroadcastUsesPublishPerChannelOnCluster(): void
     {
         $connection = m::mock(RedisProxy::class);
-        $connection->shouldReceive('isCluster')->once()->andReturnTrue();
-        $connection->shouldReceive('publish')->once()->with('test-channel-1', m::type('string'));
-        $connection->shouldReceive('publish')->once()->with('test-channel-2', m::type('string'));
+        $connection->expects('isCluster')->andReturnTrue();
+        $connection->expects('publish')->with('test-channel-1', m::type('string'));
+        $connection->expects('publish')->with('test-channel-2', m::type('string'));
         $connection->shouldNotReceive('eval');
 
-        $this->redis->shouldReceive('connection')->once()->andReturn($connection);
+        $this->redis->expects('connection')->andReturn($connection);
 
         $broadcaster = new RedisBroadcaster($this->container, $this->redis);
         $broadcaster->broadcast(['test-channel-1', 'test-channel-2'], 'test-event', ['data' => 'value']);
@@ -266,13 +269,12 @@ class RedisBroadcasterTest extends TestCase
     public function testClusterBroadcastWrapsRedisClusterException(): void
     {
         $connection = m::mock(RedisProxy::class);
-        $connection->shouldReceive('isCluster')->once()->andReturnTrue();
-        $connection->shouldReceive('publish')
-            ->once()
+        $connection->expects('isCluster')->andReturnTrue();
+        $connection->expects('publish')
             ->with('test-channel', m::type('string'))
             ->andThrow(new RedisClusterException('Cluster unavailable'));
 
-        $this->redis->shouldReceive('connection')->once()->andReturn($connection);
+        $this->redis->expects('connection')->andReturn($connection);
 
         $this->expectException(BroadcastException::class);
         $this->expectExceptionMessage('Redis error: Cluster unavailable.');
@@ -284,11 +286,11 @@ class RedisBroadcasterTest extends TestCase
     public function testBroadcastUsesEvalOnNonCluster(): void
     {
         $connection = m::mock(RedisProxy::class);
-        $connection->shouldReceive('isCluster')->once()->andReturnFalse();
-        $connection->shouldReceive('eval')->once();
+        $connection->expects('isCluster')->andReturnFalse();
+        $connection->expects('eval');
         $connection->shouldNotReceive('publish');
 
-        $this->redis->shouldReceive('connection')->once()->andReturn($connection);
+        $this->redis->expects('connection')->andReturn($connection);
 
         $broadcaster = new RedisBroadcaster($this->container, $this->redis);
         $broadcaster->broadcast(['test-channel'], 'test-event', ['data' => 'value']);
@@ -304,12 +306,11 @@ class RedisBroadcasterTest extends TestCase
         );
 
         $connection = m::mock(RedisProxy::class);
-        $connection->shouldReceive('isCluster')->once()->andReturnTrue();
-        $connection->shouldReceive('publish')
-            ->once()
+        $connection->expects('isCluster')->andReturnTrue();
+        $connection->expects('publish')
             ->with('application.orders', m::type('string'));
 
-        $this->redis->shouldReceive('connection')->once()->andReturn($connection);
+        $this->redis->expects('connection')->andReturn($connection);
 
         (new RedisBroadcaster(
             $this->container,
@@ -328,9 +329,8 @@ class RedisBroadcasterTest extends TestCase
         );
 
         $connection = m::mock(RedisProxy::class);
-        $connection->shouldReceive('isCluster')->once()->andReturnFalse();
-        $connection->shouldReceive('eval')
-            ->once()
+        $connection->expects('isCluster')->andReturnFalse();
+        $connection->expects('eval')
             ->with(
                 m::type('string'),
                 0,
@@ -338,7 +338,7 @@ class RedisBroadcasterTest extends TestCase
                 'redis.application.orders',
             );
 
-        $this->redis->shouldReceive('connection')->once()->andReturn($connection);
+        $this->redis->expects('connection')->andReturn($connection);
 
         (new RedisBroadcaster(
             $this->container,
@@ -351,7 +351,7 @@ class RedisBroadcasterTest extends TestCase
     {
         $this->expectException(JsonException::class);
 
-        $this->redis->shouldReceive('connection')->once()->andReturn(
+        $this->redis->expects('connection')->andReturn(
             m::mock(RedisProxy::class)
         );
 
@@ -366,7 +366,7 @@ class RedisBroadcasterTest extends TestCase
     {
         $connection = m::mock(RedisProxy::class);
         $connection->shouldReceive('isCluster')->andReturnFalse();
-        $connection->shouldReceive('eval')->once()->withArgs(function ($script, $numKeys, $payload) {
+        $connection->expects('eval')->withArgs(function (string $script, int $numberOfKeys, string $payload): bool {
             $decoded = json_decode($payload, true);
 
             // socket should be at top level only, not inside data
@@ -380,6 +380,9 @@ class RedisBroadcasterTest extends TestCase
         $broadcaster->broadcast(['test-channel'], 'test-event', ['message' => 'hello', 'socket' => 'test-socket']);
     }
 
+    /**
+     * Create a channel request with an authenticated user.
+     */
     protected function getMockRequestWithUserForChannel(string $channel): Request
     {
         $request = m::mock(Request::class);
@@ -394,6 +397,9 @@ class RedisBroadcasterTest extends TestCase
         return $request;
     }
 
+    /**
+     * Create a channel request without an authenticated user.
+     */
     protected function getMockRequestWithoutUserForChannel(string $channel): Request
     {
         $request = m::mock(Request::class);

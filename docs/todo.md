@@ -33,6 +33,10 @@
 
 - Replace PHPUnit 13's [soft-deprecated `expectExceptionMessage()`](https://github.com/sebastianbergmann/phpunit/issues/6560) calls across the test suite. Preserve intended matching semantics: use `expectExceptionObject()` for combined class/message/code expectations, `expectExceptionMessageIs()` for exact messages, and `expectExceptionMessageIsOrContains()` for substring matching. Audit each assertion's intent and run its owning test file as it is changed.
 
+## Filesystem
+
+- Investigate FTP support with Swoole's built-in coroutine FTP implementation. It supplies `ftp_*` functions but is not discoverable as `ext-ftp`, so Composer rejects `league/flysystem-ftp` and `RequiresPhpExtension('ftp')` skips the driver test. Resolve normal development and production installation without bypassing dependency checks, then add the adapter to root `require-dev`, use a test requirement that accepts either FTP implementation, and update the installation guidance. Basic transfers through Hypervel and Flysystem have been verified inside a Swoole coroutine.
+
 ## HTTP Server
 
 - Remove trailer-stream one-chunk lookahead once the minimum supported Swoole release includes [swoole-src#6124](https://github.com/swoole/swoole-src/pull/6124). Current releases send an empty `END_STREAM` DATA frame before trailer HEADERS when `end()` receives no body after `write()`, so `ResponseBridge` retains the final chunk for `end($chunk)` and delays delivery by one chunk. Once fixed, raise the `ext-swoole` constraint, write every chunk immediately, emit trailers, call bare `end()`, invert the deterministic bridge ordering tests, and add real gRPC incremental-delivery coverage.
@@ -57,6 +61,7 @@
 
 ## Redis
 
+- Investigate opt-in atomic multi-limit admission for Redis Cluster through named rate-limiter stores. The current inspect-then-consume path can charge earlier limits before a later denial, wasting private or shared quota. A store-level hash tag could co-locate its keys and reuse the grouped Lua script while leaving other stores distributed. Preserve key identity across all operations and document fresh counters when switching stores, connection-prefix interactions, and the one-primary capacity tradeoff.
 - Revisit the rate limiter's portable fixed-window Lua script once native bounded increment-with-expiry support is mature across the supported Redis-compatible ecosystem. Redis 8.8's `INCREX` can atomically reject increments above an upper bound and set expiry only for a new window, but Redis 8.6 and Valkey 9 do not provide it, [Valkey #3253](https://github.com/valkey-io/valkey/pull/3253) is still an open related proposal rather than equivalent `INCREX` support, and phpredis 6.3 exposes no typed `INCREX` method (while `rawCommand()` bypasses key prefixing and has different Redis Cluster routing semantics). Re-benchmark and switch only when Redis and Valkey expose equivalent semantics and phpredis has prefix-aware, cluster-aware client support; keep the corresponding focused `@TODO` beside the Lua script until then.
 
 ## Validation

@@ -19,15 +19,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
     {
         parent::setUp();
 
-        $table = new Table(1024);
-        $table->column('count', Table::TYPE_INT);
-        $table->create();
-
-        $lockTable = new Table(256);
-        $lockTable->column('locked_at', Table::TYPE_FLOAT);
-        $lockTable->create();
-
-        $this->state = new SwooleTableSharedState($table, $lockTable, new StripedLock);
+        $this->state = $this->createState(1024, 256);
     }
 
     public function testSubscribeReturnsChannelOccupiedOnFirstSubscriber(): void
@@ -189,15 +181,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
 
     public function testThrowsExceptionWhenTableIsFull(): void
     {
-        $smallTable = new Table(4);
-        $smallTable->column('count', Table::TYPE_INT);
-        $smallTable->create();
-
-        $lockTable = new Table(4);
-        $lockTable->column('locked_at', Table::TYPE_FLOAT);
-        $lockTable->create();
-
-        $state = new SwooleTableSharedState($smallTable, $lockTable, new StripedLock);
+        $state = $this->createState(4, 4);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('reverb.servers.reverb.swoole_shared_state.rows');
@@ -235,15 +219,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
 
     public function testPresenceCreationFailureDoesNotPublishOnlyOneCounter(): void
     {
-        $table = new Table(128);
-        $table->column('count', Table::TYPE_INT);
-        $table->create();
-
-        $lockTable = new Table(128);
-        $lockTable->column('locked_at', Table::TYPE_FLOAT);
-        $lockTable->create();
-
-        $state = new FailingSecondPresenceRowSharedState($table, $lockTable, new StripedLock);
+        $state = $this->createState(128, 128, FailingSecondPresenceRowSharedState::class);
 
         try {
             $state->subscribe('app1', 'presence-channel', 'user-1');
@@ -252,7 +228,7 @@ class SwooleTableSharedStateTest extends ReverbTestCase
             $this->assertSame('Unable to create the second presence row.', $exception->getMessage());
         }
 
-        $this->assertSame(0, $table->count());
+        $this->assertSame(0, $state->table()->count());
     }
 
     // ── Subscription count ────────────────────────────────────────────
@@ -454,15 +430,8 @@ class SwooleTableSharedStateTest extends ReverbTestCase
 
     public function testTryLockReturnsFalseWhenLockTableFull(): void
     {
-        $table = new Table(1024);
-        $table->column('count', Table::TYPE_INT);
-        $table->create();
+        $state = $this->createState(1024, 4);
 
-        $lockTable = new Table(4);
-        $lockTable->column('locked_at', Table::TYPE_FLOAT);
-        $lockTable->create();
-
-        $state = new SwooleTableSharedState($table, $lockTable, new StripedLock);
         Log::shouldReceive('error')
             ->once()
             ->withArgs(fn (string $message): bool => str_contains($message, 'swoole_shared_state.lock_rows'));
@@ -479,6 +448,28 @@ class SwooleTableSharedStateTest extends ReverbTestCase
         }
 
         $this->assertTrue($hitCapacity, 'Lock table should eventually return false when full');
+    }
+
+    /**
+     * Create a shared state backed by tracked tables.
+     *
+     * @template T of SwooleTableSharedState
+     * @param class-string<T> $class
+     * @return T
+     */
+    private function createState(int $rows, int $lockRows, string $class = SwooleTableSharedState::class): SwooleTableSharedState
+    {
+        $table = new Table($rows);
+        $table->column('count', Table::TYPE_INT);
+        $table->create();
+
+        $lockTable = new Table($lockRows);
+        $lockTable->column('locked_at', Table::TYPE_FLOAT);
+        $lockTable->create();
+
+        $this->trackSwooleTable($table, $lockTable);
+
+        return new $class($table, $lockTable, new StripedLock);
     }
 }
 

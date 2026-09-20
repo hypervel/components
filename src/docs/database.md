@@ -2,8 +2,10 @@
 
 - [Introduction](#introduction)
     - [Configuration](#configuration)
+        - [MySQL and MariaDB SQL Modes](#mysql-and-mariadb-sql-modes)
         - [Masking Bindings in Exception Messages](#masking-bindings-in-exception-messages)
         - [Lock Timeouts](#lock-timeouts)
+        - [PostgreSQL Keepalives](#postgresql-keepalives)
     - [Read and Write Connections](#read-and-write-connections)
     - [Connection Pooling](#connection-pooling)
     - [Configuring Database Session State](#configuring-database-session-state)
@@ -39,6 +41,17 @@ Almost every modern web application interacts with a database. Hypervel makes in
 The configuration for Hypervel's database services is located in your application's `config/database.php` configuration file. In this file, you may define all of your database connections, as well as specify which connection should be used by default. Most of the configuration options within this file are driven by the values of your application's environment variables. Examples for most of Hypervel's supported database systems are provided in this file.
 
 By default, Hypervel's sample [environment configuration](/docs/{{version}}/configuration#environment-configuration) uses SQLite. However, you are free to modify your database configuration as needed for your local database.
+
+<a name="mysql-and-mariadb-sql-modes"></a>
+#### MySQL and MariaDB SQL Modes
+
+MySQL and MariaDB connections must configure either `strict` or `modes`. The shipped configuration uses `'strict' => true`. To choose the session's SQL modes explicitly, set `modes` on the connection; this takes precedence over `strict`:
+
+```php
+'modes' => ['STRICT_TRANS_TABLES', 'NO_ENGINE_SUBSTITUTION', 'NO_BACKSLASH_ESCAPES'],
+```
+
+If your application uses `NO_BACKSLASH_ESCAPES`, include it here instead of relying on the server's default mode. Hypervel uses this configuration to quote values correctly. Keep the backslash-escaping mode consistent across read and write connections.
 
 <a name="sqlite-configuration"></a>
 #### SQLite Configuration
@@ -91,6 +104,22 @@ SQLite uses its existing `busy_timeout` option, expressed in milliseconds:
 The `busy_timeout` option applies only to SQLite connections and is ignored by other database drivers.
 
 The timeout is applied whenever Hypervel creates or reconnects a physical database connection. An expired timeout is treated as a concurrency error, so a [transaction configured with multiple attempts](#handling-concurrency-errors) may retry it. If different parts of your application need different timeout policies, define separate database connections for them.
+
+<a name="postgresql-keepalives"></a>
+#### PostgreSQL Keepalives
+
+PostgreSQL's client library enables TCP keepalives by default. You may adjust them using these options in your PostgreSQL connection configuration:
+
+```php
+'keepalives' => 1,
+'keepalives_idle' => 600,
+'keepalives_interval' => 30,
+'keepalives_count' => 5,
+```
+
+The idle and interval values are in seconds; the count limits unanswered probes. Set `keepalives` to `0` to disable keepalives. Omitting these options or setting them to `null` leaves the PostgreSQL client's defaults unchanged; `0` uses the system default for idle, interval, and count.
+
+These options apply to TCP connections, not Unix-domain sockets. See PostgreSQL's [connection parameter documentation](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-PARAMKEYWORDS) for platform support.
 
 <a name="configuration-using-urls"></a>
 #### Configuration Using URLs

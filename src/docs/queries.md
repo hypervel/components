@@ -891,6 +891,18 @@ $users = DB::table('users')
 <a name="additional-where-clauses"></a>
 ### Additional Where Clauses
 
+**whereBinary / orWhereBinary / whereNotBinary / orWhereNotBinary**
+
+The `whereBinary` method compares strings byte by byte on MySQL and MariaDB, making letter case and trailing spaces significant:
+
+```php
+$users = DB::table('users')
+    ->whereBinary('name', 'John')
+    ->get();
+```
+
+Use `whereNotBinary` to find values that differ. The `orWhereBinary` and `orWhereNotBinary` methods add the corresponding "or" conditions. These methods throw an exception on other database drivers.
+
 **whereLike / orWhereLike / whereNotLike / orWhereNotLike**
 
 The `whereLike` method allows you to add "LIKE" clauses to your query for pattern matching. These methods provide a database-agnostic way of performing string matching queries, with the ability to toggle case-sensitivity. By default, string matching is case-insensitive:
@@ -1658,6 +1670,15 @@ $affected = DB::table('users')
     ->update(['votes' => 1]);
 ```
 
+When using PostgreSQL, use the `updateFrom` method when the new column values reference columns from a joined table. This method returns the number of affected rows:
+
+```php
+$affected = DB::table('invoices')
+    ->join('customers', 'invoices.customer_id', '=', 'customers.id')
+    ->whereNull('invoices.currency')
+    ->updateFrom(['currency' => DB::raw('customers.currency')]);
+```
+
 <a name="update-or-insert"></a>
 #### Update or Insert
 
@@ -1692,7 +1713,7 @@ DB::table('users')->updateOrInsert(
 <a name="updating-json-columns"></a>
 ### Updating JSON Columns
 
-When updating a JSON column, you should use `->` syntax to update the appropriate key in the JSON object. This operation is supported on MariaDB 10.3+, MySQL 5.7+, and PostgreSQL 9.5+:
+When updating a JSON column, you should use `->` syntax to update the appropriate key in the JSON object. This operation is supported on MariaDB 10.3+, MySQL 5.7+, PostgreSQL 9.5+, and SQLite 3.39.0+:
 
 ```php
 $affected = DB::table('users')

@@ -16,6 +16,7 @@ use Pheanstalk\Pheanstalk;
 use Pheanstalk\Values\Job;
 use Pheanstalk\Values\JobId;
 use Pheanstalk\Values\TubeName;
+use UnitEnum;
 
 class BeanstalkdQueue extends Queue implements QueueContract
 {
@@ -40,7 +41,7 @@ class BeanstalkdQueue extends Queue implements QueueContract
     /**
      * Get the size of the queue.
      */
-    public function size(?string $queue = null): int
+    public function size(UnitEnum|string|null $queue = null): int
     {
         $stats = $this->pheanstalk->statsTube(new TubeName($this->getQueue($queue)));
 
@@ -52,7 +53,7 @@ class BeanstalkdQueue extends Queue implements QueueContract
     /**
      * Get the number of pending jobs.
      */
-    public function pendingSize(?string $queue = null): int
+    public function pendingSize(UnitEnum|string|null $queue = null): int
     {
         return $this->pheanstalk->statsTube(new TubeName($this->getQueue($queue)))->currentJobsReady;
     }
@@ -60,7 +61,7 @@ class BeanstalkdQueue extends Queue implements QueueContract
     /**
      * Get the number of delayed jobs.
      */
-    public function delayedSize(?string $queue = null): int
+    public function delayedSize(UnitEnum|string|null $queue = null): int
     {
         return $this->pheanstalk->statsTube(new TubeName($this->getQueue($queue)))->currentJobsDelayed;
     }
@@ -68,7 +69,7 @@ class BeanstalkdQueue extends Queue implements QueueContract
     /**
      * Get the number of reserved jobs.
      */
-    public function reservedSize(?string $queue = null): int
+    public function reservedSize(UnitEnum|string|null $queue = null): int
     {
         return $this->pheanstalk->statsTube(new TubeName($this->getQueue($queue)))->currentJobsReserved;
     }
@@ -112,7 +113,7 @@ class BeanstalkdQueue extends Queue implements QueueContract
     /**
      * Get the pending jobs for the given queue.
      */
-    public function pendingJobs(?string $queue = null): Collection
+    public function pendingJobs(UnitEnum|string|null $queue = null): Collection
     {
         return new Collection;
     }
@@ -120,7 +121,7 @@ class BeanstalkdQueue extends Queue implements QueueContract
     /**
      * Get the delayed jobs for the given queue.
      */
-    public function delayedJobs(?string $queue = null): Collection
+    public function delayedJobs(UnitEnum|string|null $queue = null): Collection
     {
         return new Collection;
     }
@@ -128,7 +129,7 @@ class BeanstalkdQueue extends Queue implements QueueContract
     /**
      * Get the reserved jobs for the given queue.
      */
-    public function reservedJobs(?string $queue = null): Collection
+    public function reservedJobs(UnitEnum|string|null $queue = null): Collection
     {
         return new Collection;
     }
@@ -160,7 +161,7 @@ class BeanstalkdQueue extends Queue implements QueueContract
     /**
      * Get the creation timestamp of the oldest pending job, excluding delayed jobs.
      */
-    public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
+    public function creationTimeOfOldestPendingJob(UnitEnum|string|null $queue = null): ?int
     {
         // Not supported by Beanstalkd...
         return null;
@@ -169,8 +170,10 @@ class BeanstalkdQueue extends Queue implements QueueContract
     /**
      * Push a new job onto the queue.
      */
-    public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $queue = $this->normalizeQueue($queue);
+
         return $this->enqueueUsing(
             $job,
             $this->createPayload($job, $this->getQueue($queue), $data),
@@ -185,7 +188,7 @@ class BeanstalkdQueue extends Queue implements QueueContract
     /**
      * Push a raw payload onto the queue.
      */
-    public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed
+    public function pushRaw(string $payload, UnitEnum|string|null $queue = null, array $options = []): mixed
     {
         $this->pheanstalk->useTube(new TubeName($this->getQueue($queue)));
 
@@ -200,8 +203,10 @@ class BeanstalkdQueue extends Queue implements QueueContract
     /**
      * Push a new job onto the queue after (n) seconds.
      */
-    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $queue = $this->normalizeQueue($queue);
+
         return $this->enqueueUsing(
             $job,
             $this->createPayload($job, $this->getQueue($queue), $data, $delay),
@@ -228,7 +233,7 @@ class BeanstalkdQueue extends Queue implements QueueContract
     /**
      * Pop the next job off of the queue.
      */
-    public function pop(?string $queue = null): ?JobContract
+    public function pop(UnitEnum|string|null $queue = null): ?JobContract
     {
         $this->pheanstalk->watch(
             $tube = new TubeName($queue = $this->getQueue($queue))
@@ -258,7 +263,7 @@ class BeanstalkdQueue extends Queue implements QueueContract
     /**
      * Delete a message from the Beanstalk queue.
      */
-    public function deleteMessage(string $queue, int|string $id): void
+    public function deleteMessage(UnitEnum|string $queue, int|string $id): void
     {
         $this->pheanstalk->useTube(new TubeName($this->getQueue($queue)));
 
@@ -268,8 +273,10 @@ class BeanstalkdQueue extends Queue implements QueueContract
     /**
      * Get the queue or return the default.
      */
-    public function getQueue(?string $queue): string
+    public function getQueue(UnitEnum|string|null $queue): string
     {
+        $queue = $this->normalizeQueue($queue);
+
         return $this->resolveQueue($queue === null || $queue === '' ? $this->default : $queue);
     }
 

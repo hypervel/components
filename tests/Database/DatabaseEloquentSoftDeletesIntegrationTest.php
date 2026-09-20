@@ -7,10 +7,13 @@ namespace Hypervel\Tests\Database\DatabaseEloquentSoftDeletesIntegrationTest;
 use BadMethodCallException;
 use Exception;
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Eloquent\SoftDeletingScope;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Database\Schema\Builder as SchemaBuilder;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\Paginator;
@@ -217,16 +220,19 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
         $this->assertFalse($user->exists);
     }
 
-    public function testForceDeleteDoesntUpdateExistsPropertyIfFailed()
+    public function testForceDeleteDoesntUpdateExistsPropertyIfFailed(): void
     {
-        $user = new class extends User {
+        $user = new class(['id' => 1]) extends User {
             public bool $exists = true;
 
-            public function newModelQuery(): \Hypervel\Database\Eloquent\Builder
+            /**
+             * Get a query builder that fails when deleting the model.
+             */
+            public function newModelQuery(): EloquentBuilder
             {
-                $mock = m::mock(\Hypervel\Database\Eloquent\Builder::class);
-                $mock->shouldReceive('where')->andReturnSelf();
-                $mock->shouldReceive('forceDelete')->andThrow(new Exception);
+                $mock = m::mock(EloquentBuilder::class);
+                $mock->expects('where')->with('id', '=', 1)->andReturnSelf();
+                $mock->expects('forceDelete')->andThrow(new Exception);
 
                 return $mock;
             }
@@ -1019,20 +1025,16 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
 
     /**
      * Get a database connection instance.
-     *
-     * @return \Illuminate\Database\Connection
      */
-    protected function connection()
+    protected function connection(): ConnectionInterface
     {
         return Eloquent::getConnectionResolver()->connection();
     }
 
     /**
      * Get a schema builder instance.
-     *
-     * @return \Illuminate\Database\Schema\Builder
      */
-    protected function schema()
+    protected function schema(): SchemaBuilder
     {
         return $this->connection()->getSchemaBuilder();
     }

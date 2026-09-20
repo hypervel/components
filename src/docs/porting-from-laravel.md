@@ -22,6 +22,7 @@
 - [Configuration](#configuration)
 - [Other API Differences](#other-api-differences)
     - [Scheduling](#scheduling)
+    - [Maintenance Mode](#maintenance-mode)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
     - [CSRF Protection](#csrf-protection)
     - [Scout](#scout)
@@ -165,6 +166,8 @@ Some packages also define package-local contracts, such as `Hypervel\Permission\
 Not every Laravel class has a one-for-one replacement. If a class or method is absent, first check the relevant Hypervel documentation and current source for the supported approach. If there is no equivalent, remove the integration or raise the concrete use case with the maintainers.
 
 Do not recreate missing Laravel framework internals or add local classes under `Hypervel` namespaces merely to make a mechanical namespace replacement pass. An intentional adapter around a public contract may be appropriate for an application-owned or third-party integration, but it should adapt that integration to Hypervel's documented API instead of imitating missing framework internals.
+
+Replace Laravel's real-time facades (`Facades\...`) with [explicit facade classes](/docs/{{version}}/facades#how-facades-work) or dependency injection.
 
 <a name="type-declarations"></a>
 ## Type Declarations
@@ -457,6 +460,7 @@ Start from Hypervel's shipped configuration files and reapply your application o
 When porting Laravel configuration, pay particular attention to these current differences:
 
 - Hypervel password broker records explicitly declare their `database` or `cache` driver.
+- Replace Laravel 6-style `mail.driver` and top-level mail transport settings with `mail.default` and named `mail.mailers` entries. See the [mail configuration guide](/docs/{{version}}/mail#configuration).
 - Hypervel's shipped background, deferred, Beanstalkd, SQS, Redis, and failover queues dispatch after commit by default; sync and database do not. A copied Laravel queue config restores Laravel's before-commit behavior. Beanstalkd records also require `port`. See the [queue guide](/docs/{{version}}/queues).
 - Laravel silently sends SQS FIFO jobs immediately when they request a positive per-message delay. Hypervel rejects that dispatch. Remove the delay or use a queue transport that supports delayed jobs.
 - The scheduling cache store is configured through `cache.schedule_store` and `SCHEDULE_CACHE_STORE`. Laravel's older `SCHEDULE_CACHE_DRIVER` name is not supported.
@@ -472,12 +476,23 @@ Many Laravel APIs have direct Hypervel equivalents under the `Hypervel` namespac
 <a name="scheduling"></a>
 ### Scheduling
 
+Add `--once` to cron entries that invoke `schedule:run`, or run `schedule:run` as a supervised process. For local development, use `schedule:run` in place of Laravel's `schedule:work`. See the [scheduling documentation](/docs/{{version}}/scheduling#running-the-scheduler).
+
+Replace scheduled task `user()` calls by running the scheduler as the required OS user, or by using `exec()` with an explicit command to run that task as another user. See [Scheduling Shell Commands](/docs/{{version}}/scheduling#scheduling-shell-commands).
+
 Scheduled Artisan commands share the scheduler process instead of starting a fresh process for each invocation. Use `exec('php artisan ...')` for commands that rely on process isolation. See [Scheduling Artisan Commands](/docs/{{version}}/scheduling#scheduling-artisan-commands).
+
+<a name="maintenance-mode"></a>
+### Maintenance Mode
+
+Maintenance views prepared with `down --render` are served by running Hypervel workers. To serve a static page while Hypervel is unavailable during deployment, configure your reverse proxy or load balancer. See [Pre-Rendering the Maintenance Mode View](/docs/{{version}}/configuration#pre-rendering-the-maintenance-mode-view).
 
 <a name="http-client-and-concurrency"></a>
 ### HTTP Client and Concurrency
 
 For concurrent HTTP requests, replace Laravel's `Http::pool` and `Http::batch` patterns with Hypervel's coroutine helpers, typically `parallel` from `Hypervel\Coroutine`. See the [HTTP client documentation](/docs/{{version}}/http-client#concurrent-requests) for examples.
+
+`withNtlmAuth()` and Saloon's NTLM authenticator are not provided. Integrations requiring NTLM must supply their own authentication implementation.
 
 Hypervel's `Concurrency` facade provides `coroutine`, `process`, and `sync` drivers. Laravel's `fork` driver is not available because coroutines are Hypervel's native lightweight execution model. Use the default `coroutine` driver for normal concurrent application work and reserve `process` for work that requires operating system process isolation. See the [concurrency documentation](/docs/{{version}}/concurrency#choosing-a-driver).
 
@@ -500,6 +515,8 @@ When porting schemas that place sibling assertions beside a local `$ref` or use 
 ### Validation
 
 Handwritten validation parameters use standard CSV quoting. Replace backslash-escaped quotes inside quoted parameters with doubled quotes; backslashes are literal. Fluent rule builders handle quoting for you. See [rule parameters](/docs/{{version}}/validation#rule-parameters).
+
+`FailOnUnknownFields` accepts the contents of `array` fields without child rules. Add child rules or allowed keys (`array:name,email`) when those contents must be restricted. See [unknown fields](/docs/{{version}}/validation#request-failing-on-unknown-fields).
 
 <a name="data-objects"></a>
 ### Data Objects
@@ -564,26 +581,34 @@ Hypervel's drivers are designed around its Swoole runtime and do not mirror ever
 
 Hypervel supports MySQL, MariaDB, PostgreSQL, and SQLite database connections. SQL Server, MongoDB, and DynamoDB database integrations are not supported.
 
+MySQL and MariaDB connection configs must specify `strict` or `modes`; they cannot inherit the server's SQL mode implicitly. See [SQL mode configuration](/docs/{{version}}/database#mysql-and-mariadb-sql-modes).
+
+SQLite JSON-path updates replace assigned objects and retain JSON null. Review any reliance on Laravel's object merging or null-key deletion when [updating JSON columns](/docs/{{version}}/queries#updating-json-columns).
+
 Database connections are persistent, pooled worker resources. Define every connection in `config/database.php` before the application boots. Dynamic connection creation through `DB::build()` and `DB::connectUsing()` is not supported. Review pool sizing and any database session state against the [database documentation](/docs/{{version}}/database#connection-pooling).
 
 When a package constructs `DatabaseStore`, `DatabaseSessionHandler`, `DatabaseQueue`, or `DatabaseBatchRepository` directly, pass the database connection resolver and configured connection name instead of retaining a resolved connection. Framework-configured drivers already use this form.
 
 Laravel's base `Connection` class exposes PDO methods. Hypervel's base `Connection` is driver-neutral, while its built-in SQL connections extend `PdoConnection`. Ported code that calls `getPdo`, `getReadPdo`, or another PDO-specific method should accept or narrow to `PdoConnection`. See [extending database connections](/docs/{{version}}/database#extending-database-connections) when porting a custom driver.
 
-Custom query builders overriding `newQuery`, `forNestedWhere`, or `cloneForPaginationCount` must declare `static` returns and preserve the concrete builder class. Keep `forSubQuery` separate: join subqueries return the parent query builder. See the [database extension guide](/docs/{{version}}/database#extending-database-connections) for these return contracts.
+Custom base query builders overriding `newQuery`, `forNestedWhere`, or `cloneForPaginationCount` must declare `static` returns and preserve the concrete builder class. Keep `forSubQuery` separate: join subqueries return the parent query builder. See the [database extension guide](/docs/{{version}}/database#extending-database-connections) for these return contracts.
 
 Laravel's nested `direct` connection endpoint and `::direct` suffix are not available. Configure the direct endpoint as a normal named connection and point the pooled connection's `migrations_connection` option at it.
 
 Model casts are not applied to direct query builder operations or Eloquent key helpers. When ported code passes already-encoded binary strings to query builder `where`, bulk `update`, or `upsert` calls, or to Eloquent `find`, `whereKey`, or `whereKeyNot`, wrap them in `Hypervel\Database\BinaryParameter`. See [binding binary values](/docs/{{version}}/database#binding-binary-values) and [binary casting](/docs/{{version}}/eloquent-mutators#binary-casting).
+
+Eloquent `updateOrInsert` and `updateFrom` honor global scopes, including soft deletes. Review calls that rely on matching rows excluded by those scopes. Both methods return their write result, so do not chain another query onto them. Eloquent `updateFrom` also maintains `updated_at`, like `update`; supply that column explicitly if it must stay unchanged. See [mass updates](/docs/{{version}}/eloquent#mass-updates).
 
 Hypervel's `migrate:fresh` command discovers the connection declared by each migration and resets every resolved target before rebuilding the schema. Keep each migration's connection stable, and split manual cross-connection schema work into separate migrations with explicit connection declarations. See [drop all tables and migrate](/docs/{{version}}/migrations#drop-all-tables-migrate) for details.
 
 <a name="redis"></a>
 ### Redis
 
-Hypervel's Redis integration uses the PhpRedis extension exclusively. Its default `config/database.php` file does not contain a `client` option or `REDIS_CLIENT` environment variable. Remove those Laravel settings when porting configuration. A copied `client` option with any value other than `phpredis` is rejected; Predis is not supported.
+Hypervel's Redis integration uses the PhpRedis extension exclusively. Its default `config/database.php` file does not contain a `client` option or `REDIS_CLIENT` environment variable. Remove those Laravel settings when porting configuration. A copied `client` option with any value other than `phpredis` is rejected; Predis is not supported. Omit `persistent` and `persistent_id`; the connection pool owns connection reuse.
 
 Laravel's top-level `database.redis.clusters` configuration is also rejected. Each Hypervel Redis connection selects its standalone, Sentinel, or Cluster topology within the named connection, so begin with the matching Hypervel example instead of adapting Laravel's connection shape. Optional advanced members use their documented defaults when omitted. Hypervel does not support Laravel's `retry_interval` or `command_retries` settings and does not replay failed commands; configure PhpRedis connection retries with `max_retries`, `backoff_algorithm`, `backoff_base`, and `backoff_cap`. Configure Redis Cluster by adding a `cluster` array to a named Redis connection. See the [Redis configuration](/docs/{{version}}/redis#configuration) and [cluster documentation](/docs/{{version}}/redis#clusters).
+
+Redis connections use the application's event dispatcher; replace `setEventDispatcher()` and `unsetEventDispatcher()` calls with [command-event configuration](/docs/{{version}}/redis#redis-command-events). Call `Redis::enableEvents()` and `Redis::disableEvents()` only during boot, since they affect every request in the worker.
 
 <a name="cache"></a>
 ### Cache
@@ -593,6 +618,8 @@ Hypervel provides Redis, database, file, filesystem storage, Swoole table, sessi
 For local in-memory caching, use the [Swoole table cache](/docs/{{version}}/cache#swoole-table-cache). A Swoole table is shared by the workers on one application node. For applications running across several nodes, the [stack cache](/docs/{{version}}/cache#building-cache-stacks) may combine a short-lived Swoole L1 cache with a shared Redis L2 cache. `Cache::memo()` may also wrap a store with per-coroutine memoization at runtime.
 
 If your application uses Redis cache tags, review [Redis Tag Modes](/docs/{{version}}/cache#redis-tag-modes) before porting. Hypervel's tagged-cache storage is not interchangeable with Laravel's.
+
+Hypervel's named Redis connections share `REDIS_DB` by default, and its Redis cache store uses the `cache` connection for locks. Before using Redis `Cache::flushLocks()` or `cache:clear --locks`, configure a lock connection to a database used only for locks. See [Flushing Locks](/docs/{{version}}/cache#flushing-locks).
 
 Custom cache tag sets must declare `TagSet::reset(): bool` and `TagSet::flush(): bool`. Hypervel uses these results to report a rejected tagged flush instead of returning unconditional success. Custom `VersionedTagSet` subclasses should override `writeTagId()` for bulk reset persistence; `resetTag()` keeps returning the generated identifier.
 
@@ -620,6 +647,8 @@ When a Laravel package offers optional support for an unsupported driver, remove
 Tests are part of the port. When porting Laravel package functionality, port the relevant Laravel tests and adjust them to Hypervel's namespaces, stricter types, and coroutine-aware test lifecycle.
 
 Laravel tests often rely on loose PHPDoc types or mocks that return values too broad for Hypervel's native type declarations. Fix the source type or test mock so it matches the real runtime behavior. Do not weaken the test just to make it pass.
+
+Unlike Laravel, `Sleep::fake()` evaluates `while()` predicates; ensure they can terminate, using `syncWithCarbon: true` when they depend on Carbon time.
 
 <a name="application-tests"></a>
 ### Application Tests

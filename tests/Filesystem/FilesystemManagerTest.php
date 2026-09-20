@@ -91,8 +91,7 @@ class FilesystemManagerTest extends TestCase
 
     public function testExceptionThrownOnUnsupportedDriver(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Disk [local] does not have a configured driver.');
+        $this->expectExceptionObject(new InvalidArgumentException('Disk [local] does not have a configured driver.'));
 
         $container = $this->getContainer([
             'disks' => [
@@ -435,7 +434,7 @@ class FilesystemManagerTest extends TestCase
         $this->assertFalse($disk->providesTemporaryUrls());
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('This disk does not have a registered file-serving route.');
+        $this->expectExceptionMessageIsOrContains('This disk does not have a registered file-serving route.');
 
         $disk->temporaryUrl('file.txt', new DateTimeImmutable('+5 minutes'));
     }
@@ -610,6 +609,39 @@ class FilesystemManagerTest extends TestCase
         $this->assertSame($manager, $boundObject);
     }
 
+    public function testCustomDriverStaticClosure(): void
+    {
+        $manager = new FilesystemManager($this->getContainer([
+            'disks' => [
+                __CLASS__ => [
+                    'driver' => __CLASS__,
+                ],
+            ],
+        ]));
+        $adapter = new LocalFilesystemAdapter($this->tempDir);
+        $driver = new FilesystemAdapter(new Flysystem($adapter), $adapter);
+
+        $manager->extend(__CLASS__, static fn (): Filesystem => $driver);
+        $this->assertSame($driver, $manager->disk(__CLASS__));
+    }
+
+    public function testInvokableObjectDriverClosure(): void
+    {
+        $manager = new FilesystemManager($this->getContainer([
+            'disks' => [
+                __CLASS__ => [
+                    'driver' => __CLASS__,
+                ],
+            ],
+        ]));
+        $adapter = new LocalFilesystemAdapter($this->tempDir);
+        $driver = new FilesystemAdapter(new Flysystem($adapter), $adapter);
+        $creator = new CustomFilesystemDriver($driver);
+
+        $manager->extend(__CLASS__, $creator(...));
+        $this->assertSame($driver, $manager->disk(__CLASS__));
+    }
+
     public function testCustomDriversMustReturnFilesystemImplementations(): void
     {
         $manager = new FilesystemManager($this->getContainer([
@@ -620,7 +652,7 @@ class FilesystemManagerTest extends TestCase
         $manager->extend('invalid', fn (): stdClass => new stdClass);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'Custom filesystem driver [invalid] must return an instance of [' . Filesystem::class . '].'
         );
 
@@ -891,7 +923,7 @@ class FilesystemManagerTest extends TestCase
         ]));
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Driver [missing] is not supported.');
+        $this->expectExceptionMessageIsOrContains('Driver [missing] is not supported.');
 
         $manager->purge('missing');
     }
@@ -1071,7 +1103,7 @@ class FilesystemManagerTest extends TestCase
         $manager = new FilesystemManager($container);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Circular scoped disk definition detected: second -> first -> second.');
+        $this->expectExceptionMessageIsOrContains('Circular scoped disk definition detected: second -> first -> second.');
 
         $manager->disk('first');
     }
@@ -1574,7 +1606,7 @@ class FilesystemManagerTest extends TestCase
         $filesystem = new InspectableFilesystemManager($this->getContainer());
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unknown client option(s) [typo] in the disk "client" configuration.');
+        $this->expectExceptionMessageIsOrContains('Unknown client option(s) [typo] in the disk "client" configuration.');
 
         $filesystem->gcsClientConfigForTest(['client' => ['typo' => true]]);
     }
@@ -1584,7 +1616,7 @@ class FilesystemManagerTest extends TestCase
         $filesystem = new InspectableFilesystemManager($this->getContainer());
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The disk "client" configuration option must be an array.');
+        $this->expectExceptionMessageIsOrContains('The disk "client" configuration option must be an array.');
 
         $filesystem->s3ClientConfigForTest(['client' => null]);
     }
@@ -1691,6 +1723,24 @@ class FilesystemManagerTest extends TestCase
         $this->poolManagers[] = $poolManager;
 
         return $container;
+    }
+}
+
+class CustomFilesystemDriver
+{
+    /**
+     * Create a custom filesystem driver factory.
+     */
+    public function __construct(private Filesystem $driver)
+    {
+    }
+
+    /**
+     * Return the custom filesystem driver.
+     */
+    public function __invoke(): Filesystem
+    {
+        return $this->driver;
     }
 }
 

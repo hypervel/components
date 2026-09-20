@@ -36,6 +36,7 @@ use Psr\Log\LoggerInterface;
 use ReflectionException;
 use RuntimeException;
 use Stringable;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 use UnitEnum;
 
@@ -167,6 +168,8 @@ class LogManager implements LoggerInterface
             }
 
             return $logger;
+        } catch (CanceledException $e) {
+            throw $e;
         } catch (Throwable $e) {
             return tap($this->createEmergencyLogger(), function ($logger) use ($e) {
                 $logger->emergency('Unable to create configured logger. Using emergency logger.', [
@@ -309,14 +312,39 @@ class LogManager implements LoggerInterface
      */
     protected function createDailyDriver(array $config): LoggerInterface
     {
+        return $this->createRotatingDriver(
+            $config,
+            RotatingFileHandler::FILE_PER_DAY,
+            $config['max_files'] ?? $config['days'] ?? 7,
+        );
+    }
+
+    /**
+     * Create an instance of the monthly file log driver.
+     */
+    protected function createMonthlyDriver(array $config): LoggerInterface
+    {
+        return $this->createRotatingDriver(
+            $config,
+            RotatingFileHandler::FILE_PER_MONTH,
+            $config['max_files'] ?? 3,
+        );
+    }
+
+    /**
+     * Create an instance of a rotating file log driver.
+     */
+    protected function createRotatingDriver(array $config, string $dateFormat, int $maxFiles): LoggerInterface
+    {
         return new Monolog($this->parseChannel($config), [
             $this->prepareHandler(new RotatingFileHandler(
                 $config['path'],
-                $config['days'] ?? 7,
+                $maxFiles,
                 $this->level($config),
                 $config['bubble'] ?? true,
                 $config['permission'] ?? null,
-                $config['locking'] ?? false
+                $config['locking'] ?? false,
+                $dateFormat,
             ), $config),
         ], $config['replace_placeholders'] ?? false ? [new PsrLogMessageProcessor] : []);
     }
@@ -503,7 +531,7 @@ class LogManager implements LoggerInterface
         }
 
         CoroutineContext::override(self::SHARED_CONTEXT_KEY, function ($currentContext) use ($context) {
-            return array_merge($currentContext ?: [], $context);
+            return array_replace($currentContext ?: [], $context);
         });
 
         return $this;
@@ -587,6 +615,9 @@ class LogManager implements LoggerInterface
     /**
      * Register a custom driver creator Closure.
      *
+     * Anonymous closures run in this manager's class scope; non-static closures
+     * also receive the manager as $this.
+     *
      * Boot-only. The callback persists in the singleton's customCreators array
      * for the worker lifetime and applies to every subsequent channel resolution.
      *
@@ -613,8 +644,12 @@ class LogManager implements LoggerInterface
      * coroutines may already hold a reference to the channel and next
      * resolution will rebuild with fresh handlers (file handles, etc.).
      */
-    public function forgetChannel(?string $driver = null): void
+    public function forgetChannel(UnitEnum|string|null $driver = null): void
     {
+        if ($driver instanceof UnitEnum) {
+            $driver = (string) enum_value($driver);
+        }
+
         $driver = $this->parseDriver($driver);
 
         if (isset($this->channels[$driver])) {

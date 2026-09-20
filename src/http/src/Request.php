@@ -95,6 +95,11 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     protected ?Closure $userResolver = null;
 
     /**
+     * The default user resolver callback.
+     */
+    protected static ?Closure $defaultUserResolver = null;
+
+    /**
      * The route resolver callback.
      */
     protected ?Closure $routeResolver = null;
@@ -807,10 +812,14 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      */
     public function merge(array $input): static
     {
-        return tap($this, function (Request $request) use ($input) {
+        return tap($this, function (Request $request) use ($input): void {
             $request->getInputSource()
                 ->replace((new Collection($input))->reduce(
-                    fn ($requestInput, $value, $key) => data_set($requestInput, $key, $value),
+                    function (array $requestInput, mixed $value, int|string $key): array {
+                        Arr::set($requestInput, $key, $value);
+
+                        return $requestInput;
+                    },
                     $this->getInputSource()->all()
                 ));
         });
@@ -1279,7 +1288,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      */
     public function getUserResolver(): Closure
     {
-        return $this->userResolver ?: function () {
+        return $this->userResolver ?? static::$defaultUserResolver ?? function () {
         };
     }
 
@@ -1293,6 +1302,17 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
         $this->userResolver = $callback;
 
         return $this;
+    }
+
+    /**
+     * Set the default user resolver callback.
+     *
+     * Boot-only. The callback persists for the worker lifetime and applies to
+     * every request without an instance-specific user resolver.
+     */
+    public static function setDefaultUserResolver(Closure $callback): void
+    {
+        static::$defaultUserResolver = $callback;
     }
 
     /**
@@ -1369,6 +1389,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
         static::$formats = null;
         static::$httpMethodParameterOverride = false;
         static::$allowedHttpMethodOverride = null;
+        static::$defaultUserResolver = null;
 
         // Symfony keeps the factory slot private, so reset it through the inherited setter.
         static::setFactory(null);

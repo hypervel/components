@@ -33,8 +33,7 @@ class ArtisanCommandTest extends TestCase
     {
         Artisan::command('exit', fn () => 1);
 
-        $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Expected status code 0 but received 1.');
+        $this->expectExceptionObject(new AssertionFailedError('Expected status code 0 but received 1.'));
 
         $this->artisan('exit')
             ->assertOk();
@@ -71,8 +70,7 @@ class ArtisanCommandTest extends TestCase
     {
         $this->registerSurveyCommand();
 
-        $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Output "Your name is Albert and you prefer PHP." was printed.');
+        $this->expectExceptionObject(new AssertionFailedError('Output "Your name is Albert and you prefer PHP." was printed.'));
 
         $this->artisan('survey')
             ->expectsQuestion('What is your name?', 'Albert')
@@ -85,8 +83,7 @@ class ArtisanCommandTest extends TestCase
     {
         $this->registerContainsCommand();
 
-        $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Output "Albert Chen" was printed.');
+        $this->expectExceptionObject(new AssertionFailedError('Output "Albert Chen" was printed.'));
 
         $this->artisan('contains')
             ->doesntExpectOutputToContain('Albert Chen')
@@ -97,8 +94,7 @@ class ArtisanCommandTest extends TestCase
     {
         $this->registerSurveyCommand();
 
-        $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Output "Your name is Albert Chen and you prefer PHP." was not printed.');
+        $this->expectExceptionObject(new AssertionFailedError('Output "Your name is Albert Chen and you prefer PHP." was not printed.'));
 
         $this->ignoringMockOnceExceptions(function () {
             $this->artisan('survey')
@@ -113,8 +109,7 @@ class ArtisanCommandTest extends TestCase
     {
         $this->registerSurveyCommand();
 
-        $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Expected status code 1 but received 0.');
+        $this->expectExceptionObject(new AssertionFailedError('Expected status code 1 but received 0.'));
 
         $this->artisan('survey')
             ->expectsQuestion('What is your name?', 'Albert Chen')
@@ -273,8 +268,7 @@ class ArtisanCommandTest extends TestCase
     {
         $this->registerContainsCommand();
 
-        $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Output does not contain "Chen Albert".');
+        $this->expectExceptionObject(new AssertionFailedError('Output does not contain "Chen Albert".'));
 
         $this->ignoringMockOnceExceptions(function () {
             $this->artisan('contains')
@@ -332,24 +326,22 @@ class ArtisanCommandTest extends TestCase
 
     public function testForbiddenOutputNamedStringZeroIsReported(): void
     {
-        Artisan::command('zero-output', function () {
+        Artisan::command('zero-output', function (): void {
             $this->line('0');
         });
 
-        $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Output "0" was printed.');
+        $this->expectExceptionObject(new AssertionFailedError('Output "0" was printed.'));
 
         $this->artisan('zero-output')->doesntExpectOutput('0')->run();
     }
 
     public function testForbiddenOutputSubstringNamedStringZeroIsReported(): void
     {
-        Artisan::command('zero-substring', function () {
+        Artisan::command('zero-substring', function (): void {
             $this->line('value 0');
         });
 
-        $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Output "0" was printed.');
+        $this->expectExceptionObject(new AssertionFailedError('Output "0" was printed.'));
 
         $this->artisan('zero-substring')->doesntExpectOutputToContain('0')->run();
     }

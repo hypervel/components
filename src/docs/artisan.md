@@ -911,7 +911,19 @@ You may also pass console route files to the `withCommands` method. Console rout
 ])
 ```
 
-When Artisan boots, all the commands in your application will be resolved by the [service container](/docs/{{version}}/container) and registered with Artisan.
+Commands are registered when Artisan boots and resolved by the [service container](/docs/{{version}}/container) as needed.
+
+You may inspect a registered command using the `findCommand` method on the `Artisan` facade. This method resolves only the requested command and returns `null` if no command has that name:
+
+```php
+use Hypervel\Support\Facades\Artisan;
+
+$command = Artisan::findCommand('mail:send');
+
+$description = $command?->getDescription();
+```
+
+The returned instance is shared by subsequent lookups. To execute the command, use `Artisan::call` so each execution receives its own command instance.
 
 <a name="programmatically-executing-commands"></a>
 ## Programmatically Executing Commands

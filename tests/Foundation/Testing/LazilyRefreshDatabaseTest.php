@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing;
 
+use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\LazilyRefreshDatabase;
 use Hypervel\Foundation\Testing\RefreshDatabaseState;
 use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
+use Mockery as m;
 use RuntimeException;
 use Throwable;
 
@@ -17,7 +19,9 @@ use Throwable;
 #[WithConfig('database.connections.testing2', ['driver' => 'sqlite', 'database' => ':memory:'])]
 class LazilyRefreshDatabaseTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use LazilyRefreshDatabase {
+        refreshTestDatabase as baseRefreshTestDatabase;
+    }
 
     protected array $connectionsToTransact = ['testing', 'testing2'];
 
@@ -38,8 +42,16 @@ class LazilyRefreshDatabaseTest extends TestCase
         $app->make('config')->set('database.default', 'testing');
     }
 
-    public function testDatabaseIsRefreshedOnceOnFirstInteraction(): void
+    public function testDatabaseIsRefreshedOnInteraction(): void
     {
+        $kernel = m::mock(KernelContract::class);
+        $this->app->instance(KernelContract::class, $kernel);
+        $kernel->expects('call')->with('migrate:fresh', [
+            '--drop-views' => false,
+            '--drop-types' => false,
+            '--seed' => false,
+        ])->andReturn(0);
+
         $database = $this->app->make('db');
 
         $database->select('select 1');
@@ -53,6 +65,10 @@ class LazilyRefreshDatabaseTest extends TestCase
 
     public function testDatabaseIsNotRefreshedWithoutInteraction(): void
     {
+        $kernel = m::mock(KernelContract::class);
+        $this->app->instance(KernelContract::class, $kernel);
+        $kernel->shouldNotReceive('call');
+
         $this->app->make('db')->getPdo();
 
         $this->assertSame(0, $this->refreshCount);
@@ -63,6 +79,14 @@ class LazilyRefreshDatabaseTest extends TestCase
 
     public function testNonDefaultConnectionTriggersRefresh(): void
     {
+        $kernel = m::mock(KernelContract::class);
+        $this->app->instance(KernelContract::class, $kernel);
+        $kernel->expects('call')->with('migrate:fresh', [
+            '--drop-views' => false,
+            '--drop-types' => false,
+            '--seed' => false,
+        ])->andReturn(0);
+
         $this->app->make('db')->connection('testing2')->select('select 1');
 
         $this->assertSame(1, $this->refreshCount);
@@ -72,6 +96,14 @@ class LazilyRefreshDatabaseTest extends TestCase
 
     public function testRuntimeCoroutineOptOutRegistersLazyHooksImmediately(): void
     {
+        $kernel = m::mock(KernelContract::class);
+        $this->app->instance(KernelContract::class, $kernel);
+        $kernel->expects('call')->with('migrate:fresh', [
+            '--drop-views' => false,
+            '--drop-types' => false,
+            '--seed' => false,
+        ])->andReturn(0);
+
         $this->app->make('config')->set('database.connections.optout', [
             'driver' => 'sqlite',
             'database' => ':memory:',
@@ -106,6 +138,14 @@ class LazilyRefreshDatabaseTest extends TestCase
 
     public function testLazyTeardownRunsOnlyAfterSuccessfulRefresh(): void
     {
+        $kernel = m::mock(KernelContract::class);
+        $this->app->instance(KernelContract::class, $kernel);
+        $kernel->expects('call')->with('migrate:fresh', [
+            '--drop-views' => false,
+            '--drop-types' => false,
+            '--seed' => false,
+        ])->andReturn(0);
+
         $this->tearDownLazilyRefreshDatabaseInCoroutine();
 
         $this->assertSame(0, $this->rollbackCount);
@@ -125,6 +165,8 @@ class LazilyRefreshDatabaseTest extends TestCase
         if ($this->refreshFailure !== null) {
             throw $this->refreshFailure;
         }
+
+        $this->baseRefreshTestDatabase();
     }
 
     protected function beginDatabaseTransactionWork(): void

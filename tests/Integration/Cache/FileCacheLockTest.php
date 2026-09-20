@@ -17,6 +17,9 @@ use Throwable;
 #[WithConfig('cache.default', 'file')]
 class FileCacheLockTest extends TestCase
 {
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -40,7 +43,7 @@ class FileCacheLockTest extends TestCase
 
     public function testLocksCanBlockForSeconds(): void
     {
-        $this->assertSame('taylor', Cache::lock('foo', 10)->block(1, function () {
+        $this->assertSame('taylor', Cache::lock('foo', 10)->block(1, function (): string {
             return 'taylor';
         }));
 
@@ -112,7 +115,7 @@ class FileCacheLockTest extends TestCase
         $lock = Cache::lock('my-key', 5);
         $this->assertTrue($lock->get());
 
-        $value = Cache::remember('my-key', 60, fn () => 'expected-value');
+        $value = Cache::remember('my-key', 60, fn (): string => 'expected-value');
 
         $this->assertSame('expected-value', $value);
 
@@ -195,6 +198,7 @@ class FileCacheLockTest extends TestCase
 
         $this->assertTrue($lock->refresh());
         $this->assertSame(10.0, $lock->getRemainingLifetime());
+        $this->assertFalse(Cache::lock('foo', 10)->get());
 
         $lock->release();
     }
@@ -257,6 +261,9 @@ class FileCacheLockTest extends TestCase
         $this->assertNull($lock->getRemainingLifetime());
     }
 
+    /**
+     * Clean up the test environment.
+     */
     protected function tearDown(): void
     {
         try {

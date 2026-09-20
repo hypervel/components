@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Console\Scheduling\SubMinuteSchedulingTest;
+namespace Hypervel\Tests\Integration\Console\Scheduling;
 
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\WorkerArrayStore;
@@ -26,23 +26,28 @@ class SubMinuteSchedulingTest extends TestCase
 {
     protected Schedule $schedule;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
-        $this->beforeApplicationDestroyed(function () {
-            @unlink(storage_path('framework/down'));
-        });
-
         parent::setUp();
 
         $cache = new class implements Factory {
             public Repository $store;
 
+            /**
+             * Create a cache factory for scheduler mutexes.
+             */
             public function __construct()
             {
                 // Use worker-array because scheduling mutexes must survive across scheduler coroutines.
                 $this->store = new Repository(new WorkerArrayStore(true));
             }
 
+            /**
+             * Get the shared cache store.
+             */
             public function store(UnitEnum|string|null $name = null): Repository
             {
                 return $this->store;
@@ -102,6 +107,9 @@ class SubMinuteSchedulingTest extends TestCase
         $this->assertEquals($expectedRuns, $runs);
     }
 
+    /**
+     * Get the sub-minute frequencies and expected execution counts.
+     */
     public static function frequencyProvider(): array
     {
         return [
@@ -212,7 +220,7 @@ class SubMinuteSchedulingTest extends TestCase
         Sleep::whenFakingSleep(function ($duration) use ($startedAt) {
             CarbonImmutable::setTestNow(now()->add($duration));
 
-            if (now()->diffInSeconds($startedAt) >= 30 && ! $this->app->isDownForMaintenance()) {
+            if ($startedAt->diffInSeconds() >= 30 && ! $this->app->isDownForMaintenance()) {
                 $this->artisan('down');
             }
         });
@@ -222,6 +230,7 @@ class SubMinuteSchedulingTest extends TestCase
 
         Sleep::assertSleptTimes(600);
         $this->assertEquals(60, $runs);
+        $this->assertTrue($this->app->isDownForMaintenance());
     }
 
     public function testSubMinuteEventsCanBeRunWhenScheduleIsPaused(): void

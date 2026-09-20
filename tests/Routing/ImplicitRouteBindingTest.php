@@ -105,7 +105,7 @@ class ImplicitRouteBindingTest extends RoutingTestCase
 
     public function testImplicitBackedEnumInternalException(): void
     {
-        $action = ['uses' => function (CategoryBackedEnum $category) {
+        $action = ['uses' => function (CategoryBackedEnum $category): string {
             return $category->value;
         }];
 
@@ -116,12 +116,7 @@ class ImplicitRouteBindingTest extends RoutingTestCase
 
         $container = Container::getInstance();
 
-        $this->expectException(BackedEnumCaseNotFoundException::class);
-        $this->expectExceptionMessage(sprintf(
-            'Case [%s] not found on Backed Enum [%s].',
-            'cars',
-            CategoryBackedEnum::class,
-        ));
+        $this->expectExceptionObject(new BackedEnumCaseNotFoundException(CategoryBackedEnum::class, 'cars'));
 
         ImplicitRouteBinding::resolveForRoute($container, $route);
     }

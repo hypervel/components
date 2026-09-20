@@ -134,10 +134,9 @@ class EloquentStrictLoadingTest extends DatabaseTestCase
         Event::assertDispatched(ViolatedLazyLoadingEvent::class);
     }
 
-    public function testStrictModeWithOverriddenHandlerOnLazyLoading()
+    public function testStrictModeWithOverriddenHandlerOnLazyLoading(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Violated');
+        $this->expectExceptionObject(new RuntimeException('Violated'));
 
         EloquentStrictLoadingTestModel1WithCustomHandler::create();
         EloquentStrictLoadingTestModel1WithCustomHandler::create();

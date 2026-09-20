@@ -122,6 +122,8 @@ class ClearCommand extends Command
         return empty($this->tags()) ? $cache : $cache->tags($this->tags());
     }
 
+    // REMOVED: flushFacades(); explicit facades have no generated cache to clear.
+
     /**
      * Flush the AOP proxy cache directory.
      */

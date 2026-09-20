@@ -104,6 +104,21 @@ ProcessPodcast::dispatch();
 ProcessPodcast::dispatch()->onQueue('emails');
 ```
 
+When dispatching or inspecting jobs, you may also use enums for connection and queue names. Backed enums use their value, while unbacked enums use their case name:
+
+```php
+use Hypervel\Support\Facades\Queue;
+
+enum QueueName: string
+{
+    case Emails = 'emails';
+}
+
+ProcessPodcast::dispatch()->onQueue(QueueName::Emails);
+
+$pending = Queue::connection()->pendingSize(QueueName::Emails);
+```
+
 Some applications may not need to ever push jobs onto multiple queues, instead preferring to have one simple queue. However, pushing jobs to multiple queues can be especially useful for applications that wish to prioritize or segment how jobs are processed, since the Hypervel queue worker allows you to specify which queues it should process by priority. For example, if you push jobs to a `high` queue, you may run a worker that gives them higher processing priority:
 
 ```shell
@@ -760,7 +775,7 @@ return Limit::perMinute(50)->by($job->user->id);
 
 Named queue rate limiters use the same [key scope resolver](/docs/{{version}}/routing#scoping-named-rate-limits) as named route rate limiters.
 
-Queue rate limiters may use fixed-window, sliding-window, or leaky-bucket rate limits, and each operation may have a weighted cost. If a named limiter returns several rate limits, Hypervel consumes them in the listed order. When a later rate limit denies the job, capacity already consumed by earlier rate limits is not restored.
+Queue rate limiters may use fixed-window, sliding-window, or leaky-bucket rate limits, and each operation may have a weighted cost. If a named limiter returns several limits, Hypervel [consumes them together](/docs/{{version}}/rate-limiting#consuming-multiple-limits). A denied job does not consume capacity from the other limits, subject to the documented Redis Cluster limitation.
 
 Once you have defined your rate limit, you may attach the rate limiter to your job using the `Hypervel\Queue\Middleware\RateLimited` middleware. Each time the job exceeds the rate limit, this middleware will release the job back to the queue with an appropriate delay based on the rate limit duration:
 
@@ -1248,6 +1263,19 @@ class PodcastController extends Controller
 
         return redirect('/podcasts');
     }
+}
+```
+
+You may also configure a job's default delay using the `Delay` attribute. Job delays apply when dispatching jobs individually, in bulk, or as part of a batch:
+
+```php
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Queue\Attributes\Delay;
+
+#[Delay(60)]
+class ProcessPodcast implements ShouldQueue
+{
+    // ...
 }
 ```
 
@@ -3228,6 +3256,8 @@ If necessary, you may pass multiple IDs to the command:
 php artisan queue:retry ce7bb17c-cdd8-41f0-a8ec-7b4fef4e5ece 91401d2c-0784-4f43-824c-34f94a33c24d
 ```
 
+Custom failed-job providers may return a `Collection` or `LazyCollection` from `find()` to retry a group under one ID. Each collection key is passed to the provider's `forget()` method after that job is pushed.
+
 You may also retry all of the failed jobs for a particular queue:
 
 ```shell
@@ -3881,6 +3911,8 @@ class AppServiceProvider extends ServiceProvider
 Hypervel dispatches a `JobQueueing` event immediately before a job is sent to its queue and a `JobQueued` event after the queue accepts it. If the enqueue attempt throws an exception, a `JobQueueingFailed` event is dispatched with the original exception instead. Jobs deferred until a database transaction commits do not dispatch these events unless the enqueue attempt actually begins.
 
 The `JobPayloadFinalizing` event runs immediately before `JobQueueing` and may replace its encoded `payload`. It also provides the connection, queue, job, and normalized delay. Use this event for last-mile payload changes that must reach the queue backend. Listening to both events deliberately runs both listeners for each asynchronous job.
+
+When a job releases itself back onto the queue without throwing an exception, the worker dispatches a `JobReleased` event with the `connectionName` and `job`. This includes releases from job middleware.
 
 When a worker releases a job back onto the queue after an exception, the `JobReleasedAfterException` event provides the `connectionName`, `job`, `backoff` delay in seconds, and the original `exception`.
 

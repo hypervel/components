@@ -17,6 +17,11 @@ use Throwable;
 class PhpRedisClusterConnection extends PhpRedisConnection
 {
     /**
+     * Prefix marking an encoded all-master scan cursor.
+     */
+    private const string SCAN_CURSOR_PREFIX = 'hypervel:';
+
+    /**
      * Error reply prefixes that standalone phpredis exposes as false.
      */
     private const array NON_THROWING_ERROR_PREFIXES = [
@@ -86,13 +91,12 @@ class PhpRedisClusterConnection extends PhpRedisConnection
     }
 
     /**
-     * Scan all keys based on options.
-     *
-     * Overrides the base scan to include a node parameter for RedisCluster,
-     * which requires specifying which node to scan.
+     * Scan all keys based on the given options.
      *
      * @param mixed $cursor
-     * @param array $arguments
+     * @param mixed ...$arguments
+     *
+     * @throws InvalidArgumentException
      */
     public function scan(&$cursor, ...$arguments): mixed
     {
@@ -102,18 +106,97 @@ class PhpRedisClusterConnection extends PhpRedisConnection
 
         $options = $this->getScanOptions($arguments);
 
-        $result = $this->connection->scan(
-            $cursor,
-            $options['node'] ?? $this->defaultNode(),
-            $options['match'] ?? '*',
-            $options['count'] ?? 10
-        );
+        if (isset($options['node'])) {
+            $result = $this->connection->scan(
+                $cursor,
+                $options['node'],
+                $options['match'] ?? '*',
+                $options['count'] ?? 10
+            );
 
-        if ($result === false) {
-            $result = [];
+            if ($result === false) {
+                $result = [];
+            }
+
+            return $cursor === 0 && empty($result) ? false : [$cursor, $result];
         }
 
-        return $cursor === 0 && empty($result) ? false : [$cursor, $result];
+        $masters = $this->connection->_masters();
+
+        if (empty($masters)) {
+            throw new InvalidArgumentException('No master nodes found in the cluster.');
+        }
+
+        // Restore the active node and its untouched phpredis cursor between calls...
+        if (is_string($cursor) && str_starts_with($cursor, self::SCAN_CURSOR_PREFIX)) {
+            [$scanned, $node, $nodeCursor, $initialCursor] = json_decode(
+                base64_decode(substr($cursor, strlen(self::SCAN_CURSOR_PREFIX)), true),
+                true,
+                flags: JSON_THROW_ON_ERROR
+            );
+        } else {
+            $scanned = [];
+            $node = null;
+            $nodeCursor = $initialCursor = $cursor;
+        }
+
+        // Continue with an unscanned master if the active node disappeared during a failover...
+        if ($node !== null && ! in_array($node, $masters, true)) {
+            $node = null;
+            $nodeCursor = $initialCursor;
+        }
+
+        while (true) {
+            // Advance to the next unscanned master and start its node-local cursor...
+            if ($node === null) {
+                $node = current(array_filter($masters, fn (array $master): bool => ! in_array($master, $scanned, true)));
+
+                if ($node === false) {
+                    $cursor = 0;
+
+                    return false;
+                }
+
+                $nodeCursor = $initialCursor;
+            }
+
+            $result = $this->connection->scan(
+                $nodeCursor,
+                $node,
+                $options['match'] ?? '*',
+                $options['count'] ?? 10
+            );
+
+            if ((string) $nodeCursor === '0') {
+                $scanned[] = $node;
+                $node = null;
+            }
+
+            if (! empty($result)) {
+                $remainingMasters = array_filter($masters, fn (array $master): bool => ! in_array($master, $scanned, true));
+
+                // Returning the finished native cursor prevents false-only loops from restarting.
+                if ($node === null && empty($remainingMasters)) {
+                    $cursor = $nodeCursor;
+
+                    return [$cursor, $result];
+                }
+
+                $cursor = self::SCAN_CURSOR_PREFIX . base64_encode(json_encode([
+                    $scanned, $node, $nodeCursor, $initialCursor,
+                ], JSON_THROW_ON_ERROR));
+
+                return [$cursor, $result];
+            }
+
+            if ($node !== null) {
+                $cursor = self::SCAN_CURSOR_PREFIX . base64_encode(json_encode([
+                    $scanned, $node, $nodeCursor, $initialCursor,
+                ], JSON_THROW_ON_ERROR));
+
+                return [$cursor, []];
+            }
+        }
     }
 
     /**

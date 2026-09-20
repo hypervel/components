@@ -9,11 +9,14 @@ use Hypervel\Cache\SwooleTableManager;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Core\Events\BeforeServerStart;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithSwooleTables;
 use Hypervel\Tests\TestCase;
 use LogicException;
 
 class CreateSwooleTableTest extends TestCase
 {
+    use InteractsWithSwooleTables;
+
     public function testInitializesAndSealsTablesAcrossRepeatedServerStartEvents(): void
     {
         $config = new Repository([
@@ -41,6 +44,7 @@ class CreateSwooleTableTest extends TestCase
 
         $listener->handle(new BeforeServerStart('http'));
         $state = $tables->get('shared');
+        $this->trackSwooleTable($state->table());
         $listener->handle(new BeforeServerStart('https'));
 
         $this->assertSame($state, $tables->get('shared'));

@@ -344,6 +344,8 @@ class Event
         }
     }
 
+    // REMOVED: buildCommand(); Artisan tasks run in-process, and exec() uses Symfony Process directly.
+
     /**
      * Determine if the given event should run based on the Cron expression.
      */

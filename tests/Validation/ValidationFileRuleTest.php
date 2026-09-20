@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
+use Hypervel\Http\File as HttpFile;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Testbench\TestCase;
@@ -401,10 +402,9 @@ class ValidationFileRuleTest extends TestCase
         );
     }
 
-    public function testEncodingWithInvalidParameter()
+    public function testEncodingWithInvalidParameter(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Validation rule encoding parameter [FOOBAR] is not a valid encoding.');
+        $this->expectExceptionObject(new InvalidArgumentException('Validation rule encoding parameter [FOOBAR] is not a valid encoding.'));
 
         // Invalid encoding.
         $this->fails(
@@ -437,21 +437,16 @@ class ValidationFileRuleTest extends TestCase
 
     public function testItUsesTheCorrectValidationMessageForFile(): void
     {
-        file_put_contents($path = __DIR__ . '/test.json', 'this-is-a-test');
-
-        // $file = new \Illuminate\Http\File($path);
-        $file = new UploadedFile($path = __DIR__ . '/test.json', 'this-is-a-test', null, null, true);
+        $file = new HttpFile(__DIR__ . '/Fixtures/image.png');
 
         $this->fails(
             ['max:0'],
             $file,
             ['validation.max.file']
         );
-
-        unlink($path);
     }
 
-    public function testItCanSetDefaultUsing()
+    public function testItCanSetDefaultUsing(): void
     {
         $this->assertInstanceOf(File::class, File::default());
 
@@ -472,7 +467,7 @@ class ValidationFileRuleTest extends TestCase
 
         $this->passes(
             File::default(),
-            UploadedFile::fake()->create('foo.png', (int) 1.5 * 1024),
+            UploadedFile::fake()->create('foo.png', (int) (1.5 * 1024)),
         );
     }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Log\ContextIntegrationTest;
 
 use ErrorException;
+use Hypervel\Contracts\Database\ModelIdentifier;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -13,6 +14,7 @@ use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\TestCase;
 use RuntimeException;
+use Throwable;
 
 class User extends Model
 {
@@ -27,14 +29,14 @@ class ContextIntegrationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function testItCanHydrateNull()
+    public function testItCanHydrateNull(): void
     {
         Repository::getInstance()->hydrate(null);
 
         $this->assertSame([], Repository::getInstance()->all());
     }
 
-    public function testItHandlesEloquent()
+    public function testItHandlesEloquent(): void
     {
         $user = User::create(['name' => 'Tim', 'email' => 'tim@example.com', 'password' => 'secret']);
 
@@ -42,6 +44,14 @@ class ContextIntegrationTest extends TestCase
         Repository::getInstance()->add('number', 55);
 
         $dehydrated = Repository::getInstance()->dehydrate();
+
+        $this->assertSame([
+            'data' => [
+                'model' => serialize(new ModelIdentifier(User::class, $user->getKey(), [], $user->getConnectionName())),
+                'number' => 'i:55;',
+            ],
+            'hidden' => [],
+        ], $dehydrated);
 
         Repository::getInstance()->flush();
         $this->assertNull(Repository::getInstance()->get('model'));
@@ -53,7 +63,7 @@ class ContextIntegrationTest extends TestCase
         $this->assertSame(55, Repository::getInstance()->get('number'));
     }
 
-    public function testItIgnoresDeletedModelsWhenHydrating()
+    public function testItIgnoresDeletedModelsWhenHydrating(): void
     {
         $user = User::create(['name' => 'Tim', 'email' => 'tim@example.com', 'password' => 'secret']);
 
@@ -72,7 +82,7 @@ class ContextIntegrationTest extends TestCase
         $this->assertSame(55, Repository::getInstance()->get('number'));
     }
 
-    public function testItIgnoresDeletedModelsWithinCollectionsWhenHydrating()
+    public function testItIgnoresDeletedModelsWithinCollectionsWhenHydrating(): void
     {
         $user = User::create(['name' => 'Tim', 'email' => 'tim@example.com', 'password' => 'secret']);
 
@@ -92,7 +102,7 @@ class ContextIntegrationTest extends TestCase
         $this->assertSame(55, Repository::getInstance()->get('number'));
     }
 
-    public function testItThrowsOnIncompleteClasses()
+    public function testItThrowsOnIncompleteClasses(): void
     {
         $dehydrated = [
             'data' => [
@@ -101,13 +111,12 @@ class ContextIntegrationTest extends TestCase
             'hidden' => [],
         ];
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Value is incomplete class: {"__PHP_Incomplete_Class_Name":"App\\\MyContextClass"}');
+        $this->expectExceptionObject(new RuntimeException('Value is incomplete class: {"__PHP_Incomplete_Class_Name":"App\\\MyContextClass"}'));
 
         Repository::getInstance()->hydrate($dehydrated);
     }
 
-    public function testItThrowsGenericUnserializeExceptions()
+    public function testItThrowsGenericUnserializeExceptions(): void
     {
         $dehydrated = [
             'data' => [
@@ -116,13 +125,12 @@ class ContextIntegrationTest extends TestCase
             'hidden' => [],
         ];
 
-        $this->expectException(ErrorException::class);
-        $this->expectExceptionMessage('unserialize(): Error at offset 0 of 8 bytes');
+        $this->expectExceptionObject(new ErrorException('unserialize(): Error at offset 0 of 8 bytes'));
 
         Repository::getInstance()->hydrate($dehydrated);
     }
 
-    public function testItCanHandleUnserializeExceptionsManually()
+    public function testItCanHandleUnserializeExceptionsManually(): void
     {
         $dehydrated = [
             'data' => [
@@ -134,7 +142,7 @@ class ContextIntegrationTest extends TestCase
         ];
 
         Repository::getInstance()->handleUnserializeExceptionsUsing(
-            function ($exception, $key, $value, $hidden) {
+            function (Throwable $exception, string $key, string $value, bool $hidden): string {
                 if ($key === 'model') {
                     $this->assertSame('bad data', $value);
                     $this->assertFalse($hidden);

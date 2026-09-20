@@ -26,7 +26,7 @@ class SupportFacadeTest extends TestCase
     {
         $app = new ApplicationStub;
         $app->setInstances(['foo' => $mock = m::mock(stdClass::class)]);
-        $mock->shouldReceive('bar')->once()->andReturn('baz');
+        $mock->expects('bar')->andReturn('baz');
         FacadeStub::setFacadeApplication($app);
         $this->assertSame('baz', FacadeStub::bar());
     }
@@ -37,7 +37,7 @@ class SupportFacadeTest extends TestCase
         $app->setInstances(['foo' => new stdClass]);
         FacadeStub::setFacadeApplication($app);
 
-        $this->assertInstanceOf(MockInterface::class, $mock = FacadeStub::shouldReceive('foo')->once()->with('bar')->andReturn('baz')->getMock());
+        $this->assertInstanceOf(MockInterface::class, FacadeStub::shouldReceive('foo')->once()->with('bar')->andReturn('baz')->getMock());
         $this->assertSame('baz', $app->make('foo')->foo('bar'));
     }
 
@@ -65,9 +65,9 @@ class SupportFacadeTest extends TestCase
         $this->assertSame('baz2', $app->make('foo')->foo2('bar2'));
     }
 
-    public function testCanBeMockedWithoutUnderlyingInstance()
+    public function testCanBeMockedWithoutUnderlyingInstance(): void
     {
-        FacadeStub::shouldReceive('foo')->once()->andReturn('bar');
+        FacadeStub::expects('foo')->andReturn('bar');
         $this->assertSame('bar', FacadeStub::foo());
     }
 
@@ -77,15 +77,27 @@ class SupportFacadeTest extends TestCase
         $app->setInstances(['foo' => new stdClass]);
         FacadeStub::setFacadeApplication($app);
 
-        $this->assertInstanceOf(MockInterface::class, $mock = FacadeStub::expects('foo')->with('bar')->andReturn('baz')->getMock());
+        $this->assertInstanceOf(MockInterface::class, FacadeStub::expects('foo')->with('bar')->andReturn('baz')->getMock());
         $this->assertSame('baz', $app->make('foo')->foo('bar'));
+    }
+
+    public function testExpectsCanBeCalledTwice(): void
+    {
+        $app = new ApplicationStub;
+        $app->setInstances(['foo' => new stdClass]);
+        FacadeStub::setFacadeApplication($app);
+
+        $this->assertInstanceOf(MockInterface::class, $mock = FacadeStub::expects('foo')->with('bar')->andReturn('baz')->getMock());
+        $this->assertSame($mock, FacadeStub::expects('foo2')->with('bar2')->andReturn('baz2')->getMock());
+        $this->assertSame('baz', $app->make('foo')->foo('bar'));
+        $this->assertSame('baz2', $app->make('foo')->foo2('bar2'));
     }
 
     public function testFacadeResolvesAgainAfterClearingSpecific(): void
     {
         $app = new ApplicationStub;
         $app->setInstances(['foo' => $mock = m::mock(stdClass::class)]);
-        $mock->shouldReceive('bar')->times(3)->andReturn('baz');
+        $mock->expects('bar')->times(3)->andReturn('baz');
 
         // Resolve for the first time
         FacadeStub::setFacadeApplication($app);
@@ -104,7 +116,7 @@ class SupportFacadeTest extends TestCase
     {
         $app = new ApplicationStub;
         $app->setInstances(['foo' => $mock = m::mock(stdClass::class)]);
-        $mock->shouldReceive('bar')->times(2)->andReturn('baz');
+        $mock->expects('bar')->times(2)->andReturn('baz');
 
         // Resolve for the first time
         FacadeStub::setFacadeApplication($app);
@@ -115,7 +127,7 @@ class SupportFacadeTest extends TestCase
         $this->assertSame('baz', FacadeStub::bar());
     }
 
-    public function testGetFacadeApplicationReturnsSetApplication()
+    public function testGetFacadeApplicationReturnsSetApplication(): void
     {
         $this->assertNull(FacadeStub::getFacadeApplication());
 
@@ -125,7 +137,7 @@ class SupportFacadeTest extends TestCase
         $this->assertSame($app, FacadeStub::getFacadeApplication());
     }
 
-    public function testSetFacadeApplicationToNullClearsApp()
+    public function testSetFacadeApplicationToNullClearsApp(): void
     {
         $app = new ApplicationStub;
         FacadeStub::setFacadeApplication($app);
@@ -148,19 +160,19 @@ class SupportFacadeTest extends TestCase
         $this->assertSame($replacement, FacadeStub::getFacadeRoot());
     }
 
-    public function testSwapWorksWithoutApp()
+    public function testSwapWorksWithoutApp(): void
     {
         // swap() should not throw when $app is null
         FacadeStub::setFacadeApplication(null);
         $replacement = m::mock(stdClass::class);
-        $replacement->shouldReceive('bar')->once()->andReturn('swapped');
+        $replacement->expects('bar')->andReturn('swapped');
 
         FacadeStub::swap($replacement);
 
         $this->assertSame('swapped', FacadeStub::bar());
     }
 
-    public function testFacadeReturnsNullWhenAppNotSet()
+    public function testFacadeReturnsNullWhenAppNotSet(): void
     {
         FacadeStub::setFacadeApplication(null);
         Facade::clearResolvedInstances();
@@ -168,7 +180,7 @@ class SupportFacadeTest extends TestCase
         $this->assertNull(FacadeStub::getFacadeRoot());
     }
 
-    public function testIsFakeReturnsTrueForFakeInstance()
+    public function testIsFakeReturnsTrueForFakeInstance(): void
     {
         $fake = new FakeStub;
         FacadeStub::swap($fake);
@@ -201,6 +213,9 @@ class SupportFacadeTest extends TestCase
 
 class FacadeStub extends Facade
 {
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return 'foo';
@@ -209,6 +224,9 @@ class FacadeStub extends Facade
 
 class ApplicationStub extends Container
 {
+    /**
+     * Register the facade's backing instances.
+     */
     public function setInstances(array $instances): void
     {
         foreach ($instances as $key => $instance) {
@@ -225,6 +243,9 @@ class UncachedFacadeStub extends Facade
 {
     protected static bool $cached = false;
 
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return 'uncached';
@@ -235,6 +256,9 @@ class CountingApplicationStub extends ApplicationStub
 {
     public int $makeCount = 0;
 
+    /**
+     * Resolve an instance and count the resolution.
+     */
     public function make(string $abstract, array $parameters = []): mixed
     {
         ++$this->makeCount;

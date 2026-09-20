@@ -412,25 +412,23 @@ class PipelineTest extends TestCase
 
     public function testPipelineThrowsExceptionOnResolveWithoutContainer(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('A container instance has not been passed to the Pipeline.');
+        $this->expectExceptionObject(new RuntimeException('A container instance has not been passed to the Pipeline.'));
 
         (new Pipeline)->send('data')
             ->through(PipelineTestPipeOne::class)
-            ->then(function ($piped) {
+            ->then(function (mixed $piped): mixed {
                 return $piped;
             });
     }
 
     public function testPipelineThrowsExceptionWhenUsingTransactionsWithoutContainer(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('A container instance has not been passed to the Pipeline.');
+        $this->expectExceptionObject(new RuntimeException('A container instance has not been passed to the Pipeline.'));
 
         (new Pipeline)->send('data')
             ->through(PipelineTestPipeOne::class)
             ->withinTransaction()
-            ->then(function ($piped) {
+            ->then(function (mixed $piped): mixed {
                 return $piped;
             });
     }
@@ -580,26 +578,25 @@ class PipelineTest extends TestCase
     {
         $std = new stdClass;
 
-        $this->expectException(Exception::class);
-        $this->expectExceptionMessage('My Exception: 1');
+        $this->expectExceptionObject(new Exception('My Exception: 1'));
 
         try {
             (new Pipeline(new Container))
                 ->send($std)
                 ->through([
-                    function ($std, $next) {
+                    function (stdClass $std, Closure $next): mixed {
                         $std->value = 1;
 
                         return $next($std);
                     },
-                    function ($std) {
+                    function (stdClass $std): never {
                         throw new Exception('My Exception: ' . $std->value);
                     },
-                ])->finally(function ($std) {
+                ])->finally(function (stdClass $std): void {
                     $this->assertSame(1, $std->value);
 
                     ++$std->value;
-                })->then(function ($std) {
+                })->then(function (stdClass $std): stdClass {
                     $std->value = 0;
 
                     return $std;

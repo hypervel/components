@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sentry;
 
 use Hypervel\Sentry\Integration;
-use Mockery;
+use Mockery as m;
 use Sentry\State\Scope;
 use Sentry\Tracing\Span;
 
@@ -84,7 +84,7 @@ class IntegrationMetaTagTest extends SentryTestCase
 
     private function setDangerousSpanValues(string $traceparent, string $baggage): void
     {
-        $span = Mockery::mock(Span::class);
+        $span = m::mock(Span::class);
         $span->shouldReceive('toTraceparent')->andReturn($traceparent)->zeroOrMoreTimes();
         $span->shouldReceive('toBaggage')->andReturn($baggage)->zeroOrMoreTimes();
 

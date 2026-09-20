@@ -34,7 +34,7 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\Foundation\Configuration\ApplicationBuilder configure(string|null $basePath = null)
  * @method static bool currentEnvironmentIs(array<int, string>|string $environments)
  * @method static string currentLocale()
- * @method static null|string currentlyResolving()
+ * @method static string|int|null currentlyResolving()
  * @method static string databasePath(string $path = '')
  * @method static string detectEnvironment(\Closure $callback)
  * @method static \Hypervel\Foundation\Application dontMergeFrameworkConfiguration()

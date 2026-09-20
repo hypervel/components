@@ -35,6 +35,7 @@ use Hypervel\Queue\Events\JobPopped;
 use Hypervel\Queue\Events\JobPopping;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
+use Hypervel\Queue\Events\JobReleased;
 use Hypervel\Queue\Events\JobReleasedAfterException;
 use Hypervel\Queue\Events\JobTimedOut;
 use Hypervel\Queue\Events\Looping;
@@ -101,13 +102,16 @@ class QueueWorkerTest extends TestCase
     public function testJobLifecycleEventsAreNotDispatchedWithoutListeners(): void
     {
         $this->events->shouldReceive('hasListeners')->andReturnFalse();
-        $job = new WorkerFakeJob;
+        $job = new WorkerFakeJob(static function (WorkerFakeJob $job): void {
+            $job->release(10);
+        });
 
         $this->getWorker()->process('default', $job, new WorkerOptions);
 
         $this->assertTrue($job->fired);
         $this->events->shouldHaveReceived('hasListeners')->with(JobProcessing::class)->once();
         $this->events->shouldHaveReceived('hasListeners')->with(JobProcessed::class)->once();
+        $this->events->shouldHaveReceived('hasListeners')->with(JobReleased::class)->once();
         $this->events->shouldHaveReceived('hasListeners')->with(JobAttempted::class)->once();
         $this->events->shouldNotHaveReceived('dispatch');
     }
@@ -1202,7 +1206,7 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldNotHaveReceived('dispatch', [m::type(JobProcessed::class)]);
     }
 
-    public function testJobIsFailedIfExceptionHandlerSaysItShouldNotRetry(): void
+    public function testJobIsFailedIfExceptionHandlerSaysItShouldntRetry(): void
     {
         $exception = new RuntimeException;
         $job = new WorkerFakeJob(static function () use ($exception): never {
@@ -1225,7 +1229,7 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldNotHaveReceived('dispatch', [m::type(JobReleasedAfterException::class)]);
     }
 
-    public function testExceptionIsNotReportedWhenJobExceptionReportingIsDisabled(): void
+    public function testExceptionIsNotReportedIfReportJobExceptionsIsDisabled(): void
     {
         $exception = new RuntimeException;
         $job = new WorkerFakeJob(static function () use ($exception): never {
@@ -1460,6 +1464,24 @@ class QueueWorkerTest extends TestCase
         $this->assertTrue($job->isDeleted());
     }
 
+    public function testJobReleasedEventIsRaisedWhenJobReleasesItself(): void
+    {
+        $job = new WorkerFakeJob(static function (WorkerFakeJob $job): void {
+            $job->release(10);
+        });
+
+        $worker = $this->getWorker('default', ['queue' => [$job]]);
+        $worker->runNextJob('default', 'queue', $this->workerOptions());
+
+        $this->assertTrue($job->isReleased());
+        $this->assertFalse($job->isDeleted());
+        $this->events->shouldHaveReceived('dispatch')->with(m::on(
+            static fn (object $event): bool => $event instanceof JobReleased
+                && $event->connectionName === 'default'
+                && $event->job === $job,
+        ))->once();
+    }
+
     public function testWorkerPicksJobUsingCustomCallbacks()
     {
         $worker = $this->getWorker('default', [
@@ -1641,7 +1663,7 @@ class QueueWorkerTest extends TestCase
         };
 
         $handler = m::mock(CallQueuedHandler::class);
-        $handler->shouldReceive('getRunningCommand')->once()->andReturn($interruptible);
+        $handler->expects('getRunningCommand')->andReturn($interruptible);
 
         $job = new WorkerFakeJob;
         $job->resolvedJob = $handler;
@@ -1692,7 +1714,7 @@ class QueueWorkerTest extends TestCase
             }
         };
         $handler = m::mock(CallQueuedHandler::class);
-        $handler->shouldReceive('getRunningCommand')->once()->andReturn($interruptible);
+        $handler->expects('getRunningCommand')->andReturn($interruptible);
         $job = new WorkerFakeJob(function () use (&$worker, $options, $releaseJob): void {
             $worker->handleInterruptionSignalForTest(SIGTERM, 'default', 'queue', $options);
             $releaseJob->pop();
@@ -1750,7 +1772,7 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldNotHaveReceived('dispatch');
     }
 
-    public function testNotifyJobsOfSignalNotifiesEveryRunningInterruptibleJob(): void
+    public function testInterruptibleJobIsNotifiedOnSignal(): void
     {
         $workerOptions = new WorkerOptions;
         $firstInterruptible = new WorkerInterruptibleJob;
@@ -1765,6 +1787,23 @@ class QueueWorkerTest extends TestCase
         $this->assertSame([SIGINT], $firstInterruptible->signals);
         $this->assertSame([SIGINT], $secondInterruptible->signals);
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobInterrupted::class))->twice();
+    }
+
+    public function testJobInterruptedEventIsDispatchedForInterruptibleJobs(): void
+    {
+        $job = $this->workerJobWithRunningCommand(new WorkerInterruptibleJob);
+        $job->connectionName = 'default';
+        $worker = $this->getWorker('default', ['queue' => []]);
+        $worker->registerCoroutineJobForTest($job, new WorkerOptions);
+
+        $worker->notifyJobsOfSignalForTest(SIGTERM);
+
+        $this->events->shouldHaveReceived('dispatch')->with(m::on(
+            static fn (object $event): bool => $event instanceof JobInterrupted
+                && $event->connectionName === 'default'
+                && $event->job === $job
+                && $event->signal === SIGTERM,
+        ))->once();
     }
 
     public function testJobInterruptedEventIsSkippedWithoutListenersButTheJobIsStillNotified(): void
@@ -1932,7 +1971,7 @@ class QueueWorkerTest extends TestCase
     private function workerJobWithRunningCommand(object $command): WorkerFakeJob
     {
         $handler = m::mock(CallQueuedHandler::class);
-        $handler->shouldReceive('getRunningCommand')->once()->andReturn($command);
+        $handler->expects('getRunningCommand')->andReturn($command);
 
         $job = new WorkerFakeJob;
         $job->resolvedJob = $handler;
@@ -2290,59 +2329,59 @@ class WorkerFakeManager extends QueueManager
 
 trait HasQueue
 {
-    public function size(?string $queue = null): int
+    public function size(UnitEnum|string|null $queue = null): int
     {
-        return count($this->jobs[$queue]);
+        return count($this->jobs[$this->normalizeQueue($queue)]);
     }
 
-    public function pendingSize(?string $queue = null): int
+    public function pendingSize(UnitEnum|string|null $queue = null): int
     {
-        return count($this->jobs[$queue]);
+        return count($this->jobs[$this->normalizeQueue($queue)]);
     }
 
-    public function delayedSize(?string $queue = null): int
-    {
-        return 0;
-    }
-
-    public function reservedSize(?string $queue = null): int
+    public function delayedSize(UnitEnum|string|null $queue = null): int
     {
         return 0;
     }
 
-    public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
+    public function reservedSize(UnitEnum|string|null $queue = null): int
+    {
+        return 0;
+    }
+
+    public function creationTimeOfOldestPendingJob(UnitEnum|string|null $queue = null): ?int
     {
         return null;
     }
 
-    public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
-        $this->jobs[$queue][] = $job;
+        $this->jobs[$this->normalizeQueue($queue)][] = $job;
 
         return null;
     }
 
-    public function pushOn(?string $queue, object|string $job, mixed $data = ''): mixed
+    public function pushOn(UnitEnum|string|null $queue, object|string $job, mixed $data = ''): mixed
     {
         return $this->push($job, $data, $queue);
     }
 
-    public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed
+    public function pushRaw(string $payload, UnitEnum|string|null $queue = null, array $options = []): mixed
     {
         return null;
     }
 
-    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         return null;
     }
 
-    public function laterOn(?string $queue, DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = ''): mixed
+    public function laterOn(UnitEnum|string|null $queue, DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = ''): mixed
     {
         return null;
     }
 
-    public function bulk(array $jobs, mixed $data = '', ?string $queue = null): mixed
+    public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         return null;
     }
@@ -2350,6 +2389,14 @@ trait HasQueue
     public function setConnectionName(string $name): static
     {
         return $this;
+    }
+
+    /**
+     * Normalize an enum queue name.
+     */
+    private function normalizeQueue(UnitEnum|string|null $queue): ?string
+    {
+        return $queue instanceof UnitEnum ? (string) enum_value($queue) : $queue;
     }
 }
 
@@ -2367,9 +2414,9 @@ class WorkerFakeConnection implements Queue
         $this->jobs = $jobs;
     }
 
-    public function pop(?string $queue = null): ?Job
+    public function pop(UnitEnum|string|null $queue = null): ?Job
     {
-        return array_shift($this->jobs[$queue]);
+        return array_shift($this->jobs[$this->normalizeQueue($queue)]);
     }
 
     public function getConnectionName(): string
@@ -2380,10 +2427,10 @@ class WorkerFakeConnection implements Queue
 
 class WorkerFakeIndexAwareConnection extends WorkerFakeConnection implements IndexAwareQueue
 {
-    /** @var list<array{null|string, int}> */
+    /** @var list<array{null|string|UnitEnum, int}> */
     public array $pops = [];
 
-    public function pop(?string $queue = null, int $index = 0): ?Job
+    public function pop(UnitEnum|string|null $queue = null, int $index = 0): ?Job
     {
         $this->pops[] = [$queue, $index];
 
@@ -2405,7 +2452,7 @@ class BrokenQueueConnection implements Queue
         $this->exception = $exception;
     }
 
-    public function pop(?string $queue = null): ?Job
+    public function pop(UnitEnum|string|null $queue = null): ?Job
     {
         throw $this->exception;
     }

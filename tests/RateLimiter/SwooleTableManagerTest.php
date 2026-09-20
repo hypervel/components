@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\RateLimiter;
 
 use Hypervel\Config\Repository;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithSwooleTables;
 use Hypervel\RateLimiter\AdmissionPolicy;
 use Hypervel\RateLimiter\Swoole\TableManager;
 use Hypervel\Tests\TestCase;
@@ -14,6 +15,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 class SwooleTableManagerTest extends TestCase
 {
+    use InteractsWithSwooleTables;
+
     public function testCreatesAndCachesAnEightByteIntegerTable(): void
     {
         $manager = $this->manager([
@@ -22,6 +25,7 @@ class SwooleTableManagerTest extends TestCase
 
         $state = $manager->get('swoole');
         $table = $state->table();
+        $this->trackSwooleTable($table);
 
         $this->assertSame($state, $manager->get('swoole'));
         $this->assertTrue($table->set('maximum', [
@@ -43,6 +47,7 @@ class SwooleTableManagerTest extends TestCase
             'second' => $this->storeConfig(),
         ]);
         $first = $manager->get('first');
+        $this->trackSwooleTable($first->table());
 
         $manager->seal();
 
@@ -69,7 +74,10 @@ class SwooleTableManagerTest extends TestCase
             'swoole' => $this->storeConfig(['conflict_proportion' => $conflictProportion]),
         ]);
 
-        $this->assertSame(64, $manager->get('swoole')->table()->getSize());
+        $table = $manager->get('swoole')->table();
+        $this->trackSwooleTable($table);
+
+        $this->assertSame(64, $table->getSize());
     }
 
     /**

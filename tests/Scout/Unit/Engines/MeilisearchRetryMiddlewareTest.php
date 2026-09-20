@@ -6,7 +6,12 @@ namespace Hypervel\Tests\Scout\Unit\Engines;
 
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\Exception\ConnectException;
+use GuzzleHttp\Exception\NetworkTimeoutException;
+use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\Exception\ResponseException;
+use GuzzleHttp\Exception\ResponseTimeoutException;
 use GuzzleHttp\Exception\ServerException;
+use GuzzleHttp\Exception\TransferException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware as GuzzleMiddleware;
@@ -14,6 +19,7 @@ use GuzzleHttp\Psr7\Request as Psr7Request;
 use GuzzleHttp\Psr7\Response;
 use Hypervel\Scout\Engines\MeilisearchRetryPolicy;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Behavior tests for the Guzzle retry middleware produced by
@@ -104,6 +110,65 @@ class MeilisearchRetryMiddlewareTest extends TestCase
 
         $this->assertSame(200, $response->getStatusCode());
         $this->assertSame(0, $mock->count(), '2 attempts consumed');
+    }
+
+    #[DataProvider('timeoutExceptions')]
+    public function testTimeoutRetriesStopAtConfiguredLimit(string $exceptionClass, int $maxRetries): void
+    {
+        if (! class_exists($exceptionClass)) {
+            $this->markTestSkipped('Timeout exception types require guzzlehttp/guzzle ^8.0.');
+        }
+
+        $request = new Psr7Request('POST', 'https://meilisearch.test/x');
+        $exception = $exceptionClass === ResponseTimeoutException::class
+            ? new ResponseTimeoutException('Transfer timed out', $request, new Response(200))
+            : new NetworkTimeoutException('Transfer timed out', $request);
+        $mock = new MockHandler([$exception, $exception, new Response(200)]);
+        $client = $this->buildClient($mock, $maxRetries);
+
+        try {
+            $response = $client->post('/x');
+
+            $this->assertSame(2, $maxRetries);
+            $this->assertSame(200, $response->getStatusCode());
+        } catch (TransferException $caught) {
+            $this->assertSame(1, $maxRetries);
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertSame(2 - $maxRetries, $mock->count());
+    }
+
+    /**
+     * Provide timeout exceptions and retry limits.
+     */
+    public static function timeoutExceptions(): array
+    {
+        return [
+            'network timeout then success' => [NetworkTimeoutException::class, 2],
+            'network timeout exhausts retries' => [NetworkTimeoutException::class, 1],
+            'response timeout then success' => [ResponseTimeoutException::class, 2],
+            'response timeout exhausts retries' => [ResponseTimeoutException::class, 1],
+        ];
+    }
+
+    public function testResponseExceptionIsNotRetried(): void
+    {
+        $request = new Psr7Request('POST', 'https://meilisearch.test/x');
+        $exception = class_exists(ResponseException::class)
+            ? new ResponseException('Response failed', $request, new Response(200))
+            : new RequestException('Response failed', $request, new Response(200));
+        $mock = new MockHandler([$exception, new Response(200)]);
+        $client = $this->buildClient($mock, maxRetries: 3);
+
+        try {
+            $client->post('/x');
+            $this->fail('The response failure was not propagated.');
+        } catch (RequestException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertSame(1, $mock->count());
     }
 
     public function testRepeated5xxStopsAtConfiguredRetries(): void

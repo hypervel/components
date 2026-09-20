@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Engines;
 
-use GuzzleHttp\Exception\ConnectException;
+use GuzzleHttp\Exception\ResponseTimeoutException;
 use GuzzleHttp\Middleware;
+use Psr\Http\Client\NetworkExceptionInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Throwable;
@@ -31,7 +32,7 @@ class MeilisearchRetryPolicy
      */
     public static function shouldRetry(?ResponseInterface $response, ?Throwable $exception): bool
     {
-        if ($exception instanceof ConnectException) {
+        if ($exception instanceof NetworkExceptionInterface || $exception instanceof ResponseTimeoutException) {
             return true;
         }
 

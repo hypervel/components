@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Console\Scheduling;
 
 use Closure;
 use DateTimeZone;
-use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Container\Container;
@@ -51,6 +50,9 @@ class EventTest extends TestCase
 {
     protected ?Container $container = null;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -59,6 +61,8 @@ class EventTest extends TestCase
         Container::setInstance($this->container);
         $this->container->instance(Filesystem::class, new Filesystem);
     }
+
+    // REMOVED: Laravel's buildCommand() and user() tests; coroutine tasks do not use shell wrappers.
 
     public function testSendOutputToWithIsNotFile(): void
     {
@@ -163,50 +167,64 @@ class EventTest extends TestCase
         $this->assertFalse($event->shouldRepeatNow());
     }
 
-    public function testEventMarksSkippedWhenMutexAlreadyExists(): void
+    public function testRunIndicatesWhenSkippedBecauseOverlapping(): void
     {
+        $beforeCallbackCalled = false;
         $eventMutex = m::mock(EventMutex::class);
-        $eventMutex->shouldReceive('create')->once()->andReturnFalse();
+        $event = new class($eventMutex, 'php -i') extends Event {
+            public bool $executed = false;
 
-        $event = new CallbackEvent($eventMutex, function () {
-            return 0;
-        });
-        $event->name('test');
+            /**
+             * Run the command process.
+             */
+            protected function execute(ContainerContract $container): int
+            {
+                $this->executed = true;
+
+                return 0;
+            }
+        };
+
+        $eventMutex->expects('create')->with($event)->andReturnFalse();
         $event->withoutOverlapping();
+        $event->before(function () use (&$beforeCallbackCalled): void {
+            $beforeCallbackCalled = true;
+        });
 
         $this->assertNull($event->run($this->container));
         $this->assertTrue($event->skippedBecauseOverlapping);
+        $this->assertFalse($event->executed);
+        $this->assertFalse($beforeCallbackCalled);
     }
 
-    public function testEventResetsSkippedBecauseOverlappingWhenItRuns(): void
+    public function testRunResetsSkippedBecauseOverlapping(): void
     {
         $eventMutex = m::mock(EventMutex::class);
-        $eventMutex->shouldReceive('create')->andReturnFalse();
+        $event = new class($eventMutex, 'php -i') extends Event {
+            public int $executions = 0;
 
-        $event = new CallbackEvent($eventMutex, function () {
-            return 0;
-        });
-        $event->name('test');
+            /**
+             * Run the command process.
+             */
+            protected function execute(ContainerContract $container): int
+            {
+                ++$this->executions;
+
+                return 0;
+            }
+        };
+
+        $eventMutex->expects('create')->times(2)->with($event)->andReturn(false, true);
+        $eventMutex->expects('forget')->with($event);
         $event->withoutOverlapping();
 
         $this->assertNull($event->run($this->container));
         $this->assertTrue($event->skippedBecauseOverlapping);
 
-        $eventMutex = m::mock(EventMutex::class);
-        $eventMutex->shouldReceive('create')->once()->andReturnTrue();
-        $eventMutex->shouldReceive('forget')->once();
+        $event->run($this->container);
 
-        $event = new CallbackEvent($eventMutex, function () {
-            return 0;
-        });
-        $event->name('test');
-        $event->withoutOverlapping();
-        $event->skippedBecauseOverlapping = true;
-
-        $this->container->instance(Filesystem::class, new Filesystem);
-
-        $this->assertSame(0, $event->run($this->container));
         $this->assertFalse($event->skippedBecauseOverlapping);
+        $this->assertSame(1, $event->executions);
     }
 
     public function testReleaseMutexOnTerminationSignalReleasesOwnedMutex(): void
@@ -587,25 +605,51 @@ class EventTest extends TestCase
         $this->assertSame($event, $afterEvent);
     }
 
-    public function testFilterCallbacksCanReceiveEventAndMayBeInvokableObjects(): void
+    public function testFilterCallbacksCanReceiveEvent(): void
     {
         $filterEvent = null;
-        $reject = new EventTestInvokableFilter(false);
+        $rejectEvent = null;
         $event = new Event(m::mock(EventMutex::class), 'php -i');
 
+        $event->when(function (Event $event) use (&$filterEvent): bool {
+            $filterEvent = $event;
+
+            return true;
+        });
+        $event->skip(function (Event $event) use (&$rejectEvent): bool {
+            $rejectEvent = $event;
+
+            return false;
+        });
+
+        $this->assertTrue($event->filtersPass($this->container));
+        $this->assertSame($event, $filterEvent);
+        $this->assertSame($event, $rejectEvent);
+    }
+
+    public function testEventCallbackResolvesByTypeRegardlessOfParameterName(): void
+    {
+        $beforeEvent = null;
+        $filterEvent = null;
+        $event = new Event(m::mock(EventMutex::class), 'php -i');
+
+        $event->before(function (Event $scheduledEvent) use (&$beforeEvent): void {
+            $beforeEvent = $scheduledEvent;
+        });
         $event->when(function (Event $scheduledEvent) use (&$filterEvent): bool {
             $filterEvent = $scheduledEvent;
 
             return true;
         });
-        $event->skip($reject);
 
+        $event->callBeforeCallbacks($this->container);
         $this->assertTrue($event->filtersPass($this->container));
+
+        $this->assertSame($event, $beforeEvent);
         $this->assertSame($event, $filterEvent);
-        $this->assertSame(1, $reject->calls);
     }
 
-    public function testEventCallbackDoesNotReplaceUnrelatedTypedParameters(): void
+    public function testEventCallbackDoesNotInjectIntoUnrelatedTypedParameters(): void
     {
         $value = new Stringable('injected-string');
         $received = null;
@@ -619,6 +663,20 @@ class EventTest extends TestCase
         $event->callBeforeCallbacks($this->container);
 
         $this->assertSame($value, $received);
+    }
+
+    public function testFilterCallbacksMayBeInvokableObjects(): void
+    {
+        $filter = new EventTestInvokableFilter(true);
+        $reject = new EventTestInvokableFilter(false);
+        $event = new Event(m::mock(EventMutex::class), 'php -i');
+
+        $event->when($filter);
+        $event->skip($reject);
+
+        $this->assertTrue($event->filtersPass($this->container));
+        $this->assertSame(1, $filter->calls);
+        $this->assertSame(1, $reject->calls);
     }
 
     public function testSuccessFailureAndOutputCallbacksCanReceiveEvent(): void
@@ -701,17 +759,17 @@ class EventTest extends TestCase
     public function testBasicCronCompilation(): void
     {
         $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('isDownForMaintenance')->andReturn(false);
-        $app->shouldReceive('environment')->andReturn('production');
-        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback) => $callback());
+        $app->expects('isDownForMaintenance')->times(3)->andReturn(false);
+        $app->expects('environment')->times(3)->andReturn('production');
+        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback): bool => $callback());
 
         $event = new Event(m::mock(EventMutex::class), 'php foo');
         $this->assertSame('* * * * *', $event->getExpression());
         $this->assertTrue($event->isDue($app));
-        $this->assertTrue($event->skip(function () {
+        $this->assertTrue($event->skip(function (): bool {
             return true;
         })->isDue($app));
-        $this->assertFalse($event->skip(function () {
+        $this->assertFalse($event->skip(function (): bool {
             return true;
         })->filtersPass($app));
 
@@ -721,7 +779,7 @@ class EventTest extends TestCase
 
         $event = new Event(m::mock(EventMutex::class), 'php foo');
         $this->assertSame('* * * * *', $event->getExpression());
-        $this->assertFalse($event->when(function () {
+        $this->assertFalse($event->when(function (): bool {
             return false;
         })->filtersPass($app));
 
@@ -748,8 +806,8 @@ class EventTest extends TestCase
     public function testEventIsDueCheck(): void
     {
         $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('isDownForMaintenance')->andReturn(false);
-        $app->shouldReceive('environment')->andReturn('production');
+        $app->expects('isDownForMaintenance')->times(2)->andReturn(false);
+        $app->expects('environment')->times(2)->andReturn('production');
         CarbonImmutable::setTestNow(CarbonImmutable::create(2015, 1, 1, 0, 0, 0));
 
         $event = new Event(m::mock(EventMutex::class), 'php foo');
@@ -767,17 +825,13 @@ class EventTest extends TestCase
         $app->shouldReceive('isDownForMaintenance')->andReturn(false);
         $app->shouldReceive('environment')->andReturn('production');
 
-        try {
-            CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-29 13:00:00'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-29 13:00:00'));
 
-            $event = new Event(m::mock(EventMutex::class), 'php foo');
-            $event->dailyAt('13:00');
+        $event = new Event(m::mock(EventMutex::class), 'php foo');
+        $event->dailyAt('13:00');
 
-            $this->assertFalse($event->isDueAt($app, CarbonImmutable::parse('2026-05-29 12:59:59')));
-            $this->assertTrue($event->isDueAt($app, CarbonImmutable::parse('2026-05-29 13:00:00')));
-        } finally {
-            CarbonImmutable::setTestNow();
-        }
+        $this->assertFalse($event->isDueAt($app, CarbonImmutable::parse('2026-05-29 12:59:59')));
+        $this->assertTrue($event->isDueAt($app, CarbonImmutable::parse('2026-05-29 13:00:00')));
     }
 
     public function testEventIsDueAtUsesEventTimezone(): void
@@ -796,11 +850,9 @@ class EventTest extends TestCase
     public function testTimeBetweenChecks(): void
     {
         $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('isDownForMaintenance')->andReturn(false);
-        $app->shouldReceive('environment')->andReturn('production');
-        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback) => $callback());
+        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback): bool => $callback());
 
-        CarbonImmutable::setTestNow(CarbonImmutable::now()->startOfDay()->addHours(9));
+        CarbonImmutable::setTestNow(CarbonImmutable::today()->addHours(9));
 
         $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
         $this->assertTrue($event->between('8:00', '10:00')->filtersPass($app));
@@ -824,9 +876,7 @@ class EventTest extends TestCase
     public function testTimeBetweenIsEvaluatedUsingTheCurrentTime(): void
     {
         $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('isDownForMaintenance')->andReturn(false);
-        $app->shouldReceive('environment')->andReturn('production');
-        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback) => $callback());
+        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback): bool => $callback());
 
         CarbonImmutable::setTestNow('2026-05-29 09:00:00');
 
@@ -840,29 +890,32 @@ class EventTest extends TestCase
         $this->assertFalse($event->filtersPass($app));
     }
 
-    public function testTimeBetweenUsesTimezoneConfiguredAfterTheConstraint(): void
+    public function testTimeBetweenChecksTimezoneCallOrder(): void
     {
         $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('isDownForMaintenance')->andReturn(false);
-        $app->shouldReceive('environment')->andReturn('production');
-        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback) => $callback());
+        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback): bool => $callback());
 
-        CarbonImmutable::setTestNow('2026-05-29 13:00:00 UTC');
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2024-07-01 09:00:00', 'UTC'));
 
-        $event = new Event(m::mock(EventMutex::class), 'php foo');
-        $event->between('8:00', '10:00')->timezone('America/New_York');
+        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $this->assertTrue($event->timezone('Europe/Rome')->between('10:00', '12:00')->filtersPass($app));
 
-        $this->assertTrue($event->filtersPass($app));
+        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $this->assertTrue($event->between('10:00', '12:00')->timezone('Europe/Rome')->filtersPass($app));
+
+        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $this->assertFalse($event->timezone('Europe/Rome')->unlessBetween('10:00', '12:00')->filtersPass($app));
+
+        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $this->assertFalse($event->unlessBetween('10:00', '12:00')->timezone('Europe/Rome')->filtersPass($app));
     }
 
     public function testTimeUnlessBetweenChecks(): void
     {
         $app = m::mock(ApplicationContract::class);
-        $app->shouldReceive('isDownForMaintenance')->andReturn(false);
-        $app->shouldReceive('environment')->andReturn('production');
-        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback) => $callback());
+        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback): bool => $callback());
 
-        CarbonImmutable::setTestNow(CarbonImmutable::now()->startOfDay()->addHours(9));
+        CarbonImmutable::setTestNow(CarbonImmutable::today()->addHours(9));
 
         $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
         $this->assertFalse($event->unlessBetween('8:00', '10:00')->filtersPass($app));
@@ -888,10 +941,16 @@ class EventTestInvokableFilter
 {
     public int $calls = 0;
 
+    /**
+     * Create a new filter instance.
+     */
     public function __construct(protected bool $result)
     {
     }
 
+    /**
+     * Evaluate the filter.
+     */
     public function __invoke(): bool
     {
         ++$this->calls;
@@ -902,16 +961,25 @@ class EventTestInvokableFilter
 
 class EventTestExecutableEvent extends Event
 {
+    /**
+     * Create a new executable event.
+     */
     public function __construct(EventMutex $mutex)
     {
         parent::__construct($mutex, 'test:command');
     }
 
+    /**
+     * Execute the event successfully.
+     */
     protected function execute(ContainerContract $container): int
     {
         return 0;
     }
 
+    /**
+     * Get the event output.
+     */
     public function getOutput(ContainerContract $container): ?string
     {
         return 'output';
@@ -920,11 +988,17 @@ class EventTestExecutableEvent extends Event
 
 class EventTestFailingExitCodeEvent extends EventTestExecutableEvent
 {
+    /**
+     * Mark the event mutex as acquired.
+     */
     public function acquireMutexForTest(): void
     {
         $this->mutexAcquired = true;
     }
 
+    /**
+     * Fail when publishing the exit code.
+     */
     protected function setExitCode(int $exitCode): void
     {
         throw new RuntimeException('exit publication failed');
@@ -933,6 +1007,9 @@ class EventTestFailingExitCodeEvent extends EventTestExecutableEvent
 
 class EventTestProcessEvent extends Event
 {
+    /**
+     * Create a new process event.
+     */
     public function __construct(
         EventMutex $mutex,
         protected Process $process,
@@ -941,11 +1018,17 @@ class EventTestProcessEvent extends Event
         parent::__construct($mutex, 'test:process', isSystem: true);
     }
 
+    /**
+     * Determine whether the process remains in coroutine context.
+     */
     public function hasRetainedProcess(): bool
     {
         return CoroutineContext::has($this->processContextKey());
     }
 
+    /**
+     * Retain the process and simulate its execution outcome.
+     */
     protected function execute(ContainerContract $container): int
     {
         CoroutineContext::set($this->processContextKey(), $this->process);

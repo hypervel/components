@@ -6,6 +6,7 @@ namespace Hypervel\Log\Context;
 
 use Hypervel\Contracts\Log\ContextLogProcessor as ContextLogProcessorContract;
 use Hypervel\Log\Context\Events\ContextDehydrating;
+use Hypervel\Log\Context\Events\ContextHydrated;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Queue;
 use Hypervel\Support\Facades\Context;
@@ -18,6 +19,9 @@ class ContextServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // Keep the coroutine repository as the single owner, including in copied contexts.
+        $this->app->bind(Repository::class, static fn (): Repository => Repository::getInstance());
+
         $this->app->bind(ContextLogProcessorContract::class, fn () => new ContextLogProcessor);
     }
 
@@ -43,10 +47,10 @@ class ContextServiceProvider extends ServiceProvider
         });
 
         // IMPORTANT: Uses Laravel's payload key for cross-framework queue interoperability.
-        $events->listen(JobProcessing::class, function (JobProcessing $event): void {
+        $events->listen(JobProcessing::class, function (JobProcessing $event) use ($events): void {
             $context = $event->job->payload()['illuminate:log:context'] ?? null;
 
-            if ($context !== null || Repository::hasInstance()) {
+            if ($context !== null || Repository::hasInstance() || $events->hasListeners(ContextHydrated::class)) {
                 /* @phpstan-ignore staticMethod.notFound */
                 Context::hydrate($context);
             }

@@ -13,47 +13,47 @@ use RuntimeException;
 
 class FoundationCacheBasedMaintenanceModeTest extends TestCase
 {
-    public function testItDeterminesWhetherMaintenanceModeIsActive()
+    public function testItDeterminesWhetherMaintenanceModeIsActive(): void
     {
         $cache = m::mock(Factory::class, Repository::class);
-        $cache->shouldReceive('store')->with('store-key')->andReturnSelf();
+        $cache->expects('store')->twice()->with('store-key')->andReturnSelf();
 
         $manager = new CacheBasedMaintenanceMode($cache, 'store-key', 'key');
 
-        $cache->shouldReceive('has')->once()->with('key')->andReturnFalse();
+        $cache->expects('has')->with('key')->andReturnFalse();
         $this->assertFalse($manager->active());
 
-        $cache->shouldReceive('has')->once()->with('key')->andReturnTrue();
+        $cache->expects('has')->with('key')->andReturnTrue();
         $this->assertTrue($manager->active());
     }
 
-    public function testItRetrievesPayloadFromCache()
+    public function testItRetrievesPayloadFromCache(): void
     {
         $cache = m::mock(Factory::class, Repository::class);
-        $cache->shouldReceive('store')->with('store-key')->andReturnSelf();
+        $cache->expects('store')->with('store-key')->andReturnSelf();
 
         $manager = new CacheBasedMaintenanceMode($cache, 'store-key', 'key');
 
-        $cache->shouldReceive('get')->once()->with('key')->andReturn(['payload']);
+        $cache->expects('get')->with('key')->andReturn(['payload']);
         $this->assertSame(['payload'], $manager->data());
     }
 
     public function testItReturnsEmptyPayloadWhenCacheKeyIsMissing(): void
     {
         $cache = m::mock(Factory::class, Repository::class);
-        $cache->shouldReceive('store')->with('store-key')->andReturnSelf();
+        $cache->expects('store')->with('store-key')->andReturnSelf();
 
         $manager = new CacheBasedMaintenanceMode($cache, 'store-key', 'key');
 
-        $cache->shouldReceive('get')->once()->with('key')->andReturnNull();
+        $cache->expects('get')->with('key')->andReturnNull();
         $this->assertSame([], $manager->data());
     }
 
     public function testItStoresPayloadInCache(): void
     {
         $cache = m::mock(Factory::class, Repository::class);
-        $cache->shouldReceive('store')->with('store-key')->andReturnSelf();
-        $cache->shouldReceive('put')->once()->with('key', ['payload'])->andReturnTrue();
+        $cache->expects('store')->with('store-key')->andReturnSelf();
+        $cache->expects('put')->with('key', ['payload'])->andReturnTrue();
 
         $manager = new CacheBasedMaintenanceMode($cache, 'store-key', 'key');
         $manager->activate(['payload']);
@@ -62,8 +62,8 @@ class FoundationCacheBasedMaintenanceModeTest extends TestCase
     public function testItRemovesPayloadFromCache(): void
     {
         $cache = m::mock(Factory::class, Repository::class);
-        $cache->shouldReceive('store')->with('store-key')->andReturnSelf();
-        $cache->shouldReceive('forget')->once()->with('key')->andReturnTrue();
+        $cache->expects('store')->with('store-key')->andReturnSelf();
+        $cache->expects('forget')->with('key')->andReturnTrue();
 
         $manager = new CacheBasedMaintenanceMode($cache, 'store-key', 'key');
         $manager->deactivate();
@@ -72,8 +72,8 @@ class FoundationCacheBasedMaintenanceModeTest extends TestCase
     public function testItFailsWhenPayloadCannotBeStored(): void
     {
         $cache = m::mock(Factory::class, Repository::class);
-        $cache->shouldReceive('store')->with('store-key')->andReturnSelf();
-        $cache->shouldReceive('put')->once()->with('key', ['payload'])->andReturnFalse();
+        $cache->expects('store')->with('store-key')->andReturnSelf();
+        $cache->expects('put')->with('key', ['payload'])->andReturnFalse();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Unable to activate maintenance mode using cache key [key].');
@@ -84,8 +84,8 @@ class FoundationCacheBasedMaintenanceModeTest extends TestCase
     public function testItFailsWhenPayloadCannotBeRemoved(): void
     {
         $cache = m::mock(Factory::class, Repository::class);
-        $cache->shouldReceive('store')->with('store-key')->andReturnSelf();
-        $cache->shouldReceive('forget')->once()->with('key')->andReturnFalse();
+        $cache->expects('store')->with('store-key')->andReturnSelf();
+        $cache->expects('forget')->with('key')->andReturnFalse();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Unable to deactivate maintenance mode using cache key [key].');

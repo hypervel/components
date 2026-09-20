@@ -26,19 +26,13 @@ use Symfony\Component\Mime\Exception\InvalidArgumentException as MimeInvalidArgu
 
 class MailMailerTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        unset($_SERVER['__mailer.test']);
-        parent::tearDown();
-    }
-
     public function testMailerSendSendsMessageWithProperViewContent(): void
     {
         $view = $this->mockView();
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
-        $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
+        $sentMessage = $mailer->send('foo', ['data'], function (Message $message): void {
             $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
         });
 
@@ -69,14 +63,14 @@ class MailMailerTest extends TestCase
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
-        $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
+        $sentMessage = $mailer->send('foo', ['data'], function (Message $message): void {
             $message->to('taylor@hypervel.org')
                 ->cc('dries@hypervel.org')
                 ->bcc('james@hypervel.org')
                 ->from('hello@hypervel.org');
         });
 
-        $recipients = collect($sentMessage->getEnvelope()->getRecipients())->map(function ($recipient) {
+        $recipients = collect($sentMessage->getEnvelope()->getRecipients())->map(function (Address $recipient): string {
             return $recipient->getAddress();
         });
 
@@ -88,14 +82,15 @@ class MailMailerTest extends TestCase
 
     public function testMailerSendSendsMessageWithProperViewContentUsingHtmlStrings(): void
     {
-        $view = $this->mockView();
+        $view = m::mock(ViewFactory::class);
+        $view->shouldNotReceive('make');
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
         $sentMessage = $mailer->send(
             ['html' => new HtmlString('<p>Hello Hypervel</p>'), 'text' => new HtmlString('Hello World')],
             ['data'],
-            function (Message $message) {
+            function (Message $message): void {
                 $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
             }
         );
@@ -107,25 +102,26 @@ class MailMailerTest extends TestCase
 
     public function testMailerSendSendsMessageWithProperViewContentUsingStringCallbacks(): void
     {
-        $view = $this->mockView();
+        $view = m::mock(ViewFactory::class);
+        $view->shouldNotReceive('make');
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
         $sentMessage = $mailer->send(
             [
-                'html' => function ($data) {
+                'html' => function (array $data): HtmlString {
                     $this->assertInstanceOf(Message::class, $data['message']);
 
                     return new HtmlString('<p>Hello Hypervel</p>');
                 },
-                'text' => function ($data) {
+                'text' => function (array $data): HtmlString {
                     $this->assertInstanceOf(Message::class, $data['message']);
 
                     return new HtmlString('Hello World');
                 },
             ],
             [],
-            function (Message $message) {
+            function (Message $message): void {
                 $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
             }
         );
@@ -137,11 +133,12 @@ class MailMailerTest extends TestCase
 
     public function testMailerSendSendsMessageWithProperViewContentUsingHtmlMethod(): void
     {
-        $view = $this->mockView();
+        $view = m::mock(ViewFactory::class);
+        $view->shouldNotReceive('make');
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
-        $sentMessage = $mailer->html('<p>Hello World</p>', function (Message $message) {
+        $sentMessage = $mailer->html('<p>Hello World</p>', function (Message $message): void {
             $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
         });
 
@@ -152,19 +149,17 @@ class MailMailerTest extends TestCase
     public function testMailerSendSendsMessageWithProperPlainViewContent(): void
     {
         $viewInterface = m::mock(ViewContract::class);
-        $viewInterface->shouldReceive('render')
-            ->once()
+        $viewInterface->expects('render')
             ->andReturn('rendered.view');
-        $viewInterface->shouldReceive('render')
-            ->once()
+        $viewInterface->expects('render')
             ->andReturn('rendered.plain');
 
         $view = m::mock(ViewFactory::class);
-        $view->shouldReceive('make')->andReturn($viewInterface);
+        $view->expects('make')->times(2)->andReturn($viewInterface);
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
-        $sentMessage = $mailer->send(['foo', 'bar'], ['data'], function (Message $message) {
+        $sentMessage = $mailer->send(['foo', 'bar'], ['data'], function (Message $message): void {
             $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
         });
 
@@ -190,19 +185,17 @@ class MailMailerTest extends TestCase
     public function testMailerSendSendsMessageWithProperPlainViewContentWhenExplicit(): void
     {
         $viewInterface = m::mock(ViewContract::class);
-        $viewInterface->shouldReceive('render')
-            ->once()
+        $viewInterface->expects('render')
             ->andReturn('rendered.view');
-        $viewInterface->shouldReceive('render')
-            ->once()
+        $viewInterface->expects('render')
             ->andReturn('rendered.plain');
 
         $view = m::mock(ViewFactory::class);
-        $view->shouldReceive('make')->andReturn($viewInterface);
+        $view->expects('make')->times(2)->andReturn($viewInterface);
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
 
-        $sentMessage = $mailer->send(['html' => 'foo', 'text' => 'bar'], ['data'], function (Message $message) {
+        $sentMessage = $mailer->send(['html' => 'foo', 'text' => 'bar'], ['data'], function (Message $message): void {
             $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
         });
 
@@ -274,7 +267,7 @@ class MailMailerTest extends TestCase
         $mailer = new Mailer('array', $view, new ArrayTransport);
         $mailer->alwaysFrom('hello@hypervel.org');
 
-        $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
+        $sentMessage = $mailer->send('foo', ['data'], function (Message $message): void {
             $message->to('taylor@hypervel.org');
         });
 
@@ -288,7 +281,7 @@ class MailMailerTest extends TestCase
         $mailer = new Mailer('array', $view, new ArrayTransport);
         $mailer->alwaysReplyTo('taylor@hypervel.org', 'Taylor Otwell');
 
-        $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
+        $sentMessage = $mailer->send('foo', ['data'], function (Message $message): void {
             $message->to('dries@hypervel.org')->from('hello@hypervel.org');
         });
 
@@ -302,14 +295,14 @@ class MailMailerTest extends TestCase
         $mailer = new Mailer('array', $view, new ArrayTransport);
         $mailer->alwaysTo('taylor@hypervel.org', 'Taylor Otwell');
 
-        $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
+        $sentMessage = $mailer->send('foo', ['data'], function (Message $message): void {
             $message->from('hello@hypervel.org');
             $message->to('nuno@hypervel.org');
             $message->cc('dries@hypervel.org');
             $message->bcc('james@hypervel.org');
         });
 
-        $recipients = collect($sentMessage->getEnvelope()->getRecipients())->map(function ($recipient) {
+        $recipients = collect($sentMessage->getEnvelope()->getRecipients())->map(function (Address $recipient): string {
             return $recipient->getAddress();
         });
 
@@ -331,7 +324,7 @@ class MailMailerTest extends TestCase
         $mailer = new Mailer('array', $view, new ArrayTransport);
         $mailer->alwaysReturnPath('taylorotwell@gmail.com');
 
-        $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
+        $sentMessage = $mailer->send('foo', ['data'], function (Message $message): void {
             $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
         });
 
@@ -343,14 +336,14 @@ class MailMailerTest extends TestCase
         $view = $this->mockView();
 
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(MessageSending::class)->andReturn(true);
-        $events->shouldReceive('until')->once()->with(m::type(MessageSending::class));
-        $events->shouldReceive('hasListeners')->once()->with(MessageSent::class)->andReturn(true);
-        $events->shouldReceive('dispatch')->once()->with(m::type(MessageSent::class));
+        $events->expects('hasListeners')->with(MessageSending::class)->andReturn(true);
+        $events->expects('until')->with(m::type(MessageSending::class));
+        $events->expects('hasListeners')->with(MessageSent::class)->andReturn(true);
+        $events->expects('dispatch')->with(m::type(MessageSent::class));
 
         $mailer = new Mailer('array', $view, new ArrayTransport, $events);
 
-        $mailer->send('foo', ['data'], function (Message $message) {
+        $mailer->send('foo', ['data'], function (Message $message): void {
             $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
         });
     }
@@ -360,21 +353,21 @@ class MailMailerTest extends TestCase
         $view = $this->mockView();
 
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(MessageSending::class)->andReturn(false);
-        $events->shouldReceive('hasListeners')->once()->with(MessageSent::class)->andReturn(false);
+        $events->expects('hasListeners')->with(MessageSending::class)->andReturn(false);
+        $events->expects('hasListeners')->with(MessageSent::class)->andReturn(false);
         $events->shouldNotReceive('until');
         $events->shouldNotReceive('dispatch');
 
         $mailer = new Mailer('array', $view, new ArrayTransport, $events);
 
-        $mailer->send('foo', ['data'], function (Message $message) {
+        $mailer->send('foo', ['data'], function (Message $message): void {
             $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
         });
     }
 
     public function testMacroable(): void
     {
-        Mailer::macro('foo', function () {
+        Mailer::macro('foo', function (): string {
             return 'bar';
         });
 
@@ -388,7 +381,8 @@ class MailMailerTest extends TestCase
 
     public function testSendQueuedMailableReturnsNull(): void
     {
-        $view = $this->mockView();
+        $view = m::mock(ViewFactory::class);
+        $view->shouldNotReceive('make');
         $queueFake = new QueueFake($this->app);
 
         $mailer = new Mailer('array', $view, new ArrayTransport);
@@ -403,19 +397,17 @@ class MailMailerTest extends TestCase
         $queueFake->assertPushedOn(null, SendQueuedMailable::class);
     }
 
-    protected function mockContainer(): void
-    {
-        $this->app->instance('view', m::mock(ViewFactory::class));
-    }
-
+    /**
+     * Create a view factory expecting one rendered view.
+     */
     protected function mockView(): ViewFactory
     {
         $viewInterface = m::mock(ViewContract::class);
-        $viewInterface->shouldReceive('render')
+        $viewInterface->expects('render')
             ->andReturn('rendered.view');
 
         $view = m::mock(ViewFactory::class);
-        $view->shouldReceive('make')->andReturn($viewInterface);
+        $view->expects('make')->andReturn($viewInterface);
 
         return $view;
     }
@@ -423,6 +415,9 @@ class MailMailerTest extends TestCase
 
 class TestMail extends Mailable
 {
+    /**
+     * Build the message.
+     */
     public function build(): static
     {
         return $this->view('view')
@@ -434,6 +429,9 @@ class TestQueuedMail extends Mailable implements ShouldQueue
 {
     use Queueable;
 
+    /**
+     * Build the message.
+     */
     public function build(): static
     {
         return $this->view('view')

@@ -14,11 +14,10 @@ use Symfony\Component\Console\Output\NullOutput;
 
 class PruneBatchesCommandTest extends TestCase
 {
-    public function testAllowPruningAllUnfinishedBatches()
+    public function testAllowPruningAllUnfinishedBatches(): void
     {
-        $repo = m::mock(DatabaseBatchRepository::class);
-        $repo->shouldReceive('prune')->once();
-        $repo->shouldReceive('pruneUnfinished')->once();
+        $repo = m::spy(DatabaseBatchRepository::class);
+        $repo->expects('prune');
 
         $this->app->instance(BatchRepository::class, $repo);
 
@@ -26,13 +25,14 @@ class PruneBatchesCommandTest extends TestCase
         $command->setHypervel($this->app);
 
         $command->run(new ArrayInput(['--unfinished' => 0]), new NullOutput);
+
+        $repo->shouldHaveReceived('pruneUnfinished')->once();
     }
 
-    public function testAllowPruningAllCancelledBatches()
+    public function testAllowPruningAllCancelledBatches(): void
     {
-        $repo = m::mock(DatabaseBatchRepository::class);
-        $repo->shouldReceive('prune')->once();
-        $repo->shouldReceive('pruneCancelled')->once();
+        $repo = m::spy(DatabaseBatchRepository::class);
+        $repo->expects('prune');
 
         $this->app->instance(BatchRepository::class, $repo);
 

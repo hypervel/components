@@ -17,6 +17,7 @@ use Hypervel\Console\OutputStyle;
 use Hypervel\Console\SignalRegistry;
 use Hypervel\Console\View\Components\Factory;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Testbench\TestCase;
@@ -118,8 +119,8 @@ class CommandTest extends TestCase
     public function testSignalHandlersAreRemovedWhenTraitSetupFails(): void
     {
         $registry = m::mock(SignalRegistry::class);
-        $registry->shouldReceive('register')->once()->with(SIGTERM, m::type('callable'));
-        $registry->shouldReceive('unregister')->once()->with(null);
+        $registry->expects('register')->with(SIGTERM, m::type('callable'));
+        $registry->expects('unregister')->with(null);
 
         $command = new CommandTestFailingTraitSetupCommand;
         $command->setHypervel($this->app);
@@ -305,36 +306,41 @@ class CommandTest extends TestCase
         $command->fail($exception);
     }
 
-    public function testCallingClassCommandResolveCommandViaApplicationResolution()
+    public function testCallingClassCommandResolveCommandViaApplicationResolution(): void
     {
         $command = new class extends Command {
-            public function handle()
+            /**
+             * Execute the command.
+             */
+            public function handle(): void
             {
             }
         };
 
-        $app = m::mock(\Hypervel\Contracts\Foundation\Application::class);
-        $command->setHypervel($app);
+        $application = m::mock(Application::class);
+        $command->setHypervel($application);
 
-        $output = m::mock(OutputStyle::class)->shouldIgnoreMissing();
-        $app->shouldReceive('make')->with(OutputStyle::class, m::any())->andReturn($output);
-        $app->shouldReceive('make')->with(Factory::class, m::any())->andReturn(m::mock(Factory::class));
-        $app->shouldReceive('bound')->andReturn(false);
+        $input = new ArrayInput([]);
+        $output = new NullOutput;
+        $outputStyle = m::mock(OutputStyle::class)->shouldIgnoreMissing();
+        $application->expects('make')->with(OutputStyle::class, ['input' => $input, 'output' => $output])->andReturn($outputStyle);
+        $application->expects('make')->with(Factory::class, ['output' => $outputStyle])->andReturn(m::mock(Factory::class));
+        $application->shouldReceive('bound')->andReturn(false);
 
-        $app->shouldReceive('call')->with([$command, 'handle'])->andReturnUsing(function () use ($command, $app) {
+        $application->expects('call')->with([$command, 'handle'])->andReturnUsing(function () use ($command, $application): void {
             $commandCalled = m::mock(Command::class);
 
-            $app->shouldReceive('make')->once()->with(Command::class)->andReturn($commandCalled);
+            $application->expects('make')->with(Command::class)->andReturn($commandCalled);
 
-            $commandCalled->shouldReceive('setApplication')->once()->with(null);
-            $commandCalled->shouldReceive('setHypervel')->once();
-            $commandCalled->shouldReceive('run')->once();
+            $commandCalled->expects('setApplication')->with(null);
+            $commandCalled->expects('setHypervel')->with($application);
+            $commandCalled->expects('run');
 
             $command->call(Command::class);
         });
-        $app->shouldReceive('runningUnitTests')->andReturn(true);
+        $application->shouldReceive('runningUnitTests')->andReturn(true);
 
-        $command->run(new ArrayInput([]), new NullOutput);
+        $command->run($input, $output);
     }
 
     public function testGettingCommandArgumentsAndOptionsByClass()
@@ -483,8 +489,8 @@ class CommandTest extends TestCase
     public function testTheInputSetterOverwrite()
     {
         $input = m::mock(InputInterface::class);
-        $input->shouldReceive('hasArgument')->once()->with('foo')->andReturn(false);
-        $input->shouldReceive('hasArgument')->once()->with('0')->andReturn(true);
+        $input->expects('hasArgument')->with('foo')->andReturn(false);
+        $input->expects('hasArgument')->with('0')->andReturn(true);
 
         $command = new CommandTestStubCommand;
         $command->setInput($input);
@@ -496,7 +502,7 @@ class CommandTest extends TestCase
     public function testTheOutputSetterOverwrite()
     {
         $output = m::mock(OutputStyle::class);
-        $output->shouldReceive('writeln')->once()->withArgs(function (...$args) {
+        $output->expects('writeln')->withArgs(function (...$args) {
             return $args[0] === '<info>foo</info>';
         });
 
@@ -558,7 +564,7 @@ class CommandTest extends TestCase
     public function testChoiceIsSingleSelectByDefault()
     {
         $output = m::mock(OutputStyle::class);
-        $output->shouldReceive('askQuestion')->once()->withArgs(function (ChoiceQuestion $question) {
+        $output->expects('askQuestion')->withArgs(function (ChoiceQuestion $question) {
             return $question->isMultiselect() === false;
         })->andReturn('yes');
 
@@ -571,7 +577,7 @@ class CommandTest extends TestCase
     public function testChoiceWithMultiselect()
     {
         $output = m::mock(OutputStyle::class);
-        $output->shouldReceive('askQuestion')->once()->withArgs(function (ChoiceQuestion $question) {
+        $output->expects('askQuestion')->withArgs(function (ChoiceQuestion $question) {
             return $question->isMultiselect() === true;
         })->andReturn(['option-1']);
 

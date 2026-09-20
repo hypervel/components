@@ -505,27 +505,21 @@ class TypeTest extends TestCase
 
     public function testThrowsWithInvalidEnumString(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The provided class must be a BackedEnum.');
-        $this->expectExceptionCode(0);
+        $this->expectExceptionObject(new InvalidArgumentException('The provided class must be a BackedEnum.', 0));
 
         JsonSchema::string()->enum('NonExistentEnumClass');
     }
 
     public function testThrowsWithNotAnEnumClass(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The provided class must be a BackedEnum.');
-        $this->expectExceptionCode(0);
+        $this->expectExceptionObject(new InvalidArgumentException('The provided class must be a BackedEnum.', 0));
 
         JsonSchema::string()->enum(stdClass::class);
     }
 
     public function testThrowsWithUnitEnumClass(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The provided class must be a BackedEnum.');
-        $this->expectExceptionCode(0);
+        $this->expectExceptionObject(new InvalidArgumentException('The provided class must be a BackedEnum.', 0));
 
         JsonSchema::string()->enum(UnitEnum::class);
     }

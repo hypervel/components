@@ -243,12 +243,13 @@ class CacheStorageStoreTest extends TestCase
 
     public function testTouchUpdatesExpiration(): void
     {
-        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
+        // Whole seconds make the final check reach the original rounded expiry.
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now()->startOfSecond());
 
         $store = new StorageStore(new ArrayFilesystem, 'cache');
         $store->put('foo', 'bar', 2);
 
-        CarbonImmutable::setTestNow($now->addSecond());
+        CarbonImmutable::setTestNow($now = $now->addSecond());
 
         $this->assertTrue($store->touch('foo', 60));
 

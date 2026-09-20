@@ -1186,9 +1186,12 @@ class Mailable implements MailableContract, Renderable
     {
         $this->renderForAssertions();
 
+        // Rendering already hydrates the envelope; use the same fallback as buildSubject().
+        $actualSubject = $this->subject ?: Str::title(Str::snake(class_basename($this), ' '));
+
         PHPUnit::assertTrue(
-            $this->hasSubject($subject),
-            "Did not see expected text [{$subject}] in email subject."
+            $actualSubject === $subject,
+            "Email subject does not match expected value.\nExpected: [{$subject}]\nActual: [{$actualSubject}]"
         );
 
         return $this;

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\RateLimiter;
 
 use Hypervel\Config\Repository;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithSwooleTables;
 use Hypervel\RateLimiter\Backoff;
 use Hypervel\RateLimiter\Cooldown;
 use Hypervel\RateLimiter\Exceptions\SwooleTableFullException;
@@ -28,6 +29,7 @@ use function Hypervel\Coroutine\parallel;
 
 class SwooleStoreTest extends TestCase
 {
+    use InteractsWithSwooleTables;
     use RateLimiterStoreContract;
 
     public function testFixedWindowOperationsUseNumericState(): void
@@ -35,18 +37,18 @@ class SwooleStoreTest extends TestCase
         [$store, $state] = $this->store();
         $policy = Limit::perMinute(5)->cost(2);
 
-        $first = $store->consume('fixed', $policy);
-        $second = $store->consume('fixed', $policy);
-        $denied = $store->consume('fixed', $policy);
+        $first = $store->consume('123', $policy);
+        $second = $store->consumeMany([['key' => '123', 'policy' => $policy]])[0];
+        $denied = $store->consumeMany([['key' => '123', 'policy' => $policy]])[0];
 
         $this->assertTrue($first->allowed());
         $this->assertSame(3, $first->remaining());
         $this->assertSame(1, $second->remaining());
         $this->assertTrue($denied->denied());
         $this->assertSame(1, $denied->remaining());
-        $this->assertSame(4, $state->table()->get('fixed', 'value'));
-        $this->assertTrue($store->clear('fixed'));
-        $this->assertFalse($store->clear('fixed'));
+        $this->assertSame(4, $state->table()->get('123', 'value'));
+        $this->assertTrue($store->clear('123'));
+        $this->assertFalse($store->clear('123'));
     }
 
     public function testInspectingMissingStateDoesNotCreateARow(): void
@@ -218,6 +220,48 @@ class SwooleStoreTest extends TestCase
         @$store->consume($capacity['failed_key'], Limit::perMinute(1));
     }
 
+    public function testFullTableRestoresEarlierGroupChargesBeforeFailing(): void
+    {
+        CarbonImmutable::setTestNow('2026-08-04 00:00:00');
+        [$store, $state] = $this->store(rows: 64);
+        $now = (int) CarbonImmutable::now()->getPreciseTimestamp(6);
+        $capacity = $this->fillUntilAllocationFails($state, $now + 60_000_000);
+        $original = $state->table()->get('capacity:0');
+        $this->assertTrue($state->table()->del($capacity['conflict_key']));
+
+        try {
+            @$store->consumeMany([
+                ['key' => 'capacity:0', 'policy' => Limit::perMinute(10)],
+                ['key' => $capacity['conflict_key'], 'policy' => Limit::perMinute(10)],
+                ['key' => $capacity['failed_key'], 'policy' => Limit::perMinute(10)],
+            ]);
+            $this->fail('The full table must reject the group.');
+        } catch (SwooleTableFullException) {
+            $this->assertSame($original, $state->table()->get('capacity:0'));
+            $this->assertFalse($state->table()->exist($capacity['conflict_key']));
+            $this->assertFalse($state->table()->exist($capacity['failed_key']));
+        }
+    }
+
+    public function testFullTablePrunesAndRetriesTheWholeGroup(): void
+    {
+        CarbonImmutable::setTestNow('2026-08-04 00:00:00');
+        [$store, $state] = $this->store(rows: 64);
+        $now = (int) CarbonImmutable::now()->getPreciseTimestamp(6);
+        $capacity = $this->fillUntilAllocationFails($state, $now - 1);
+
+        $results = @$store->consumeMany([
+            ['key' => $capacity['conflict_key'], 'policy' => Limit::perMinute(10)],
+            ['key' => $capacity['failed_key'], 'policy' => Limit::perMinute(10)],
+        ]);
+
+        $this->assertSame(9, $results[0]->remaining());
+        $this->assertSame(9, $results[1]->remaining());
+        $this->assertSame(1, $state->table()->get($capacity['conflict_key'], 'value'));
+        $this->assertSame(1, $state->table()->get($capacity['failed_key'], 'value'));
+        $this->assertSame(2, $state->table()->count());
+    }
+
     public function testCorruptStateFailsClosed(): void
     {
         CarbonImmutable::setTestNow('2026-08-04 00:00:00');
@@ -270,6 +314,7 @@ class SwooleStoreTest extends TestCase
             ],
         ]));
         $state = $manager->get('swoole');
+        $this->trackSwooleTable($state->table());
 
         return [
             new SwooleStore($state, $memoryLimitBuffer, $logger ?? new NullLogger),

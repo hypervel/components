@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\DatabaseEloquentHasOneThroughIntegrationTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
@@ -130,10 +132,9 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
         $this->assertEquals($position->first()->contract->pluck('title')->unique()->toArray(), ['A title']);
     }
 
-    public function testFirstOrFailThrowsAnException()
+    public function testFirstOrFailThrowsAnException(): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasOneThroughIntegrationTest\Contract].');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasOneThroughIntegrationTest\Contract].'));
 
         Position::create(['id' => 1, 'name' => 'President', 'shortname' => 'ps'])
             ->user()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'position_short' => 'ps']);
@@ -354,20 +355,16 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
 
     /**
      * Get a database connection instance.
-     *
-     * @return \Illuminate\Database\Connection
      */
-    protected function connection()
+    protected function connection(): ConnectionInterface
     {
         return Eloquent::getConnectionResolver()->connection();
     }
 
     /**
      * Get a schema builder instance.
-     *
-     * @return \Illuminate\Database\Schema\Builder
      */
-    protected function schema()
+    protected function schema(): Builder
     {
         return $this->connection()->getSchemaBuilder();
     }

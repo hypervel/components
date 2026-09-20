@@ -30,7 +30,6 @@ use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use RuntimeException;
 use SensitiveParameter;
-use stdClass;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -40,11 +39,6 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
 {
     use GuardHelpers;
     use Macroable;
-
-    /**
-     * Sentinel value indicating "user was resolved but not found".
-     */
-    private static object $nullUserSentinel;
 
     /**
      * The number of minutes that the "remember me" cookie should be valid for.
@@ -81,6 +75,16 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     private readonly string $hashedRecallerName;
 
     /**
+     * The coroutine context key for the authenticated user.
+     */
+    private readonly string $userContextKey;
+
+    /**
+     * The coroutine context key for a failed user lookup.
+     */
+    private readonly string $missingUserContextKey;
+
+    /**
      * Create a new authentication guard.
      *
      * @param string $name The name of the guard. Typically "web".
@@ -107,47 +111,37 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
         $classHash = hash('xxh128', static::class);
         $this->hashedName = 'login_' . $this->name . '_' . $classHash;
         $this->hashedRecallerName = 'remember_' . $this->name . '_' . $classHash;
+        $this->userContextKey = "__auth.guards.{$this->name}.user";
+        $this->missingUserContextKey = "__auth.guards.{$this->name}.missing_user";
     }
 
     /**
      * Get the currently authenticated user.
      *
-     * Uses coroutine Context to cache the resolved user per-request,
-     * since this guard is a process-global singleton. A sentinel value
-     * caches "no user found" so repeated calls don't trigger redundant
-     * provider lookups.
+     * The resolved user survives session rotation within the coroutine.
+     * Failed lookups are cached only for the session state they inspected.
      */
     public function user(): ?AuthenticatableContract
     {
-        self::$nullUserSentinel ??= new stdClass;
-
         if ($this->getContextState('loggedOut', false)) {
             return null;
         }
 
-        // Check unstarted context first — an explicit setUser() call before
-        // the session started takes precedence over any cached session lookup.
-        $unstartedKey = $this->getUnstartedContextKey();
-        $unstartedCached = CoroutineContext::get($unstartedKey);
-
-        if ($unstartedCached === self::$nullUserSentinel) {
-            return null;
-        }
-
-        if ($unstartedCached !== null) {
-            return $unstartedCached;
-        }
-
-        // Check started-session Context cache — avoids redundant DB lookups.
-        $contextKey = $this->getContextKey();
-        $cached = CoroutineContext::get($contextKey);
-
-        if ($cached === self::$nullUserSentinel) {
-            return null;
-        }
+        $cached = CoroutineContext::get($this->userContextKey);
 
         if ($cached !== null) {
             return $cached;
+        }
+
+        $sessionId = $this->session->getId();
+        $sessionStarted = $this->session->isStarted();
+        /** @var null|SessionGuardUserMiss $missingUser */
+        $missingUser = CoroutineContext::get($this->missingUserContextKey);
+
+        if ($missingUser !== null
+            && $missingUser->sessionId === $sessionId
+            && $missingUser->sessionStarted === $sessionStarted) {
+            return null;
         }
 
         $user = null;
@@ -158,6 +152,9 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
         // one exists. Otherwise we will check for a "remember me" cookie in this
         // request, and if one exists, attempt to retrieve the user using that.
         if (! is_null($id) && $user = $this->provider->retrieveById($id)) {
+            // Listeners may read or replace the authenticated user.
+            CoroutineContext::set($this->userContextKey, $user);
+
             $this->fireAuthenticatedEvent($user);
         }
 
@@ -168,15 +165,23 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
             $user = $this->userFromRecaller($recaller);
 
             if ($user) {
+                // Session handlers may inspect the user while destroying the old session.
+                CoroutineContext::set($this->userContextKey, $user);
+
                 $this->updateSession($user->getAuthIdentifier());
 
                 $this->fireLoginEvent($user, true);
             }
         }
 
-        CoroutineContext::set($contextKey, $user ?? self::$nullUserSentinel);
+        if ($user === null) {
+            // Session loading can invoke observers before its attributes become available.
+            CoroutineContext::set($this->missingUserContextKey, new SessionGuardUserMiss($sessionId, $sessionStarted));
 
-        return $user;
+            return null;
+        }
+
+        return $this->getUser();
     }
 
     /**
@@ -198,7 +203,15 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
             $recaller->token()
         );
 
-        $this->setContextState('viaRemember', ! is_null($user));
+        // Only HMAC artifacts are valid; the legacy raw-password-hash fallback is intentionally omitted.
+        if ($user !== null && ! hash_equals(
+            $this->hashPasswordForCookie($user->getAuthPassword()),
+            $recaller->hash()
+        )) {
+            $user = null;
+        }
+
+        $this->setContextState('viaRemember', $user !== null);
 
         return $user;
     }
@@ -488,6 +501,10 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
 
             $this->queueRecallerCookie($user);
         }
+
+        // Login listeners may read the new user; setUser() still fires Authenticated after Login.
+        CoroutineContext::set($this->userContextKey, $user);
+        $this->setContextState('loggedOut', false);
 
         // If we have an event dispatcher instance set we will fire an event so that
         // any listeners will hook into the authentication events and run actions
@@ -851,7 +868,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      */
     public function getUser(): ?AuthenticatableContract
     {
-        return $this->user();
+        return CoroutineContext::get($this->userContextKey);
     }
 
     /**
@@ -859,33 +876,15 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      */
     public function hasUser(): bool
     {
-        self::$nullUserSentinel ??= new stdClass;
-
-        $unstartedCached = CoroutineContext::get($this->getUnstartedContextKey());
-
-        if ($unstartedCached !== null && $unstartedCached !== self::$nullUserSentinel) {
-            return true;
-        }
-
-        $cached = CoroutineContext::get($this->getContextKey());
-
-        return $cached !== null && $cached !== self::$nullUserSentinel;
+        return $this->getUser() !== null;
     }
 
     /**
      * Set the current user.
-     *
-     * Uses coroutine Context for per-request isolation. Routes to the
-     * "unstarted" key if the session hasn't started yet (e.g. during
-     * middleware before session initialization).
      */
     public function setUser(AuthenticatableContract $user): static
     {
-        if (! $this->session->isStarted()) {
-            CoroutineContext::set($this->getUnstartedContextKey(), $user);
-        } else {
-            CoroutineContext::set($this->getContextKey(), $user);
-        }
+        CoroutineContext::set($this->userContextKey, $user);
 
         $this->setContextState('loggedOut', false);
 
@@ -899,8 +898,8 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      */
     public function forgetUser(): static
     {
-        CoroutineContext::forget($this->getContextKey());
-        CoroutineContext::forget($this->getUnstartedContextKey());
+        CoroutineContext::forget($this->userContextKey);
+        CoroutineContext::forget($this->missingUserContextKey);
 
         return $this;
     }
@@ -908,16 +907,15 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     /**
      * Get durable authentication Context keys for the current guard.
      *
-     * Transient request state such as remember-cookie attempts and
-     * last-attempted users is intentionally excluded.
+     * Failed lookups, remember-cookie attempts, and last-attempted users
+     * are transient request state and are intentionally excluded.
      *
      * @return array<int, string>
      */
     public function getAuthContextKeys(): array
     {
         return [
-            $this->getContextKey(),
-            $this->getUnstartedContextKey(),
+            $this->userContextKey,
             $this->getContextStateKey('loggedOut'),
         ];
     }
@@ -939,22 +937,6 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     public function getTimebox(): Timebox
     {
         return $this->timebox;
-    }
-
-    /**
-     * Get the Context key for caching the authenticated user.
-     */
-    protected function getContextKey(): string
-    {
-        return "__auth.guards.{$this->name}.user." . $this->session->getId();
-    }
-
-    /**
-     * Get the Context key for user set before session starts.
-     */
-    protected function getUnstartedContextKey(): string
-    {
-        return "__auth.guards.{$this->name}.user.unstarted";
     }
 
     /**

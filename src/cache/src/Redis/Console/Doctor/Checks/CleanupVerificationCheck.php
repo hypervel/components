@@ -6,7 +6,6 @@ namespace Hypervel\Cache\Redis\Console\Doctor\Checks;
 
 use Hypervel\Cache\Redis\Console\Doctor\CheckResult;
 use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
-use Redis;
 
 /**
  * Verifies that cleanup properly removes all test data.
@@ -69,23 +68,9 @@ final class CleanupVerificationCheck implements CheckInterface
             $context->getTagStoragePatterns($testPrefix),
         );
 
-        // Get OPT_PREFIX for SCAN pattern
-        $optPrefix = (string) $context->redis->getOption(Redis::OPT_PREFIX);
-
         foreach ($patterns as $pattern) {
-            // SCAN requires the full pattern including OPT_PREFIX
-            $scanPattern = $optPrefix . $pattern;
-            $iterator = null;
-
-            while (($keys = $context->redis->scan($iterator, $scanPattern, 100)) !== false) {
-                foreach ($keys as $key) {
-                    // Strip OPT_PREFIX from returned keys for display
-                    $remainingKeys[] = $optPrefix ? substr($key, strlen($optPrefix)) : $key;
-                }
-
-                if ($iterator === 0) {
-                    break;
-                }
+            foreach ($context->redis->safeScan($pattern, 100) as $key) {
+                $remainingKeys[] = $key;
             }
         }
 

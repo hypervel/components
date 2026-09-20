@@ -18,6 +18,9 @@ use Hypervel\Tests\Mail\Fixtures\TestMail;
 
 class SendingMailWithLocaleTest extends TestCase
 {
+    /**
+     * Define the test environment.
+     */
     protected function defineEnvironment(ApplicationContract $app): void
     {
         $app->make('config')->set('mail', [
@@ -92,8 +95,6 @@ class SendingMailWithLocaleTest extends TestCase
         );
 
         $this->assertSame('en', CarbonImmutable::getLocale());
-
-        CarbonImmutable::setTestNow(null);
     }
 
     public function testLocaleIsSentWithModelPreferredLocale(): void
@@ -198,6 +199,9 @@ class SendingLocaleTestEmailLocaleUser extends Model implements HasLocalePrefere
         'email_locale',
     ];
 
+    /**
+     * Get the preferred locale.
+     */
     public function preferredLocale(): string
     {
         return $this->email_locale;

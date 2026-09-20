@@ -91,7 +91,9 @@ class ConnectionResolver implements ConnectionResolverInterface
         $pool = $this->poolManager->pool($connectionName->requested);
 
         // Role aliases of one shared in-memory PDO must share its sole wrapper owner.
-        if ($pool->getSharedInMemorySqlitePdo() !== null) {
+        $sharedInMemorySqlite = $pool->getSharedInMemorySqlitePdo() !== null;
+
+        if ($sharedInMemorySqlite) {
             $connectionOwnerName = $pool->getName();
             $contextKey = $this->getContextKey($connectionOwnerName);
 
@@ -114,7 +116,12 @@ class ConnectionResolver implements ConnectionResolverInterface
         try {
             $connection = $pooledConnection->getConnection();
 
-            if ($connectionName->isWrite() && $connection instanceof Connection) {
+            // Keep the borrowed alias so migrations and error rendering reuse this connection.
+            if ($connectionName->role !== null && ! $sharedInMemorySqlite) {
+                $connection->setReadWriteType($connectionName->role);
+            }
+
+            if ($connectionName->isWrite()) {
                 $connection->useWriteConnectionWhenReading();
             }
 

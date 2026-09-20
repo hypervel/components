@@ -7,9 +7,11 @@ namespace Hypervel\Tests\OpenTelemetry\Instrumentation;
 use ArrayObject;
 use Closure;
 use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response as PsrResponse;
 use Hypervel\Http\Client\Factory;
 use Hypervel\Http\Client\PendingRequest;
+use Hypervel\Http\Client\Request;
 use Hypervel\OpenTelemetry\Context\CoroutineContextStorage;
 use Hypervel\OpenTelemetry\Context\PsrRequestHeadersSetter;
 use Hypervel\OpenTelemetry\Instrumentation\HttpClientInstrumentation;
@@ -210,7 +212,12 @@ class HttpClientInstrumentationTest extends TestCase
 
     public function testUsesTheExactMethodExposedAtEachSupportedClientBoundary(): void
     {
-        $this->factory->fake();
+        $sentMethods = [];
+        $this->factory->fake(function (Request $request) use (&$sentMethods): PromiseInterface {
+            $sentMethods[] = $request->method();
+
+            return Factory::response();
+        });
         $this->instrumentation()->register($this->options([
             'known_methods' => ['get'],
             'metrics' => [HttpMetrics::HTTP_CLIENT_REQUEST_DURATION => false],
@@ -226,7 +233,7 @@ class HttpClientInstrumentationTest extends TestCase
 
         $this->assertSame('HTTP', $spans[0]->getName());
         $this->assertSame('_OTHER', $easyAttributes[HttpAttributes::HTTP_REQUEST_METHOD]);
-        $this->assertSame('GET', $easyAttributes[HttpAttributes::HTTP_REQUEST_METHOD_ORIGINAL]);
+        $this->assertSame($sentMethods[0], $easyAttributes[HttpAttributes::HTTP_REQUEST_METHOD_ORIGINAL]);
         $this->assertSame('get', $spans[1]->getName());
         $this->assertSame('get', $builtAttributes[HttpAttributes::HTTP_REQUEST_METHOD]);
         $this->assertArrayNotHasKey(HttpAttributes::HTTP_REQUEST_METHOD_ORIGINAL, $builtAttributes);

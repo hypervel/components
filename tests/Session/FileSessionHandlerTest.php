@@ -46,27 +46,27 @@ class FileSessionHandlerTest extends TestCase
         $path = '/path/to/sessions/' . $sessionId;
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2025-02-02 01:30:00'));
 
-        $this->files->shouldReceive('isFile')->with($path)->andReturn(true);
+        $this->files->expects('isFile')->with($path)->andReturn(true);
 
         $minutesAgo30 = CarbonImmutable::parse('2025-02-02 01:00:00')->getTimestamp();
-        $this->files->shouldReceive('lastModified')->with($path)->andReturn($minutesAgo30);
-        $this->files->shouldReceive('sharedGet')->with($path)->once()->andReturn('session_data');
+        $this->files->expects('lastModified')->with($path)->andReturn($minutesAgo30);
+        $this->files->expects('sharedGet')->with($path)->andReturn('session_data');
 
         $result = $this->sessionHandler->read($sessionId);
 
         $this->assertSame('session_data', $result);
     }
 
-    public function testReadReturnsEmptyWhenFileExistsButExpired(): void
+    public function testReadReturnsEmptyStringWhenFileExistsButExpired(): void
     {
         $sessionId = 'session_id';
         $path = '/path/to/sessions/' . $sessionId;
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2025-02-02 01:30:01'));
 
-        $this->files->shouldReceive('isFile')->with($path)->andReturn(true);
+        $this->files->expects('isFile')->with($path)->andReturn(true);
 
         $minutesAgo30 = CarbonImmutable::parse('2025-02-02 01:00:00')->getTimestamp();
-        $this->files->shouldReceive('lastModified')->with($path)->andReturn($minutesAgo30);
+        $this->files->expects('lastModified')->with($path)->andReturn($minutesAgo30);
         $this->files->shouldReceive('sharedGet')->never();
 
         $result = $this->sessionHandler->read($sessionId);
@@ -79,7 +79,7 @@ class FileSessionHandlerTest extends TestCase
         $sessionId = 'non_existing_session_id';
         $path = '/path/to/sessions/' . $sessionId;
 
-        $this->files->shouldReceive('isFile')->with($path)->andReturn(false);
+        $this->files->expects('isFile')->with($path)->andReturn(false);
 
         $result = $this->sessionHandler->read($sessionId);
 
@@ -92,9 +92,9 @@ class FileSessionHandlerTest extends TestCase
         $path = '/path/to/sessions/' . $sessionId;
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2025-02-02 01:30:00'));
 
-        $this->files->shouldReceive('isFile')->with($path)->andReturnTrue();
-        $this->files->shouldReceive('lastModified')->with($path)->andReturn(CarbonImmutable::now()->getTimestamp());
-        $this->files->shouldReceive('sharedGet')->with($path)->once()->andThrow(
+        $this->files->expects('isFile')->with($path)->andReturnTrue();
+        $this->files->expects('lastModified')->with($path)->andReturn(CarbonImmutable::now()->getTimestamp());
+        $this->files->expects('sharedGet')->with($path)->andThrow(
             new FileNotFoundException("Unable to read file at path {$path}.")
         );
 
@@ -106,7 +106,7 @@ class FileSessionHandlerTest extends TestCase
         $sessionId = 'session_id';
         $data = 'session_data';
 
-        $this->files->shouldReceive('put')->with('/path/to/sessions/' . $sessionId, $data, true)->once()->andReturn(strlen($data));
+        $this->files->expects('put')->with('/path/to/sessions/' . $sessionId, $data, true)->andReturn(strlen($data));
 
         $result = $this->sessionHandler->write($sessionId, $data);
 
@@ -119,8 +119,7 @@ class FileSessionHandlerTest extends TestCase
 
         foreach ([false, strlen($data) - 1] as $written) {
             $files = m::mock(Filesystem::class);
-            $files->shouldReceive('put')
-                ->once()
+            $files->expects('put')
                 ->with('/path/to/sessions/session_id', $data, true)
                 ->andReturn($written);
 
@@ -134,8 +133,8 @@ class FileSessionHandlerTest extends TestCase
     {
         $sessionId = str_repeat('a', 40);
         $path = '/path/to/sessions/' . $sessionId;
-        $this->files->shouldReceive('isFile')->once()->with($path)->andReturnFalse();
-        $this->files->shouldReceive('put')->once()->with($path, m::type('string'), true)->andReturnFalse();
+        $this->files->expects('isFile')->with($path)->andReturnFalse();
+        $this->files->expects('put')->with($path, m::type('string'), true)->andReturnFalse();
 
         $session = new Store('name', $this->sessionHandler, $sessionId);
         $session->start();
@@ -157,7 +156,7 @@ class FileSessionHandlerTest extends TestCase
     {
         $sessionId = 'session_id';
 
-        $this->files->shouldReceive('delete')->with('/path/to/sessions/' . $sessionId)->once()->andReturn(true);
+        $this->files->expects('delete')->with('/path/to/sessions/' . $sessionId)->andReturn(true);
 
         $result = $this->sessionHandler->destroy($sessionId);
 
@@ -173,8 +172,8 @@ class FileSessionHandlerTest extends TestCase
         try {
             $session = new FileSessionHandler($this->files, $tempDir, 30);
 
-            $this->files->shouldReceive('delete')->with(join_paths($tempDir, 'a2'))->once()->andReturn(false);
-            $this->files->shouldReceive('delete')->with(join_paths($tempDir, 'a3'))->once()->andReturn(true);
+            $this->files->expects('delete')->with(join_paths($tempDir, 'a2'))->andReturn(false);
+            $this->files->expects('delete')->with(join_paths($tempDir, 'a3'))->andReturn(true);
 
             touch(join_paths($tempDir, 'a1'), time() - 3); // last modified: 3 sec ago
             touch(join_paths($tempDir, 'a2'), time() - 5); // last modified: 5 sec ago

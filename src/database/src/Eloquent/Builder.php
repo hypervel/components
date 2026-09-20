@@ -123,14 +123,18 @@ class Builder implements BuilderContract
         'existsor',
         'explain',
         'getbindings',
+        'getcolumns',
         'getconnection',
         'getcountforpagination',
+        'getfromalias',
         'getgrammar',
+        'getprocessor',
         'getrawbindings',
         'implode',
         'insert',
         'insertgetid',
         'insertorignore',
+        'insertorignorereturning',
         'insertusing',
         'insertorignoreusing',
         'max',
@@ -141,6 +145,7 @@ class Builder implements BuilderContract
         'sum',
         'tosql',
         'torawsql',
+        'updateorinsert',
     ];
 
     /**
@@ -188,7 +193,7 @@ class Builder implements BuilderContract
     /**
      * Register a new global scope.
      */
-    public function withGlobalScope(string $identifier, Closure|Scope $scope): static
+    public function withGlobalScope(int|string $identifier, Closure|Scope $scope): static
     {
         $this->scopes[$identifier] = $scope;
 
@@ -202,9 +207,9 @@ class Builder implements BuilderContract
     /**
      * Remove a registered global scope.
      */
-    public function withoutGlobalScope(Scope|string $scope): static
+    public function withoutGlobalScope(Scope|int|string $scope): static
     {
-        if (! is_string($scope)) {
+        if (is_object($scope)) {
             $scope = get_class($scope);
         }
 
@@ -304,6 +309,26 @@ class Builder implements BuilderContract
     }
 
     /**
+     * Add an "or where" clause on the primary key to the query.
+     *
+     * @return $this
+     */
+    public function orWhereKey(mixed $id): static
+    {
+        return $this->where(fn (self $query): self => $query->whereKey($id), null, null, 'or');
+    }
+
+    /**
+     * Add an "or where not" clause on the primary key to the query.
+     *
+     * @return $this
+     */
+    public function orWhereKeyNot(mixed $id): static
+    {
+        return $this->where(fn (self $query): self => $query->whereKeyNot($id), null, null, 'or');
+    }
+
+    /**
      * Exclude the given models from the query results.
      */
     public function except(mixed $models): static
@@ -319,6 +344,7 @@ class Builder implements BuilderContract
      * Add a basic where clause to the query.
      *
      * @param array|(Closure(static): mixed)|self|QueryBuilder|Relation<*, *, *>|Expression|string $column
+     * @return $this
      */
     public function where(array|Closure|self|QueryBuilder|Relation|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
@@ -1179,6 +1205,14 @@ class Builder implements BuilderContract
     }
 
     /**
+     * Update records in a PostgreSQL database using the update from syntax.
+     */
+    public function updateFrom(array $values): int
+    {
+        return $this->toBase()->updateFrom($this->addUpdatedAtColumn($values));
+    }
+
+    /**
      * Insert new records or update the existing ones.
      */
     public function upsert(array $values, array|string $uniqueBy, ?array $update = null): int
@@ -1290,6 +1324,13 @@ class Builder implements BuilderContract
 
         $column = $this->model->getUpdatedAtColumn();
 
+        $alias = $this->query->getFromAlias();
+
+        // Opaque raw sources cannot safely qualify an automatic timestamp.
+        if ($alias === null) {
+            return $values;
+        }
+
         if (! array_key_exists($column, $values)) {
             $timestamp = $this->model->freshTimestampString();
 
@@ -1306,9 +1347,7 @@ class Builder implements BuilderContract
             $values = array_merge([$column => $timestamp], $values);
         }
 
-        $segments = preg_split('/\s+as\s+/i', $this->query->from);
-
-        $qualifiedColumn = array_last($segments) . '.' . $column;
+        $qualifiedColumn = $alias . '.' . $column;
 
         $values[$qualifiedColumn] = Arr::get($values, $qualifiedColumn, $values[$column]);
 
@@ -1925,6 +1964,16 @@ class Builder implements BuilderContract
     }
 
     /**
+     * Get a fresh query builder with the model's default scopes and eager loads.
+     *
+     * @return Builder<TModel>
+     */
+    public function newQuery(): Builder
+    {
+        return $this->getModel()->newQuery();
+    }
+
+    /**
      * Set a model instance for the model being queried.
      *
      * @template TModelNew of \Hypervel\Database\Eloquent\Model
@@ -2114,6 +2163,28 @@ class Builder implements BuilderContract
     public function clone(): static
     {
         return clone $this;
+    }
+
+    /**
+     * Clone the Eloquent query builder without the given query properties.
+     */
+    public function cloneWithout(array $properties): static
+    {
+        $clone = $this->clone();
+
+        return $clone->setQuery($clone->getQuery()->cloneWithout($properties));
+    }
+
+    /**
+     * Clone the Eloquent query builder without the given query bindings.
+     *
+     * @param list<string> $except
+     */
+    public function cloneWithoutBindings(array $except): static
+    {
+        $clone = $this->clone();
+
+        return $clone->setQuery($clone->getQuery()->cloneWithoutBindings($except));
     }
 
     /**

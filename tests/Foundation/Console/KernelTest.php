@@ -26,6 +26,7 @@ use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\StringInput;
@@ -41,7 +42,7 @@ class KernelTest extends TestCase
         $app->make('config')->set('app.timezone', 'Asia/Tokyo');
     }
 
-    public function testHandleCatchesExceptionsAndReturnsOne()
+    public function testHandleCatchesExceptionsAndReturnsOne(): void
     {
         $handler = m::mock(ExceptionHandlerContract::class);
         $handler->shouldReceive('report')->once();
@@ -134,7 +135,7 @@ class KernelTest extends TestCase
         }
     }
 
-    public function testBootstrapWithoutBootingProvidersSkipsBootProviders()
+    public function testBootstrapWithoutBootingProvidersSkipsBootProviders(): void
     {
         $bootstrappedWith = null;
 
@@ -317,7 +318,7 @@ PHP);
         $this->assertSame($fresh, $this->app->make(ConsoleApplicationContract::class));
     }
 
-    public function testReportExceptionDelegatesToExceptionHandler()
+    public function testReportExceptionDelegatesToExceptionHandler(): void
     {
         $exception = new RuntimeException('Test exception');
 
@@ -331,7 +332,7 @@ PHP);
         $method->invoke($kernel, $exception);
     }
 
-    public function testRenderExceptionDelegatesToExceptionHandler()
+    public function testRenderExceptionDelegatesToExceptionHandler(): void
     {
         $exception = new RuntimeException('Test exception');
         $output = new BufferedOutput;
@@ -417,7 +418,7 @@ PHP);
         $this->assertSame('configured', trim($output->fetch()));
     }
 
-    public function testItDispatchesTerminatingEvent()
+    public function testItDispatchesTerminatingEvent(): void
     {
         $called = [];
         $app = new Application;
@@ -437,6 +438,103 @@ PHP);
             'terminating event',
             'terminating callback',
         ], $called);
+    }
+
+    public function testFindCommandReturnsNullWhenTheCommandDoesNotExist(): void
+    {
+        $kernel = $this->makeKernel();
+
+        $command = $kernel->findCommand('not-a-real-command');
+
+        $this->assertNull($command);
+    }
+
+    public function testFindCommandRetrievesTheCommand(): void
+    {
+        $kernel = $this->makeKernel();
+        $kernel->registerCommand(new KernelTestCommand);
+
+        $command = $kernel->findCommand('kernel-test-command');
+
+        $this->assertInstanceOf(KernelTestCommand::class, $command);
+    }
+
+    public function testFindCommandDoesNotResolveOtherLazilyRegisteredCommands(): void
+    {
+        KernelTestLazyCommand::$constructionAttempts = 0;
+        $kernel = $this->makeKernel();
+        $artisan = $kernel->getArtisan();
+        $artisan->resolveCommands([KernelTestLazyCommand::class]);
+        $artisan->setContainerCommandLoader();
+
+        $kernel->registerCommand(new KernelTestCommand);
+
+        $command = $kernel->findCommand('kernel-test-command');
+
+        $this->assertInstanceOf(KernelTestCommand::class, $command);
+        $this->assertSame(0, KernelTestLazyCommand::$constructionAttempts);
+
+        $command = $kernel->findCommand('kernel-test-lazy-command');
+        $this->assertSame(1, KernelTestLazyCommand::$constructionAttempts);
+        $this->assertInstanceOf(KernelTestLazyCommand::class, $command);
+    }
+
+    public function testFindCommandReturnsTheSameInstanceOnSubsequentCalls(): void
+    {
+        KernelTestLazyCommand::$constructionAttempts = 0;
+        $kernel = $this->makeKernel();
+        $artisan = $kernel->getArtisan();
+        $artisan->resolveCommands([KernelTestLazyCommand::class]);
+        $artisan->setContainerCommandLoader();
+
+        $first = $kernel->findCommand('kernel-test-lazy-command');
+        $second = $kernel->findCommand('kernel-test-lazy-command');
+
+        $this->assertSame($first, $second);
+        $this->assertSame(1, KernelTestLazyCommand::$constructionAttempts);
+    }
+
+    /**
+     * Create a console kernel.
+     */
+    protected function makeKernel(): Kernel
+    {
+        return new Kernel($this->app, $this->app->make('events'));
+    }
+}
+
+class KernelTestCommand extends Command
+{
+    protected ?string $signature = 'kernel-test-command';
+
+    /**
+     * Execute the console command.
+     */
+    public function handle(): void
+    {
+    }
+}
+
+#[AsCommand(name: 'kernel-test-lazy-command')]
+class KernelTestLazyCommand extends Command
+{
+    public static int $constructionAttempts = 0;
+
+    /**
+     * Create a new command instance.
+     */
+    public function __construct()
+    {
+        parent::__construct();
+
+        ++static::$constructionAttempts;
+    }
+
+    /**
+     * Execute the console command.
+     */
+    public function handle(): void
+    {
     }
 }
 

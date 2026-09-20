@@ -16,6 +16,7 @@ use Hypervel\Testbench\Concerns\InteractsWithPublishedFiles;
 use Hypervel\Tests\Integration\Routing\RoutingTestCase;
 
 #[WithConfig('app.key', 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF')]
+#[WithConfig('database.default', 'testing')]
 class ImplicitModelRouteBindingTest extends RoutingTestCase
 {
     use InteractsWithPublishedFiles;

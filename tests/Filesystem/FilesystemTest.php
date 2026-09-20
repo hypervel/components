@@ -75,10 +75,9 @@ class FilesystemTest extends TestCase
         $this->assertSame([''], $files->lines($path)->all());
     }
 
-    public function testLinesThrowsExceptionNonexisitingFile()
+    public function testLinesThrowsExceptionNonexisitingFile(): void
     {
-        $this->expectException(FileNotFoundException::class);
-        $this->expectExceptionMessage('File does not exist at path ' . __DIR__ . '/unknown-file.txt.');
+        $this->expectExceptionObject(new FileNotFoundException('File does not exist at path ' . __DIR__ . '/unknown-file.txt.'));
 
         (new Filesystem)->lines(__DIR__ . '/unknown-file.txt');
     }
@@ -185,7 +184,7 @@ class FilesystemTest extends TestCase
         $path = $this->tempDir . '/missing.txt';
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to read file at path [{$path}].");
+        $this->expectExceptionMessageIsOrContains("Unable to read file at path [{$path}].");
 
         (new Filesystem)->replaceInFile('old', 'new', $path);
     }
@@ -523,21 +522,20 @@ class FilesystemTest extends TestCase
         $this->assertDirectoryDoesNotExist($this->tempDir . '/tmp4');
     }
 
-    public function testMoveDirectoryReturnsFalseWhileOverwritingAndUnableToDeleteDestinationDirectory()
+    public function testMoveDirectoryReturnsFalseWhileOverwritingAndUnableToDeleteDestinationDirectory(): void
     {
         mkdir($this->tempDir . '/tmp6', 0777, true);
         file_put_contents($this->tempDir . '/tmp6/foo.txt', '');
         mkdir($this->tempDir . '/tmp7', 0777, true);
 
         $files = m::mock(Filesystem::class)->makePartial();
-        $files->shouldReceive('deleteDirectory')->once()->andReturn(false);
+        $files->expects('deleteDirectory')->andReturn(false);
         $this->assertFalse($files->moveDirectory($this->tempDir . '/tmp6', $this->tempDir . '/tmp7', true));
     }
 
-    public function testGetThrowsExceptionNonexisitingFile()
+    public function testGetThrowsExceptionNonexisitingFile(): void
     {
-        $this->expectException(FileNotFoundException::class);
-        $this->expectExceptionMessage('File does not exist at path ' . $this->tempDir . '/unknown-file.txt.');
+        $this->expectExceptionObject(new FileNotFoundException('File does not exist at path ' . $this->tempDir . '/unknown-file.txt.'));
 
         (new Filesystem)->get($this->tempDir . '/unknown-file.txt');
     }
@@ -547,7 +545,7 @@ class FilesystemTest extends TestCase
         $path = $this->tempDir . '/vanished.txt';
 
         $this->expectException(FileNotFoundException::class);
-        $this->expectExceptionMessage("Unable to read file at path {$path}.");
+        $this->expectExceptionMessageIsOrContains("Unable to read file at path {$path}.");
 
         (new VanishingReadFilesystem)->get($path);
     }
@@ -557,7 +555,7 @@ class FilesystemTest extends TestCase
         $path = $this->tempDir . '/vanished.txt';
 
         $this->expectException(FileNotFoundException::class);
-        $this->expectExceptionMessage("Unable to read file at path {$path}.");
+        $this->expectExceptionMessageIsOrContains("Unable to read file at path {$path}.");
 
         (new VanishingReadFilesystem)->get($path, true);
     }
@@ -569,10 +567,9 @@ class FilesystemTest extends TestCase
         $this->assertSame('Howdy?', $files->getRequire($this->tempDir . '/file.php'));
     }
 
-    public function testGetRequireThrowsExceptionNonExistingFile()
+    public function testGetRequireThrowsExceptionNonExistingFile(): void
     {
-        $this->expectException(FileNotFoundException::class);
-        $this->expectExceptionMessage('File does not exist at path ' . $this->tempDir . '/unknown-file.txt.');
+        $this->expectExceptionObject(new FileNotFoundException('File does not exist at path ' . $this->tempDir . '/unknown-file.txt.'));
 
         (new Filesystem)->getRequire($this->tempDir . '/unknown-file.txt');
     }
@@ -653,7 +650,7 @@ class FilesystemTest extends TestCase
         $filesystem = new StubLinkFilesystem(false);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to create a relative link');
+        $this->expectExceptionMessageIsOrContains('Unable to create a relative link');
 
         $filesystem->relativeLink('/root/target.txt', '/root/link.txt');
     }
@@ -862,7 +859,7 @@ class FilesystemTest extends TestCase
         $path = $this->tempDir . '/uncreatable';
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("Unable to create directory [{$path}].");
+        $this->expectExceptionMessageIsOrContains("Unable to create directory [{$path}].");
 
         (new FailingDirectoryFilesystem)->ensureDirectoryExists($path);
     }
@@ -889,10 +886,9 @@ class FilesystemTest extends TestCase
         $this->assertFalse(function_exists('random_function_xyz_changed'));
     }
 
-    public function testRequireOnceThrowsExceptionNonexisitingFile()
+    public function testRequireOnceThrowsExceptionNonexisitingFile(): void
     {
-        $this->expectException(FileNotFoundException::class);
-        $this->expectExceptionMessage('File does not exist at path ' . __DIR__ . '/unknown-file.txt.');
+        $this->expectExceptionObject(new FileNotFoundException('File does not exist at path ' . __DIR__ . '/unknown-file.txt.'));
 
         (new Filesystem)->requireOnce(__DIR__ . '/unknown-file.txt');
     }

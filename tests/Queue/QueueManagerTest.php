@@ -68,11 +68,11 @@ class QueueManagerTest extends TestCase
         $manager = new QueueManager($container);
         $connector = m::mock(ConnectorInterface::class);
         $queue = m::mock(Queue::class);
-        $queue->shouldReceive('setConnectionName')->once()->with('sync')->andReturnSelf();
-        $queue->shouldReceive('setConfig')->once()->andReturnSelf();
-        $queue->shouldReceive('setContainer')->once()->with($container)->andReturnSelf();
-        $connector->shouldReceive('connect')->once()->with(['driver' => 'sync'])->andReturn($queue);
-        $manager->addConnector('sync', function () use ($connector) {
+        $queue->expects('setConnectionName')->with('sync')->andReturnSelf();
+        $queue->expects('setConfig')->andReturnSelf();
+        $queue->expects('setContainer')->with($container)->andReturnSelf();
+        $connector->expects('connect')->with(['driver' => 'sync'])->andReturn($queue);
+        $manager->addConnector('sync', function () use ($connector): ConnectorInterface {
             return $connector;
         });
 
@@ -89,13 +89,13 @@ class QueueManagerTest extends TestCase
         $manager = new QueueManager($container);
         $connector = m::mock(ConnectorInterface::class);
         $queue = m::mock(Queue::class);
-        $queue->shouldReceive('setConnectionName')->once()->with('foo')->andReturnSelf();
-        $queue->shouldReceive('setConfig')->once()->andReturnSelf();
-        $connector->shouldReceive('connect')->once()->with(['driver' => 'bar'])->andReturn($queue);
-        $manager->addConnector('bar', function () use ($connector) {
+        $queue->expects('setConnectionName')->with('foo')->andReturnSelf();
+        $queue->expects('setConfig')->andReturnSelf();
+        $connector->expects('connect')->with(['driver' => 'bar'])->andReturn($queue);
+        $manager->addConnector('bar', function () use ($connector): ConnectorInterface {
             return $connector;
         });
-        $queue->shouldReceive('setContainer')->once()->with($container)->andReturnSelf();
+        $queue->expects('setContainer')->with($container)->andReturnSelf();
 
         $this->assertSame($queue, $manager->connection('foo'));
     }
@@ -109,15 +109,69 @@ class QueueManagerTest extends TestCase
         $manager = new QueueManager($container);
         $connector = m::mock(ConnectorInterface::class);
         $queue = m::mock(Queue::class);
-        $queue->shouldReceive('setConnectionName')->once()->with('null')->andReturnSelf();
-        $queue->shouldReceive('setConfig')->once()->andReturnSelf();
-        $connector->shouldReceive('connect')->once()->with(['driver' => 'null'])->andReturn($queue);
-        $manager->addConnector('null', function () use ($connector) {
+        $queue->expects('setConnectionName')->with('null')->andReturnSelf();
+        $queue->expects('setConfig')->andReturnSelf();
+        $connector->expects('connect')->with(['driver' => 'null'])->andReturn($queue);
+        $manager->addConnector('null', function () use ($connector): ConnectorInterface {
             return $connector;
         });
-        $queue->shouldReceive('setContainer')->once()->with($container)->andReturnSelf();
+        $queue->expects('setContainer')->with($container)->andReturnSelf();
 
         $this->assertSame($queue, $manager->connection('null'));
+    }
+
+    public function testEnumConnectionCanBeResolved(): void
+    {
+        $container = $this->getContainer();
+        $config = $container->make('config');
+        $config->set('queue.default', 'sync');
+        $config->set('queue.connections.sync', ['driver' => 'sync']);
+
+        $manager = new QueueManager($container);
+        $connector = m::mock(ConnectorInterface::class);
+        $queue = m::mock(Queue::class);
+        $queue->expects('setConnectionName')->with('sync')->andReturnSelf();
+        $queue->expects('setConfig')->andReturnSelf();
+        $connector->expects('connect')->with(['driver' => 'sync'])->andReturn($queue);
+        $manager->addConnector('sync', function () use ($connector): ConnectorInterface {
+            return $connector;
+        });
+        $queue->expects('setContainer')->with($container)->andReturnSelf();
+
+        $this->assertSame($queue, $manager->connection(QueueConnectionName::Sync));
+    }
+
+    public function testEnumConnectionCanBeChecked(): void
+    {
+        $container = $this->getContainer();
+        $config = $container->make('config');
+        $config->set('queue.default', 'sync');
+        $config->set('queue.connections.sync', ['driver' => 'sync']);
+
+        $manager = new QueueManager($container);
+        $connector = m::mock(ConnectorInterface::class);
+        $queue = m::mock(Queue::class);
+        $queue->expects('setConnectionName')->with('sync')->andReturnSelf();
+        $queue->expects('setConfig')->andReturnSelf();
+        $connector->expects('connect')->with(['driver' => 'sync'])->andReturn($queue);
+        $manager->addConnector('sync', function () use ($connector): ConnectorInterface {
+            return $connector;
+        });
+        $queue->expects('setContainer')->with($container)->andReturnSelf();
+
+        $this->assertFalse($manager->connected(QueueConnectionName::Sync));
+        $manager->connection(QueueConnectionName::Sync);
+        $this->assertTrue($manager->connected(QueueConnectionName::Sync));
+    }
+
+    public function testSetDefaultDriverAcceptsBackedEnum(): void
+    {
+        $container = $this->getContainer();
+
+        $manager = new QueueManager($container);
+        $manager->setDefaultDriver(QueueConnectionName::Sync);
+
+        $this->assertSame('sync', $container->make('config')->get('queue.default'));
     }
 
     public function testAddPoolableConnector(): void
@@ -387,6 +441,11 @@ class QueueManagerTest extends TestCase
 
         return $container;
     }
+}
+
+enum QueueConnectionName: string
+{
+    case Sync = 'sync';
 }
 
 enum QueueManagerTestIntIdentifier: int

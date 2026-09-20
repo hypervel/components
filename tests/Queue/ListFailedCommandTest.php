@@ -53,18 +53,18 @@ class ListFailedCommandTest extends TestCase
     }
 
     /**
+     * Run the failed-job command with the given records.
+     *
      * @param array<int, object> $failedJobs
      * @param array<string, mixed> $arguments
      */
     protected function runCommandWithFailedJobs(array $failedJobs, array $arguments = []): string
     {
         $container = new Application;
-        $container->instance(
-            FailedJobProviderInterface::class,
-            $failer = m::mock(FailedJobProviderInterface::class),
-        );
+        $failer = m::mock(FailedJobProviderInterface::class);
+        $container->instance(FailedJobProviderInterface::class, $failer);
 
-        $failer->shouldReceive('all')->once()->andReturn($failedJobs);
+        $failer->expects('all')->andReturn($failedJobs);
 
         $command = new ListFailedCommand;
         $command->setHypervel($container);

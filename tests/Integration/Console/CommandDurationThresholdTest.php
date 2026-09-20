@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Integration\Console;
 use Carbon\CarbonInterval;
 use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Support\CarbonImmutable;
-use Hypervel\Support\Facades\Config;
 use Hypervel\Testbench\TestCase;
 use Symfony\Component\Console\Input\StringInput;
 use Symfony\Component\Console\Output\ConsoleOutput;
@@ -17,19 +16,19 @@ class CommandDurationThresholdTest extends TestCase
     public function testItCanHandleExceedingCommandDuration(): void
     {
         $kernel = $this->app->make(Kernel::class);
-        $kernel->command('foo', fn () => null);
+        $kernel->command('foo', fn (): null => null);
         $input = new StringInput('foo');
         $called = false;
-        $kernel->whenCommandLifecycleIsLongerThan(CarbonInterval::seconds(1), function () use (&$called) {
+        $kernel->whenCommandLifecycleIsLongerThan(CarbonInterval::seconds(1), function () use (&$called): void {
             $called = true;
         });
 
-        CarbonImmutable::setTestNow(CarbonImmutable::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
         $kernel->handle($input, new ConsoleOutput);
 
         $this->assertFalse($called);
 
-        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(1)->addMilliseconds(1));
+        CarbonImmutable::setTestNow($now->addSecond()->addMilliseconds(1));
         $kernel->terminate($input, 21);
 
         $this->assertTrue($called);
@@ -38,19 +37,19 @@ class CommandDurationThresholdTest extends TestCase
     public function testItDoesntCallWhenExactlyThresholdDuration(): void
     {
         $kernel = $this->app->make(Kernel::class);
-        $kernel->command('foo', fn () => null);
+        $kernel->command('foo', fn (): null => null);
         $input = new StringInput('foo');
         $called = false;
-        $kernel->whenCommandLifecycleIsLongerThan(CarbonInterval::seconds(1), function () use (&$called) {
+        $kernel->whenCommandLifecycleIsLongerThan(CarbonInterval::seconds(1), function () use (&$called): void {
             $called = true;
         });
 
-        CarbonImmutable::setTestNow(CarbonImmutable::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
         $kernel->handle($input, new ConsoleOutput);
 
         $this->assertFalse($called);
 
-        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(1));
+        CarbonImmutable::setTestNow($now->addSecond());
         $kernel->terminate($input, 21);
 
         $this->assertFalse($called);
@@ -59,16 +58,16 @@ class CommandDurationThresholdTest extends TestCase
     public function testItProvidesArgsToHandler(): void
     {
         $kernel = $this->app->make(Kernel::class);
-        $kernel->command('foo', fn () => null);
+        $kernel->command('foo', fn (): null => null);
         $input = new StringInput('foo');
         $args = null;
-        $kernel->whenCommandLifecycleIsLongerThan(CarbonInterval::seconds(0), function () use (&$args) {
+        $kernel->whenCommandLifecycleIsLongerThan(CarbonInterval::seconds(0), function () use (&$args): void {
             $args = func_get_args();
         });
 
         CarbonImmutable::setTestNow($startedAt = CarbonImmutable::now());
         $kernel->handle($input, new ConsoleOutput);
-        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(1));
+        CarbonImmutable::setTestNow($startedAt->addSecond());
         $kernel->terminate($input, 21);
 
         $this->assertCount(3, $args);
@@ -81,19 +80,19 @@ class CommandDurationThresholdTest extends TestCase
     public function testItCanExceedThresholdWhenSpecifyingDurationAsMilliseconds(): void
     {
         $kernel = $this->app->make(Kernel::class);
-        $kernel->command('foo', fn () => null);
+        $kernel->command('foo', fn (): null => null);
         $input = new StringInput('foo');
         $called = false;
-        $kernel->whenCommandLifecycleIsLongerThan(1000, function () use (&$called) {
+        $kernel->whenCommandLifecycleIsLongerThan(1000, function () use (&$called): void {
             $called = true;
         });
 
-        CarbonImmutable::setTestNow(CarbonImmutable::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
         $kernel->handle($input, new ConsoleOutput);
 
         $this->assertFalse($called);
 
-        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(1)->addMilliseconds(1));
+        CarbonImmutable::setTestNow($now->addSecond()->addMilliseconds(1));
         $kernel->terminate($input, 21);
 
         $this->assertTrue($called);
@@ -102,19 +101,19 @@ class CommandDurationThresholdTest extends TestCase
     public function testItCanStayUnderThresholdWhenSpecifyingDurationAsMilliseconds(): void
     {
         $kernel = $this->app->make(Kernel::class);
-        $kernel->command('foo', fn () => null);
+        $kernel->command('foo', fn (): null => null);
         $input = new StringInput('foo');
         $called = false;
-        $kernel->whenCommandLifecycleIsLongerThan(1000, function () use (&$called) {
+        $kernel->whenCommandLifecycleIsLongerThan(1000, function () use (&$called): void {
             $called = true;
         });
 
-        CarbonImmutable::setTestNow(CarbonImmutable::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
         $kernel->handle($input, new ConsoleOutput);
 
         $this->assertFalse($called);
 
-        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(1));
+        CarbonImmutable::setTestNow($now->addSecond());
         $kernel->terminate($input, 21);
 
         $this->assertFalse($called);
@@ -122,14 +121,14 @@ class CommandDurationThresholdTest extends TestCase
 
     public function testItCanExceedThresholdWhenSpecifyingDurationAsDateTime(): void
     {
-        $this->freezeSecond();
+        $now = $this->freezeSecond();
 
         $input = new StringInput('foo');
         $called = false;
 
         $kernel = $this->app->make(Kernel::class);
-        $kernel->command('foo', fn () => null);
-        $kernel->whenCommandLifecycleIsLongerThan(CarbonImmutable::now()->addSecond()->addMillisecond(), function () use (&$called) {
+        $kernel->command('foo', fn (): null => null);
+        $kernel->whenCommandLifecycleIsLongerThan($now->addSecond()->addMillisecond(), function () use (&$called): void {
             $called = true;
         });
 
@@ -137,7 +136,7 @@ class CommandDurationThresholdTest extends TestCase
 
         $this->assertFalse($called);
 
-        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(1)->addMillisecond());
+        CarbonImmutable::setTestNow($now->addSecond()->addMillisecond());
 
         $kernel->terminate($input, 21);
 
@@ -146,12 +145,12 @@ class CommandDurationThresholdTest extends TestCase
 
     public function testItCanStayUnderThresholdWhenSpecifyingDurationAsDateTime(): void
     {
-        $this->freezeSecond();
+        $now = $this->freezeSecond();
         $kernel = $this->app->make(Kernel::class);
-        $kernel->command('foo', fn () => null);
+        $kernel->command('foo', fn (): null => null);
         $input = new StringInput('foo');
         $called = false;
-        $kernel->whenCommandLifecycleIsLongerThan(CarbonImmutable::now()->addSecond()->addMillisecond(), function () use (&$called) {
+        $kernel->whenCommandLifecycleIsLongerThan($now->addSecond()->addMillisecond(), function () use (&$called): void {
             $called = true;
         });
 
@@ -159,7 +158,7 @@ class CommandDurationThresholdTest extends TestCase
 
         $this->assertFalse($called);
 
-        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(1));
+        CarbonImmutable::setTestNow($now->addSecond());
         $kernel->terminate($input, 21);
 
         $this->assertFalse($called);
@@ -168,7 +167,7 @@ class CommandDurationThresholdTest extends TestCase
     public function testItClearsStartTimeAfterHandlingCommand(): void
     {
         $kernel = $this->app->make(Kernel::class);
-        $kernel->command('foo', fn () => null);
+        $kernel->command('foo', fn (): null => null);
         $input = new StringInput('foo');
 
         $this->assertNull($kernel->commandStartedAt());
@@ -184,21 +183,21 @@ class CommandDurationThresholdTest extends TestCase
 
     public function testUsesTheConfiguredDateTimezone(): void
     {
-        Config::set('app.timezone', 'UTC');
+        config(['app.timezone' => 'UTC']);
         $startedAt = null;
         $kernel = $this->app->make(Kernel::class);
-        $kernel->command('foo', fn () => null);
+        $kernel->command('foo', fn (): null => null);
         $kernel->whenCommandLifecycleIsLongerThan(0, function (CarbonImmutable $started) use (&$startedAt, $kernel): void {
             $startedAt = $started;
 
             $this->assertSame($started, $kernel->commandStartedAt());
         });
 
-        Config::set('app.timezone', 'Australia/Melbourne');
-        CarbonImmutable::setTestNow(CarbonImmutable::now());
+        config(['app.timezone' => 'Australia/Melbourne']);
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
         $kernel->handle($input = new StringInput('foo'), new ConsoleOutput);
 
-        CarbonImmutable::setTestNow(now()->addMinute());
+        CarbonImmutable::setTestNow($now->addMinute());
         $kernel->terminate($input, 21);
 
         $this->assertSame(CarbonImmutable::class, $startedAt::class);

@@ -418,8 +418,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Flip the values with their keys.
      *
-     * @return static<TValue, TKey>
-     * @phpstan-ignore generics.notSubtype (TValue becomes key - only valid when TValue is array-key, but can't express this constraint)
+     * @return static<array-key, TKey>
      */
     public function flip(): Collection|static;
 
@@ -1079,7 +1078,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @template TPadValue
      *
      * @param TPadValue $value
-     * @return static<int, TPadValue|TValue>
+     * @return static<int|TKey, TPadValue|TValue>
      */
     public function pad(int $size, mixed $value): Collection|static;
 

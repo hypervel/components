@@ -5,25 +5,27 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Validation;
 
 use Exception;
+use Generator;
 use Hypervel\Tests\TestCase;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rules\ExcludeIf;
 use Hypervel\Validation\Validator;
+use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
 use TypeError;
 
 class ValidationExcludeIfTest extends TestCase
 {
-    public function testItReturnsStringVersionOfRuleWhenCast()
+    public function testItReturnsStringVersionOfRuleWhenCast(): void
     {
-        $rule = new ExcludeIf(function () {
+        $rule = new ExcludeIf(function (): bool {
             return true;
         });
 
         $this->assertSame('exclude', (string) $rule);
 
-        $rule = new ExcludeIf(function () {
+        $rule = new ExcludeIf(function (): bool {
             return false;
         });
 
@@ -38,32 +40,45 @@ class ValidationExcludeIfTest extends TestCase
         $this->assertSame('', (string) $rule);
     }
 
-    public function testItValidatesCallableAndBooleanAreAcceptableArguments()
+    public function testItAcceptsCallableAndBooleanArguments(): void
     {
         new ExcludeIf(false);
         new ExcludeIf(true);
-        new ExcludeIf(fn () => true);
+        new ExcludeIf(fn (): bool => true);
 
-        foreach ([1, 1.1, 'phpinfo', new stdClass, null] as $condition) {
-            try {
-                new ExcludeIf($condition);
-                $this->fail('The ExcludeIf constructor must not accept ' . gettype($condition));
-            } catch (TypeError) {
-                $this->assertTrue(true); // Invalid types correctly rejected by PHP type system
-            }
-        }
+        $this->addToAssertionCount(1);
     }
 
-    public function testItThrowsExceptionIfRuleIsNotSerializable()
+    #[DataProvider('dataProviderItRejectsNonCallableNonBooleanArguments')]
+    public function testItRejectsNonCallableNonBooleanArguments(mixed $condition): void
+    {
+        $this->expectException(TypeError::class);
+
+        new ExcludeIf($condition);
+    }
+
+    /**
+     * Provide invalid rule conditions.
+     */
+    public static function dataProviderItRejectsNonCallableNonBooleanArguments(): Generator
+    {
+        yield 'int' => [1];
+        yield 'float' => [1.1];
+        yield 'string' => ['phpinfo'];
+        yield 'object' => [new stdClass];
+        yield 'null' => [null];
+    }
+
+    public function testItThrowsExceptionIfRuleIsNotSerializable(): void
     {
         $this->expectException(Exception::class);
 
-        serialize(new ExcludeIf(function () {
+        serialize(new ExcludeIf(function (): bool {
             return true;
         }));
     }
 
-    public function testExcludeIfRuleValidation()
+    public function testExcludeIfRuleValidation(): void
     {
         $ruleTrue = new ExcludeIf(true);
 

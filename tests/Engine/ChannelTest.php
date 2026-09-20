@@ -172,13 +172,12 @@ class ChannelTest extends TestCase
         $this->assertFalse($channel->isAvailable());
     }
 
-    public function testSplId()
+    public function testSplId(): void
     {
-        $obj = new stdClass;
-        $chan = new Channel(1);
-        $chan->push($obj);
+        $object = new stdClass;
+        $channel = new Channel(1);
+        $channel->push($object);
 
-        $this->assertSame(spl_object_id($obj), spl_object_id($assert = $chan->pop()));
-        $this->assertSame(spl_object_hash($obj), spl_object_hash($assert));
+        $this->assertSame(spl_object_id($object), spl_object_id($channel->pop()));
     }
 }

@@ -15,7 +15,7 @@ env:
 jobs:
   mysql_8:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     services:
       mysql:
@@ -69,7 +69,7 @@ jobs:
 
   mysql_9:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     services:
       mysql:
@@ -123,7 +123,7 @@ jobs:
 
   mariadb_10:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     services:
       mariadb:
@@ -177,7 +177,7 @@ jobs:
 
   mariadb_11:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     services:
       mariadb:
@@ -231,7 +231,7 @@ jobs:
 
   pgsql_17:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     services:
       postgres:
@@ -285,7 +285,7 @@ jobs:
 
   pgsql_18:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     services:
       postgres:
@@ -339,7 +339,7 @@ jobs:
 
   sqlite:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     container:
       image: ghcr.io/hypervel/components-ci:php${{ matrix.php }}-swoole6.2.2

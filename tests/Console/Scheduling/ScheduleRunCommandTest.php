@@ -50,6 +50,8 @@ use function Hypervel\Support\defer;
 
 class ScheduleRunCommandTest extends TestCase
 {
+    // REMOVED: ScheduleWorkCommandTest; schedule:run owns the loop without a subprocess wrapper.
+
     protected array $dispatched;
 
     protected Dispatcher $dispatcher;
@@ -123,7 +125,15 @@ class ScheduleRunCommandTest extends TestCase
 
         $this->invokeRunEvents($this->makeCommand(), [$event]);
 
-        $this->assertSame(['parent', 'child', 'parent finished', 'after', 'deferred parent', 'deferred child'], $calls);
+        $this->assertSame([
+            'parent',
+            'child',
+            'parent finished',
+            'after',
+            'deferred parent',
+            'deferred child',
+            'deferred during cleanup',
+        ], $calls);
     }
 
     #[DataProvider('deferredTaskOutcomes')]

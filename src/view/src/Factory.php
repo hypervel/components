@@ -157,7 +157,7 @@ class Factory implements FactoryContract
             return $this->exists($view);
         });
 
-        if (! $view) {
+        if ($view === null) {
             throw new InvalidArgumentException('None of the views in the given array exist.');
         }
 

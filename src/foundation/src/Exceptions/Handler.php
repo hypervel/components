@@ -18,7 +18,6 @@ use Hypervel\Contracts\Foundation\ExceptionRenderer;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
-use Hypervel\Database\MultipleRecordsFoundException;
 use Hypervel\Database\RecordNotFoundException;
 use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Foundation\Exceptions\Renderer\Renderer;
@@ -181,7 +180,6 @@ class Handler implements ExceptionHandlerContract
         HttpException::class,
         HttpResponseException::class,
         ModelNotFoundException::class,
-        MultipleRecordsFoundException::class,
         OriginMismatchException::class,
         RecordNotFoundException::class,
         RecordsNotFoundException::class,
@@ -667,7 +665,7 @@ class Handler implements ExceptionHandlerContract
      */
     protected function buildExceptionContext(Throwable $e): array
     {
-        return array_merge(
+        return array_replace(
             $this->buildContextForException($e),
             $this->context(),
             ['exception' => $e]
@@ -696,7 +694,7 @@ class Handler implements ExceptionHandlerContract
         }
 
         foreach ($this->contextCallbacks as $callback) {
-            $context = array_merge($context, $callback($e, $context));
+            $context = array_replace($context, $callback($e, $context));
         }
 
         return $context;

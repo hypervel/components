@@ -63,7 +63,7 @@ class SenderTest extends TestCase
         $this->assertSame('request', $capturedRequest->header('X-Request')[0]);
         $this->assertSame('handled', $capturedRequest->header('X-Psr-Hook')[0]);
         $this->assertSame('{"name":"Taylor"}', $capturedRequest->body());
-        $this->assertSame(['taylor', 'secret'], $capturedOptions['auth']);
+        $this->assertSame('Basic ' . base64_encode('taylor:secret'), $capturedRequest->header('Authorization')[0]);
         $this->assertSame(0, $capturedOptions['delay']);
         $this->assertFalse($capturedOptions['http_errors']);
         $this->assertSame(

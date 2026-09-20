@@ -24,7 +24,7 @@ class DateFacadeTest extends TestCase
 {
     protected static function assertBetweenStartAndNow(int $start, int $actual): void
     {
-        static::assertThat(
+        self::assertThat(
             $actual,
             static::logicalAnd(
                 static::greaterThanOrEqual($start),
@@ -42,7 +42,7 @@ class DateFacadeTest extends TestCase
         $this->assertSame(CarbonImmutable::class, Date::today()::class);
         $this->assertSame(CarbonImmutable::class, now()::class);
         $this->assertSame(CarbonImmutable::class, today()::class);
-        $this->assertBetweenStartAndNow($start, Date::now()->getTimestamp());
+        self::assertBetweenStartAndNow($start, Date::now()->getTimestamp());
     }
 
     public function testMutableClassIsAnExplicitOptOutAcrossDateRoutes(): void

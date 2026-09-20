@@ -27,7 +27,7 @@ interface FailedJobProviderInterface
     public function all(): array;
 
     /**
-     * Get a single failed job.
+     * Get a failed job or a collection of failed jobs.
      */
     public function find(mixed $id): ?object;
 

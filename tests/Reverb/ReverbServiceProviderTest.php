@@ -154,6 +154,7 @@ class ReverbServiceProviderTest extends ReverbTestCase
         $table = new Table(4);
         $table->column('count', Table::TYPE_INT);
         $table->create();
+        $this->trackSwooleTable($table);
 
         for ($index = 0; $index < 100 && $table->stats()['available_slice_num'] > 2; ++$index) {
             try {

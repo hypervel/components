@@ -641,6 +641,7 @@ The schema builder blueprint offers a variety of methods that correspond to the 
 [foreignId](#column-method-foreignId)
 [foreignIdFor](#column-method-foreignIdFor)
 [foreignUlid](#column-method-foreignUlid)
+[foreignUlidFor](#column-method-foreignUlidFor)
 [foreignUuid](#column-method-foreignUuid)
 [foreignUuidFor](#column-method-foreignUuidFor)
 [morphs](#column-method-morphs)
@@ -814,6 +815,15 @@ The `foreignUlid` method creates a `ULID` equivalent column:
 $table->foreignUlid('user_id');
 ```
 
+<a name="column-method-foreignUlidFor"></a>
+#### `foreignUlidFor()` {.collection-method}
+
+The `foreignUlidFor` method adds a ULID column for a model that uses ULID keys. By default, the column name, referenced table, and referenced model key are derived from the model:
+
+```php
+$table->foreignUlidFor(User::class);
+```
+
 <a name="column-method-foreignUuid"></a>
 #### `foreignUuid()` {.collection-method}
 
@@ -826,7 +836,7 @@ $table->foreignUuid('user_id');
 <a name="column-method-foreignUuidFor"></a>
 #### `foreignUuidFor()` {.collection-method}
 
-The `foreignUuidFor` method adds a UUID column for the given model. By default, the column name, referenced table, and referenced model key are derived from the model:
+The `foreignUuidFor` method adds a UUID column for a model that uses UUID keys. By default, the column name, referenced table, and referenced model key are derived from the model:
 
 ```php
 $table->foreignUuidFor(User::class);
@@ -1328,6 +1338,7 @@ The following table contains all of the available column modifiers. This list do
 | `->nullable($value = true)`         | Allow `NULL` values to be inserted into the column.                                            |
 | `->storedAs($expression)`           | Create a stored generated column (MariaDB / MySQL / PostgreSQL / SQLite).                      |
 | `->unsigned()`                      | Set `INTEGER` columns as `UNSIGNED` (MariaDB / MySQL).                                         |
+| `->using($expression)`              | Specify a casting expression when changing the column type (PostgreSQL).                       |
 | `->useCurrent()`                    | Set `TIMESTAMP` columns to use `CURRENT_TIMESTAMP` as default value.                           |
 | `->useCurrentOnUpdate()`            | Set `TIMESTAMP` columns to use `CURRENT_TIMESTAMP` when a record is updated (MariaDB / MySQL). |
 | `->virtualAs($expression)`          | Create a virtual generated column (MariaDB / MySQL / PostgreSQL 18+ / SQLite).                 |
@@ -1434,6 +1445,17 @@ $table->bigIncrements('id')->primary()->change();
 
 // Drop an index...
 $table->char('postal_code', 10)->unique(false)->change();
+```
+
+<a name="postgresql-column-modifications"></a>
+#### PostgreSQL Column Modifications
+
+When changing a column's type on PostgreSQL, you may use the `using` modifier to specify the expression used to cast the existing values:
+
+```php
+Schema::table('users', function (Blueprint $table) {
+    $table->date('birthday')->using('birthday::date')->change();
+});
 ```
 
 On PostgreSQL 17 and later, you may change a stored generated expression using `storedAs($expression)->change()`. Virtual generated expressions may be changed using `virtualAs($expression)->change()` on PostgreSQL 18 and later. Changing a stored expression recalculates the column's existing values.
@@ -1613,6 +1635,7 @@ To drop an index, you must specify the index's name. By default, Hypervel automa
 | `$table->dropIndex('geo_state_index');`                  | Drop a basic index from the "geo" table.                    |
 | `$table->dropFullText('posts_body_fulltext');`           | Drop a full text index from the "posts" table.              |
 | `$table->dropSpatialIndex('geo_location_spatialindex');` | Drop a spatial index from the "geo" table  (except SQLite). |
+| `$table->dropVectorIndex('posts_embeddings_vectorindex');` | Drop a vector index from the "posts" table (MariaDB / PostgreSQL). |
 
 </div>
 

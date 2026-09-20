@@ -149,6 +149,8 @@ Schedule::exec('node /path/to/script.js')->daily();
 
 If the shell command launches a Hypervel Artisan command, the child command receives the task's visible and hidden [context](/docs/{{version}}/context).
 
+Scheduled tasks run as the scheduler's OS user. To run a task as another user, use `exec` with an explicit command, such as `sudo -u reports -- /usr/local/bin/generate-reports`.
+
 <a name="schedule-frequency-options"></a>
 ### Schedule Frequency Options
 
@@ -440,13 +442,13 @@ Schedule::command('analytics:report')
 
 Hypervel starts background tasks as coroutines inside the `schedule:run` process. This is well suited to I/O-bound work such as HTTP calls, queries, and file or network I/O because coroutines yield while waiting. For CPU-bound work, coroutines offer limited benefit. In those cases, schedule the task using `exec` so the operating system runs it in a separate process:
 
-Unlike Laravel's detached background processes, Hypervel observes the exit status of background tasks. A non-zero exit dispatches a `ScheduledTaskFailed` event and is reported through the exception handler.
-
 ```php
 Schedule::exec('php artisan reports:compute')
     ->daily()
     ->runInBackground();
 ```
+
+Unlike Laravel's detached background processes, Hypervel observes the exit status of background tasks. A non-zero exit dispatches a `ScheduledTaskFailed` event and is reported through the exception handler.
 
 <a name="maintenance-mode"></a>
 ### Maintenance Mode
@@ -500,7 +502,7 @@ Schedule::daily()
     });
 ```
 
-Group definitions also replay event lifecycle callbacks and output handlers on every event in the group, so shared hooks may be defined once:
+You may also apply event callbacks, output handlers, and event macros to every task in a group. These methods may appear before or after the group's frequency settings:
 
 ```php
 Schedule::daily()

@@ -23,6 +23,8 @@ use Symfony\Component\Console\Output\NullOutput;
 
 class ServerStartCommandTest extends TestCase
 {
+    // REMOVED: ServeCommandLogParserTest; Swoole does not emit PHP's built-in-server request logs.
+
     public function testServeCommandFailsFastWhenRunningInConsoleIsTrue(): void
     {
         $command = new ServerStartCommand($this->app);
@@ -30,7 +32,7 @@ class ServerStartCommandTest extends TestCase
         Application::getInstance()->setRunningInConsole(true);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Error: APP_RUNNING_IN_CONSOLE is true. Your artisan binary may be outdated. Please update it so the serve and watch commands set APP_RUNNING_IN_CONSOLE=false before the server starts.');
+        $this->expectExceptionMessageIsOrContains('Error: APP_RUNNING_IN_CONSOLE is true. Your artisan binary may be outdated. Please update it so the serve and watch commands set APP_RUNNING_IN_CONSOLE=false before the server starts.');
 
         $command->run(new ArrayInput([]), new NullOutput);
     }
@@ -196,8 +198,72 @@ class ServerStartCommandTest extends TestCase
         $this->assertSame(0, $result);
     }
 
+    #[DataProvider('hostAndPortProvider')]
+    public function testHostAndPortParsing(
+        ?string $host,
+        string $expectedHost,
+        int $expectedPort,
+        ?string $port = null,
+        int $socketType = SWOOLE_SOCK_TCP,
+        int $expectedSocketType = SWOOLE_SOCK_TCP,
+    ): void {
+        $server = [
+            'name' => 'http',
+            'host' => '0.0.0.0',
+            'port' => 8123,
+            'sock_type' => $socketType,
+        ];
+        config(['server' => ['servers' => [$server]]]);
+
+        $expectedServer = array_replace($server, [
+            'host' => $expectedHost,
+            'port' => $expectedPort,
+            'sock_type' => $expectedSocketType,
+        ]);
+
+        $serverFactory = m::mock(ServerFactory::class);
+        $serverFactory->shouldReceive('setEventDispatcher')->once()->andReturnSelf();
+        $serverFactory->shouldReceive('setLogger')->once()->andReturnSelf();
+        $serverFactory->expects('configure')->with(['servers' => [$expectedServer]]);
+        $serverFactory->expects('start');
+        $this->app->instance(ServerFactory::class, $serverFactory);
+
+        $this->app->setRunningInConsole(false);
+
+        $options = array_filter(['--host' => $host, '--port' => $port], static fn (?string $value): bool => $value !== null);
+        $this->assertSame(0, (new ServerStartCommand($this->app))->run(new ArrayInput($options), new NullOutput));
+        $this->assertSame([$expectedServer], config('server.servers'));
+    }
+
+    /**
+     * Provide host and port options with their resolved server addresses.
+     *
+     * @return array<string, array{0: null|string, 1: string, 2: int, 3?: null|string, 4?: int, 5?: int}>
+     */
+    public static function hostAndPortProvider(): array
+    {
+        $cases = [
+            'hostname with port' => ['localhost:8888', 'localhost', 8888],
+            'IPv4 address with port' => ['127.0.0.1:8888', '127.0.0.1', 8888],
+            'IPv6 address with port' => ['[::1]:8888', '::1', 8888, null, SWOOLE_SOCK_TCP, SWOOLE_SOCK_TCP6],
+            'hostname without port' => ['localhost', 'localhost', 8123],
+            'IPv6 address without port' => ['[::1]', '::1', 8123, null, SWOOLE_SOCK_TCP, SWOOLE_SOCK_TCP6],
+            'explicit port wins' => ['[::1]:8888', '::1', 9000, '9000', SWOOLE_SOCK_TCP, SWOOLE_SOCK_TCP6],
+            'bare IPv6 address' => ['::1', '::1', 8123, null, SWOOLE_SOCK_TCP, SWOOLE_SOCK_TCP6],
+            'port without host' => [null, '0.0.0.0', 9000, '9000'],
+            'IPv4 replaces IPv6 socket' => ['127.0.0.1', '127.0.0.1', 8123, null, SWOOLE_SOCK_TCP6],
+            'hostname preserves socket family' => ['localhost', 'localhost', 8123, null, SWOOLE_SOCK_TCP6, SWOOLE_SOCK_TCP6],
+        ];
+
+        if (defined('SWOOLE_SSL')) {
+            $cases['IPv6 preserves TLS'] = ['[::1]', '::1', 8123, null, SWOOLE_SOCK_TCP | SWOOLE_SSL, SWOOLE_SOCK_TCP6 | SWOOLE_SSL];
+        }
+
+        return $cases;
+    }
+
     #[DataProvider('invalidServePorts')]
-    public function testServeCommandRejectsInvalidPortOption(string $port): void
+    public function testServeCommandRejectsInvalidPortOption(array $options): void
     {
         $serverFactory = m::mock(ServerFactory::class);
         $serverFactory->shouldReceive('setEventDispatcher')->once()->andReturnSelf();
@@ -228,23 +294,25 @@ class ServerStartCommandTest extends TestCase
         Application::getInstance()->setRunningInConsole(false);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The serve port must be an integer between 1 and 65535.');
+        $this->expectExceptionMessageIsOrContains('The serve port must be an integer between 1 and 65535.');
 
-        $command->run(new ArrayInput(['--port' => $port]), new NullOutput);
+        $command->run(new ArrayInput($options), new NullOutput);
     }
 
     /**
      * Get invalid serve ports.
      *
-     * @return array<int, array{string}>
+     * @return array<int, array{array<string, string>}>
      */
     public static function invalidServePorts(): array
     {
         return [
-            ['not-a-port'],
-            ['0'],
-            ['-1'],
-            ['65536'],
+            [['--port' => 'not-a-port']],
+            [['--port' => '0']],
+            [['--port' => '-1']],
+            [['--port' => '65536']],
+            [['--host' => '127.0.0.1:not-a-port']],
+            [['--host' => '[::1]:65536']],
         ];
     }
 
@@ -279,7 +347,7 @@ class ServerStartCommandTest extends TestCase
         Application::getInstance()->setRunningInConsole(false);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Cannot override server host or port because no HTTP server is configured.');
+        $this->expectExceptionMessageIsOrContains('Cannot override server host or port because no HTTP server is configured.');
 
         $command->run(new ArrayInput(['--host' => '127.0.0.1']), new NullOutput);
     }

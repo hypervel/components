@@ -54,7 +54,7 @@ class Schedule
     /**
      * All of the events on the schedule.
      *
-     * @var array Event[]
+     * @var list<Event>
      */
     protected array $events = [];
 
@@ -111,18 +111,10 @@ class Schedule
      * Create a new schedule instance.
      *
      * @param null|DateTimeZone|string $timezone the timezone the date should be evaluated on
-     *
-     * @throws RuntimeException
      */
     public function __construct(
         protected DateTimeZone|string|null $timezone = null
     ) {
-        if (! class_exists(Container::class)) {
-            throw new RuntimeException(
-                'A container implementation is required to use the scheduler. Please install the hypervel/container package.'
-            );
-        }
-
         $container = Container::getInstance();
 
         $this->eventMutex = $container->bound(EventMutex::class)
@@ -231,12 +223,6 @@ class Schedule
     protected function dispatchToQueue(object $job, ?string $queue, ?string $connection): void
     {
         if ($job instanceof Closure) {
-            if (! class_exists(CallQueuedClosure::class)) {
-                throw new RuntimeException(
-                    'To enable support for closure jobs, please install the illuminate/queue package.'
-                );
-            }
-
             $job = CallQueuedClosure::create($job);
         }
 
@@ -324,16 +310,19 @@ class Schedule
      */
     protected function mergePendingAttributes(Event $event): void
     {
+        if (isset($this->attributes)) {
+            // Pending attributes already inherit the current group's callbacks.
+            $this->attributes->mergeAttributes($event);
+
+            $this->attributes = null;
+
+            return;
+        }
+
         if (! empty($this->groupStack)) {
             $group = end($this->groupStack);
 
             $group->mergeAttributes($event);
-        }
-
-        if (isset($this->attributes)) {
-            $this->attributes->mergeAttributes($event);
-
-            $this->attributes = null;
         }
     }
 
@@ -412,7 +401,7 @@ class Schedule
     /**
      * Get all of the events on the schedule.
      *
-     * @return array Event[]
+     * @return list<Event>
      */
     public function events(): array
     {

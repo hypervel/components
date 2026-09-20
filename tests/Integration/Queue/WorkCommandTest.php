@@ -10,7 +10,6 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Foundation\Bus\Dispatchable;
-use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Queue\Worker;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Artisan;
@@ -26,8 +25,6 @@ use RuntimeException;
 #[WithMigration('queue')]
 class WorkCommandTest extends QueueTestCase
 {
-    use DatabaseMigrations;
-
     /**
      * Define the test environment.
      */
@@ -38,9 +35,12 @@ class WorkCommandTest extends QueueTestCase
         $app->make('config')->set('queue.default', env('QUEUE_CONNECTION', 'database'));
     }
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
-        $this->beforeApplicationDestroyed(function () {
+        $this->beforeApplicationDestroyed(function (): void {
             FirstJob::$ran = false;
             SecondJob::$ran = false;
             ThirdJob::$ran = false;
@@ -51,7 +51,7 @@ class WorkCommandTest extends QueueTestCase
         $this->markTestSkippedWhenUsingSyncQueueDriver();
     }
 
-    public function testRunningOneJob()
+    public function testRunningOneJob(): void
     {
         Queue::push(new FirstJob);
         Queue::push(new SecondJob);
@@ -91,12 +91,7 @@ class WorkCommandTest extends QueueTestCase
 
     public function testConnectionArgumentPreservesZero(): void
     {
-        $config = $this->app->make('config');
-
-        $config->set(
-            'queue.connections.0',
-            $config->get('queue.connections.database'),
-        );
+        config(['queue.connections.0' => config('queue.connections.database')]);
 
         Queue::connection('0')->push(new FirstJob);
 
@@ -109,7 +104,7 @@ class WorkCommandTest extends QueueTestCase
         $this->assertTrue(FirstJob::$ran);
     }
 
-    public function testOnceDoesNotRunInMaintenanceModeUnlessForced()
+    public function testOnceDoesNotRunInMaintenanceModeUnlessForced(): void
     {
         Queue::push(new FirstJob);
 
@@ -156,7 +151,7 @@ class WorkCommandTest extends QueueTestCase
 
     public function testRunTimestampOutputWithDifferentLogTimezone(): void
     {
-        $this->app->make('config')->set('queue.output_timezone', 'Europe/Helsinki');
+        config(['queue.output_timezone' => 'Europe/Helsinki']);
 
         $this->travelTo(CarbonImmutable::create(2023, 1, 18, 10, 10, 11));
         Queue::push(new FirstJob);
@@ -170,7 +165,7 @@ class WorkCommandTest extends QueueTestCase
 
     public function testRunTimestampOutputWithSameAppDefaultAndQueueLogDefault(): void
     {
-        $this->app->make('config')->set('queue.output_timezone', 'UTC');
+        config(['queue.output_timezone' => 'UTC']);
 
         $this->travelTo(CarbonImmutable::create(2023, 1, 18, 10, 10, 11));
         Queue::push(new FirstJob);
@@ -182,7 +177,7 @@ class WorkCommandTest extends QueueTestCase
             ->assertExitCode(0);
     }
 
-    public function testDaemon()
+    public function testDaemon(): void
     {
         Queue::push(new FirstJob);
         Queue::push(new SecondJob);
@@ -198,7 +193,7 @@ class WorkCommandTest extends QueueTestCase
         $this->assertTrue(SecondJob::$ran);
     }
 
-    public function testDaemonWritesOutputFromJobCoroutine()
+    public function testDaemonWritesOutputFromJobCoroutine(): void
     {
         $this->markTestSkippedWhenUsingQueueDrivers(['redis', 'beanstalkd']);
 
@@ -215,7 +210,7 @@ class WorkCommandTest extends QueueTestCase
         $this->assertStringContainsString(FirstJob::class, Artisan::output());
     }
 
-    public function testMemoryExceeded()
+    public function testMemoryExceeded(): void
     {
         Queue::push(new FirstJob);
         Queue::push(new SecondJob);
@@ -223,7 +218,7 @@ class WorkCommandTest extends QueueTestCase
         $this->artisan('queue:work', [
             '--daemon' => true,
             '--stop-when-empty' => true,
-            '--memory' => 0.1,
+            '--memory' => 1,
         ])->assertExitCode(12);
 
         // Memory limit isn't checked until after the first job is attempted.
@@ -272,7 +267,7 @@ class WorkCommandTest extends QueueTestCase
         $this->assertFalse(SecondJob::$ran);
     }
 
-    public function testMemoryExitCode()
+    public function testMemoryExitCode(): void
     {
         $this->markTestSkippedWhenUsingQueueDrivers(['redis', 'beanstalkd']);
 
@@ -282,7 +277,7 @@ class WorkCommandTest extends QueueTestCase
         Queue::push(new SecondJob);
 
         $this->artisan('queue:work', [
-            '--memory' => 0.1,
+            '--memory' => 1,
         ])->assertExitCode(0);
 
         // Memory limit isn't checked until after the first job is attempted.
@@ -351,7 +346,7 @@ class WorkCommandTest extends QueueTestCase
         Worker::$pausable = true;
     }
 
-    public function testFailedJobListenerOnlyRunsOnce()
+    public function testFailedJobListenerOnlyRunsOnce(): void
     {
         $this->markTestSkippedWhenUsingQueueDrivers(['redis', 'beanstalkd']);
 
@@ -401,6 +396,9 @@ class FirstJob implements ShouldQueue
 
     public static bool $ran = false;
 
+    /**
+     * Handle the first job.
+     */
     public function handle(): void
     {
         static::$ran = true;
@@ -414,6 +412,9 @@ class SecondJob implements ShouldQueue
 
     public static bool $ran = false;
 
+    /**
+     * Handle the second job.
+     */
     public function handle(): void
     {
         static::$ran = true;
@@ -427,6 +428,9 @@ class ThirdJob implements ShouldQueue
 
     public static bool $ran = false;
 
+    /**
+     * Handle the slow job.
+     */
     public function handle(): void
     {
         sleep(1);
@@ -440,7 +444,10 @@ class JobWillFail implements ShouldQueue
     use Dispatchable;
     use Queueable;
 
-    public function handle(): void
+    /**
+     * Fail while handling the job.
+     */
+    public function handle(): never
     {
         throw new RuntimeException;
     }

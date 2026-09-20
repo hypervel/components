@@ -22,12 +22,41 @@ use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
 
 class CacheFailoverStoreTest extends TestCase
 {
+    public function testImplementsCanFlushLocks(): void
+    {
+        $store = $this->makeFailoverStore([]);
+
+        $this->assertInstanceOf(CanFlushLocks::class, $store);
+    }
+
+    public function testFlushLocksCallsFlushLocksOnAllBackingStores(): void
+    {
+        $storeA = new ArrayStore;
+        $storeB = new ArrayStore;
+
+        $this->assertTrue($storeA->lock('lock-a', 60)->get());
+        $this->assertTrue($storeB->lock('lock-b', 60)->get());
+
+        $cache = m::mock(CacheManager::class);
+        $cache->expects('store')->with('store-a')->andReturn(new Repository($storeA));
+        $cache->expects('store')->with('store-b')->andReturn(new Repository($storeB));
+
+        $failover = new FailoverStore($cache, m::mock(Dispatcher::class), ['store-a', 'store-b']);
+
+        $result = $failover->flushLocks();
+
+        $this->assertTrue($result);
+        $this->assertNull($storeA->getLockRecord('lock-a'));
+        $this->assertNull($storeB->getLockRecord('lock-b'));
+    }
+
     public function testIncompleteClassHandlerRunsOnceAcrossFailoverRepositories(): void
     {
         $backingStore = new ArrayStore;
@@ -139,11 +168,12 @@ class CacheFailoverStoreTest extends TestCase
         $this->assertFalse($store->decrement('decrement', 3));
     }
 
-    public function testLockFlushCapabilityRequiresAtLeastOneLockProvider(): void
+    #[DataProvider('storesWithoutLockProviders')]
+    public function testLockFlushCapabilityRequiresAtLeastOneLockProvider(bool $hasStore): void
     {
-        $store = $this->makeFailoverStore([
+        $store = $this->makeFailoverStore($hasStore ? [
             'plain' => m::mock(Store::class),
-        ]);
+        ] : []);
 
         $this->assertFalse($store->supportsFlushingLocks());
         $this->assertFalse($store->hasSeparateLockStore());
@@ -152,6 +182,17 @@ class CacheFailoverStoreTest extends TestCase
         $this->expectExceptionMessage('This failover cache store has no lock-providing stores to flush.');
 
         $store->flushLocks();
+    }
+
+    /**
+     * Provide configurations without a lock-capable backing store.
+     */
+    public static function storesWithoutLockProviders(): array
+    {
+        return [
+            'no stores' => [false],
+            'non-locking store' => [true],
+        ];
     }
 
     public function testLockFlushCapabilityRequiresEveryLockProviderToSupportFlushing(): void

@@ -12,6 +12,7 @@ use Hypervel\Cache\MemoizedStore;
 use Hypervel\Cache\NullStore;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\Repository;
+use Hypervel\Cache\SessionStore;
 use Hypervel\Cache\StorageStore;
 use Hypervel\Cache\SwooleStore;
 use Hypervel\Cache\SwooleTableManager;
@@ -24,9 +25,11 @@ use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
+use Hypervel\Contracts\Session\Session;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Events\Dispatcher as Event;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithSwooleTables;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\Pool\RedisPool;
@@ -42,26 +45,69 @@ use stdClass;
 
 class CacheManagerTest extends TestCase
 {
-    public function testCustomDriverClosureBoundObjectIsCacheManager()
+    use InteractsWithSwooleTables;
+
+    public function testCustomDriverClosureBoundObjectIsCacheManager(): void
     {
-        $userConfig = [
+        $manager = new CacheManager($this->getApp([
             'cache' => [
                 'stores' => [
-                    'foo' => [
-                        'driver' => 'foo',
+                    __CLASS__ => [
+                        'driver' => __CLASS__,
                     ],
                 ],
             ],
-        ];
+        ]));
+        $boundTo = null;
+        $manager->extend(__CLASS__, function () use (&$boundTo): Repository {
+            $boundTo = $this;
 
-        $app = $this->getApp($userConfig);
-        $cacheManager = new CacheManager($app);
-        $repository = m::mock(CacheRepository::class);
-        $cacheManager->extend('foo', fn () => $repository);
-        $this->assertEquals($repository, $cacheManager->store('foo'));
+            return new Repository(new ArrayStore);
+        });
+
+        $manager->store(__CLASS__);
+
+        $this->assertSame($manager, $boundTo);
     }
 
-    public function testCustomDriverOverridesInternalDrivers()
+    public function testCustomDriverStaticClosure(): void
+    {
+        $manager = new CacheManager($this->getApp([
+            'cache' => [
+                'stores' => [
+                    __CLASS__ => [
+                        'driver' => __CLASS__,
+                    ],
+                ],
+            ],
+        ]));
+
+        $driver = new Repository(new ArrayStore);
+
+        $manager->extend(__CLASS__, static fn (): Repository => $driver);
+        $this->assertSame($driver, $manager->store(__CLASS__));
+    }
+
+    public function testInvokableObjectDriverClosure(): void
+    {
+        $manager = new CacheManager($this->getApp([
+            'cache' => [
+                'stores' => [
+                    __CLASS__ => [
+                        'driver' => __CLASS__,
+                    ],
+                ],
+            ],
+        ]));
+
+        $driver = new Repository(new ArrayStore);
+        $creator = new CustomCacheDriver($driver);
+
+        $manager->extend(__CLASS__, $creator(...));
+        $this->assertSame($driver, $manager->store(__CLASS__));
+    }
+
+    public function testCustomDriverOverridesInternalDrivers(): void
     {
         $userConfig = [
             'cache' => [
@@ -76,18 +122,18 @@ class CacheManagerTest extends TestCase
         $app = $this->getApp($userConfig);
         $cacheManager = new CacheManager($app);
 
-        /** @var CacheRepository|MockInterface */
+        /** @var CacheRepository&MockInterface */
         $repository = m::mock(CacheRepository::class);
         $repository->shouldReceive('get')->with('foo')->andReturn('bar');
 
-        $cacheManager->extend('array', fn () => $repository);
+        $cacheManager->extend('array', fn (): CacheRepository => $repository);
 
         $driver = $cacheManager->store('my_store');
 
         $this->assertSame('bar', $driver->get('foo'));
     }
 
-    public function testItCanBuildRepositories()
+    public function testItCanBuildRepositories(): void
     {
         $app = $this->getApp([]);
         $cacheManager = new CacheManager($app);
@@ -115,13 +161,13 @@ class CacheManagerTest extends TestCase
         ]);
         $failure = new RuntimeException('primary unavailable');
         $primary = m::mock(Store::class);
-        $primary->shouldReceive('get')->once()->with('key')->andThrow($failure);
+        $primary->expects('get')->with('key')->andThrow($failure);
         $secondary = m::mock(Store::class);
-        $secondary->shouldReceive('get')->once()->with('key')->andReturn('value');
+        $secondary->expects('get')->with('key')->andReturn('value');
         $captured = null;
         $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(CacheFailedOver::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->once()->andReturnUsing(function (CacheFailedOver $event) use (&$captured): void {
+        $events->expects('hasListeners')->with(CacheFailedOver::class)->andReturnTrue();
+        $events->expects('dispatch')->andReturnUsing(function (CacheFailedOver $event) use (&$captured): void {
             $captured = $event;
         });
         $app->instance(Dispatcher::class, $events);
@@ -164,7 +210,7 @@ class CacheManagerTest extends TestCase
         $app->instance('db', m::mock(ConnectionResolverInterface::class));
         $app->instance('files', new Filesystem);
         $filesystem = m::mock(FilesystemFactory::class);
-        $filesystem->shouldReceive('disk')->with('test')->once()->andReturn(new ArrayFilesystem);
+        $filesystem->expects('disk')->with('test')->andReturn(new ArrayFilesystem);
         $app->instance('filesystem', $filesystem);
         $app->instance(SwooleTableManager::class, new SwooleTableManager($app));
         $manager = new CacheManager($app);
@@ -181,6 +227,8 @@ class CacheManagerTest extends TestCase
                 $this->assertNull($classesProperty->getValue($store));
             }
         }
+
+        $this->trackSwooleTable($app->make(SwooleTableManager::class)->get('default')->table());
 
         foreach ($policies as $policy) {
             $this->assertSame($policies[0], $policy);
@@ -241,7 +289,7 @@ class CacheManagerTest extends TestCase
         $disk = new ArrayFilesystem;
 
         $filesystem = m::mock(FilesystemFactory::class);
-        $filesystem->shouldReceive('disk')->with('s3')->once()->andReturn($disk);
+        $filesystem->expects('disk')->with('s3')->andReturn($disk);
 
         $app = $this->getApp([
             'cache' => [
@@ -301,6 +349,7 @@ class CacheManagerTest extends TestCase
         $app->instance(SwooleTableManager::class, new SwooleTableManager($app));
 
         $store = (new CacheManager($app))->store('swoole')->getStore();
+        $this->trackSwooleTable($app->make(SwooleTableManager::class)->get('default')->table());
 
         $this->assertInstanceOf(SwooleStore::class, $store);
         $this->assertTrue($store->put('foo', new stdClass, 60));
@@ -339,12 +388,12 @@ class CacheManagerTest extends TestCase
         $cacheManager = new CacheManager($this->getApp($userConfig));
         $repository = m::mock(CacheRepository::class);
 
-        $cacheManager->extend('worker-array', fn () => $repository);
+        $cacheManager->extend('worker-array', fn (): CacheRepository => $repository);
 
         $this->assertSame($repository, $cacheManager->store('worker'));
     }
 
-    public function testItMakesRepositoryWhenContainerHasNoDispatcher()
+    public function testItMakesRepositoryWhenContainerHasNoDispatcher(): void
     {
         $userConfig = [
             'cache' => [
@@ -358,6 +407,7 @@ class CacheManagerTest extends TestCase
         ];
 
         $app = $this->getApp($userConfig);
+        $this->assertFalse($app->bound(Dispatcher::class));
 
         $cacheManager = new CacheManager($app);
         $repo = $cacheManager->repository($theStore = new NullStore, ['events' => true]);
@@ -431,7 +481,7 @@ class CacheManagerTest extends TestCase
         $cacheManager = new CacheManager($app);
         $repository = m::mock(CacheRepository::class);
         $repository->shouldNotReceive('setEventDispatcher');
-        $cacheManager->extend('custom', fn () => $repository);
+        $cacheManager->extend('custom', fn (): CacheRepository => $repository);
 
         $this->assertSame($repository, $cacheManager->store('custom'));
 
@@ -440,7 +490,7 @@ class CacheManagerTest extends TestCase
         $this->assertSame($repository, $cacheManager->store('custom'));
     }
 
-    public function testItSetsDefaultDriverChangesGlobalConfig()
+    public function testItSetsDefaultDriverChangesGlobalConfig(): void
     {
         $userConfig = [
             'cache' => [
@@ -461,10 +511,10 @@ class CacheManagerTest extends TestCase
 
         $cacheManager->setDefaultDriver('><((((@>');
 
-        $this->assertEquals('><((((@>', $app->make('config')->get('cache.default'));
+        $this->assertSame('><((((@>', $app->make('config')->get('cache.default'));
     }
 
-    public function testItPurgesMemoizedStoreObjects()
+    public function testItPurgesMemoizedStoreObjects(): void
     {
         $userConfig = [
             'cache' => [
@@ -497,7 +547,7 @@ class CacheManagerTest extends TestCase
 
         $cacheManager->purge('store_1');
 
-        // Make sure a now object is built this time.
+        // Make sure a new object is built this time.
         $repo6 = $cacheManager->store('store_1');
         $this->assertNotSame($repo1, $repo6);
 
@@ -506,19 +556,18 @@ class CacheManagerTest extends TestCase
         $this->assertSame($repo3, $repo7);
     }
 
-    public function testForgetDriver()
+    public function testForgetDriver(): void
     {
         $cacheManager = m::mock(CacheManager::class)
             ->shouldAllowMockingProtectedMethods()
             ->makePartial();
 
-        $cacheManager->shouldReceive('resolve')
+        $cacheManager->expects('resolve')
             ->withArgs(['array'])
             ->times(4)
             ->andReturn(m::mock(CacheRepository::class));
 
-        $cacheManager->shouldReceive('getDefaultDriver')
-            ->once()
+        $cacheManager->expects('getDefaultDriver')
             ->andReturn('array');
 
         foreach (['array', ['array'], null] as $option) {
@@ -530,7 +579,7 @@ class CacheManagerTest extends TestCase
         }
     }
 
-    public function testForgetDriverForgets()
+    public function testForgetDriverForgets(): void
     {
         $userConfig = [
             'cache' => [
@@ -547,18 +596,18 @@ class CacheManagerTest extends TestCase
         $count = 0;
 
         $cacheManager = new CacheManager($app);
-        $cacheManager->extend('forget', function () use (&$count) {
-            /** @var CacheRepository|MockInterface */
+        $cacheManager->extend('forget', function () use (&$count): CacheRepository {
+            /** @var CacheRepository&MockInterface */
             $repository = m::mock(CacheRepository::class);
 
             if ($count++ === 0) {
-                $repository->shouldReceive('forever')->with('foo', 'bar')->once();
-                $repository->shouldReceive('get')->with('foo')->once()->andReturn('bar');
+                $repository->expects('forever')->with('foo', 'bar');
+                $repository->expects('get')->with('foo')->andReturn('bar');
 
                 return $repository;
             }
 
-            $repository->shouldReceive('get')->with('foo')->once()->andReturnNull();
+            $repository->expects('get')->with('foo')->andReturnNull();
 
             return $repository;
         });
@@ -594,10 +643,12 @@ class CacheManagerTest extends TestCase
         $this->assertNotSame($firstMemoizedStore->getInnerStore(), $secondMemoizedStore->getInnerStore());
     }
 
-    public function testThrowExceptionWhenUnknownDriverIsUsed()
+    // REMOVED: CacheApcStoreTest, CacheDynamoDbStoreTest, CacheMemcachedConnectorTest,
+    // CacheMemcachedStoreTest and their integration tests; these drivers are unsupported.
+
+    public function testThrowExceptionWhenUnknownDriverIsUsed(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Driver [unknown_taxi_driver] is not supported.');
+        $this->expectExceptionObject(new InvalidArgumentException('Driver [unknown_taxi_driver] is not supported.'));
 
         $userConfig = [
             'cache' => [
@@ -616,10 +667,9 @@ class CacheManagerTest extends TestCase
         $cacheManager->store('my_store');
     }
 
-    public function testThrowExceptionWhenUnknownStoreIsUsed()
+    public function testThrowExceptionWhenUnknownStoreIsUsed(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Cache store [alien_store] is not defined.');
+        $this->expectExceptionObject(new InvalidArgumentException('Cache store [alien_store] is not defined.'));
 
         $userConfig = [
             'cache' => [
@@ -706,14 +756,14 @@ class CacheManagerTest extends TestCase
         $cacheManager = new CacheManager($app);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage(
+        $this->expectExceptionMessageIsOrContains(
             'Invalid cache tag mode [invalid]. Supported modes are [any, all].'
         );
 
         $cacheManager->store('redis');
     }
 
-    public function testSessionDriverResolvesSessionStore()
+    public function testSessionDriverResolvesSessionStore(): void
     {
         $userConfig = [
             'cache' => [
@@ -728,7 +778,7 @@ class CacheManagerTest extends TestCase
 
         $app = $this->getApp($userConfig);
 
-        $session = m::mock(\Hypervel\Contracts\Session\Session::class);
+        $session = m::mock(Session::class);
         $app->instance('session.store', $session);
 
         $cacheManager = new CacheManager($app);
@@ -736,13 +786,13 @@ class CacheManagerTest extends TestCase
         $repository = $cacheManager->store('session');
         $store = $repository->getStore();
 
-        $this->assertInstanceOf(\Hypervel\Cache\SessionStore::class, $store);
+        $this->assertInstanceOf(SessionStore::class, $store);
     }
 
-    public function testSessionDriverThrowsWhenSessionNotAvailable()
+    public function testSessionDriverThrowsWhenSessionNotAvailable(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Session store requires session manager to be available in container.');
+        $this->expectExceptionMessageIsOrContains('Session store requires session manager to be available in container.');
 
         $userConfig = [
             'cache' => [
@@ -848,7 +898,7 @@ class CacheManagerTest extends TestCase
         ]));
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Cache store [] is not defined.');
+        $this->expectExceptionMessageIsOrContains('Cache store [] is not defined.');
 
         $cacheManager->store('');
     }
@@ -936,6 +986,9 @@ class CacheManagerTest extends TestCase
         $this->assertSame('array', $app->get('config')->get('cache.default'));
     }
 
+    /**
+     * Create a container with the given cache configuration.
+     */
     protected function getApp(array $userConfig): Container
     {
         $app = new Container;
@@ -945,6 +998,9 @@ class CacheManagerTest extends TestCase
         return $app;
     }
 
+    /**
+     * Create a container with Redis collaborators.
+     */
     protected function getAppWithRedis(array $userConfig): Container
     {
         $app = $this->getApp($userConfig);
@@ -980,6 +1036,24 @@ class CacheManagerTest extends TestCase
         Container::setInstance($app);
 
         return $app;
+    }
+}
+
+class CustomCacheDriver
+{
+    /**
+     * Create a custom cache driver factory.
+     */
+    public function __construct(private CacheRepository $driver)
+    {
+    }
+
+    /**
+     * Return the custom cache driver.
+     */
+    public function __invoke(): CacheRepository
+    {
+        return $this->driver;
     }
 }
 

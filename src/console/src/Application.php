@@ -98,6 +98,26 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     // their return types do not depend on the Symfony version already loaded.
 
     /**
+     * Get a registered command by name or alias.
+     *
+     * @throws CommandNotFoundException
+     */
+    #[Override]
+    public function get(string $name): SymfonyCommand
+    {
+        return parent::get($name);
+    }
+
+    /**
+     * Determine if a command exists.
+     */
+    #[Override]
+    public function has(string $name): bool
+    {
+        return parent::has($name);
+    }
+
+    /**
      * Get all commands registered with the application.
      */
     #[Override]
@@ -205,7 +225,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     /**
      * Run an Artisan console command by name.
      *
-     * @throws \Symfony\Component\Console\Exception\CommandNotFoundException
+     * @throws CommandNotFoundException
      */
     public function call(string|SymfonyCommand $command, array $parameters = [], ?OutputInterface $outputBuffer = null): int
     {

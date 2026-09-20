@@ -8,6 +8,7 @@ use Countable;
 use DateTimeImmutable;
 use DateTimeInterface;
 use Exception;
+use Generator;
 use Hypervel\Container\Container;
 use Hypervel\Support\Json;
 use Hypervel\Support\Str;
@@ -1136,12 +1137,12 @@ class SupportStrTest extends TestCase
 
     public function testItCanSpecifyAFallbackForARandomStringSequence(): void
     {
-        Str::createRandomStringsUsingSequence([Str::random(), Str::random()], fn () => throw new Exception('Out of random strings.'));
+        Str::createRandomStringsUsingSequence([Str::random(), Str::random()], fn (): never => throw new Exception('Out of random strings.'));
         Str::random();
         Str::random();
 
         try {
-            $this->expectExceptionMessage('Out of random strings.');
+            $this->expectExceptionObject(new Exception('Out of random strings.'));
             Str::random();
             $this->fail();
         } finally {
@@ -2047,12 +2048,12 @@ class SupportStrTest extends TestCase
 
     public function testItCanSpecifyAFallbackForASequence(): void
     {
-        Str::createUuidsUsingSequence([Str::uuid(), Str::uuid()], fn () => throw new Exception('Out of Uuids.'));
+        Str::createUuidsUsingSequence([Str::uuid(), Str::uuid()], fn (): never => throw new Exception('Out of Uuids.'));
         Str::uuid();
         Str::uuid();
 
         try {
-            $this->expectExceptionMessage('Out of Uuids.');
+            $this->expectExceptionObject(new Exception('Out of Uuids.'));
             Str::uuid();
             $this->fail();
         } finally {
@@ -2180,13 +2181,13 @@ class SupportStrTest extends TestCase
     {
         Str::createUlidsUsingSequence(
             [Str::ulid(), Str::ulid()],
-            fn () => throw new Exception('Out of Ulids'),
+            fn (): never => throw new Exception('Out of Ulids'),
         );
         Str::ulid();
         Str::ulid();
 
         try {
-            $this->expectExceptionMessage('Out of Ulids');
+            $this->expectExceptionObject(new Exception('Out of Ulids'));
             Str::ulid();
             $this->fail();
         } finally {
@@ -2259,72 +2260,74 @@ class SupportStrTest extends TestCase
         $this->assertSame('foobar', Str::fromBase64(base64_encode('foobar'), true));
     }
 
-    public function testChopStart(): void
+    #[DataProvider('dataProviderChopStart')]
+    public function testChopStart(string $subject, string|array $needle, string $expected): void
     {
-        foreach ([
-            ['', '', ''],
-            ['Hypervel', '', 'Hypervel'],
-            ['Ship it', ['', 'Ship '], 'it'],
-            ['http://hypervel.org', 'http://', 'hypervel.org'],
-            ['http://-http://', 'http://', '-http://'],
-            ['http://hypervel.org', 'htp:/', 'http://hypervel.org'],
-            ['http://hypervel.org', 'http://www.', 'http://hypervel.org'],
-            ['http://hypervel.org', '-http://', 'http://hypervel.org'],
-            ['http://hypervel.org', ['https://', 'http://'], 'hypervel.org'],
-            ['http://www.hypervel.org', ['http://', 'www.'], 'www.hypervel.org'],
-            ['http://http-is-fun.test', 'http://', 'http-is-fun.test'],
-            // Multibyte emoji tests
-            ['🌊✋', '🌊', '✋'],
-            ['🌊✋', '✋', '🌊✋'],
-            ['🚀🌟💫', '🚀', '🌟💫'],
-            ['🚀🌟💫', '🚀🌟', '💫'],
-            // Multibyte character tests (Japanese, Chinese, Arabic, etc.)
-            ['こんにちは世界', 'こんにちは', '世界'],
-            ['你好世界', '你好', '世界'],
-            ['مرحبا بك', 'مرحبا ', 'بك'],
-            // Mixed multibyte and ASCII
-            ['🎉Hypervel', '🎉', 'Hypervel'],
-            ['Hello🌍World', 'Hello🌍', 'World'],
-            // Multiple needle array with multibyte
-            ['🌊✋🎉', ['🚀', '🌊'], '✋🎉'],
-            ['こんにちは世界', ['Hello', 'こんにちは'], '世界'],
-        ] as [$subject, $needle, $expected]) {
-            $this->assertSame($expected, Str::chopStart($subject, $needle));
-        }
+        $this->assertSame($expected, Str::chopStart($subject, $needle));
     }
 
-    public function testChopEnd(): void
+    /**
+     * Provide prefixes to remove from strings.
+     */
+    public static function dataProviderChopStart(): Generator
     {
-        foreach ([
-            ['', '', ''],
-            ['Hypervel', '', 'Hypervel'],
-            ['Ship it', ['', ' it'], 'Ship'],
-            ['path/to/file.php', '.php', 'path/to/file'],
-            ['.php-.php', '.php', '.php-'],
-            ['path/to/file.php', '.ph', 'path/to/file.php'],
-            ['path/to/file.php', 'foo.php', 'path/to/file.php'],
-            ['path/to/file.php', '.php-', 'path/to/file.php'],
-            ['path/to/file.php', ['.html', '.php'], 'path/to/file'],
-            ['path/to/file.php', ['.php', 'file'], 'path/to/file'],
-            ['path/to/php.php', '.php', 'path/to/php'],
-            // Multibyte emoji tests
-            ['✋🌊', '🌊', '✋'],
-            ['✋🌊', '✋', '✋🌊'],
-            ['🌟💫🚀', '🚀', '🌟💫'],
-            ['🌟💫🚀', '💫🚀', '🌟'],
-            // Multibyte character tests (Japanese, Chinese, Arabic, etc.)
-            ['世界こんにちは', 'こんにちは', '世界'],
-            ['世界你好', '你好', '世界'],
-            ['بك مرحبا', ' مرحبا', 'بك'],
-            // Mixed multibyte and ASCII
-            ['Hypervel🎉', '🎉', 'Hypervel'],
-            ['Hello🌍World', 'World', 'Hello🌍'],
-            // Multiple needle array with multibyte
-            ['🎉✋🌊', ['🚀', '🌊'], '🎉✋'],
-            ['世界こんにちは', ['Hello', 'こんにちは'], '世界'],
-        ] as [$subject, $needle, $expected]) {
-            $this->assertSame($expected, Str::chopEnd($subject, $needle));
-        }
+        yield 'empty subject and needle' => ['', '', ''];
+        yield 'empty needle leaves subject' => ['Hypervel', '', 'Hypervel'];
+        yield 'first matching needle from array is removed' => ['Ship it', ['', 'Ship '], 'it'];
+        yield 'standard http prefix removed' => ['http://hypervel.org', 'http://', 'hypervel.org'];
+        yield 'prefix only removed once at start' => ['http://-http://', 'http://', '-http://'];
+        yield 'non-matching partial prefix is ignored' => ['http://hypervel.org', 'htp:/', 'http://hypervel.org'];
+        yield 'different non-matching prefix is ignored' => ['http://hypervel.org', 'http://www.', 'http://hypervel.org'];
+        yield 'prefix not at start is ignored' => ['http://hypervel.org', '-http://', 'http://hypervel.org'];
+        yield 'matching prefix selected from array' => ['http://hypervel.org', ['https://', 'http://'], 'hypervel.org'];
+        yield 'first matching prefix in ordered array used' => ['http://www.hypervel.org', ['http://', 'www.'], 'www.hypervel.org'];
+        yield 'http removed from complex host' => ['http://http-is-fun.test', 'http://', 'http-is-fun.test'];
+        yield 'emoji prefix removed' => ['🌊✋', '🌊', '✋'];
+        yield 'emoji needle without prefix match is ignored' => ['🌊✋', '✋', '🌊✋'];
+        yield 'first emoji removed from emoji sequence' => ['🚀🌟💫', '🚀', '🌟💫'];
+        yield 'multibyte emoji sequence prefix removed' => ['🚀🌟💫', '🚀🌟', '💫'];
+        yield 'japanese prefix removed' => ['こんにちは世界', 'こんにちは', '世界'];
+        yield 'chinese prefix removed' => ['你好世界', '你好', '世界'];
+        yield 'arabic prefix removed' => ['مرحبا بك', 'مرحبا ', 'بك'];
+        yield 'mixed emoji and ascii prefix removed' => ['🎉Hypervel', '🎉', 'Hypervel'];
+        yield 'mixed ascii and emoji prefix removed' => ['Hello🌍World', 'Hello🌍', 'World'];
+        yield 'multibyte prefix selected from array' => ['🌊✋🎉', ['🚀', '🌊'], '✋🎉'];
+        yield 'multibyte prefix selected from mixed array' => ['こんにちは世界', ['Hello', 'こんにちは'], '世界'];
+    }
+
+    #[DataProvider('dataProviderChopEnd')]
+    public function testChopEnd(string $subject, string|array $needle, string $expected): void
+    {
+        $this->assertSame($expected, Str::chopEnd($subject, $needle));
+    }
+
+    /**
+     * Provide suffixes to remove from strings.
+     */
+    public static function dataProviderChopEnd(): Generator
+    {
+        yield 'empty string with empty needle' => ['', '', ''];
+        yield 'empty needle leaves subject unchanged' => ['Hypervel', '', 'Hypervel'];
+        yield 'matching needle selected from array' => ['Ship it', ['', ' it'], 'Ship'];
+        yield 'file extension removed' => ['path/to/file.php', '.php', 'path/to/file'];
+        yield 'suffix removed from repeated extension segment' => ['.php-.php', '.php', '.php-'];
+        yield 'partial non-matching suffix is ignored' => ['path/to/file.php', '.ph', 'path/to/file.php'];
+        yield 'different non-matching suffix is ignored' => ['path/to/file.php', 'foo.php', 'path/to/file.php'];
+        yield 'near-matching suffix is ignored' => ['path/to/file.php', '.php-', 'path/to/file.php'];
+        yield 'matching suffix selected from array' => ['path/to/file.php', ['.html', '.php'], 'path/to/file'];
+        yield 'first matching suffix in ordered array used' => ['path/to/file.php', ['.php', 'file'], 'path/to/file'];
+        yield 'suffix removed from complex path' => ['path/to/php.php', '.php', 'path/to/php'];
+        yield 'emoji suffix removed' => ['✋🌊', '🌊', '✋'];
+        yield 'emoji needle without suffix match is ignored' => ['✋🌊', '✋', '✋🌊'];
+        yield 'last emoji removed from emoji sequence' => ['🌟💫🚀', '🚀', '🌟💫'];
+        yield 'multibyte emoji sequence suffix removed' => ['🌟💫🚀', '💫🚀', '🌟'];
+        yield 'japanese suffix removed' => ['世界こんにちは', 'こんにちは', '世界'];
+        yield 'chinese suffix removed' => ['世界你好', '你好', '世界'];
+        yield 'arabic suffix removed' => ['بك مرحبا', ' مرحبا', 'بك'];
+        yield 'mixed ascii and emoji suffix removed' => ['Hypervel🎉', '🎉', 'Hypervel'];
+        yield 'mixed emoji and ascii suffix removed' => ['Hello🌍World', 'World', 'Hello🌍'];
+        yield 'multibyte suffix selected from array' => ['🎉✋🌊', ['🚀', '🌊'], '🎉✋'];
+        yield 'multibyte suffix selected from mixed array' => ['世界こんにちは', ['Hello', 'こんにちは'], '世界'];
     }
 
     public function testReplaceMatches(): void

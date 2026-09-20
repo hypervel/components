@@ -330,8 +330,13 @@ class AuthManager implements FactoryContract
     /**
      * Register a custom driver creator Closure.
      *
+     * Anonymous closures run in this manager's class scope; non-static closures
+     * also receive the manager as $this.
+     *
      * Boot-only. The callback persists in the singleton's customCreators array
      * for the worker lifetime and applies to every subsequent guard resolution.
+     *
+     * @return $this
      */
     public function extend(string $driver, Closure $callback): static
     {

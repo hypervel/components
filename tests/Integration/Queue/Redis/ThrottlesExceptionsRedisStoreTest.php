@@ -48,17 +48,22 @@ class ThrottlesExceptionsRedisStoreTest extends TestCase
         $this->assertJobWasReleasedWithDelay(CircuitBreakerRedisStoreTestJob::class, $key);
     }
 
-    protected function assertJobWasReleasedImmediately($class, string $key): void
+    /**
+     * Assert the failing job is released without a delay.
+     *
+     * @param class-string<CircuitBreakerRedisStoreTestJob> $class
+     */
+    protected function assertJobWasReleasedImmediately(string $class, string $key): void
     {
         $class::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
         $job = m::mock(Job::class);
 
-        $job->shouldReceive('hasFailed')->once()->andReturn(false);
-        $job->shouldReceive('release')->with(0)->once();
-        $job->shouldReceive('isReleased')->andReturn(true);
-        $job->shouldReceive('isDeletedOrReleased')->once()->andReturn(true);
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('release')->with(0);
+        $job->expects('isReleased')->times(2)->andReturn(true);
+        $job->expects('isDeletedOrReleased')->andReturn(true);
 
         $instance->call($job, [
             'command' => serialize($command = new $class($key)),
@@ -67,19 +72,26 @@ class ThrottlesExceptionsRedisStoreTest extends TestCase
         $this->assertTrue($class::$handled);
     }
 
-    protected function assertJobWasReleasedWithDelay($class, string $key): void
+    /**
+     * Assert the throttled job is released with a delay.
+     *
+     * @param class-string<CircuitBreakerRedisStoreTestJob> $class
+     */
+    protected function assertJobWasReleasedWithDelay(string $class, string $key): void
     {
         $class::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
         $job = m::mock(Job::class);
 
-        $job->shouldReceive('hasFailed')->once()->andReturn(false);
-        $job->shouldReceive('release')->withArgs(function ($delay) {
-            return $delay >= 600;
-        })->once();
-        $job->shouldReceive('isReleased')->andReturn(true);
-        $job->shouldReceive('isDeletedOrReleased')->once()->andReturn(true);
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('release')->withArgs(function (int $delay): bool {
+            // The delay is the remainder of the decay window, less wall clock
+            // seconds elapsed since the first exception opened the circuit.
+            return $delay >= 590 && $delay <= 610;
+        });
+        $job->expects('isReleased')->times(2)->andReturn(true);
+        $job->expects('isDeletedOrReleased')->andReturn(true);
 
         $instance->call($job, [
             'command' => serialize($command = new $class($key)),
@@ -88,17 +100,22 @@ class ThrottlesExceptionsRedisStoreTest extends TestCase
         $this->assertFalse($class::$handled);
     }
 
-    protected function assertJobRanSuccessfully($class, string $key): void
+    /**
+     * Assert the successful job runs and is deleted.
+     *
+     * @param class-string<CircuitBreakerRedisStoreSuccessfulJob> $class
+     */
+    protected function assertJobRanSuccessfully(string $class, string $key): void
     {
         $class::$handled = false;
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
         $job = m::mock(Job::class);
 
-        $job->shouldReceive('hasFailed')->once()->andReturn(false);
-        $job->shouldReceive('isReleased')->andReturn(false);
-        $job->shouldReceive('isDeletedOrReleased')->once()->andReturn(false);
-        $job->shouldReceive('delete')->once();
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('isReleased')->times(2)->andReturn(false);
+        $job->expects('isDeletedOrReleased')->andReturn(false);
+        $job->expects('delete');
 
         $instance->call($job, [
             'command' => serialize($command = new $class($key)),
@@ -112,6 +129,9 @@ class ThrottlesExceptionsRedisStoreTest extends TestCase
         $job = new class {
             public ?int $releasedAfter = null;
 
+            /**
+             * Release the job with a delay.
+             */
             public function release(int $delay): static
             {
                 $this->releasedAfter = $delay;
@@ -143,17 +163,20 @@ class ThrottlesExceptionsRedisStoreTest extends TestCase
     public function testReportingExceptions(): void
     {
         $this->spy(ExceptionHandler::class)
-            ->shouldReceive('report')
-            ->twice()
+            ->expects('report')
+            ->times(2)
             ->with(m::type(RuntimeException::class));
 
         $job = new class {
-            public function release()
+            /**
+             * Release the job.
+             */
+            public function release(): static
             {
                 return $this;
             }
         };
-        $next = function () {
+        $next = function (): never {
             throw new RuntimeException('Whoops!');
         };
 
@@ -162,10 +185,10 @@ class ThrottlesExceptionsRedisStoreTest extends TestCase
         $middleware->report();
         $middleware->handle($job, $next);
 
-        $middleware->report(fn () => true);
+        $middleware->report(fn (): bool => true);
         $middleware->handle($job, $next);
 
-        $middleware->report(fn () => false);
+        $middleware->report(fn (): bool => false);
         $middleware->handle($job, $next);
     }
 }
@@ -177,13 +200,16 @@ class CircuitBreakerRedisStoreTestJob
 
     public static bool $handled = false;
 
-    public string $key;
-
-    public function __construct(string $key)
+    /**
+     * Create a job with a rate limiter key.
+     */
+    public function __construct(public string $key)
     {
-        $this->key = $key;
     }
 
+    /**
+     * Handle the job.
+     */
     public function handle(): void
     {
         static::$handled = true;
@@ -191,6 +217,9 @@ class CircuitBreakerRedisStoreTestJob
         throw new Exception;
     }
 
+    /**
+     * Get the job middleware.
+     */
     public function middleware(): array
     {
         return [(new ThrottlesExceptions(2, 10 * 60))->store('redis')->by($this->key)];
@@ -204,18 +233,24 @@ class CircuitBreakerRedisStoreSuccessfulJob
 
     public static bool $handled = false;
 
-    public string $key;
-
-    public function __construct(string $key)
+    /**
+     * Create a job with a rate limiter key.
+     */
+    public function __construct(public string $key)
     {
-        $this->key = $key;
     }
 
+    /**
+     * Handle the job.
+     */
     public function handle(): void
     {
         static::$handled = true;
     }
 
+    /**
+     * Get the job middleware.
+     */
     public function middleware(): array
     {
         return [(new ThrottlesExceptions(2, 10 * 60))->store('redis')->by($this->key)];

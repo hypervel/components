@@ -417,7 +417,7 @@ assertType('Hypervel\Support\LazyCollection<int, mixed>', $collection::make(['st
 assertType('User|null', $collection->firstWhere('string', 'string'));
 assertType('User|null', $collection->firstWhere('string', 'string', 'string'));
 
-assertType('Hypervel\Support\LazyCollection<string, int>', $collection::make(['string'])->flip());
+assertType('Hypervel\Support\LazyCollection<(int|string), int>', $collection::make(['string'])->flip());
 
 assertType('Hypervel\Support\LazyCollection<(int|string), Hypervel\Support\Collection<int, User>>', $collection->groupBy('name'));
 assertType('Hypervel\Support\LazyCollection<(int|string), Hypervel\Support\Collection<int, User>>', $collection->groupBy('name', true));
@@ -886,6 +886,7 @@ assertType('Hypervel\Support\LazyCollection<int, int|string>', $collection::make
 assertType('Hypervel\Support\LazyCollection<int, int>', $collection::make([1])->pad(2, 0));
 assertType('Hypervel\Support\LazyCollection<int, int|string>', $collection::make([1])->pad(2, 'string'));
 assertType('Hypervel\Support\LazyCollection<int, int|User>', $collection->pad(2, 0));
+assertType('Hypervel\Support\LazyCollection<int|string, int|User>', $associativeCollection->pad(2, 0));
 
 assertType('Hypervel\Support\LazyCollection<(int|string), int>', $collection::make([1])->countBy());
 assertType('Hypervel\Support\LazyCollection<(int|string), int>', $collection::make(['string' => 'string'])->countBy('string'));

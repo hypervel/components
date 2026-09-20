@@ -30,7 +30,7 @@
     },
     "require": {
         "php": "^8.4",
-        "guzzlehttp/guzzle": "^7.15.1",
+        "guzzlehttp/guzzle": "^7.15.1 || ^8.2",
         "psr/log": "^3.0",
         "symfony/http-kernel": "^8.1",
         "hypervel/bus": "^0.4",

@@ -16,6 +16,7 @@ use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithSwooleTables;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
@@ -28,6 +29,8 @@ use TypeError;
 
 class CacheSwooleStoreTest extends TestCase
 {
+    use InteractsWithSwooleTables;
+
     public function testCanRetrieveItemsFromStore(): void
     {
         $state = $this->createState();
@@ -79,6 +82,7 @@ class CacheSwooleStoreTest extends TestCase
 
         $manager = new SwooleTableManager($container);
         $first = $manager->get('first');
+        $this->trackSwooleTable($first->table());
 
         $manager->seal();
 
@@ -997,8 +1001,12 @@ class CacheSwooleStoreTest extends TestCase
         float $conflictProportion = 0.2,
         int $hashSeed = 12345
     ): SwooleTableState {
-        return (new SwooleTableManager(m::mock(Container::class)))
+        $state = (new SwooleTableManager(m::mock(Container::class)))
             ->createState($rows, $bytes, $conflictProportion, $hashSeed);
+
+        $this->trackSwooleTable($state->table());
+
+        return $state;
     }
 
     private function createStore(

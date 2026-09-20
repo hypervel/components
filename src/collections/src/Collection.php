@@ -349,6 +349,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
             if ($uniqueItems->isNotEmpty() && $compare($value, $uniqueItems->first())) {
                 $uniqueItems->shift();
             } else {
+                // @phpstan-ignore offsetAssign.dimType (PHPStan 2.2.14 rejects template keys on ArrayAccess)
                 $duplicates[$key] = $value;
             }
         }
@@ -443,8 +444,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Flip the items in the collection.
      *
-     * @return static<TValue, TKey>
-     * @phpstan-ignore generics.notSubtype (TValue becomes key - only valid when TValue is array-key, but can't express this constraint)
+     * @return static<array-key, TKey>
      */
     public function flip(): Collection
     {
@@ -583,6 +583,10 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
                 $resolvedKey = $resolvedKey instanceof UnitEnum
                     ? enum_value($resolvedKey)
                     : (string) $resolvedKey;
+            }
+
+            if (is_null($resolvedKey)) {
+                $resolvedKey = (string) $resolvedKey;
             }
 
             $results[$resolvedKey] = $item;
@@ -1468,6 +1472,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
                 $chunk = $this->newInstance();
             }
 
+            // @phpstan-ignore offsetAssign.dimType (PHPStan 2.2.14 rejects template keys on ArrayAccess)
             $chunk[$key] = $value;
         }
 
@@ -1795,7 +1800,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @template TPadValue
      *
      * @param TPadValue $value
-     * @return static<int, TPadValue|TValue>
+     * @return static<int|TKey, TPadValue|TValue>
      */
     public function pad(int $size, mixed $value): Collection
     {

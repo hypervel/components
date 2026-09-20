@@ -30,18 +30,17 @@ use stdClass;
 
 class CallQueuedHandlerTest extends TestCase
 {
-    public function testJobCanBeDispatched()
+    public function testJobCanBeDispatched(): void
     {
         CallQueuedHandlerTestJob::$handled = false;
 
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
         $job = m::mock(Job::class);
-        $job->shouldReceive('hasFailed')->andReturn(false);
-        $job->shouldReceive('isDeleted')->andReturn(false);
-        $job->shouldReceive('isReleased')->andReturn(false);
-        $job->shouldReceive('isDeletedOrReleased')->andReturn(false);
-        $job->shouldReceive('delete')->once();
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('isReleased')->times(2)->andReturn(false);
+        $job->expects('isDeletedOrReleased')->andReturn(false);
+        $job->expects('delete');
 
         $instance->call($job, [
             'command' => serialize(new CallQueuedHandlerTestJob),
@@ -50,7 +49,7 @@ class CallQueuedHandlerTest extends TestCase
         $this->assertTrue(CallQueuedHandlerTestJob::$handled);
     }
 
-    public function testJobCanBeDispatchedThroughMiddleware()
+    public function testJobCanBeDispatchedThroughMiddleware(): void
     {
         CallQueuedHandlerTestJobWithMiddleware::$handled = false;
         CallQueuedHandlerTestJobWithMiddleware::$middlewareCommand = null;
@@ -58,11 +57,10 @@ class CallQueuedHandlerTest extends TestCase
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
         $job = m::mock(Job::class);
-        $job->shouldReceive('hasFailed')->andReturn(false);
-        $job->shouldReceive('isDeleted')->andReturn(false);
-        $job->shouldReceive('isReleased')->andReturn(false);
-        $job->shouldReceive('isDeletedOrReleased')->andReturn(false);
-        $job->shouldReceive('delete')->once();
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('isReleased')->times(2)->andReturn(false);
+        $job->expects('isDeletedOrReleased')->andReturn(false);
+        $job->expects('delete');
 
         $instance->call($job, [
             'command' => serialize($command = new CallQueuedHandlerTestJobWithMiddleware),
@@ -72,7 +70,7 @@ class CallQueuedHandlerTest extends TestCase
         $this->assertTrue(CallQueuedHandlerTestJobWithMiddleware::$handled);
     }
 
-    public function testJobCanBeDispatchedThroughMiddlewareOnDispatch()
+    public function testJobCanBeDispatchedThroughMiddlewareOnDispatch(): void
     {
         $_SERVER['__test.dispatchMiddleware'] = false;
         CallQueuedHandlerTestJobWithMiddleware::$handled = false;
@@ -81,50 +79,51 @@ class CallQueuedHandlerTest extends TestCase
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
         $job = m::mock(Job::class);
-        $job->shouldReceive('hasFailed')->andReturn(false);
-        $job->shouldReceive('isDeleted')->andReturn(false);
-        $job->shouldReceive('isReleased')->andReturn(false);
-        $job->shouldReceive('isDeletedOrReleased')->andReturn(false);
-        $job->shouldReceive('delete')->once();
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('isReleased')->times(2)->andReturn(false);
+        $job->expects('isDeletedOrReleased')->andReturn(false);
+        $job->expects('delete');
 
         $command = new CallQueuedHandlerTestJobWithMiddleware;
         $command->through([new TestJobMiddleware]);
 
-        $instance->call($job, [
-            'command' => serialize($command),
-        ]);
+        try {
+            $instance->call($job, [
+                'command' => serialize($command),
+            ]);
 
-        $this->assertInstanceOf(CallQueuedHandlerTestJobWithMiddleware::class, CallQueuedHandlerTestJobWithMiddleware::$middlewareCommand);
-        $this->assertTrue(CallQueuedHandlerTestJobWithMiddleware::$handled);
-        $this->assertTrue($_SERVER['__test.dispatchMiddleware']);
+            $this->assertInstanceOf(CallQueuedHandlerTestJobWithMiddleware::class, CallQueuedHandlerTestJobWithMiddleware::$middlewareCommand);
+            $this->assertTrue(CallQueuedHandlerTestJobWithMiddleware::$handled);
+            $this->assertTrue($_SERVER['__test.dispatchMiddleware']);
+        } finally {
+            unset($_SERVER['__test.dispatchMiddleware']);
+        }
     }
 
-    public function testJobIsMarkedAsFailedIfModelNotFoundExceptionIsThrown()
+    public function testJobIsMarkedAsFailedIfModelNotFoundExceptionIsThrown(): void
     {
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
         $job = m::mock(Job::class);
-        $job->shouldReceive('payload')->andReturn(['deleteWhenMissingModels' => false]);
-        $job->shouldReceive('fail')->once();
+        $job->expects('payload')->andReturn(['deleteWhenMissingModels' => false]);
+        $job->expects('fail');
 
         $instance->call($job, [
             'command' => serialize(new CallQueuedHandlerExceptionThrowerWithoutDelete),
         ]);
     }
 
-    public function testJobIsDeletedIfHasDeleteProperty()
+    public function testJobIsDeletedIfHasDeleteProperty(): void
     {
         Event::fake();
 
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
         $job = m::mock(Job::class);
-        $job->shouldReceive('payload')->andReturn(['deleteWhenMissingModels' => true]);
-        $job->shouldReceive('getConnectionName')->andReturn('connection');
-        $job->shouldReceive('resolveQueuedJobClass')->andReturn(CallQueuedHandlerExceptionThrower::class);
+        $job->expects('payload')->andReturn(['deleteWhenMissingModels' => true]);
+        $job->expects('resolveQueuedJobClass')->andReturn(CallQueuedHandlerExceptionThrower::class);
         $job->shouldReceive('markAsFailed')->never();
-        $job->shouldReceive('isDeleted')->andReturn(false);
-        $job->shouldReceive('delete')->once();
+        $job->expects('delete');
         $job->shouldReceive('failed')->never();
 
         $instance->call($job, [
@@ -134,19 +133,17 @@ class CallQueuedHandlerTest extends TestCase
         Event::assertNotDispatched(JobFailed::class);
     }
 
-    public function testJobIsDeletedIfHasDeleteAttribute()
+    public function testJobIsDeletedIfHasDeleteAttribute(): void
     {
         Event::fake();
 
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
         $job = m::mock(Job::class);
-        $job->shouldReceive('payload')->andReturn(['deleteWhenMissingModels' => true]);
-        $job->shouldReceive('getConnectionName')->andReturn('connection');
-        $job->shouldReceive('resolveQueuedJobClass')->andReturn(CallQueuedHandlerAttributeExceptionThrower::class);
+        $job->expects('payload')->andReturn(['deleteWhenMissingModels' => true]);
+        $job->expects('resolveQueuedJobClass')->andReturn(CallQueuedHandlerAttributeExceptionThrower::class);
         $job->shouldReceive('markAsFailed')->never();
-        $job->shouldReceive('isDeleted')->andReturn(false);
-        $job->shouldReceive('delete')->once();
+        $job->expects('delete');
         $job->shouldReceive('failed')->never();
 
         $instance->call($job, [
@@ -156,29 +153,28 @@ class CallQueuedHandlerTest extends TestCase
         Event::assertNotDispatched(JobFailed::class);
     }
 
-    public function testBatchJobIsRecordedWhenDeletedDueToMissingModel()
+    public function testBatchJobIsRecordedWhenDeletedDueToMissingModel(): void
     {
         Event::fake();
 
         $instance = new CallQueuedHandler(new Dispatcher($this->app), $this->app);
 
         $batch = m::mock(Batch::class);
-        $batch->shouldReceive('recordSuccessfulJob')->once()->with('job-uuid');
+        $batch->expects('recordSuccessfulJob')->with('job-uuid');
 
         $repository = m::mock(BatchRepository::class);
-        $repository->shouldReceive('find')->once()->with('test-batch-id')->andReturn($batch);
+        $repository->expects('find')->with('test-batch-id')->andReturn($batch);
         $this->app->instance(BatchRepository::class, $repository);
 
         $serialized = serialize((new CallQueuedHandlerBatchableExceptionThrower)->withBatchId('test-batch-id'));
 
         $job = m::mock(Job::class);
-        $job->shouldReceive('resolveQueuedJobClass')->andReturn(CallQueuedHandlerBatchableExceptionThrower::class);
+        $job->expects('resolveQueuedJobClass')->andReturn(CallQueuedHandlerBatchableExceptionThrower::class);
         $job->shouldReceive('markAsFailed')->never();
-        $job->shouldReceive('isDeleted')->andReturn(false);
-        $job->shouldReceive('delete')->once();
+        $job->expects('delete');
         $job->shouldReceive('failed')->never();
-        $job->shouldReceive('uuid')->andReturn('job-uuid');
-        $job->shouldReceive('payload')->andReturn([
+        $job->expects('uuid')->times(3)->andReturn('job-uuid');
+        $job->expects('payload')->times(2)->andReturn([
             'deleteWhenMissingModels' => true,
             'data' => [
                 'batchId' => 'test-batch-id',
@@ -196,7 +192,7 @@ class CallQueuedHandlerTest extends TestCase
     public function testUniqueJobLockIsReleasedViaContextOnModelNotFound(): void
     {
         $lock = m::mock(Lock::class);
-        $lock->shouldReceive('forceRelease')->once();
+        $lock->expects('forceRelease');
 
         $cache = m::mock(Cache::class);
         $cache->shouldReceive('lock')->with('laravel_unique_job:TestJob:42')->andReturn($lock);
@@ -214,7 +210,7 @@ class CallQueuedHandlerTest extends TestCase
 
         $job = m::mock(Job::class);
         $job->shouldReceive('payload')->andReturn(['deleteWhenMissingModels' => false]);
-        $job->shouldReceive('fail')->once();
+        $job->expects('fail');
 
         $instance->call($job, [
             'command' => serialize(new CallQueuedHandlerExceptionThrowerWithoutDelete),
@@ -224,12 +220,11 @@ class CallQueuedHandlerTest extends TestCase
     public function testUniqueJobLockOwnerIsRestoredViaContextOnModelNotFound(): void
     {
         $lock = m::mock(Lock::class);
-        $lock->shouldReceive('release')->once();
+        $lock->expects('release');
 
         $cache = m::mock(Cache::class);
-        $cache->shouldReceive('getStore')->once()->andReturn(new WorkerArrayStore);
-        $cache->shouldReceive('restoreLock')
-            ->once()
+        $cache->expects('getStore')->andReturn(new WorkerArrayStore);
+        $cache->expects('restoreLock')
             ->with('laravel_unique_job:TestJob:42', 'owner-token')
             ->andReturn($lock);
         $cache->shouldNotReceive('lock');
@@ -248,7 +243,7 @@ class CallQueuedHandlerTest extends TestCase
 
         $job = m::mock(Job::class);
         $job->shouldReceive('payload')->andReturn(['deleteWhenMissingModels' => false]);
-        $job->shouldReceive('fail')->once();
+        $job->expects('fail');
 
         $instance->call($job, [
             'command' => serialize(new CallQueuedHandlerExceptionThrowerWithoutDelete),
@@ -258,13 +253,13 @@ class CallQueuedHandlerTest extends TestCase
     public function testDebouncedJobEventIsSkippedWithoutListeners(): void
     {
         $events = m::mock(EventDispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(JobDebounced::class)->andReturnFalse();
+        $events->expects('hasListeners')->with(JobDebounced::class)->andReturnFalse();
         $events->shouldNotReceive('dispatch');
         $this->app->instance('events', $events);
 
         $job = m::mock(Job::class);
         $job->shouldNotReceive('getConnectionName');
-        $job->shouldReceive('delete')->once();
+        $job->expects('delete');
 
         $handler = new TestableCallQueuedHandler(new Dispatcher($this->app), $this->app);
         $handler->deleteDebounced($job, new stdClass);
@@ -275,6 +270,9 @@ class CallQueuedHandlerTest extends TestCase
         $command = new class {
             public string $debounceOwner = 'old-owner';
 
+            /**
+             * Get the debounce identifier.
+             */
             public function debounceId(): string
             {
                 return 'entity-1';
@@ -282,7 +280,7 @@ class CallQueuedHandlerTest extends TestCase
         };
 
         $cache = m::mock(Cache::class);
-        $cache->shouldReceive('get')->once()->with(DebounceLock::getKey($command))->andReturn('new-owner');
+        $cache->expects('get')->with(DebounceLock::getKey($command))->andReturn('new-owner');
         $this->app->instance(Cache::class, $cache);
 
         $handler = new TestableCallQueuedHandler(new Dispatcher($this->app), $this->app);
@@ -295,8 +293,8 @@ class CallQueuedHandlerTest extends TestCase
         Event::fake([JobDebounced::class]);
 
         $job = m::mock(Job::class);
-        $job->shouldReceive('getConnectionName')->once()->andReturn('database');
-        $job->shouldReceive('delete')->once();
+        $job->expects('getConnectionName')->andReturn('database');
+        $job->expects('delete');
 
         $command = new stdClass;
         $handler = new TestableCallQueuedHandler(new Dispatcher($this->app), $this->app);
@@ -312,11 +310,17 @@ class CallQueuedHandlerTest extends TestCase
 
 class TestableCallQueuedHandler extends CallQueuedHandler
 {
+    /**
+     * Determine whether the command was superseded.
+     */
     public function shouldDebounce(mixed $command): bool
     {
         return $this->commandShouldBeDebounced($command);
     }
 
+    /**
+     * Delete a superseded job.
+     */
     public function deleteDebounced(Job $job, mixed $command): void
     {
         $this->deleteDebouncedJob($job, $command);
@@ -329,7 +333,10 @@ class CallQueuedHandlerTestJob
 
     public static bool $handled = false;
 
-    public function handle()
+    /**
+     * Handle the job.
+     */
+    public function handle(): void
     {
         static::$handled = true;
     }
@@ -340,11 +347,17 @@ abstract class AbstractCallQueuedHandlerTestJobWithMiddleware
 {
     public static mixed $middlewareCommand = null;
 
-    public function middleware()
+    /**
+     * Get the job middleware.
+     */
+    public function middleware(): array
     {
         return [
             new class {
-                public function handle($command, $next)
+                /**
+                 * Record and pass the command to the next middleware.
+                 */
+                public function handle(object $command, callable $next): mixed
                 {
                     AbstractCallQueuedHandlerTestJobWithMiddleware::$middlewareCommand = $command;
 
@@ -362,7 +375,10 @@ class CallQueuedHandlerTestJobWithMiddleware extends AbstractCallQueuedHandlerTe
 
     public static bool $handled = false;
 
-    public function handle()
+    /**
+     * Handle the job.
+     */
+    public function handle(): void
     {
         static::$handled = true;
     }
@@ -372,11 +388,17 @@ class CallQueuedHandlerExceptionThrower
 {
     public bool $deleteWhenMissingModels = true;
 
-    public function handle()
+    /**
+     * Handle the job.
+     */
+    public function handle(): void
     {
     }
 
-    public function __wakeup()
+    /**
+     * Fail to restore a missing model.
+     */
+    public function __wakeup(): void
     {
         throw new ModelNotFoundException('Foo');
     }
@@ -384,11 +406,17 @@ class CallQueuedHandlerExceptionThrower
 
 class CallQueuedHandlerExceptionThrowerWithoutDelete
 {
-    public function handle()
+    /**
+     * Handle the job.
+     */
+    public function handle(): void
     {
     }
 
-    public function __wakeup()
+    /**
+     * Fail to restore a missing model.
+     */
+    public function __wakeup(): void
     {
         throw new ModelNotFoundException('Foo');
     }
@@ -397,11 +425,17 @@ class CallQueuedHandlerExceptionThrowerWithoutDelete
 #[DeleteWhenMissingModels]
 class CallQueuedHandlerAttributeExceptionThrower
 {
-    public function handle()
+    /**
+     * Handle the job.
+     */
+    public function handle(): void
     {
     }
 
-    public function __wakeup()
+    /**
+     * Fail to restore a missing model.
+     */
+    public function __wakeup(): void
     {
         throw new ModelNotFoundException('Foo');
     }
@@ -413,11 +447,17 @@ class CallQueuedHandlerBatchableExceptionThrower
     use Batchable;
     use InteractsWithQueue;
 
-    public function handle()
+    /**
+     * Handle the job.
+     */
+    public function handle(): void
     {
     }
 
-    public function __wakeup()
+    /**
+     * Fail to restore a missing model.
+     */
+    public function __wakeup(): void
     {
         throw new ModelNotFoundException('Foo');
     }
@@ -425,7 +465,10 @@ class CallQueuedHandlerBatchableExceptionThrower
 
 class TestJobMiddleware
 {
-    public function handle($command, $next)
+    /**
+     * Record and pass the command to the next middleware.
+     */
+    public function handle(object $command, callable $next): mixed
     {
         $_SERVER['__test.dispatchMiddleware'] = true;
 

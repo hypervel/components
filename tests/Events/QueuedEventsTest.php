@@ -39,14 +39,14 @@ use Mockery as m;
 
 class QueuedEventsTest extends TestCase
 {
-    public function testQueuedEventHandlersAreQueued()
+    public function testQueuedEventHandlersAreQueued(): void
     {
         $d = new Dispatcher;
         $factory = m::mock(QueueFactory::class);
         $queue = m::mock(Queue::class);
 
-        $factory->shouldReceive('connection')->once()->with(null)->andReturn($queue);
-        $queue->shouldReceive('pushOn')->once()->with(null, m::type(CallQueuedListener::class));
+        $factory->expects('connection')->with(null)->andReturn($queue);
+        $queue->expects('pushOn')->with(null, m::type(CallQueuedListener::class));
 
         $d->setQueueResolver(function () use ($factory) {
             return $factory;
@@ -107,14 +107,14 @@ class QueuedEventsTest extends TestCase
         $fakeQueue->assertPushedOn('some_other_queue', CallQueuedListener::class);
     }
 
-    public function testQueueIsSetByGetConnection()
+    public function testQueueIsSetByGetConnection(): void
     {
         $d = new Dispatcher;
         $factory = m::mock(QueueFactory::class);
         $queue = m::mock(Queue::class);
 
-        $factory->shouldReceive('connection')->once()->with('some_other_connection')->andReturn($queue);
-        $queue->shouldReceive('pushOn')->once()->with(null, m::type(CallQueuedListener::class));
+        $factory->expects('connection')->with('some_other_connection')->andReturn($queue);
+        $queue->expects('pushOn')->with(null, m::type(CallQueuedListener::class));
 
         $d->setQueueResolver(function () use ($factory) {
             return $factory;
@@ -138,14 +138,14 @@ class QueuedEventsTest extends TestCase
         $dispatcher->dispatch('some.event', ['foo', 'bar']);
     }
 
-    public function testDelayIsSetByWithDelay()
+    public function testDelayIsSetByWithDelay(): void
     {
         $d = new Dispatcher;
         $factory = m::mock(QueueFactory::class);
         $queue = m::mock(Queue::class);
 
-        $factory->shouldReceive('connection')->once()->with(null)->andReturn($queue);
-        $queue->shouldReceive('laterOn')->once()->with(null, 20, m::type(CallQueuedListener::class));
+        $factory->expects('connection')->with(null)->andReturn($queue);
+        $queue->expects('laterOn')->with(null, 20, m::type(CallQueuedListener::class));
 
         $d->setQueueResolver(function () use ($factory) {
             return $factory;
@@ -294,14 +294,14 @@ class QueuedEventsTest extends TestCase
         $dispatcher->dispatch('some.event', ['foo', 'bar']);
     }
 
-    public function testDelayIsSetByWithDelayDynamically()
+    public function testDelayIsSetByWithDelayDynamically(): void
     {
         $d = new Dispatcher;
         $factory = m::mock(QueueFactory::class);
         $queue = m::mock(Queue::class);
 
-        $factory->shouldReceive('connection')->once()->with(null)->andReturn($queue);
-        $queue->shouldReceive('laterOn')->once()->with(null, 60, m::type(CallQueuedListener::class));
+        $factory->expects('connection')->with(null)->andReturn($queue);
+        $queue->expects('laterOn')->with(null, 60, m::type(CallQueuedListener::class));
 
         $d->setQueueResolver(function () use ($factory) {
             return $factory;
@@ -490,7 +490,7 @@ class QueuedEventsTest extends TestCase
         $fakeQueue->assertPushedOn('enumerated-queue', CallQueuedListener::class);
     }
 
-    public function testQueuePropagatesShouldBeUnique()
+    public function testQueuePropagatesShouldBeUnique(): void
     {
         $container = new Container;
         $d = new Dispatcher($container);
@@ -501,10 +501,10 @@ class QueuedEventsTest extends TestCase
 
         $container->instance(Cache::class, $cache);
 
-        $cache->shouldReceive('getStore')->once()->andReturn(m::mock(CacheStore::class, LockProvider::class));
-        $cache->shouldReceive('lock')->once()->andReturn($lock);
-        $lock->shouldReceive('get')->once()->andReturn(true);
-        $lock->shouldReceive('owner')->once()->andReturn('unique-lock-owner');
+        $cache->expects('getStore')->andReturn(m::mock(CacheStore::class, LockProvider::class));
+        $cache->expects('lock')->andReturn($lock);
+        $lock->expects('get')->andReturn(true);
+        $lock->expects('owner')->andReturn('unique-lock-owner');
 
         $d->setQueueResolver(function () use ($fakeQueue) {
             return $fakeQueue;
@@ -521,7 +521,7 @@ class QueuedEventsTest extends TestCase
         });
     }
 
-    public function testUniqueListenerNotQueuedWhenLockNotAcquired()
+    public function testUniqueListenerNotQueuedWhenLockNotAcquired(): void
     {
         $container = new Container;
         $d = new Dispatcher($container);
@@ -532,9 +532,9 @@ class QueuedEventsTest extends TestCase
 
         $container->instance(Cache::class, $cache);
 
-        $cache->shouldReceive('getStore')->once()->andReturn(m::mock(CacheStore::class, LockProvider::class));
-        $cache->shouldReceive('lock')->once()->andReturn($lock);
-        $lock->shouldReceive('get')->once()->andReturn(false);
+        $cache->expects('getStore')->andReturn(m::mock(CacheStore::class, LockProvider::class));
+        $cache->expects('lock')->andReturn($lock);
+        $lock->expects('get')->andReturn(false);
 
         $d->setQueueResolver(function () use ($fakeQueue) {
             return $fakeQueue;
@@ -546,7 +546,7 @@ class QueuedEventsTest extends TestCase
         $fakeQueue->assertNothingPushed();
     }
 
-    public function testQueuePropagatesShouldBeUniqueUntilProcessing()
+    public function testQueuePropagatesShouldBeUniqueUntilProcessing(): void
     {
         $container = new Container;
         $d = new Dispatcher($container);
@@ -557,10 +557,10 @@ class QueuedEventsTest extends TestCase
 
         $container->instance(Cache::class, $cache);
 
-        $cache->shouldReceive('getStore')->once()->andReturn(m::mock(CacheStore::class, LockProvider::class));
-        $cache->shouldReceive('lock')->once()->andReturn($lock);
-        $lock->shouldReceive('get')->once()->andReturn(true);
-        $lock->shouldReceive('owner')->once()->andReturn('unique-lock-owner');
+        $cache->expects('getStore')->andReturn(m::mock(CacheStore::class, LockProvider::class));
+        $cache->expects('lock')->andReturn($lock);
+        $lock->expects('get')->andReturn(true);
+        $lock->expects('owner')->andReturn('unique-lock-owner');
 
         $d->setQueueResolver(function () use ($fakeQueue) {
             return $fakeQueue;
@@ -575,7 +575,7 @@ class QueuedEventsTest extends TestCase
         });
     }
 
-    public function testQueuePropagatesUniqueIdFromMethod()
+    public function testQueuePropagatesUniqueIdFromMethod(): void
     {
         $container = new Container;
         $d = new Dispatcher($container);
@@ -586,10 +586,10 @@ class QueuedEventsTest extends TestCase
 
         $container->instance(Cache::class, $cache);
 
-        $cache->shouldReceive('getStore')->once()->andReturn(m::mock(CacheStore::class, LockProvider::class));
-        $cache->shouldReceive('lock')->once()->andReturn($lock);
-        $lock->shouldReceive('get')->once()->andReturn(true);
-        $lock->shouldReceive('owner')->once()->andReturn('unique-lock-owner');
+        $cache->expects('getStore')->andReturn(m::mock(CacheStore::class, LockProvider::class));
+        $cache->expects('lock')->andReturn($lock);
+        $lock->expects('get')->andReturn(true);
+        $lock->expects('owner')->andReturn('unique-lock-owner');
 
         $d->setQueueResolver(function () use ($fakeQueue) {
             return $fakeQueue;
@@ -616,7 +616,7 @@ class QueuedEventsTest extends TestCase
         );
     }
 
-    public function testUniqueLockIsAcquiredWithListenerClassName()
+    public function testUniqueLockIsAcquiredWithListenerClassName(): void
     {
         $container = new Container;
         $d = new Dispatcher($container);
@@ -629,13 +629,12 @@ class QueuedEventsTest extends TestCase
 
         $expectedKey = 'laravel_unique_job:' . hash('xxh128', TestDispatcherShouldBeUnique::class) . ':unique-listener-id';
 
-        $cache->shouldReceive('lock')
-            ->once()
+        $cache->expects('lock')
             ->with($expectedKey, 60)
             ->andReturn($lock);
-        $cache->shouldReceive('getStore')->once()->andReturn(m::mock(CacheStore::class, LockProvider::class));
-        $lock->shouldReceive('get')->once()->andReturn(true);
-        $lock->shouldReceive('owner')->once()->andReturn('unique-lock-owner');
+        $cache->expects('getStore')->andReturn(m::mock(CacheStore::class, LockProvider::class));
+        $lock->expects('get')->andReturn(true);
+        $lock->expects('owner')->andReturn('unique-lock-owner');
 
         $d->setQueueResolver(function () use ($fakeQueue) {
             return $fakeQueue;
@@ -647,7 +646,7 @@ class QueuedEventsTest extends TestCase
         $fakeQueue->assertPushed(CallQueuedListener::class);
     }
 
-    public function testUniqueViaUsesListenerCacheRepository()
+    public function testUniqueViaUsesListenerCacheRepository(): void
     {
         $container = new Container;
         $d = new Dispatcher($container);
@@ -665,13 +664,12 @@ class QueuedEventsTest extends TestCase
 
         $expectedKey = 'laravel_unique_job:' . hash('xxh128', TestDispatcherShouldBeUniqueWithCustomCache::class) . ':unique-listener-id';
 
-        $uniqueCache->shouldReceive('lock')
-            ->once()
+        $uniqueCache->expects('lock')
             ->with($expectedKey, 60)
             ->andReturn($lock);
-        $uniqueCache->shouldReceive('getStore')->once()->andReturn(m::mock(CacheStore::class, LockProvider::class));
-        $lock->shouldReceive('get')->once()->andReturn(true);
-        $lock->shouldReceive('owner')->once()->andReturn('unique-lock-owner');
+        $uniqueCache->expects('getStore')->andReturn(m::mock(CacheStore::class, LockProvider::class));
+        $lock->expects('get')->andReturn(true);
+        $lock->expects('owner')->andReturn('unique-lock-owner');
 
         $d->setQueueResolver(function () use ($fakeQueue) {
             return $fakeQueue;
@@ -683,7 +681,7 @@ class QueuedEventsTest extends TestCase
         $fakeQueue->assertPushed(CallQueuedListener::class);
     }
 
-    public function testUniqueLockIsReleasedOnProcessingWithListenerClassName()
+    public function testUniqueLockIsReleasedOnProcessingWithListenerClassName(): void
     {
         $container = new Container;
         $cache = m::mock(Cache::class);
@@ -699,18 +697,16 @@ class QueuedEventsTest extends TestCase
 
         $expectedKey = 'laravel_unique_job:' . hash('xxh128', TestDispatcherShouldBeUnique::class) . ':unique-listener-id';
 
-        $cache->shouldReceive('lock')
-            ->once()
+        $cache->expects('lock')
             ->with($expectedKey)
             ->andReturn($lock);
-        $lock->shouldReceive('forceRelease')->once();
+        $lock->expects('forceRelease');
 
         $job = m::mock(Job::class);
-        $job->shouldReceive('hasFailed')->andReturn(false);
-        $job->shouldReceive('isDeleted')->andReturn(false);
-        $job->shouldReceive('isReleased')->andReturn(false);
-        $job->shouldReceive('isDeletedOrReleased')->andReturn(false);
-        $job->shouldReceive('delete')->once();
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('isReleased')->times(2)->andReturn(false);
+        $job->expects('isDeletedOrReleased')->andReturn(false);
+        $job->expects('delete');
 
         $handler = new CallQueuedHandler(new BusDispatcher($container), $container);
         $handler->call($job, ['command' => serialize($listener)]);
@@ -737,12 +733,11 @@ class QueuedEventsTest extends TestCase
         $this->assertTrue($cache->lock($expectedKey, 10)->get());
 
         $job = m::mock(Job::class);
-        $job->shouldReceive('hasFailed')->andReturn(false);
-        $job->shouldReceive('isDeleted')->andReturn(false);
-        $job->shouldReceive('isReleased')->andReturn(false);
-        $job->shouldReceive('attempts')->andReturn(1);
-        $job->shouldReceive('isDeletedOrReleased')->andReturn(false);
-        $job->shouldReceive('delete')->once();
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('isReleased')->times(2)->andReturn(false);
+        $job->expects('attempts')->andReturn(1);
+        $job->expects('isDeletedOrReleased')->andReturn(false);
+        $job->expects('delete');
 
         $handler = new CallQueuedHandler(new BusDispatcher($container), $container);
         $handler->call($job, ['command' => serialize($listener)]);
@@ -787,8 +782,8 @@ class QueuedEventsTest extends TestCase
 
         $container->instance(Cache::class, $cache);
 
-        $factory->shouldReceive('connection')->once()->with(null)->andReturn($queue);
-        $queue->shouldReceive('laterOn')->once()->with(null, 20, m::on(function (CallQueuedListener $job) use ($cache): bool {
+        $factory->expects('connection')->with(null)->andReturn($queue);
+        $queue->expects('laterOn')->with(null, 20, m::on(function (CallQueuedListener $job) use ($cache): bool {
             $expectedKey = 'laravel_debounced_job:' . hash('xxh128', TestDispatcherDebouncedHandlerWithDelay::class) . ':event-123';
 
             return $job->debounceOwner !== ''
@@ -812,13 +807,13 @@ class QueuedEventsTest extends TestCase
 
         $container->instance(Cache::class, $cache);
 
-        $factory->shouldReceive('connection')->twice()->with(null)->andReturn($queue);
-        $queue->shouldReceive('laterOn')->once()->with(null, 30, m::on(function (CallQueuedListener $job): bool {
+        $factory->expects('connection')->twice()->with(null)->andReturn($queue);
+        $queue->expects('laterOn')->with(null, 30, m::on(function (CallQueuedListener $job): bool {
             DispatchLockContext::accept($job);
 
             return true;
         }))->ordered();
-        $queue->shouldReceive('laterOn')->once()->with(null, 0, m::on(function (CallQueuedListener $job): bool {
+        $queue->expects('laterOn')->with(null, 0, m::on(function (CallQueuedListener $job): bool {
             DispatchLockContext::accept($job);
 
             return true;

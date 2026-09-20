@@ -10,6 +10,7 @@ use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\Component;
+use Hypervel\View\ComponentAttributeBag;
 use Mockery as m;
 use ReflectionClassConstant;
 use RuntimeException;
@@ -91,11 +92,18 @@ class BladeComponentsTest extends AbstractBladeTestCase
 
     public function testPropsAreExtractedFromParentAttributesCorrectlyForClassComponents(): void
     {
-        $component = m::mock(ComponentStub::class);
-        $component->shouldReceive('withName', 'test');
-        $component->shouldReceive('shouldRender')->andReturn(false);
+        $attributes = new ComponentAttributeBag(['foo' => 'baz', 'other' => 'ok']);
 
-        Component::resolveComponentsUsing(fn () => $component);
+        $component = m::mock(ComponentStub::class);
+        $component->expects('withName')->with('test')->andReturnSelf();
+        $component->expects('shouldRender')->andReturn(false);
+
+        $resolvedData = null;
+        Component::resolveComponentsUsing(function (string $componentClass, array $data) use ($component, &$resolvedData): Component {
+            $resolvedData = $data;
+
+            return $component;
+        });
 
         $template = $this->compiler->compileString('@component(\'Hypervel\Tests\View\Blade\ComponentStub::class\', \'test\', ["foo" => "bar"])');
 
@@ -103,6 +111,7 @@ class BladeComponentsTest extends AbstractBladeTestCase
         eval(" ?> {$template} <?php endif; ");
 
         $this->assertSame('', trim((string) ob_get_clean()));
+        $this->assertSame(['foo' => 'bar', 'other' => 'ok'], $resolvedData);
     }
 
     private function expectedEndComponentClass(): string

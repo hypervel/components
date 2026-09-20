@@ -6,6 +6,8 @@ namespace Hypervel\Tests\Database;
 
 use Closure;
 use Hypervel\Database\Connection;
+use Hypervel\Database\MariaDbConnection;
+use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Database\Schema\ColumnDefinition;
@@ -13,32 +15,30 @@ use Hypervel\Database\Schema\ForeignIdColumnDefinition;
 use Hypervel\Database\Schema\ForeignKeyDefinition;
 use Hypervel\Database\Schema\Grammars\MySqlGrammar;
 use Hypervel\Database\Schema\IndexDefinition;
+use Hypervel\Foundation\Auth\User as Authenticatable;
 use Hypervel\Support\Fluent;
+use Hypervel\Tests\Database\Fixtures\Models\EloquentModelUsingNonIncrementedInt;
+use Hypervel\Tests\Database\Fixtures\Models\EloquentModelUsingUlid;
+use Hypervel\Tests\Database\Fixtures\Models\EloquentModelUsingUuid;
 use Hypervel\Tests\Database\Fixtures\Models\User;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use LogicException;
 use Mockery as m;
+use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseSchemaBlueprintTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Builder::$defaultMorphKeyType = 'int';
-
-        parent::tearDown();
-    }
-
-    public function testBuildDelegatesToTheConnectionOwnedBuilder(): void
+    public function testToSqlRunsCommandsFromBlueprint(): void
     {
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(new MySqlGrammar($connection));
-        $builder = m::mock(Builder::class);
-        $blueprint = new Blueprint($connection, 'users');
-
-        $connection->shouldReceive('getSchemaBuilder')->once()->andReturn($builder);
-        $builder->shouldReceive('executeBlueprint')->once()->with($blueprint);
+        $connection->shouldReceive('getSchemaGrammar')->andReturn(new MySqlGrammar($connection));
+        $connection->expects('statement')->with('foo')->andReturnTrue()->ordered();
+        $connection->expects('statement')->with('bar')->andReturnTrue()->ordered();
+        $connection->expects('getSchemaBuilder')->andReturn(new Builder($connection));
+        $blueprint = $this->getMockBuilder(Blueprint::class)->onlyMethods(['toSql'])->setConstructorArgs([$connection, 'users'])->getMock();
+        $blueprint->expects($this->once())->method('toSql')->willReturn(['foo', 'bar']);
 
         $blueprint->build();
     }
@@ -714,7 +714,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->foreignIdFor(\Hypervel\Foundation\Auth\User::class);
+                $table->foreignIdFor(Authenticatable::class);
             })->toSql();
         };
 
@@ -727,7 +727,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->foreignIdFor(Fixtures\Models\EloquentModelUsingNonIncrementedInt::class);
+                $table->foreignIdFor(EloquentModelUsingNonIncrementedInt::class);
             })->toSql();
         };
 
@@ -740,7 +740,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->foreignIdFor(Fixtures\Models\EloquentModelUsingUuid::class);
+                $table->foreignIdFor(EloquentModelUsingUuid::class);
             })->toSql();
         };
 
@@ -753,7 +753,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->foreignUuidFor(Fixtures\Models\EloquentModelUsingUuid::class);
+                $table->foreignUuidFor(EloquentModelUsingUuid::class);
             })->toSql();
         };
 
@@ -766,7 +766,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->foreignIdFor(Fixtures\Models\EloquentModelUsingUlid::class);
+                $table->foreignIdFor(EloquentModelUsingUlid::class);
             })->toSql();
         };
 
@@ -779,11 +779,24 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ], $getSql('MySql'));
     }
 
+    public function testGenerateUlidRelationshipColumnWithUlidModel(): void
+    {
+        $getSql = function (string $grammar): array {
+            return $this->getBlueprint($grammar, 'posts', function (Blueprint $table): void {
+                $table->foreignUlidFor(EloquentModelUsingUlid::class);
+            })->toSql();
+        };
+
+        $this->assertEquals([
+            'alter table `posts` add `model_using_ulid_id` char(26) not null',
+        ], $getSql('MySql'));
+    }
+
     public function testGenerateRelationshipConstrainedColumn()
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->foreignIdFor(\Hypervel\Foundation\Auth\User::class)->constrained();
+                $table->foreignIdFor(Authenticatable::class)->constrained();
             })->toSql();
         };
 
@@ -797,13 +810,27 @@ class DatabaseSchemaBlueprintTest extends TestCase
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->foreignUuidFor(Fixtures\Models\EloquentModelUsingUuid::class)->constrained();
+                $table->foreignUuidFor(EloquentModelUsingUuid::class)->constrained();
             })->toSql();
         };
 
         $this->assertEquals([
             'alter table `posts` add `model_using_uuid_id` char(36) not null',
             'alter table `posts` add constraint `posts_model_using_uuid_id_foreign` foreign key (`model_using_uuid_id`) references `model` (`id`)',
+        ], $getSql('MySql'));
+    }
+
+    public function testGenerateUlidRelationshipConstrainedColumn(): void
+    {
+        $getSql = function (string $grammar): array {
+            return $this->getBlueprint($grammar, 'posts', function (Blueprint $table): void {
+                $table->foreignUlidFor(EloquentModelUsingUlid::class)->constrained();
+            })->toSql();
+        };
+
+        $this->assertEquals([
+            'alter table `posts` add `model_using_ulid_id` char(26) not null',
+            'alter table `posts` add constraint `posts_model_using_ulid_id_foreign` foreign key (`model_using_ulid_id`) references `model` (`id`)',
         ], $getSql('MySql'));
     }
 
@@ -825,7 +852,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->dropForeignIdFor(\Hypervel\Foundation\Auth\User::class);
+                $table->dropForeignIdFor(Authenticatable::class);
             })->toSql();
         };
 
@@ -838,7 +865,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->dropForeignIdFor(Fixtures\Models\EloquentModelUsingUuid::class);
+                $table->dropForeignIdFor(EloquentModelUsingUuid::class);
             })->toSql();
         };
 
@@ -851,7 +878,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->dropConstrainedForeignIdFor(\Hypervel\Foundation\Auth\User::class);
+                $table->dropConstrainedForeignIdFor(Authenticatable::class);
             })->toSql();
         };
 
@@ -865,7 +892,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->dropConstrainedForeignIdFor(Fixtures\Models\EloquentModelUsingUuid::class);
+                $table->dropConstrainedForeignIdFor(EloquentModelUsingUuid::class);
             })->toSql();
         };
 
@@ -973,14 +1000,20 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table `posts` add `note` tinytext not null default \'this\'\'ll work too\''], $getSql('MySql'));
     }
 
-    protected function getConnection(?string $grammar = null, string $prefix = '')
+    /**
+     * Get a connection mock.
+     */
+    protected function getConnection(?string $grammar = null, string $prefix = ''): Connection&MockInterface
     {
-        $connection = m::mock(Connection::class)
-            ->shouldReceive('getTablePrefix')->andReturn($prefix)
-            ->shouldReceive('getConfig')->with('prefix_indexes')->andReturn(true)
-            ->getMock();
-
         $grammar ??= 'MySql';
+        $connection = m::mock(match ($grammar) {
+            'MySql' => MySqlConnection::class,
+            'MariaDb' => MariaDbConnection::class,
+            default => Connection::class,
+        });
+        $connection->shouldReceive('getTablePrefix')->andReturn($prefix);
+        $connection->shouldReceive('getConfig')->with('prefix_indexes')->andReturn(true);
+
         $grammarClass = 'Hypervel\Database\Schema\Grammars\\' . $grammar . 'Grammar';
         $builderClass = 'Hypervel\Database\Schema\\' . $grammar . 'Builder';
 
@@ -995,9 +1028,17 @@ class DatabaseSchemaBlueprintTest extends TestCase
             $connection->shouldReceive('isMaria')->andReturn(false);
         }
 
+        if ($connection instanceof MySqlConnection) {
+            $connection->shouldReceive('usesBackslashEscapes')->passthru();
+            $connection->shouldReceive('getConfig')->with('modes')->andReturn(null);
+        }
+
         return $connection;
     }
 
+    /**
+     * Get a blueprint for the schema grammar.
+     */
     protected function getBlueprint(
         ?string $grammar = null,
         string $table = '',

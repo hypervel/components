@@ -785,7 +785,9 @@ class Collection extends BaseCollection implements QueueableCollection
     }
 
     /**
-     * @return \Hypervel\Support\Collection<TModel, TKey>
+     * Flip the items in the collection.
+     *
+     * @return BaseCollection<array-key, TKey>
      */
     #[Override]
     public function flip(): BaseCollection
@@ -803,9 +805,11 @@ class Collection extends BaseCollection implements QueueableCollection
     }
 
     /**
+     * Pad collection to the specified length with a value.
+     *
      * @template TPadValue
      *
-     * @return \Hypervel\Support\Collection<int, TModel|TPadValue>
+     * @return \Hypervel\Support\Collection<int|TKey, TModel|TPadValue>
      */
     #[Override]
     public function pad(int $size, mixed $value): BaseCollection

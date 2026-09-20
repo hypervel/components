@@ -454,6 +454,16 @@ class FormRequestCastingTest extends TestCase
         $this->assertArrayNotHasKey('theme', $validated['groups']);
     }
 
+    public function testWildcardCastsPreserveEmptyKeys(): void
+    {
+        $request = $this->validateRequest(ConfigurableCastPathsRequest::class, [
+            'cast_declarations' => ['orders.*' => 'int'],
+            'orders' => ['' => '21', 'other' => '34'],
+        ]);
+
+        $this->assertSame(['' => 21, 'other' => 34], $request->validated('orders'));
+    }
+
     /**
      * Test encoded cast paths preserve literal keys in native and custom cast values.
      */

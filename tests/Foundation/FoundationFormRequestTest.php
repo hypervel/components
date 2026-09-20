@@ -20,6 +20,8 @@ use Hypervel\Http\RedirectResponse;
 use Hypervel\Routing\Redirector;
 use Hypervel\Routing\UrlGenerator;
 use Hypervel\Tests\TestCase;
+use Hypervel\Translation\ArrayLoader;
+use Hypervel\Translation\Translator as TranslatorConcrete;
 use Hypervel\Validation\Factory as ValidationFactory;
 use Hypervel\Validation\ValidationException;
 use Mockery as m;
@@ -90,8 +92,6 @@ class FoundationFormRequestTest extends TestCase
 
         $request = $this->createRequest(['no' => 'name']);
 
-        $this->mocks['redirect']->shouldReceive('withInput->withErrors');
-
         $request->validateResolved();
     }
 
@@ -108,16 +108,14 @@ class FoundationFormRequestTest extends TestCase
 
     public function testValidateMethodThrowsWhenAuthorizationFails(): void
     {
-        $this->expectException(AuthorizationException::class);
-        $this->expectExceptionMessage('This action is unauthorized.');
+        $this->expectExceptionObject(new AuthorizationException('This action is unauthorized.'));
 
         $this->createRequest([], FoundationTestFormRequestForbiddenStub::class)->validateResolved();
     }
 
     public function testValidateThrowsExceptionFromAuthorizationResponse(): void
     {
-        $this->expectException(AuthorizationException::class);
-        $this->expectExceptionMessage('foo');
+        $this->expectExceptionObject(new AuthorizationException('foo'));
 
         $this->createRequest([], FoundationTestFormRequestForbiddenWithResponseStub::class)->validateResolved();
     }
@@ -191,7 +189,7 @@ class FoundationFormRequestTest extends TestCase
         };
         $request->setContainer($container = new Container);
         $container->instance(ValidationFactoryContract::class, (new ValidationFactory(
-            new \Hypervel\Translation\Translator(new \Hypervel\Translation\ArrayLoader, 'en')
+            new TranslatorConcrete(new ArrayLoader, 'en')
         ))->setContainer($container));
         $container->instance(InjectedDependency::class, new InjectedDependency('value-from-dependency'));
 
@@ -361,6 +359,7 @@ class FoundationFormRequestTest extends TestCase
         );
     }
 
+    // REMOVED: WildcardMatchesSingleSegmentOnly rejects valid contents of an opaque array rule.
     public function testFailOnUnknownFieldsAllowsContentsOfWildcardArrayRules(): void
     {
         $request = $this->createRequest(
@@ -380,6 +379,62 @@ class FoundationFormRequestTest extends TestCase
                 ['name' => 'a'],
             ],
         ], $request->validated());
+    }
+
+    public function testFailOnUnknownFieldsRejectsLiteralDottedKeysOnlyMatchingNestedRules(): void
+    {
+        $request = $this->createRequest(
+            ['profile.name' => 'not-an-integer'],
+            FoundationTestFormRequestFailOnUnknownFieldsLiteralDotStub::class,
+            'POST'
+        );
+
+        $exception = $this->catchException(ValidationException::class, function () use ($request): void {
+            $request->validateResolved();
+        });
+
+        $this->assertTrue($exception->validator->errors()->has('profile.name'));
+    }
+
+    public function testFailOnUnknownFieldsRejectsLiteralDottedKeysOnlyMatchingWildcardRules(): void
+    {
+        $request = $this->createRequest(
+            ['items.0.id' => 'not-an-integer'],
+            FoundationTestFormRequestFailOnUnknownFieldsSometimesWildcardStub::class,
+            'POST'
+        );
+
+        $exception = $this->catchException(ValidationException::class, function () use ($request): void {
+            $request->validateResolved();
+        });
+
+        $this->assertTrue($exception->validator->errors()->has('items.0.id'));
+    }
+
+    public function testFailOnUnknownFieldsAllowsLiteralDottedKeysMatchingEscapedDotRules(): void
+    {
+        $request = $this->createRequest(
+            ['profile.name' => 'Taylor'],
+            FoundationTestFormRequestFailOnUnknownFieldsEscapedDotStub::class,
+            'POST'
+        );
+
+        $request->validateResolved();
+
+        $this->assertEquals(['profile.name' => 'Taylor'], $request->validated());
+    }
+
+    public function testFailOnUnknownFieldsAllowsNestedKeysContainingLiteralDotsMatchingWildcardRules(): void
+    {
+        $request = $this->createRequest(
+            ['items' => ['a.b' => 5]],
+            FoundationTestFormRequestFailOnUnknownFieldsSometimesSingleSegmentWildcardStub::class,
+            'POST'
+        );
+
+        $request->validateResolved();
+
+        $this->assertEquals(['items' => ['a.b' => 5]], $request->validated());
     }
 
     public function testFailOnUnknownFieldsAllowsContentsOfDeclaredArrays(): void
@@ -655,11 +710,11 @@ class FoundationFormRequestTest extends TestCase
     /**
      * Create a new request of the given type.
      *
-     * @param class-string<\Hypervel\Foundation\Http\FormRequest> $class
+     * @param class-string<FormRequest> $class
      */
     protected function createRequest(array $payload = [], string $class = FoundationTestFormRequestStub::class, string $method = 'GET'): FormRequest
     {
-        $container = tap(new Container, function ($container) {
+        $container = tap(new Container, function (Container $container): void {
             $container->instance(
                 ValidationFactoryContract::class,
                 $this->createValidationFactory($container)
@@ -677,18 +732,16 @@ class FoundationFormRequestTest extends TestCase
      */
     protected function createValidationFactory(Container $container): ValidationFactory
     {
-        $translator = m::mock(Translator::class)->shouldReceive('get')
-            ->zeroOrMoreTimes()->andReturn('error')
-            ->shouldReceive('string')->zeroOrMoreTimes()->andReturn('error')
-            ->shouldReceive('choice')->zeroOrMoreTimes()->andReturn('error')->getMock();
+        $translator = m::mock(Translator::class);
+        $translator->shouldReceive('get')->zeroOrMoreTimes()->andReturn('error');
+        $translator->shouldReceive('string')->zeroOrMoreTimes()->andReturn('error');
+        $translator->shouldReceive('choice')->zeroOrMoreTimes()->andReturn('error');
 
         return new ValidationFactory($translator, $container);
     }
 
     /**
      * Create a mock redirector.
-     *
-     * @param \Hypervel\Http\Request $request
      */
     protected function createMockRedirector(FormRequest $request): Redirector
     {
@@ -747,7 +800,6 @@ class FoundationFormRequestTest extends TestCase
         $request1 = $this->createRequest(['name' => 'Taylor']);
         $request1->validateResolved();
 
-        $this->mocks['redirect']->shouldReceive('withInput->withErrors');
         $request2 = $this->createRequest(['no' => 'name'], FoundationTestFormRequestWithErrorBagAttribute::class);
 
         try {
@@ -1041,6 +1093,86 @@ class FoundationTestFormRequestFailOnUnknownFieldsWithOpaqueArraysStub extends F
         ];
     }
 
+    public function authorize(): bool
+    {
+        return true;
+    }
+}
+
+#[FailOnUnknownFields]
+class FoundationTestFormRequestFailOnUnknownFieldsLiteralDotStub extends FormRequest
+{
+    /**
+     * Get the validation rules.
+     */
+    public function rules(): array
+    {
+        return ['profile.name' => 'sometimes|integer'];
+    }
+
+    /**
+     * Determine whether the request is authorized.
+     */
+    public function authorize(): bool
+    {
+        return true;
+    }
+}
+
+#[FailOnUnknownFields]
+class FoundationTestFormRequestFailOnUnknownFieldsEscapedDotStub extends FormRequest
+{
+    /**
+     * Get the validation rules.
+     */
+    public function rules(): array
+    {
+        return ['profile\.name' => 'sometimes|string'];
+    }
+
+    /**
+     * Determine whether the request is authorized.
+     */
+    public function authorize(): bool
+    {
+        return true;
+    }
+}
+
+#[FailOnUnknownFields]
+class FoundationTestFormRequestFailOnUnknownFieldsSometimesWildcardStub extends FormRequest
+{
+    /**
+     * Get the validation rules.
+     */
+    public function rules(): array
+    {
+        return ['items.*.id' => 'sometimes|integer'];
+    }
+
+    /**
+     * Determine whether the request is authorized.
+     */
+    public function authorize(): bool
+    {
+        return true;
+    }
+}
+
+#[FailOnUnknownFields]
+class FoundationTestFormRequestFailOnUnknownFieldsSometimesSingleSegmentWildcardStub extends FormRequest
+{
+    /**
+     * Get the validation rules.
+     */
+    public function rules(): array
+    {
+        return ['items.*' => 'sometimes|integer'];
+    }
+
+    /**
+     * Determine whether the request is authorized.
+     */
     public function authorize(): bool
     {
         return true;

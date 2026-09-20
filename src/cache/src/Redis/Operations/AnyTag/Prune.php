@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Cache\Redis\Operations\AnyTag;
 
 use Hypervel\Cache\Redis\Support\StoreContext;
-use Hypervel\Redis\PhpRedis;
 use Hypervel\Redis\RedisConnection;
 
 /**
@@ -166,7 +165,7 @@ class Prune
         $checked = 0;
         $removed = 0;
 
-        $iterator = PhpRedis::initialScanCursor();
+        $iterator = null;
 
         do {
             // Tag fields omit OPT_PREFIX, so scan every field without prefixing the pattern.
@@ -229,7 +228,7 @@ class Prune
         $checked = 0;
         $removed = 0;
 
-        $iterator = PhpRedis::initialScanCursor();
+        $iterator = null;
 
         do {
             // Tag fields omit OPT_PREFIX, so scan every field without prefixing the pattern.

@@ -43,7 +43,7 @@ abstract class Manager
     /**
      * Get the default driver name.
      */
-    abstract public function getDefaultDriver(): string;
+    abstract public function getDefaultDriver(): ?string;
 
     /**
      * Get a driver instance.
@@ -59,6 +59,13 @@ abstract class Manager
         $driver = $driver === null || $driver === ''
             ? $this->getDefaultDriver()
             : $driver;
+
+        if ($driver === null) {
+            throw new InvalidArgumentException(sprintf(
+                'Unable to resolve NULL driver for [%s].',
+                static::class
+            ));
+        }
 
         // If the given driver has not been created before, we will create the instances
         // here and cache it so we can return it next time very quickly. If there is
@@ -103,6 +110,9 @@ abstract class Manager
 
     /**
      * Register a custom driver creator Closure.
+     *
+     * Anonymous closures run in this manager's class scope; non-static closures
+     * also receive the manager as $this.
      *
      * Boot-only. The callback persists in the singleton's customCreators array
      * for the worker lifetime and applies to every subsequent driver resolution.

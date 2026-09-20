@@ -249,6 +249,12 @@ class CacheMemoizedStoreTest extends TestCase
         $this->assertFalse($nonFlushable->supportsFlushingLocks());
     }
 
+    public function testLocksCanBeFlushedWhenUnderlyingStoreSupportsIt(): void
+    {
+        $store = new MemoizedStore('test', new Repository(new ArrayStore));
+        $this->assertTrue($store->flushLocks());
+    }
+
     public function testFlushLocksDelegatesToUnderlyingStore(): void
     {
         $store = m::mock(Store::class, CanFlushLocks::class);
@@ -258,6 +264,19 @@ class CacheMemoizedStoreTest extends TestCase
         $memoized = new MemoizedStore('test', new Repository($store));
 
         $this->assertTrue($memoized->flushLocks());
+    }
+
+    public function testFlushLocksThrowsWhenUnderlyingStoreDoesNotSupportIt(): void
+    {
+        $store = m::mock(Store::class);
+
+        $this->expectException(BadMethodCallException::class);
+        $this->expectExceptionMessage(sprintf(
+            'The memoized cache store\'s underlying store [%s] does not support flushing locks.',
+            $store::class
+        ));
+
+        (new MemoizedStore('test', new Repository($store)))->flushLocks();
     }
 
     public function testFlushLocksRejectsUnsupportedUnderlyingStore(): void
@@ -284,6 +303,9 @@ class CacheMemoizedStoreTest extends TestCase
         $this->assertFalse($shared->hasSeparateLockStore());
     }
 
+    /**
+     * Create a repository with two array cache layers.
+     */
     protected function createStackRepository(): Repository
     {
         return new Repository(new StackStore([

@@ -234,12 +234,12 @@ jobs:
             tests/Integration/Redis/DurationLimiterIntegrationTest.php \
             tests/Integration/Redis/EvalWithShaCacheIntegrationTest.php \
             tests/Integration/Redis/RedisClusterIntegrationTest.php \
+            tests/Integration/Redis/RedisConnectionTest.php \
             tests/Integration/Redis/RedisEventsIntegrationTest.php \
             tests/Integration/Redis/RedisPoolHeartbeatIntegrationTest.php \
             tests/Integration/Redis/RedisPoolTeardownLifecycleTest.php \
             tests/Integration/Redis/RedisSubscribeIntegrationTest.php \
-            tests/Integration/Redis/SafeScanIntegrationTest.php \
-            tests/Integration/Redis/TransformIntegrationTest.php
+            tests/Integration/Redis/SafeScanIntegrationTest.php
           vendor/bin/phpunit --no-progress \
             tests/Integration/Reverb/RedisSharedStateTest.php \
             tests/Integration/Reverb/WebhookBatchBufferTest.php

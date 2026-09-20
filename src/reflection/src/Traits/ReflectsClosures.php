@@ -106,10 +106,9 @@ trait ReflectsClosures
 
         /** @var Collection<int, ReflectionNamedType> $namedTypes */
         $namedTypes = Collection::make($types)
-            ->filter(fn ($type) => $type instanceof ReflectionNamedType);
+            ->filter(fn ($type) => $type instanceof ReflectionNamedType && ! $type->isBuiltin());
 
         return $namedTypes
-            ->reject(fn (ReflectionNamedType $type) => $type->isBuiltin())
             // PHP resolves relative types differently for named and anonymous closures.
             ->map(fn (ReflectionNamedType $type): ?string => match ($type->getName()) {
                 'self' => $reflection->getClosureScopeClass()?->getName(),

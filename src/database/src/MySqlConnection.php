@@ -77,6 +77,14 @@ class MySqlConnection extends PdoConnection
     }
 
     /**
+     * Determine whether the configured SQL mode uses backslash escapes.
+     */
+    public function usesBackslashEscapes(): bool
+    {
+        return ! str_contains(strtoupper(implode(',', $this->getConfig('modes') ?? [])), 'NO_BACKSLASH_ESCAPES');
+    }
+
+    /**
      * Determine if the given database exception was caused by a unique constraint violation.
      */
     protected function isUniqueConstraintError(Exception $exception): bool

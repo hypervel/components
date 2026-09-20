@@ -222,10 +222,11 @@ assertType('Hypervel\Support\Collection<int, mixed>', $collection->collapse());
 assertType('Hypervel\Support\Collection<int, mixed>', $collection->flatten());
 assertType('Hypervel\Support\Collection<int, mixed>', $collection->flatten(4));
 
-assertType('Hypervel\Support\Collection<User, int>', $collection->flip());
+assertType('Hypervel\Support\Collection<(int|string), int>', $collection->flip());
 
 assertType('Hypervel\Support\Collection<int, int|User>', $collection->pad(2, 0));
 assertType('Hypervel\Support\Collection<int, string|User>', $collection->pad(2, 'string'));
+assertType('Hypervel\Support\Collection<int|string, int|User>', (new Collection(['first' => new User]))->pad(2, 0));
 
 assertType('array<int, mixed>', $collection->getQueueableIds());
 

@@ -13,22 +13,25 @@ use PHPUnit\Framework\ExpectationFailedException;
 
 class QueueFakeTest extends TestCase
 {
+    /**
+     * Configure the synchronous queue driver.
+     */
     protected function defineEnvironment(ApplicationContract $app): void
     {
         $app->make('config')->set('queue.default', 'sync');
     }
 
-    public function testFakeFor()
+    public function testFakeFor(): void
     {
-        Queue::fakeFor(function () {
+        Queue::fakeFor(function (): void {
             Queue::push(new TestJob);
             Queue::assertPushed(TestJob::class);
         });
     }
 
-    public function testFakeExceptFor()
+    public function testFakeExceptFor(): void
     {
-        Queue::fakeExceptFor(function () {
+        Queue::fakeExceptFor(function (): void {
             Queue::push(new TestJob);
             Queue::push(new OtherTestJob);
 
@@ -37,29 +40,29 @@ class QueueFakeTest extends TestCase
         }, [TestJob::class]);
     }
 
-    public function testFakeExcept()
+    public function testFakeExcept(): void
     {
         $fake = Queue::fakeExcept([TestJob::class]);
 
         $this->assertInstanceOf(QueueFake::class, $fake);
     }
 
-    public function testFakeForReturnValue()
+    public function testFakeForReturnValue(): void
     {
-        $result = Queue::fakeFor(function () {
+        $result = Queue::fakeFor(function (): string {
             return 'test-value';
         });
 
-        $this->assertEquals('test-value', $result);
+        $this->assertSame('test-value', $result);
     }
 
-    public function testFakeExceptForReturnValue()
+    public function testFakeExceptForReturnValue(): void
     {
-        $result = Queue::fakeExceptFor(function () {
+        $result = Queue::fakeExceptFor(function (): string {
             return 'test-value';
         }, []);
 
-        $this->assertEquals('test-value', $result);
+        $this->assertSame('test-value', $result);
     }
 
     public function testAssertPushedOnce(): void
@@ -87,7 +90,10 @@ class TestJob
 {
     use Queueable;
 
-    public function handle()
+    /**
+     * Handle the test job.
+     */
+    public function handle(): void
     {
     }
 }
@@ -96,7 +102,10 @@ class OtherTestJob
 {
     use Queueable;
 
-    public function handle()
+    /**
+     * Handle the test job.
+     */
+    public function handle(): void
     {
     }
 }

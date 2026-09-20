@@ -7,13 +7,13 @@ namespace Hypervel\Tests\Inertia\Commands;
 use Hypervel\Inertia\Ssr\Gateway;
 use Hypervel\Inertia\Ssr\HasHealthCheck;
 use Hypervel\Tests\Inertia\TestCase;
-use Mockery;
+use Mockery as m;
 
 class CheckSsrTest extends TestCase
 {
     public function testSuccessOnHealthySsrServer(): void
     {
-        $mock = Mockery::mock(Gateway::class, HasHealthCheck::class);
+        $mock = m::mock(Gateway::class, HasHealthCheck::class);
         $mock->shouldReceive('isHealthy')->andReturn(true);
         $this->app->instance(Gateway::class, $mock);
 
@@ -24,7 +24,7 @@ class CheckSsrTest extends TestCase
 
     public function testFailureOnUnhealthySsrServer(): void
     {
-        $mock = Mockery::mock(Gateway::class, HasHealthCheck::class);
+        $mock = m::mock(Gateway::class, HasHealthCheck::class);
         $mock->shouldReceive('isHealthy')->andReturn(false);
         $this->app->instance(Gateway::class, $mock);
 

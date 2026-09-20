@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Query\Grammars;
 
+use Closure;
 use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\BinaryParameter;
 use Hypervel\Database\Concerns\CompilesJsonPaths;
@@ -14,6 +15,7 @@ use Hypervel\Database\Query\JoinClause;
 use Hypervel\Database\Query\JoinLateralClause;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use InvalidArgumentException;
 use RuntimeException;
 
 class Grammar extends BaseGrammar
@@ -290,6 +292,16 @@ class Grammar extends BaseGrammar
         $operator = str_replace('?', '??', $where['operator']);
 
         return $this->wrap($where['column']) . ' ' . $operator . ' ' . $value;
+    }
+
+    /**
+     * Compile a "where binary" clause.
+     *
+     * @throws RuntimeException
+     */
+    protected function whereBinary(Builder $query, array $where): string
+    {
+        throw new RuntimeException('This database engine does not support binary comparison operations.');
     }
 
     /**
@@ -1135,6 +1147,25 @@ class Grammar extends BaseGrammar
     }
 
     /**
+     * Group update values by column in order of first appearance.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    protected function groupJsonColumnsForUpdate(array $values): array
+    {
+        $groups = [];
+
+        foreach ($values as $key => $value) {
+            // Qualified and unqualified references must share one assignment.
+            $column = last(explode('.', explode('->', $key, 2)[0]));
+
+            $groups[$column][$key] = $value;
+        }
+
+        return $groups;
+    }
+
+    /**
      * Compile an update statement without joins into SQL.
      */
     protected function compileUpdateWithoutJoins(Builder $query, string $table, string $columns, string $where): string
@@ -1177,6 +1208,35 @@ class Grammar extends BaseGrammar
     }
 
     /**
+     * Prepare the bindings for an update statement with joins.
+     */
+    public function prepareBindingsForUpdateWithJoins(array $bindings, array $values): array
+    {
+        return $this->prepareBindingsForUpdate($bindings, $values);
+    }
+
+    /**
+     * Prepare update values in column order, encoding JSON assignments.
+     */
+    protected function prepareValueBindingsForUpdate(array $values): array
+    {
+        $bindings = [];
+
+        foreach ($this->groupJsonColumnsForUpdate($values) as $group) {
+            foreach ($group as $key => $value) {
+                // Subquery closures contain SQL bindings, not a JSON value to encode.
+                $bindings[] = $value instanceof Closure
+                    ? $value()
+                    : (is_array($value) || ($this->isJsonSelector($key) && ! $this->isExpression($value))
+                        ? json_encode($value, JSON_THROW_ON_ERROR)
+                        : $value);
+            }
+        }
+
+        return Arr::flatten($bindings);
+    }
+
+    /**
      * Compile a delete statement into SQL.
      */
     public function compileDelete(Builder $query): string
@@ -1210,6 +1270,28 @@ class Grammar extends BaseGrammar
         $joins = $this->compileJoins($query, $query->joins);
 
         return "delete {$alias} from {$table} {$joins} {$where}";
+    }
+
+    /**
+     * Qualify the row identifier selected by a limited or joined write rewrite.
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function qualifyRowIdentifier(Builder $query, string $identifier): string
+    {
+        $alias = $query->getFromAlias();
+
+        if ($alias !== null) {
+            return $alias . '.' . $identifier;
+        }
+
+        // In a join, an unqualified identifier can resolve to the outer query in
+        // PostgreSQL or a string literal in SQLite, silently affecting the wrong rows.
+        if ($query->joins) {
+            throw new InvalidArgumentException('Joined writes on a raw query source require an explicit alias set through from().');
+        }
+
+        return $identifier;
     }
 
     /**

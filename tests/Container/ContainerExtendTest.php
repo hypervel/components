@@ -190,7 +190,7 @@ class ContainerExtendTest extends TestCase
         $this->assertSame('foo', $container->make('foo'));
     }
 
-    public function testExtendContextualBinding()
+    public function testExtendContextualBinding(): void
     {
         $container = new Container;
         $container->when(ContainerExtendConsumesInterfaceStub::class)
@@ -198,13 +198,13 @@ class ContainerExtendTest extends TestCase
             ->give(fn () => new ContainerExtendInterfaceImplementationStub('foo'));
 
         $container->extend(ContainerExtendInterfaceStub::class, function ($instance) {
-            self::assertInstanceOf(ContainerExtendInterfaceImplementationStub::class, $instance);
-            self::assertSame('foo', $instance->value);
+            $this->assertInstanceOf(ContainerExtendInterfaceImplementationStub::class, $instance);
+            $this->assertSame('foo', $instance->value);
 
             return new ContainerExtendInterfaceImplementationStub('bar');
         });
 
-        self::assertSame('bar', $container->make(ContainerExtendConsumesInterfaceStub::class)->stub->value);
+        $this->assertSame('bar', $container->make(ContainerExtendConsumesInterfaceStub::class)->stub->value);
     }
 
     public function testExtendOnResolvedScopedInstanceAppliesImmediately()
@@ -260,7 +260,7 @@ class ContainerExtendTest extends TestCase
     }
 
     // https://github.com/laravel/framework/issues/53501
-    public function testExtendContextualBindingAfterResolution()
+    public function testExtendContextualBindingAfterResolution(): void
     {
         $container = new Container;
 
@@ -275,13 +275,13 @@ class ContainerExtendTest extends TestCase
         $container->make(ContainerExtendConsumesInterfaceStub::class);
 
         $container->extend(ContainerExtendInterfaceStub::class, function ($instance) {
-            self::assertInstanceOf(ContainerExtendInterfaceImplementationStub::class, $instance);
-            self::assertSame('foo', $instance->value);
+            $this->assertInstanceOf(ContainerExtendInterfaceImplementationStub::class, $instance);
+            $this->assertSame('foo', $instance->value);
 
             return new ContainerExtendInterfaceImplementationStub('bar');
         });
 
-        self::assertSame('bar', $container->make(ContainerExtendConsumesInterfaceStub::class)->stub->value);
+        $this->assertSame('bar', $container->make(ContainerExtendConsumesInterfaceStub::class)->stub->value);
     }
 }
 

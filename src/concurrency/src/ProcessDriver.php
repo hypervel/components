@@ -15,6 +15,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Facades\Context;
 use Laravel\SerializableClosure\SerializableClosure;
+use Throwable;
 
 use function Hypervel\Support\defer;
 
@@ -30,6 +31,8 @@ class ProcessDriver implements Driver
 
     /**
      * Run the given tasks concurrently and return an array containing the results.
+     *
+     * @throws Throwable
      */
     public function run(Closure|array $tasks, CarbonInterval|int|null $timeout = null): array
     {

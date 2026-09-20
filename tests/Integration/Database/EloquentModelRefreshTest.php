@@ -9,6 +9,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
@@ -67,6 +68,21 @@ class EloquentModelRefreshTest extends DatabaseTestCase
 
         $this->assertEmpty($post->getDirty());
         $this->assertEmpty($post->getPrevious());
+    }
+
+    public function testItRefreshesModelForUpdate(): void
+    {
+        $post = Post::create(['title' => 'pat']);
+
+        Post::whereKey($post)->update(['title' => 'patrick']);
+
+        DB::transaction(function () use ($post): void {
+            $this->assertSame($post, $post->refreshForUpdate());
+        });
+
+        $this->assertSame('patrick', $post->title);
+        $this->assertEmpty($post->getDirty());
+        $this->assertSame('patrick', $post->getOriginal('title'));
     }
 
     public function testFreshRejectsPersistedModelsMissingThePrimaryKey(): void

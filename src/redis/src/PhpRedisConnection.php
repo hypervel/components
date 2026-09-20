@@ -145,6 +145,7 @@ class PhpRedisConnection extends RedisConnection
             $parameters[] = $this->normalizeContext($config['context']);
         }
 
+        // REMOVED: Native persistent/persistent_id options; the pool owns connection reuse.
         $redis = new Redis;
         if (! $redis->connect(...$parameters)) {
             throw new ConnectionException('Connection reconnect failed.');

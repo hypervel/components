@@ -345,6 +345,8 @@ Alternatively, you may pass commands to the server using the `Redis` facade's `c
 $values = Redis::command('lrange', ['name', 5, 10]);
 ```
 
+PhpRedis's standalone/Sentinel and Cluster clients use different parameter names for some commands. Use positional arguments when the same command code must work with either client.
+
 <a name="using-multiple-redis-connections"></a>
 #### Using Multiple Redis Connections
 
@@ -641,6 +643,8 @@ PhpRedis does not support pipelining on Redis Cluster connections. Pipelining re
 
 <a name="advanced-helpers"></a>
 ### Advanced Helpers
+
+When calling `Redis::scan()`, `hscan()`, `sscan()`, or `zscan()`, pass the cursor returned in each result to the next call and stop when the result is `false`; the cursor argument is not updated by reference.
 
 If you need to stream keys with Redis' `SCAN` command, use `safeScan` while holding a pooled connection. Pass a logical key pattern without adding the connection prefix, just as you would pass a key to `get`. The `safeScan` method adds the connection prefix, including when PhpRedis' `SCAN_PREFIX` option is enabled, and removes it from returned keys:
 

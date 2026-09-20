@@ -52,7 +52,7 @@ return [
     | utilizes the Monolog PHP logging library, which includes a variety
     | of powerful log handlers and formatters that you're free to use.
     |
-    | Available drivers: "single", "daily", "slack", "syslog",
+    | Available drivers: "single", "daily", "monthly", "slack", "syslog",
     |                    "errorlog", "monolog", "custom", "stack"
     |
     | Built-in channel records below declare their driver-specific settings.
@@ -81,7 +81,16 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/hypervel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => (int) env('LOG_DAILY_DAYS', 14),
+            'max_files' => (int) env('LOG_DAILY_DAYS', 14),
+            'permission' => null,
+            'replace_placeholders' => true,
+        ],
+
+        'monthly' => [
+            'driver' => 'monthly',
+            'path' => storage_path('logs/hypervel.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'max_files' => 3,
             'permission' => null,
             'replace_placeholders' => true,
         ],

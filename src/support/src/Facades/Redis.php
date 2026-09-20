@@ -165,6 +165,8 @@ namespace Hypervel\Support\Facades;
  * @method static false|int lrem(string $key, int $count, mixed $value) Remove list elements
  * @method static bool|\Redis|\RedisCluster lSet(string $key, int $index, mixed $value)
  * @method static bool|\Redis|\RedisCluster ltrim(string $key, int $start, int $end)
+ * @method static bool lz4Compressed()
+ * @method static bool lzfCompressed()
  * @method static array|false|\Redis|\RedisCluster mget(array $keys) Get the values of multiple keys
  * @method static bool|\Redis migrate(string $host, int $port, array|string $key, int $dstdb, int $timeout, bool $copy = false, bool $replace = false, mixed $credentials = null)
  * @method static bool|\Redis move(string $key, int $index)
@@ -256,23 +258,23 @@ namespace Hypervel\Support\Facades;
  * @method static array|false|\Redis|\RedisCluster waitaof(int $numlocal, int $numreplicas, int $timeout)
  * @method static bool|\Redis|\RedisCluster watch(array|string $key, string ...$other_keys)
  * @method static false|int xack(string $key, string $group, array $ids)
- * @method static false|\Redis|\RedisCluster|string xadd(string $key, string $id, array $values, int $maxlen = 0, bool $approx = false, bool $nomkstream = false)
- * @method static array|bool|\Redis|\RedisCluster xautoclaim(string $key, string $group, string $consumer, int $min_idle, string $start, int $count = -1, bool $justid = false)
+ * @method static false|\Redis|\RedisCluster|string xadd(string $key, int|string $id, array $values, int $maxlen = 0, bool $approx = false, bool $nomkstream = false)
+ * @method static array|bool|\Redis|\RedisCluster xautoclaim(string $key, string $group, string $consumer, int $min_idle, int|string $start, int $count = -1, bool $justid = false)
  * @method static array|bool|\Redis|\RedisCluster xclaim(string $key, string $group, string $consumer, int $min_idle, array $ids, array $options)
  * @method static false|int|\Redis|\RedisCluster xdel(string $key, array $ids)
  * @method static array|false|\Redis|\RedisCluster xdelex(string $key, array $ids, string|null $mode = null)
- * @method static mixed xgroup(string $operation, string|null $key = null, string|null $group = null, string|null $id_or_consumer = null, bool $mkstream = false, int $entries_read = -2)
+ * @method static mixed xgroup(string $operation, string|null $key = null, string|null $group = null, int|string|null $id_or_consumer = null, bool $mkstream = false, int $entries_read = -2)
  * @method static mixed xinfo(string $operation, string|null $arg1 = null, string|null $arg2 = null, int $count = -1)
  * @method static false|int|\Redis|\RedisCluster xlen(string $key)
- * @method static array|false|\Redis|\RedisCluster xpending(string $key, string $group, string|null $start = null, string|null $end = null, int $count = -1, string|null $consumer = null)
- * @method static array|bool|\Redis|\RedisCluster xrange(string $key, string $start, string $end, int $count = -1)
+ * @method static array|false|\Redis|\RedisCluster xpending(string $key, string $group, int|string|null $start = null, int|string|null $end = null, int $count = -1, string|null $consumer = null)
+ * @method static array|bool|\Redis|\RedisCluster xrange(string $key, int|string $start, int|string $end, int $count = -1)
  * @method static array|bool|\Redis|\RedisCluster xread(array $streams, int $count = -1, int $block = -1)
  * @method static array|bool|\Redis|\RedisCluster xreadgroup(string $group, string $consumer, array $streams, int $count = 1, int $block = 1)
- * @method static array|bool|\Redis|\RedisCluster xrevrange(string $key, string $end, string $start, int $count = -1)
- * @method static false|int|\Redis|\RedisCluster xtrim(string $key, string $threshold, bool $approx = false, bool $minid = false, int $limit = -1)
+ * @method static array|bool|\Redis|\RedisCluster xrevrange(string $key, int|string $end, int|string $start, int $count = -1)
+ * @method static false|int|\Redis|\RedisCluster xtrim(string $key, int|string $threshold, bool $approx = false, bool $minid = false, int $limit = -1)
  * @method static false|float|int|\Redis|\RedisCluster zadd(string $key, array|float $score_or_options, mixed ...$more_scores_and_mems) Add members to sorted set
  * @method static false|int|\Redis|\RedisCluster zcard(string $key) Get sorted set cardinality
- * @method static false|int|\Redis|\RedisCluster zcount(string $key, int|string $start, int|string $end) Count sorted set members by score range
+ * @method static false|int|\Redis|\RedisCluster zcount(string $key, float|int|string $start, float|int|string $end) Count sorted set members by score range
  * @method static array|false|\Redis|\RedisCluster zdiff(array $keys, array|null $options = null)
  * @method static false|int|\Redis|\RedisCluster zdiffstore(string $dst, array $keys)
  * @method static false|float|\Redis|\RedisCluster zIncrBy(string $key, float $value, mixed $member)
@@ -293,12 +295,13 @@ namespace Hypervel\Support\Facades;
  * @method static false|int|\Redis|\RedisCluster zrem(mixed $key, mixed $member, mixed ...$other_members) Remove sorted set members
  * @method static false|int|\Redis|\RedisCluster zRemRangeByLex(string $key, string $min, string $max)
  * @method static false|int|\Redis|\RedisCluster zRemRangeByRank(string $key, int $start, int $end)
- * @method static false|int|\Redis|\RedisCluster zRemRangeByScore(string $key, string $start, string $end)
+ * @method static false|int|\Redis|\RedisCluster zRemRangeByScore(string $key, float|int|string $start, float|int|string $end)
  * @method static array|false|\Redis|\RedisCluster zRevRange(string $key, int $start, int $end, mixed $scores = null)
  * @method static array|false|\Redis|\RedisCluster zRevRangeByLex(string $key, string $max, string $min, int $offset = -1, int $count = -1)
  * @method static array|false|\Redis|\RedisCluster zrevrangebyscore(string $key, float|int|string $max, float|int|string $min, array $options = []) Get sorted set members by score range (reverse)
  * @method static false|int|\Redis|\RedisCluster zRevRank(string $key, mixed $member)
  * @method static false|float|\Redis|\RedisCluster zScore(string $key, mixed $member)
+ * @method static bool zstdCompressed()
  * @method static array|false|\Redis|\RedisCluster zunion(array $keys, array|null $weights = null, array|null $options = null)
  * @method static false|int|\Redis|\RedisCluster zunionstore(string $output, array $keys, array $options = []) Union sorted sets
  *

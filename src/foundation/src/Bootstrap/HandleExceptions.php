@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Bootstrap;
 
 use ErrorException;
-use Exception;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Log\LogManager;
@@ -13,6 +12,7 @@ use Hypervel\Support\Env;
 use Monolog\Handler\NullHandler;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Runner\ErrorHandler;
+use Psr\Log\LoggerInterface;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\ErrorHandler\Error\FatalError;
@@ -81,7 +81,7 @@ class HandleExceptions
 
         try {
             $logger = static::$app->make(LogManager::class);
-        } catch (Exception $exception) {
+        } catch (Throwable $exception) {
             // Cancellation is injected asynchronously, so a dedicated catch analyzes as unreachable here.
             if ($exception instanceof CanceledException) {
                 throw $exception;
@@ -90,22 +90,31 @@ class HandleExceptions
             return;
         }
 
+        // Invalid configuration must remain visible even when reporting failures are ignored.
         $this->ensureDeprecationLoggerIsConfigured();
 
         $trace = static::$app->make('config')->boolean('logging.deprecations.trace', false);
 
-        with($logger->channel('deprecations'), function ($log) use ($message, $file, $line, $level, $trace) {
-            if ($trace) {
-                $log->warning((string) new ErrorException($message, 0, $level, $file, $line));
-            } else {
-                $log->warning(sprintf(
-                    '%s in %s on line %s',
-                    $message,
-                    $file,
-                    $line
-                ));
-            }
-        });
+        try {
+            with($logger->channel('deprecations'), function (LoggerInterface $log) use ($message, $file, $line, $level, $trace): void {
+                if ($trace) {
+                    $log->warning($message, [
+                        'exception' => new ErrorException($message, 0, $level, $file, $line),
+                    ]);
+                } else {
+                    $log->warning(sprintf(
+                        '%s in %s on line %s',
+                        $message,
+                        $file,
+                        $line
+                    ));
+                }
+            });
+        } catch (CanceledException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            return;
+        }
     }
 
     /**
@@ -252,6 +261,8 @@ class HandleExceptions
     {
         return static::$app->make(ExceptionHandler::class);
     }
+
+    // Laravel's deprecated forgetApp() is omitted; use flushState() for test cleanup.
 
     /**
      * Flush all static state.

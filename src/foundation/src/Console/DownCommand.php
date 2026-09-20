@@ -52,6 +52,8 @@ class DownCommand extends Command
             $this->hypervel->maintenanceMode()->activate($downFilePayload);
             $stateCommitted = true;
 
+            // REMOVED: The pre-bootstrap maintenance.php stub; running workers serve maintenance responses through middleware.
+
             $exception = null;
 
             try {

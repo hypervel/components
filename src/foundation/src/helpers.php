@@ -594,6 +594,8 @@ if (! function_exists('method_field')) {
     }
 }
 
+// REMOVED: mix(); Hypervel uses Vite instead of Laravel Mix.
+
 if (! function_exists('now')) {
     /**
      * Create a new configured Carbon instance for the current time.

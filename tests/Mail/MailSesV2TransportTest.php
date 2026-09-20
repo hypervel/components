@@ -8,6 +8,7 @@ use Aws\Command;
 use Aws\Exception\AwsException;
 use Aws\SesV2\SesV2Client;
 use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Mail\Mailer;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\Transport\SesV2Transport;
 use Hypervel\Testbench\TestCase;
@@ -21,6 +22,9 @@ class MailSesV2TransportTest extends TestCase
 {
     // REMOVED: Laravel's SES v1 transport tests. Hypervel supports SES v2 only.
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -37,7 +41,7 @@ class MailSesV2TransportTest extends TestCase
 
         $manager = new MailManager($this->app);
 
-        /** @var \Hypervel\Mail\Transport\SesV2Transport $transport */
+        /** @var SesV2Transport $transport */
         $transport = $manager->createSymfonyTransport(['transport' => 'ses-v2']);
 
         $ses = $transport->ses();
@@ -61,11 +65,10 @@ class MailSesV2TransportTest extends TestCase
 
         $client = m::mock(SesV2Client::class);
         $sesResult = m::mock();
-        $sesResult->shouldReceive('get')
+        $sesResult->expects('get')
             ->with('MessageId')
-            ->once()
             ->andReturn('ses-message-id');
-        $client->shouldReceive('sendEmail')->once()
+        $client->expects('sendEmail')
             ->with(m::on(function (array $arg): bool {
                 return $arg['Source'] === 'myself@example.com'
                     && $arg['Destination']['ToAddresses'] === ['me@example.com', 'you@example.com']
@@ -89,11 +92,10 @@ class MailSesV2TransportTest extends TestCase
 
         $client = m::mock(SesV2Client::class);
         $sesResult = m::mock();
-        $sesResult->shouldReceive('get')
+        $sesResult->expects('get')
             ->with('MessageId')
-            ->once()
             ->andReturn('ses-message-id');
-        $client->shouldReceive('sendEmail')->once()
+        $client->expects('sendEmail')
             ->with(m::on(function (array $arg): bool {
                 return $arg['TenantName'] === 'my-tenant';
             }))
@@ -113,11 +115,10 @@ class MailSesV2TransportTest extends TestCase
 
         $client = m::mock(SesV2Client::class);
         $sesResult = m::mock();
-        $sesResult->shouldReceive('get')
+        $sesResult->expects('get')
             ->with('MessageId')
-            ->once()
             ->andReturn('ses-message-id');
-        $client->shouldReceive('sendEmail')->once()
+        $client->expects('sendEmail')
             ->with(m::on(function (array $arg): bool {
                 return $arg['TenantName'] === '0';
             }))
@@ -136,11 +137,10 @@ class MailSesV2TransportTest extends TestCase
 
         $client = m::mock(SesV2Client::class);
         $sesResult = m::mock();
-        $sesResult->shouldReceive('get')
+        $sesResult->expects('get')
             ->with('MessageId')
-            ->once()
             ->andReturn('ses-message-id');
-        $client->shouldReceive('sendEmail')->once()
+        $client->expects('sendEmail')
             ->with(m::on(function (array $arg): bool {
                 return ! array_key_exists('TenantName', $arg);
             }))
@@ -160,11 +160,10 @@ class MailSesV2TransportTest extends TestCase
 
         $client = m::mock(SesV2Client::class);
         $sesResult = m::mock();
-        $sesResult->shouldReceive('get')
+        $sesResult->expects('get')
             ->with('MessageId')
-            ->once()
             ->andReturn('ses-message-id');
-        $client->shouldReceive('sendEmail')->once()
+        $client->expects('sendEmail')
             ->with(m::on(function (array $arg): bool {
                 return ! array_key_exists('TenantName', $arg);
             }))
@@ -182,7 +181,7 @@ class MailSesV2TransportTest extends TestCase
         $message->to('me@example.com');
 
         $client = m::mock(SesV2Client::class);
-        $client->shouldReceive('sendEmail')->once()
+        $client->expects('sendEmail')
             ->andThrow(new AwsException('Email address is not verified.', new Command('sendRawEmail')));
 
         $this->expectException(TransportException::class);
@@ -214,10 +213,10 @@ class MailSesV2TransportTest extends TestCase
 
         $manager = new MailManager($this->app);
 
-        /** @var \Hypervel\Mail\Mailer $mailer */
+        /** @var Mailer $mailer */
         $mailer = $manager->removePoolableDriver('ses-v2')->mailer('ses');
 
-        /** @var \Hypervel\Mail\Transport\SesV2Transport $transport */
+        /** @var SesV2Transport $transport */
         $transport = $mailer->getSymfonyTransport();
 
         $this->assertSame('eu-west-1', $transport->ses()->getRegion());

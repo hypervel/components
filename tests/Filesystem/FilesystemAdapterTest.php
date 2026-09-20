@@ -14,6 +14,7 @@ use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Filesystem\LocalFilesystemAdapter as HypervelLocalFilesystemAdapter;
+use Hypervel\Foundation\Application;
 use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
@@ -35,6 +36,7 @@ use League\Flysystem\UnableToRetrieveMetadata;
 use League\Flysystem\UnableToWriteFile;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\ExpectationFailedException;
 use RuntimeException;
 use stdClass;
@@ -133,7 +135,7 @@ class FilesystemAdapterTest extends TestCase
         $this->assertSame('42', $response->headers->get('X-Custom-Count'));
     }
 
-    public function testProvidedContentDispositionBypassesGeneratedDisposition(): void
+    public function testFallbackNameCalledAlreadyProvidedToResponse(): void
     {
         $this->setRequestContext();
 
@@ -257,7 +259,12 @@ class FilesystemAdapterTest extends TestCase
         $this->assertEquals($this->tempDir . DIRECTORY_SEPARATOR . 'file.txt', $filesystemAdapter->path('file.txt'));
     }
 
-    public function testPathRejectsTraversalBeforePrefixing(): void
+    #[TestWith(['../../../.env'])]
+    #[TestWith(['..\..\..\.env'])]
+    #[TestWith(['/../../../.env'])]
+    #[TestWith(['..'])]
+    #[TestWith(['foo/../../../.env'])]
+    public function testPathRejectsTraversalOutsideOfTheRoot(string $path): void
     {
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter, [
             'root' => $this->tempDir . DIRECTORY_SEPARATOR,
@@ -265,7 +272,42 @@ class FilesystemAdapterTest extends TestCase
 
         $this->expectException(PathTraversalDetected::class);
 
-        $filesystemAdapter->path('../secret.txt');
+        $filesystemAdapter->path($path);
+    }
+
+    public function testPathRejectsTraversalOutsideOfThePrefix(): void
+    {
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter, [
+            'root' => $this->tempDir . DIRECTORY_SEPARATOR,
+            'prefix' => 'scoped',
+        ]);
+
+        $this->assertSame(
+            $this->tempDir . DIRECTORY_SEPARATOR . 'scoped' . DIRECTORY_SEPARATOR . 'file.txt',
+            $filesystemAdapter->path('file.txt')
+        );
+
+        $this->expectException(PathTraversalDetected::class);
+
+        $filesystemAdapter->path('../file.txt');
+    }
+
+    public function testPathResolvesRelativeSegmentsTheSameWayTheDriverDoes(): void
+    {
+        $this->filesystem->write('foo/bar.txt', 'Hello World');
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter, [
+            'root' => $this->tempDir . DIRECTORY_SEPARATOR,
+        ]);
+
+        $expected = $this->tempDir . DIRECTORY_SEPARATOR . 'foo/bar.txt';
+
+        $this->assertSame($expected, $filesystemAdapter->path('foo/bar.txt'));
+        $this->assertSame($expected, $filesystemAdapter->path('/foo/bar.txt'));
+        $this->assertSame($expected, $filesystemAdapter->path('foo/./bar.txt'));
+        $this->assertSame($expected, $filesystemAdapter->path('foo/baz/../bar.txt'));
+
+        $this->assertSame('Hello World', $filesystemAdapter->get('foo/baz/../bar.txt'));
+        $this->assertSame('Hello World', file_get_contents($filesystemAdapter->path('foo/baz/../bar.txt')));
     }
 
     public function testGet()
@@ -380,7 +422,7 @@ class FilesystemAdapterTest extends TestCase
         $image = $filesystemAdapter->image('missing.jpg');
 
         $this->expectException(ImageException::class);
-        $this->expectExceptionMessage('Unable to read image from path [missing.jpg].');
+        $this->expectExceptionMessageIsOrContains('Unable to read image from path [missing.jpg].');
 
         $image->toBytes();
     }
@@ -1157,22 +1199,21 @@ class FilesystemAdapterTest extends TestCase
         $this->fail('Exception was not thrown.');
     }
 
-    public function testReportExceptionsForGet()
+    public function testReportExceptionsForGet(): void
     {
         $container = Container::getInstance();
 
         $exceptionHandler = m::mock(ExceptionHandler::class);
 
-        $exceptionHandler->shouldReceive('report')
-            ->once()
-            ->andReturnUsing(function (UnableToReadFile $exception) {
-                self::assertStringContainsString(
+        $exceptionHandler->expects('report')
+            ->andReturnUsing(function (UnableToReadFile $exception): void {
+                $this->assertStringContainsString(
                     'Unable to read file from location: foo.txt.',
                     $exception->getMessage(),
                 );
             });
 
-        $container->bind(ExceptionHandler::class, function () use ($exceptionHandler) {
+        $container->bind(ExceptionHandler::class, function () use ($exceptionHandler): ExceptionHandler {
             return $exceptionHandler;
         });
 
@@ -1185,22 +1226,21 @@ class FilesystemAdapterTest extends TestCase
         }
     }
 
-    public function testReportExceptionsForReadStream()
+    public function testReportExceptionsForReadStream(): void
     {
         $container = Container::getInstance();
 
         $exceptionHandler = m::mock(ExceptionHandler::class);
 
-        $exceptionHandler->shouldReceive('report')
-            ->once()
-            ->andReturnUsing(function (UnableToReadFile $exception) {
-                self::assertStringContainsString(
+        $exceptionHandler->expects('report')
+            ->andReturnUsing(function (UnableToReadFile $exception): void {
+                $this->assertStringContainsString(
                     'Unable to read file from location: foo.txt.',
                     $exception->getMessage(),
                 );
             });
 
-        $container->bind(ExceptionHandler::class, function () use ($exceptionHandler) {
+        $container->bind(ExceptionHandler::class, function () use ($exceptionHandler): ExceptionHandler {
             return $exceptionHandler;
         });
 
@@ -1228,16 +1268,15 @@ class FilesystemAdapterTest extends TestCase
 
             $exceptionHandler = m::mock(ExceptionHandler::class);
 
-            $exceptionHandler->shouldReceive('report')
-                ->once()
-                ->andReturnUsing(function (UnableToWriteFile $exception) {
-                    self::assertStringContainsString(
+            $exceptionHandler->expects('report')
+                ->andReturnUsing(function (UnableToWriteFile $exception): void {
+                    $this->assertStringContainsString(
                         'Unable to write file at location: foo.txt.',
                         $exception->getMessage(),
                     );
                 });
 
-            $container->bind(ExceptionHandler::class, function () use ($exceptionHandler) {
+            $container->bind(ExceptionHandler::class, function () use ($exceptionHandler): ExceptionHandler {
                 return $exceptionHandler;
             });
 
@@ -1251,22 +1290,21 @@ class FilesystemAdapterTest extends TestCase
         }
     }
 
-    public function testReportExceptionsForMimeType()
+    public function testReportExceptionsForMimeType(): void
     {
         $container = Container::getInstance();
 
         $exceptionHandler = m::mock(ExceptionHandler::class);
 
-        $exceptionHandler->shouldReceive('report')
-            ->once()
-            ->andReturnUsing(function (UnableToRetrieveMetadata $exception) {
-                self::assertStringContainsString(
+        $exceptionHandler->expects('report')
+            ->andReturnUsing(function (UnableToRetrieveMetadata $exception): void {
+                $this->assertStringContainsString(
                     'Unable to retrieve the mime_type for file at location: unknown.mime-type.',
                     $exception->getMessage(),
                 );
             });
 
-        $container->bind(ExceptionHandler::class, function () use ($exceptionHandler) {
+        $container->bind(ExceptionHandler::class, function () use ($exceptionHandler): ExceptionHandler {
             return $exceptionHandler;
         });
 
@@ -1495,6 +1533,17 @@ class FilesystemAdapterTest extends TestCase
         $this->assertTrue($filesystemAdapter->providesTemporaryUploadUrls());
     }
 
+    public function testProvidesTemporaryUploadUrlsForS3Adapter(): void
+    {
+        $filesystem = new FilesystemManager(new Application);
+        $filesystemAdapter = $filesystem->createS3Driver([
+            'region' => 'us-west-1',
+            'bucket' => 'hypervel',
+        ]);
+
+        $this->assertTrue($filesystemAdapter->providesTemporaryUploadUrls());
+    }
+
     public function testProvidesTemporaryUploadUrlsForAdapterWithoutTemporaryUploadUrlSupport()
     {
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
@@ -1514,8 +1563,7 @@ class FilesystemAdapterTest extends TestCase
         $this->filesystem->write('foo/file.txt', 'Hello World');
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
 
-        $this->expectException(ExpectationFailedException::class);
-        $this->expectExceptionMessage('Disk is not empty.');
+        $this->expectExceptionObject(new ExpectationFailedException('Disk is not empty.'));
 
         $filesystemAdapter->assertEmpty();
     }

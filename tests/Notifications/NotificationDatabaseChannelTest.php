@@ -20,8 +20,8 @@ class NotificationDatabaseChannelTest extends TestCase
         $notification->id = '1';
         $notifiable = m::mock();
 
-        $notifiable->shouldReceive('routeNotificationFor->create')->with([
-            'id' => 1,
+        $notifiable->expects('routeNotificationFor->create')->with([
+            'id' => '1',
             'type' => get_class($notification),
             'data' => ['invoice_id' => '1'],
             'read_at' => null,
@@ -37,8 +37,8 @@ class NotificationDatabaseChannelTest extends TestCase
         $notification->id = '1';
         $notifiable = m::mock();
 
-        $notifiable->shouldReceive('routeNotificationFor->create')->with([
-            'id' => 1,
+        $notifiable->expects('routeNotificationFor->create')->with([
+            'id' => '1',
             'type' => get_class($notification),
             'data' => ['invoice_id' => '1'],
             'read_at' => null,
@@ -57,7 +57,7 @@ class NotificationDatabaseChannelTest extends TestCase
         $notification->id = '1';
         $notifiable = m::mock();
 
-        $notifiable->shouldReceive('routeNotificationFor->create')->with([
+        $notifiable->expects('routeNotificationFor->create')->with([
             'id' => '1',
             'type' => 'MONTHLY',
             'data' => ['invoice_id' => '1'],
@@ -72,6 +72,9 @@ class NotificationDatabaseChannelTest extends TestCase
 
 class NotificationDatabaseChannelTestNotification extends Notification
 {
+    /**
+     * Get the database representation of the notification.
+     */
     public function toDatabase(mixed $notifiable): DatabaseMessage
     {
         return new DatabaseMessage(['invoice_id' => '1']);
@@ -80,16 +83,25 @@ class NotificationDatabaseChannelTestNotification extends Notification
 
 class NotificationDatabaseChannelCustomizeTypeTestNotification extends Notification
 {
+    /**
+     * Get the database representation of the notification.
+     */
     public function toDatabase(mixed $notifiable): DatabaseMessage
     {
         return new DatabaseMessage(['invoice_id' => '1']);
     }
 
+    /**
+     * Get the notification type stored in the database.
+     */
     public function databaseType(): string
     {
         return 'MONTHLY';
     }
 
+    /**
+     * Get the initial read timestamp.
+     */
     public function initialDatabaseReadAtValue(): CarbonImmutable
     {
         return CarbonImmutable::now();
@@ -98,7 +110,10 @@ class NotificationDatabaseChannelCustomizeTypeTestNotification extends Notificat
 
 class ExtendedDatabaseChannel extends DatabaseChannel
 {
-    protected function buildPayload($notifiable, Notification $notification): array
+    /**
+     * Build the database notification payload.
+     */
+    protected function buildPayload(mixed $notifiable, Notification $notification): array
     {
         return array_merge(parent::buildPayload($notifiable, $notification), [
             'something' => 'else',

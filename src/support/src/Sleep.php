@@ -29,10 +29,8 @@ class Sleep
 
     /**
      * The total duration to sleep.
-     *
-     * @var CarbonInterval
      */
-    public $duration;
+    public CarbonInterval $duration;
 
     /**
      * The callback that determines if sleeping should continue.
@@ -231,9 +229,12 @@ class Sleep
      */
     public function then(callable $then): mixed
     {
-        $this->goodnight();
-
-        $this->alreadySlept = true;
+        try {
+            $this->goodnight();
+        } finally {
+            // Destruction must not repeat a failed or canceled sleep attempt.
+            $this->alreadySlept = true;
+        }
 
         return $then();
     }
@@ -247,7 +248,9 @@ class Sleep
     }
 
     /**
-     * Handle the object's destruction.
+     * Sleep for the configured duration.
+     *
+     * @throws RuntimeException
      */
     protected function goodnight(): void
     {
@@ -259,38 +262,37 @@ class Sleep
             throw new RuntimeException('Unknown duration unit.');
         }
 
-        if (static::$fake) {
-            static::$sequence[] = $this->duration;
-
-            if (static::$syncWithCarbon) {
-                Carbon::setTestNow(Date::now()->add($this->duration));
-            }
-
-            foreach (static::$fakeSleepCallbacks as $callback) {
-                $callback($this->duration);
-            }
-
-            return;
-        }
-
-        $remaining = $this->duration->copy();
-
-        $seconds = (int) $remaining->totalSeconds;
-
-        $while = $this->while ?: function () {
+        $while = $this->while ?: function (): bool {
             static $return = [true, false];
 
             return array_shift($return);
         };
 
+        if (static::$fake) {
+            while ($while()) {
+                static::$sequence[] = $this->duration;
+
+                if (static::$syncWithCarbon) {
+                    Carbon::setTestNow(Date::now()->add($this->duration));
+                }
+
+                foreach (static::$fakeSleepCallbacks as $callback) {
+                    $callback($this->duration);
+                }
+            }
+
+            return;
+        }
+
+        // Preserve the date bounds of until() intervals and reuse the complete
+        // duration on every iteration.
+        $seconds = (int) $this->duration->totalSeconds;
+        $microseconds = (int) $this->duration->totalMicroseconds - $seconds * Carbon::MICROSECONDS_PER_SECOND;
+
         while ($while()) {
             if ($seconds > 0) {
                 sleep($seconds);
-
-                $remaining = $remaining->subSeconds($seconds);
             }
-
-            $microseconds = (int) $remaining->totalMicroseconds;
 
             if ($microseconds > 0) {
                 usleep($microseconds);
@@ -300,6 +302,8 @@ class Sleep
 
     /**
      * Resolve the pending duration.
+     *
+     * @throws RuntimeException
      */
     protected function pullPending(): float|int
     {
@@ -313,7 +317,7 @@ class Sleep
             $this->pending = 0;
         }
 
-        return tap($this->pending, function () {
+        return tap($this->pending, function (): void {
             $this->pending = null;
         });
     }
@@ -365,7 +369,7 @@ class Sleep
 
             (new Collection($sequence))
                 ->zip(static::$sequence)
-                ->eachSpread(function (?Sleep $expected, CarbonInterval $actual) {
+                ->eachSpread(function (?Sleep $expected, CarbonInterval $actual): void {
                     if ($expected === null) {
                         return;
                     }

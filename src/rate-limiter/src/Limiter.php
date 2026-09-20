@@ -32,8 +32,8 @@ class Limiter
     }
 
     // One-call decisions replace Laravel's split tooManyAttempts(), hit(),
-    // increment(), attempts(), resetAttempts(), retriesLeft(), availableIn(),
-    // cleanRateLimiterKey(), and Limit::fallbackKey() APIs.
+    // increment(), decrement(), attempts(), resetAttempts(), remaining(),
+    // retriesLeft(), availableIn(), cleanRateLimiterKey(), and Limit::fallbackKey() APIs.
 
     /**
      * Atomically consume capacity from an admission policy.
@@ -52,6 +52,51 @@ class Limiter
             $this->resolveKey($policy, $limiterName),
             $policy,
         );
+    }
+
+    /**
+     * Consume a group, returning decisions through the first denied policy.
+     *
+     * Groups are atomic except on Redis Cluster, where a concurrent denial
+     * during consumption may leave earlier policies charged.
+     *
+     * @param list<AdmissionPolicy> $policies
+     * @return list<LimitResult>
+     */
+    public function consumeMany(array $policies, UnitEnum|string|null $limiterName = null): array
+    {
+        if (count($policies) === 1) {
+            return [$this->consume(reset($policies), $limiterName)];
+        }
+
+        $entries = [];
+
+        foreach ($policies as $policy) {
+            if (! $policy instanceof Unlimited) {
+                $this->validateAdmission($policy);
+                $entries[] = ['key' => $this->resolveKey($policy, $limiterName), 'policy' => $policy];
+            }
+        }
+
+        $decisions = match (count($entries)) {
+            0 => [],
+            1 => [$this->store->consume($entries[0]['key'], $entries[0]['policy'])],
+            default => $this->store->consumeMany($entries),
+        };
+
+        $results = [];
+        $index = 0;
+
+        foreach ($policies as $policy) {
+            $result = $policy instanceof Unlimited ? $this->unlimitedResult() : $decisions[$index++];
+            $results[] = $result;
+
+            if ($result->denied()) {
+                break;
+            }
+        }
+
+        return $results;
     }
 
     /**

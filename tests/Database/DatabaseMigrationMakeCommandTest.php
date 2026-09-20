@@ -18,81 +18,79 @@ class DatabaseMigrationMakeCommandTest extends TestCase
     // REMOVED: make:migration no longer dumps Composer autoload files or
     // accepts Laravel's deprecated --fullpath option.
 
-    public function testBasicCreateGivesCreatorProperArguments()
+    public function testBasicCreateGivesCreatorProperArguments(): void
     {
         $app = new ApplicationDatabaseMigrationMakeStub;
         $app->useDatabasePath(__DIR__);
-        $command = new MigrateMakeCommand(
-            $creator = m::mock(MigrationCreator::class)
-        );
+        $creator = m::mock(MigrationCreator::class);
+        $command = new MigrateMakeCommand($creator);
         $command->setHypervel($app);
-        $creator->shouldReceive('create')->once()
+        $creator->expects('create')
             ->with('create_foo', __DIR__ . DIRECTORY_SEPARATOR . 'migrations', 'foo', true)
             ->andReturn(__DIR__ . '/Fixtures/migrations/2021_04_23_110457_create_foo.php');
 
         $this->runCommand($command, ['name' => 'create_foo']);
     }
 
-    public function testBasicCreateGivesCreatorProperArgumentsWhenNameIsStudlyCase()
+    public function testBasicCreateGivesCreatorProperArgumentsWhenNameIsStudlyCase(): void
     {
         $app = new ApplicationDatabaseMigrationMakeStub;
         $app->useDatabasePath(__DIR__);
-        $command = new MigrateMakeCommand(
-            $creator = m::mock(MigrationCreator::class)
-        );
+        $creator = m::mock(MigrationCreator::class);
+        $command = new MigrateMakeCommand($creator);
         $command->setHypervel($app);
-        $creator->shouldReceive('create')->once()
+        $creator->expects('create')
             ->with('create_foo', __DIR__ . DIRECTORY_SEPARATOR . 'migrations', 'foo', true)
             ->andReturn(__DIR__ . '/Fixtures/migrations/2021_04_23_110457_create_foo.php');
 
         $this->runCommand($command, ['name' => 'CreateFoo']);
     }
 
-    public function testBasicCreateGivesCreatorProperArgumentsWhenTableIsSet()
+    public function testBasicCreateGivesCreatorProperArgumentsWhenTableIsSet(): void
     {
         $app = new ApplicationDatabaseMigrationMakeStub;
         $app->useDatabasePath(__DIR__);
-        $command = new MigrateMakeCommand(
-            $creator = m::mock(MigrationCreator::class)
-        );
+        $creator = m::mock(MigrationCreator::class);
+        $command = new MigrateMakeCommand($creator);
         $command->setHypervel($app);
-        $creator->shouldReceive('create')->once()
+        $creator->expects('create')
             ->with('create_foo', __DIR__ . DIRECTORY_SEPARATOR . 'migrations', 'users', true)
             ->andReturn(__DIR__ . '/Fixtures/migrations/2021_04_23_110457_create_foo.php');
 
         $this->runCommand($command, ['name' => 'create_foo', '--create' => 'users']);
     }
 
-    public function testBasicCreateGivesCreatorProperArgumentsWhenCreateTablePatternIsFound()
+    public function testBasicCreateGivesCreatorProperArgumentsWhenCreateTablePatternIsFound(): void
     {
         $app = new ApplicationDatabaseMigrationMakeStub;
         $app->useDatabasePath(__DIR__);
-        $command = new MigrateMakeCommand(
-            $creator = m::mock(MigrationCreator::class)
-        );
+        $creator = m::mock(MigrationCreator::class);
+        $command = new MigrateMakeCommand($creator);
         $command->setHypervel($app);
-        $creator->shouldReceive('create')->once()
+        $creator->expects('create')
             ->with('create_users_table', __DIR__ . DIRECTORY_SEPARATOR . 'migrations', 'users', true)
             ->andReturn(__DIR__ . '/Fixtures/migrations/2021_04_23_110457_create_users_table.php');
 
         $this->runCommand($command, ['name' => 'create_users_table']);
     }
 
-    public function testCanSpecifyPathToCreateMigrationsIn()
+    public function testCanSpecifyPathToCreateMigrationsIn(): void
     {
         $app = new ApplicationDatabaseMigrationMakeStub;
-        $command = new MigrateMakeCommand(
-            $creator = m::mock(MigrationCreator::class)
-        );
+        $creator = m::mock(MigrationCreator::class);
+        $command = new MigrateMakeCommand($creator);
         $command->setHypervel($app);
         $app->setBasePath('/home/hypervel');
-        $creator->shouldReceive('create')->once()
+        $creator->expects('create')
             ->with('create_foo', '/home/hypervel/vendor/hypervel-package/migrations', 'users', true)
             ->andReturn('/home/hypervel/vendor/hypervel-package/migrations/2021_04_23_110457_create_foo.php');
         $this->runCommand($command, ['name' => 'create_foo', '--path' => 'vendor/hypervel-package/migrations', '--create' => 'users']);
     }
 
-    protected function runCommand($command, $input = [])
+    /**
+     * Run the command with the given input.
+     */
+    protected function runCommand(MigrateMakeCommand $command, array $input = []): int
     {
         return $command->run(new ArrayInput($input), new NullOutput);
     }

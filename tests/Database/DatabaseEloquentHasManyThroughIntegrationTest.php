@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Schema\Builder;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\TestCase;
@@ -169,10 +171,9 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertCount(2, $country->posts()->findMany(new Collection([1, 2])));
     }
 
-    public function testFirstOrFailThrowsAnException()
+    public function testFirstOrFailThrowsAnException(): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post].');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post].'));
 
         Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us']);
@@ -180,10 +181,9 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         Country::first()->posts()->firstOrFail();
     }
 
-    public function testFindOrFailThrowsAnException()
+    public function testFindOrFailThrowsAnException(): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1'));
 
         Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us']);
@@ -191,10 +191,9 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         Country::first()->posts()->findOrFail(1);
     }
 
-    public function testFindOrFailWithManyThrowsAnException()
+    public function testFindOrFailWithManyThrowsAnException(): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1, 2');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1, 2'));
 
         Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
@@ -203,10 +202,9 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         Country::first()->posts()->findOrFail([1, 2]);
     }
 
-    public function testFindOrFailWithManyUsingCollectionThrowsAnException()
+    public function testFindOrFailWithManyUsingCollectionThrowsAnException(): void
     {
-        $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1, 2');
+        $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1, 2'));
 
         Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
@@ -581,20 +579,16 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
 
     /**
      * Get a database connection instance.
-     *
-     * @return \Illuminate\Database\Connection
      */
-    protected function connection()
+    protected function connection(): ConnectionInterface
     {
         return Eloquent::getConnectionResolver()->connection();
     }
 
     /**
      * Get a schema builder instance.
-     *
-     * @return \Illuminate\Database\Schema\Builder
      */
-    protected function schema()
+    protected function schema(): Builder
     {
         return $this->connection()->getSchemaBuilder();
     }

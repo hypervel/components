@@ -12,6 +12,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Bus\Dispatchable;
+use Hypervel\Http\Response;
 use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\Route;
@@ -21,6 +22,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 class DeferredCallbacksTest extends TestCase
 {
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -30,8 +34,8 @@ class DeferredCallbacksTest extends TestCase
 
     public function testHttpTerminateRunsDeferredCallbacksForSuccessfulResponses(): void
     {
-        Route::get('/deferred-callbacks/success', function () {
-            defer(function () {
+        Route::get('/deferred-callbacks/success', function (): Response {
+            defer(function (): void {
                 DeferredCallbacksTestState::record('success');
             });
 
@@ -46,12 +50,12 @@ class DeferredCallbacksTest extends TestCase
 
     public function testHttpTerminateSkipsFailedResponsesUnlessAlwaysTrue(): void
     {
-        Route::get('/deferred-callbacks/failure', function () {
-            defer(function () {
+        Route::get('/deferred-callbacks/failure', function (): Response {
+            defer(function (): void {
                 DeferredCallbacksTestState::record('normal');
             });
 
-            defer(function () {
+            defer(function (): void {
                 DeferredCallbacksTestState::record('always');
             }, always: true);
 
@@ -83,12 +87,31 @@ class DeferredCallbacksTest extends TestCase
         $this->assertTrue($executed);
     }
 
+    public function testCallbacksDeferredWithinADeferredCallbackAreInvoked(): void
+    {
+        $result = [];
+
+        Route::get('/test', function () use (&$result): void {
+            defer(function () use (&$result): void {
+                $result[] = 'first';
+
+                defer(function () use (&$result): void {
+                    $result[] = 'second';
+                });
+            });
+        });
+
+        $this->get('/test');
+
+        $this->assertSame(['first', 'second'], $result);
+    }
+
     public function testHttpRequestOwnsCallbacksRegisteredByNestedCommand(): void
     {
         $application = $this->createConsoleApplication();
         $application->addCommand(new NestedDeferredCommand);
 
-        Route::get('/deferred-callbacks/command', function () use ($application) {
+        Route::get('/deferred-callbacks/command', function () use ($application): Response {
             $application->call('deferred-callbacks:nested');
             DeferredCallbacksTestState::record('after-command');
 
@@ -135,7 +158,7 @@ class DeferredCallbacksTest extends TestCase
     #[DataProvider('owningQueueConnections')]
     public function testJobAttemptedRunsDeferredCallbacksForSuccessfulJobs(string $connection): void
     {
-        defer(function () {
+        defer(function (): void {
             DeferredCallbacksTestState::record('job');
         });
 
@@ -150,6 +173,9 @@ class DeferredCallbacksTest extends TestCase
         $this->assertCount(0, $this->app->make(DeferredCallbackCollection::class));
     }
 
+    /**
+     * Provide queue connections that own deferred callbacks.
+     */
     public static function owningQueueConnections(): array
     {
         return [
@@ -161,11 +187,11 @@ class DeferredCallbacksTest extends TestCase
 
     public function testJobAttemptedSkipsFailedJobsAndSyncConnectionsUnlessAlwaysTrue(): void
     {
-        defer(function () {
+        defer(function (): void {
             DeferredCallbacksTestState::record('normal');
         });
 
-        defer(function () {
+        defer(function (): void {
             DeferredCallbacksTestState::record('always');
         }, always: true);
 
@@ -180,7 +206,7 @@ class DeferredCallbacksTest extends TestCase
 
         DeferredCallbacksTestState::reset();
 
-        defer(function () {
+        defer(function (): void {
             DeferredCallbacksTestState::record('sync');
         });
 
@@ -195,6 +221,9 @@ class DeferredCallbacksTest extends TestCase
         $this->assertCount(1, $this->app->make(DeferredCallbackCollection::class));
     }
 
+    /**
+     * Create a console application for the test.
+     */
     private function createConsoleApplication(): ConsoleApplication
     {
         return new ConsoleApplication(
@@ -222,6 +251,9 @@ class NestedDeferredCommand extends Command
 {
     protected ?string $name = 'deferred-callbacks:nested';
 
+    /**
+     * Execute the console command.
+     */
     public function handle(): int
     {
         defer(function (): void {
@@ -239,11 +271,17 @@ class DeferredCallbacksTestState
      */
     public static array $calls = [];
 
+    /**
+     * Reset the recorded callback calls.
+     */
     public static function reset(): void
     {
         static::$calls = [];
     }
 
+    /**
+     * Record a callback call.
+     */
     public static function record(string $value): void
     {
         static::$calls[] = $value;

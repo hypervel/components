@@ -263,7 +263,7 @@ class PruneCommandTest extends TestCase
         $this->assertEquals(4, PrunableTestSoftDeletedModelWithPrunableRecords::withTrashed()->count());
     }
 
-    public function testTheCommandDispatchesEventsWithoutRemovingApplicationListeners(): void
+    public function testTheCommandDispatchesEvents(): void
     {
         $events = Application::getInstance()->make(DispatcherContract::class);
         $startingEvents = [];
@@ -280,6 +280,8 @@ class PruneCommandTest extends TestCase
         });
 
         $this->artisan(['--model' => PrunableTestModelWithPrunableRecords::class]);
+
+        // Application listeners must survive the previous command invocation.
         $this->artisan(['--model' => PrunableTestModelWithPrunableRecords::class]);
 
         $this->assertCount(2, $startingEvents);

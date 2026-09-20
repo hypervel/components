@@ -29,6 +29,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
+ * @mixin \Hypervel\Database\Connection
  * @mixin \Hypervel\Database\PdoConnection
  */
 class DatabaseManager implements ConnectionResolverInterface
@@ -423,13 +424,8 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     protected function refreshConnection(Connection $connection): Connection
     {
-        $name = $connection->getName()
+        $name = $connection->getNameWithReadWriteType()
             ?? throw new RuntimeException('Cannot reconnect an unnamed database connection.');
-        $role = $connection->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY);
-
-        if ($role === ConnectionName::READ || $role === ConnectionName::WRITE) {
-            $name .= '::' . $role;
-        }
 
         $fresh = $this->configure(
             $this->makeConnection($name)

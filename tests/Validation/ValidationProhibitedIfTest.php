@@ -5,25 +5,27 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Validation;
 
 use Exception;
+use Generator;
 use Hypervel\Tests\TestCase;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rules\ProhibitedIf;
 use Hypervel\Validation\Validator;
+use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
 use TypeError;
 
 class ValidationProhibitedIfTest extends TestCase
 {
-    public function testItReturnsStringVersionOfRuleWhenCast()
+    public function testItReturnsStringVersionOfRuleWhenCast(): void
     {
-        $rule = new ProhibitedIf(function () {
+        $rule = new ProhibitedIf(function (): bool {
             return true;
         });
 
         $this->assertSame('prohibited', (string) $rule);
 
-        $rule = new ProhibitedIf(function () {
+        $rule = new ProhibitedIf(function (): bool {
             return false;
         });
 
@@ -38,32 +40,44 @@ class ValidationProhibitedIfTest extends TestCase
         $this->assertSame('', (string) $rule);
     }
 
-    public function testItValidatesCallableAndBooleanAreAcceptableArguments()
+    public function testItAcceptsCallableAndBooleanArguments(): void
     {
         new ProhibitedIf(false);
         new ProhibitedIf(true);
-        new ProhibitedIf(fn () => true);
+        new ProhibitedIf(fn (): bool => true);
 
-        foreach ([1, 1.1, 'phpinfo', new stdClass] as $condition) {
-            try {
-                new ProhibitedIf($condition);
-                $this->fail('The ProhibitedIf constructor must not accept ' . gettype($condition));
-            } catch (TypeError) {
-                $this->assertTrue(true); // Invalid types correctly rejected by PHP type system
-            }
-        }
+        $this->addToAssertionCount(1);
     }
 
-    public function testItThrowsExceptionIfRuleIsNotSerializable()
+    #[DataProvider('dataProviderItRejectsNonCallableNonBooleanArguments')]
+    public function testItRejectsNonCallableNonBooleanArguments(mixed $condition): void
+    {
+        $this->expectException(TypeError::class);
+
+        new ProhibitedIf($condition);
+    }
+
+    /**
+     * Provide invalid rule conditions.
+     */
+    public static function dataProviderItRejectsNonCallableNonBooleanArguments(): Generator
+    {
+        yield 'int' => [1];
+        yield 'float' => [1.1];
+        yield 'string' => ['phpinfo'];
+        yield 'object' => [new stdClass];
+    }
+
+    public function testItThrowsExceptionIfRuleIsNotSerializable(): void
     {
         $this->expectException(Exception::class);
 
-        serialize(new ProhibitedIf(function () {
+        serialize(new ProhibitedIf(function (): bool {
             return true;
         }));
     }
 
-    public function testProhibitedIfRuleValidation()
+    public function testProhibitedIfRuleValidation(): void
     {
         $trans = new Translator(new ArrayLoader, 'en');
 

@@ -226,11 +226,7 @@ class Blueprint
                 // and the column is supposed to be changed, we will call the drop index
                 // method with an array of column to drop it by its conventional name.
                 if ($column->{$index} === false && $column->change) {
-                    if ($index === 'vectorIndex') {
-                        $this->dropIndex($this->createIndexName($index, [$column->name]));
-                    } else {
-                        $this->{'drop' . ucfirst($index)}([$column->name]);
-                    }
+                    $this->{'drop' . ucfirst($index)}([$column->name]);
 
                     $column->{$index} = null;
 
@@ -515,6 +511,14 @@ class Blueprint
     }
 
     /**
+     * Indicate that the given vector index should be dropped.
+     */
+    public function dropVectorIndex(array|string $index): Fluent
+    {
+        return $this->dropIndexCommand('dropVectorIndex', 'vectorIndex', $index);
+    }
+
+    /**
      * Indicate that the given foreign key should be dropped.
      */
     public function dropForeign(array|string $index, ?string $name = null): Fluent
@@ -543,7 +547,7 @@ class Blueprint
     /**
      * Indicate that the given foreign key should be dropped.
      */
-    public function dropForeignIdFor(object|string $model, ?string $column = null): Fluent
+    public function dropForeignIdFor(Model|string $model, ?string $column = null): Fluent
     {
         if (is_string($model)) {
             $model = new $model;
@@ -555,7 +559,7 @@ class Blueprint
     /**
      * Indicate that the given foreign key should be dropped.
      */
-    public function dropConstrainedForeignIdFor(object|string $model, ?string $column = null): Fluent
+    public function dropConstrainedForeignIdFor(Model|string $model, ?string $column = null): Fluent
     {
         if (is_string($model)) {
             $model = new $model;
@@ -965,7 +969,7 @@ class Blueprint
     /**
      * Create a foreign ID column for the given model.
      */
-    public function foreignIdFor(object|string $model, ?string $column = null): ForeignIdColumnDefinition
+    public function foreignIdFor(Model|string $model, ?string $column = null): ForeignIdColumnDefinition
     {
         if (is_string($model)) {
             $model = new $model;
@@ -979,9 +983,7 @@ class Blueprint
                 ->referencesModelColumn($model->getKeyName());
         }
 
-        $modelTraits = class_uses_recursive($model);
-
-        if (in_array(HasUlids::class, $modelTraits, true)) {
+        if (isset(class_uses_recursive($model)[HasUlids::class])) {
             return $this->foreignUlid($column, 26)
                 ->table($model->getTable())
                 ->referencesModelColumn($model->getKeyName());
@@ -1002,6 +1004,20 @@ class Blueprint
         }
 
         return $this->foreignUuid($column ?: $model->getForeignKey())
+            ->table($model->getTable())
+            ->referencesModelColumn($model->getKeyName());
+    }
+
+    /**
+     * Create a foreign ULID column for the given model.
+     */
+    public function foreignUlidFor(Model|string $model, ?string $column = null): ForeignIdColumnDefinition
+    {
+        if (is_string($model)) {
+            $model = new $model;
+        }
+
+        return $this->foreignUlid($column ?: $model->getForeignKey())
             ->table($model->getTable())
             ->referencesModelColumn($model->getKeyName());
     }

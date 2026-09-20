@@ -128,13 +128,21 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
      * Set up database-related testing traits.
      *
      * Wraps migration traits in setUpDatabaseRequirements() so that
-     * testbench attributes (RequiresDatabase, WithConfig, WithMigration)
+     * testbench attributes (RequiresDatabase, WithMigration)
      * are processed before migrations run.
      */
     protected function setUpDatabaseTraits(array $uses): void
     {
         // Reset before database attributes register paths against retained schema state.
         $this->prepareDatabaseTruncationForMethod($uses);
+
+        // Version requirements and migration hooks may query before the database traits run.
+        if (isset($uses[RefreshDatabase::class])
+            || isset($uses[DatabaseMigrations::class])
+            || isset($uses[DatabaseTruncation::class])
+            || isset($uses[DatabaseTransactions::class])) {
+            $this->ensureParallelDatabaseExists();
+        }
 
         $this->setUpDatabaseRequirements(function () use ($uses): void {
             if (isset($uses[RefreshDatabase::class])) {

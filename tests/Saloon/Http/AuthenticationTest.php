@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Saloon\Http;
 
+use GuzzleHttp\Cookie\SetCookie;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Events\Dispatcher;
@@ -39,10 +40,12 @@ class AuthenticationTest extends TestCase
         $cookie = $pendingRequest->cookies()[0];
         $this->assertSame('session', $cookie['Name']);
         $this->assertSame('secret', $cookie['Value']);
-        $this->assertSame($expected, $cookie['Domain']);
+        $this->assertSame($expected, ltrim($cookie['Domain'], '.'));
         $this->assertSame($domain === null, $cookie['HostOnly'] ?? false);
         $this->assertSame($scheme === 'https', $cookie['Secure']);
         $this->assertTrue($cookie['Discard']);
+        $this->assertTrue((new SetCookie($cookie))->matchesDomain('api.example.com'));
+        $this->assertSame($domain !== null, (new SetCookie($cookie))->matchesDomain('other.example.com'));
     }
 
     /**
@@ -52,9 +55,9 @@ class AuthenticationTest extends TestCase
     {
         return [
             'inferred HTTPS' => [null, 'api.example.com', 'https'],
-            'explicit HTTPS' => ['.example.com', '.example.com', 'https'],
+            'explicit HTTPS' => ['.example.com', 'example.com', 'https'],
             'inferred HTTP' => [null, 'api.example.com', 'http'],
-            'explicit HTTP' => ['.example.com', '.example.com', 'http'],
+            'explicit HTTP' => ['.example.com', 'example.com', 'http'],
         ];
     }
 

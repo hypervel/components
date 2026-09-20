@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Cache;
 
 use Hypervel\Cache\Events\KeyWritten;
+use Hypervel\Cache\Lock;
 use Hypervel\Cache\NullSentinel;
+use Hypervel\Cache\Repository;
 use Hypervel\Foundation\Testing\LazilyRefreshDatabase;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Cache;
@@ -25,86 +27,86 @@ class RepositoryTest extends TestCase
         $count = 0;
 
         // Cache is empty. The value should be populated...
-        $value = $cache->flexible('foo', [10, 20], function () use (&$count) {
+        $value = $cache->flexible('foo', [10, 20], function () use (&$count): int {
             return ++$count;
         });
 
         $this->assertSame(1, $value);
         $this->assertCount(0, defer());
         $this->assertSame(1, $cache->get('foo'));
-        $this->assertSame(946684800, $cache->get('hypervel:cache:flexible:created:foo'));
+        $this->assertSame(946684800, $cache->get(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'foo'));
 
         // Cache is fresh. The value should be retrieved from the cache and used...
-        $value = $cache->flexible('foo', [10, 20], function () use (&$count) {
+        $value = $cache->flexible('foo', [10, 20], function () use (&$count): int {
             return ++$count;
         });
         $this->assertSame(1, $value);
         $this->assertCount(0, defer());
         $this->assertSame(1, $cache->get('foo'));
-        $this->assertSame(946684800, $cache->get('hypervel:cache:flexible:created:foo'));
+        $this->assertSame(946684800, $cache->get(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'foo'));
 
         CarbonImmutable::setTestNow(now()->addSeconds(11));
 
         // Cache is now "stale". The stored value should be used and a deferred
         // callback should be registered to refresh the cache.
-        $value = $cache->flexible('foo', [10, 20], function () use (&$count) {
+        $value = $cache->flexible('foo', [10, 20], function () use (&$count): int {
             return ++$count;
         });
         $this->assertSame(1, $value);
         $this->assertCount(1, defer());
         $this->assertSame(1, $cache->get('foo'));
-        $this->assertSame(946684800, $cache->get('hypervel:cache:flexible:created:foo'));
+        $this->assertSame(946684800, $cache->get(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'foo'));
 
         // We will hit it again within the same request. This should not queue
         // up an additional deferred callback as only one can be registered at
         // a time for each key.
-        $value = $cache->flexible('foo', [10, 20], function () use (&$count) {
+        $value = $cache->flexible('foo', [10, 20], function () use (&$count): int {
             return ++$count;
         });
         $this->assertSame(1, $value);
         $this->assertCount(1, defer());
         $this->assertSame(1, $cache->get('foo'));
-        $this->assertSame(946684800, $cache->get('hypervel:cache:flexible:created:foo'));
+        $this->assertSame(946684800, $cache->get(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'foo'));
 
         // We will now simulate the end of the request lifecycle by executing the
         // deferred callback. This should refresh the cache.
         defer()->invoke();
         $this->assertCount(0, defer());
         $this->assertSame(2, $cache->get('foo')); // this has been updated!
-        $this->assertSame(946684811, $cache->get('hypervel:cache:flexible:created:foo')); // this has been updated!
+        $this->assertSame(946684811, $cache->get(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'foo')); // this has been updated!
 
         // Now the cache is fresh again...
-        $value = $cache->flexible('foo', [10, 20], function () use (&$count) {
+        $value = $cache->flexible('foo', [10, 20], function () use (&$count): int {
             return ++$count;
         });
         $this->assertSame(2, $value);
         $this->assertCount(0, defer());
         $this->assertSame(2, $cache->get('foo'));
-        $this->assertSame(946684811, $cache->get('hypervel:cache:flexible:created:foo'));
+        $this->assertSame(946684811, $cache->get(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'foo'));
 
         // Let's now progress time beyond the stale TTL...
         CarbonImmutable::setTestNow(now()->addSeconds(21));
 
         // Now the values should have left the cache. We should refresh.
-        $value = $cache->flexible('foo', [10, 20], function () use (&$count) {
+        $value = $cache->flexible('foo', [10, 20], function () use (&$count): int {
             return ++$count;
         });
         $this->assertSame(3, $value);
         $this->assertCount(0, defer());
         $this->assertSame(3, $cache->get('foo'));
-        $this->assertSame(946684832, $cache->get('hypervel:cache:flexible:created:foo'));
+        $this->assertSame(946684832, $cache->get(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'foo'));
 
         // Now lets see what happens when another request, job, or command is
         // also trying to refresh the same key at the same time. Will push past
         // the "fresh" TTL and register a deferred callback.
         CarbonImmutable::setTestNow(now()->addSeconds(11));
-        $value = $cache->flexible('foo', [10, 20], function () use (&$count) {
+        $value = $cache->flexible('foo', [10, 20], function () use (&$count): int {
             return ++$count;
         });
         $this->assertSame(3, $value);
         $this->assertCount(1, defer());
         $this->assertSame(3, $cache->get('foo'));
-        $this->assertSame(946684832, $cache->get('hypervel:cache:flexible:created:foo'));
+        $this->assertSame(946684832, $cache->get(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'foo'));
 
         // Now we will execute the deferred callback but we will first acquire
         // our own lock. This means that the value should not be refreshed by
@@ -117,7 +119,7 @@ class RepositoryTest extends TestCase
         $this->assertSame(3, $value);
         $this->assertCount(1, defer());
         $this->assertSame(3, $cache->get('foo'));
-        $this->assertSame(946684832, $cache->get('hypervel:cache:flexible:created:foo'));
+        $this->assertSame(946684832, $cache->get(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'foo'));
         $this->assertTrue($lock->release());
 
         // Now we have cleared the lock we will, one last time, confirm that
@@ -125,36 +127,36 @@ class RepositoryTest extends TestCase
         defer()->invoke();
         $this->assertCount(0, defer());
         $this->assertSame(4, $cache->get('foo'));
-        $this->assertSame(946684843, $cache->get('hypervel:cache:flexible:created:foo'));
+        $this->assertSame(946684843, $cache->get(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'foo'));
 
         // The last thing is to check that we don't refresh the cache in the
         // deferred callback if another thread has already done the work for us.
         // We will make the cache stale...
         CarbonImmutable::setTestNow(now()->addSeconds(11));
-        $value = $cache->flexible('foo', [10, 20], function () use (&$count) {
+        $value = $cache->flexible('foo', [10, 20], function () use (&$count): int {
             return ++$count;
         });
         $this->assertSame(4, $value);
         $this->assertCount(1, defer());
         $this->assertSame(4, $cache->get('foo'));
-        $this->assertSame(946684843, $cache->get('hypervel:cache:flexible:created:foo'));
+        $this->assertSame(946684843, $cache->get(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'foo'));
 
         // There is now a deferred callback ready to refresh the cache. We will
         // simulate another thread updating the value.
         $cache->putMany([
             'foo' => 99,
-            'hypervel:cache:flexible:created:foo' => 946684863,
+            Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'foo' => 946684863,
         ]);
 
         // then we will run the refresh callback
         defer()->invoke();
-        $value = $cache->flexible('foo', [10, 20], function () use (&$count) {
+        $value = $cache->flexible('foo', [10, 20], function () use (&$count): int {
             return ++$count;
         });
         $this->assertSame(99, $value);
         $this->assertCount(0, defer());
         $this->assertSame(99, $cache->get('foo'));
-        $this->assertSame(946684863, $cache->get('hypervel:cache:flexible:created:foo'));
+        $this->assertSame(946684863, $cache->get(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'foo'));
     }
 
     public function testItHandlesStrayTtlKeyAfterMainKeyIsForgotten(): void
@@ -162,7 +164,7 @@ class RepositoryTest extends TestCase
         $cache = Cache::driver('array');
         $count = 0;
 
-        $value = $cache->flexible('count', [5, 10], function () use (&$count) {
+        $value = $cache->flexible('count', [5, 10], function () use (&$count): int {
             $count = 1;
 
             return $count;
@@ -173,7 +175,7 @@ class RepositoryTest extends TestCase
 
         $cache->forget('count');
 
-        $value = $cache->flexible('count', [5, 10], function () use (&$count) {
+        $value = $cache->flexible('count', [5, 10], function () use (&$count): int {
             $count = 2;
 
             return $count;
@@ -187,28 +189,28 @@ class RepositoryTest extends TestCase
         $this->freezeTime();
         $cache = Cache::driver('database');
 
-        $cache->flexible('count', [5, 10], fn () => 1);
+        $cache->flexible('count', [5, 10], fn (): int => 1);
 
         $this->assertTrue($cache->has('count'));
-        $this->assertTrue($cache->has('hypervel:cache:flexible:created:count'));
+        $this->assertTrue($cache->has(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'count'));
 
         $cache->forget('count');
 
         $this->assertEmpty($cache->getConnection()->table('cache')->get());
         $this->assertTrue($cache->missing('count'));
-        $this->assertTrue($cache->missing('hypervel:cache:flexible:created:count'));
+        $this->assertTrue($cache->missing(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'count'));
 
-        $cache->flexible('count', [5, 10], fn () => 1);
+        $cache->flexible('count', [5, 10], fn (): int => 1);
 
         $this->assertTrue($cache->has('count'));
-        $this->assertTrue($cache->has('hypervel:cache:flexible:created:count'));
+        $this->assertTrue($cache->has(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'count'));
 
         $this->travel(20)->seconds();
         $cache->forgetIfExpired('count');
 
         $this->assertEmpty($cache->getConnection()->table('cache')->get());
         $this->assertTrue($cache->missing('count'));
-        $this->assertTrue($cache->missing('hypervel:cache:flexible:created:count'));
+        $this->assertTrue($cache->missing(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'count'));
     }
 
     public function testItImplicitlyClearsTtlKeysFromFileDriver(): void
@@ -216,29 +218,29 @@ class RepositoryTest extends TestCase
         $this->freezeTime();
         $cache = Cache::driver('file');
 
-        $cache->flexible('count', [5, 10], fn () => 1);
+        $cache->flexible('count', [5, 10], fn (): int => 1);
 
         $this->assertTrue($cache->has('count'));
-        $this->assertTrue($cache->has('hypervel:cache:flexible:created:count'));
+        $this->assertTrue($cache->has(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'count'));
 
         $cache->forget('count');
 
         $this->assertFalse($cache->getFilesystem()->exists($cache->path('count')));
-        $this->assertFalse($cache->getFilesystem()->exists($cache->path('hypervel:cache:flexible:created:count')));
+        $this->assertFalse($cache->getFilesystem()->exists($cache->path(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'count')));
         $this->assertTrue($cache->missing('count'));
-        $this->assertTrue($cache->missing('hypervel:cache:flexible:created:count'));
+        $this->assertTrue($cache->missing(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'count'));
 
-        $cache->flexible('count', [5, 10], fn () => 1);
+        $cache->flexible('count', [5, 10], fn (): int => 1);
 
         $this->assertTrue($cache->has('count'));
-        $this->assertTrue($cache->has('hypervel:cache:flexible:created:count'));
+        $this->assertTrue($cache->has(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'count'));
 
         $this->travel(20)->seconds();
 
         $this->assertTrue($cache->missing('count'));
         $this->assertFalse($cache->getFilesystem()->exists($cache->path('count')));
-        $this->assertFalse($cache->getFilesystem()->exists($cache->path('hypervel:cache:flexible:created:count')));
-        $this->assertTrue($cache->missing('hypervel:cache:flexible:created:count'));
+        $this->assertFalse($cache->getFilesystem()->exists($cache->path(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'count')));
+        $this->assertTrue($cache->missing(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'count'));
     }
 
     public function testItCanAlwaysDefer(): void
@@ -248,7 +250,7 @@ class RepositoryTest extends TestCase
         $count = 0;
 
         // Cache is empty. The value should be populated...
-        $cache->flexible('foo', [10, 20], function () use (&$count) {
+        $cache->flexible('foo', [10, 20], function () use (&$count): int {
             return ++$count;
         }, alwaysDefer: true);
 
@@ -258,7 +260,7 @@ class RepositoryTest extends TestCase
         CarbonImmutable::setTestNow(now()->addSeconds(11));
 
         // Second callback should defer with always now true
-        $cache->flexible('foo', [10, 20], function () use (&$count) {
+        $cache->flexible('foo', [10, 20], function () use (&$count): int {
             return ++$count;
         }, alwaysDefer: true);
 
@@ -271,7 +273,7 @@ class RepositoryTest extends TestCase
         // do not freeze time as this test depends on time progressing duration execution.
         $cache = Cache::driver('array');
         $events = [];
-        Event::listen(function (KeyWritten $event) use (&$events) {
+        Event::listen(function (KeyWritten $event) use (&$events): void {
             $events[] = $event;
         });
 
@@ -289,7 +291,7 @@ class RepositoryTest extends TestCase
 
         Cache::driver('array')->put('foo', 'bar', 60);
 
-        Event::assertDispatched(KeyWritten::class, function (KeyWritten $event) {
+        Event::assertDispatched(KeyWritten::class, function (KeyWritten $event): bool {
             return $event->key === 'foo'
                 && $event->value === 'bar'
                 && $event->seconds === 60;
@@ -321,9 +323,9 @@ class RepositoryTest extends TestCase
         $this->assertSame('forever', $cache->get(TestCacheKey::Bar));
 
         // remember / rememberForever / sear
-        $this->assertSame('remember', $cache->remember(TestCacheKey::Baz, 3600, fn () => 'remember'));
-        $this->assertSame('forever', $cache->rememberForever(TestCacheKey::Qux, fn () => 'forever'));
-        $this->assertSame('forever', $cache->sear(TestCacheKey::Qux, fn () => 'ignored'));
+        $this->assertSame('remember', $cache->remember(TestCacheKey::Baz, 3600, fn (): string => 'remember'));
+        $this->assertSame('forever', $cache->rememberForever(TestCacheKey::Qux, fn (): string => 'forever'));
+        $this->assertSame('forever', $cache->sear(TestCacheKey::Qux, fn (): string => 'ignored'));
 
         // increment / decrement
         $cache->put(TestCacheKey::Foo, 5);
@@ -336,8 +338,8 @@ class RepositoryTest extends TestCase
         $this->assertNull($cache->get(TestCacheKey::Foo));
 
         // flexible / withoutOverlapping
-        $this->assertSame('flexible', $cache->flexible(TestCacheKey::Foo, [5, 10], fn () => 'flexible'));
-        $this->assertSame('overlapping', $cache->withoutOverlapping(TestCacheKey::Foo, fn () => 'overlapping'));
+        $this->assertSame('flexible', $cache->flexible(TestCacheKey::Foo, [5, 10], fn (): string => 'flexible'));
+        $this->assertSame('overlapping', $cache->withoutOverlapping(TestCacheKey::Foo, fn (): string => 'overlapping'));
 
         // many / getMultiple
         $cache->clear();
@@ -345,16 +347,83 @@ class RepositoryTest extends TestCase
         $this->assertSame(['foo' => 'default', 'qux' => 'default'], $cache->getMultiple([TestCacheKey::Foo, TestCacheKey::Qux], 'default'));
     }
 
+    public function testFlexibleDeferLabelIsScopedToTagGroup(): void
+    {
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
+
+        $users = Cache::driver('array')->tags(['users']);
+        $posts = Cache::driver('array')->tags(['posts']);
+
+        // Populate both tagged caches with the same raw key.
+        $users->flexible('profile', [10, 20], fn (): string => 'users');
+        $posts->flexible('profile', [10, 20], fn (): string => 'posts');
+
+        $this->assertCount(0, defer());
+
+        // Advance past the "fresh" TTL — both entries are now stale.
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(11));
+
+        $users->flexible('profile', [10, 20], fn (): string => 'users-refreshed');
+        $posts->flexible('profile', [10, 20], fn (): string => 'posts-refreshed');
+
+        // Each tagged cache must register its own deferred callback. Before the
+        // fix, both calls produced the same defer label so one would be silently
+        // dropped by DeferredCallbackCollection::forgetDuplicates(), leaving only
+        // one refresh in the queue instead of two.
+        $this->assertCount(2, defer());
+
+        defer()->invoke();
+
+        $this->assertSame('users-refreshed', $users->get('profile'));
+        $this->assertSame('posts-refreshed', $posts->get('profile'));
+    }
+
+    public function testFlexibleLockIsScopedToTagGroup(): void
+    {
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
+
+        $store = Cache::driver('array');
+        $users = $store->tags(['users']);
+        $posts = $store->tags(['posts']);
+
+        // Populate both tagged caches with the same raw key.
+        $users->flexible('profile', [10, 20], fn (): string => 'users');
+        $posts->flexible('profile', [10, 20], fn (): string => 'posts');
+
+        // Make both stale.
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(11));
+
+        $users->flexible('profile', [10, 20], fn (): string => 'users-refreshed');
+        $posts->flexible('profile', [10, 20], fn (): string => 'posts-refreshed');
+
+        $this->assertCount(2, defer());
+
+        // Hold the users-tag lock so only the posts refresh can run.
+        $usersLockKey = 'hypervel:cache:flexible:lock:' . $users->taggedItemKey('profile');
+        $usersLock = $store->lock($usersLockKey);
+        $this->assertTrue($usersLock->acquire());
+
+        defer()->invoke();
+
+        // The users refresh was skipped because its lock was held.
+        $this->assertSame('users', $users->get('profile'));
+
+        // The posts refresh ran independently because its lock key is different.
+        $this->assertSame('posts-refreshed', $posts->get('profile'));
+
+        $usersLock->release();
+    }
+
     public function testRememberNullableRoundTripsThroughDefaultStore(): void
     {
         $cache = Cache::driver('array');
 
         $count = 0;
-        $result1 = $cache->rememberNullable('k', 60, function () use (&$count) {
+        $result1 = $cache->rememberNullable('k', 60, function () use (&$count): null {
             ++$count;
             return null;
         });
-        $result2 = $cache->rememberNullable('k', 60, function () use (&$count) {
+        $result2 = $cache->rememberNullable('k', 60, function () use (&$count): null {
             ++$count;
             return null;
         });
@@ -368,7 +437,7 @@ class RepositoryTest extends TestCase
     {
         $cache = Cache::driver('array');
 
-        $cache->rememberNullable('k', 60, fn () => null);
+        $cache->rememberNullable('k', 60, fn (): null => null);
 
         // Laravel null-as-absence convention: has() returns false for a stored null.
         $this->assertFalse($cache->has('k'));
@@ -379,7 +448,7 @@ class RepositoryTest extends TestCase
     {
         $cache = Cache::driver('array');
 
-        $cache->rememberNullable('k', 60, fn () => null);
+        $cache->rememberNullable('k', 60, fn (): null => null);
         $cache->put('k', 'real', 60);
 
         $this->assertSame('real', $cache->get('k'));
@@ -391,12 +460,12 @@ class RepositoryTest extends TestCase
         $this->freezeTime();
         $cache = Cache::driver('array');
 
-        $cache->rememberNullable('k', 60, fn () => null);
+        $cache->rememberNullable('k', 60, fn (): null => null);
 
         $this->travel(61)->seconds();
 
         $invoked = false;
-        $result = $cache->rememberNullable('k', 60, function () use (&$invoked) {
+        $result = $cache->rememberNullable('k', 60, function () use (&$invoked): string {
             $invoked = true;
             return 'fresh';
         });
@@ -413,7 +482,7 @@ class RepositoryTest extends TestCase
         $count = 0;
 
         // First call: miss, callback returns null → sentinel stored via flexible's putMany.
-        $value = $cache->flexibleNullable('foo', [10, 20], function () use (&$count) {
+        $value = $cache->flexibleNullable('foo', [10, 20], function () use (&$count): null {
             ++$count;
             return null;
         });
@@ -424,7 +493,7 @@ class RepositoryTest extends TestCase
         // Advance past the fresh TTL. Next call returns the stale sentinel (unwrapped)
         // and registers a deferred refresh.
         CarbonImmutable::setTestNow(now()->addSeconds(11));
-        $value = $cache->flexibleNullable('foo', [10, 20], function () use (&$count) {
+        $value = $cache->flexibleNullable('foo', [10, 20], function () use (&$count): null {
             ++$count;
             return null;
         });

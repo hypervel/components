@@ -6,6 +6,7 @@ namespace Hypervel\Database\Eloquent\Concerns;
 
 use Closure;
 use Hypervel\Database\Eloquent\Attributes\ScopedBy;
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Scope;
 use Hypervel\Support\Arr;
@@ -59,8 +60,8 @@ trait HasGlobalScopes
      * lifetime and applies to every query for this model class across all
      * coroutines.
      *
-     * @param (Closure(\Hypervel\Database\Eloquent\Builder<static>): mixed)|\Hypervel\Database\Eloquent\Scope|string $scope
-     * @param null|(Closure(\Hypervel\Database\Eloquent\Builder<static>): mixed)|\Hypervel\Database\Eloquent\Scope $implementation
+     * @param (Closure(Builder<static>): mixed)|Scope|string $scope
+     * @param null|(Closure(Builder<static>): mixed)|Scope $implementation
      *
      * @throws InvalidArgumentException
      */
@@ -70,7 +71,7 @@ trait HasGlobalScopes
             return static::$globalScopes[static::class][$scope] = $implementation;
         }
         if ($scope instanceof Closure) {
-            return static::$globalScopes[static::class][spl_object_hash($scope)] = $scope;
+            return static::$globalScopes[static::class][spl_object_id($scope)] = $scope;
         }
         if ($scope instanceof Scope) {
             return static::$globalScopes[static::class][get_class($scope)] = $scope;
@@ -102,7 +103,7 @@ trait HasGlobalScopes
     /**
      * Determine if a model has a global scope.
      */
-    public static function hasGlobalScope(Scope|string $scope): bool
+    public static function hasGlobalScope(Scope|int|string $scope): bool
     {
         return ! is_null(static::getGlobalScope($scope));
     }
@@ -110,18 +111,15 @@ trait HasGlobalScopes
     /**
      * Get a global scope registered with the model.
      *
-     * @return null|(Closure(\Hypervel\Database\Eloquent\Builder<static>): mixed)|\Hypervel\Database\Eloquent\Scope
+     * @return null|(Closure(Builder<static>): mixed)|Scope
      */
-    public static function getGlobalScope(Scope|string $scope): Scope|Closure|null
+    public static function getGlobalScope(Scope|int|string $scope): Scope|Closure|null
     {
-        if (is_string($scope)) {
-            return Arr::get(static::$globalScopes, static::class . '.' . $scope);
+        if (is_object($scope)) {
+            $scope = get_class($scope);
         }
 
-        return Arr::get(
-            static::$globalScopes,
-            static::class . '.' . get_class($scope)
-        );
+        return Arr::get(static::$globalScopes, static::class . '.' . $scope);
     }
 
     /**

@@ -146,10 +146,12 @@ class DatabaseLockTest extends DatabaseTestCase
 
     public function testExpiredLockCannotBeRefreshedByPreviousOwner(): void
     {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
+
         $lock = Cache::driver('database')->lock('foo', 10);
         $this->assertTrue($lock->get());
 
-        DB::table('cache_locks')->update(['expiration' => CarbonImmutable::now()->subDay()->getTimestamp()]);
+        DB::table('cache_locks')->update(['expiration' => $now->subDay()->getTimestamp()]);
 
         $this->assertFalse($lock->refresh(20));
     }
@@ -163,10 +165,10 @@ class DatabaseLockTest extends DatabaseTestCase
         $insertBuilder = m::mock(Builder::class);
         $deleteBuilder = m::mock(Builder::class);
 
-        $insertBuilder->shouldReceive('insert')->once()->andReturn(true);
+        $insertBuilder->expects('insert')->andReturn(true);
 
-        $deleteBuilder->shouldReceive('where')->with('expiration', '<=', m::any())->once()->andReturnSelf();
-        $deleteBuilder->shouldReceive('delete')->once()->andThrow(
+        $deleteBuilder->expects('where')->with('expiration', '<=', m::any())->andReturnSelf();
+        $deleteBuilder->expects('delete')->andThrow(
             new QueryException(
                 'mysql',
                 'delete from cache_locks where expiration <= ?',
@@ -175,7 +177,7 @@ class DatabaseLockTest extends DatabaseTestCase
             )
         );
 
-        $connection->shouldReceive('table')->with('cache_locks')->andReturn($insertBuilder, $deleteBuilder);
+        $connection->expects('table')->times(2)->with('cache_locks')->andReturn($insertBuilder, $deleteBuilder);
         $resolver->shouldReceive('connection')->with(null)->andReturn($connection);
 
         $lock = new DatabaseLock($resolver, null, 'foo', 'cache_locks', 0, lottery: [1, 1]);
@@ -198,9 +200,9 @@ class DatabaseLockTest extends DatabaseTestCase
 
         $owner = 'owner-123';
 
-        $deleteBuilder->shouldReceive('where')->with('key', 'foo')->once()->andReturnSelf();
-        $deleteBuilder->shouldReceive('where')->with('owner', $owner)->once()->andReturnSelf();
-        $deleteBuilder->shouldReceive('delete')->once()->andThrow(
+        $deleteBuilder->expects('where')->with('key', 'foo')->andReturnSelf();
+        $deleteBuilder->expects('where')->with('owner', $owner)->andReturnSelf();
+        $deleteBuilder->expects('delete')->andThrow(
             new QueryException(
                 'mysql',
                 'delete from cache_locks where key = ? and owner = ?',
@@ -209,7 +211,7 @@ class DatabaseLockTest extends DatabaseTestCase
             )
         );
 
-        $connection->shouldReceive('table')->with('cache_locks')->once()->andReturn($deleteBuilder);
+        $connection->expects('table')->with('cache_locks')->andReturn($deleteBuilder);
         $resolver->shouldReceive('connection')->with(null)->andReturn($connection);
 
         $lock = new DatabaseLock($resolver, null, 'foo', 'cache_locks', 10, $owner);

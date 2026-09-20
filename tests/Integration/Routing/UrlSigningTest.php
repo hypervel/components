@@ -97,12 +97,11 @@ class UrlSigningTest extends RoutingTestCase
         $this->assertSame('invalid', $this->get($url)->original);
     }
 
-    public function testTemporarySignedUrlsWithExpiresParameter()
+    public function testTemporarySignedUrlsWithExpiresParameter(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('reserved');
+        $this->expectExceptionObject(new InvalidArgumentException('reserved'));
 
-        Route::get('/foo/{id}', function (Request $request, $id) {
+        Route::get('/foo/{id}', function (Request $request, string $id): string {
             return $request->hasValidSignature() ? 'valid' : 'invalid';
         })->name('foo');
 
@@ -167,6 +166,9 @@ class UrlSigningTest extends RoutingTestCase
         $this->assertIsString($url = URL::signedRoute('foo', ['id' => 1]));
         $this->assertSame('invalid', $this->get($url . '&appended')->original);
     }
+
+    // REMOVED: Vapor's query-string override and fallback tests. Swoole uses
+    // QUERY_STRING directly, covered by testSigningUrl.
 
     public function testSignedUrlParametersParsedCorrectly()
     {

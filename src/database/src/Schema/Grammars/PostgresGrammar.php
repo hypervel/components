@@ -248,7 +248,7 @@ class PostgresGrammar extends Grammar
     {
         $column = $command->column;
 
-        $changes = ['type ' . $this->getType($column) . $this->modifyCollate($blueprint, $column)];
+        $changes = ['type ' . $this->getType($column) . $this->modifyCollate($blueprint, $column) . ($column->using !== null ? ' using ' . $this->getValue($column->using) : '')];
 
         foreach ($this->modifiers as $modifier) {
             if ($modifier === 'Collate') {
@@ -542,6 +542,14 @@ class PostgresGrammar extends Grammar
      * Compile a drop spatial index command.
      */
     public function compileDropSpatialIndex(Blueprint $blueprint, Fluent $command): string
+    {
+        return $this->compileDropIndex($blueprint, $command);
+    }
+
+    /**
+     * Compile a drop vector index command.
+     */
+    public function compileDropVectorIndex(Blueprint $blueprint, Fluent $command): string
     {
         return $this->compileDropIndex($blueprint, $command);
     }

@@ -43,7 +43,6 @@ use Throwable;
  * @method static replaceHeaders(array $headers)
  * @method static withBasicAuth(string $username, string $password)
  * @method static withDigestAuth(string $username, string $password)
- * @method static withNtlmAuth(string $username, string $password)
  * @method static withToken(string $token, string $type = 'Bearer')
  * @method static withUserAgent(bool|string $userAgent)
  * @method static withUrlParameters(array $parameters = [])

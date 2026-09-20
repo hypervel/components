@@ -42,12 +42,9 @@ class EloquentPrunableTest extends DatabaseTestCase
         });
     }
 
-    public function testPrunableMethodMustBeImplemented()
+    public function testPrunableMethodMustBeImplemented(): void
     {
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage(
-            'Please implement',
-        );
+        $this->expectExceptionObject(new LogicException('Please implement'));
 
         PrunableTestModelMissingPrunableMethod::create()->pruneAll();
     }

@@ -13,6 +13,7 @@ use Hypervel\Queue\Middleware\RateLimited;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\RateLimiter\SlidingWindow;
+use Hypervel\RateLimiter\Unlimited;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -23,7 +24,7 @@ class RateLimitedTest extends TestCase
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
 
-        $rateLimiter->for('test', function ($job) {
+        $rateLimiter->for('test', function (object $job): Unlimited {
             return Limit::none();
         });
 
@@ -35,7 +36,7 @@ class RateLimitedTest extends TestCase
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
 
-        $rateLimiter->for(BackedEnumNamedRateLimited::Foo, function ($job) {
+        $rateLimiter->for(BackedEnumNamedRateLimited::Foo, function (object $job): Unlimited {
             return Limit::none();
         });
 
@@ -47,7 +48,7 @@ class RateLimitedTest extends TestCase
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
 
-        $rateLimiter->for(UnitEnumNamedRateLimited::hypervel, function ($job) {
+        $rateLimiter->for(UnitEnumNamedRateLimited::hypervel, function (object $job): Unlimited {
             return Limit::none();
         });
 
@@ -62,7 +63,7 @@ class RateLimitedTest extends TestCase
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
 
-        $rateLimiter->for('test', function ($job) {
+        $rateLimiter->for('test', function (object $job): Limit {
             return Limit::perHour(1);
         });
 
@@ -74,7 +75,7 @@ class RateLimitedTest extends TestCase
     {
         CarbonImmutable::setTestNow('2000-01-01 00:00:00');
         $rateLimiter = $this->app->make(RateLimiter::class);
-        $rateLimiter->for('test', fn () => SlidingWindow::perSecond(1, 2));
+        $rateLimiter->for('test', fn (): SlidingWindow => SlidingWindow::perSecond(1, 2));
 
         $this->assertJobRanSuccessfully(RateLimitedTestJob::class);
         $this->assertJobWasReleasedAfter(RateLimitedTestJob::class, 6);
@@ -84,7 +85,7 @@ class RateLimitedTest extends TestCase
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
 
-        $rateLimiter->for('test', function ($job) {
+        $rateLimiter->for('test', function (object $job): Limit {
             return Limit::perHour(1);
         });
 
@@ -96,7 +97,7 @@ class RateLimitedTest extends TestCase
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
 
-        $rateLimiter->for('test', function ($job) {
+        $rateLimiter->for('test', function (AdminTestJob|NonAdminTestJob $job): Limit|Unlimited {
             if ($job->isAdmin()) {
                 return Limit::none();
             }
@@ -115,7 +116,7 @@ class RateLimitedTest extends TestCase
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
 
-        $rateLimiter->for('test', function ($job) {
+        $rateLimiter->for('test', function (object $job): Limit {
             return Limit::perHour(1);
         });
 
@@ -123,11 +124,49 @@ class RateLimitedTest extends TestCase
         $this->assertJobWasReleasedAfter(RateLimitedReleaseAfterTestJob::class, 60);
     }
 
+    public function testLimitsAreNotHitWhenAnotherLimitIsReached(): void
+    {
+        $rateLimiter = $this->app->make(RateLimiter::class);
+
+        $rateLimiter->for('test', function (): array {
+            return [
+                Limit::perHour(10)->by('global'),
+                Limit::perHour(1)->by('tenant'),
+            ];
+        });
+
+        $this->assertJobRanSuccessfully(RateLimitedTestJob::class);
+        $this->assertJobWasReleased(RateLimitedTestJob::class);
+        $this->assertJobWasReleased(RateLimitedTestJob::class);
+
+        $this->assertSame(9, $rateLimiter->inspect(Limit::perHour(10)->by('global'), 'test')->remaining());
+        $this->assertSame(0, $rateLimiter->inspect(Limit::perHour(1)->by('tenant'), 'test')->remaining());
+    }
+
+    public function testLimitsAreNotHitWhenAnotherLimitIsReachedAndJobIsSkipped(): void
+    {
+        $rateLimiter = $this->app->make(RateLimiter::class);
+
+        $rateLimiter->for('test', function (): array {
+            return [
+                Limit::perHour(10)->by('global'),
+                Limit::perHour(1)->by('tenant'),
+            ];
+        });
+
+        $this->assertJobRanSuccessfully(RateLimitedDontReleaseTestJob::class);
+        $this->assertJobWasSkipped(RateLimitedDontReleaseTestJob::class);
+        $this->assertJobWasSkipped(RateLimitedDontReleaseTestJob::class);
+
+        $this->assertSame(9, $rateLimiter->inspect(Limit::perHour(10)->by('global'), 'test')->remaining());
+        $this->assertSame(0, $rateLimiter->inspect(Limit::perHour(1)->by('tenant'), 'test')->remaining());
+    }
+
     public function testExplicitZeroReleaseDelayIsRespected(): void
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
 
-        $rateLimiter->for('test', function ($job) {
+        $rateLimiter->for('test', function (object $job): Limit {
             return Limit::perHour(1);
         });
 
@@ -142,7 +181,7 @@ class RateLimitedTest extends TestCase
 
         $restoredRateLimited = unserialize(serialize($rateLimited));
 
-        $fetch = (function (string $name) {
+        $fetch = (function (string $name): mixed {
             return $this->{$name};
         })->bindTo($restoredRateLimited, RateLimited::class);
 
@@ -165,7 +204,7 @@ class RateLimitedTest extends TestCase
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
 
-        $rateLimiter->for('test', function ($job) {
+        $rateLimiter->for('test', function (object $job): Limit {
             return Limit::perHour(1);
         });
 
@@ -173,6 +212,11 @@ class RateLimitedTest extends TestCase
         $this->assertJobWasReleasedAfter(RateLimitedSerializedPropertyTestJob::class, 60);
     }
 
+    /**
+     * Assert the job runs and is deleted.
+     *
+     * @param class-string $class
+     */
     protected function assertJobRanSuccessfully(string $class): void
     {
         $class::$handled = false;
@@ -180,10 +224,10 @@ class RateLimitedTest extends TestCase
 
         $job = m::mock(Job::class);
 
-        $job->shouldReceive('hasFailed')->once()->andReturn(false);
-        $job->shouldReceive('isReleased')->andReturn(false);
-        $job->shouldReceive('isDeletedOrReleased')->once()->andReturn(false);
-        $job->shouldReceive('delete')->once();
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('isReleased')->times(2)->andReturn(false);
+        $job->expects('isDeletedOrReleased')->andReturn(false);
+        $job->expects('delete');
 
         $instance->call($job, [
             'command' => serialize($command = new $class),
@@ -192,6 +236,11 @@ class RateLimitedTest extends TestCase
         $this->assertTrue($class::$handled);
     }
 
+    /**
+     * Assert the job is released without running.
+     *
+     * @param class-string $class
+     */
     protected function assertJobWasReleased(string $class): void
     {
         $class::$handled = false;
@@ -199,10 +248,10 @@ class RateLimitedTest extends TestCase
 
         $job = m::mock(Job::class);
 
-        $job->shouldReceive('hasFailed')->once()->andReturn(false);
-        $job->shouldReceive('release')->once();
-        $job->shouldReceive('isReleased')->andReturn(true);
-        $job->shouldReceive('isDeletedOrReleased')->once()->andReturn(true);
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('release');
+        $job->expects('isReleased')->times(2)->andReturn(true);
+        $job->expects('isDeletedOrReleased')->andReturn(true);
 
         $instance->call($job, [
             'command' => serialize($command = new $class),
@@ -211,6 +260,11 @@ class RateLimitedTest extends TestCase
         $this->assertFalse($class::$handled);
     }
 
+    /**
+     * Assert the job is released with the given delay.
+     *
+     * @param class-string $class
+     */
     protected function assertJobWasReleasedAfter(string $class, int $releaseAfter): void
     {
         $class::$handled = false;
@@ -218,10 +272,10 @@ class RateLimitedTest extends TestCase
 
         $job = m::mock(Job::class);
 
-        $job->shouldReceive('hasFailed')->once()->andReturn(false);
-        $job->shouldReceive('release')->once()->withArgs([$releaseAfter]);
-        $job->shouldReceive('isReleased')->andReturn(true);
-        $job->shouldReceive('isDeletedOrReleased')->once()->andReturn(true);
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('release')->withArgs([$releaseAfter]);
+        $job->expects('isReleased')->times(2)->andReturn(true);
+        $job->expects('isDeletedOrReleased')->andReturn(true);
 
         $instance->call($job, [
             'command' => serialize($command = new $class),
@@ -230,6 +284,11 @@ class RateLimitedTest extends TestCase
         $this->assertFalse($class::$handled);
     }
 
+    /**
+     * Assert the job is deleted without running.
+     *
+     * @param class-string $class
+     */
     protected function assertJobWasSkipped(string $class): void
     {
         $class::$handled = false;
@@ -237,10 +296,10 @@ class RateLimitedTest extends TestCase
 
         $job = m::mock(Job::class);
 
-        $job->shouldReceive('hasFailed')->once()->andReturn(false);
-        $job->shouldReceive('isReleased')->andReturn(false);
-        $job->shouldReceive('isDeletedOrReleased')->once()->andReturn(false);
-        $job->shouldReceive('delete')->once();
+        $job->expects('hasFailed')->andReturn(false);
+        $job->expects('isReleased')->times(2)->andReturn(false);
+        $job->expects('isDeletedOrReleased')->andReturn(false);
+        $job->expects('delete');
 
         $instance->call($job, [
             'command' => serialize($command = new $class),
@@ -252,16 +311,19 @@ class RateLimitedTest extends TestCase
     public function testItCanLimitPerMinute(): void
     {
         $limiter = $this->app->make(RateLimiter::class);
-        $limiter->for('test', fn () => Limit::perMinute(3));
-        $jobFactory = fn () => new class {
-            public $released = false;
+        $limiter->for('test', fn (): Limit => Limit::perMinute(3));
+        $jobFactory = fn (): object => new class {
+            public bool $released = false;
 
-            public function release()
+            /**
+             * Mark the job as released.
+             */
+            public function release(): void
             {
                 $this->released = true;
             }
         };
-        $next = fn ($job) => $job;
+        $next = fn (object $job): object => $job;
 
         $middleware = new RateLimited('test');
 
@@ -295,16 +357,19 @@ class RateLimitedTest extends TestCase
     public function testItCanLimitPerSecond(): void
     {
         $limiter = $this->app->make(RateLimiter::class);
-        $limiter->for('test', fn () => Limit::perSecond(3));
-        $jobFactory = fn () => new class {
-            public $released = false;
+        $limiter->for('test', fn (): Limit => Limit::perSecond(3));
+        $jobFactory = fn (): object => new class {
+            public bool $released = false;
 
-            public function release()
+            /**
+             * Mark the job as released.
+             */
+            public function release(): void
             {
                 $this->released = true;
             }
         };
-        $next = fn ($job) => $job;
+        $next = fn (object $job): object => $job;
 
         $middleware = new RateLimited('test');
 
@@ -343,11 +408,17 @@ class RateLimitedTestJob
 
     public static bool $handled = false;
 
+    /**
+     * Handle the job.
+     */
     public function handle(): void
     {
         static::$handled = true;
     }
 
+    /**
+     * Get the job middleware.
+     */
     public function middleware(): array
     {
         return [new RateLimited('test')];
@@ -356,6 +427,9 @@ class RateLimitedTestJob
 
 class AdminTestJob extends RateLimitedTestJob
 {
+    /**
+     * Determine whether the job runs as an administrator.
+     */
     public function isAdmin(): bool
     {
         return true;
@@ -364,6 +438,9 @@ class AdminTestJob extends RateLimitedTestJob
 
 class NonAdminTestJob extends RateLimitedTestJob
 {
+    /**
+     * Determine whether the job runs as an administrator.
+     */
     public function isAdmin(): bool
     {
         return false;
@@ -372,6 +449,9 @@ class NonAdminTestJob extends RateLimitedTestJob
 
 class RateLimitedDontReleaseTestJob extends RateLimitedTestJob
 {
+    /**
+     * Get the job middleware.
+     */
     public function middleware(): array
     {
         return [(new RateLimited('test'))->dontRelease()];
@@ -380,6 +460,9 @@ class RateLimitedDontReleaseTestJob extends RateLimitedTestJob
 
 class RateLimitedReleaseAfterTestJob extends RateLimitedTestJob
 {
+    /**
+     * Get the job middleware.
+     */
     public function middleware(): array
     {
         return [(new RateLimited('test'))->releaseAfter(60)];
@@ -388,6 +471,9 @@ class RateLimitedReleaseAfterTestJob extends RateLimitedTestJob
 
 class RateLimitedZeroReleaseAfterTestJob extends RateLimitedTestJob
 {
+    /**
+     * Get the job middleware.
+     */
     public function middleware(): array
     {
         return [(new RateLimited('test'))->releaseAfter(0)];
@@ -401,16 +487,25 @@ class RateLimitedSerializedPropertyTestJob
 
     public static bool $handled = false;
 
+    /**
+     * Create a job with rate-limiting middleware.
+     */
     public function __construct()
     {
         $this->through([(new RateLimited('test'))->releaseAfter(60)]);
     }
 
+    /**
+     * Handle the job.
+     */
     public function handle(): void
     {
         static::$handled = true;
     }
 
+    /**
+     * Get the job middleware.
+     */
     public function middleware(): array
     {
         return [];
@@ -434,11 +529,17 @@ class RateLimitedTestJobUsingBackedEnum
 
     public static bool $handled = false;
 
+    /**
+     * Handle the job.
+     */
     public function handle(): void
     {
         static::$handled = true;
     }
 
+    /**
+     * Get the job middleware.
+     */
     public function middleware(): array
     {
         return [new RateLimited(BackedEnumNamedRateLimited::Foo)];
@@ -452,11 +553,17 @@ class RateLimitedTestJobUsingUnitEnum
 
     public static bool $handled = false;
 
+    /**
+     * Handle the job.
+     */
     public function handle(): void
     {
         static::$handled = true;
     }
 
+    /**
+     * Get the job middleware.
+     */
     public function middleware(): array
     {
         return [new RateLimited(UnitEnumNamedRateLimited::hypervel)];

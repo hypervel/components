@@ -80,7 +80,7 @@ class QueuePauseResumeTest extends TestCase
         return new QueueManager($container);
     }
 
-    public function testPauseQueueWithConnection()
+    public function testPauseQueueWithConnection(): void
     {
         $this->manager->pause('redis', 'default');
 
@@ -89,7 +89,6 @@ class QueuePauseResumeTest extends TestCase
 
     public function testPauseQueueWithTTL(): void
     {
-        CarbonImmutable::setTestNow();
         $this->manager->pauseFor('redis', 'default', 30);
 
         $this->assertTrue($this->manager->isPaused('redis', 'default'));
@@ -100,7 +99,6 @@ class QueuePauseResumeTest extends TestCase
 
     public function testPauseQueueIndefinitely(): void
     {
-        CarbonImmutable::setTestNow();
         $this->manager->pause('redis', 'default');
 
         $this->assertTrue($this->manager->isPaused('redis', 'default'));
@@ -109,7 +107,7 @@ class QueuePauseResumeTest extends TestCase
         $this->assertTrue($this->manager->isPaused('redis', 'default'));
     }
 
-    public function testResumeQueue()
+    public function testResumeQueue(): void
     {
         $this->manager->pause('redis', 'default');
         $this->assertTrue($this->manager->isPaused('redis', 'default'));
@@ -118,7 +116,7 @@ class QueuePauseResumeTest extends TestCase
         $this->assertFalse($this->manager->isPaused('redis', 'default'));
     }
 
-    public function testPausingQueueOnOneConnectionDoesNotAffectAnother()
+    public function testPausingQueueOnOneConnectionDoesNotAffectAnother(): void
     {
         $this->manager->pause('redis', 'default');
 
@@ -126,7 +124,7 @@ class QueuePauseResumeTest extends TestCase
         $this->assertFalse($this->manager->isPaused('database', 'default'));
     }
 
-    public function testPausingDifferentQueuesOnSameConnection()
+    public function testPausingDifferentQueuesOnSameConnection(): void
     {
         $this->manager->pause('redis', 'emails');
         $this->manager->pause('redis', 'notifications');
@@ -136,7 +134,7 @@ class QueuePauseResumeTest extends TestCase
         $this->assertFalse($this->manager->isPaused('redis', 'default'));
     }
 
-    public function testResumingOnlyAffectsSpecificQueue()
+    public function testResumingOnlyAffectsSpecificQueue(): void
     {
         $this->manager->pause('redis', 'emails');
         $this->manager->pause('redis', 'notifications');
@@ -147,11 +145,11 @@ class QueuePauseResumeTest extends TestCase
         $this->assertTrue($this->manager->isPaused('redis', 'notifications'));
     }
 
-    public function testPauseDispatchesQueuePausedEvent()
+    public function testPauseDispatchesQueuePausedEvent(): void
     {
         $dispatchedEvent = null;
 
-        $this->events->listen(QueuePaused::class, function (QueuePaused $event) use (&$dispatchedEvent) {
+        $this->events->listen(QueuePaused::class, function (QueuePaused $event) use (&$dispatchedEvent): void {
             $dispatchedEvent = $event;
         });
 
@@ -163,11 +161,11 @@ class QueuePauseResumeTest extends TestCase
         $this->assertNull($dispatchedEvent->ttl);
     }
 
-    public function testPauseForDispatchesQueuePausedEventWithTTL()
+    public function testPauseForDispatchesQueuePausedEventWithTTL(): void
     {
         $dispatchedEvent = null;
 
-        $this->events->listen(QueuePaused::class, function (QueuePaused $event) use (&$dispatchedEvent) {
+        $this->events->listen(QueuePaused::class, function (QueuePaused $event) use (&$dispatchedEvent): void {
             $dispatchedEvent = $event;
         });
 
@@ -179,11 +177,11 @@ class QueuePauseResumeTest extends TestCase
         $this->assertSame(60, $dispatchedEvent->ttl);
     }
 
-    public function testResumeDispatchesQueueResumedEvent()
+    public function testResumeDispatchesQueueResumedEvent(): void
     {
         $dispatchedEvent = null;
 
-        $this->events->listen(QueueResumed::class, function (QueueResumed $event) use (&$dispatchedEvent) {
+        $this->events->listen(QueueResumed::class, function (QueueResumed $event) use (&$dispatchedEvent): void {
             $dispatchedEvent = $event;
         });
 
@@ -308,13 +306,16 @@ class QueuePauseResumeTest extends TestCase
         $this->assertInstanceOf(QueuesResumed::class, $dispatchedEvent);
     }
 
-    public function testParsingQueueString()
+    public function testParsingQueueString(): void
     {
         $parser = new class {
             use ParsesQueue;
 
             private Container $hypervel;
 
+            /**
+             * Create the queue parser.
+             */
             public function __construct()
             {
                 $this->hypervel = new Container;
@@ -325,6 +326,9 @@ class QueuePauseResumeTest extends TestCase
                 ]));
             }
 
+            /**
+             * Parse a queue connection and name.
+             */
             public function parse(string $queue): array
             {
                 return $this->parseQueue($queue);

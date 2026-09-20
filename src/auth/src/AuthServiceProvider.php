@@ -352,19 +352,15 @@ class AuthServiceProvider extends ServiceProvider
     }
 
     /**
-     * Set the user resolver on each resolved request instance.
+     * Register the default request user resolver.
      *
-     * Uses callAfterResolving() instead of Laravel's rebinding('request', ...)
-     * because Hypervel's request is bound via bind() and resolved from
-     * RequestContext — it is not swapped via instance(), so rebinding
-     * callbacks would never fire.
+     * Server requests reach middleware before container resolution. The default
+     * callback resolves the current coroutine's user without retaining it.
      */
     protected function registerRequestUserResolver(): void
     {
-        $this->callAfterResolving(Request::class, function (Request $request) {
-            $request->setUserResolver(function (?string $guard = null) {
-                return call_user_func($this->app->make('auth')->userResolver(), $guard);
-            });
+        Request::setDefaultUserResolver(function (?string $guard = null): mixed {
+            return call_user_func($this->app->make('auth')->userResolver(), $guard);
         });
     }
 

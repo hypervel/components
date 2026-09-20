@@ -198,21 +198,23 @@ abstract class Broadcaster implements BroadcasterContract
     }
 
     /**
-     * Extracts the parameters out of what the user passed to handle the channel authentication.
+     * Extract the parameters out of what the user passed to handle the channel authentication.
      *
      * @return ReflectionParameter[]
+     *
+     * @throws Exception
      */
     protected function extractParameters(callable|string $callback): array
     {
         if (is_callable($callback)) {
-            return (new ReflectionFunction($callback))->getParameters();
+            return (new ReflectionFunction(Closure::fromCallable($callback)))->getParameters();
         }
 
         return $this->extractParametersFromClass($callback);
     }
 
     /**
-     * Extracts the parameters out of a class channel's "join" method.
+     * Extract the parameters out of a class channel's "join" method.
      *
      * @return ReflectionParameter[]
      *

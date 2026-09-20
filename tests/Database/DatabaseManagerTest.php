@@ -22,6 +22,9 @@ use PDO;
 
 class DatabaseManagerTest extends TestCase
 {
+    // REMOVED: Laravel's ::direct parsing, PDO selection and refresh tests.
+    // Hypervel uses a separate named connection for that endpoint.
+
     protected DB $db;
 
     protected function setUp(): void

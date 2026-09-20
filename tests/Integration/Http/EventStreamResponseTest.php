@@ -5,17 +5,19 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Http;
 
 use Exception;
+use Generator;
 use Hypervel\Http\StreamedEvent;
 use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class EventStreamResponseTest extends TestCase
 {
     public function testEventStreamResponse(): void
     {
-        Route::get('/stream', function () {
-            return response()->eventStream(function () {
+        Route::get('/stream', function (): StreamedResponse {
+            return response()->eventStream(function (): Generator {
                 yield new StreamedEvent(
                     event: 'update',
                     data: ['message' => 'hello'],
@@ -46,8 +48,8 @@ class EventStreamResponseTest extends TestCase
     {
         Exceptions::fake();
 
-        Route::get('/stream', function () {
-            return response()->eventStream(function () {
+        Route::get('/stream', function (): StreamedResponse {
+            return response()->eventStream(function (): Generator {
                 yield new StreamedEvent(
                     event: 'update',
                     data: ['message' => 'hello'],
@@ -66,15 +68,16 @@ class EventStreamResponseTest extends TestCase
         $this->assertStringNotContainsString("event: error\n", $content);
         $this->assertStringNotContainsString('data: </stream>', $content);
 
-        Exceptions::assertReported(fn (Exception $e) => $e->getMessage() === 'Something went wrong during streaming');
+        Exceptions::assertReported(fn (Exception $e): bool => $e->getMessage() === 'Something went wrong during streaming');
+        Exceptions::assertReportedCount(1);
     }
 
     public function testEventStreamExceptionIsReportedToExceptionHandler(): void
     {
         Exceptions::fake();
 
-        Route::get('/stream', function () {
-            return response()->eventStream(function () {
+        Route::get('/stream', function (): StreamedResponse {
+            return response()->eventStream(function (): never {
                 throw new Exception('Test exception reporting');
             });
         });
@@ -82,6 +85,7 @@ class EventStreamResponseTest extends TestCase
         $response = $this->get('/stream');
         $response->streamedContent();
 
-        Exceptions::assertReported(fn (Exception $e) => $e->getMessage() === 'Test exception reporting');
+        Exceptions::assertReported(fn (Exception $e): bool => $e->getMessage() === 'Test exception reporting');
+        Exceptions::assertReportedCount(1);
     }
 }

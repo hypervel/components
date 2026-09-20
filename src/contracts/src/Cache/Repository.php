@@ -183,9 +183,9 @@ interface Repository extends CacheInterface
     public function rememberForeverNullable(UnitEnum|string $key, Closure $callback): mixed;
 
     /**
-     * Set the expiration of a cached item; null TTL will retain the item forever.
+     * Set the expiration of a cached item.
      */
-    public function touch(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl = null): bool;
+    public function touch(UnitEnum|string $key, DateInterval|DateTimeInterface|int $ttl): bool;
 
     /**
      * Remove an item from the cache.

@@ -24,6 +24,9 @@ use Symfony\Component\Mailer\Transport\TransportInterface;
 
 class MailableQueuedTest extends TestCase
 {
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -123,7 +126,7 @@ class MailableQueuedTest extends TestCase
 
     public function testQueuedMailableForwardsDeduplicatorToQueueJob(): void
     {
-        $mockedDeduplicator = fn ($payload, $queue) => 'deduplication-id-1';
+        $mockedDeduplicator = fn (string $payload, string $queue): string => 'deduplication-id-1';
 
         $queueFake = new QueueFake($this->app);
         $mailer = $this->createMailer($queueFake);
@@ -252,6 +255,16 @@ class MailableQueuedTest extends TestCase
         );
     }
 
+    public function testQueueSetsBackedEnumQueueOnMailable(): void
+    {
+        $queueFake = new QueueFake($this->app);
+        $mailer = $this->createMailer($queueFake);
+
+        $mailer->queue(new MailableQueueableStub, MailableQueue::Emails);
+
+        $queueFake->assertPushedOn('emails', SendQueuedMailable::class);
+    }
+
     public function testLaterSetsQueueOnMailable(): void
     {
         $queueFake = new QueueFake($this->app);
@@ -282,28 +295,26 @@ class MailableQueuedTest extends TestCase
         $mailer = $this->createMailer($queueFake);
 
         $mailer->queue(new MailableQueueableStub, 'queue-string');
-        $mailer->queue(new MailableQueueableStub, MailableQueueName::Transactional);
         $mailer->onQueue('on-queue', new MailableQueueableStub);
-        $mailer->onQueue(MailableQueueName::Transactional, new MailableQueueableStub);
+        $mailer->onQueue(MailableQueue::Emails, new MailableQueueableStub);
         $mailer->queueOn('queue-on', new MailableQueueableStub);
-        $mailer->queueOn(MailableQueueName::Transactional, new MailableQueueableStub);
+        $mailer->queueOn(MailableQueue::Emails, new MailableQueueableStub);
         $mailer->later(60, new MailableQueueableStub, 'later-string');
-        $mailer->later(60, new MailableQueueableStub, MailableQueueName::Transactional);
+        $mailer->later(60, new MailableQueueableStub, MailableQueue::Emails);
         $mailer->laterOn('later-on', 60, new MailableQueueableStub);
-        $mailer->laterOn(MailableQueueName::Transactional, 60, new MailableQueueableStub);
+        $mailer->laterOn(MailableQueue::Emails, 60, new MailableQueueableStub);
 
         $this->assertSame(
             [
                 'queue-string',
-                'transactional-mail',
                 'on-queue',
-                'transactional-mail',
+                'emails',
                 'queue-on',
-                'transactional-mail',
+                'emails',
                 'later-string',
-                'transactional-mail',
+                'emails',
                 'later-on',
-                'transactional-mail',
+                'emails',
             ],
             $queueFake->pushed(SendQueuedMailable::class)
                 ->map(fn (SendQueuedMailable $job): ?string => $job->queue)
@@ -311,11 +322,17 @@ class MailableQueuedTest extends TestCase
         );
     }
 
+    /**
+     * Get the mailer constructor arguments.
+     */
     protected function getMocks(): array
     {
         return ['smtp', m::mock(Factory::class), m::mock(TransportInterface::class)];
     }
 
+    /**
+     * Create a mailer using the given queue.
+     */
     protected function createMailer(QueueFake $queueFake): Mailer
     {
         return (new Mailer(...$this->getMocks()))->setQueue($queueFake);
@@ -326,6 +343,9 @@ class MailableQueueableStub extends Mailable implements ShouldQueue
 {
     use Queueable;
 
+    /**
+     * Build the message.
+     */
     public function build(): static
     {
         $this->subject('lorem ipsum')
@@ -336,10 +356,18 @@ class MailableQueueableStub extends Mailable implements ShouldQueue
     }
 }
 
+enum MailableQueue: string
+{
+    case Emails = 'emails';
+}
+
 class MailableQueueableStubWithMessageGroup extends Mailable implements ShouldQueue
 {
     use Queueable;
 
+    /**
+     * Build the message.
+     */
     public function build(): static
     {
         $this->subject('lorem ipsum')
@@ -349,6 +377,9 @@ class MailableQueueableStubWithMessageGroup extends Mailable implements ShouldQu
         return $this;
     }
 
+    /**
+     * Get the message group identifier.
+     */
     public function messageGroup(): string
     {
         return 'group-1';
@@ -360,6 +391,9 @@ class MailableQueueableStubWithDelayAttribute extends Mailable implements Should
 {
     use Queueable;
 
+    /**
+     * Build the message.
+     */
     public function build(): static
     {
         $this->subject('lorem ipsum')
@@ -374,6 +408,9 @@ class MailableQueueableStubWithDeduplication extends Mailable implements ShouldQ
 {
     use Queueable;
 
+    /**
+     * Build the message.
+     */
     public function build(): static
     {
         $this->subject('lorem ipsum')
@@ -383,6 +420,9 @@ class MailableQueueableStubWithDeduplication extends Mailable implements ShouldQ
         return $this;
     }
 
+    /**
+     * Get the message deduplication identifier.
+     */
     public function deduplicationId(string $payload, string $queue): string
     {
         return hash('sha256', $payload);
@@ -411,15 +451,13 @@ class MailableQueueFake extends QueueFake
 {
     public ?string $connectionName = null;
 
+    /**
+     * Record the selected queue connection.
+     */
     public function connection(mixed $value = null): QueueContract
     {
         $this->connectionName = $value;
 
         return parent::connection($value);
     }
-}
-
-enum MailableQueueName: string
-{
-    case Transactional = 'transactional-mail';
 }

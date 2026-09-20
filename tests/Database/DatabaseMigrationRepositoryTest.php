@@ -16,89 +16,90 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 class DatabaseMigrationRepositoryTest extends TestCase
 {
-    public function testGetRanMigrationsListMigrationsByPackage()
+    public function testGetRanMigrationsListMigrationsByPackage(): void
     {
-        $repo = $this->getRepository();
+        $repository = $this->getRepository();
         $query = m::mock(QueryBuilder::class);
         $connectionMock = m::mock(Connection::class);
-        $repo->getConnectionResolver()->shouldReceive('connection')->with(null)->andReturn($connectionMock);
-        $repo->getConnection()->shouldReceive('table')->once()->with('migrations')->andReturn($query);
-        $query->shouldReceive('orderBy')->once()->with('batch', 'asc')->andReturn($query);
-        $query->shouldReceive('orderBy')->once()->with('migration', 'asc')->andReturn($query);
-        $query->shouldReceive('pluck')->once()->with('migration')->andReturn(new Collection(['bar']));
-        $query->shouldReceive('useWritePdo')->once()->andReturn($query);
+        $repository->getConnectionResolver()->expects('connection')->times(2)->with(null)->andReturn($connectionMock);
+        $repository->getConnection()->expects('table')->with('migrations')->andReturn($query);
+        $query->expects('orderBy')->with('batch', 'asc')->andReturn($query);
+        $query->expects('orderBy')->with('migration', 'asc')->andReturn($query);
+        $query->expects('pluck')->with('migration')->andReturn(new Collection(['bar']));
+        $query->expects('useWritePdo')->andReturn($query);
 
-        $this->assertEquals(['bar'], $repo->getRan());
+        $this->assertSame(['bar'], $repository->getRan());
     }
 
-    public function testGetLastMigrationsGetsAllMigrationsWithTheLatestBatchNumber()
+    public function testGetLastMigrationsGetsAllMigrationsWithTheLatestBatchNumber(): void
     {
-        $repo = $this->getMockBuilder(DatabaseMigrationRepository::class)->onlyMethods(['getLastBatchNumber'])->setConstructorArgs([
-            $resolver = m::mock(ConnectionResolverInterface::class), 'migrations',
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $repository = $this->getMockBuilder(DatabaseMigrationRepository::class)->onlyMethods(['getLastBatchNumber'])->setConstructorArgs([
+            $resolver, 'migrations',
         ])->getMock();
-        $repo->expects($this->once())->method('getLastBatchNumber')->willReturn(1);
+        $repository->expects($this->once())->method('getLastBatchNumber')->willReturn(1);
         $query = m::mock(QueryBuilder::class);
         $connectionMock = m::mock(Connection::class);
-        $repo->getConnectionResolver()->shouldReceive('connection')->with(null)->andReturn($connectionMock);
-        $repo->getConnection()->shouldReceive('table')->once()->with('migrations')->andReturn($query);
-        $query->shouldReceive('where')->once()->with('batch', 1)->andReturn($query);
-        $query->shouldReceive('orderBy')->once()->with('migration', 'desc')->andReturn($query);
-        $query->shouldReceive('get')->once()->andReturn(new Collection(['foo']));
-        $query->shouldReceive('useWritePdo')->once()->andReturn($query);
+        $repository->getConnectionResolver()->expects('connection')->times(2)->with(null)->andReturn($connectionMock);
+        $repository->getConnection()->expects('table')->with('migrations')->andReturn($query);
+        $query->expects('where')->with('batch', 1)->andReturn($query);
+        $query->expects('orderBy')->with('migration', 'desc')->andReturn($query);
+        $query->expects('get')->andReturn(new Collection(['foo']));
+        $query->expects('useWritePdo')->andReturn($query);
 
-        $this->assertEquals(['foo'], $repo->getLast());
+        $this->assertSame(['foo'], $repository->getLast());
     }
 
-    public function testLogMethodInsertsRecordIntoMigrationTable()
+    public function testLogMethodInsertsRecordIntoMigrationTable(): void
     {
-        $repo = $this->getRepository();
+        $repository = $this->getRepository();
         $query = m::mock(QueryBuilder::class);
         $connectionMock = m::mock(Connection::class);
-        $repo->getConnectionResolver()->shouldReceive('connection')->with(null)->andReturn($connectionMock);
-        $repo->getConnection()->shouldReceive('table')->once()->with('migrations')->andReturn($query);
-        $query->shouldReceive('insert')->once()->with(['migration' => 'bar', 'batch' => 1]);
-        $query->shouldReceive('useWritePdo')->once()->andReturn($query);
+        $repository->getConnectionResolver()->expects('connection')->times(2)->with(null)->andReturn($connectionMock);
+        $repository->getConnection()->expects('table')->with('migrations')->andReturn($query);
+        $query->expects('insert')->with(['migration' => 'bar', 'batch' => 1]);
+        $query->expects('useWritePdo')->andReturn($query);
 
-        $repo->log('bar', 1);
+        $repository->log('bar', 1);
     }
 
-    public function testDeleteMethodRemovesAMigrationFromTheTable()
+    public function testDeleteMethodRemovesAMigrationFromTheTable(): void
     {
-        $repo = $this->getRepository();
+        $repository = $this->getRepository();
         $query = m::mock(QueryBuilder::class);
         $connectionMock = m::mock(Connection::class);
-        $repo->getConnectionResolver()->shouldReceive('connection')->with(null)->andReturn($connectionMock);
-        $repo->getConnection()->shouldReceive('table')->once()->with('migrations')->andReturn($query);
-        $query->shouldReceive('where')->once()->with('migration', 'foo')->andReturn($query);
-        $query->shouldReceive('delete')->once();
-        $query->shouldReceive('useWritePdo')->once()->andReturn($query);
+        $repository->getConnectionResolver()->expects('connection')->times(2)->with(null)->andReturn($connectionMock);
+        $repository->getConnection()->expects('table')->with('migrations')->andReturn($query);
+        $query->expects('where')->with('migration', 'foo')->andReturn($query);
+        $query->expects('delete');
+        $query->expects('useWritePdo')->andReturn($query);
         $migration = (object) ['migration' => 'foo'];
 
-        $repo->delete($migration);
+        $repository->delete($migration);
     }
 
-    public function testGetNextBatchNumberReturnsLastBatchNumberPlusOne()
+    public function testGetNextBatchNumberReturnsLastBatchNumberPlusOne(): void
     {
-        $repo = $this->getMockBuilder(DatabaseMigrationRepository::class)->onlyMethods(['getLastBatchNumber'])->setConstructorArgs([
+        $repository = $this->getMockBuilder(DatabaseMigrationRepository::class)->onlyMethods(['getLastBatchNumber'])->setConstructorArgs([
             m::mock(ConnectionResolverInterface::class), 'migrations',
         ])->getMock();
-        $repo->expects($this->once())->method('getLastBatchNumber')->willReturn(1);
+        $repository->expects($this->once())->method('getLastBatchNumber')->willReturn(1);
 
-        $this->assertEquals(2, $repo->getNextBatchNumber());
+        $this->assertSame(2, $repository->getNextBatchNumber());
     }
 
     #[DataProvider('batchNumberProvider')]
     public function testGetLastBatchNumberReturnsMaxBatch(int|string|null $value, int $expected): void
     {
-        $repo = $this->getRepository();
+        $repository = $this->getRepository();
         $query = m::mock(QueryBuilder::class);
         $connectionMock = m::mock(Connection::class);
-        $repo->getConnectionResolver()->shouldReceive('connection')->with(null)->andReturn($connectionMock);
-        $repo->getConnection()->shouldReceive('table')->once()->with('migrations')->andReturn($query);
-        $query->shouldReceive('max')->once()->with('batch')->andReturn($value);
-        $query->shouldReceive('useWritePdo')->once()->andReturn($query);
+        $repository->getConnectionResolver()->expects('connection')->times(2)->with(null)->andReturn($connectionMock);
+        $repository->getConnection()->expects('table')->with('migrations')->andReturn($query);
+        $query->expects('max')->with('batch')->andReturn($value);
+        $query->expects('useWritePdo')->andReturn($query);
 
-        $this->assertSame($expected, $repo->getLastBatchNumber());
+        $this->assertSame($expected, $repository->getLastBatchNumber());
     }
 
     /**
@@ -113,19 +114,22 @@ class DatabaseMigrationRepositoryTest extends TestCase
         ];
     }
 
-    public function testCreateRepositoryDelegatesItsTableDefinitionToTheSchemaBuilder(): void
+    public function testCreateRepositoryCreatesProperDatabaseTable(): void
     {
-        $repo = $this->getRepository();
+        $repository = $this->getRepository();
         $schema = m::mock(SchemaBuilder::class);
         $connectionMock = m::mock(Connection::class);
-        $repo->getConnectionResolver()->shouldReceive('connection')->with(null)->andReturn($connectionMock);
-        $repo->getConnection()->shouldReceive('getSchemaBuilder')->once()->andReturn($schema);
-        $schema->shouldReceive('createMigrationRepositoryTable')->once()->with('migrations');
+        $repository->getConnectionResolver()->expects('connection')->times(2)->with(null)->andReturn($connectionMock);
+        $repository->getConnection()->expects('getSchemaBuilder')->andReturn($schema);
+        $schema->expects('createMigrationRepositoryTable')->with('migrations');
 
-        $repo->createRepository();
+        $repository->createRepository();
     }
 
-    protected function getRepository()
+    /**
+     * Create a migration repository.
+     */
+    protected function getRepository(): DatabaseMigrationRepository
     {
         return new DatabaseMigrationRepository(m::mock(ConnectionResolverInterface::class), 'migrations');
     }

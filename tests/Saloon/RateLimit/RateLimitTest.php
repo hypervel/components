@@ -13,6 +13,7 @@ use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Http\Client\Factory;
 use Hypervel\RateLimiter\AdmissionPolicy;
+use Hypervel\RateLimiter\Cooldown;
 use Hypervel\RateLimiter\KeyResolver;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\Limiter;
@@ -125,12 +126,17 @@ class RateLimitTest extends TestCase
         )->remaining());
     }
 
-    public function testMultiplePoliciesRetainEarlierReservationsWhenALaterPolicyDenies(): void
+    public function testDeniedRequestGroupDoesNotChargeItsEarlierPolicyButKeepsTheSeparateConnectorCharge(): void
     {
         [$manager, $limiter, $http] = $this->manager();
         $http->fake(['*' => Factory::response(['unexpected' => true])]);
-        $connector = new PlainRateLimitConnectorStub($manager);
-        $request = new MultipleRateLimitRequestStub;
+        $connector = new RateLimitedConnectorStub($manager);
+        $request = new class extends MultipleRateLimitRequestStub {
+            protected function resolveRateLimits(PendingRequest $pendingRequest): array
+            {
+                return ['first' => $this->firstPolicy(), 'second' => $this->secondPolicy()];
+            }
+        };
         $limiterName = 'saloon:' . $request::class;
 
         $limiter->consume($request->secondPolicy(), $limiterName);
@@ -138,12 +144,13 @@ class RateLimitTest extends TestCase
         try {
             $connector->send($request);
             $this->fail('A denied second policy reached transport.');
-        } catch (RateLimitReachedException) {
-            $this->addToAssertionCount(1);
+        } catch (RateLimitReachedException $exception) {
+            $this->assertSame('second', $exception->policy()->key);
         }
 
-        $this->assertSame(9, $limiter->inspect($request->firstPolicy(), $limiterName)->remaining());
+        $this->assertSame(10, $limiter->inspect($request->firstPolicy(), $limiterName)->remaining());
         $this->assertSame(0, $limiter->inspect($request->secondPolicy(), $limiterName)->remaining());
+        $this->assertSame(1, $limiter->inspect($connector->policy(), 'saloon:' . $connector::class)->remaining());
         $http->assertNothingSent();
     }
 
@@ -384,6 +391,35 @@ class RateLimitTest extends TestCase
         $this->assertTrue($response->successful());
         Sleep::assertSlept(static fn ($duration): bool => (float) $duration->totalSeconds === 2.0);
         $http->assertSentCount(2);
+    }
+
+    public function testWaitingForAGroupRechecksCooldownBeforeChargingTheGroup(): void
+    {
+        CarbonImmutable::setTestNow('2026-08-13 12:00:00 UTC');
+        Sleep::fake(syncWithCarbon: true);
+        [$manager, $limiter, $http] = $this->manager();
+        $http->fake(['*' => Factory::response(['ok' => true])]);
+        $connector = new PlainRateLimitConnectorStub($manager);
+        $request = new WaitingMultipleRateLimitRequestStub;
+        $limiterName = 'saloon:' . $request::class;
+        $limiter->consume($request->secondPolicy(), $limiterName);
+        $published = false;
+
+        Sleep::whenFakingSleep(function () use ($limiter, $request, $limiterName, &$published): void {
+            $this->assertSame(10, $limiter->inspect($request->firstPolicy(), $limiterName)->remaining());
+
+            if (! $published) {
+                $limiter->block(Cooldown::for($request::class), 5, $limiterName);
+                $published = true;
+            }
+        });
+
+        $this->assertTrue($connector->send($request)->successful());
+
+        Sleep::assertSequence([Sleep::for(60)->seconds(), Sleep::for(5)->seconds()]);
+        $this->assertSame(9, $limiter->inspect($request->firstPolicy(), $limiterName)->remaining());
+        $this->assertSame(0, $limiter->inspect($request->secondPolicy(), $limiterName)->remaining());
+        $http->assertSentCount(1);
     }
 
     public function testServerOnlyPolicyCallbacksAreRejected(): void
@@ -652,5 +688,13 @@ class MultipleRateLimitRequestStub extends PlainRateLimitRequestStub
     protected function resolveRateLimits(PendingRequest $pendingRequest): array
     {
         return [$this->firstPolicy(), $this->secondPolicy()];
+    }
+}
+
+class WaitingMultipleRateLimitRequestStub extends MultipleRateLimitRequestStub
+{
+    protected function waitForRateLimits(): bool
+    {
+        return true;
     }
 }

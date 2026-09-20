@@ -98,10 +98,9 @@ tag info
     }
 
     #[DataProvider('invalidForeachStatementsDataProvider')]
-    public function testForeachStatementsThrowHumanizedMessageWhenInvalidStatement($initialStatement)
+    public function testForeachStatementsThrowHumanizedMessageWhenInvalidStatement(string $initialStatement): void
     {
-        $this->expectException(ViewCompilationException::class);
-        $this->expectExceptionMessage('Malformed @foreach statement.');
+        $this->expectExceptionObject(new ViewCompilationException('Malformed @foreach statement.'));
         $string = "{$initialStatement}
 test
 @endforeach";

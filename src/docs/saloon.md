@@ -500,8 +500,9 @@ Saloon provides the same familiar authentication methods as Hypervel's HTTP clie
 $request->withToken($token);
 $request->withBasicAuth($username, $password);
 $request->withDigestAuth($username, $password);
-$request->withNtlmAuth($username, $password);
 ```
+
+Built-in NTLM authentication is not provided. Integrations requiring NTLM must supply their own authenticator and transport middleware.
 
 You may create a reusable authenticator by implementing `Hypervel\Saloon\Contracts\Authenticator`:
 
@@ -529,7 +530,7 @@ Apply a custom authenticator using `authenticate`, or return it from a connector
 $request->authenticate(new ApiKeyAuthenticator($key));
 ```
 
-Saloon also includes header, query, cookie, token, basic, digest, NTLM, certificate, access-token, and multi-authenticator implementations under `Hypervel\Saloon\Http\Auth`.
+Saloon also includes header, query, cookie, token, basic, digest, certificate, access-token, and multi-authenticator implementations under `Hypervel\Saloon\Http\Auth`.
 
 For APIs that authenticate using a cookie, use `CookieAuthenticator`:
 
@@ -1745,7 +1746,7 @@ protected function waitForRateLimits(): bool
 
 You may select another configured rate-limiter store by overriding `resolveRateLimitStore`. Fakes and cache hits do not consume capacity.
 
-When several policies apply, Saloon consumes them in declaration order. If a later policy denies the operation, earlier successful reservations remain consumed because the policies may live under different atomic keys or stores. Place broad, inexpensive policies first.
+Saloon [consumes each resource's policies together](/docs/{{version}}/rate-limiting#consuming-multiple-limits), subject to the documented Redis Cluster limitation. Connector and request limits are separate: the connector is admitted first, so its charge remains if the request's limits deny the operation. After waiting for capacity, Saloon checks the resource's cooldown again before retrying its policies.
 
 <a name="tenant-and-service-limits"></a>
 ### Tenant and Service Limits

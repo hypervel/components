@@ -206,7 +206,7 @@ abstract class Grammar
             return implode(', ', array_map([$this, __FUNCTION__], $value));
         }
 
-        return "'{$value}'";
+        return "'" . str_replace("'", "''", $value) . "'";
     }
 
     /**

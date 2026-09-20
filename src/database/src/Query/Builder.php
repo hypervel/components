@@ -450,12 +450,20 @@ class Builder implements BuilderContract
 
     /**
      * Get the wildcard selection for the query's primary source.
+     *
+     * @throws InvalidArgumentException
      */
     public function getDefaultSelectColumn(): string
     {
         // Raw sources need an explicit alias or selection: an unqualified wildcard
         // can introduce duplicate columns into a joined pagination count subquery.
-        return ($this->fromAlias ?? last(preg_split('/\s+as\s+/i', $this->from))) . '.*';
+        $alias = $this->getFromAlias();
+
+        if ($alias === null) {
+            throw new InvalidArgumentException('Raw query sources need an explicit alias or selection.');
+        }
+
+        return $alias . '.*';
     }
 
     /**
@@ -529,6 +537,16 @@ class Builder implements BuilderContract
         $this->fromAlias = $as !== '' ? $as : null;
 
         return $this;
+    }
+
+    /**
+     * Get the alias or table name that qualifies the query's source columns.
+     *
+     * Raw sources without an explicit alias return null; raw SQL is not parsed.
+     */
+    public function getFromAlias(): ?string
+    {
+        return $this->fromAlias ?? (is_string($this->from) ? last(preg_split('/\s+as\s+/i', $this->from)) : null);
     }
 
     /**
@@ -616,7 +634,12 @@ class Builder implements BuilderContract
 
         $this->addBinding($bindings, 'join');
 
-        return $this->join(new Expression($expression), $first, $operator, $second, $type, $where);
+        $this->join(new Expression($expression), $first, $operator, $second, $type, $where);
+
+        // UPDATE FROM places source bindings before all join conditions.
+        $this->joins[array_key_last($this->joins)]->addBinding($bindings, 'from');
+
+        return $this;
     }
 
     /**
@@ -632,7 +655,7 @@ class Builder implements BuilderContract
 
         $this->addBinding($bindings, 'join');
 
-        $this->joins[] = $this->newJoinLateralClause($this, $type, new Expression($expression));
+        $this->joins[] = $this->newJoinLateralClause($this, $type, new Expression($expression))->addBinding($bindings, 'from');
 
         return $this;
     }
@@ -724,7 +747,7 @@ class Builder implements BuilderContract
 
         $this->addBinding($bindings, 'join');
 
-        $this->joins[] = $this->newJoinClause($this, 'cross', new Expression($expression));
+        $this->joins[] = $this->newJoinClause($this, 'cross', new Expression($expression))->addBinding($bindings, 'from');
 
         return $this;
     }
@@ -1122,6 +1145,44 @@ class Builder implements BuilderContract
     public function orWhereRaw(string $sql, mixed $bindings = []): static
     {
         return $this->whereRaw($sql, $bindings, 'or');
+    }
+
+    /**
+     * Add a "where binary" clause to the query.
+     */
+    public function whereBinary(ExpressionContract|string $column, string $value, string $boolean = 'and', bool $not = false): static
+    {
+        $type = 'Binary';
+
+        $this->wheres[] = compact('type', 'column', 'value', 'boolean', 'not');
+
+        $this->addBinding($value);
+
+        return $this;
+    }
+
+    /**
+     * Add an "or where binary" clause to the query.
+     */
+    public function orWhereBinary(ExpressionContract|string $column, string $value): static
+    {
+        return $this->whereBinary($column, $value, 'or');
+    }
+
+    /**
+     * Add a "where not binary" clause to the query.
+     */
+    public function whereNotBinary(ExpressionContract|string $column, string $value, string $boolean = 'and'): static
+    {
+        return $this->whereBinary($column, $value, $boolean, true);
+    }
+
+    /**
+     * Add an "or where not binary" clause to the query.
+     */
+    public function orWhereNotBinary(ExpressionContract|string $column, string $value): static
+    {
+        return $this->whereNotBinary($column, $value, 'or');
     }
 
     /**
@@ -2576,7 +2637,9 @@ class Builder implements BuilderContract
     }
 
     /**
-     * Add an order clause for a given sequence of values.
+     * Add an "order by" clause to order results by a given sequence of values.
+     *
+     * @param array<bool|float|int|string|UnitEnum>|Arrayable $values
      */
     public function inOrderOf(ExpressionContract|string $column, Arrayable|array $values): static
     {
@@ -3798,9 +3861,12 @@ class Builder implements BuilderContract
         });
 
         $sql = $this->grammar->compileUpdate($this, $values->map(fn ($value) => $value['value'])->all());
+        $bindings = $values->map(fn ($value) => $value['bindings'])->all();
 
         return $this->connection->update($sql, $this->cleanBindings(
-            $this->grammar->prepareBindingsForUpdate($this->bindings, $values->map(fn ($value) => $value['bindings'])->all())
+            isset($this->joins)
+                ? $this->grammar->prepareBindingsForUpdateWithJoins($this->bindings, $bindings)
+                : $this->grammar->prepareBindingsForUpdate($this->bindings, $bindings)
         ));
     }
 
@@ -3818,20 +3884,32 @@ class Builder implements BuilderContract
         // @phpstan-ignore method.notFound (driver-specific method checked by method_exists above)
         $sql = $this->grammar->compileUpdateFrom($this, $values);
 
+        $bindings = $this->bindings;
+        $bindings['join'] = [];
+
+        foreach ($this->joins ?? [] as $join) {
+            $joinBindings = $join->getRawBindings();
+
+            array_push($bindings['from'], ...$joinBindings['from']);
+            array_push($bindings['join'], ...Arr::flatten(Arr::except($joinBindings, 'from')));
+        }
+
         return $this->connection->update($sql, $this->cleanBindings(
             // @phpstan-ignore method.notFound (driver-specific method checked by method_exists above)
-            $this->grammar->prepareBindingsForUpdateFrom($this->bindings, $values)
+            $this->grammar->prepareBindingsForUpdateFrom($bindings, $values)
         ));
     }
 
     /**
      * Insert or update a record matching the attributes, and fill it with values.
+     *
+     * @param array|(callable(bool): array) $values
      */
     public function updateOrInsert(array $attributes, array|callable $values = []): bool
     {
         $exists = $this->where($attributes)->exists();
 
-        if ($values instanceof Closure) {
+        if (! is_array($values)) {
             $values = $values($exists);
         }
 
@@ -3848,9 +3926,17 @@ class Builder implements BuilderContract
 
     /**
      * Insert new records or update the existing ones.
+     *
+     * @param non-empty-array<int, non-empty-string>|non-empty-string $uniqueBy
+     *
+     * @throws InvalidArgumentException
      */
     public function upsert(array $values, array|string $uniqueBy, ?array $update = null): int
     {
+        if ($uniqueBy === [] || $uniqueBy === '') {
+            throw new InvalidArgumentException('The unique columns must not be empty.');
+        }
+
         if (empty($values)) {
             return 0;
         }

@@ -765,20 +765,19 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
     }
 
     /**
-     * Set the expiration of a cached item; null TTL will retain the item forever.
+     * Set the expiration of a cached item.
      */
-    public function touch(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl = null): bool
+    public function touch(UnitEnum|string $key, DateInterval|DateTimeInterface|int $ttl): bool
     {
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
-        $value = $this->getRaw($key);
 
-        if (is_null($value)) {
-            return false;
+        $seconds = $this->getSeconds($ttl);
+
+        if ($seconds <= 0) {
+            return $this->forget($key);
         }
 
-        return is_null($ttl)
-            ? $this->forever($key, $value)
-            : $this->store->touch($this->itemKey($key), $this->getSeconds($ttl));
+        return $this->store->touch($this->itemKey($key), $seconds);
     }
 
     /**
@@ -1372,15 +1371,16 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
             $this->events?->hasListeners(CacheMissed::class)
             || $this->events?->hasListeners(CacheHit::class)
         ) {
+            // PHP stores numeric-string keys as integers; event keys must be strings.
             foreach ($result as $key => $value) {
                 // Keep the per-class checks live: an earlier hit listener may register
                 // a miss listener, or vice versa, before a later result is dispatched.
                 if (is_null($value)) {
                     if ($this->events?->hasListeners(CacheMissed::class)) {
-                        $this->event(new CacheMissed($this->getName(), $key));
+                        $this->event(new CacheMissed($this->getName(), (string) $key));
                     }
                 } elseif ($this->events?->hasListeners(CacheHit::class)) {
-                    $this->event(new CacheHit($this->getName(), $key, NullSentinel::unwrap($value)));
+                    $this->event(new CacheHit($this->getName(), (string) $key, NullSentinel::unwrap($value)));
                 }
             }
         }
