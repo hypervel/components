@@ -8,7 +8,6 @@ use Exception;
 use Hypervel\Bus\Dispatcher as BusDispatcher;
 use Hypervel\Bus\DispatchLockContext;
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Bus\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container as ContainerContract;
@@ -51,6 +50,9 @@ class QueueSyncQueueTest extends TestCase
         $this->assertTrue($queue->allReservedJobs()->isEmpty());
     }
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -60,7 +62,7 @@ class QueueSyncQueueTest extends TestCase
         }
     }
 
-    public function testPushShouldFireJobInstantly()
+    public function testPushShouldFireJobInstantly(): void
     {
         unset($_SERVER['__sync.test']);
 
@@ -68,7 +70,6 @@ class QueueSyncQueueTest extends TestCase
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $sync->setContainer($container);
-        $sync->setConnectionName('sync');
 
         $sync->push(SyncQueueTestHandler::class, ['foo' => 'bar']);
         $this->assertInstanceOf(SyncJob::class, $_SERVER['__sync.test'][0]);
@@ -131,9 +132,9 @@ class QueueSyncQueueTest extends TestCase
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $events = m::mock(EventDispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnFalse();
-        $events->shouldReceive('hasListeners')->once()->with(JobProcessed::class)->andReturnFalse();
-        $events->shouldReceive('hasListeners')->once()->with(JobAttempted::class)->andReturnFalse();
+        $events->expects('hasListeners')->with(JobProcessing::class)->andReturnFalse();
+        $events->expects('hasListeners')->with(JobProcessed::class)->andReturnFalse();
+        $events->expects('hasListeners')->with(JobAttempted::class)->andReturnFalse();
         $events->shouldReceive('dispatch')->never();
         $container->instance('events', $events);
         $container->instance(EventDispatcher::class, $events);
@@ -144,7 +145,7 @@ class QueueSyncQueueTest extends TestCase
         $this->assertInstanceOf(SyncJob::class, $_SERVER['__sync.test'][0]);
     }
 
-    public function testFailedJobGetsHandledWhenAnExceptionIsThrown()
+    public function testFailedJobGetsHandledWhenAnExceptionIsThrown(): void
     {
         unset($_SERVER['__sync.failed']);
 
@@ -152,11 +153,11 @@ class QueueSyncQueueTest extends TestCase
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $events = m::mock(EventDispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->with(JobProcessing::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobExceptionOccurred::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobFailed::class)->andReturnTrue();
-        $events->shouldReceive('hasListeners')->once()->with(JobAttempted::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->times(4);
+        $events->expects('hasListeners')->with(JobProcessing::class)->andReturnTrue();
+        $events->expects('hasListeners')->with(JobExceptionOccurred::class)->andReturnTrue();
+        $events->expects('hasListeners')->with(JobFailed::class)->andReturnTrue();
+        $events->expects('hasListeners')->with(JobAttempted::class)->andReturnTrue();
+        $events->expects('dispatch')->times(4);
         $container->instance('events', $events);
         $container->instance(EventDispatcher::class, $events);
         $sync->setContainer($container);
@@ -285,7 +286,7 @@ class QueueSyncQueueTest extends TestCase
         }
     }
 
-    public function testFailedJobHasAccessToJobInstance()
+    public function testFailedJobHasAccessToJobInstance(): void
     {
         unset($_SERVER['__sync.failed']);
 
@@ -298,7 +299,7 @@ class QueueSyncQueueTest extends TestCase
         $container->instance(DispatcherContract::class, new BusDispatcher($container));
         $sync->setContainer($container);
 
-        SyncQueue::createPayloadUsing(function ($connection, $queue, $payload) {
+        SyncQueue::createPayloadUsing(function (string $connection, ?string $queue, array $payload): array {
             return ['data' => ['extra' => 'extraValue']];
         });
 
@@ -306,10 +307,14 @@ class QueueSyncQueueTest extends TestCase
             $sync->push(new FailingSyncQueueJob);
         } catch (LogicException) {
             $this->assertSame('extraValue', $_SERVER['__sync.failed']);
+
+            return;
         }
+
+        $this->fail('The failed job did not throw its exception.');
     }
 
-    public function testCreatesPayloadObject()
+    public function testCreatesPayloadObject(): void
     {
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
@@ -317,59 +322,54 @@ class QueueSyncQueueTest extends TestCase
         $events = new EventsDispatcher($container);
         $container->instance('events', $events);
         $container->instance(EventDispatcher::class, $events);
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('getCommandHandler')->once()->andReturn(false);
-        $dispatcher->shouldReceive('dispatchNow')->once();
-        $container->instance(Dispatcher::class, $dispatcher);
+        $container->instance(DispatcherContract::class, new BusDispatcher($container));
         $sync->setContainer($container);
 
-        SyncQueue::createPayloadUsing(function ($connection, $queue, $payload) {
+        SyncQueue::createPayloadUsing(function (string $connection, ?string $queue, array $payload): array {
             return ['data' => ['extra' => 'extraValue']];
         });
 
-        try {
-            $sync->push(new SyncQueueJob);
-        } catch (LogicException $e) {
-            $this->assertSame('extraValue', $e->getMessage());
-        }
+        $this->expectExceptionObject(new LogicException('extraValue'));
 
-        SyncQueue::createPayloadUsing(null);
+        $sync->push(new SyncQueueJob);
     }
 
-    public function testItAddsATransactionCallbackForAfterCommitJobs()
+    public function testItAddsATransactionCallbackForAfterCommitJobs(): void
     {
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
+        $transactionManager->expects('addCallback')->andReturn(null);
+        $transactionManager->shouldNotReceive('addCallbackForRollback');
         $container->instance('db.transactions', $transactionManager);
 
         $sync->setContainer($container);
         $sync->push(new SyncQueueAfterCommitJob);
     }
 
-    public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitJobs()
+    public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitJobs(): void
     {
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
+        $transactionManager->expects('addCallback')->andReturn(null);
+        $transactionManager->shouldNotReceive('addCallbackForRollback');
         $container->instance('db.transactions', $transactionManager);
 
         $sync->setContainer($container);
         $sync->push(new SyncQueueAfterCommitInterfaceJob);
     }
 
-    public function testItAddsATransactionCallbackForAfterCommitUniqueJobs()
+    public function testItAddsATransactionCallbackForAfterCommitUniqueJobs(): void
     {
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $transactionManager->expects('addCallback')->andReturn(null);
+        $transactionManager->expects('addCallbackForRollback')->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
 
         $job = new SyncQueueAfterCommitUniqueJob;
@@ -385,8 +385,8 @@ class QueueSyncQueueTest extends TestCase
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $transactionManager->expects('addCallback')->andReturn(null);
+        $transactionManager->expects('addCallbackForRollback')->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
 
         $job = new SyncQueueAfterCommitDebouncedJob;
@@ -396,14 +396,14 @@ class QueueSyncQueueTest extends TestCase
         $sync->push($job);
     }
 
-    public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitUniqueJobs()
+    public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitUniqueJobs(): void
     {
         $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $transactionManager->expects('addCallback')->andReturn(null);
+        $transactionManager->expects('addCallbackForRollback')->andReturn(null);
         $container->instance('db.transactions', $transactionManager);
 
         $job = new SyncQueueAfterCommitInterfaceUniqueJob;
@@ -419,7 +419,7 @@ class QueueSyncQueueTest extends TestCase
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
-        $transactionManager->shouldReceive('addCallback')->once()->andReturnNull();
+        $transactionManager->expects('addCallback')->andReturnNull();
         $transactionManager->shouldReceive('addCallbackForRollback')->never();
         $container->instance('db.transactions', $transactionManager);
 
@@ -443,6 +443,9 @@ class QueueSyncQueueTest extends TestCase
         return $gate;
     }
 
+    /**
+     * Create the container used by synchronous jobs.
+     */
     protected function getContainer(): Container
     {
         $container = new Container;
@@ -456,16 +459,25 @@ class QueueSyncQueueTest extends TestCase
 
 class SyncQueueTestEntity implements QueueableEntity
 {
+    /**
+     * Get the queueable identity.
+     */
     public function getQueueableId(): mixed
     {
         return 1;
     }
 
+    /**
+     * Get the queueable connection.
+     */
     public function getQueueableConnection(): ?string
     {
         return null;
     }
 
+    /**
+     * Get the queueable relationships.
+     */
     public function getQueueableRelations(): array
     {
         return [];
@@ -474,7 +486,10 @@ class SyncQueueTestEntity implements QueueableEntity
 
 class SyncQueueTestHandler
 {
-    public function fire($job, $data)
+    /**
+     * Record the job and its data.
+     */
+    public function fire(SyncJob $job, array|string $data): void
     {
         $_SERVER['__sync.test'] = func_get_args();
     }
@@ -482,12 +497,18 @@ class SyncQueueTestHandler
 
 class FailingSyncQueueTestHandler
 {
-    public function fire($job, $data)
+    /**
+     * Fail the synchronous job.
+     */
+    public function fire(SyncJob $job, array $data): never
     {
         throw new Exception;
     }
 
-    public function failed()
+    /**
+     * Record the job failure.
+     */
+    public function failed(): void
     {
         $_SERVER['__sync.failed'] = true;
     }
@@ -499,6 +520,9 @@ class CancelingSyncQueueTestHandler
 
     public static bool $failed = false;
 
+    /**
+     * Yield until the test cancels the job.
+     */
     public function fire(): never
     {
         static::$gate?->push(true);
@@ -506,11 +530,17 @@ class CancelingSyncQueueTestHandler
         throw new RuntimeException('Cancellation was not delivered.');
     }
 
+    /**
+     * Record an unexpected job failure.
+     */
     public function failed(): void
     {
         static::$failed = true;
     }
 
+    /**
+     * Reset the cancellation fixture.
+     */
     public static function reset(): void
     {
         static::$gate = null;
@@ -522,6 +552,9 @@ class CancelingSerializationJob
 {
     public static ?Channel $gate = null;
 
+    /**
+     * Yield until the test cancels serialization.
+     */
     public function __serialize(): array
     {
         static::$gate?->push(true);
@@ -532,6 +565,9 @@ class CancelingSerializationJob
 
 class FailingOrderedSyncQueueTestHandler
 {
+    /**
+     * Record execution before failing the job.
+     */
     public function fire(): never
     {
         SyncQueueEventOrder::$events[] = 'fire';
@@ -539,6 +575,9 @@ class FailingOrderedSyncQueueTestHandler
         throw new RuntimeException('Sync job failed.');
     }
 
+    /**
+     * Handle the expected job failure.
+     */
     public function failed(): void
     {
     }
@@ -546,6 +585,9 @@ class FailingOrderedSyncQueueTestHandler
 
 class OrderedSyncQueueTestHandler
 {
+    /**
+     * Record the job execution.
+     */
     public function fire(): void
     {
         SyncQueueEventOrder::$events[] = 'fire';
@@ -559,6 +601,9 @@ class SyncQueueEventOrder
 
     public static ?JobAttempted $attempted = null;
 
+    /**
+     * Reset the recorded job events.
+     */
     public static function reset(): void
     {
         self::$events = [];
@@ -570,11 +615,17 @@ class FailingSyncQueueJob implements ShouldQueue
 {
     use InteractsWithQueue;
 
+    /**
+     * Fail the job.
+     */
     public function handle(): void
     {
         throw new LogicException;
     }
 
+    /**
+     * Record the extra payload data from the failed job.
+     */
     public function failed(): void
     {
         $payload = $this->job->payload();
@@ -587,12 +638,18 @@ class SyncQueueJob implements ShouldQueue
 {
     use InteractsWithQueue;
 
-    public function handle()
+    /**
+     * Expose the payload value through the job exception.
+     */
+    public function handle(): never
     {
         throw new LogicException($this->getValueFromJob('extra'));
     }
 
-    public function getValueFromJob($key)
+    /**
+     * Get a value from the job payload.
+     */
+    public function getValueFromJob(string $key): mixed
     {
         $payload = $this->job->payload();
 
@@ -604,9 +661,12 @@ class SyncQueueAfterCommitJob
 {
     use InteractsWithQueue;
 
-    public $afterCommit = true;
+    public bool $afterCommit = true;
 
-    public function handle()
+    /**
+     * Handle the job.
+     */
+    public function handle(): void
     {
     }
 }
@@ -615,7 +675,10 @@ class SyncQueueAfterCommitInterfaceJob implements ShouldQueueAfterCommit
 {
     use InteractsWithQueue;
 
-    public function handle()
+    /**
+     * Handle the job.
+     */
+    public function handle(): void
     {
     }
 }
@@ -624,8 +687,11 @@ class SyncQueueAfterCommitUniqueJob implements ShouldBeUnique
 {
     use InteractsWithQueue;
 
-    public $afterCommit = true;
+    public bool $afterCommit = true;
 
+    /**
+     * Handle the job.
+     */
     public function handle(): void
     {
     }
@@ -639,6 +705,9 @@ class SyncQueueAfterCommitDebouncedJob
 
     public string $debounceOwner = 'owner-token';
 
+    /**
+     * Handle the job.
+     */
     public function handle(): void
     {
     }
@@ -648,6 +717,9 @@ class SyncQueueAfterCommitInterfaceUniqueJob implements ShouldBeUnique, ShouldQu
 {
     use InteractsWithQueue;
 
+    /**
+     * Handle the job.
+     */
     public function handle(): void
     {
     }
