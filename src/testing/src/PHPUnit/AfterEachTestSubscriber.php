@@ -277,6 +277,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Support\EncodedHtmlString::flushState();
         \Hypervel\Support\Env::flushState();
         \Hypervel\Support\Facades\Facade::clearResolvedInstances();
+        \Hypervel\Support\Facades\Facade::setFacadeApplication(null);
         \Hypervel\Support\Fluent::flushState();
         \Hypervel\Support\LazyCollection::flushState();
         \Hypervel\Support\Lottery::flushState();
