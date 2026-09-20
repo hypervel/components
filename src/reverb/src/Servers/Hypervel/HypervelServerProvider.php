@@ -6,6 +6,7 @@ namespace Hypervel\Reverb\Servers\Hypervel;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Core\Events\AfterWorkerStart;
+use Hypervel\Core\Events\BeforeServerStart;
 use Hypervel\Core\Swoole\StripedLock;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisProxy;
@@ -50,25 +51,20 @@ class HypervelServerProvider extends ServerProvider
                 $this->scalingRedisConnection(),
             ));
         } else {
-            // Eagerly create the full SwooleTableSharedState before fork.
-            // Both the Swoole Table and the striped Atomic locks must exist
-            // in the main process so they're shared across all workers via
-            // copy-on-write. Using instance() instead of singleton() ensures
-            // the object is created now, not lazily in a worker.
-            $rows = $this->config['swoole_shared_state']['rows'];
-            $table = new Table($rows);
-            $table->column('count', Table::TYPE_INT);
-            $table->create();
+            // Bound lazily so processes that never start the server allocate no shared
+            // memory. boot() resolves it on BeforeServerStart, so the tables and the
+            // striped locks exist before the fork and are shared by every worker.
+            $this->app->singleton(SharedState::class, function (): SwooleTableSharedState {
+                $table = new Table($this->config['swoole_shared_state']['rows']);
+                $table->column('count', Table::TYPE_INT);
+                $table->create();
 
-            $lockRows = $this->config['swoole_shared_state']['lock_rows'];
-            $lockTable = new Table($lockRows);
-            $lockTable->column('locked_at', Table::TYPE_FLOAT);
-            $lockTable->create();
+                $lockTable = new Table($this->config['swoole_shared_state']['lock_rows']);
+                $lockTable->column('locked_at', Table::TYPE_FLOAT);
+                $lockTable->create();
 
-            $this->app->instance(
-                SharedState::class,
-                new SwooleTableSharedState($table, $lockTable, new StripedLock),
-            );
+                return new SwooleTableSharedState($table, $lockTable, new StripedLock);
+            });
         }
 
         $this->app->singleton(
@@ -88,9 +84,15 @@ class HypervelServerProvider extends ServerProvider
      */
     public function boot(): void
     {
-        if ($this->subscribesToEvents()) {
-            $events = $this->app->make('events');
+        $events = $this->app->make('events');
 
+        if ($this->shouldNotPublishEvents()) {
+            $events->listen(BeforeServerStart::class, function (): void {
+                $this->app->make(SharedState::class);
+            });
+        }
+
+        if ($this->subscribesToEvents()) {
             $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event) {
                 if ($event->server->taskworker) {
                     return;

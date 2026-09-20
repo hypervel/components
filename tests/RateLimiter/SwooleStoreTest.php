@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\RateLimiter;
 
 use Hypervel\Config\Repository;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithSwooleTables;
 use Hypervel\RateLimiter\Backoff;
 use Hypervel\RateLimiter\Cooldown;
 use Hypervel\RateLimiter\Exceptions\SwooleTableFullException;
@@ -28,6 +29,7 @@ use function Hypervel\Coroutine\parallel;
 
 class SwooleStoreTest extends TestCase
 {
+    use InteractsWithSwooleTables;
     use RateLimiterStoreContract;
 
     public function testFixedWindowOperationsUseNumericState(): void
@@ -312,6 +314,7 @@ class SwooleStoreTest extends TestCase
             ],
         ]));
         $state = $manager->get('swoole');
+        $this->trackSwooleTable($state->table());
 
         return [
             new SwooleStore($state, $memoryLimitBuffer, $logger ?? new NullLogger),

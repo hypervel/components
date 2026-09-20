@@ -13,18 +13,17 @@ use Hypervel\Reverb\Connection as ReverbConnection;
 use Hypervel\Reverb\Contracts\ApplicationProvider;
 use Hypervel\Reverb\Protocols\Pusher\Server as PusherServer;
 use Hypervel\Reverb\ReverbServiceProvider;
-use Hypervel\Reverb\ServerProviderManager;
 use Hypervel\Reverb\Servers\Hypervel\Connection as WebSocketConnection;
 use Hypervel\Reverb\Servers\Hypervel\ConnectionLifecycle;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\PubSubProvider;
 use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
-use Hypervel\Reverb\Servers\Hypervel\HypervelServerProvider;
 use Hypervel\Reverb\Servers\Hypervel\WebSocketHandler;
 use Hypervel\Reverb\Webhooks\DeferredWebhookManager;
 use Hypervel\Reverb\Webhooks\Jobs\FlushWebhookBatchJob;
 use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Reverb\Webhooks\WebhookBatchBuffer;
 use Hypervel\Support\Facades\Queue;
+use Hypervel\Testbench\Attributes\WithEnv;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
 use Hypervel\Tests\Reverb\ReverbTestCase;
@@ -330,17 +329,9 @@ class GracefulShutdownTest extends ReverbTestCase
 
     // ── Scaling subscriber ────────────────────────────────────────────
 
+    #[WithEnv('REVERB_SCALING_ENABLED', 'true')]
     public function testDisconnectScalingSubscriberCallsDisconnect(): void
     {
-        config()->set('reverb.servers.reverb.scaling.enabled', true);
-
-        $provider = new HypervelServerProvider(
-            $this->app,
-            config()->array('reverb.servers.reverb')
-        );
-        $provider->register();
-        $this->app->make(ServerProviderManager::class)->withPublishing();
-
         $pubSub = m::mock(PubSubProvider::class);
         $pubSub->shouldReceive('disconnect')->once();
         $this->app->instance(PubSubProvider::class, $pubSub);

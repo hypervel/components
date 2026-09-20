@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\RateLimiter;
 
+use Hypervel\Foundation\Testing\Concerns\InteractsWithSwooleTables;
 use Hypervel\RateLimiter\DatabaseStore;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\Limiter;
 use Hypervel\RateLimiter\RateLimiter;
+use Hypervel\RateLimiter\Swoole\TableManager;
 use Hypervel\RateLimiter\SwooleStore;
 use Hypervel\RateLimiter\WorkerArrayStore;
 use Hypervel\Support\ClassInvoker;
@@ -30,6 +32,8 @@ enum LimiterStore: string
 
 class RateLimiterTest extends TestCase
 {
+    use InteractsWithSwooleTables;
+
     public function testFacadeResolvesTheCanonicalManager(): void
     {
         $this->assertSame(
@@ -216,9 +220,11 @@ class RateLimiterTest extends TestCase
     {
         $config = config()->array('rate-limiter.stores.swoole');
         unset($config['memory_limit_buffer']);
+        $config['rows'] = 64; // Keep the test table small.
         config(['rate-limiter.stores.swoole-default' => $config]);
 
         $store = $this->app->make(RateLimiter::class)->store('swoole-default')->getStore();
+        $this->trackSwooleTable($this->app->make(TableManager::class)->get('swoole-default')->table());
 
         $this->assertInstanceOf(SwooleStore::class, $store);
         $this->assertSame(0.05, (new ClassInvoker($store))->memoryLimitBuffer);

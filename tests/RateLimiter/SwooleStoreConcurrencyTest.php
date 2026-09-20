@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\RateLimiter;
 
 use Hypervel\Config\Repository;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithSwooleTables;
 use Hypervel\RateLimiter\AdmissionPolicy;
 use Hypervel\RateLimiter\Limit;
 use Hypervel\RateLimiter\SlidingWindow;
@@ -21,6 +22,8 @@ use Throwable;
 
 class SwooleStoreConcurrencyTest extends TestCase
 {
+    use InteractsWithSwooleTables;
+
     private const int FRAME_HEADER_BYTES = 4;
 
     private const int MAX_FRAME_BYTES = 1_048_576;
@@ -319,7 +322,10 @@ class SwooleStoreConcurrencyTest extends TestCase
             ],
         ]));
 
-        return $manager->get('swoole');
+        $state = $manager->get('swoole');
+        $this->trackSwooleTable($state->table());
+
+        return $state;
     }
 
     /**

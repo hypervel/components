@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Reverb\Servers\Hypervel;
 
+use Hypervel\Core\Events\BeforeServerStart;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisProxy;
@@ -11,6 +13,7 @@ use Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState;
 use Hypervel\Reverb\Servers\Hypervel\HypervelServerProvider;
 use Hypervel\Reverb\Servers\Hypervel\Scaling\RedisSharedState;
 use Hypervel\Reverb\Servers\Hypervel\Scaling\SwooleTableSharedState;
+use Hypervel\Testbench\Attributes\WithEnv;
 use Hypervel\Tests\Reverb\ReverbTestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -26,17 +29,9 @@ class HypervelServerProviderTest extends ReverbTestCase
         $this->assertInstanceOf(SwooleTableSharedState::class, $sharedState);
     }
 
+    #[WithEnv('REVERB_SCALING_ENABLED', 'true')]
     public function testBindsRedisSharedStateWhenScalingEnabled(): void
     {
-        config()->set('reverb.servers.reverb.scaling.enabled', true);
-
-        // Re-register the provider with new config
-        $provider = new HypervelServerProvider(
-            $this->app,
-            config()->array('reverb.servers.reverb')
-        );
-        $provider->register();
-
         $sharedState = $this->app->make(SharedState::class);
 
         $this->assertInstanceOf(RedisSharedState::class, $sharedState);
@@ -47,52 +42,54 @@ class HypervelServerProviderTest extends ReverbTestCase
         $sharedState = $this->app->make(SharedState::class);
 
         $this->assertInstanceOf(SwooleTableSharedState::class, $sharedState);
-        $this->assertGreaterThan(0, $sharedState->table()->getSize());
+        $this->assertSame(64, $sharedState->table()->getSize());
+        $this->assertSame(64, $sharedState->lockTable()->getSize());
     }
 
+    #[WithEnv('REVERB_SCALING_ENABLED', 'true')]
     public function testScalingSharedStateDefaultsToReverbRedisConnection(): void
     {
-        config()->set('reverb.servers.reverb.scaling.enabled', true);
-
-        $provider = new HypervelServerProvider(
-            $this->app,
-            config()->array('reverb.servers.reverb')
-        );
-        $provider->register();
-
         $sharedState = $this->app->make(SharedState::class);
 
         $this->assertInstanceOf(RedisSharedState::class, $sharedState);
         $this->assertSame('reverb', $this->sharedStateRedisConnection($sharedState)->getName());
     }
 
+    #[WithEnv('REVERB_SCALING_ENABLED', 'true')]
+    #[WithEnv('REVERB_SCALING_CONNECTION', 'queue')]
     public function testScalingSharedStateUsesConfiguredRedisConnection(): void
     {
-        config()->set('reverb.servers.reverb.scaling.enabled', true);
-        config()->set('reverb.servers.reverb.scaling.connection', 'queue');
-
-        $provider = new HypervelServerProvider(
-            $this->app,
-            config()->array('reverb.servers.reverb')
-        );
-        $provider->register();
-
         $sharedState = $this->app->make(SharedState::class);
 
         $this->assertInstanceOf(RedisSharedState::class, $sharedState);
         $this->assertSame('queue', $this->sharedStateRedisConnection($sharedState)->getName());
     }
 
-    public function testSharedStateIsEagerlyCreated(): void
+    public function testSharedStateIsNotCreatedDuringBoot(): void
     {
-        // SharedState should already exist as an instance binding (not lazy)
-        // because it must be created before fork for shared memory.
         $this->assertTrue($this->app->bound(SharedState::class));
+        $this->assertFalse($this->app->resolved(SharedState::class));
+    }
 
-        $first = $this->app->make(SharedState::class);
-        $second = $this->app->make(SharedState::class);
+    public function testSharedStateIsCreatedBeforeTheServerStarts(): void
+    {
+        $events = $this->bootServerProvider();
 
-        $this->assertSame($first, $second);
+        $this->assertFalse($this->app->resolved(SharedState::class));
+
+        $events->dispatch(new BeforeServerStart('reverb'));
+
+        $this->assertTrue($this->app->resolved(SharedState::class));
+    }
+
+    #[WithEnv('REVERB_SCALING_ENABLED', 'true')]
+    public function testRedisSharedStateIsNotResolvedBeforeTheServerStarts(): void
+    {
+        $events = $this->bootServerProvider();
+
+        $events->dispatch(new BeforeServerStart('reverb'));
+
+        $this->assertFalse($this->app->resolved(SharedState::class));
     }
 
     public function testRedisClusterScalingIsRejectedWithoutCreatingAPool(): void
@@ -145,6 +142,25 @@ class HypervelServerProviderTest extends ReverbTestCase
         $provider->register();
 
         $this->assertInstanceOf(SwooleTableSharedState::class, $this->app->make(SharedState::class));
+    }
+
+    /**
+     * Boot a server provider against its own event dispatcher.
+     *
+     * The application dispatcher also carries the cache and rate limiter
+     * listeners, which create their own tables on this event. The application
+     * wiring is covered by Integration\Reverb\MultiWorkerServerTest, which
+     * runs a real forked server.
+     */
+    protected function bootServerProvider(): Dispatcher
+    {
+        $this->app->instance('events', $events = new Dispatcher($this->app));
+
+        $provider = new HypervelServerProvider($this->app, config()->array('reverb.servers.reverb'));
+        $provider->register();
+        $provider->boot();
+
+        return $events;
     }
 
     protected function sharedStateRedisConnection(RedisSharedState $sharedState): RedisProxy

@@ -29,6 +29,7 @@ use Hypervel\Contracts\Session\Session;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Events\Dispatcher as Event;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithSwooleTables;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\Pool\RedisPool;
@@ -44,6 +45,8 @@ use stdClass;
 
 class CacheManagerTest extends TestCase
 {
+    use InteractsWithSwooleTables;
+
     public function testCustomDriverClosureBoundObjectIsCacheManager(): void
     {
         $manager = new CacheManager($this->getApp([
@@ -225,6 +228,8 @@ class CacheManagerTest extends TestCase
             }
         }
 
+        $this->trackSwooleTable($app->make(SwooleTableManager::class)->get('default')->table());
+
         foreach ($policies as $policy) {
             $this->assertSame($policies[0], $policy);
         }
@@ -344,6 +349,7 @@ class CacheManagerTest extends TestCase
         $app->instance(SwooleTableManager::class, new SwooleTableManager($app));
 
         $store = (new CacheManager($app))->store('swoole')->getStore();
+        $this->trackSwooleTable($app->make(SwooleTableManager::class)->get('default')->table());
 
         $this->assertInstanceOf(SwooleStore::class, $store);
         $this->assertTrue($store->put('foo', new stdClass, 60));
