@@ -604,9 +604,11 @@ Hypervel's `migrate:fresh` command discovers the connection declared by each mig
 <a name="redis"></a>
 ### Redis
 
-Hypervel's Redis integration uses the PhpRedis extension exclusively. Its default `config/database.php` file does not contain a `client` option or `REDIS_CLIENT` environment variable. Remove those Laravel settings when porting configuration. A copied `client` option with any value other than `phpredis` is rejected; Predis is not supported.
+Hypervel's Redis integration uses the PhpRedis extension exclusively. Its default `config/database.php` file does not contain a `client` option or `REDIS_CLIENT` environment variable. Remove those Laravel settings when porting configuration. A copied `client` option with any value other than `phpredis` is rejected; Predis is not supported. Omit `persistent` and `persistent_id`; the connection pool owns connection reuse.
 
 Laravel's top-level `database.redis.clusters` configuration is also rejected. Each Hypervel Redis connection selects its standalone, Sentinel, or Cluster topology within the named connection, so begin with the matching Hypervel example instead of adapting Laravel's connection shape. Optional advanced members use their documented defaults when omitted. Hypervel does not support Laravel's `retry_interval` or `command_retries` settings and does not replay failed commands; configure PhpRedis connection retries with `max_retries`, `backoff_algorithm`, `backoff_base`, and `backoff_cap`. Configure Redis Cluster by adding a `cluster` array to a named Redis connection. See the [Redis configuration](/docs/{{version}}/redis#configuration) and [cluster documentation](/docs/{{version}}/redis#clusters).
+
+Redis connections use the application's event dispatcher; replace `setEventDispatcher()` and `unsetEventDispatcher()` calls with [command-event configuration](/docs/{{version}}/redis#redis-command-events). Call `Redis::enableEvents()` and `Redis::disableEvents()` only during boot, since they affect every request in the worker.
 
 <a name="cache"></a>
 ### Cache

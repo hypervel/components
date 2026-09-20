@@ -15,7 +15,7 @@ use ReflectionProperty;
 
 class ValidationFactoryTest extends TestCase
 {
-    public function testMakeMethodCreatesValidValidator()
+    public function testMakeMethodCreatesValidValidator(): void
     {
         $translator = m::mock(TranslatorInterface::class);
         $factory = new Factory($translator);
@@ -25,11 +25,11 @@ class ValidationFactoryTest extends TestCase
         $this->assertEquals(['baz' => ['boom']], $validator->getRules());
 
         $presence = m::mock(PresenceVerifierInterface::class);
-        $noop1 = function () {
+        $noop1 = function (): void {
         };
-        $noop2 = function () {
+        $noop2 = function (): void {
         };
-        $noop3 = function () {
+        $noop3 = function (): void {
         };
         $factory->extend('foo', $noop1);
         $factory->extendImplicit('implicit', $noop2);
@@ -52,17 +52,17 @@ class ValidationFactoryTest extends TestCase
         $this->assertEquals($presence, $validator->getPresenceVerifier());
     }
 
-    public function testValidateCallsValidateOnTheValidator()
+    public function testValidateCallsValidateOnTheValidator(): void
     {
         $validator = m::mock(Validator::class);
         $translator = m::mock(TranslatorInterface::class);
         $factory = m::mock(Factory::class . '[make]', [$translator]);
 
-        $factory->shouldReceive('make')->once()
+        $factory->expects('make')
             ->with(['foo' => 'bar', 'baz' => 'boom'], ['foo' => 'required'], [], [])
             ->andReturn($validator);
 
-        $validator->shouldReceive('validate')->once()->andReturn(['foo' => 'bar']);
+        $validator->expects('validate')->andReturn(['foo' => 'bar']);
 
         $validated = $factory->validate(
             ['foo' => 'bar', 'baz' => 'boom'],
@@ -72,12 +72,12 @@ class ValidationFactoryTest extends TestCase
         $this->assertEquals(['foo' => 'bar'], $validated);
     }
 
-    public function testCustomResolverIsCalled()
+    public function testCustomResolverIsCalled(): void
     {
         unset($_SERVER['__validator.factory']);
         $translator = m::mock(TranslatorInterface::class);
         $factory = new Factory($translator);
-        $factory->resolver(function ($translator, $data, $rules) {
+        $factory->resolver(function (TranslatorInterface $translator, array $data, array $rules): Validator {
             $_SERVER['__validator.factory'] = true;
 
             return new Validator($translator, $data, $rules);
@@ -91,11 +91,11 @@ class ValidationFactoryTest extends TestCase
         unset($_SERVER['__validator.factory']);
     }
 
-    public function testValidateMethodCanBeCalledPublicly()
+    public function testValidateMethodCanBeCalledPublicly(): void
     {
         $translator = m::mock(TranslatorInterface::class);
         $factory = new Factory($translator);
-        $factory->extend('foo', function ($attribute, $value, $parameters, $validator) {
+        $factory->extend('foo', function (string $attribute, mixed $value, array $parameters, Validator $validator): bool {
             return $validator->validateArray($attribute, $value);
         });
 
@@ -103,7 +103,7 @@ class ValidationFactoryTest extends TestCase
         $this->assertTrue($validator->passes());
     }
 
-    public function testExcludeAndIncludeUnvalidatedArrayKeys()
+    public function testExcludeAndIncludeUnvalidatedArrayKeys(): void
     {
         $translator = m::mock(TranslatorInterface::class);
 
@@ -136,7 +136,7 @@ class ValidationFactoryTest extends TestCase
         $this->assertFalse($validator4->excludeUnvalidatedArrayKeys);
     }
 
-    public function testSetContainer()
+    public function testSetContainer(): void
     {
         $translator = m::mock(TranslatorInterface::class);
         $container = m::mock(Container::class);
@@ -154,7 +154,7 @@ class ValidationFactoryTest extends TestCase
         $this->assertNull($factory->getPresenceVerifier());
     }
 
-    public function testFakeDnsLookupsForwardsToValidator(): void
+    public function testFakeDnsLookupsDelegatesToTheValidator(): void
     {
         $factory = new Factory(m::mock(TranslatorInterface::class));
         $property = new ReflectionProperty(Validator::class, 'fakeDnsLookups');

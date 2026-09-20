@@ -13,6 +13,7 @@ use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Redis as PhpRedis;
+use ReflectionClass;
 
 /**
  * Tests that Redis connection configuration is correctly applied to the
@@ -52,6 +53,46 @@ class RedisConnectorTest extends TestCase
             $this->assertSame($host, $client->getHost());
             $this->assertSame($port, $client->getPort());
         });
+    }
+
+    public function testPhpRedisConnectSignatureAndConnection(): void
+    {
+        $redis = new PhpRedis;
+        $reflection = new ReflectionClass($redis);
+        $parameters = $reflection->getMethod('connect')->getParameters();
+
+        $this->assertSame('host', $parameters[0]->getName());
+        $this->assertSame('port', $parameters[1]->getName());
+        $this->assertSame('timeout', $parameters[2]->getName());
+        $this->assertSame('persistent_id', $parameters[3]->getName());
+
+        $connected = $redis->connect(
+            env('REDIS_HOST', '127.0.0.1'),
+            (int) env('REDIS_PORT', 6379),
+            0.0,
+            null,
+            0,
+            0,
+        );
+
+        $this->assertTrue($connected);
+
+        try {
+            $password = env('REDIS_PASSWORD', null);
+            if (is_string($password) && $password !== '') {
+                $username = env('REDIS_USERNAME', null);
+                $this->assertTrue($redis->auth(
+                    $username !== null && $username !== '' ? [$username, $password] : $password,
+                ));
+            }
+
+            $this->assertTrue($redis->select($this->getParallelRedisDb()));
+
+            $ping = $redis->ping();
+            $this->assertTrue($ping === true || str_contains((string) $ping, 'PONG'));
+        } finally {
+            $redis->close();
+        }
     }
 
     public function testUrl(): void

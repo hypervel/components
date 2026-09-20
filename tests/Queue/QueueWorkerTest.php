@@ -35,6 +35,7 @@ use Hypervel\Queue\Events\JobPopped;
 use Hypervel\Queue\Events\JobPopping;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
+use Hypervel\Queue\Events\JobReleased;
 use Hypervel\Queue\Events\JobReleasedAfterException;
 use Hypervel\Queue\Events\JobTimedOut;
 use Hypervel\Queue\Events\Looping;
@@ -101,13 +102,16 @@ class QueueWorkerTest extends TestCase
     public function testJobLifecycleEventsAreNotDispatchedWithoutListeners(): void
     {
         $this->events->shouldReceive('hasListeners')->andReturnFalse();
-        $job = new WorkerFakeJob;
+        $job = new WorkerFakeJob(static function (WorkerFakeJob $job): void {
+            $job->release(10);
+        });
 
         $this->getWorker()->process('default', $job, new WorkerOptions);
 
         $this->assertTrue($job->fired);
         $this->events->shouldHaveReceived('hasListeners')->with(JobProcessing::class)->once();
         $this->events->shouldHaveReceived('hasListeners')->with(JobProcessed::class)->once();
+        $this->events->shouldHaveReceived('hasListeners')->with(JobReleased::class)->once();
         $this->events->shouldHaveReceived('hasListeners')->with(JobAttempted::class)->once();
         $this->events->shouldNotHaveReceived('dispatch');
     }
@@ -1202,7 +1206,7 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldNotHaveReceived('dispatch', [m::type(JobProcessed::class)]);
     }
 
-    public function testJobIsFailedIfExceptionHandlerSaysItShouldNotRetry(): void
+    public function testJobIsFailedIfExceptionHandlerSaysItShouldntRetry(): void
     {
         $exception = new RuntimeException;
         $job = new WorkerFakeJob(static function () use ($exception): never {
@@ -1225,7 +1229,7 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldNotHaveReceived('dispatch', [m::type(JobReleasedAfterException::class)]);
     }
 
-    public function testExceptionIsNotReportedWhenJobExceptionReportingIsDisabled(): void
+    public function testExceptionIsNotReportedIfReportJobExceptionsIsDisabled(): void
     {
         $exception = new RuntimeException;
         $job = new WorkerFakeJob(static function () use ($exception): never {
@@ -1460,6 +1464,24 @@ class QueueWorkerTest extends TestCase
         $this->assertTrue($job->isDeleted());
     }
 
+    public function testJobReleasedEventIsRaisedWhenJobReleasesItself(): void
+    {
+        $job = new WorkerFakeJob(static function (WorkerFakeJob $job): void {
+            $job->release(10);
+        });
+
+        $worker = $this->getWorker('default', ['queue' => [$job]]);
+        $worker->runNextJob('default', 'queue', $this->workerOptions());
+
+        $this->assertTrue($job->isReleased());
+        $this->assertFalse($job->isDeleted());
+        $this->events->shouldHaveReceived('dispatch')->with(m::on(
+            static fn (object $event): bool => $event instanceof JobReleased
+                && $event->connectionName === 'default'
+                && $event->job === $job,
+        ))->once();
+    }
+
     public function testWorkerPicksJobUsingCustomCallbacks()
     {
         $worker = $this->getWorker('default', [
@@ -1641,7 +1663,7 @@ class QueueWorkerTest extends TestCase
         };
 
         $handler = m::mock(CallQueuedHandler::class);
-        $handler->shouldReceive('getRunningCommand')->once()->andReturn($interruptible);
+        $handler->expects('getRunningCommand')->andReturn($interruptible);
 
         $job = new WorkerFakeJob;
         $job->resolvedJob = $handler;
@@ -1692,7 +1714,7 @@ class QueueWorkerTest extends TestCase
             }
         };
         $handler = m::mock(CallQueuedHandler::class);
-        $handler->shouldReceive('getRunningCommand')->once()->andReturn($interruptible);
+        $handler->expects('getRunningCommand')->andReturn($interruptible);
         $job = new WorkerFakeJob(function () use (&$worker, $options, $releaseJob): void {
             $worker->handleInterruptionSignalForTest(SIGTERM, 'default', 'queue', $options);
             $releaseJob->pop();
@@ -1750,7 +1772,7 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldNotHaveReceived('dispatch');
     }
 
-    public function testNotifyJobsOfSignalNotifiesEveryRunningInterruptibleJob(): void
+    public function testInterruptibleJobIsNotifiedOnSignal(): void
     {
         $workerOptions = new WorkerOptions;
         $firstInterruptible = new WorkerInterruptibleJob;
@@ -1765,6 +1787,23 @@ class QueueWorkerTest extends TestCase
         $this->assertSame([SIGINT], $firstInterruptible->signals);
         $this->assertSame([SIGINT], $secondInterruptible->signals);
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobInterrupted::class))->twice();
+    }
+
+    public function testJobInterruptedEventIsDispatchedForInterruptibleJobs(): void
+    {
+        $job = $this->workerJobWithRunningCommand(new WorkerInterruptibleJob);
+        $job->connectionName = 'default';
+        $worker = $this->getWorker('default', ['queue' => []]);
+        $worker->registerCoroutineJobForTest($job, new WorkerOptions);
+
+        $worker->notifyJobsOfSignalForTest(SIGTERM);
+
+        $this->events->shouldHaveReceived('dispatch')->with(m::on(
+            static fn (object $event): bool => $event instanceof JobInterrupted
+                && $event->connectionName === 'default'
+                && $event->job === $job
+                && $event->signal === SIGTERM,
+        ))->once();
     }
 
     public function testJobInterruptedEventIsSkippedWithoutListenersButTheJobIsStillNotified(): void
@@ -1932,7 +1971,7 @@ class QueueWorkerTest extends TestCase
     private function workerJobWithRunningCommand(object $command): WorkerFakeJob
     {
         $handler = m::mock(CallQueuedHandler::class);
-        $handler->shouldReceive('getRunningCommand')->once()->andReturn($command);
+        $handler->expects('getRunningCommand')->andReturn($command);
 
         $job = new WorkerFakeJob;
         $job->resolvedJob = $handler;

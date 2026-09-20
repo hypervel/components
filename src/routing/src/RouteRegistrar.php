@@ -13,13 +13,13 @@ use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 
 /**
- * @method \Hypervel\Routing\Route any(string $uri, \Closure|array|string|null $action = null)
- * @method \Hypervel\Routing\Route delete(string $uri, \Closure|array|string|null $action = null)
- * @method \Hypervel\Routing\Route get(string $uri, \Closure|array|string|null $action = null)
- * @method \Hypervel\Routing\Route options(string $uri, \Closure|array|string|null $action = null)
- * @method \Hypervel\Routing\Route patch(string $uri, \Closure|array|string|null $action = null)
- * @method \Hypervel\Routing\Route post(string $uri, \Closure|array|string|null $action = null)
- * @method \Hypervel\Routing\Route put(string $uri, \Closure|array|string|null $action = null)
+ * @method \Hypervel\Routing\Route any(string $uri, callable|array|string|null $action = null)
+ * @method \Hypervel\Routing\Route delete(string $uri, callable|array|string|null $action = null)
+ * @method \Hypervel\Routing\Route get(string $uri, callable|array|string|null $action = null)
+ * @method \Hypervel\Routing\Route options(string $uri, callable|array|string|null $action = null)
+ * @method \Hypervel\Routing\Route patch(string $uri, callable|array|string|null $action = null)
+ * @method \Hypervel\Routing\Route post(string $uri, callable|array|string|null $action = null)
+ * @method \Hypervel\Routing\Route put(string $uri, callable|array|string|null $action = null)
  * @method $this as(string $value)
  * @method $this can(\UnitEnum|string $ability, array|string $models = [])
  * @method $this controller(string $controller)
@@ -200,7 +200,7 @@ class RouteRegistrar
     /**
      * Register a new route with the given verbs.
      */
-    public function match(array|string $methods, string $uri, Closure|array|string|null $action = null): Route
+    public function match(array|string $methods, string $uri, callable|array|string|null $action = null): Route
     {
         return $this->router->match($methods, $uri, $this->compileAction($action));
     }
@@ -216,7 +216,7 @@ class RouteRegistrar
     /**
      * Register a new route with the router.
      */
-    protected function registerRoute(string $method, string $uri, Closure|array|string|null $action = null): Route
+    protected function registerRoute(string $method, string $uri, callable|array|string|null $action = null): Route
     {
         if (! is_array($action)) {
             $action = array_merge($this->attributes, $action ? ['uses' => $action] : []);
@@ -228,25 +228,30 @@ class RouteRegistrar
     /**
      * Compile the action into an array including the attributes.
      */
-    protected function compileAction(Closure|array|string|null $action): array
+    protected function compileAction(callable|array|string|null $action): array
     {
         if (is_null($action)) {
             return $this->attributes;
         }
 
-        if (is_string($action) || $action instanceof Closure) {
+        if (! is_array($action)) {
             $action = ['uses' => $action];
         }
 
+        // Normalize first so merging registrar attributes does not hide the callable array.
         if (array_is_list($action)
-            && Reflector::isCallable($action)) {
-            if (strncmp($action[0], '\\', 1)) {
-                $action[0] = '\\' . $action[0];
+            && Reflector::isCallable($action, true)) {
+            if (is_object($action[0])) {
+                $action = ['uses' => Closure::fromCallable($action)];
+            } else {
+                if (strncmp($action[0], '\\', 1)) {
+                    $action[0] = '\\' . $action[0];
+                }
+                $action = [
+                    'uses' => $action[0] . '@' . $action[1],
+                    'controller' => $action[0] . '@' . $action[1],
+                ];
             }
-            $action = [
-                'uses' => $action[0] . '@' . $action[1],
-                'controller' => $action[0] . '@' . $action[1],
-            ];
         }
 
         $metadata = RouteGroup::mergeMetadata(

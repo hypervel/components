@@ -142,7 +142,7 @@ class PhpRedisClusterConnectionTest extends TestCase
         $this->assertSame($masters, $connection->masters());
     }
 
-    public function testFlushdbSyncFlushesAllMasterNodes(): void
+    public function testItFlushesAllMasterNodes(): void
     {
         $masters = [['127.0.0.1', 6379], ['127.0.0.1', 6380], ['127.0.0.1', 6381]];
         $client = new FakeRedisClusterClient(masters: $masters);
@@ -161,7 +161,7 @@ class PhpRedisClusterConnectionTest extends TestCase
         $this->assertSame(['127.0.0.1', 6381], $flushCalls[2]['node']);
     }
 
-    public function testFlushdbAsyncUsesRawCommandOnAllMasters(): void
+    public function testItFlushesAllMasterNodesAsync(): void
     {
         $masters = [['127.0.0.1', 6379], ['127.0.0.1', 6380]];
         $client = new FakeRedisClusterClient(masters: $masters);
@@ -196,7 +196,7 @@ class PhpRedisClusterConnectionTest extends TestCase
         $this->assertFalse($connection->__call('flushdb', []));
     }
 
-    public function testScanTransformStartsWithTheFirstMaster(): void
+    public function testItScansStartingFromTheFirstMaster(): void
     {
         $masters = [['127.0.0.1', 6379], ['127.0.0.1', 6380]];
         $nodeKey = '127.0.0.1:6379';
@@ -225,7 +225,7 @@ class PhpRedisClusterConnectionTest extends TestCase
         $this->assertSame(['127.0.0.1', 6379], $scanCalls[0]['node']);
     }
 
-    public function testScanTransformUsesExplicitNodeOption(): void
+    public function testItScansUsingOptionNode(): void
     {
         $explicitNode = ['127.0.0.1', 6380];
         $nodeKey = '127.0.0.1:6380';

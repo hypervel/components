@@ -214,7 +214,7 @@ class RedisJobRepository implements JobRepository
         return $this->connection()->zcount(
             $type,
             '-inf',
-            (string) (CarbonImmutable::now()->subMinutes($minutes)->getTimestamp() * -1)
+            CarbonImmutable::now()->subMinutes($minutes)->getTimestamp() * -1
         );
     }
 
@@ -452,6 +452,7 @@ class RedisJobRepository implements JobRepository
      */
     public function trimRecentJobs(): void
     {
+        // Pipeline callbacks receive the native phpredis client, which requires string score bounds.
         $this->pipeline(function ($pipe) {
             $pipe->zRemRangeByScore(
                 'recent_jobs',
@@ -492,7 +493,7 @@ class RedisJobRepository implements JobRepository
     {
         $this->connection()->zRemRangeByScore(
             'failed_jobs',
-            (string) (CarbonImmutable::now()->subMinutes($this->failedJobExpires)->getTimestamp() * -1),
+            CarbonImmutable::now()->subMinutes($this->failedJobExpires)->getTimestamp() * -1,
             '+inf'
         );
     }
@@ -504,7 +505,7 @@ class RedisJobRepository implements JobRepository
     {
         $this->connection()->zRemRangeByScore(
             'monitored_jobs',
-            (string) (CarbonImmutable::now()->subMinutes($this->monitoredJobExpires)->getTimestamp() * -1),
+            CarbonImmutable::now()->subMinutes($this->monitoredJobExpires)->getTimestamp() * -1,
             '+inf'
         );
     }

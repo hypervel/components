@@ -15,14 +15,14 @@ use function Hypervel\Support\php_binary;
 
 class SupportComposerTest extends TestCase
 {
-    public function testGetLoader()
+    public function testGetLoader(): void
     {
         $loader = Composer::getLoader();
 
         $this->assertInstanceOf(ClassLoader::class, $loader);
     }
 
-    public function testSetAndGetLoader()
+    public function testSetAndGetLoader(): void
     {
         $original = Composer::getLoader();
         $custom = new ClassLoader;
@@ -34,14 +34,14 @@ class SupportComposerTest extends TestCase
         Composer::setLoader($original);
     }
 
-    public function testDumpAutoloadRunsTheCorrectCommand()
+    public function testDumpAutoloadRunsTheCorrectCommand(): void
     {
         $composer = $this->mockComposer(['composer', 'dump-autoload']);
 
         $composer->dumpAutoloads();
     }
 
-    public function testDumpAutoloadRunsTheCorrectCommandWhenCustomComposerPharIsPresent()
+    public function testDumpAutoloadRunsTheCorrectCommandWhenCustomComposerPharIsPresent(): void
     {
         $expectedProcessArguments = [php_binary(), 'composer.phar', 'dump-autoload'];
 
@@ -50,52 +50,66 @@ class SupportComposerTest extends TestCase
         $composer->dumpAutoloads();
     }
 
-    public function testDumpAutoloadRunsTheCorrectCommandWithExtraArguments()
+    public function testDumpAutoloadRunsTheCorrectCommandWithExtraArguments(): void
     {
         $composer = $this->mockComposer(['composer', 'dump-autoload', '--no-scripts']);
 
         $composer->dumpAutoloads('--no-scripts');
     }
 
-    public function testDumpOptimizedTheCorrectCommand()
+    public function testDumpOptimizedTheCorrectCommand(): void
     {
         $composer = $this->mockComposer(['composer', 'dump-autoload', '--optimize']);
 
         $composer->dumpOptimized();
     }
 
-    public function testRequirePackagesRunsTheCorrectCommand()
+    public function testRequirePackagesRunsTheCorrectCommand(): void
     {
-        $composer = $this->mockComposer(['composer', 'require', 'pestphp/pest:^2.0', 'pestphp/pest-plugin-laravel:^2.0', '--dev']);
+        $composer = $this->mockComposer(
+            ['composer', 'require', 'pestphp/pest:^2.0', 'pestphp/pest-plugin-laravel:^2.0', '--dev'],
+            expectedEnvironment: ['COMPOSER_MEMORY_LIMIT' => '-1'],
+        );
 
         $composer->requirePackages(['pestphp/pest:^2.0', 'pestphp/pest-plugin-laravel:^2.0'], true);
     }
 
-    public function testRemovePackagesRunsTheCorrectCommand()
+    public function testRemovePackagesRunsTheCorrectCommand(): void
     {
-        $composer = $this->mockComposer(['composer', 'remove', 'phpunit/phpunit', '--dev']);
+        $composer = $this->mockComposer(
+            ['composer', 'remove', 'phpunit/phpunit', '--dev'],
+            expectedEnvironment: ['COMPOSER_MEMORY_LIMIT' => '-1'],
+        );
 
         $composer->removePackages(['phpunit/phpunit'], true);
     }
 
-    private function mockComposer(array $expectedProcessArguments, bool $customComposerPhar = false): Composer
+    /**
+     * Create a Composer manager expecting the given process arguments.
+     */
+    private function mockComposer(array $expectedProcessArguments, bool $customComposerPhar = false, ?array $expectedEnvironment = null): Composer
     {
         $directory = __DIR__;
 
         $files = m::mock(Filesystem::class);
-        $files->shouldReceive('exists')->once()->with($directory . '/composer.phar')->andReturn($customComposerPhar);
+        $files->expects('exists')->with($directory . '/composer.phar')->andReturn($customComposerPhar);
 
         $process = m::mock(Process::class);
-        $process->shouldReceive('run')->once();
+        $process->expects('run');
 
         $composer = $this->getMockBuilder(Composer::class)
             ->onlyMethods(['getProcess'])
             ->setConstructorArgs([$files, $directory])
             ->getMock();
-        $composer->expects($this->once())
-            ->method('getProcess')
-            ->with($expectedProcessArguments)
-            ->willReturn($process);
+        $expectation = $composer->expects($this->once())->method('getProcess');
+
+        if ($expectedEnvironment === null) {
+            $expectation->with($expectedProcessArguments);
+        } else {
+            $expectation->with($expectedProcessArguments, $expectedEnvironment);
+        }
+
+        $expectation->willReturn($process);
 
         return $composer;
     }

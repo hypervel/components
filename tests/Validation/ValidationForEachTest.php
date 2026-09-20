@@ -357,6 +357,20 @@ class ValidationForEachTest extends TestCase
         );
     }
 
+    public function testForEachRulesAreAppliedToEmptyKeys(): void
+    {
+        $v = new Validator(
+            $this->getArrayTranslator(),
+            ['items' => ['' => ['name' => 'Taylor']]],
+            ['items.*' => Rule::forEach(fn (): array => ['name' => 'in:Abigail'])],
+        );
+
+        $this->assertFalse($v->passes());
+        $this->assertEquals([
+            'items..name' => ['validation.in'],
+        ], $v->getMessageBag()->toArray());
+    }
+
     public function getArrayTranslator()
     {
         return new Translator(

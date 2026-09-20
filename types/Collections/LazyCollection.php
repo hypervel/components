@@ -417,7 +417,7 @@ assertType('Hypervel\Support\LazyCollection<int, mixed>', $collection::make(['st
 assertType('User|null', $collection->firstWhere('string', 'string'));
 assertType('User|null', $collection->firstWhere('string', 'string', 'string'));
 
-assertType('Hypervel\Support\LazyCollection<string, int>', $collection::make(['string'])->flip());
+assertType('Hypervel\Support\LazyCollection<(int|string), int>', $collection::make(['string'])->flip());
 
 assertType('Hypervel\Support\LazyCollection<(int|string), Hypervel\Support\Collection<int, User>>', $collection->groupBy('name'));
 assertType('Hypervel\Support\LazyCollection<(int|string), Hypervel\Support\Collection<int, User>>', $collection->groupBy('name', true));

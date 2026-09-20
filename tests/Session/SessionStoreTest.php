@@ -32,7 +32,7 @@ class SessionStoreTest extends TestCase
     public function testSessionIsLoadedFromHandler(): void
     {
         $session = $this->getSession();
-        $session->getHandler()->shouldReceive('read')->once()->with($this->getSessionId())->andReturn(serialize(['foo' => 'bar', 'bagged' => ['name' => 'taylor'], '123' => 'bax']));
+        $session->getHandler()->expects('read')->with($this->getSessionId())->andReturn(serialize(['foo' => 'bar', 'bagged' => ['name' => 'taylor'], '123' => 'bax']));
         $session->start();
 
         $this->assertSame('bar', $session->get('foo'));
@@ -57,7 +57,7 @@ class SessionStoreTest extends TestCase
 
         $session = $this->getSession();
         $oldId = $session->getId();
-        $session->getHandler()->shouldReceive('destroy')->once()->with($oldId);
+        $session->getHandler()->expects('destroy')->with($oldId);
         $this->assertTrue($session->migrate(true));
         $this->assertNotEquals($oldId, $session->getId());
     }
@@ -88,7 +88,7 @@ class SessionStoreTest extends TestCase
     public function testStoresUseIndependentCoroutineState(): void
     {
         $handler = m::mock(SessionHandlerInterface::class);
-        $handler->shouldReceive('read')->once()->andReturn(serialize([]));
+        $handler->expects('read')->andReturn(serialize([]));
 
         $first = new Store('first', $handler, str_repeat('a', 40));
         $first->start();
@@ -170,7 +170,7 @@ class SessionStoreTest extends TestCase
         $session->flash('name', 'Taylor');
         $this->assertTrue($session->has('name'));
 
-        $session->getHandler()->shouldReceive('destroy')->once()->with($oldId);
+        $session->getHandler()->expects('destroy')->with($oldId);
         $this->assertTrue($session->invalidate());
 
         $this->assertFalse($session->has('name'));
@@ -182,12 +182,12 @@ class SessionStoreTest extends TestCase
     public function testBrandNewSessionIsProperlySaved(): void
     {
         $session = $this->getSession();
-        $session->getHandler()->shouldReceive('read')->once()->andReturn(serialize([]));
+        $session->getHandler()->expects('read')->andReturn(serialize([]));
         $session->start();
         $session->put('foo', 'bar');
         $session->flash('baz', 'boom');
         $session->now('qux', 'norf');
-        $session->getHandler()->shouldReceive('write')->once()->with(
+        $session->getHandler()->expects('write')->with(
             $this->getSessionId(),
             serialize([
                 '_token' => $session->token(),
@@ -207,7 +207,7 @@ class SessionStoreTest extends TestCase
     public function testSessionIsProperlyUpdated(): void
     {
         $session = $this->getSession();
-        $session->getHandler()->shouldReceive('read')->once()->andReturn(serialize([
+        $session->getHandler()->expects('read')->andReturn(serialize([
             '_token' => Str::random(40),
             'foo' => 'bar',
             'baz' => 'boom',
@@ -218,7 +218,7 @@ class SessionStoreTest extends TestCase
         ]));
         $session->start();
 
-        $session->getHandler()->shouldReceive('write')->once()->with(
+        $session->getHandler()->expects('write')->with(
             $this->getSessionId(),
             serialize([
                 '_token' => $session->token(),
@@ -238,7 +238,7 @@ class SessionStoreTest extends TestCase
     public function testSessionIsReSavedWhenNothingHasChanged(): void
     {
         $session = $this->getSession();
-        $session->getHandler()->shouldReceive('read')->once()->andReturn(serialize([
+        $session->getHandler()->expects('read')->andReturn(serialize([
             '_token' => Str::random(40),
             'foo' => 'bar',
             'baz' => 'boom',
@@ -249,7 +249,7 @@ class SessionStoreTest extends TestCase
         ]));
         $session->start();
 
-        $session->getHandler()->shouldReceive('write')->once()->with(
+        $session->getHandler()->expects('write')->with(
             $this->getSessionId(),
             serialize([
                 '_token' => $session->token(),
@@ -272,7 +272,7 @@ class SessionStoreTest extends TestCase
         $session = $this->getSession();
         $oldId = $session->getId();
         $token = Str::random(40);
-        $session->getHandler()->shouldReceive('read')->once()->with($oldId)->andReturn(serialize([
+        $session->getHandler()->expects('read')->with($oldId)->andReturn(serialize([
             '_token' => $token,
             'foo' => 'bar',
             'baz' => 'boom',
@@ -289,7 +289,7 @@ class SessionStoreTest extends TestCase
 
         $this->assertNotEquals($newId, $oldId);
 
-        $session->getHandler()->shouldReceive('write')->once()->with(
+        $session->getHandler()->expects('write')->with(
             $newId,
             serialize([
                 '_token' => $token,
@@ -310,11 +310,11 @@ class SessionStoreTest extends TestCase
     public function testFailedSaveDoesNotPublishAgedFlashDataBeforeRetry(): void
     {
         $handler = m::mock(SessionHandlerInterface::class);
-        $handler->shouldReceive('read')->once()->andReturn(serialize([]));
+        $handler->expects('read')->andReturn(serialize([]));
 
         $attempts = 0;
         $payloads = [];
-        $handler->shouldReceive('write')->twice()->andReturnUsing(
+        $handler->expects('write')->twice()->andReturnUsing(
             function (string $sessionId, string $data) use (&$attempts, &$payloads): bool {
                 $payloads[] = unserialize($data);
 
@@ -418,13 +418,13 @@ class SessionStoreTest extends TestCase
         $session->flash('foo', 'bar');
         $session->put('fu', 'baz');
         $session->put('_flash.old', ['qu']);
-        $this->assertNotFalse(array_search('foo', $session->get('_flash.new')));
-        $this->assertFalse(array_search('fu', $session->get('_flash.new')));
+        $this->assertContains('foo', $session->get('_flash.new'));
+        $this->assertNotContains('fu', $session->get('_flash.new'));
         $session->keep(['fu', 'qu']);
-        $this->assertNotFalse(array_search('foo', $session->get('_flash.new')));
-        $this->assertNotFalse(array_search('fu', $session->get('_flash.new')));
-        $this->assertNotFalse(array_search('qu', $session->get('_flash.new')));
-        $this->assertFalse(array_search('qu', $session->get('_flash.old')));
+        $this->assertContains('foo', $session->get('_flash.new'));
+        $this->assertContains('fu', $session->get('_flash.new'));
+        $this->assertContains('qu', $session->get('_flash.new'));
+        $this->assertNotContains('qu', $session->get('_flash.old'));
     }
 
     public function testReflash(): void
@@ -433,8 +433,8 @@ class SessionStoreTest extends TestCase
         $session->flash('foo', 'bar');
         $session->put('_flash.old', ['foo']);
         $session->reflash();
-        $this->assertNotFalse(array_search('foo', $session->get('_flash.new')));
-        $this->assertFalse(array_search('foo', $session->get('_flash.old')));
+        $this->assertContains('foo', $session->get('_flash.new'));
+        $this->assertNotContains('foo', $session->get('_flash.old'));
     }
 
     public function testReflashWithNow(): void
@@ -442,8 +442,8 @@ class SessionStoreTest extends TestCase
         $session = $this->getSession();
         $session->now('foo', 'bar');
         $session->reflash();
-        $this->assertNotFalse(array_search('foo', $session->get('_flash.new')));
-        $this->assertFalse(array_search('foo', $session->get('_flash.old')));
+        $this->assertContains('foo', $session->get('_flash.new'));
+        $this->assertNotContains('foo', $session->get('_flash.old'));
     }
 
     public function testOnly(): void
@@ -552,7 +552,7 @@ class SessionStoreTest extends TestCase
         $handler = m::mock(CookieSessionHandler::class);
         $session = new Store('test', $handler);
         $this->assertTrue($session->handlerNeedsRequest());
-        $handler->shouldReceive('setRequest')->once();
+        $handler->expects('setRequest');
         $session->setRequestOnHandler(new Request);
     }
 
@@ -624,7 +624,7 @@ class SessionStoreTest extends TestCase
 
         try {
             $auth = m::mock(AuthFactory::class);
-            $auth->shouldReceive('getDefaultDriver')->once()->andReturn('admin');
+            $auth->expects('getDefaultDriver')->andReturn('admin');
             $container->instance(AuthFactory::class, $auth);
 
             $session = $this->getSession();
@@ -909,8 +909,7 @@ class SessionStoreTest extends TestCase
     public function testRememberMethodCallsPutAndReturnsDefault(): void
     {
         $session = $this->getSession();
-        $session->getHandler()->shouldReceive('get')->andReturn(null);
-        $result = $session->remember('foo', function () {
+        $result = $session->remember('foo', function (): string {
             return 'bar';
         });
         $this->assertSame('bar', $session->get('foo'));
@@ -921,7 +920,7 @@ class SessionStoreTest extends TestCase
     {
         $session = $this->getSession();
         $session->put('key', 'foo');
-        $result = $session->remember('key', function () {
+        $result = $session->remember('key', function (): string {
             return 'bar';
         });
         $this->assertSame('foo', $session->get('key'));
@@ -931,11 +930,11 @@ class SessionStoreTest extends TestCase
     public function testValidationErrorsCanBeSerializedAsJson(): void
     {
         $session = $this->getSession('json');
-        $session->getHandler()->shouldReceive('read')->once()->andReturn(json_encode([]));
+        $session->getHandler()->expects('read')->andReturn(json_encode([]));
         $session->start();
         $session->put('errors', $this->getErrorBag());
 
-        $session->getHandler()->shouldReceive('write')->once()->with(
+        $session->getHandler()->expects('write')->with(
             $this->getSessionId(),
             json_encode([
                 '_token' => $session->token(),
@@ -964,11 +963,11 @@ class SessionStoreTest extends TestCase
     public function testFailedJsonSaveKeepsLiveErrorBagAndFlashUntilRetry(): void
     {
         $handler = m::mock(SessionHandlerInterface::class);
-        $handler->shouldReceive('read')->once()->andReturn(json_encode([]));
+        $handler->expects('read')->andReturn(json_encode([]));
 
         $attempts = 0;
         $payloads = [];
-        $handler->shouldReceive('write')->twice()->andReturnUsing(
+        $handler->expects('write')->twice()->andReturnUsing(
             function (string $sessionId, string $data) use (&$attempts, &$payloads): bool {
                 $payloads[] = json_decode($data, true, flags: JSON_THROW_ON_ERROR);
 
@@ -1010,8 +1009,8 @@ class SessionStoreTest extends TestCase
     public function testConsecutiveJsonSavesKeepTheLiveErrorBag(): void
     {
         $handler = m::mock(SessionHandlerInterface::class);
-        $handler->shouldReceive('read')->once()->andReturn(json_encode([]));
-        $handler->shouldReceive('write')->twice()->andReturnTrue();
+        $handler->expects('read')->andReturn(json_encode([]));
+        $handler->expects('write')->twice()->andReturnTrue();
 
         $session = new Store('name', $handler, $this->getSessionId(), 'json');
         $session->start();
@@ -1033,8 +1032,8 @@ class SessionStoreTest extends TestCase
 
         $storedPayload = null;
         $writer = m::mock(SessionHandlerInterface::class);
-        $writer->shouldReceive('read')->once()->andReturn('{}');
-        $writer->shouldReceive('write')->once()->andReturnUsing(
+        $writer->expects('read')->andReturn('{}');
+        $writer->expects('write')->andReturnUsing(
             function (string $sessionId, string $payload) use (&$storedPayload): bool {
                 $storedPayload = $payload;
 
@@ -1048,7 +1047,7 @@ class SessionStoreTest extends TestCase
         $session->save();
 
         $reader = m::mock(SessionHandlerInterface::class);
-        $reader->shouldReceive('read')->once()->andReturn($storedPayload);
+        $reader->expects('read')->andReturn($storedPayload);
 
         $restored = new Store('name', $reader, $this->getSessionId(), 'json');
         $restored->start();
@@ -1065,7 +1064,7 @@ class SessionStoreTest extends TestCase
         }
 
         $handler = m::mock(SessionHandlerInterface::class);
-        $handler->shouldReceive('read')->once()->andReturn('{}');
+        $handler->expects('read')->andReturn('{}');
         $handler->shouldReceive('write')->never();
 
         $session = new Store('name', $handler, $this->getSessionId(), 'json');
@@ -1080,7 +1079,7 @@ class SessionStoreTest extends TestCase
     public function testStartingJsonSessionRetainsLiveErrorBagWhenStorageHasNone(): void
     {
         $handler = m::mock(SessionHandlerInterface::class);
-        $handler->shouldReceive('read')->once()->andReturn(json_encode([]));
+        $handler->expects('read')->andReturn(json_encode([]));
 
         $session = new Store('name', $handler, $this->getSessionId(), 'json');
         $errorBag = $this->getErrorBag();
@@ -1100,7 +1099,7 @@ class SessionStoreTest extends TestCase
     public function testPersistedJsonErrorBagOverridesLiveErrorBagOnStart(): void
     {
         $handler = m::mock(SessionHandlerInterface::class);
-        $handler->shouldReceive('read')->once()->andReturn(json_encode([
+        $handler->expects('read')->andReturn(json_encode([
             'errors' => [
                 'persisted' => [
                     'format' => ':message',
@@ -1131,7 +1130,7 @@ class SessionStoreTest extends TestCase
     public function testJsonEncodingFailureLeavesLiveStateUntouched(): void
     {
         $handler = m::mock(SessionHandlerInterface::class);
-        $handler->shouldReceive('read')->once()->andReturn(json_encode([]));
+        $handler->expects('read')->andReturn(json_encode([]));
         $handler->shouldReceive('write')->never();
 
         $session = new Store('name', $handler, $this->getSessionId(), 'json');
@@ -1154,7 +1153,7 @@ class SessionStoreTest extends TestCase
     public function testValidationErrorsCanBeReadAsJson(): void
     {
         $session = $this->getSession('json');
-        $session->getHandler()->shouldReceive('read')->once()->with($this->getSessionId())->andReturn(json_encode([
+        $session->getHandler()->expects('read')->with($this->getSessionId())->andReturn(json_encode([
             'errors' => [
                 'default' => [
                     'format' => '<p>:message</p>',
@@ -1173,7 +1172,7 @@ class SessionStoreTest extends TestCase
 
         $this->assertInstanceOf(ViewErrorBag::class, $errors);
         $this->assertInstanceOf(MessageBag::class, $errors->getBags()['default']);
-        $this->assertEquals('<p>:message</p>', $errors->getBags()['default']->getFormat());
+        $this->assertSame('<p>:message</p>', $errors->getBags()['default']->getFormat());
         $this->assertEquals(['first_name' => [
             'Your first name is required',
             'Your first name must be at least 1 character',
@@ -1258,6 +1257,9 @@ class SessionStoreTest extends TestCase
         $this->assertNull($session->get('_previous.route'));
     }
 
+    /**
+     * Create a validation error bag for session serialization.
+     */
     protected function getErrorBag(): ViewErrorBag
     {
         $messageBag = new MessageBag([
@@ -1271,6 +1273,9 @@ class SessionStoreTest extends TestCase
         return (new ViewErrorBag)->put('default', $messageBag);
     }
 
+    /**
+     * Create a session store using the given serialization strategy.
+     */
     public function getSession(string $serialization = 'php'): Store
     {
         return new Store(
@@ -1281,11 +1286,17 @@ class SessionStoreTest extends TestCase
         );
     }
 
+    /**
+     * Get the session ID.
+     */
     protected function getSessionId(): string
     {
         return 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
     }
 
+    /**
+     * Get the session name.
+     */
     protected function getSessionName(): string
     {
         return 'name';

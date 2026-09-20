@@ -785,7 +785,9 @@ class Collection extends BaseCollection implements QueueableCollection
     }
 
     /**
-     * @return \Hypervel\Support\Collection<TModel, TKey>
+     * Flip the items in the collection.
+     *
+     * @return BaseCollection<array-key, TKey>
      */
     #[Override]
     public function flip(): BaseCollection

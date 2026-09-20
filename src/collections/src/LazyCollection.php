@@ -511,14 +511,15 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
     /**
      * Flip the items in the collection.
      *
-     * @return static<TValue, TKey>
-     * @phpstan-ignore generics.notSubtype (TValue becomes key - only valid when TValue is array-key, but can't express this constraint)
+     * @return static<array-key, TKey>
      */
     public function flip(): static
     {
         return $this->newInstance(function () {
             foreach ($this as $key => $value) {
-                yield $value => $key;
+                if (is_string($value) || is_int($value)) {
+                    yield $value => $key;
+                }
             }
         });
     }
@@ -581,7 +582,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
             foreach ($this as $key => $item) {
                 $resolvedKey = $keyBy($item, $key);
 
-                if (is_object($resolvedKey)) {
+                if (is_object($resolvedKey) || is_null($resolvedKey)) {
                     $resolvedKey = $resolvedKey instanceof UnitEnum
                         ? enum_value($resolvedKey)
                         : (string) $resolvedKey;

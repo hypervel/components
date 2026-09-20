@@ -48,10 +48,6 @@ class TestDatabasesTest extends TestCase
 
     protected function tearDown(): void
     {
-        Container::setInstance(null);
-        Facade::clearResolvedInstances();
-        Facade::setFacadeApplication(null);
-
         if ($this->originalParallelTesting === null) {
             unset($_SERVER['HYPERVEL_PARALLEL_TESTING']);
         } else {
@@ -66,7 +62,7 @@ class TestDatabasesTest extends TestCase
         $container = Container::getInstance();
 
         $db = m::mock(DatabaseManager::class);
-        $db->shouldReceive('purge')->once();
+        $db->expects('purge');
         $container->instance('db', $db);
 
         $config = $container->make('config');
@@ -88,7 +84,7 @@ class TestDatabasesTest extends TestCase
         $container = Container::getInstance();
 
         $db = m::mock(DatabaseManager::class);
-        $db->shouldReceive('purge')->once();
+        $db->expects('purge');
         $container->instance('db', $db);
 
         $config = $container->make('config');
@@ -122,6 +118,19 @@ class TestDatabasesTest extends TestCase
                 'charset' => 'utf8mb4',
                 'options' => 'foo/bar',
                 'prefix' => 'app_',
+            ],
+        ];
+
+        yield 'MySQL URL without query parameters' => [
+            'my_database_test_1',
+            [
+                'url' => 'mysql://my-user:@localhost/my_database',
+            ],
+            [
+                'driver' => 'mysql',
+                'host' => 'localhost',
+                'username' => 'my-user',
+                'password' => '',
             ],
         ];
 

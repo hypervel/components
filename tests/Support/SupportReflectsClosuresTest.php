@@ -96,6 +96,51 @@ class SupportReflectsClosuresTest extends TestCase
         });
     }
 
+    public function testClosureReturnTypesReturnsClassReturnType(): void
+    {
+        $this->assertSame(
+            [ExampleParameter::class],
+            ReflectsClosuresClass::reflectReturnTypes(fn (): ExampleParameter => new ExampleParameter)
+        );
+    }
+
+    public function testClosureReturnTypesExcludesBuiltinReturnType(): void
+    {
+        $this->assertSame(
+            [],
+            ReflectsClosuresClass::reflectReturnTypes(fn (): string => 'foo')
+        );
+    }
+
+    public function testClosureReturnTypesReturnsEmptyArrayWhenNoReturnType(): void
+    {
+        $this->assertSame(
+            [],
+            ReflectsClosuresClass::reflectReturnTypes(fn () => 'foo')
+        );
+    }
+
+    public function testClosureReturnTypesKeepsOnlyClassTypesFromUnionReturnType(): void
+    {
+        $this->assertSame(
+            [ExampleParameter::class],
+            ReflectsClosuresClass::reflectReturnTypes(fn (): ExampleParameter|string => new ExampleParameter)
+        );
+
+        $this->assertSame(
+            [ExampleParameter::class, AnotherExampleParameter::class],
+            ReflectsClosuresClass::reflectReturnTypes(fn (): ExampleParameter|AnotherExampleParameter => new ExampleParameter)
+        );
+    }
+
+    public function testClosureReturnTypesReturnsEmptyArrayForIntersectionReturnType(): void
+    {
+        $this->assertSame(
+            [],
+            ReflectsClosuresClass::reflectReturnTypes(fn (): ReflectsClosuresInterfaceOne&ReflectsClosuresInterfaceTwo => new ReflectsClosuresBothInterfaces)
+        );
+    }
+
     #[DataProvider('invalidFirstParameterProvider')]
     public function testFirstParameterTypesRejectInvalidActualFirstParameter(Closure $closure): void
     {
@@ -120,24 +165,32 @@ class SupportReflectsClosuresTest extends TestCase
     public function testClosureReturnTypesResolveRelativeClassNames(): void
     {
         $this->assertSame(
+            [ReflectsClosuresClass::class],
+            ReflectsClosuresClass::reflectReturnTypes(ReflectsClosuresClass::closureWithSelfReturnType()),
+        );
+        $this->assertSame(
+            [ReflectsClosuresClass::class],
+            ReflectsClosuresClass::reflectReturnTypes(ReflectsClosuresClass::closureWithStaticReturnType()),
+        );
+        $this->assertSame(
             [RelativeReturnTypeParent::class],
-            ReflectsClosuresClass::reflectReturns(RelativeReturnTypeClosures::returnsParent(...)),
+            ReflectsClosuresClass::reflectReturnTypes(RelativeReturnTypeClosures::returnsParent(...)),
         );
         $this->assertSame(
             [RelativeReturnTypeClosures::class],
-            ReflectsClosuresClass::reflectReturns(RelativeReturnTypeClosures::returnsSelf(...)),
+            ReflectsClosuresClass::reflectReturnTypes(RelativeReturnTypeClosures::returnsSelf(...)),
         );
         $this->assertSame(
             [RelativeReturnTypeClosures::class],
-            ReflectsClosuresClass::reflectReturns(RelativeReturnTypeClosures::returnsStatic(...)),
+            ReflectsClosuresClass::reflectReturnTypes(RelativeReturnTypeClosures::returnsStatic(...)),
         );
         $this->assertSame(
             [RelativeReturnTypeGrandChild::class],
-            ReflectsClosuresClass::reflectReturns(RelativeReturnTypeGrandChild::returnsStatic(...)),
+            ReflectsClosuresClass::reflectReturnTypes(RelativeReturnTypeGrandChild::returnsStatic(...)),
         );
         $this->assertSame(
             [self::class],
-            ReflectsClosuresClass::reflectReturns(function (): self {
+            ReflectsClosuresClass::reflectReturnTypes(function (): self {
                 return $this;
             }),
         );
@@ -170,9 +223,32 @@ class ReflectsClosuresClass
         return (new static)->firstClosureParameterTypes($closure);
     }
 
-    public static function reflectReturns(Closure $closure): array
+    /**
+     * Get the class names in the closure's return type.
+     */
+    public static function reflectReturnTypes(Closure $closure): array
     {
         return (new static)->closureReturnTypes($closure);
+    }
+
+    /**
+     * Create a closure with a self return type.
+     */
+    public static function closureWithSelfReturnType(): Closure
+    {
+        return function (): self {
+            return new self;
+        };
+    }
+
+    /**
+     * Create a closure with a static return type.
+     */
+    public static function closureWithStaticReturnType(): Closure
+    {
+        return function (): static {
+            return new static;
+        };
     }
 }
 
@@ -181,6 +257,18 @@ class ExampleParameter
 }
 
 class AnotherExampleParameter
+{
+}
+
+interface ReflectsClosuresInterfaceOne
+{
+}
+
+interface ReflectsClosuresInterfaceTwo
+{
+}
+
+class ReflectsClosuresBothInterfaces implements ReflectsClosuresInterfaceOne, ReflectsClosuresInterfaceTwo
 {
 }
 

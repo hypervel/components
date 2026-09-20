@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Testing\PHPUnit;
 
 use Carbon\CarbonInterface;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\ConnectionPool\Connection as PoolConnection;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
@@ -17,6 +18,7 @@ use Hypervel\Database\Eloquent\Factories\Factory as EloquentFactory;
 use Hypervel\Database\PdoConnection;
 use Hypervel\Database\SessionConfigurator;
 use Hypervel\Encryption\Commands\KeyGenerateCommand;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Http\Client\Factory as HttpFactory;
 use Hypervel\Http\Client\PendingRequest;
@@ -37,6 +39,8 @@ use Hypervel\Saloon\Http\PendingRequest\BootPlugins;
 use Hypervel\Saloon\Http\Request as SaloonRequest;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Testing\Fakes\NotificationFake;
 use Hypervel\Telescope\Watchers\DumpWatcher;
 use Hypervel\Testing\PHPUnit\AfterEachTestCleanup;
@@ -112,6 +116,36 @@ class AfterEachTestSubscriberTest extends TestCase
             foreach ($classes as $class) {
                 $class::flushMacros();
             }
+        }
+    }
+
+    public function testFrameworkCleanupDetachesTheFacadeApplication(): void
+    {
+        $container = new Container;
+        $dispatcher = new Dispatcher($container);
+        $container->instance('events', $dispatcher);
+        Facade::setFacadeApplication($container);
+
+        $this->assertSame($dispatcher, Event::getFacadeRoot());
+
+        $subscriber = new class extends AfterEachTestSubscriber {
+            /**
+             * Flush framework state for the test.
+             */
+            public function flushFrameworkStateForTest(): void
+            {
+                $this->flushFrameworkState();
+            }
+        };
+
+        try {
+            $subscriber->flushFrameworkStateForTest();
+
+            $this->assertNull(Facade::getFacadeApplication());
+            $this->assertNull(Event::getFacadeRoot());
+        } finally {
+            Facade::clearResolvedInstances();
+            Facade::setFacadeApplication(null);
         }
     }
 

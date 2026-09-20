@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database;
 
+use Generator;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class SchemaBuilderTest extends DatabaseTestCase
 {
@@ -63,43 +65,62 @@ class SchemaBuilderTest extends DatabaseTestCase
     }
 
     #[RequiresDatabase(['mysql', 'mariadb'])]
-    public function testChangeToTextColumn()
+    #[DataProvider('dataProviderChangeToTextColumn')]
+    public function testChangeToTextColumn(string $type): void
     {
-        Schema::create('test', function (Blueprint $table) {
+        Schema::create('test', function (Blueprint $table): void {
             $table->integer('test_column');
         });
 
-        foreach (['tinyText', 'text', 'mediumText', 'longText'] as $type) {
-            $blueprint = new Blueprint($this->getConnection(), 'test', function ($table) use ($type) {
-                $table->{$type}('test_column')->change();
-            });
+        $blueprint = new Blueprint($this->getConnection(), 'test', function (Blueprint $table) use ($type): void {
+            $table->{$type}('test_column')->change();
+        });
 
-            $uppercase = strtolower($type);
+        $lowercase = strtolower($type);
 
-            $expected = ["alter table `test` modify `test_column` {$uppercase} not null"];
+        $expected = ["alter table `test` modify `test_column` {$lowercase} not null"];
 
-            $this->assertEquals($expected, $blueprint->toSql());
-        }
+        $this->assertEquals($expected, $blueprint->toSql());
+    }
+
+    /**
+     * Provide text types for changing an integer column.
+     */
+    public static function dataProviderChangeToTextColumn(): Generator
+    {
+        yield 'tinyText' => ['tinyText'];
+        yield 'text' => ['text'];
+        yield 'mediumText' => ['mediumText'];
+        yield 'longText' => ['longText'];
     }
 
     #[RequiresDatabase(['mysql', 'mariadb'])]
-    public function testChangeTextColumnToTextColumn()
+    #[DataProvider('dataProviderChangeTextColumnToTextColumn')]
+    public function testChangeTextColumnToTextColumn(string $type): void
     {
-        Schema::create('test', static function (Blueprint $table) {
+        Schema::create('test', static function (Blueprint $table): void {
             $table->text('test_column');
         });
 
-        foreach (['tinyText', 'mediumText', 'longText'] as $type) {
-            $blueprint = new Blueprint($this->getConnection(), 'test', function ($table) use ($type) {
-                $table->{$type}('test_column')->change();
-            });
+        $blueprint = new Blueprint($this->getConnection(), 'test', function (Blueprint $table) use ($type): void {
+            $table->{$type}('test_column')->change();
+        });
 
-            $lowercase = strtolower($type);
+        $lowercase = strtolower($type);
 
-            $expected = ["alter table `test` modify `test_column` {$lowercase} not null"];
+        $expected = ["alter table `test` modify `test_column` {$lowercase} not null"];
 
-            $this->assertEquals($expected, $blueprint->toSql());
-        }
+        $this->assertEquals($expected, $blueprint->toSql());
+    }
+
+    /**
+     * Provide replacement types for a text column.
+     */
+    public static function dataProviderChangeTextColumnToTextColumn(): Generator
+    {
+        yield 'tinyText' => ['tinyText'];
+        yield 'mediumText' => ['mediumText'];
+        yield 'longText' => ['longText'];
     }
 
     #[RequiresDatabase(['mysql', 'mariadb'])]
