@@ -159,7 +159,7 @@ class EnvironmentEncryptCommand extends Command
         foreach (Lines::process(preg_split('/\r\n|\r|\n/', $contents)) as $entry) {
             $pos = strpos($entry, '=');
 
-            if ($pos === false) {
+            if ($pos === false || $pos === 0) {
                 continue;
             }
 

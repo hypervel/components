@@ -359,6 +359,7 @@ ENV;
         $originalContent = <<<'ENV'
 APP_TEST_1=valid
 APP_TEST_2
+=nameless
 APP_TEST_3=also_valid
 ENV;
 
@@ -386,7 +387,7 @@ ENV;
             ->expectsOutputToContain('Environment successfully encrypted')
             ->assertExitCode(0);
 
-        // Verify structure - invalid line (APP_TEST_2 without =) is skipped
+        // Skip entries without an equals sign or a variable name.
         $lines = explode("\n", rtrim($encryptedOutput));
         $this->assertCount(2, $lines);
         $this->assertTrue(str_starts_with($lines[0], 'APP_TEST_1='));
