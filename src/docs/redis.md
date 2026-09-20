@@ -642,6 +642,8 @@ PhpRedis does not support pipelining on Redis Cluster connections. Pipelining re
 <a name="advanced-helpers"></a>
 ### Advanced Helpers
 
+When calling `Redis::scan()`, `hscan()`, `sscan()`, or `zscan()`, pass the cursor returned in each result to the next call and stop when the result is `false`; the cursor argument is not updated by reference.
+
 If you need to stream keys with Redis' `SCAN` command, use `safeScan` while holding a pooled connection. Pass a logical key pattern without adding the connection prefix, just as you would pass a key to `get`. The `safeScan` method adds the connection prefix, including when PhpRedis' `SCAN_PREFIX` option is enabled, and removes it from returned keys:
 
 ```php
