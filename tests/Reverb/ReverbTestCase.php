@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Reverb;
 
 use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithSwooleTables;
 use Hypervel\Http\Request;
 use Hypervel\Reverb\Application;
 use Hypervel\Reverb\Contracts\ApplicationProvider;
@@ -15,8 +17,10 @@ use Hypervel\Reverb\Protocols\Pusher\EventHandler;
 use Hypervel\Reverb\Protocols\Pusher\Managers\ScopedChannelManager;
 use Hypervel\Reverb\ReverbServiceProvider;
 use Hypervel\Reverb\Servers\Hypervel\ReverbRouter;
+use Hypervel\Reverb\Servers\Hypervel\Scaling\SwooleTableSharedState;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use Hypervel\Testbench\Attributes\WithEnv;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\TestResponse;
 use Hypervel\Tests\Reverb\Fixtures\FakeConnection;
@@ -24,8 +28,21 @@ use Mockery as m;
 use Swoole\Server;
 use Throwable;
 
+#[WithEnv('REVERB_SWOOLE_SHARED_STATE_ROWS', '64')]
+#[WithEnv('REVERB_SWOOLE_SHARED_STATE_LOCK_ROWS', '64')]
 class ReverbTestCase extends TestCase
 {
+    use InteractsWithSwooleTables;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->app->resolving(SwooleTableSharedState::class, function (SwooleTableSharedState $state): void {
+            $this->trackSwooleTable($state->table(), $state->lockTable());
+        });
+    }
+
     /**
      * Get package providers.
      *
@@ -246,7 +263,7 @@ class ReverbTestCase extends TestCase
         try {
             $response = $this->app->make(ReverbRouter::class)->dispatch($request);
         } catch (Throwable $throwable) {
-            $handler = $this->app->make(\Hypervel\Contracts\Debug\ExceptionHandler::class);
+            $handler = $this->app->make(ExceptionHandler::class);
             $response = $handler->render($request, $throwable);
         }
 
