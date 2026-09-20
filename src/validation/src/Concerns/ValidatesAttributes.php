@@ -872,11 +872,17 @@ trait ValidatesAttributes
     {
         $data = Arr::except($this->getDistinctValues($attribute), $attribute);
 
-        if (in_array('ignore_case', $parameters)) {
-            return empty(preg_grep('/^' . preg_quote((string) $value, '/') . '$/iu', $data));
+        if (in_array('ignore_case', $parameters, true) && is_string($value)) {
+            foreach ($data as $key => $other) {
+                if (! is_scalar($other) && $other !== null && ! $other instanceof Stringable) {
+                    unset($data[$key]);
+                }
+            }
+
+            return empty(preg_grep('/^' . preg_quote($value, '/') . '$/iu', $data));
         }
 
-        return ! in_array($value, array_values($data), in_array('strict', $parameters));
+        return ! in_array($value, array_values($data), in_array('strict', $parameters, true));
     }
 
     /**
