@@ -22,6 +22,7 @@ use Hypervel\Redis\PhpRedisClusterConnection;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisSentinelFactory;
+use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\Redis\Fixtures\PhpRedisClusterConnectionStub;
 use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
 use Hypervel\Tests\Redis\Fixtures\RespServer;
@@ -2699,10 +2700,14 @@ class RedisConnectionTest extends TestCase
         $this->assertSame($expected, RedisConnection::hasHashTag($key));
     }
 
+    /**
+     * Provide Redis keys with and without valid hash tags.
+     */
     public static function redisClusterHashTagProvider(): array
     {
         return [
             ['plain-key', false],
+            ['my{lock', false],
             ['{}', false],
             ['prefix{}suffix', false],
             ['{queue}', true],
@@ -3351,17 +3356,19 @@ class RedisConnectionTest extends TestCase
         };
     }
 
-    public function testReconnectSetsNumericBackoffAlgorithmAsIs(): void
+    public function testParseBackoffAlgorithmReturnsIntegerAsIs(): void
     {
         $pool = $this->getMockedPool();
         $redis = m::mock(Redis::class);
-        $redis->shouldReceive('setOption')
-            ->once()
+        $redis->expects('setOption')
             ->with(Redis::OPT_BACKOFF_ALGORITHM, Redis::BACKOFF_ALGORITHM_DEFAULT);
 
         $redis->shouldReceive('setOption')->andReturnTrue();
 
         new class($this->getContainer(), $pool, $this->standaloneConfig(['backoff_algorithm' => Redis::BACKOFF_ALGORITHM_DEFAULT]), $redis) extends PhpRedisConnection {
+            /**
+             * Create the connection with a fake Redis client.
+             */
             public function __construct(
                 ContainerContract $container,
                 ConnectionPool $pool,
@@ -3371,6 +3378,9 @@ class RedisConnectionTest extends TestCase
                 parent::__construct($container, $pool, $config);
             }
 
+            /**
+             * Return the fake Redis client.
+             */
             protected function createRedis(array $config): Redis
             {
                 return $this->fakeRedis;
@@ -3378,7 +3388,19 @@ class RedisConnectionTest extends TestCase
         };
     }
 
-    public function testReconnectThrowsOnUnknownBackoffAlgorithm(): void
+    public function testParseBackoffAlgorithmParsesValidNames(): void
+    {
+        $connection = new ClassInvoker(new PhpRedisConnectionStub);
+
+        $this->assertSame(Redis::BACKOFF_ALGORITHM_DEFAULT, $connection->parseBackoffAlgorithm('default'));
+        $this->assertSame(Redis::BACKOFF_ALGORITHM_DECORRELATED_JITTER, $connection->parseBackoffAlgorithm('decorrelated_jitter'));
+        $this->assertSame(Redis::BACKOFF_ALGORITHM_EQUAL_JITTER, $connection->parseBackoffAlgorithm('equal_jitter'));
+        $this->assertSame(Redis::BACKOFF_ALGORITHM_EXPONENTIAL, $connection->parseBackoffAlgorithm('exponential'));
+        $this->assertSame(Redis::BACKOFF_ALGORITHM_UNIFORM, $connection->parseBackoffAlgorithm('uniform'));
+        $this->assertSame(Redis::BACKOFF_ALGORITHM_CONSTANT, $connection->parseBackoffAlgorithm('constant'));
+    }
+
+    public function testParseBackoffAlgorithmThrowsForInvalidName(): void
     {
         $pool = $this->getMockedPool();
         $redis = m::mock(Redis::class);

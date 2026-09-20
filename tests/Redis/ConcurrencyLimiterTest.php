@@ -10,14 +10,9 @@ use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
-/**
- * Tests for ConcurrencyLimiter.
- *
- * ConcurrencyLimiter provides a slot-based concurrency limiter using Redis Lua scripts.
- * It acquires one of N named slots, holds it during callback execution, and releases it afterward.
- */
 class ConcurrencyLimiterTest extends TestCase
 {
     public function testBlockExecutesCallbackOnSuccessfulAcquisition(): void
@@ -28,8 +23,7 @@ class ConcurrencyLimiterTest extends TestCase
         $this->expectSlotClaim($redis, 'test-lock1');
 
         // release() calls eval with the release script
-        $redis->shouldReceive('eval')
-            ->once()
+        $redis->expects('eval')
             ->withArgs(function (string $script, int $numKeys, string $key, string $id): bool {
                 $this->assertSame(1, $numKeys);
                 $this->assertSame('test-lock1', $key);
@@ -41,7 +35,7 @@ class ConcurrencyLimiterTest extends TestCase
 
         $limiter = new ConcurrencyLimiter($redis, 'test-lock', 3, 60);
 
-        $result = $limiter->block(5, function () {
+        $result = $limiter->block(5, function (): string {
             return 'callback-result';
         });
 
@@ -70,8 +64,7 @@ class ConcurrencyLimiterTest extends TestCase
         $this->expectSlotClaim($redis, 'test-lock1');
 
         // release() should still be called
-        $redis->shouldReceive('eval')
-            ->once()
+        $redis->expects('eval')
             ->withArgs(function (string $script, int $numKeys, string $key, string $id): bool {
                 $this->assertSame(1, $numKeys);
                 $this->assertSame('test-lock1', $key);
@@ -85,7 +78,7 @@ class ConcurrencyLimiterTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('test error');
 
-        $limiter->block(5, function () {
+        $limiter->block(5, function (): never {
             throw new RuntimeException('test error');
         });
     }
@@ -96,8 +89,7 @@ class ConcurrencyLimiterTest extends TestCase
         $releaseException = new RuntimeException('release failed');
 
         $this->expectSlotClaim($redis, 'test-lock1');
-        $redis->shouldReceive('eval')
-            ->once()
+        $redis->expects('eval')
             ->andThrow($releaseException);
 
         $limiter = new ConcurrencyLimiter($redis, 'test-lock', 3, 60);
@@ -117,8 +109,7 @@ class ConcurrencyLimiterTest extends TestCase
         $callbackException = new RuntimeException('callback failed');
 
         $this->expectSlotClaim($redis, 'test-lock1');
-        $redis->shouldReceive('eval')
-            ->once()
+        $redis->expects('eval')
             ->andThrow(new RuntimeException('release failed'));
 
         $limiter = new ConcurrencyLimiter($redis, 'test-lock', 3, 60);
@@ -151,29 +142,6 @@ class ConcurrencyLimiterTest extends TestCase
 
         // Timeout of 0 means it should fail immediately on first retry
         $limiter->block(0, null, 1); // 1ms sleep between retries
-    }
-
-    public function testAcquirePassesCorrectKeysToLuaScript(): void
-    {
-        $redis = $this->mockRedis();
-
-        $this->expectSlotClaim(
-            $redis,
-            'test-lock1',
-            function (string $script, array $keys, array $arguments): bool {
-                $this->assertNotSame('', $script);
-                $this->assertSame(['test-lock1', 'test-lock2', 'test-lock3'], $keys);
-                $this->assertSame('test-lock', $arguments[0]);
-                $this->assertSame(60, $arguments[1]);
-                $this->assertNotEmpty($arguments[2]);
-
-                return true;
-            },
-        );
-
-        $limiter = new ConcurrencyLimiter($redis, 'test-lock', 3, 60);
-
-        $limiter->block(5);
     }
 
     public function testBlockWithZeroLimitDoesNotCallEvalAndTimesOut(): void
@@ -218,8 +186,7 @@ class ConcurrencyLimiterTest extends TestCase
         $redis = $this->mockRedis();
 
         $this->expectSlotClaim($redis, 'test-lock1');
-        $redis->shouldReceive('eval')
-            ->once()
+        $redis->expects('eval')
             ->withArgs(function (string $script, int $numKeys, string $key, string $id): bool {
                 $this->assertSame(1, $numKeys);
                 $this->assertSame('test-lock1', $key);
@@ -239,8 +206,7 @@ class ConcurrencyLimiterTest extends TestCase
         $redis = $this->mockRedis();
 
         $this->expectSlotClaim($redis, 'test-lock1');
-        $redis->shouldReceive('eval')
-            ->once()
+        $redis->expects('eval')
             ->withArgs(function (string $script, int $numKeys, string $key, string $id, int $seconds): bool {
                 $this->assertSame(1, $numKeys);
                 $this->assertSame('test-lock1', $key);
@@ -261,8 +227,7 @@ class ConcurrencyLimiterTest extends TestCase
         $redis = $this->mockRedis();
 
         $this->expectSlotClaim($redis, 'test-lock1');
-        $redis->shouldReceive('ttl')
-            ->once()
+        $redis->expects('ttl')
             ->with('test-lock1')
             ->andReturn(5);
 
@@ -271,15 +236,16 @@ class ConcurrencyLimiterTest extends TestCase
         $this->assertSame(5.0, $lease->getRemainingLifetime());
     }
 
-    public function testClusterConnectionTagsSlotKeys(): void
+    public function testAcquireUsesHashTagsOnPhpRedisClusterConnection(): void
     {
         $redis = $this->mockRedis();
-        $redis->shouldReceive('isCluster')->andReturnTrue();
+        $redis->expects('isCluster')->andReturnTrue();
 
         $this->expectSlotClaim(
             $redis,
             '{test-lock}1',
             function (string $script, array $keys, array $arguments): bool {
+                $this->assertStringContainsString('mget', $script);
                 $this->assertSame(['{test-lock}1', '{test-lock}2', '{test-lock}3'], $keys);
                 $this->assertSame('{test-lock}', $arguments[0]);
 
@@ -287,26 +253,123 @@ class ConcurrencyLimiterTest extends TestCase
             },
         );
 
-        (new ConcurrencyLimiter($redis, 'test-lock', 3, 60))->block(5);
+        $redis->expects('eval')->with(m::on(static fn (string $script): bool => str_contains($script, 'del')), 1, '{test-lock}1', m::type('string'))->andReturn(1);
+
+        $result = (new ConcurrencyLimiter($redis, 'test-lock', 3, 60))->block(0, static fn (): string => 'executed');
+
+        $this->assertSame('executed', $result);
     }
 
-    public function testClusterConnectionLeavesExistingHashTagAlone(): void
+    public function testAcquireUsesPlainKeysOnNonClusterConnection(): void
     {
         $redis = $this->mockRedis();
-        $redis->shouldReceive('isCluster')->andReturnTrue();
+        $redis->expects('isCluster')->andReturnFalse();
 
         $this->expectSlotClaim(
             $redis,
-            '{test-lock}:funnel1',
+            'test-lock1',
             function (string $script, array $keys, array $arguments): bool {
-                $this->assertSame(['{test-lock}:funnel1'], $keys);
-                $this->assertSame('{test-lock}:funnel', $arguments[0]);
+                $this->assertStringContainsString('mget', $script);
+                $this->assertSame(['test-lock1', 'test-lock2', 'test-lock3'], $keys);
+                $this->assertSame('test-lock', $arguments[0]);
+                $this->assertSame(60, $arguments[1]);
+                $this->assertNotEmpty($arguments[2]);
 
                 return true;
             },
         );
+        $redis->expects('eval')->with(m::on(static fn (string $script): bool => str_contains($script, 'del')), 1, 'test-lock1', m::type('string'))->andReturn(1);
 
-        (new ConcurrencyLimiter($redis, '{test-lock}:funnel', 1, 60))->block(5);
+        $result = (new ConcurrencyLimiter($redis, 'test-lock', 3, 60))->block(0, static fn (): string => 'done');
+
+        $this->assertSame('done', $result);
+    }
+
+    // REMOVED: Predis connection tests; Hypervel supports phpredis only.
+
+    public function testReleaseKeyMatchesAcquireKeyOnCluster(): void
+    {
+        $redis = $this->mockRedis();
+        $redis->expects('isCluster')->andReturnTrue();
+
+        // Acquire returns the slot key.
+        $this->expectSlotClaim($redis, '{mykey}2');
+
+        // Release should be called with the exact same key.
+        $redis->expects('eval')->with(m::on(static fn (string $script): bool => str_contains($script, 'del')), 1, '{mykey}2', m::type('string'))->andReturn(1);
+
+        (new ConcurrencyLimiter($redis, 'mykey', 3, 60))->block(0, static function (): void {
+            // Callback runs between acquire and release.
+        });
+    }
+
+    #[DataProvider('existingHashTags')]
+    public function testAcquireDoesNotDoubleWrapPreExistingHashTags(string $name): void
+    {
+        $redis = $this->mockRedis();
+        $redis->expects('isCluster')->andReturnTrue();
+
+        // The name already has a hash tag and must not be double-wrapped.
+        $this->expectSlotClaim($redis, $name . '1', function (string $script, array $keys, array $arguments) use ($name): bool {
+            $this->assertStringContainsString('mget', $script);
+            $this->assertSame([$name . '1', $name . '2'], $keys);
+            $this->assertSame($name, $arguments[0]);
+
+            return true;
+        });
+        $redis->expects('eval')->with(m::on(static fn (string $script): bool => str_contains($script, 'del')), 1, $name . '1', m::type('string'))->andReturn(1);
+
+        $result = (new ConcurrencyLimiter($redis, $name, 2, 60))->block(0, static fn (): string => 'ok');
+
+        $this->assertSame('ok', $result);
+    }
+
+    /**
+     * Provide names with existing Redis hash tags.
+     */
+    public static function existingHashTags(): array
+    {
+        return [['{mylock}'], ['{test-lock}:funnel']];
+    }
+
+    public function testAcquireWrapsUnmatchedBraceOnCluster(): void
+    {
+        $redis = $this->mockRedis();
+        $redis->expects('isCluster')->andReturnTrue();
+
+        // An opening brace without a closing brace is not a valid hash tag.
+        $this->expectSlotClaim($redis, '{my{lock}1', function (string $script, array $keys, array $arguments): bool {
+            $this->assertStringContainsString('mget', $script);
+            $this->assertSame(['{my{lock}1', '{my{lock}2'], $keys);
+            $this->assertSame('{my{lock}', $arguments[0]);
+
+            return true;
+        });
+        $redis->expects('eval')->with(m::on(static fn (string $script): bool => str_contains($script, 'del')), 1, '{my{lock}1', m::type('string'))->andReturn(1);
+
+        $result = (new ConcurrencyLimiter($redis, 'my{lock', 2, 60))->block(0, static fn (): string => 'ok');
+
+        $this->assertSame('ok', $result);
+    }
+
+    public function testAcquireWrapsEmptyBracesOnCluster(): void
+    {
+        $redis = $this->mockRedis();
+        $redis->expects('isCluster')->andReturnTrue();
+
+        // Empty braces are not a valid hash tag.
+        $this->expectSlotClaim($redis, '{my{}lock}1', function (string $script, array $keys, array $arguments): bool {
+            $this->assertStringContainsString('mget', $script);
+            $this->assertSame(['{my{}lock}1', '{my{}lock}2'], $keys);
+            $this->assertSame('{my{}lock}', $arguments[0]);
+
+            return true;
+        });
+        $redis->expects('eval')->with(m::on(static fn (string $script): bool => str_contains($script, 'del')), 1, '{my{}lock}1', m::type('string'))->andReturn(1);
+
+        $result = (new ConcurrencyLimiter($redis, 'my{}lock', 2, 60))->block(0, static fn (): string => 'ok');
+
+        $this->assertSame('ok', $result);
     }
 
     /**
@@ -330,11 +393,10 @@ class ConcurrencyLimiterTest extends TestCase
     ): void {
         $connection = m::mock(RedisConnection::class);
 
-        $redis->shouldReceive('withConnection')
-            ->once()
+        $redis->expects('withConnection')
             ->andReturnUsing(fn (callable $callback): mixed => $callback($connection));
 
-        $expectation = $connection->shouldReceive('evalWithShaCache')->once();
+        $expectation = $connection->expects('evalWithShaCache');
 
         if ($assertion !== null) {
             $expectation->withArgs($assertion);
