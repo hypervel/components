@@ -224,6 +224,8 @@ Tests that create child coroutines, subscribers, processes, servers, or other as
 
 When a test needs results or exceptions from child coroutines, prefer the `parallel` helper instead of coordinating them with unbounded channel reads. Use channels directly when channel behavior is what the test is exercising.
 
+Swoole tables are also resources your test owns. Swoole only releases a table's memory when `destroy` is called, so a table created in a test stays in memory until the test process exits. When a test creates a Swoole table, use the `InteractsWithSwooleTables` trait and pass the table to `trackSwooleTable`. The trait destroys tracked tables after each test, so you should not call `destroy` on them yourself.
+
 <a name="test-state-cleanup"></a>
 ### Test State Cleanup
 
