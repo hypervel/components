@@ -37,7 +37,7 @@ class SessionManagerTest extends TestCase
 
     public function testSetDefaultDriverAcceptsBackedEnum(): void
     {
-        $container = $this->getContainer(['session' => ['driver' => 'array']]);
+        $container = $this->getContainer(['session' => ['driver' => 'file']]);
 
         $manager = new SessionManager($container);
         $manager->setDefaultDriver(SessionDriverName::Array);

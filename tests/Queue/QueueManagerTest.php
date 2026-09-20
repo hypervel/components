@@ -167,7 +167,6 @@ class QueueManagerTest extends TestCase
     public function testSetDefaultDriverAcceptsBackedEnum(): void
     {
         $container = $this->getContainer();
-        $container->make('config')->set('queue.default', 'sync');
 
         $manager = new QueueManager($container);
         $manager->setDefaultDriver(QueueConnectionName::Sync);
