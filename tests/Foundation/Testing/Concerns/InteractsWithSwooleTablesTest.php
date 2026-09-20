@@ -25,4 +25,16 @@ class InteractsWithSwooleTablesTest extends TestCase
         // the same table is fatal, so the list must already be empty.
         $this->assertSame([], $this->swooleTables);
     }
+
+    public function testTracksTheSameTableOnce(): void
+    {
+        $table = new Table(64);
+        $table->column('count', Table::TYPE_INT);
+        $table->create();
+
+        $this->trackSwooleTable($table);
+        $this->trackSwooleTable($table);
+
+        $this->assertCount(1, $this->swooleTables);
+    }
 }

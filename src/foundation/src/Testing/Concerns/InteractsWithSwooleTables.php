@@ -12,7 +12,9 @@ trait InteractsWithSwooleTables
     /**
      * The Swoole tables created by the test.
      *
-     * @var list<Table>
+     * Keyed by object ID so a table tracked twice is only destroyed once.
+     *
+     * @var array<int, Table>
      */
     protected array $swooleTables = [];
 
@@ -21,7 +23,9 @@ trait InteractsWithSwooleTables
      */
     protected function trackSwooleTable(Table ...$tables): void
     {
-        $this->swooleTables = [...$this->swooleTables, ...$tables];
+        foreach ($tables as $table) {
+            $this->swooleTables[spl_object_id($table)] = $table;
+        }
     }
 
     /**
