@@ -538,7 +538,7 @@ assertType('User|null', $collection->value('string'));
 assertType("'string'|User", $collection->value('string', 'string'));
 assertType("'string'|User", $collection->value('string', fn () => 'string'));
 
-assertType('Hypervel\Support\Collection<string, int>', $collection::make(['string'])->flip());
+assertType('Hypervel\Support\Collection<(int|string), int>', $collection::make(['string'])->flip());
 
 assertType('Hypervel\Support\Collection<(int|string), Hypervel\Support\Collection<int, User>>', $collection->groupBy('name'));
 assertType('Hypervel\Support\Collection<(int|string), Hypervel\Support\Collection<int, User>>', $collection->groupBy('name', true));

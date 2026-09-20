@@ -444,8 +444,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Flip the items in the collection.
      *
-     * @return static<TValue, TKey>
-     * @phpstan-ignore generics.notSubtype (TValue becomes key - only valid when TValue is array-key, but can't express this constraint)
+     * @return static<array-key, TKey>
      */
     public function flip(): Collection
     {
@@ -584,6 +583,10 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
                 $resolvedKey = $resolvedKey instanceof UnitEnum
                     ? enum_value($resolvedKey)
                     : (string) $resolvedKey;
+            }
+
+            if (is_null($resolvedKey)) {
+                $resolvedKey = (string) $resolvedKey;
             }
 
             $results[$resolvedKey] = $item;
