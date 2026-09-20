@@ -253,7 +253,7 @@ class ConcurrencyLimiterTest extends TestCase
             },
         );
 
-        $redis->expects('eval')->with(m::on(static fn (string $script): bool => str_contains($script, 'del')), 1, '{test-lock}1', m::type('string'))->andReturn(1);
+        $this->expectRelease($redis, '{test-lock}1');
 
         $result = (new ConcurrencyLimiter($redis, 'test-lock', 3, 60))->block(0, static fn (): string => 'executed');
 
@@ -278,7 +278,7 @@ class ConcurrencyLimiterTest extends TestCase
                 return true;
             },
         );
-        $redis->expects('eval')->with(m::on(static fn (string $script): bool => str_contains($script, 'del')), 1, 'test-lock1', m::type('string'))->andReturn(1);
+        $this->expectRelease($redis, 'test-lock1');
 
         $result = (new ConcurrencyLimiter($redis, 'test-lock', 3, 60))->block(0, static fn (): string => 'done');
 
@@ -296,7 +296,7 @@ class ConcurrencyLimiterTest extends TestCase
         $this->expectSlotClaim($redis, '{mykey}2');
 
         // Release should be called with the exact same key.
-        $redis->expects('eval')->with(m::on(static fn (string $script): bool => str_contains($script, 'del')), 1, '{mykey}2', m::type('string'))->andReturn(1);
+        $this->expectRelease($redis, '{mykey}2');
 
         (new ConcurrencyLimiter($redis, 'mykey', 3, 60))->block(0, static function (): void {
             // Callback runs between acquire and release.
@@ -317,7 +317,7 @@ class ConcurrencyLimiterTest extends TestCase
 
             return true;
         });
-        $redis->expects('eval')->with(m::on(static fn (string $script): bool => str_contains($script, 'del')), 1, $name . '1', m::type('string'))->andReturn(1);
+        $this->expectRelease($redis, $name . '1');
 
         $result = (new ConcurrencyLimiter($redis, $name, 2, 60))->block(0, static fn (): string => 'ok');
 
@@ -345,7 +345,7 @@ class ConcurrencyLimiterTest extends TestCase
 
             return true;
         });
-        $redis->expects('eval')->with(m::on(static fn (string $script): bool => str_contains($script, 'del')), 1, '{my{lock}1', m::type('string'))->andReturn(1);
+        $this->expectRelease($redis, '{my{lock}1');
 
         $result = (new ConcurrencyLimiter($redis, 'my{lock', 2, 60))->block(0, static fn (): string => 'ok');
 
@@ -365,7 +365,7 @@ class ConcurrencyLimiterTest extends TestCase
 
             return true;
         });
-        $redis->expects('eval')->with(m::on(static fn (string $script): bool => str_contains($script, 'del')), 1, '{my{}lock}1', m::type('string'))->andReturn(1);
+        $this->expectRelease($redis, '{my{}lock}1');
 
         $result = (new ConcurrencyLimiter($redis, 'my{}lock', 2, 60))->block(0, static fn (): string => 'ok');
 
@@ -403,5 +403,15 @@ class ConcurrencyLimiterTest extends TestCase
         }
 
         $expectation->andReturn($result);
+    }
+
+    /**
+     * Expect a release script evaluation for the acquired slot.
+     */
+    private function expectRelease(m\MockInterface|RedisProxy $redis, string $key): void
+    {
+        $redis->expects('eval')
+            ->with(m::on(static fn (string $script): bool => str_contains($script, 'del')), 1, $key, m::type('string'))
+            ->andReturn(1);
     }
 }
