@@ -28,22 +28,24 @@ use function Hypervel\Coroutine\parallel;
 
 class LogLoggerTest extends TestCase
 {
-    public function testMethodsPassErrorAdditionsToMonolog()
+    public function testMethodsPassErrorAdditionsToMonolog(): void
     {
-        $writer = new Logger($monolog = $this->mockMonolog());
-        $monolog->shouldReceive('isHandling')->with('error')->andReturn(true);
-        $monolog->shouldReceive('error')->once()->with('foo', []);
+        $monolog = $this->mockMonolog();
+        $monolog->expects('isHandling')->with('error')->andReturn(true);
+        $monolog->expects('error')->with('foo', []);
+        $writer = new Logger($monolog);
 
         $writer->error('foo');
     }
 
-    public function testContextIsAddedToAllSubsequentLogs()
+    public function testContextIsAddedToAllSubsequentLogs(): void
     {
-        $writer = new Logger($monolog = $this->mockMonolog());
+        $monolog = $this->mockMonolog();
+        $writer = new Logger($monolog);
         $writer->withContext(['bar' => 'baz']);
 
-        $monolog->shouldReceive('isHandling')->with('error')->andReturn(true);
-        $monolog->shouldReceive('error')->once()->with('foo', ['bar' => 'baz']);
+        $monolog->expects('isHandling')->with('error')->andReturn(true);
+        $monolog->expects('error')->with('foo', ['bar' => 'baz']);
 
         $writer->error('foo');
     }
@@ -63,39 +65,42 @@ class LogLoggerTest extends TestCase
         $this->assertSame([123 => 'updated', 456 => 'kept'], $writer->getContext());
     }
 
-    public function testContextIsFlushed()
+    public function testContextIsFlushed(): void
     {
-        $writer = new Logger($monolog = $this->mockMonolog());
+        $monolog = $this->mockMonolog();
+        $writer = new Logger($monolog);
         $writer->withContext(['bar' => 'baz']);
         $writer->withoutContext();
 
-        $monolog->shouldReceive('isHandling')->with('error')->andReturn(true);
+        $monolog->expects('isHandling')->with('error')->andReturn(true);
         $monolog->expects('error')->with('foo', []);
 
         $writer->error('foo');
     }
 
-    public function testContextKeysCanBeRemovedForSubsequentLogs()
+    public function testContextKeysCanBeRemovedForSubsequentLogs(): void
     {
-        $writer = new Logger($monolog = $this->mockMonolog());
+        $monolog = $this->mockMonolog();
+        $writer = new Logger($monolog);
         $writer->withContext(['bar' => 'baz', 'forget' => 'me']);
         $writer->withoutContext(['forget']);
 
-        $monolog->shouldReceive('isHandling')->with('error')->andReturn(true);
-        $monolog->shouldReceive('error')->once()->with('foo', ['bar' => 'baz']);
+        $monolog->expects('isHandling')->with('error')->andReturn(true);
+        $monolog->expects('error')->with('foo', ['bar' => 'baz']);
 
         $writer->error('foo');
     }
 
-    public function testLoggerFiresEventsDispatcher()
+    public function testLoggerFiresEventsDispatcher(): void
     {
-        $writer = new Logger($monolog = $this->mockMonolog(), $events = new Dispatcher);
-        $monolog->shouldReceive('isHandling')->with('error')->andReturn(true);
-        $monolog->shouldReceive('error')->once()->with('foo', []);
+        $monolog = $this->mockMonolog();
+        $monolog->expects('isHandling')->with('error')->andReturn(true);
+        $monolog->expects('error')->with('foo', []);
+        $writer = new Logger($monolog, $events = new Dispatcher);
 
         $context = [];
 
-        $events->listen(MessageLogged::class, function ($event) use (&$context) {
+        $events->listen(MessageLogged::class, function (MessageLogged $event) use (&$context): void {
             $context['level'] = $event->level;
             $context['message'] = $event->message;
             $context['event_context'] = $event->context;
@@ -107,7 +112,7 @@ class LogLoggerTest extends TestCase
         $this->assertTrue(isset($context['message']));
         $this->assertSame('foo', $context['message']);
         $this->assertTrue(isset($context['event_context']));
-        $this->assertEquals([], $context['event_context']);
+        $this->assertSame([], $context['event_context']);
     }
 
     public function testListenShortcutFailsWithNoDispatcher(): void
@@ -119,28 +124,30 @@ class LogLoggerTest extends TestCase
         });
     }
 
-    public function testListenShortcut()
+    public function testListenShortcut(): void
     {
-        $writer = new Logger($this->mockMonolog(), $events = m::mock(DispatcherContract::class));
+        $events = m::mock(DispatcherContract::class);
+        $writer = new Logger($this->mockMonolog(), $events);
 
-        $callback = function () {
+        $callback = function (): string {
             return 'success';
         };
-        $events->shouldReceive('listen')->with(MessageLogged::class, $callback)->once();
+        $events->expects('listen')->with(MessageLogged::class, $callback);
 
         $writer->listen($callback);
     }
 
-    public function testComplexContextManipulation()
+    public function testComplexContextManipulation(): void
     {
-        $writer = new Logger($monolog = $this->mockMonolog());
+        $monolog = $this->mockMonolog();
+        $writer = new Logger($monolog);
 
         $writer->withContext(['user_id' => 123, 'action' => 'login']);
         $writer->withContext(['ip' => '127.0.0.1', 'timestamp' => '1986-10-29']);
         $writer->withoutContext(['timestamp']);
 
-        $monolog->shouldReceive('isHandling')->with('info')->andReturn(true);
-        $monolog->shouldReceive('info')->once()->with('User action', [
+        $monolog->expects('isHandling')->with('info')->andReturn(true);
+        $monolog->expects('info')->with('User action', [
             'user_id' => 123,
             'action' => 'login',
             'ip' => '127.0.0.1',
@@ -149,7 +156,7 @@ class LogLoggerTest extends TestCase
         $writer->info('User action');
     }
 
-    public function testSkipsSerializationWhenLogLevelNotHandled()
+    public function testSkipsSerializationWhenLogLevelNotHandled(): void
     {
         $monolog = new Monolog('test');
         $monolog->pushHandler(new TestHandler(Level::Error));
@@ -159,6 +166,9 @@ class LogLoggerTest extends TestCase
         $arrayable = new class implements Arrayable {
             public bool $wasCalled = false;
 
+            /**
+             * Get the instance as an array.
+             */
             public function toArray(): array
             {
                 $this->wasCalled = true;
@@ -172,7 +182,7 @@ class LogLoggerTest extends TestCase
         $this->assertFalse($arrayable->wasCalled);
     }
 
-    public function testSerializesWhenLogLevelIsHandled()
+    public function testSerializesWhenLogLevelIsHandled(): void
     {
         $monolog = new Monolog('test');
         $handler = new TestHandler(Level::Debug);
@@ -183,6 +193,9 @@ class LogLoggerTest extends TestCase
         $arrayable = new class implements Arrayable {
             public bool $wasCalled = false;
 
+            /**
+             * Get the instance as an array.
+             */
             public function toArray(): array
             {
                 $this->wasCalled = true;
@@ -256,9 +269,9 @@ class LogLoggerTest extends TestCase
         $logger = new Logger(new Monolog('concurrent', [$handler]));
 
         parallel([
-            fn () => $logger->info('first'),
-            fn () => $logger->info('second'),
-            fn () => $logger->info('third'),
+            fn (): null => $logger->info('first'),
+            fn (): null => $logger->info('second'),
+            fn (): null => $logger->info('third'),
         ]);
 
         $messages = array_map(
@@ -306,15 +319,14 @@ class LogLoggerTest extends TestCase
 
     public function testNamedLoggerRejectsNonMonologDrivers(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Named loggers are only supported by Monolog drivers.');
+        $this->expectExceptionObject(new RuntimeException('Named loggers are only supported by Monolog drivers.'));
 
         (new Logger(m::mock(LoggerInterface::class)))->withName('tenant');
     }
 
     // -- Hypervel-specific tests --
 
-    public function testWithContext()
+    public function testWithContext(): void
     {
         $writer = new Logger($monolog = $this->mockMonolog());
 
@@ -322,23 +334,23 @@ class LogLoggerTest extends TestCase
         $writer->withContext(['baz' => 'qux']);
 
         $monolog->shouldReceive('isHandling')->with('error')->andReturn(true);
-        $monolog->shouldReceive('error')->once()->with('test message', ['foo' => 'bar', 'baz' => 'qux']);
+        $monolog->expects('error')->with('test message', ['foo' => 'bar', 'baz' => 'qux']);
 
         $writer->error('test message');
     }
 
-    public function testLoggerSkipsEventDispatchWhenNoListenersAreRegistered()
+    public function testLoggerSkipsEventDispatchWhenNoListenersAreRegistered(): void
     {
         $writer = new Logger($monolog = $this->mockMonolog(), $events = m::mock(DispatcherContract::class));
         $monolog->shouldReceive('isHandling')->with('error')->andReturn(true);
-        $monolog->shouldReceive('error')->once()->with('foo', []);
-        $events->shouldReceive('hasListeners')->once()->with(MessageLogged::class)->andReturn(false);
+        $monolog->expects('error')->with('foo', []);
+        $events->expects('hasListeners')->with(MessageLogged::class)->andReturn(false);
         $events->shouldNotReceive('dispatch');
 
         $writer->error('foo');
     }
 
-    public function testMessageLoggedExtraContainsVisibleContextAndExcludesHidden()
+    public function testMessageLoggedExtraContainsVisibleContextAndExcludesHidden(): void
     {
         $events = new Dispatcher;
         $repository = new ContextRepository($events);
@@ -348,10 +360,10 @@ class LogLoggerTest extends TestCase
 
         $writer = new Logger($monolog = $this->mockMonolog(), $events);
         $monolog->shouldReceive('isHandling')->with('info')->andReturn(true);
-        $monolog->shouldReceive('info')->once()->with('test', []);
+        $monolog->expects('info')->with('test', []);
 
         $captured = null;
-        $events->listen(MessageLogged::class, function (MessageLogged $event) use (&$captured) {
+        $events->listen(MessageLogged::class, function (MessageLogged $event) use (&$captured): void {
             $captured = $event;
         });
 
@@ -363,17 +375,17 @@ class LogLoggerTest extends TestCase
         CoroutineContext::forget(ContextRepository::CONTEXT_KEY);
     }
 
-    public function testMessageLoggedExtraIsEmptyWhenNoContextUsed()
+    public function testMessageLoggedExtraIsEmptyWhenNoContextUsed(): void
     {
         CoroutineContext::forget(ContextRepository::CONTEXT_KEY);
 
         $events = new Dispatcher;
         $writer = new Logger($monolog = $this->mockMonolog(), $events);
         $monolog->shouldReceive('isHandling')->with('info')->andReturn(true);
-        $monolog->shouldReceive('info')->once()->with('test', []);
+        $monolog->expects('info')->with('test', []);
 
         $captured = null;
-        $events->listen(MessageLogged::class, function (MessageLogged $event) use (&$captured) {
+        $events->listen(MessageLogged::class, function (MessageLogged $event) use (&$captured): void {
             $captured = $event;
         });
 
@@ -382,10 +394,13 @@ class LogLoggerTest extends TestCase
         $this->assertSame([], $captured->extra);
     }
 
+    /**
+     * Create a Monolog mock expecting its loop detector to be disabled.
+     */
     private function mockMonolog(): Monolog
     {
         $monolog = m::mock(Monolog::class);
-        $monolog->shouldReceive('useLoggingLoopDetection')->once()->with(false);
+        $monolog->expects('useLoggingLoopDetection')->with(false);
 
         return $monolog;
     }
@@ -398,12 +413,18 @@ class InterleavingLogHandler extends AbstractHandler
 
     private int $entered = 0;
 
+    /**
+     * Create a handler that interleaves concurrent writes.
+     */
     public function __construct(
         private readonly Channel $release
     ) {
         parent::__construct();
     }
 
+    /**
+     * Record a message and wait for the other writes.
+     */
     public function handle(LogRecord $record): bool
     {
         $this->records[] = $record;
@@ -426,12 +447,18 @@ class ContextClearingRecursiveLogHandler extends AbstractHandler
 
     private int $remainingRecursions = 6;
 
+    /**
+     * Create a handler that recursively logs messages.
+     */
     public function __construct(
         private readonly Closure $recurse
     ) {
         parent::__construct();
     }
 
+    /**
+     * Recurse until the logger detects the loop.
+     */
     public function handle(LogRecord $record): bool
     {
         if ($record->level === Level::Warning && str_contains($record->message, 'infinite logging loop')) {

@@ -26,6 +26,7 @@ use Hypervel\Support\Facades\Redis;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\Jobs\BasicJob;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\Jobs\LegacyJob;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
+use Hypervel\Tests\Queue\Fixtures\IntegerQueueName;
 use ReflectionMethod;
 
 class QueueProcessingTest extends IntegrationTestCase
@@ -73,13 +74,13 @@ class QueueProcessingTest extends IntegrationTestCase
         try {
             /** @var RedisQueue $queue */
             $queue = Queue::connection('redis');
-            $queue->push(new BasicJob, queue: 'critical');
-            $queue->later(1, new BasicJob, queue: 'critical');
+            $queue->push(new BasicJob, queue: IntegerQueueName::Zero);
+            $queue->later(1, new BasicJob, queue: IntegerQueueName::Zero);
         } finally {
             BaseQueue::createPayloadUsing(null);
         }
 
-        $this->assertSame(['queues:critical', 'queues:critical'], $queues);
+        $this->assertSame(['queues:0', 'queues:0'], $queues);
     }
 
     public function testDirectRawPushDoesNotInheritThePreviousJob(): void
@@ -96,23 +97,23 @@ class QueueProcessingTest extends IntegrationTestCase
 
     public function testForwardedJobsKeepTheirWorkerQueueAndReportTheirDestination(): void
     {
-        Queue::forward(['default' => 'processing', 'processing' => 'archive']);
+        Queue::forward(['0' => 'processing', 'processing' => 'archive']);
         $events = [];
 
         Event::listen([JobPushed::class, JobReserved::class, JobReleased::class, JobDeleted::class], function (RedisEvent $event) use (&$events): void {
             $events[] = [$event::class, $event->queue];
         });
 
-        $id = Queue::push(new BasicJob);
-        $job = Queue::pop();
+        $id = Queue::push(new BasicJob, queue: IntegerQueueName::Zero);
+        $job = Queue::pop(IntegerQueueName::Zero);
         $this->assertInstanceOf(RedisJob::class, $job);
-        $this->assertSame('default', $job->getQueue());
+        $this->assertSame('0', $job->getQueue());
         $this->assertSame('processing', Redis::connection('horizon')->hget($id, 'queue'));
 
         $job->release(0);
         $options = $this->workerOptions();
         $options->maxTries = 2;
-        $this->worker()->runNextJob('redis', 'default', $options);
+        $this->worker()->runNextJob('redis', '0', $options);
 
         $this->assertSame('completed', Redis::connection('horizon')->hget($id, 'status'));
         $this->assertSame([

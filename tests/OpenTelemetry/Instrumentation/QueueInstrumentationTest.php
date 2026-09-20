@@ -69,6 +69,7 @@ use Override;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
+use UnitEnum;
 
 class QueueInstrumentationTest extends TestCase
 {
@@ -1400,8 +1401,10 @@ class QueueInstrumentationLifecycleQueue extends NullQueue
     /**
      * Push a job through the persistent queue lifecycle.
      */
-    public function push(object|string $job, mixed $data = '', ?string $queue = 'emails'): mixed
+    public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = 'emails'): mixed
     {
+        $queue = $this->normalizeQueue($queue);
+
         return $this->enqueueUsing(
             $job,
             $this->createPayload($job, $queue, $data),

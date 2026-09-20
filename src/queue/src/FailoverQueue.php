@@ -19,6 +19,7 @@ use Hypervel\Support\Collection;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
+use UnitEnum;
 
 class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
 {
@@ -48,7 +49,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
     /**
      * Get the size of the queue.
      */
-    public function size(?string $queue = null): int
+    public function size(UnitEnum|string|null $queue = null): int
     {
         return $this->manager->connection($this->connections[0])->size($this->resolveForwardedQueue($queue));
     }
@@ -56,7 +57,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
     /**
      * Get the number of pending jobs.
      */
-    public function pendingSize(?string $queue = null): int
+    public function pendingSize(UnitEnum|string|null $queue = null): int
     {
         return $this->manager->connection($this->connections[0])->pendingSize($this->resolveForwardedQueue($queue));
     }
@@ -64,7 +65,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
     /**
      * Get the number of delayed jobs.
      */
-    public function delayedSize(?string $queue = null): int
+    public function delayedSize(UnitEnum|string|null $queue = null): int
     {
         return $this->manager->connection($this->connections[0])->delayedSize($this->resolveForwardedQueue($queue));
     }
@@ -72,7 +73,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
     /**
      * Get the number of reserved jobs.
      */
-    public function reservedSize(?string $queue = null): int
+    public function reservedSize(UnitEnum|string|null $queue = null): int
     {
         return $this->manager->connection($this->connections[0])->reservedSize($this->resolveForwardedQueue($queue));
     }
@@ -113,7 +114,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
     /**
      * Get the pending jobs for the given queue.
      */
-    public function pendingJobs(?string $queue = null): Collection
+    public function pendingJobs(UnitEnum|string|null $queue = null): Collection
     {
         // Inspection remains an optional concrete capability, not part of the core Queue contract.
         return $this->manager->connection($this->connections[0])->pendingJobs($this->resolveForwardedQueue($queue)); // @phpstan-ignore method.notFound
@@ -122,7 +123,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
     /**
      * Get the delayed jobs for the given queue.
      */
-    public function delayedJobs(?string $queue = null): Collection
+    public function delayedJobs(UnitEnum|string|null $queue = null): Collection
     {
         return $this->manager->connection($this->connections[0])->delayedJobs($this->resolveForwardedQueue($queue)); // @phpstan-ignore method.notFound
     }
@@ -130,7 +131,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
     /**
      * Get the reserved jobs for the given queue.
      */
-    public function reservedJobs(?string $queue = null): Collection
+    public function reservedJobs(UnitEnum|string|null $queue = null): Collection
     {
         return $this->manager->connection($this->connections[0])->reservedJobs($this->resolveForwardedQueue($queue)); // @phpstan-ignore method.notFound
     }
@@ -162,7 +163,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
     /**
      * Get the creation timestamp of the oldest pending job, excluding delayed jobs.
      */
-    public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
+    public function creationTimeOfOldestPendingJob(UnitEnum|string|null $queue = null): ?int
     {
         return $this->manager
             ->connection($this->connections[0])
@@ -172,7 +173,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
     /**
      * Push a new job onto the queue.
      */
-    public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         $queue = $this->resolveForwardedQueue($queue);
 
@@ -182,7 +183,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
     /**
      * Push a raw payload onto the queue.
      */
-    public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed
+    public function pushRaw(string $payload, UnitEnum|string|null $queue = null, array $options = []): mixed
     {
         $queue = $this->resolveForwardedQueue($queue);
 
@@ -192,7 +193,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
     /**
      * Push a new job onto the queue after (n) seconds.
      */
-    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         $queue = $this->resolveForwardedQueue($queue);
 
@@ -202,7 +203,7 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
     /**
      * Pop the next job off of the queue.
      */
-    public function pop(?string $queue = null, int $index = 0): ?JobContract
+    public function pop(UnitEnum|string|null $queue = null, int $index = 0): ?JobContract
     {
         $queue = $this->resolveForwardedQueue($queue);
         $connection = $this->manager->connection($this->connections[0]);
@@ -215,8 +216,10 @@ class FailoverQueue extends Queue implements QueueContract, IndexAwareQueue
     /**
      * Resolve forwards owned by this failover connection.
      */
-    protected function resolveForwardedQueue(?string $queue): ?string
+    protected function resolveForwardedQueue(UnitEnum|string|null $queue): ?string
     {
+        $queue = $this->normalizeQueue($queue);
+
         // Unscoped forwards belong to the storage driver; applying them here would forward twice.
         return $queue === null ? null : $this->queueRoutes()->forwardedQueueForConnection($queue, $this->connectionName ?? null);
     }

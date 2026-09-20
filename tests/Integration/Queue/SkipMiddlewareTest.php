@@ -16,72 +16,81 @@ use Mockery as m;
 
 class SkipMiddlewareTest extends TestCase
 {
-    public function testJobIsSkippedWhenConditionIsTrue()
+    public function testJobIsSkippedWhenConditionIsTrue(): void
     {
         $job = new SkipTestJob(skip: true);
 
         $this->assertJobWasSkipped($job);
     }
 
-    public function testJobIsSkippedWhenConditionIsTrueUsingClosure()
+    public function testJobIsSkippedWhenConditionIsTrueUsingClosure(): void
     {
-        $job = new SkipTestJob(skip: new SerializableClosure(fn () => true));
+        $job = new SkipTestJob(skip: new SerializableClosure(fn (): bool => true));
 
         $this->assertJobWasSkipped($job);
     }
 
-    public function testJobIsNotSkippedWhenConditionIsFalse()
+    public function testJobIsNotSkippedWhenConditionIsFalse(): void
     {
         $job = new SkipTestJob(skip: false);
 
         $this->assertJobRanSuccessfully($job);
     }
 
-    public function testJobIsNotSkippedWhenConditionIsFalseUsingClosure()
+    public function testJobIsNotSkippedWhenConditionIsFalseUsingClosure(): void
     {
-        $job = new SkipTestJob(skip: new SerializableClosure(fn () => false));
+        $job = new SkipTestJob(skip: new SerializableClosure(fn (): bool => false));
 
         $this->assertJobRanSuccessfully($job);
     }
 
-    public function testJobIsNotSkippedWhenConditionIsTrueWithUnless()
+    public function testJobIsNotSkippedWhenConditionIsTrueWithUnless(): void
     {
         $job = new SkipTestJob(skip: true, useUnless: true);
 
         $this->assertJobRanSuccessfully($job);
     }
 
-    public function testJobIsNotSkippedWhenConditionIsTrueWithUnlessUsingClosure()
+    public function testJobIsNotSkippedWhenConditionIsTrueWithUnlessUsingClosure(): void
     {
-        $job = new SkipTestJob(skip: new SerializableClosure(fn () => true), useUnless: true);
+        $job = new SkipTestJob(skip: new SerializableClosure(fn (): bool => true), useUnless: true);
 
         $this->assertJobRanSuccessfully($job);
     }
 
-    public function testJobIsSkippedWhenConditionIsFalseWithUnless()
+    public function testJobIsSkippedWhenConditionIsFalseWithUnless(): void
     {
         $job = new SkipTestJob(skip: false, useUnless: true);
 
         $this->assertJobWasSkipped($job);
     }
 
-    public function testJobIsSkippedWhenConditionIsFalseWithUnlessUsingClosure()
+    public function testJobIsSkippedWhenConditionIsFalseWithUnlessUsingClosure(): void
     {
-        $job = new SkipTestJob(skip: new SerializableClosure(fn () => false), useUnless: true);
+        $job = new SkipTestJob(skip: new SerializableClosure(fn (): bool => false), useUnless: true);
 
         $this->assertJobWasSkipped($job);
     }
 
+    /**
+     * Assert the job runs.
+     */
     protected function assertJobRanSuccessfully(SkipTestJob $class): void
     {
         $this->assertJobHandled(class: $class, expectedHandledValue: true);
     }
 
+    /**
+     * Assert the job is skipped.
+     */
     protected function assertJobWasSkipped(SkipTestJob $class): void
     {
         $this->assertJobHandled(class: $class, expectedHandledValue: false);
     }
 
+    /**
+     * Assert whether the job is handled.
+     */
     protected function assertJobHandled(SkipTestJob $class, bool $expectedHandledValue): void
     {
         $class::$handled = false;
@@ -89,10 +98,10 @@ class SkipMiddlewareTest extends TestCase
 
         $job = m::mock(Job::class);
 
-        $job->shouldReceive('hasFailed')->andReturn(false);
+        $job->expects('hasFailed')->andReturn(false);
         $job->shouldReceive('isReleased')->andReturn(false);
-        $job->shouldReceive('isDeletedOrReleased')->andReturn(false);
-        $job->shouldReceive('delete')->once();
+        $job->expects('isDeletedOrReleased')->andReturn(false);
+        $job->expects('delete');
 
         $instance->call($job, [
             'command' => serialize($class),
@@ -109,17 +118,26 @@ class SkipTestJob
 
     public static bool $handled = false;
 
+    /**
+     * Create a job with a skip condition.
+     */
     public function __construct(
         protected bool|SerializableClosure $skip,
         protected bool $useUnless = false,
     ) {
     }
 
+    /**
+     * Handle the job.
+     */
     public function handle(): void
     {
         static::$handled = true;
     }
 
+    /**
+     * Get the job middleware.
+     */
     public function middleware(): array
     {
         $skip = $this->skip instanceof SerializableClosure

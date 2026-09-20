@@ -12,6 +12,7 @@ use Hypervel\Coordinator\Timer;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
+use UnitEnum;
 
 /** @phpstan-import-type LockSnapshot from DispatchLockContext */
 abstract class CoroutineQueue extends SyncQueue
@@ -42,8 +43,10 @@ abstract class CoroutineQueue extends SyncQueue
     /**
      * Push a new job onto the queue after (n) seconds.
      */
-    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $queue = $this->normalizeQueue($queue);
+
         if ($this->shouldDispatchAfterCommit($job)
             && $this->container->has('db.transactions')
         ) {

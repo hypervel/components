@@ -2290,59 +2290,59 @@ class WorkerFakeManager extends QueueManager
 
 trait HasQueue
 {
-    public function size(?string $queue = null): int
+    public function size(UnitEnum|string|null $queue = null): int
     {
-        return count($this->jobs[$queue]);
+        return count($this->jobs[$this->normalizeQueue($queue)]);
     }
 
-    public function pendingSize(?string $queue = null): int
+    public function pendingSize(UnitEnum|string|null $queue = null): int
     {
-        return count($this->jobs[$queue]);
+        return count($this->jobs[$this->normalizeQueue($queue)]);
     }
 
-    public function delayedSize(?string $queue = null): int
-    {
-        return 0;
-    }
-
-    public function reservedSize(?string $queue = null): int
+    public function delayedSize(UnitEnum|string|null $queue = null): int
     {
         return 0;
     }
 
-    public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
+    public function reservedSize(UnitEnum|string|null $queue = null): int
+    {
+        return 0;
+    }
+
+    public function creationTimeOfOldestPendingJob(UnitEnum|string|null $queue = null): ?int
     {
         return null;
     }
 
-    public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
-        $this->jobs[$queue][] = $job;
+        $this->jobs[$this->normalizeQueue($queue)][] = $job;
 
         return null;
     }
 
-    public function pushOn(?string $queue, object|string $job, mixed $data = ''): mixed
+    public function pushOn(UnitEnum|string|null $queue, object|string $job, mixed $data = ''): mixed
     {
         return $this->push($job, $data, $queue);
     }
 
-    public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed
+    public function pushRaw(string $payload, UnitEnum|string|null $queue = null, array $options = []): mixed
     {
         return null;
     }
 
-    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         return null;
     }
 
-    public function laterOn(?string $queue, DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = ''): mixed
+    public function laterOn(UnitEnum|string|null $queue, DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = ''): mixed
     {
         return null;
     }
 
-    public function bulk(array $jobs, mixed $data = '', ?string $queue = null): mixed
+    public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         return null;
     }
@@ -2350,6 +2350,14 @@ trait HasQueue
     public function setConnectionName(string $name): static
     {
         return $this;
+    }
+
+    /**
+     * Normalize an enum queue name.
+     */
+    private function normalizeQueue(UnitEnum|string|null $queue): ?string
+    {
+        return $queue instanceof UnitEnum ? (string) enum_value($queue) : $queue;
     }
 }
 
@@ -2367,9 +2375,9 @@ class WorkerFakeConnection implements Queue
         $this->jobs = $jobs;
     }
 
-    public function pop(?string $queue = null): ?Job
+    public function pop(UnitEnum|string|null $queue = null): ?Job
     {
-        return array_shift($this->jobs[$queue]);
+        return array_shift($this->jobs[$this->normalizeQueue($queue)]);
     }
 
     public function getConnectionName(): string
@@ -2380,10 +2388,10 @@ class WorkerFakeConnection implements Queue
 
 class WorkerFakeIndexAwareConnection extends WorkerFakeConnection implements IndexAwareQueue
 {
-    /** @var list<array{null|string, int}> */
+    /** @var list<array{null|string|UnitEnum, int}> */
     public array $pops = [];
 
-    public function pop(?string $queue = null, int $index = 0): ?Job
+    public function pop(UnitEnum|string|null $queue = null, int $index = 0): ?Job
     {
         $this->pops[] = [$queue, $index];
 
@@ -2405,7 +2413,7 @@ class BrokenQueueConnection implements Queue
         $this->exception = $exception;
     }
 
-    public function pop(?string $queue = null): ?Job
+    public function pop(UnitEnum|string|null $queue = null): ?Job
     {
         throw $this->exception;
     }

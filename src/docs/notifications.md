@@ -284,6 +284,7 @@ namespace App\Notifications;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Notifications\Notification;
+use Hypervel\Queue\Attributes\FailOnTimeout;
 use Hypervel\Queue\Attributes\MaxExceptions;
 use Hypervel\Queue\Attributes\Timeout;
 use Hypervel\Queue\Attributes\Tries;
@@ -291,6 +292,7 @@ use Hypervel\Queue\Attributes\Tries;
 #[Tries(5)]
 #[Timeout(120)]
 #[MaxExceptions(3)]
+#[FailOnTimeout]
 class InvoicePaid extends Notification implements ShouldQueue
 {
     use Queueable;

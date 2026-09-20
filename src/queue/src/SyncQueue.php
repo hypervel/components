@@ -18,6 +18,7 @@ use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Support\Collection;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
+use UnitEnum;
 
 class SyncQueue extends Queue implements QueueContract
 {
@@ -37,7 +38,7 @@ class SyncQueue extends Queue implements QueueContract
     /**
      * Get the size of the queue.
      */
-    public function size(?string $queue = null): int
+    public function size(UnitEnum|string|null $queue = null): int
     {
         return 0;
     }
@@ -45,7 +46,7 @@ class SyncQueue extends Queue implements QueueContract
     /**
      * Get the number of pending jobs.
      */
-    public function pendingSize(?string $queue = null): int
+    public function pendingSize(UnitEnum|string|null $queue = null): int
     {
         return 0;
     }
@@ -53,7 +54,7 @@ class SyncQueue extends Queue implements QueueContract
     /**
      * Get the number of delayed jobs.
      */
-    public function delayedSize(?string $queue = null): int
+    public function delayedSize(UnitEnum|string|null $queue = null): int
     {
         return 0;
     }
@@ -61,7 +62,7 @@ class SyncQueue extends Queue implements QueueContract
     /**
      * Get the number of reserved jobs.
      */
-    public function reservedSize(?string $queue = null): int
+    public function reservedSize(UnitEnum|string|null $queue = null): int
     {
         return 0;
     }
@@ -101,7 +102,7 @@ class SyncQueue extends Queue implements QueueContract
     /**
      * Get the pending jobs for the given queue.
      */
-    public function pendingJobs(?string $queue = null): Collection
+    public function pendingJobs(UnitEnum|string|null $queue = null): Collection
     {
         return new Collection;
     }
@@ -109,7 +110,7 @@ class SyncQueue extends Queue implements QueueContract
     /**
      * Get the delayed jobs for the given queue.
      */
-    public function delayedJobs(?string $queue = null): Collection
+    public function delayedJobs(UnitEnum|string|null $queue = null): Collection
     {
         return new Collection;
     }
@@ -117,7 +118,7 @@ class SyncQueue extends Queue implements QueueContract
     /**
      * Get the reserved jobs for the given queue.
      */
-    public function reservedJobs(?string $queue = null): Collection
+    public function reservedJobs(UnitEnum|string|null $queue = null): Collection
     {
         return new Collection;
     }
@@ -149,7 +150,7 @@ class SyncQueue extends Queue implements QueueContract
     /**
      * Get the creation timestamp of the oldest pending job, excluding delayed jobs.
      */
-    public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
+    public function creationTimeOfOldestPendingJob(UnitEnum|string|null $queue = null): ?int
     {
         return null;
     }
@@ -159,8 +160,10 @@ class SyncQueue extends Queue implements QueueContract
      *
      * @throws Throwable
      */
-    public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $queue = $this->normalizeQueue($queue);
+
         if ($this->shouldDispatchAfterCommit($job)
             && $this->container->has('db.transactions')
         ) {
@@ -322,15 +325,15 @@ class SyncQueue extends Queue implements QueueContract
     /**
      * Push a raw payload onto the queue.
      */
-    public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed
+    public function pushRaw(string $payload, UnitEnum|string|null $queue = null, array $options = []): mixed
     {
-        return $this->executePayload($payload, $queue);
+        return $this->executePayload($payload, $this->normalizeQueue($queue));
     }
 
     /**
      * Push a new job onto the queue after (n) seconds.
      */
-    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         return $this->push($job, $data, $queue);
     }
@@ -338,7 +341,7 @@ class SyncQueue extends Queue implements QueueContract
     /**
      * Pop the next job off of the queue.
      */
-    public function pop(?string $queue = null): ?JobContract
+    public function pop(UnitEnum|string|null $queue = null): ?JobContract
     {
         return null;
     }

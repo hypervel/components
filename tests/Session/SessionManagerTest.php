@@ -35,6 +35,16 @@ class SessionManagerTest extends TestCase
     // REMOVED: CacheBasedSessionHandlerTest; Redis sessions use a dedicated handler,
     // and the APC, Memcached and DynamoDB session drivers are unsupported.
 
+    public function testSetDefaultDriverAcceptsBackedEnum(): void
+    {
+        $container = $this->getContainer(['session' => ['driver' => 'file']]);
+
+        $manager = new SessionManager($container);
+        $manager->setDefaultDriver(SessionDriverName::Array);
+
+        $this->assertSame('array', $container->make('config')->get('session.driver'));
+    }
+
     public function testEnumDefaultDriverIsNormalizedWithoutTreatingZeroAsAbsent(): void
     {
         $manager = new SessionManager($this->getContainer([
@@ -495,6 +505,11 @@ class SessionManagerTest extends TestCase
 
         return $property->getValue($store);
     }
+}
+
+enum SessionDriverName: string
+{
+    case Array = 'array';
 }
 
 enum SessionIntegerIdentifier: int

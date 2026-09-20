@@ -25,6 +25,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
+use UnitEnum;
 
 class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
 {
@@ -56,7 +57,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Get the size of the queue.
      */
-    public function size(?string $queue = null): int
+    public function size(UnitEnum|string|null $queue = null): int
     {
         return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
@@ -66,7 +67,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Get the number of pending jobs.
      */
-    public function pendingSize(?string $queue = null): int
+    public function pendingSize(UnitEnum|string|null $queue = null): int
     {
         return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
@@ -78,7 +79,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Get the number of delayed jobs.
      */
-    public function delayedSize(?string $queue = null): int
+    public function delayedSize(UnitEnum|string|null $queue = null): int
     {
         return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
@@ -90,7 +91,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Get the number of reserved jobs.
      */
-    public function reservedSize(?string $queue = null): int
+    public function reservedSize(UnitEnum|string|null $queue = null): int
     {
         return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
@@ -143,7 +144,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      *
      * @return Collection<int, InspectedJob>
      */
-    public function pendingJobs(?string $queue = null): Collection
+    public function pendingJobs(UnitEnum|string|null $queue = null): Collection
     {
         return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
@@ -163,7 +164,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      *
      * @return Collection<int, InspectedJob>
      */
-    public function delayedJobs(?string $queue = null): Collection
+    public function delayedJobs(UnitEnum|string|null $queue = null): Collection
     {
         return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
@@ -183,7 +184,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      *
      * @return Collection<int, InspectedJob>
      */
-    public function reservedJobs(?string $queue = null): Collection
+    public function reservedJobs(UnitEnum|string|null $queue = null): Collection
     {
         return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
@@ -256,7 +257,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Get the creation timestamp of the oldest pending job, excluding delayed jobs.
      */
-    public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
+    public function creationTimeOfOldestPendingJob(UnitEnum|string|null $queue = null): ?int
     {
         return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
@@ -269,8 +270,10 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Push a new job onto the queue.
      */
-    public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $queue = $this->normalizeQueue($queue);
+
         return $this->enqueueUsing(
             $job,
             $this->createPayload($job, $this->getQueue($queue), $data),
@@ -285,7 +288,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Push a raw payload onto the queue.
      */
-    public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed
+    public function pushRaw(string $payload, UnitEnum|string|null $queue = null, array $options = []): mixed
     {
         return $this->pushToDatabase($queue, $payload);
     }
@@ -293,8 +296,10 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Push a new job onto the queue after (n) seconds.
      */
-    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $queue = $this->normalizeQueue($queue);
+
         return $this->enqueueUsing(
             $job,
             $this->createPayload($job, $this->getQueue($queue), $data, $delay),
@@ -318,8 +323,9 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      * Deferred groups reacquire the queue through the after-commit dispatcher,
      * and the return value remains null when every job is deferred.
      */
-    public function bulk(array $jobs, mixed $data = '', ?string $queue = null): mixed
+    public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $queue = $this->normalizeQueue($queue);
         $jobs = array_values($jobs);
 
         if ($jobs === []) {
@@ -450,7 +456,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Push a raw payload to the database with a given delay of (n) seconds.
      */
-    protected function pushToDatabase(?string $queue, string $payload, DateInterval|DateTimeInterface|int $delay = 0, int $attempts = 0): mixed
+    protected function pushToDatabase(UnitEnum|string|null $queue, string $payload, DateInterval|DateTimeInterface|int $delay = 0, int $attempts = 0): mixed
     {
         return $this->getDatabase()->table($this->table)->insertGetId($this->buildDatabaseRecord(
             $this->getQueue($queue),
@@ -480,8 +486,10 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      *
      * @throws Throwable
      */
-    public function pop(?string $queue = null): ?Job
+    public function pop(UnitEnum|string|null $queue = null): ?Job
     {
+        $queue = $this->normalizeQueue($queue);
+
         // Keep the logical name on the job so reservation and release each forward it once.
         $queue = $queue === null || $queue === '' ? $this->default : $queue;
         $database = $this->getDatabase();
@@ -666,7 +674,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Delete all of the jobs from the queue.
      */
-    public function clear(?string $queue): int
+    public function clear(UnitEnum|string|null $queue): int
     {
         return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))
@@ -676,8 +684,10 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Get the queue or return the default.
      */
-    public function getQueue(?string $queue): string
+    public function getQueue(UnitEnum|string|null $queue): string
     {
+        $queue = $this->normalizeQueue($queue);
+
         return $this->resolveQueue($queue === null || $queue === '' ? $this->default : $queue);
     }
 

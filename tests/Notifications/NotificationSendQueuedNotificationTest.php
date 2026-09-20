@@ -9,6 +9,7 @@ use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\ChannelManager;
 use Hypervel\Notifications\Notification;
 use Hypervel\Notifications\SendQueuedNotifications;
+use Hypervel\Queue\Attributes\FailOnTimeout;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\Notifications\Fixtures\Models\NotifiableUser;
@@ -22,7 +23,7 @@ class NotificationSendQueuedNotificationTest extends TestCase
         $notification = new TestNotification;
         $job = new SendQueuedNotifications('notifiables', $notification);
         $manager = m::mock(ChannelManager::class);
-        $manager->shouldReceive('sendNow')->once()->withArgs(function ($notifiables, $notification, $channels) {
+        $manager->expects('sendNow')->withArgs(function (mixed $notifiables, mixed $notification, ?array $channels): bool {
             return $notifiables instanceof Collection && $notifiables->toArray() === ['notifiables']
                 && $notification instanceof TestNotification
                 && $channels === null;
@@ -65,6 +66,13 @@ class NotificationSendQueuedNotificationTest extends TestCase
         $this->assertEquals(23, $job->maxExceptions);
     }
 
+    public function testNotificationRespectsFailOnTimeoutAttribute(): void
+    {
+        $job = new SendQueuedNotifications(new NotifiableUser, new FailOnTimeoutNotification);
+
+        $this->assertTrue($job->failOnTimeout);
+    }
+
     public function testNotificationAcceptsImmutableRetryUntilMethod(): void
     {
         $retryUntil = CarbonImmutable::parse('2026-07-23 12:34:56');
@@ -81,13 +89,24 @@ class TestNotification extends Notification
 {
 }
 
+#[FailOnTimeout]
+class FailOnTimeoutNotification extends Notification
+{
+}
+
 class TestNotificationWithRetryUntil extends Notification
 {
+    /**
+     * Create a notification with a retry deadline.
+     */
     public function __construct(
         private CarbonImmutable $retryUntil
     ) {
     }
 
+    /**
+     * Get the retry deadline.
+     */
     public function retryUntil(): CarbonImmutable
     {
         return $this->retryUntil;

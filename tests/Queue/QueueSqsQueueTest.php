@@ -33,7 +33,10 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Queue\Fixtures\FakeSqsJob;
 use Hypervel\Tests\Queue\Fixtures\FakeSqsJobWithDeduplication;
+use Hypervel\Tests\Queue\Fixtures\FakeSqsJobWithDelayAttribute;
 use Hypervel\Tests\Queue\Fixtures\FakeSqsJobWithMessageGroup;
+use Hypervel\Tests\Queue\Fixtures\IntegerQueueName;
+use Hypervel\Tests\Queue\Fixtures\UnitQueueName;
 use Hypervel\Tests\TestCase;
 use Laravel\SerializableClosure\SerializableClosure;
 use LogicException;
@@ -386,6 +389,8 @@ class QueueSqsQueueTest extends TestCase
         $this->assertEquals($this->queueUrl, $queue->getQueue(null));
         $this->assertEquals($this->queueUrl, $queue->getQueue(''));
         $this->assertEquals($this->prefix . '0', $queue->getQueue('0'));
+        $this->assertSame($this->prefix . '0', $queue->getQueue(IntegerQueueName::Zero));
+        $this->assertSame($this->prefix . 'Emails', $queue->getQueue(UnitQueueName::Emails));
         $queueUrl = $this->baseUrl . '/' . $this->account . '/test';
         $this->assertEquals($queueUrl, $queue->getQueue('test'));
     }
@@ -456,20 +461,20 @@ class QueueSqsQueueTest extends TestCase
     public function testForwardedFifoQueueControlsOptionsAndDelayValidation(): void
     {
         $routes = new QueueRoutes;
-        $routes->forward(['jobs' => 'processing.fifo', 'processing.fifo' => 'archive'], connection: 'sqs');
+        $routes->forward(['0' => 'processing.fifo', 'processing.fifo' => 'archive'], connection: 'sqs');
         Container::getInstance()->instance('queue.routes', $routes);
         $queue = new SqsQueue($this->sqs, 'default', $this->prefix);
         $queue->setConnectionName('sqs');
 
-        $this->assertSame($this->prefix . 'processing.fifo', $queue->getQueue('jobs'));
-        $options = $queue->getQueueableOptions('job', 'jobs', 'payload');
+        $this->assertSame($this->prefix . 'processing.fifo', $queue->getQueue(IntegerQueueName::Zero));
+        $options = $queue->getQueueableOptions('job', IntegerQueueName::Zero, 'payload');
         $this->assertSame('processing.fifo', $options['MessageGroupId']);
         $this->assertArrayHasKey('MessageDeduplicationId', $options);
 
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('SQS FIFO queues do not support per-message delays.');
 
-        $queue->later(10, 'job', '', 'jobs');
+        $queue->later(10, 'job', '', IntegerQueueName::Zero);
     }
 
     public function testGetQueueEnsuresTheQueueIsOnlySuffixedOnce()
@@ -1331,22 +1336,23 @@ class QueueSqsQueueTest extends TestCase
         ];
     }
 
-    public function testBulkHonorsDelayAttributeOnStandardQueueWithoutExtraPreflightConversion(): void
+    public function testBulkHonoursDelayAttribute(): void
     {
         $queue = $this->getMockBuilder(SqsQueue::class)
             ->onlyMethods(['secondsUntil'])
             ->setConstructorArgs([$this->sqs, $this->queueName, $this->prefix])
             ->getMock();
         $queue->setContainer(new Container);
-        $queue->expects($this->exactly(2))->method('secondsUntil')->with(9)->willReturn(9);
+        // Convert for the payload and DelaySeconds; standard queues need no FIFO preflight conversion.
+        $queue->expects($this->exactly(2))->method('secondsUntil')->with(15)->willReturn(15);
 
         $this->sqs->shouldReceive('sendMessageBatch')->once()->withArgs(
             function (array $arguments): bool {
                 $entry = $arguments['Entries'][0];
                 $payload = json_decode($entry['MessageBody'], true, flags: JSON_THROW_ON_ERROR);
 
-                $this->assertSame(9, $entry['DelaySeconds']);
-                $this->assertSame(9, $payload['delay']);
+                $this->assertSame(15, $entry['DelaySeconds']);
+                $this->assertSame(15, $payload['delay']);
                 $this->assertArrayNotHasKey('DelaySeconds', $arguments['Entries'][1]);
 
                 return true;
@@ -1356,7 +1362,7 @@ class QueueSqsQueueTest extends TestCase
             'Failed' => [],
         ]));
 
-        $queue->bulk([new SqsBulkAttributeDelayJob, new FakeSqsJob], 'data', $this->queueName);
+        $queue->bulk([new FakeSqsJobWithDelayAttribute, new FakeSqsJob], 'data', $this->queueName);
     }
 
     public function testBulkRejectsDelayAttributeOnFifoBeforePayloadCreation(): void

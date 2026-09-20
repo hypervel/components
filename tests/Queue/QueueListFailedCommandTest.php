@@ -49,9 +49,9 @@ class QueueListFailedCommandTest extends TestCase
         $this->assertStringContainsString('App\Jobs\ProcessPodcast', $output);
     }
 
-    public function testPayloadWithoutDisplayNameFallsBackToSerializedCommand(): void
+    public function testLegacyPayloadWithoutDisplayNameFallsBackToRegex(): void
     {
-        // Payloads without displayName fall back to the serialized command class.
+        // Without displayName, the regex extracts the first quoted class from data.command.
         $output = $this->runListFailedCommandWith([
             $this->fakeFailedJob([
                 'data' => [
@@ -148,7 +148,7 @@ class QueueListFailedCommandTest extends TestCase
 
         // The command resolves the failer via the queue.failer container binding.
         $failer = m::mock(FailedJobProviderInterface::class);
-        $failer->shouldReceive('all')->andReturn($rows);
+        $failer->expects('all')->andReturn($rows);
         $container->instance('queue.failer', $failer);
 
         $command = new ListFailedCommand;

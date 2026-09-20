@@ -13,6 +13,7 @@ use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Queue\Fixtures\IntegerQueueName;
 
 #[RequiresDatabase('sqlite')]
 #[WithConfig('queue.default', 'database')]
@@ -44,8 +45,8 @@ class DatabaseQueueBulkTest extends TestCase
 
         $jobs = array_map(static fn (int $index): string => "job-{$index}", range(1, 167));
 
-        $this->assertTrue(Queue::connection()->bulk($jobs, queue: 'bulk'));
-        $this->assertSame(167, DB::table('jobs')->where('queue', 'bulk')->count());
+        $this->assertTrue(Queue::connection()->bulk($jobs, queue: IntegerQueueName::Zero));
+        $this->assertSame(167, DB::table('jobs')->where('queue', '0')->count());
         $this->assertSame(2, $insertCount);
     }
 }

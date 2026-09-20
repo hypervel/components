@@ -37,6 +37,9 @@ use Hypervel\Support\Str;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 use const JSON_UNESCAPED_UNICODE;
 
@@ -83,7 +86,7 @@ abstract class Queue
     /**
      * Push a new job onto the queue.
      */
-    public function pushOn(?string $queue, object|string $job, mixed $data = ''): mixed
+    public function pushOn(UnitEnum|string|null $queue, object|string $job, mixed $data = ''): mixed
     {
         /* @phpstan-ignore-next-line */
         return $this->push($job, $data, $queue);
@@ -92,7 +95,7 @@ abstract class Queue
     /**
      * Push a new job onto a specific queue after (n) seconds.
      */
-    public function laterOn(?string $queue, DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = ''): mixed
+    public function laterOn(UnitEnum|string|null $queue, DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = ''): mixed
     {
         /* @phpstan-ignore-next-line */
         return $this->later($delay, $job, $data, $queue);
@@ -101,8 +104,10 @@ abstract class Queue
     /**
      * Push an array of jobs onto the queue.
      */
-    public function bulk(array $jobs, mixed $data = '', ?string $queue = null): mixed
+    public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
+        $queue = $this->normalizeQueue($queue);
+
         foreach ((array) $jobs as $job) {
             $delay = $this->getJobDelay($job);
 
@@ -663,6 +668,14 @@ abstract class Queue
 
             $events->dispatch(new JobQueued($this->connectionName, $queue, $jobId, $job, $payload, $delay));
         }
+    }
+
+    /**
+     * Normalize an enum queue name without applying defaults or forwarding.
+     */
+    protected function normalizeQueue(UnitEnum|string|null $queue): ?string
+    {
+        return $queue instanceof UnitEnum ? (string) enum_value($queue) : $queue;
     }
 
     /**

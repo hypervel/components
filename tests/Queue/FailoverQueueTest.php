@@ -32,6 +32,7 @@ use Hypervel\Queue\QueueRoutes;
 use Hypervel\Queue\RedisQueue;
 use Hypervel\Queue\SyncQueue;
 use Hypervel\Support\Collection;
+use Hypervel\Tests\Queue\Fixtures\IntegerQueueName;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -49,7 +50,7 @@ class FailoverQueueTest extends TestCase
     public function testConnectionScopedForwardsApplyBeforeDelegating(string $method, array $arguments, array $expectedArguments, Collection|int|string|null $result): void
     {
         $routes = new QueueRoutes;
-        $routes->forward(['default' => 'processing', 'reports' => 'processing', 'processing' => 'archive'], connection: 'failover');
+        $routes->forward(['default' => 'processing', 'reports' => 'processing', '0' => 'processing', 'processing' => 'archive'], connection: 'failover');
         Container::getInstance()->instance('queue.routes', $routes);
         $manager = m::mock(QueueManager::class);
         $redis = m::mock(RedisQueue::class);
@@ -68,11 +69,13 @@ class FailoverQueueTest extends TestCase
     {
         return [
             'push' => ['push', ['job', '', 'reports'], ['job', '', 'processing'], 'id'],
+            'push enum' => ['push', ['job', '', IntegerQueueName::Zero], ['job', '', 'processing'], 'id'],
             'push without queue' => ['push', ['job'], ['job'], 'id'],
             'pushRaw' => ['pushRaw', ['payload', 'reports'], ['payload', 'processing'], 'id'],
             'later' => ['later', [10, 'job', '', 'reports'], [10, 'job', '', 'processing'], 'id'],
             'pop' => ['pop', ['reports', 2], ['processing', 2], null],
             'size' => ['size', ['reports'], ['processing'], 7],
+            'size enum' => ['size', [IntegerQueueName::Zero], ['processing'], 7],
             'pendingSize' => ['pendingSize', ['reports'], ['processing'], 7],
             'delayedSize' => ['delayedSize', ['reports'], ['processing'], 7],
             'reservedSize' => ['reservedSize', ['reports'], ['processing'], 7],
@@ -83,29 +86,29 @@ class FailoverQueueTest extends TestCase
         ];
     }
 
-    public function testPushFailsOverOnException()
+    public function testPushFailsOverOnException(): void
     {
-        $failover = new FailoverQueue($queue = m::mock(QueueManager::class), $events = m::mock(DispatcherContract::class), [
+        $queue = m::mock(QueueManager::class);
+        $events = m::mock(DispatcherContract::class);
+        $failover = new FailoverQueue($queue, $events, [
             'redis',
             'sync',
         ]);
 
-        $queue->shouldReceive('connection')->once()->with('redis')->andReturn(
-            $redis = m::mock(RedisQueue::class),
+        $redis = m::mock(RedisQueue::class);
+        $queue->expects('connection')->with('redis')->andReturn($redis);
+
+        $sync = m::mock(SyncQueue::class);
+        $queue->expects('connection')->with('sync')->andReturn($sync);
+
+        $events->expects('hasListeners')->with(QueueFailedOver::class)->andReturnTrue();
+        $events->expects('dispatch');
+
+        $redis->expects('push')->andReturnUsing(
+            fn (): never => throw new Exception('error')
         );
 
-        $queue->shouldReceive('connection')->once()->with('sync')->andReturn(
-            $sync = m::mock(SyncQueue::class),
-        );
-
-        $events->shouldReceive('hasListeners')->once()->with(QueueFailedOver::class)->andReturnTrue();
-        $events->shouldReceive('dispatch')->once();
-
-        $redis->shouldReceive('push')->once()->andReturnUsing(
-            fn () => throw new Exception('error')
-        );
-
-        $sync->shouldReceive('push')->once();
+        $sync->expects('push');
 
         $failover->push('some-job');
     }
@@ -198,10 +201,10 @@ class FailoverQueueTest extends TestCase
         $failover = new FailoverQueue($manager, m::mock(DispatcherContract::class), ['sync']);
         $sync = m::mock(SyncQueue::class);
 
-        $manager->shouldReceive('connection')->times(3)->with('sync')->andReturn($sync);
-        $sync->shouldReceive('later')->once()->with(15, m::type(FailoverJobWithDelayAttribute::class), '', null);
-        $sync->shouldReceive('later')->once()->with(30, m::type(FailoverJobWithDelayProperty::class), '', null);
-        $sync->shouldReceive('push')->once()->with('regular-job', '', null);
+        $manager->expects('connection')->times(3)->with('sync')->andReturn($sync);
+        $sync->expects('later')->with(15, m::type(FailoverJobWithDelayAttribute::class), '', null);
+        $sync->expects('later')->with(30, m::type(FailoverJobWithDelayProperty::class), '', null);
+        $sync->expects('push')->with('regular-job', '', null);
 
         $failover->bulk([
             new FailoverJobWithDelayAttribute,
@@ -531,7 +534,7 @@ class FailoverQueueTest extends TestCase
         $this->assertCount(2, $connection->pushedJobs);
     }
 
-    public function testFailingQueueStateIsIsolatedBetweenCoroutines()
+    public function testFailingQueueStateIsIsolatedBetweenCoroutines(): void
     {
         $events = new FailoverQueueFakeDispatcher;
         $failover = new FailoverQueue(
@@ -544,7 +547,7 @@ class FailoverQueueTest extends TestCase
         );
 
         $results = parallel([
-            'a' => function () use ($failover) {
+            'a' => function () use ($failover): bool {
                 $failover->push('job-a-first');
 
                 usleep(10000);
@@ -553,7 +556,7 @@ class FailoverQueueTest extends TestCase
 
                 return true;
             },
-            'b' => function () use ($failover) {
+            'b' => function () use ($failover): bool {
                 usleep(5000);
 
                 $failover->push('job-b-first');
@@ -564,7 +567,7 @@ class FailoverQueueTest extends TestCase
 
         $this->assertSame(['a' => true, 'b' => true], $results);
         $this->assertSame(['job-a-first', 'job-b-first'], array_map(
-            fn (QueueFailedOver $event) => $event->command,
+            fn (QueueFailedOver $event): object|string => $event->command,
             $events->failedOverEvents
         ));
     }
@@ -706,57 +709,57 @@ class FailoverQueueFakeDispatcher implements DispatcherContract
 
 trait FailoverQueueFakeQueue
 {
-    public function size(?string $queue = null): int
+    public function size(UnitEnum|string|null $queue = null): int
     {
         return 0;
     }
 
-    public function pendingSize(?string $queue = null): int
+    public function pendingSize(UnitEnum|string|null $queue = null): int
     {
         return 0;
     }
 
-    public function delayedSize(?string $queue = null): int
+    public function delayedSize(UnitEnum|string|null $queue = null): int
     {
         return 0;
     }
 
-    public function reservedSize(?string $queue = null): int
+    public function reservedSize(UnitEnum|string|null $queue = null): int
     {
         return 0;
     }
 
-    public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
+    public function creationTimeOfOldestPendingJob(UnitEnum|string|null $queue = null): ?int
     {
         return null;
     }
 
-    public function pushOn(?string $queue, object|string $job, mixed $data = ''): mixed
+    public function pushOn(UnitEnum|string|null $queue, object|string $job, mixed $data = ''): mixed
     {
         return $this->push($job, $data, $queue);
     }
 
-    public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed
+    public function pushRaw(string $payload, UnitEnum|string|null $queue = null, array $options = []): mixed
     {
         return null;
     }
 
-    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         return $this->push($job, $data, $queue);
     }
 
-    public function laterOn(?string $queue, DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = ''): mixed
+    public function laterOn(UnitEnum|string|null $queue, DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = ''): mixed
     {
         return $this->later($delay, $job, $data, $queue);
     }
 
-    public function bulk(array $jobs, mixed $data = '', ?string $queue = null): mixed
+    public function bulk(array $jobs, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         return null;
     }
 
-    public function pop(?string $queue = null): ?Job
+    public function pop(UnitEnum|string|null $queue = null): ?Job
     {
         return null;
     }
@@ -779,7 +782,7 @@ class FailoverQueueFailingConnection implements Queue
     ) {
     }
 
-    public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         $this->pushedJobs[] = $job;
 
@@ -804,7 +807,7 @@ class FailoverQueueSuccessfulConnection implements Queue
     ) {
     }
 
-    public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
+    public function push(object|string $job, mixed $data = '', UnitEnum|string|null $queue = null): mixed
     {
         $this->pushedJobs[] = $job;
 
