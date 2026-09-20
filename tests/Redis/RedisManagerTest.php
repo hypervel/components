@@ -76,6 +76,20 @@ class RedisManagerTest extends TestCase
         $this->assertSame('default', $withNull->getName());
     }
 
+    public function testPurgeAcceptsUnitEnum(): void
+    {
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->expects('purge')->with('default');
+        $manager = $this->createManager(['default'], poolManager: $poolManager);
+        $manager->connection('default');
+
+        $this->assertCount(1, $manager->connections());
+
+        $manager->purge(FakeRedisConnectionName::Default);
+
+        $this->assertCount(0, $manager->connections());
+    }
+
     public function testIntegerBackedEnumConnectionNameIsNormalizedForResolutionAndPurge(): void
     {
         $poolManager = m::mock(PoolManager::class);
@@ -435,4 +449,9 @@ class RedisManagerTest extends TestCase
 enum RedisConnectionName: int
 {
     case Zero = 0;
+}
+
+enum FakeRedisConnectionName: string
+{
+    case Default = 'default';
 }
