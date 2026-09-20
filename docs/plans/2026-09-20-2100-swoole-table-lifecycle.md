@@ -93,7 +93,9 @@ trait InteractsWithSwooleTables
     /**
      * The Swoole tables created by the test.
      *
-     * @var list<Table>
+     * Keyed by object ID so a table tracked twice is only destroyed once.
+     *
+     * @var array<int, Table>
      */
     protected array $swooleTables = [];
 
@@ -102,7 +104,9 @@ trait InteractsWithSwooleTables
      */
     protected function trackSwooleTable(Table ...$tables): void
     {
-        $this->swooleTables = [...$this->swooleTables, ...$tables];
+        foreach ($tables as $table) {
+            $this->swooleTables[spl_object_id($table)] = $table;
+        }
     }
 
     /**
@@ -120,9 +124,9 @@ trait InteractsWithSwooleTables
 }
 ```
 
-No guards. Clearing the list matters: PHPUnit calls the hook again after a test that invoked it, and a second `destroy()` is fatal.
+No guards. The trait owns "destroy each table exactly once", because a second `destroy()` is fatal and kills the PHPUnit worker without naming the test. Keying by object ID covers a table tracked twice, which is easy to do by accident under `ReverbTestCase` since it tracks the shared-state tables out of sight. Clearing the list covers PHPUnit calling the hook again after a test that invoked it.
 
-Test `tests/Foundation/Testing/Concerns/InteractsWithSwooleTablesTest.php` (unit base): track a 64-row table, call `destroySwooleTables()`, assert the list is empty. The automatic `#[After]` call that follows proves a cleared list is safe.
+Test `tests/Foundation/Testing/Concerns/InteractsWithSwooleTablesTest.php` (unit base): track a 64-row table, call `destroySwooleTables()`, assert the list is empty. The automatic `#[After]` call that follows proves a cleared list is safe. A second test tracks the same table twice and asserts one entry.
 
 ## 3. Reverb tests
 
