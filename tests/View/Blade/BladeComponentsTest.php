@@ -10,6 +10,7 @@ use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\Component;
+use Hypervel\View\ComponentAttributeBag;
 use Mockery as m;
 use ReflectionClassConstant;
 use RuntimeException;
@@ -91,9 +92,11 @@ class BladeComponentsTest extends AbstractBladeTestCase
 
     public function testPropsAreExtractedFromParentAttributesCorrectlyForClassComponents(): void
     {
+        $attributes = new ComponentAttributeBag(['foo' => 'baz', 'other' => 'ok']);
+
         $component = m::mock(ComponentStub::class);
-        $component->shouldReceive('withName', 'test');
-        $component->shouldReceive('shouldRender')->andReturn(false);
+        $component->expects('withName')->with('test')->andReturnSelf();
+        $component->expects('shouldRender')->andReturn(false);
 
         Component::resolveComponentsUsing(fn () => $component);
 
