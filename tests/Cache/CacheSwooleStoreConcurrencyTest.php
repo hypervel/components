@@ -8,6 +8,7 @@ use Hypervel\Cache\SwooleStore;
 use Hypervel\Cache\SwooleTableManager;
 use Hypervel\Cache\SwooleTableState;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithSwooleTables;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionMethod;
@@ -18,6 +19,8 @@ use Throwable;
 
 class CacheSwooleStoreConcurrencyTest extends TestCase
 {
+    use InteractsWithSwooleTables;
+
     private const int FRAME_HEADER_BYTES = 4;
 
     private const int MAX_FRAME_BYTES = 1_048_576;
@@ -495,8 +498,12 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
 
     private function createState(): SwooleTableState
     {
-        return (new SwooleTableManager(m::mock(Container::class)))
+        $state = (new SwooleTableManager(m::mock(Container::class)))
             ->createState(128, 10240, 0.2, 12345);
+
+        $this->trackSwooleTable($state->table());
+
+        return $state;
     }
 
     private function createStore(SwooleTableState $state): SwooleStore
