@@ -345,6 +345,8 @@ Alternatively, you may pass commands to the server using the `Redis` facade's `c
 $values = Redis::command('lrange', ['name', 5, 10]);
 ```
 
+PhpRedis's standalone/Sentinel and Cluster clients use different parameter names for some commands. Use positional arguments when the same command code must work with either client.
+
 <a name="using-multiple-redis-connections"></a>
 #### Using Multiple Redis Connections
 
