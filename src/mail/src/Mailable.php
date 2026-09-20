@@ -1190,7 +1190,7 @@ class Mailable implements MailableContract, Renderable
         $actualSubject = $this->subject ?: Str::title(Str::snake(class_basename($this), ' '));
 
         PHPUnit::assertTrue(
-            $this->hasSubject($subject),
+            $actualSubject === $subject,
             "Email subject does not match expected value.\nExpected: [{$subject}]\nActual: [{$actualSubject}]"
         );
 

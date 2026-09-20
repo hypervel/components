@@ -847,7 +847,7 @@ class MailMailableTest extends TestCase
 
         $this->assertInstanceOf(AssertionFailedError::class, $failure);
         $this->assertStringContainsString("Email subject does not match expected value.\nExpected: [Wrong subject]\nActual:", $failure->getMessage());
-        $this->assertSame(3, $mailable->envelopeCalls);
+        $this->assertSame(2, $mailable->envelopeCalls);
     }
 
     public function testTagAssertionReportsWhenMailableHasNoTags(): void
@@ -1391,6 +1391,21 @@ class MailMailableTest extends TestCase
         };
 
         $mailable->assertHasSubject('Foo Subject');
+    }
+
+    public function testSubjectAssertionMatchesTheDeliveredDefaultSubject(): void
+    {
+        $this->mockContainer();
+
+        $mailer = new Mailer('array', $this->mockView(), new ArrayTransport);
+
+        foreach ([new WelcomeMailableStub, (new WelcomeMailableStub)->subject('0')] as $mailable) {
+            $mailable->from('sender@example.com')->to('recipient@example.com')->html('test content');
+
+            $sentMessage = $mailer->send($mailable);
+            $this->assertSame('Welcome Mailable Stub', $sentMessage->getOriginalMessage()->getSubject());
+            $this->assertSame($mailable, $mailable->assertHasSubject('Welcome Mailable Stub'));
+        }
     }
 
     public function testSubjectAssertionReportsHydratedEnvelopeSubject(): void
