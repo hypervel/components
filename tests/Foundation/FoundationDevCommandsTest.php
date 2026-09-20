@@ -149,8 +149,8 @@ class FoundationDevCommandsTest extends TestCase
 
         $commands = DevCommands::commands();
 
-        $this->assertSame(DevCommandColor::Pink->value, $commands[0]['color']);
-        $this->assertNotSame(DevCommandColor::Pink->value, $commands[1]['color']);
+        $this->assertSame(DevCommandColor::PINK->value, $commands[0]['color']);
+        $this->assertNotSame(DevCommandColor::PINK->value, $commands[1]['color']);
     }
 
     public function testAutoColorSkipsExplicitlyUsedColors(): void
@@ -160,8 +160,8 @@ class FoundationDevCommandsTest extends TestCase
 
         $commands = DevCommands::commands();
 
-        $this->assertSame(DevCommandColor::Blue->value, $commands[0]['color']);
-        $this->assertNotSame(DevCommandColor::Blue->value, $commands[1]['color']);
+        $this->assertSame(DevCommandColor::BLUE->value, $commands[0]['color']);
+        $this->assertNotSame(DevCommandColor::BLUE->value, $commands[1]['color']);
     }
 
     public function testColorsRecycleWhenAllUsed(): void

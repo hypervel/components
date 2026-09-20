@@ -208,7 +208,7 @@ class DevCommandTest extends TestCase
 
         $this->assertSame(
             'npx @laravel/multiplex --title ' . escapeshellarg("artisan dev · Acme's App")
-                . ' ' . escapeshellarg($name . '@' . DevCommandColor::Blue->value . ',' . $command),
+                . ' ' . escapeshellarg($name . '@' . DevCommandColor::BLUE->value . ',' . $command),
             $packageManager->command
         );
     }
@@ -250,7 +250,7 @@ class DevCommandTest extends TestCase
         $this->executeUntilProcessCommand(new Application);
 
         $this->assertSame(
-            $expectedPrefix . " --title 'artisan dev · Acme' 'custom@" . DevCommandColor::Blue->value . ",command'",
+            $expectedPrefix . " --title 'artisan dev · Acme' 'custom@" . DevCommandColor::BLUE->value . ",command'",
             $packageManager->command
         );
     }
