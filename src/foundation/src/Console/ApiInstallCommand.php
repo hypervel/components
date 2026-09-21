@@ -27,6 +27,8 @@ class ApiInstallCommand extends Command
                     {--force : Overwrite any existing API routes file}
                     {--without-migration-prompt : Do not prompt to run pending migrations}';
 
+    // Laravel's --passport option is omitted while Passport remains unported (docs/todo.md).
+
     /**
      * The console command description.
      */

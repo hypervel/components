@@ -7,15 +7,16 @@ namespace Hypervel\Foundation\Console;
 use Hypervel\Console\GeneratorCommand;
 use Hypervel\Support\ServiceProvider;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'make:provider')]
 class ProviderMakeCommand extends GeneratorCommand
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:provider';
+    protected ?string $signature = 'make:provider
+                    {name : The name of the provider}
+                    {--f|force : Create the class even if the provider already exists}';
 
     /**
      * The console command description.
@@ -72,15 +73,5 @@ class ProviderMakeCommand extends GeneratorCommand
     protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $rootNamespace . '\Providers';
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['force', 'f', InputOption::VALUE_NONE, 'Create the class even if the provider already exists'],
-        ];
     }
 }

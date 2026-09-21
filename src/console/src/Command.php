@@ -157,9 +157,20 @@ class Command extends SymfonyCommand
             $this->specifyParameters();
         }
 
+        $this->configureDefaults();
+
         if ($this instanceof Isolatable) {
             $this->configureIsolation();
         }
+    }
+
+    /**
+     * Configure argument/option defaults that can't be expressed as static signature
+     * text (e.g. environment-dependent values, or non-string literal defaults such as
+     * booleans or integers), by patching the already-built definition.
+     */
+    protected function configureDefaults(): void
+    {
     }
 
     /**
@@ -269,11 +280,9 @@ class Command extends SymfonyCommand
         $this->getDefinition()->addOptions($options);
     }
 
-    protected function configure(): void
-    {
-        parent::configure();
-    }
-
+    /**
+     * Execute the console command.
+     */
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $this->disableDispatcher($input);
@@ -425,6 +434,9 @@ class Command extends SymfonyCommand
             : $this->hypervel->make(CacheCommandMutex::class);
     }
 
+    /**
+     * Replace the command output with the configured output style.
+     */
     protected function replaceOutput(): void
     {
         if ($this->hypervel->bound(OutputStyle::class)) {

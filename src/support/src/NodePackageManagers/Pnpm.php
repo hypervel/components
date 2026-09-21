@@ -25,7 +25,7 @@ class Pnpm implements NodePackageManager
     }
 
     /**
-     * Get the command to execute a package using pnpm.
+     * Get the command to execute an installed package binary using pnpm.
      */
     public function getExecCommand(string $command): string
     {

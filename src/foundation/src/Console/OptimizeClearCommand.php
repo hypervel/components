@@ -8,15 +8,14 @@ use Hypervel\Console\Command;
 use Hypervel\Support\Collection;
 use Hypervel\Support\ServiceProvider;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'optimize:clear')]
 class OptimizeClearCommand extends Command
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'optimize:clear';
+    protected ?string $signature = 'optimize:clear {--e|except= : The commands to skip}';
 
     /**
      * The console command description.
@@ -60,16 +59,6 @@ class OptimizeClearCommand extends Command
             'routes' => 'route:clear',
             'views' => 'view:clear',
             ...ServiceProvider::$optimizeClearCommands,
-        ];
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['except', 'e', InputOption::VALUE_OPTIONAL, 'The commands to skip'],
         ];
     }
 }

@@ -14,9 +14,9 @@ class MiddlewareMakeCommand extends GeneratorCommand
     use CreatesMatchingTest;
 
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:middleware';
+    protected ?string $signature = 'make:middleware {name : The name of the middleware}';
 
     /**
      * The console command description.

@@ -17,9 +17,9 @@ class UpCommand extends Command
     use ReloadsWorkers;
 
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'up';
+    protected ?string $signature = 'up';
 
     /**
      * The console command description.

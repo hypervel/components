@@ -8,15 +8,14 @@ use Hypervel\Console\Command;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputArgument;
 
 #[AsCommand(name: 'cache:prune-stale-tags')]
 class PruneStaleTagsCommand extends Command
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'cache:prune-stale-tags';
+    protected ?string $signature = 'cache:prune-stale-tags {store? : The name of the store you would like to prune tags from}';
 
     /**
      * The console command description.
@@ -55,15 +54,5 @@ class PruneStaleTagsCommand extends Command
         $this->components->info('Stale cache tags pruned successfully.');
 
         return self::SUCCESS;
-    }
-
-    /**
-     * Get the console command arguments.
-     */
-    protected function getArguments(): array
-    {
-        return [
-            ['store', InputArgument::OPTIONAL, 'The name of the store you would like to prune tags from'],
-        ];
     }
 }

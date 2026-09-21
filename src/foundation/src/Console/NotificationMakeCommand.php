@@ -10,7 +10,6 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 use function Hypervel\Prompts\confirm;
@@ -22,9 +21,12 @@ class NotificationMakeCommand extends GeneratorCommand
     use CreatesMatchingTest;
 
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:notification';
+    protected ?string $signature = 'make:notification
+                    {name : The name of the notification}
+                    {--f|force : Create the class even if the notification already exists}
+                    {--m|markdown= : Create a new Markdown template for the notification}';
 
     /**
      * The console command description.
@@ -137,16 +139,5 @@ class NotificationMakeCommand extends GeneratorCommand
 
             $input->setOption('markdown', $markdownView);
         }
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['force', 'f', InputOption::VALUE_NONE, 'Create the class even if the notification already exists'],
-            ['markdown', 'm', InputOption::VALUE_OPTIONAL, 'Create a new Markdown template for the notification'],
-        ];
     }
 }
