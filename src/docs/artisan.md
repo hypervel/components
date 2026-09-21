@@ -1062,7 +1062,9 @@ $this->trap([SIGTERM, SIGQUIT], function (int $signal) {
 });
 ```
 
-Artisan signal traps apply only to the current command. To handle signals in server workers or custom server processes, see the [Signal documentation](/docs/{{version}}/signals).
+You may also provide an iterable of signal numbers or a closure that returns them. Trapping a termination signal lets your command finish gracefully instead of being terminated automatically. Handlers run in reverse registration order and are removed when their command finishes, leaving other commands' handlers registered.
+
+Command traps share the [native signal limitations](/docs/{{version}}/signals#native-signal-limitations) of worker and server-process handlers. Keep callbacks short: another delivery of the same signal while a callback is running may use the operating system's default behavior. To configure worker or server-process handlers, see the [Signal documentation](/docs/{{version}}/signals).
 
 <a name="the-dev-command"></a>
 ## The Dev Command

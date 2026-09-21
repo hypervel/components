@@ -14,10 +14,10 @@ use Hypervel\Console\CommandInput;
 use Hypervel\Console\Events\AfterExecute;
 use Hypervel\Console\ManuallyFailedException;
 use Hypervel\Console\OutputStyle;
-use Hypervel\Console\SignalRegistry;
 use Hypervel\Console\View\Components\Factory;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Coroutine\SignalRegistry;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Testbench\TestCase;
@@ -118,11 +118,11 @@ class CommandTest extends TestCase
 
     public function testSignalHandlersAreRemovedWhenTraitSetupFails(): void
     {
-        $registry = m::mock(SignalRegistry::class);
-        $registry->expects('register')->with(SIGTERM, m::type('callable'));
-        $registry->expects('unregister')->with(null);
-
         $command = new CommandTestFailingTraitSetupCommand;
+        $registry = m::mock(SignalRegistry::class);
+        $registry->expects('register')->with($command, SIGTERM, m::type('callable'));
+        $registry->expects('unregister')->with($command, null);
+
         $command->setHypervel($this->app);
         $command->setSignalRegistryForTest($registry);
 
@@ -736,6 +736,9 @@ class CommandTestFailingTraitSetupCommand extends Command
 
     protected ?string $name = 'test:trait-setup-failure';
 
+    /**
+     * Set the signal registry used during trait setup.
+     */
     public function setSignalRegistryForTest(SignalRegistry $signalRegistry): void
     {
         $this->signalRegistry = $signalRegistry;

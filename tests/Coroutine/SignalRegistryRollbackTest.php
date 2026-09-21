@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Console;
+namespace Hypervel\Tests\Coroutine;
 
-use Hypervel\Console\SignalRegistry;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\SignalRegistry;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Engine\Exceptions\CoroutineCreateException;
@@ -33,6 +33,7 @@ class SignalRegistryRollbackTest extends TestCase
 
             try {
                 $registry->register(
+                    $this,
                     [SIGUSR1, SIGUSR2],
                     static fn (int $signal): null => null,
                 );
@@ -56,14 +57,14 @@ class SignalRegistryRollbackTest extends TestCase
             Container::getInstance()->instance(ExceptionHandlerContract::class, $handler);
 
             $registry = new SignalRegistry;
-            $registry->register(SIGUSR1, static fn (int $signal): null => null);
+            $registry->register($this, SIGUSR1, static fn (int $signal): null => null);
 
             $invoker = new ClassInvoker($registry);
             $coroutineId = $invoker->handling[SIGUSR1];
 
             $this->assertTrue(Coroutine::exists($coroutineId));
 
-            $registry->unregister(SIGUSR1);
+            $registry->unregister($this, SIGUSR1);
 
             $this->assertFalse(Coroutine::exists($coroutineId));
             $this->assertSame([], $invoker->handling);
@@ -78,7 +79,7 @@ class SignalRegistryRollbackTest extends TestCase
             $releaseReport = $this->cancelOwnerDuringCreation(1);
 
             try {
-                $registry->register(SIGUSR1, static fn (int $signal): null => null);
+                $registry->register($this, SIGUSR1, static fn (int $signal): null => null);
                 $this->fail('Expected owner cancellation to escape signal registration.');
             } catch (CanceledException) {
                 $invoker = new ClassInvoker($registry);
@@ -88,7 +89,7 @@ class SignalRegistryRollbackTest extends TestCase
                 $this->assertSame(1, SwooleCoroutine::stats()['coroutine_num']);
             } finally {
                 $releaseReport->push(true, 0.001);
-                $registry->unregister();
+                $registry->unregister($this);
             }
         });
     }
@@ -102,6 +103,7 @@ class SignalRegistryRollbackTest extends TestCase
 
             try {
                 $registry->register(
+                    $this,
                     [SIGUSR1, SIGUSR2],
                     static fn (int $signal): null => null,
                 );
@@ -114,7 +116,7 @@ class SignalRegistryRollbackTest extends TestCase
                 $this->assertSame(1, SwooleCoroutine::stats()['coroutine_num']);
             } finally {
                 $releaseReport->push(true, 0.001);
-                $registry->unregister();
+                $registry->unregister($this);
             }
         });
     }

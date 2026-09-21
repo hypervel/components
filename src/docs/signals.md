@@ -101,6 +101,8 @@ use App\Signals\WriteDiagnostics;
 
 If a handler throws an exception, Hypervel reports the exception and continues running the remaining handlers. Once every handler has finished, Hypervel listens for the next delivery of the signal.
 
+Artisan commands invoked in the same process may also register traps for these signals. Their newer traps run before the configured handlers and are removed when the command finishes, leaving the configured handlers registered.
+
 <a name="signal-lifecycle"></a>
 ## Signal Lifecycle
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Inertia\Commands;
 
-use Hypervel\Console\SignalRegistry;
+use Hypervel\Coroutine\SignalRegistry;
 use Hypervel\Inertia\Commands\StartSsr;
 use Hypervel\Tests\Inertia\TestCase;
 use Mockery as m;
@@ -168,8 +168,8 @@ class StartSsrTest extends TestCase
         $registry = m::mock(SignalRegistry::class);
         $registry->shouldReceive('register')
             ->once()
-            ->with([SIGINT, SIGQUIT, SIGTERM], m::type('callable'));
-        $registry->shouldReceive('unregister')->once()->with(null);
+            ->with(m::type(StartSsr::class), [SIGINT, SIGQUIT, SIGTERM], m::type('callable'));
+        $registry->shouldReceive('unregister')->once()->with(m::type(StartSsr::class), null);
 
         $command = $this->app->make(StartSsr::class);
         (new ReflectionProperty($command, 'signalRegistry'))->setValue($command, $registry);

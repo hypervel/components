@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Console\Concerns;
 
-use Hypervel\Console\SignalRegistry;
+use Closure;
+use Hypervel\Container\Container;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\SignalRegistry;
 
 trait InteractsWithSignals
 {
@@ -17,26 +19,32 @@ trait InteractsWithSignals
     /**
      * Define a callback to be run when the given signal(s) occurs.
      *
-     * @param int|int[] $signo
-     * @param (callable(int $signo): mixed) $callback
+     * @template TSignals of int|iterable<array-key, int>
+     *
+     * @param (Closure(): TSignals)|TSignals $signals
+     * @param callable(int): mixed $callback
      */
-    public function trap(array|int $signo, callable $callback): void
+    public function trap(Closure|int|iterable $signals, callable $callback): void
     {
         if (! $this->signalRegistry) {
-            $this->signalRegistry = new SignalRegistry;
-            Coroutine::defer(fn () => $this->signalRegistry->unregister());
+            $registry = $this->signalRegistry = Container::getInstance()->make(SignalRegistry::class);
+            Coroutine::defer(fn () => $registry->unregister($this));
         }
 
-        $this->signalRegistry->register($signo, $callback);
+        $this->signalRegistry->register($this, value($signals), $callback);
     }
 
     /**
      * Unregister signal handlers for one, many, or all signals.
      *
-     * @param null|int|int[] $signo
+     * @param null|int|iterable<array-key, int> $signals
      */
-    public function untrap(array|int|null $signo = null): void
+    public function untrap(int|iterable|null $signals = null): void
     {
-        $this->signalRegistry?->unregister($signo);
+        $this->signalRegistry?->unregister($this, $signals);
+
+        if ($signals === null) {
+            $this->signalRegistry = null;
+        }
     }
 }

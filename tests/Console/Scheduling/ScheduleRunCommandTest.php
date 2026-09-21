@@ -44,6 +44,8 @@ use Swoole\Coroutine;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
+use Symfony\Component\Process\Exception\ProcessSignaledException;
+use Symfony\Component\Process\Process;
 use Throwable;
 
 use function Hypervel\Coroutine\parallel;
@@ -1114,6 +1116,37 @@ class ScheduleRunCommandTest extends TestCase
 
         $this->assertContains('alpha:success', $results);
         $this->assertContains('bravo:failure', $results);
+    }
+
+    public function testTerminationSignalReleasesMutexesBeforeTerminating(): void
+    {
+        $process = new Process([PHP_BINARY, '-r', <<<'PHP'
+            require $argv[1];
+
+            Swoole\Coroutine\run(function (): void {
+                $command = new class extends Hypervel\Console\Commands\ScheduleRunCommand {
+                    protected function releaseRunningEventMutexes(): void
+                    {
+                        echo 'released';
+                    }
+                };
+                (new ReflectionMethod($command, 'listenForSignals'))->invoke($command);
+                posix_kill(posix_getpid(), SIGTERM);
+                usleep(50000);
+                exit(1);
+            });
+            PHP, dirname(__DIR__, 3) . '/vendor/autoload.php']);
+        $process->setTimeout(5);
+
+        try {
+            $process->run();
+            $this->fail('Expected the scheduler to terminate the process with SIGTERM.');
+        } catch (ProcessSignaledException) {
+            $this->assertSame(SIGTERM, $process->getTermSignal());
+            $this->assertSame('released', $process->getOutput());
+        } finally {
+            $process->stop(0);
+        }
     }
 
     public function testSignalCleanupReleasesMutexesForRunningOwnedEvents(): void

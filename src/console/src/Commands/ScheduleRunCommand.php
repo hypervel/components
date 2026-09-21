@@ -594,11 +594,18 @@ class ScheduleRunCommand extends Command
     }
 
     /**
-     * Listen for signals that should release owned event mutexes.
+     * Release owned event mutexes and terminate on shutdown signals.
      */
     protected function listenForSignals(): void
     {
-        $this->trap([SIGTERM, SIGINT, SIGQUIT], fn () => $this->releaseRunningEventMutexes());
+        $this->trap([SIGTERM, SIGINT, SIGQUIT], function (int $signal): void {
+            try {
+                $this->releaseRunningEventMutexes();
+            } finally {
+                // Tasks must not continue running after their overlap mutexes are released.
+                posix_kill(posix_getpid(), $signal);
+            }
+        });
     }
 
     /**

@@ -252,9 +252,13 @@ class SignalCapturingWatchCommand extends WatchCommand
 
     public Closure $signalHandler;
 
-    public function trap(array|int $signo, callable $callback): void
+    /**
+     * Capture the command's signal handler.
+     */
+    public function trap(Closure|int|iterable $signals, callable $callback): void
     {
-        $this->signals = (array) $signo;
+        $signals = value($signals);
+        $this->signals = is_int($signals) ? [$signals] : [...$signals];
         $this->signalHandler = Closure::fromCallable($callback);
     }
 
