@@ -61,6 +61,14 @@ class SerializationIntegrationTest extends RedisCacheIntegrationTestCase
         $value = ['content' => str_repeat('cache-value', 100)];
 
         $this->assertTrue($cache->add('key', $value, 60));
+
+        $redis = $this->redis();
+        $key = $this->getCachePrefix() . $cache->taggedItemKey('key');
+        $expected = $redis->withConnection(
+            static fn (RedisConnection $connection): string => $connection->pack([$mode === 'native' ? $value : serialize($value)])[0],
+        );
+
+        $this->assertSame($expected, $redis->withoutSerializationOrCompression(static fn (): mixed => $redis->get($key)));
         $this->assertSame($value, $cache->get('key'));
     }
 
