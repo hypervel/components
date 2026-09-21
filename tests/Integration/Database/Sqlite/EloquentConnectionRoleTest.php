@@ -15,7 +15,9 @@ use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Queue\SerializesAndRestoresModelIdentifiers;
+use Hypervel\Queue\SerializesModels;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use LogicException;
@@ -145,22 +147,61 @@ class EloquentConnectionRoleTest extends TestCase
         $this->assertFalse($user->is($plain->setConnection('other')));
     }
 
-    public function testQueueableNamesKeepReadRoutingAndNormalizeWriteAliases(): void
+    public function testQueueableNamesKeepConnectionRoles(): void
     {
         $write = User::on('roles::write')->findOrFail(1);
         $plain = (new User)->setConnection('roles')->newFromBuilder(['id' => 1]);
         $explicit = (new User)->setConnection('roles::write')->newFromBuilder(['id' => 1]);
         $read = (new User)->setConnection('roles::read')->newFromBuilder(['id' => 1]);
 
-        $this->assertSame('roles', $write->getQueueableConnection());
-        $this->assertSame('roles', $explicit->getQueueableConnection());
-        $this->assertSame('roles', (new Collection([$write, $plain]))->getQueueableConnection());
-        $this->assertSame('roles', (new Collection([$plain, $write]))->getQueueableConnection());
+        $this->assertSame('roles::write', $write->getQueueableConnection());
+        $this->assertSame('roles::write', $explicit->getQueueableConnection());
+        $this->assertSame('roles::write', (new Collection([$write, $explicit]))->getQueueableConnection());
+        $this->assertSame('roles', (new Collection([$plain]))->getQueueableConnection());
         $this->assertSame('roles::read', $read->getQueueableConnection());
         $this->assertSame('roles::read', (new Collection([$read]))->getQueueableConnection());
+    }
+
+    #[TestWith(['roles::write', 'roles'])]
+    #[TestWith(['roles', 'roles::write'])]
+    #[TestWith(['roles::write', 'roles::read'])]
+    public function testQueueableCollectionsRejectMixedConnectionNames(string $first, string $second): void
+    {
+        $models = new Collection([
+            (new User)->setConnection($first)->newFromBuilder(['id' => 1]),
+            (new User)->setConnection($second)->newFromBuilder(['id' => 1]),
+        ]);
 
         $this->expectException(LogicException::class);
-        (new Collection([$write, $read]))->getQueueableConnection();
+        $models->getQueueableConnection();
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testSynchronousJobsRestoreModelsOnTheirWriteTransaction(bool $collection): void
+    {
+        $connection = DB::connection('roles::write');
+        $failure = new RuntimeException('Roll back the queued model changes.');
+        $userId = null;
+
+        try {
+            $connection->transaction(function () use ($connection, $collection, $failure, &$userId): void {
+                $user = User::on('roles::write')->create(['name' => 'uncommitted']);
+                $userId = $user->getKey();
+
+                Queue::connection('sync')->push(new UpdateQueuedUser($collection ? new Collection([$user]) : $user));
+
+                $this->assertSame('queued', $connection->table('users')->find($user->id)->name);
+
+                throw $failure;
+            });
+        } catch (RuntimeException $exception) {
+            if ($exception !== $failure) {
+                throw $exception;
+            }
+        }
+
+        $this->assertNull($connection->table('users')->find($userId));
     }
 
     #[TestWith(['read'])]
@@ -231,5 +272,29 @@ class UserFactory extends Factory
     public function definition(): array
     {
         return ['name' => 'created'];
+    }
+}
+
+class UpdateQueuedUser
+{
+    use SerializesModels;
+
+    /**
+     * Create a job that updates its restored models.
+     *
+     * @param Collection<int, User>|User $models
+     */
+    public function __construct(public Collection|User $models)
+    {
+    }
+
+    /**
+     * Update the restored models through their own connections.
+     */
+    public function handle(): void
+    {
+        foreach ($this->models instanceof Collection ? $this->models : [$this->models] as $model) {
+            $model->update(['name' => 'queued']);
+        }
     }
 }

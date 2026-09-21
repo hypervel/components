@@ -47,7 +47,7 @@ final readonly class ConnectionName
     }
 
     /**
-     * Remove the write role when comparing identities or serializing models.
+     * Remove the write role when comparing model identities.
      *
      * Read aliases remain distinct because they can select another endpoint.
      */

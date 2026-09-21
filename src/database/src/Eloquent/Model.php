@@ -2563,7 +2563,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public function getQueueableConnection(): ?string
     {
-        return ConnectionName::withoutWriteType($this->getConnectionName());
+        return $this->getConnectionName();
     }
 
     /**

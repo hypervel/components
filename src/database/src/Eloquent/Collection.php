@@ -8,7 +8,6 @@ use Closure;
 use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Contracts\Queue\QueueableCollection;
 use Hypervel\Contracts\Support\Arrayable;
-use Hypervel\Database\ConnectionName;
 use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithDictionary;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
@@ -969,10 +968,10 @@ class Collection extends BaseCollection implements QueueableCollection
             return null;
         }
 
-        $connection = ConnectionName::withoutWriteType($this->first()->getConnectionName());
+        $connection = $this->first()->getConnectionName();
 
         $this->each(function ($model) use ($connection) {
-            if (ConnectionName::withoutWriteType($model->getConnectionName()) !== $connection) {
+            if ($model->getConnectionName() !== $connection) {
                 throw new LogicException('Queueing collections with multiple model connections is not supported.');
             }
         });
