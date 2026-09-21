@@ -19,11 +19,10 @@ class JobRetryRequested
     public function __construct(
         public stdClass $job
     ) {
-        $this->job = $job;
     }
 
     /**
-     * The job payload.
+     * Get the job payload.
      */
     public function payload(): array
     {
