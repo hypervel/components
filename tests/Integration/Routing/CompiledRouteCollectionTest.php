@@ -11,6 +11,7 @@ use Hypervel\Routing\Route;
 use Hypervel\Routing\RouteCollection;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Arr;
+use PHPUnit\Framework\Attributes\TestWith;
 use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -90,10 +91,17 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertSame($action, Arr::except($route->getAction(), 'as'));
     }
 
-    public function testCompiledAndNonCompiledUrlResolutionHasSamePrecedenceForActions(): void
+    #[TestWith(['FooController', 'FooController'])]
+    #[TestWith(['\FooController', '\FooController'])]
+    #[TestWith(['FooController', '\FooController'])]
+    #[TestWith(['\FooController', 'FooController'])]
+    public function testCompiledAndNonCompiledUrlResolutionHasSamePrecedenceForActions(string $firstController, string $secondController): void
     {
-        $this->router->get('/foo/{bar}', ['FooController', 'show']);
-        $this->router->get('/foo/{bar}/{baz}', ['FooController', 'show']);
+        $this->router->get('/foo/{bar}', [$firstController, 'show']);
+        $this->router->get('/foo/{bar}/{baz}', [$secondController, 'show']);
+
+        $this->assertSame('foo/{bar}', $this->router->getRoutes()->getByAction('FooController@show')->uri);
+
         $this->router->getRoutes()->refreshActionLookups();
 
         $this->assertSame('foo/{bar}', $this->router->getRoutes()->getByAction('FooController@show')->uri);

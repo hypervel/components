@@ -142,7 +142,7 @@ class RouteCollection extends AbstractRouteCollection
      */
     protected function inActionLookup(string $controller): bool
     {
-        return array_key_exists($controller, $this->actionList);
+        return array_key_exists(trim($controller, '\\'), $this->actionList);
     }
 
     /**
