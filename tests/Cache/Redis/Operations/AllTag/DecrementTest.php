@@ -5,33 +5,20 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
+use Mockery as m;
 
 /**
  * Tests for the Decrement operation (intersection tags).
  */
 class DecrementTest extends RedisCacheTestCase
 {
-    public function testDecrementWithTagsInPipelineMode(): void
+    public function testDecrementWithTagsInLuaMode(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-
-        $connection->shouldReceive('decrby')
-            ->once()
-            ->with('prefix:counter', 1)
-            ->andReturn($connection)
-            ->ordered();
-
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
-            ->andReturn($connection)
-            ->ordered();
-
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([5, 1]);
+        $connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:counter', 'prefix:_all:tag:users:entries'], [1, -1, 'counter'])
+            ->andReturn('5');
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->decrement()->execute(
@@ -47,21 +34,9 @@ class DecrementTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
-            ->andReturn($connection);
-
-        $connection->shouldReceive('decrby')
-            ->once()
-            ->with('prefix:counter', 10)
-            ->andReturn($connection);
-
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([-5, 0]); // 0 means tag membership already existed
+        $connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:counter', 'prefix:_all:tag:users:entries'], [10, -1, 'counter'])
+            ->andReturn('-5');
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->decrement()->execute(
@@ -77,26 +52,9 @@ class DecrementTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-
-        // ZADD NX for each tag
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
-            ->andReturn($connection);
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:posts:entries', ['NX'], -1, 'counter')
-            ->andReturn($connection);
-
-        $connection->shouldReceive('decrby')
-            ->once()
-            ->with('prefix:counter', 1)
-            ->andReturn($connection);
-
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([9, 1, 1]);
+        $connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:counter', 'prefix:_all:tag:users:entries', 'prefix:_all:tag:posts:entries'], [1, -1, 'counter'])
+            ->andReturn('9');
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->decrement()->execute(
@@ -112,17 +70,9 @@ class DecrementTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-
-        // No ZADD calls expected
-        $connection->shouldReceive('decrby')
-            ->once()
-            ->with('prefix:counter', 1)
-            ->andReturn($connection);
-
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([-1]);
+        $connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:counter'], [1, -1, 'counter'])
+            ->andReturn('-1');
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->decrement()->execute(
@@ -173,18 +123,11 @@ class DecrementTest extends RedisCacheTestCase
         ));
     }
 
-    public function testDecrementReturnsFalseOnPipelineFailure(): void
+    public function testDecrementReturnsFalseOnFailure(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-
-        $connection->shouldReceive('zadd')->andReturn($connection);
-        $connection->shouldReceive('decrby')->andReturn($connection);
-
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn(false);
+        $connection->expects('evalWithShaCache')->andReturn(false);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->decrement()->execute(

@@ -83,14 +83,11 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-
         $key = hash('xxh128', '_all:tag:votes:entries') . ':person-1';
 
-        // Combined operation: INCRBY + ZADD NX in single pipeline
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:votes:entries', ['NX'], -1, $key)->andReturn($connection);
-        $connection->shouldReceive('incrby')->once()->with("prefix:{$key}", 1)->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([1, 1]);
+        $connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ["prefix:{$key}", 'prefix:_all:tag:votes:entries'], [1, -1, $key])
+            ->andReturn('1');
 
         $store = $this->createStore($connection);
         $result = $store->tags(['votes'])->increment('person-1');
@@ -102,14 +99,11 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-
         $key = hash('xxh128', '_all:tag:votes:entries') . ':person-1';
 
-        // Combined operation: DECRBY + ZADD NX in single pipeline
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:votes:entries', ['NX'], -1, $key)->andReturn($connection);
-        $connection->shouldReceive('decrby')->once()->with("prefix:{$key}", 1)->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([9, 1]);
+        $connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ["prefix:{$key}", 'prefix:_all:tag:votes:entries'], [1, -1, $key])
+            ->andReturn('9');
 
         $store = $this->createStore($connection);
         $result = $store->tags(['votes'])->decrement('person-1');
@@ -304,16 +298,8 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
                 return ['key1' => 0, 'key2' => 0];
             });
-        // Delete cache entries
-        $connection->shouldReceive('del')
-            ->once()
-            ->with('prefix:key1', 'prefix:key2')
-            ->andReturn(2);
-
-        // Delete tag set
-        $connection->shouldReceive('del')
-            ->once()
-            ->with('prefix:_all:tag:people:entries')
+        $connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:_all:tag:people:entries', 'prefix:key1', 'prefix:key2'], [1, 'key1', 'key2'])
             ->andReturn(1);
 
         $store = $this->createStore($connection);
@@ -334,13 +320,8 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
                 return ['key1' => 0, 'key2' => 0];
             });
-        $connection->shouldReceive('del')
-            ->once()
-            ->with('prefix:key1', 'prefix:key2')
-            ->andReturn(2);
-        $connection->shouldReceive('del')
-            ->once()
-            ->with('prefix:_all:tag:people:entries')
+        $connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:_all:tag:people:entries', 'prefix:key1', 'prefix:key2'], [1, 'key1', 'key2'])
             ->andReturn(1);
 
         $store = $this->createStore($connection);
@@ -453,13 +434,11 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-
         $key = hash('xxh128', '_all:tag:counters:entries') . ':hits';
 
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:counters:entries', ['NX'], -1, $key)->andReturn($connection);
-        $connection->shouldReceive('incrby')->once()->with("prefix:{$key}", 5)->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([15, 1]);
+        $connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ["prefix:{$key}", 'prefix:_all:tag:counters:entries'], [5, -1, $key])
+            ->andReturn('15');
 
         $store = $this->createStore($connection);
         $result = $store->tags(['counters'])->increment('hits', 5);
@@ -471,13 +450,11 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-
         $key = hash('xxh128', '_all:tag:counters:entries') . ':stock';
 
-        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:counters:entries', ['NX'], -1, $key)->andReturn($connection);
-        $connection->shouldReceive('decrby')->once()->with("prefix:{$key}", 3)->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([7, 0]);
+        $connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ["prefix:{$key}", 'prefix:_all:tag:counters:entries'], [3, -1, $key])
+            ->andReturn('7');
 
         $store = $this->createStore($connection);
         $result = $store->tags(['counters'])->decrement('stock', 3);
@@ -1323,11 +1300,6 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
                 return [];
             });
-        $connection->shouldReceive('del')
-            ->once()
-            ->with('prefix:_all:tag:users:entries')
-            ->andReturn(1);
-
         $captured = [];
         $tagged = (new Repository($this->createStore($connection), ['store' => 'redis']))->tags(['users']);
         $tagged->setEventDispatcher($this->capturingDispatcher($captured));

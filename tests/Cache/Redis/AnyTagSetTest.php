@@ -21,8 +21,6 @@ class AnyTagSetTest extends RedisCacheTestCase
 
     private m\MockInterface $connection;
 
-    private m\MockInterface $pipeline;
-
     /**
      * Set up test fixtures.
      */
@@ -160,7 +158,7 @@ class AnyTagSetTest extends RedisCacheTestCase
     /**
      * @test
      */
-    public function testFlushDeletesKeysAndTagHashes(): void
+    public function testFlushDeletesKeysAndScannedMemberships(): void
     {
         $tagSet = new AnyTagSet($this->store, ['users']);
 
@@ -174,12 +172,12 @@ class AnyTagSetTest extends RedisCacheTestCase
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(['key1', 'key2']);
 
-        // Pipeline for deleting cache keys, reverse indexes, tag hashes, registry entries
-        $this->connection->shouldReceive('pipeline')->andReturn($this->pipeline);
-        $this->pipeline->shouldReceive('del')->andReturnSelf();
-        $this->pipeline->shouldReceive('unlink')->andReturnSelf();
-        $this->pipeline->shouldReceive('zrem')->andReturnSelf();
-        $this->pipeline->shouldReceive('exec')->andReturn([]);
+        $this->connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:_any:tag:users:entries', 'prefix:key1:_any:tags', 'prefix:key2:_any:tags', 'prefix:key1', 'prefix:key2'], [1, 2, 'key1', 'key2'])
+            ->andReturn(1);
+        $this->connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
+            ->andReturn(1);
 
         $this->assertTrue($tagSet->flush());
     }
@@ -201,12 +199,12 @@ class AnyTagSetTest extends RedisCacheTestCase
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(['key1']);
 
-        // Pipeline for flush operations
-        $this->connection->shouldReceive('pipeline')->andReturn($this->pipeline);
-        $this->pipeline->shouldReceive('del')->andReturnSelf();
-        $this->pipeline->shouldReceive('unlink')->andReturnSelf();
-        $this->pipeline->shouldReceive('zrem')->andReturnSelf();
-        $this->pipeline->shouldReceive('exec')->andReturn([]);
+        $this->connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:_any:tag:users:entries', 'prefix:key1:_any:tags', 'prefix:key1'], [1, 1, 'key1'])
+            ->andReturn(1);
+        $this->connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
+            ->andReturn(1);
 
         $result = $tagSet->flushTag('users');
 
@@ -239,12 +237,12 @@ class AnyTagSetTest extends RedisCacheTestCase
             ->with('prefix:_any:tag:posts:entries')
             ->andReturn(['key2']);
 
-        // Pipeline for flush operations
-        $this->connection->shouldReceive('pipeline')->andReturn($this->pipeline);
-        $this->pipeline->shouldReceive('del')->andReturnSelf();
-        $this->pipeline->shouldReceive('unlink')->andReturnSelf();
-        $this->pipeline->shouldReceive('zrem')->andReturnSelf();
-        $this->pipeline->shouldReceive('exec')->andReturn([]);
+        $this->connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:_any:tag:users:entries', 'prefix:_any:tag:posts:entries', 'prefix:key1:_any:tags', 'prefix:key2:_any:tags', 'prefix:key1', 'prefix:key2'], [2, 2, 'key1', 'key2'])
+            ->andReturn(1);
+        $this->connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries', 'prefix:_any:tag:posts:entries'], ['users', 'posts'])
+            ->andReturn(1);
 
         $this->assertTrue($tagSet->reset());
     }
@@ -255,12 +253,6 @@ class AnyTagSetTest extends RedisCacheTestCase
     private function setupStore(): void
     {
         $this->connection = $this->mockConnection();
-
-        // Mock pipeline
-        $this->pipeline = m::mock();
-
-        // Add pipeline support to connection
-        $this->connection->shouldReceive('pipeline')->andReturn($this->pipeline)->byDefault();
 
         $this->store = $this->createStore($this->connection);
         $this->store->setTagMode('any');

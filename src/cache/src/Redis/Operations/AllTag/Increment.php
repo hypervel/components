@@ -45,36 +45,24 @@ class Increment
             return $this->executeCluster($key, $value, $tagIds);
         }
 
-        return $this->executePipeline($key, $value, $tagIds);
+        return $this->executeUsingLua($key, $value, $tagIds);
     }
 
     /**
-     * Execute using pipeline for standard Redis (non-cluster).
+     * Execute the counter and membership writes atomically for standard Redis.
      */
-    private function executePipeline(string $key, int $value, array $tagIds): int|false
+    private function executeUsingLua(string $key, int $value, array $tagIds): int|false
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tagIds): int|false {
             $prefix = $this->context->prefix();
 
-            $pipeline = $connection->pipeline();
+            $result = $connection->evalWithShaCache(
+                $this->incrementWithTagsScript(),
+                [$prefix . $key, ...array_map(fn (string $tagId): string => $prefix . $tagId, $tagIds)],
+                [$value, self::FOREVER_SCORE, $key],
+            );
 
-            // Publish the counter before its memberships so concurrent pruning
-            // cannot mistake a newly written member for an orphan.
-            $pipeline->incrBy($prefix . $key, $value);
-
-            // ZADD NX to each tag's sorted set (only add if not exists)
-            foreach ($tagIds as $tagId) {
-                $pipeline->zadd($prefix . $tagId, ['NX'], self::FOREVER_SCORE, $key);
-            }
-
-            $results = $pipeline->exec();
-
-            if ($results === false) {
-                return false;
-            }
-
-            // First result is the INCRBY result
-            return $results[0] ?? false;
+            return $result === false ? false : (int) $result;
         });
     }
 
@@ -100,5 +88,26 @@ class Increment
 
             return $newValue;
         });
+    }
+
+    /**
+     * Register memberships only after incrementing the counter.
+     */
+    protected function incrementWithTagsScript(): string
+    {
+        return <<<'LUA'
+            local result = redis.pcall('INCRBY', KEYS[1], ARGV[1])
+
+            if type(result) == 'table' and result.err then
+                return false
+            end
+
+            for i = 2, #KEYS do
+                redis.pcall('ZADD', KEYS[i], 'NX', ARGV[2], ARGV[3])
+            end
+
+            -- GET preserves the full Redis integer instead of rounding through Lua's number type.
+            return redis.call('GET', KEYS[1])
+            LUA;
     }
 }

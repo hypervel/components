@@ -33,7 +33,6 @@ class GetEntries
         return new LazyCollection(function () use ($context, $prefix, $tagIds): Generator {
             foreach ($tagIds as $tagId) {
                 $cursor = null;
-                $seen = [];
 
                 do {
                     $entries = $context->withConnection(
@@ -49,15 +48,7 @@ class GetEntries
                     }
 
                     foreach (array_keys($entries) as $entry) {
-                        $entry = (string) $entry;
-
-                        if (isset($seen[$entry])) {
-                            continue;
-                        }
-
-                        $seen[$entry] = true;
-
-                        yield $entry;
+                        yield (string) $entry;
                     }
                 } while ($cursor !== 0);
             }

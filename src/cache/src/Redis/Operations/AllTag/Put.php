@@ -63,8 +63,9 @@ class Put
 
             $pipeline = $connection->pipeline();
 
-            // Publish the value before its memberships so concurrent pruning
-            // cannot mistake a newly written member for an orphan.
+            // Publish the value first so Prune cannot discard fresh memberships.
+            // Unlike SET NX or counter writes, unconditional SETEX needs no
+            // conditional membership publication; keep both writes in one pipeline.
             $pipeline->setex($prefix . $key, $seconds, $serialized);
 
             // ZADD to each tag's sorted set

@@ -72,14 +72,13 @@ class PutMany
 
             $pipeline = $connection->pipeline();
 
-            // Publish values before their memberships so concurrent pruning
-            // cannot mistake newly written members for orphans.
+            // Publish values first so Prune cannot discard fresh memberships.
+            // Unlike SET NX or counter writes, unconditional SETEX needs no
+            // conditional membership publication; keep these writes in one pipeline.
             foreach ($preparedEntries as $namespacedKey => $serialized) {
                 $pipeline->setex($prefix . $namespacedKey, $seconds, $serialized);
             }
 
-            // Pipeline results are unavailable until exec(), so memberships
-            // cannot be filtered after failed writes without another round trip.
             // Batch ZADD: one command per tag with all cache keys as members
             // ZADD format: key, score1, member1, score2, member2, ...
             foreach ($tagIds as $tagId) {

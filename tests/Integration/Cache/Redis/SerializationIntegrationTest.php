@@ -44,6 +44,52 @@ class SerializationIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertSame($value, $this->cache()->get('compressed'));
     }
 
+    #[TestWith(['native'])]
+    #[TestWith(['compression'])]
+    public function testAllModeAddPreservesConfiguredSerialization(string $mode): void
+    {
+        if ($mode === 'compression') {
+            $this->configureCompression();
+        } else {
+            config(['cache.stores.redis.connection' => $this->createRedisConnectionWithOptions('cache_serialized', [
+                'serializer' => Redis::SERIALIZER_PHP,
+            ])]);
+        }
+
+        $this->setTagMode(TagMode::All);
+        $cache = $this->cache()->tags(['serialized']);
+        $value = ['content' => str_repeat('cache-value', 100)];
+
+        $this->assertTrue($cache->add('key', $value, 60));
+        $this->assertSame($value, $cache->get('key'));
+    }
+
+    #[TestWith(['increment', 'php', 9007199254740993])]
+    #[TestWith(['decrement', 'php', -9007199254740993])]
+    #[TestWith(['increment', 'igbinary', 9007199254740993])]
+    #[TestWith(['decrement', 'igbinary', -9007199254740993])]
+    #[TestWith(['increment', 'compression', 9007199254740993])]
+    #[TestWith(['decrement', 'compression', -9007199254740993])]
+    public function testAllModeCounterRepliesPreserveIntegersWithSerializationOptions(string $method, string $mode, int $expected): void
+    {
+        if ($mode === 'compression') {
+            $this->configureCompression();
+        } else {
+            if ($mode === 'igbinary' && ! defined('Redis::SERIALIZER_IGBINARY')) {
+                $this->markTestSkipped('Redis extension is not configured to support igbinary serialization.');
+            }
+
+            config(['cache.stores.redis.connection' => $this->createRedisConnectionWithOptions('cache_serialized', [
+                'serializer' => $mode === 'php' ? Redis::SERIALIZER_PHP : Redis::SERIALIZER_IGBINARY,
+            ])]);
+        }
+
+        $this->setTagMode(TagMode::All);
+
+        // Redis creates the counter as a plain integer, bypassing the client's serializer.
+        $this->assertSame($expected, $this->cache()->tags(['counter'])->{$method}('key', 9007199254740993));
+    }
+
     public function testPutManyPreservesNumbersWhenPackingIgnoresThem(): void
     {
         if (! defined('Redis::OPT_PACK_IGNORE_NUMBERS')) {

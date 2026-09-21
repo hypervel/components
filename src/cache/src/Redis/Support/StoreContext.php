@@ -163,11 +163,10 @@ class StoreContext
     /**
      * Get the OPT_PREFIX value from the Redis client.
      */
-    public function optPrefix(): string
+    public function optPrefix(RedisConnection $connection): string
     {
-        return $this->withConnection(
-            fn (RedisConnection $connection): string => (string) $connection->getOption(Redis::OPT_PREFIX)
-        );
+        // Prefix lookups must reuse the operation's connection, not borrow a second one.
+        return (string) $connection->getOption(Redis::OPT_PREFIX);
     }
 
     /**
@@ -175,24 +174,16 @@ class StoreContext
      *
      * Format: "{optPrefix}{prefix}_any:tag:" or "{optPrefix}{prefix}_all:tag:"
      */
-    public function fullTagPrefix(): string
+    public function fullTagPrefix(RedisConnection $connection): string
     {
-        return $this->optPrefix() . $this->prefix . $this->tagKeyBuilder->tagSegment();
-    }
-
-    /**
-     * Get the full reverse index key including OPT_PREFIX (for Lua scripts).
-     */
-    public function fullReverseIndexKey(string $key): string
-    {
-        return $this->optPrefix() . $this->tagKeyBuilder->reverseIndexKey($key);
+        return $this->optPrefix($connection) . $this->prefix . $this->tagKeyBuilder->tagSegment();
     }
 
     /**
      * Get the full registry key including OPT_PREFIX (for Lua scripts).
      */
-    public function fullRegistryKey(): string
+    public function fullRegistryKey(RedisConnection $connection): string
     {
-        return $this->optPrefix() . $this->tagKeyBuilder->registryKey();
+        return $this->optPrefix($connection) . $this->tagKeyBuilder->registryKey();
     }
 }

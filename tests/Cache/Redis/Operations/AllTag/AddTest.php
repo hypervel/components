@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
+use Mockery as m;
 
 /**
  * Tests for the Add operation (intersection tags).
@@ -21,21 +22,9 @@ class AddTest extends RedisCacheTestCase
 
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection)->ordered();
-        $connection->shouldReceive('set')
-            ->once()
-            ->with('prefix:mykey', serialize('myvalue'), ['EX' => 60, 'NX'])
-            ->andReturn($connection)
-            ->ordered();
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', 1061, 'mykey')
-            ->andReturn($connection)
-            ->ordered();
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([true, 1])
-            ->ordered();
+        $connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:mykey', 'prefix:_all:tag:users:entries'], [serialize('myvalue'), 60, 1061, 'mykey'])
+            ->andReturn(1);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->add()->execute(
@@ -52,14 +41,8 @@ class AddTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection)->ordered();
-        $connection->shouldReceive('set')
-            ->once()
-            ->with('prefix:mykey', serialize('myvalue'), ['EX' => 60, 'NX'])
-            ->andReturn($connection)
-            ->ordered();
-        $connection->shouldReceive('zadd')->andReturn($connection)->ordered();
-        $connection->shouldReceive('exec')->andReturn([false, 1])->ordered();
+        $connection->expects('evalWithShaCache')->andReturn(0);
+        $connection->shouldNotReceive('zadd');
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->add()->execute(
@@ -78,32 +61,13 @@ class AddTest extends RedisCacheTestCase
 
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-
-        $expectedScore = 1121;
-
-        $connection->shouldReceive('set')
-            ->once()
-            ->with('prefix:mykey', serialize('myvalue'), ['EX' => 120, 'NX'])
-            ->andReturn($connection)
-            ->ordered();
-
-        // ZADD for each tag
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', $expectedScore, 'mykey')
-            ->andReturn($connection)
-            ->ordered();
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:posts:entries', $expectedScore, 'mykey')
-            ->andReturn($connection)
-            ->ordered();
-
-        $connection->shouldReceive('exec')
-            ->once()
-            ->andReturn([true, 1, 1])
-            ->ordered();
+        $connection->expects('evalWithShaCache')
+            ->with(
+                m::type('string'),
+                ['prefix:mykey', 'prefix:_all:tag:users:entries', 'prefix:_all:tag:posts:entries'],
+                [serialize('myvalue'), 120, 1121, 'mykey'],
+            )
+            ->andReturn(1);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->add()->execute(
@@ -116,12 +80,11 @@ class AddTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    public function testAddWithEmptyTagsSkipsPipeline(): void
+    public function testAddWithEmptyTagsSkipsLua(): void
     {
         $connection = $this->mockConnection();
 
-        // No pipeline operations for empty tags
-        $connection->shouldNotReceive('pipeline');
+        $connection->shouldNotReceive('evalWithShaCache');
 
         // Only SET NX EX for add
         $connection->shouldReceive('set')
@@ -183,11 +146,7 @@ class AddTest extends RedisCacheTestCase
             ->andReturn(false)
             ->ordered();
 
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', 1061, 'mykey')
-            ->andReturn(1)
-            ->ordered();
+        $connection->shouldNotReceive('zadd');
 
         $result = $store->allTagOps()->add()->execute(
             'mykey',
@@ -199,53 +158,14 @@ class AddTest extends RedisCacheTestCase
         $this->assertFalse($result);
     }
 
-    public function testAddReturnsFalseWhenPipelineMembershipWriteFails(): void
+    public function testAddReturnsFalseWhenScriptExecutionFails(): void
     {
         $connection = $this->mockConnection();
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('set')->once()->andReturn($connection);
-        $connection->shouldReceive('zadd')->once()->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, false]);
+        $connection->expects('evalWithShaCache')->andReturn(false);
 
         $store = $this->createStore($connection);
 
         $this->assertFalse($store->allTagOps()->add()->execute(
-            'mykey',
-            'myvalue',
-            60,
-            ['_all:tag:users:entries']
-        ));
-    }
-
-    public function testAddReturnsFalseWhenPipelineExecutionFails(): void
-    {
-        $connection = $this->mockConnection();
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('set')->once()->andReturn($connection);
-        $connection->shouldReceive('zadd')->once()->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn(false);
-
-        $store = $this->createStore($connection);
-
-        $this->assertFalse($store->allTagOps()->add()->execute(
-            'mykey',
-            'myvalue',
-            60,
-            ['_all:tag:users:entries']
-        ));
-    }
-
-    public function testAddTreatsZeroPipelineMembershipResultAsSuccess(): void
-    {
-        $connection = $this->mockConnection();
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('set')->once()->andReturn($connection);
-        $connection->shouldReceive('zadd')->once()->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, 0]);
-
-        $store = $this->createStore($connection);
-
-        $this->assertTrue($store->allTagOps()->add()->execute(
             'mykey',
             'myvalue',
             60,
@@ -272,16 +192,9 @@ class AddTest extends RedisCacheTestCase
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1000.900000'));
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-        $connection->shouldReceive('set')
-            ->once()
-            ->with('prefix:mykey', serialize('myvalue'), ['EX' => 1, 'NX'])
-            ->andReturn($connection);
-        $connection->shouldReceive('zadd')
-            ->once()
-            ->with('prefix:_all:tag:users:entries', 1002, 'mykey')
-            ->andReturn($connection);
-        $connection->shouldReceive('exec')->once()->andReturn([true, 1]);
+        $connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:mykey', 'prefix:_all:tag:users:entries'], [serialize('myvalue'), 1, 1002, 'mykey'])
+            ->andReturn(1);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->add()->execute(
@@ -298,16 +211,9 @@ class AddTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
-
-        // Numeric values are NOT serialized (optimization)
-        $connection->shouldReceive('set')
-            ->once()
-            ->with('prefix:mykey', 42, ['EX' => 60, 'NX'])
-            ->andReturn($connection);
-
-        $connection->shouldReceive('zadd')->andReturn($connection);
-        $connection->shouldReceive('exec')->andReturn([true, 1]);
+        $connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:mykey', 'prefix:_all:tag:users:entries'], ['42', 60, 946684860, 'mykey'])
+            ->andReturn(1);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->add()->execute(

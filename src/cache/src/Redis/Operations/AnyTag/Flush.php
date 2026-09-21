@@ -8,18 +8,10 @@ use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
 
 /**
- * Flush tags using lazy cleanup mode (fast).
+ * Flush scanned tag members without deleting concurrently added memberships.
  *
  * Skips reading reverse index and cross-tag cleanup. Orphaned hash fields
  * are left for the scheduled cleanup command to remove later.
- *
- * Process:
- * 1. Collect all unique keys from all tags
- * 2. Delete the cache keys and reverse index sets
- * 3. Delete the tag hashes themselves
- *
- * Performance: 5-10x faster than eager mode for large tag sets.
- * Memory impact: Orphaned fields until cleanup runs (~50MB max with hourly cleanup)
  */
 class Flush
 {
@@ -42,175 +34,149 @@ class Flush
      */
     public function execute(array $tags): bool
     {
-        // 1. Cluster Mode: Must use sequential commands
-        if ($this->context->isCluster()) {
-            return $this->executeCluster($tags);
+        $tags = array_map(strval(...), $tags);
+        $tagKeys = array_map($this->context->tagHashKey(...), $tags);
+        $isCluster = $this->context->isCluster();
+
+        $buffer = [];
+
+        foreach ($tags as $tag) {
+            foreach ($this->getTaggedKeys->execute($tag) as $key) {
+                $buffer[$key] = true;
+
+                if (count($buffer) === self::CHUNK_SIZE) {
+                    $this->flushChunk(array_keys($buffer), $tagKeys, $isCluster);
+                    $buffer = [];
+                }
+            }
         }
 
-        // 2. Standard Mode: Use Pipeline
-        return $this->executeUsingPipeline($tags);
+        if ($buffer !== []) {
+            $this->flushChunk(array_keys($buffer), $tagKeys, $isCluster);
+        }
+
+        $this->removeEmptyTags($tags, $tagKeys, $isCluster);
+
+        return true;
     }
 
     /**
-     * Execute for cluster using sequential commands.
+     * Delete a bounded chunk of values and their scanned memberships.
+     *
+     * @param array<int, int|string> $keys Cache keys without the store prefix
+     * @param array<int, string> $tagKeys
      */
-    private function executeCluster(array $tags): bool
+    private function flushChunk(array $keys, array $tagKeys, bool $isCluster): void
     {
-        return $this->context->withConnection(function (RedisConnection $connection) use ($tags) {
-            // Collect all keys from all tags
-            $keyGenerator = function () use ($tags) {
-                foreach ($tags as $tag) {
-                    $keys = $this->getTaggedKeys->execute((string) $tag);
+        $keys = array_map(strval(...), $keys);
+        $prefix = $this->context->prefix();
+        $reverseIndexKeys = array_map($this->context->reverseIndexKey(...), $keys);
+        $valueKeys = array_map(fn (string $key): string => $prefix . $key, $keys);
 
-                    foreach ($keys as $key) {
-                        yield $key;
-                    }
+        $this->context->withConnection(function (RedisConnection $connection) use ($keys, $tagKeys, $reverseIndexKeys, $valueKeys, $isCluster): void {
+            if ($isCluster) {
+                // Remove memberships before values so racing writers leave only
+                // orphaned metadata for Prune, never unindexed live values.
+                foreach ($tagKeys as $tagKey) {
+                    $connection->hdel($tagKey, ...$keys);
                 }
-            };
 
-            $buffer = [];
-            $bufferSize = 0;
+                $connection->del(...$reverseIndexKeys);
+                $connection->unlink(...$valueKeys);
 
-            foreach ($keyGenerator() as $key) {
-                $buffer[$key] = true;
-                ++$bufferSize;
-
-                if ($bufferSize >= self::CHUNK_SIZE) {
-                    $this->processChunkCluster($connection, array_keys($buffer));
-                    $buffer = [];
-                    $bufferSize = 0;
-                }
+                return;
             }
 
-            if ($bufferSize > 0) {
-                $this->processChunkCluster($connection, array_keys($buffer));
+            $connection->evalWithShaCache(
+                $this->flushChunkScript(),
+                [...$tagKeys, ...$reverseIndexKeys, ...$valueKeys],
+                [count($tagKeys), count($keys), ...$keys],
+            );
+        });
+    }
+
+    /**
+     * Keep unfinished or concurrently repopulated hashes discoverable by Prune.
+     *
+     * @param array<int, string> $tags
+     * @param array<int, string> $tagKeys
+     */
+    private function removeEmptyTags(array $tags, array $tagKeys, bool $isCluster): void
+    {
+        if ($tags === []) {
+            return;
+        }
+
+        $registryKey = $this->context->registryKey();
+
+        $this->context->withConnection(function (RedisConnection $connection) use ($registryKey, $tags, $tagKeys, $isCluster): void {
+            if (! $isCluster) {
+                $connection->evalWithShaCache($this->removeEmptyTagsScript(), [$registryKey, ...$tagKeys], $tags);
+
+                return;
             }
 
-            // Delete the tag hashes themselves and remove from registry
-            $registryKey = $this->context->registryKey();
+            foreach ($tags as $index => $tag) {
+                $tagKey = $tagKeys[$index];
 
-            foreach ($tags as $tag) {
-                $tag = (string) $tag;
-                $connection->del($this->context->tagHashKey($tag));
+                if (! $this->tagHashIsEmpty($connection, $tagKey)) {
+                    continue;
+                }
+
                 $connection->zrem($registryKey, $tag);
-            }
 
-            return true;
+                // As in Prune, restore a missing registration if a cross-slot writer
+                // repopulated the hash. NX preserves a score already published by it.
+                if (! $this->tagHashIsEmpty($connection, $tagKey)) {
+                    $connection->zadd($registryKey, ['NX'], StoreContext::MAX_EXPIRY, $tag);
+                }
+            }
         });
     }
 
     /**
-     * Execute using Pipeline.
+     * Check the current hash state across concurrent writes.
+     *
+     * @phpstan-impure Redis may change between calls.
      */
-    private function executeUsingPipeline(array $tags): bool
+    private function tagHashIsEmpty(RedisConnection $connection, string $tagKey): bool
     {
-        return $this->context->withConnection(function (RedisConnection $connection) use ($tags) {
-            // Collect all keys from all tags
-            $keyGenerator = function () use ($tags) {
-                foreach ($tags as $tag) {
-                    $keys = $this->getTaggedKeys->execute((string) $tag);
-
-                    foreach ($keys as $key) {
-                        yield $key;
-                    }
-                }
-            };
-
-            $buffer = [];
-            $bufferSize = 0;
-
-            foreach ($keyGenerator() as $key) {
-                $buffer[$key] = true;
-                ++$bufferSize;
-
-                if ($bufferSize >= self::CHUNK_SIZE) {
-                    $this->processChunkPipeline($connection, array_keys($buffer));
-                    $buffer = [];
-                    $bufferSize = 0;
-                }
-            }
-
-            if ($bufferSize > 0) {
-                $this->processChunkPipeline($connection, array_keys($buffer));
-            }
-
-            // Delete the tag hashes themselves and remove from registry
-            $registryKey = $this->context->registryKey();
-            $pipeline = $connection->pipeline();
-
-            foreach ($tags as $tag) {
-                $tag = (string) $tag;
-                $pipeline->del($this->context->tagHashKey($tag));
-                $pipeline->zrem($registryKey, $tag);
-            }
-
-            $pipeline->exec();
-
-            return true;
-        });
+        return $connection->hlen($tagKey) === 0;
     }
 
     /**
-     * Process a chunk of keys for lazy flush (Cluster Mode).
-     *
-     * @param array<int, string> $keys Array of cache keys (without prefix)
+     * Remove only scanned fields, their reverse indexes and values atomically.
      */
-    private function processChunkCluster(RedisConnection $connection, array $keys): void
+    protected function flushChunkScript(): string
     {
-        $prefix = $this->context->prefix();
+        return <<<'LUA'
+            local tagCount = tonumber(ARGV[1])
+            local keyCount = tonumber(ARGV[2])
 
-        // Delete reverse indexes for this chunk
-        $reverseIndexKeys = array_map(
-            fn (string $key): string => $this->context->reverseIndexKey($key),
-            $keys
-        );
+            for i = 1, tagCount do
+                redis.call('HDEL', KEYS[i], unpack(ARGV, 3, #ARGV))
+            end
 
-        // Convert to prefixed keys for this chunk
-        $prefixedChunk = array_map(
-            fn (string $key): string => $prefix . $key,
-            $keys
-        );
+            redis.call('DEL', unpack(KEYS, tagCount + 1, tagCount + keyCount))
+            redis.call('UNLINK', unpack(KEYS, tagCount + keyCount + 1, #KEYS))
 
-        if (! empty($reverseIndexKeys)) {
-            $connection->del(...$reverseIndexKeys);
-        }
-
-        if (! empty($prefixedChunk)) {
-            $connection->unlink(...$prefixedChunk);
-        }
+            return 1
+            LUA;
     }
 
     /**
-     * Process a chunk of keys for lazy flush (Pipeline Mode).
-     *
-     * @param array<int, string> $keys Array of cache keys (without prefix)
+     * Deregister only hashes still empty after the flush.
      */
-    private function processChunkPipeline(RedisConnection $connection, array $keys): void
+    protected function removeEmptyTagsScript(): string
     {
-        $prefix = $this->context->prefix();
+        return <<<'LUA'
+            for i = 2, #KEYS do
+                if redis.call('HLEN', KEYS[i]) == 0 then
+                    redis.call('ZREM', KEYS[1], ARGV[i - 1])
+                end
+            end
 
-        // Delete reverse indexes for this chunk
-        $reverseIndexKeys = array_map(
-            fn (string $key): string => $this->context->reverseIndexKey($key),
-            $keys
-        );
-
-        // Convert to prefixed keys for this chunk
-        $prefixedChunk = array_map(
-            fn (string $key): string => $prefix . $key,
-            $keys
-        );
-
-        $pipeline = $connection->pipeline();
-
-        if (! empty($reverseIndexKeys)) {
-            $pipeline->del(...$reverseIndexKeys);
-        }
-
-        if (! empty($prefixedChunk)) {
-            $pipeline->unlink(...$prefixedChunk);
-        }
-
-        $pipeline->exec();
+            return 1
+            LUA;
     }
 }
