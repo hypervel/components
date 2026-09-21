@@ -139,11 +139,11 @@ class DevCommand extends Command
             ->keys()
             ->map(fn (string $flag): string => "--{$flag}");
 
-        if ($bufferSize = $this->option('buffer-size') ?? DevCommands::getBufferSize()) {
+        if (($bufferSize = $this->option('buffer-size') ?? DevCommands::getBufferSize()) !== null) {
             $flags->push('--buffer-size=' . escapeshellarg((string) $bufferSize));
         }
 
-        if ($streamBufferSize = $this->option('stream-buffer-size') ?? DevCommands::getStreamBufferSize()) {
+        if (($streamBufferSize = $this->option('stream-buffer-size') ?? DevCommands::getStreamBufferSize()) !== null) {
             $flags->push('--stream-buffer-size=' . escapeshellarg((string) $streamBufferSize));
         }
 

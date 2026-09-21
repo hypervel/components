@@ -128,6 +128,22 @@ class DevCommandTest extends TestCase
 
         $this->assertStringContainsString("--buffer-size='50'", $command);
         $this->assertStringContainsString("--stream-buffer-size='60'", $command);
+
+        $command = $this->devCommand([
+            '--buffer-size' => '0',
+            '--stream-buffer-size' => '0',
+        ])->buildMultiplexCommandForTesting($this->devCommands());
+
+        $this->assertStringContainsString("--buffer-size='0'", $command);
+        $this->assertStringContainsString("--stream-buffer-size='0'", $command);
+
+        DevCommands::bufferSize(0);
+        DevCommands::streamBufferSize(0);
+
+        $command = $this->devCommand()->buildMultiplexCommandForTesting($this->devCommands());
+
+        $this->assertStringContainsString("--buffer-size='0'", $command);
+        $this->assertStringContainsString("--stream-buffer-size='0'", $command);
     }
 
     // REMOVED: The three concurrently command tests cover the Windows-only runner.
