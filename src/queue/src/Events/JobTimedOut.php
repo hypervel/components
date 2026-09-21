@@ -10,10 +10,13 @@ class JobTimedOut
 {
     /**
      * Create a new event instance.
+     *
+     * @param null|int $timeout the timeout exceeded in seconds
      */
     public function __construct(
         public string $connectionName,
-        public Job $job
+        public Job $job,
+        public ?int $timeout = null,
     ) {
     }
 }
