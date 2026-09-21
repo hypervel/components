@@ -154,6 +154,16 @@ interface ConnectionInterface
     public function getName(): ?string;
 
     /**
+     * Get the database connection with its read / write type.
+     */
+    public function getNameWithReadWriteType(): ?string;
+
+    /**
+     * Get the connection name to retain when subsequent operations may write.
+     */
+    public function getWritableName(): ?string;
+
+    /**
      * Get the database driver name (e.g. "mysql", "pgsql", "sqlite").
      */
     public function getDriverName(): string;

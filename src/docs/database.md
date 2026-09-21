@@ -207,6 +207,8 @@ $count = DB::connection('mysql::write')->table('users')->count();
 
 Use these suffixes when you need to explicitly inspect a replica or force reads through the write connection. Normal application queries do not need them; Hypervel routes reads, writes, transactions, and sticky reads automatically.
 
+Eloquent models created or retrieved through `::write` retain that connection for later saves and relation queries, including its current transaction. Models retrieved through `::read` use the base connection name for subsequent operations, so saves reach the primary.
+
 <a name="the-sticky-option"></a>
 #### The `sticky` Option
 

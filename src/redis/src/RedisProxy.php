@@ -650,7 +650,10 @@ class RedisProxy implements ConnectionContract
             );
         }
 
-        $connection = $pool->borrow();
+        // Reuse the pin to avoid a second checkout; read it directly to preserve
+        // the caller's result transformation mode.
+        $contextConnection = CoroutineContext::get($this->getContextKey());
+        $connection = $contextConnection ?? $pool->borrow();
         $discoveryException = null;
         $releaseException = null;
         $masters = [];
@@ -671,10 +674,12 @@ class RedisProxy implements ConnectionContract
             ) ?? $exception;
         }
 
-        try {
-            $connection->release();
-        } catch (Throwable $exception) {
-            $releaseException = $exception;
+        if ($contextConnection === null) {
+            try {
+                $connection->release();
+            } catch (Throwable $exception) {
+                $releaseException = $exception;
+            }
         }
 
         // Preserve discovery failures over ordinary release failures while

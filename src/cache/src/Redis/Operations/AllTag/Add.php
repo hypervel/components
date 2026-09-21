@@ -11,15 +11,8 @@ use Hypervel\Redis\RedisConnection;
 /**
  * Store an item in the cache if it doesn't exist, with all tag tracking.
  *
- * Combines the ZADD operations for tag tracking with the atomic add
- * in a single connection checkout for efficiency.
- *
- * Uses Redis SET with NX (only set if Not eXists) and EX (expiration) flags
- * for atomic "add if not exists" semantics without requiring Lua scripts.
- *
- * Tag entries are published after the value attempt even when the key already
- * exists, preserving the existing membership behavior without exposing a
- * metadata-before-value window to concurrent pruning.
+ * Publish tag entries only when SET NX creates the value. A failed add must
+ * not shorten an existing entry's lifetime and make pruning hide a live value.
  */
 class Add
 {
@@ -49,43 +42,30 @@ class Add
             return $this->executeCluster($key, $value, $seconds, $tagIds);
         }
 
-        return $this->executePipeline($key, $value, $seconds, $tagIds);
+        return $this->executeUsingLua($key, $value, $seconds, $tagIds);
     }
 
     /**
-     * Execute using pipeline for standard Redis (non-cluster).
-     *
-     * Pipelines SET NX EX before the ZADD commands for all tags.
+     * Execute atomically for standard Redis.
      */
-    private function executePipeline(string $key, mixed $value, int $seconds, array $tagIds): bool
+    private function executeUsingLua(string $key, mixed $value, int $seconds, array $tagIds): bool
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds) {
             $prefix = $this->context->prefix();
-            $serialized = $this->serialization->serialize($connection, $value);
 
             if ($tagIds === []) {
                 return (bool) $connection->set(
                     $prefix . $key,
-                    $serialized,
+                    $this->serialization->serialize($connection, $value),
                     ['EX' => $seconds, 'NX']
                 );
             }
 
-            $score = $this->context->expirationScore($seconds);
-            $pipeline = $connection->pipeline();
-
-            // Publish the value attempt before its memberships so concurrent
-            // pruning cannot mistake a newly written member for an orphan.
-            $pipeline->set($prefix . $key, $serialized, ['EX' => $seconds, 'NX']);
-
-            // Membership is unconditional to preserve existing-key behavior.
-            foreach ($tagIds as $tagId) {
-                $pipeline->zadd($prefix . $tagId, $score, $key);
-            }
-
-            $results = $pipeline->exec();
-
-            return $results !== false && ! in_array(false, $results, true);
+            return (bool) $connection->evalWithShaCache(
+                $this->addWithTagsScript(),
+                [$prefix . $key, ...array_map(fn (string $tagId): string => $prefix . $tagId, $tagIds)],
+                [$this->serialization->serializeForLua($connection, $value), $seconds, $this->context->expirationScore($seconds), $key],
+            );
         });
     }
 
@@ -101,24 +81,50 @@ class Add
             $prefix = $this->context->prefix();
             $score = $this->context->expirationScore($seconds);
 
-            // Publish the value attempt before its memberships so concurrent
-            // pruning can repair cross-slot races without losing fresh metadata.
             $result = $connection->set(
                 $prefix . $key,
                 $this->serialization->serialize($connection, $value),
                 ['EX' => $seconds, 'NX']
             );
 
+            if (! $result) {
+                return false;
+            }
+
             $membershipsSucceeded = true;
 
-            // Membership is unconditional to preserve existing-key behavior.
             foreach ($tagIds as $tagId) {
                 if ($connection->zadd($prefix . $tagId, $score, $key) === false) {
                     $membershipsSucceeded = false;
                 }
             }
 
-            return (bool) $result && $membershipsSucceeded;
+            return $membershipsSucceeded;
         });
+    }
+
+    /**
+     * Register memberships only after creating the value.
+     */
+    protected function addWithTagsScript(): string
+    {
+        return <<<'LUA'
+            local added = redis.pcall('SET', KEYS[1], ARGV[1], 'EX', ARGV[2], 'NX')
+
+            if not added or (type(added) == 'table' and added.err) then
+                return 0
+            end
+
+            local success = 1
+
+            for i = 2, #KEYS do
+                local result = redis.pcall('ZADD', KEYS[i], ARGV[3], ARGV[4])
+                if type(result) == 'table' and result.err then
+                    success = 0
+                end
+            end
+
+            return success
+            LUA;
     }
 }

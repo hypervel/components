@@ -1861,6 +1861,36 @@ class RedisProxyTest extends TestCase
         }
     }
 
+    public function testPinnedClusterDiscoveryFailureKeepsTheCallersConnection(): void
+    {
+        $failure = new RuntimeException('Master discovery failed.');
+        $connection = m::mock(PhpRedisClusterConnection::class);
+        $connection->expects('shouldTransform')->with(true)->andReturnSelf();
+        $connection->expects('getConnection')->twice()->andReturnSelf();
+        $connection->expects('masters')->andThrow($failure);
+        $connection->expects('release');
+        $pool = m::mock(RedisPool::class);
+        $pool->expects('getConfig')->andReturn($this->clusterConfig());
+        $pool->expects('borrow')->andReturn($connection);
+        $poolManager = m::mock(PoolManager::class);
+        $poolManager->allows('pool')->with('default')->andReturn($pool);
+        $redis = new RedisProxy($poolManager, 'default', $this->sentinelFactory());
+
+        $redis->withPinnedConnection(function () use ($redis, $failure, $connection): void {
+            try {
+                $redis->subscriber();
+                $this->fail('Expected Cluster discovery to fail.');
+            } catch (RuntimeException $exception) {
+                $this->assertSame($failure, $exception);
+            }
+
+            $this->assertSame(
+                $connection,
+                CoroutineContext::get(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'),
+            );
+        });
+    }
+
     public function testClusterDiscoveryNormalizesWrappedCancellationAndStillReleases(): void
     {
         $nativeFailure = new RedisClusterException('Master discovery canceled.');

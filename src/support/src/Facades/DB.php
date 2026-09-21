@@ -72,6 +72,7 @@ use Hypervel\Database\Console\WipeCommand;
  * @method static string getServerVersion()
  * @method static string getTablePrefix()
  * @method static \Hypervel\Database\DatabaseTransactionsManager|null getTransactionManager()
+ * @method static string|null getWritableName()
  * @method static bool hasModifiedRecords()
  * @method static bool insert(string $query, array $bindings = [])
  * @method static bool inTransaction()

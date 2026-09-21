@@ -9,6 +9,7 @@ use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Signal\SignalHandler;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\SignalRegistry;
 use Hypervel\Signal\SignalManager;
 use Hypervel\Support\SafeCaller;
 use Hypervel\Tests\Signal\Fixtures\SignalHandlerStub;
@@ -26,6 +27,7 @@ class SignalManagerNonCoroutineTest extends TestCase
             'signal' => ['handlers' => [SignalHandlerStub::class]],
         ]));
         $container->shouldReceive('make')->with(SafeCaller::class)->andReturn(new SafeCaller($container));
+        $container->shouldReceive('make')->with(SignalRegistry::class)->andReturn(new SignalRegistry);
         $container->shouldNotReceive('make')->with(SignalHandlerStub::class);
         $manager = new SignalManager($container);
 

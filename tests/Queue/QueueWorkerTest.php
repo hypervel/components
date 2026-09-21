@@ -56,6 +56,7 @@ use Hypervel\Queue\WorkerStopReason;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -512,15 +513,19 @@ class QueueWorkerTest extends TestCase
         $this->assertTrue($worker->hasTimeoutJobsForTest());
     }
 
-    public function testTimeoutMonitorUsesTheDefaultErrorExitAndTimedOutReason(): void
+    #[TestWith([null, 5])]
+    #[TestWith([3, 3])]
+    public function testTimeoutMonitorUsesTheDefaultErrorExitAndTimedOutReason(?int $jobTimeout, int $expectedTimeout): void
     {
         $timer = new QueueWorkerTimer;
         $worker = new KillTestWorker(...$this->workerDependencies(timer: $timer));
         $worker->currentTime = 100;
         $options = new WorkerOptions(timeout: 5);
-        $worker->registerCoroutineJobForTest(new WorkerContractOnlyJob, $options);
+        $job = m::mock(WorkerContractOnlyJob::class)->makePartial();
+        $job->shouldReceive('timeout')->andReturn($jobTimeout);
+        $worker->registerCoroutineJobForTest($job, $options);
         $worker->startMonitorForTest($options);
-        $worker->currentTime = 105;
+        $worker->currentTime = 100 + $expectedTimeout;
 
         try {
             $timer->fire(1);
@@ -536,7 +541,11 @@ class QueueWorkerTest extends TestCase
                 && $event->queue === null
                 && $event->terminatesImmediately
         ))->once();
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobTimedOut::class))->once();
+        $this->events->shouldHaveReceived('dispatch')->with(m::on(
+            static fn (object $event): bool => $event instanceof JobTimedOut
+                && $event->job === $job
+                && $event->timeout === $expectedTimeout
+        ))->once();
     }
 
     public function testTimeoutMonitorRunsInAnOwnedCoroutineWithWorkerContextAndStoppingDetails(): void
@@ -1482,7 +1491,7 @@ class QueueWorkerTest extends TestCase
         ))->once();
     }
 
-    public function testWorkerPicksJobUsingCustomCallbacks()
+    public function testWorkerPicksJobUsingCustomCallbacks(): void
     {
         $worker = $this->getWorker('default', [
             'default' => [$defaultJob = new WorkerFakeJob],
@@ -1511,6 +1520,9 @@ class QueueWorkerTest extends TestCase
 
         $this->assertFalse($defaultJob->fired);
         $this->assertTrue($customJob->fired);
+
+        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobPopped::class))->twice();
+        $this->exceptionHandler->shouldNotHaveReceived('report');
 
         Worker::popUsing('myworker', null);
     }

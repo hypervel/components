@@ -310,7 +310,7 @@ class AllTaggedCache extends NamespacedTaggedCache
         }
 
         try {
-            $this->store->allTagOps()->flush()->execute($this->tags->tagIds(), $this->tags->getNames());
+            $this->store->allTagOps()->flush()->execute($this->tags->tagIds());
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {

@@ -534,7 +534,7 @@ trait InteractsWithPivotTable
         );
 
         $pivot = $pivot
-            ->setConnection($this->getPivotConnection()->getName())
+            ->setConnection($this->getPivotConnection()->getWritableName())
             ->setPivotKeys($this->foreignPivotKey, $this->relatedPivotKey)
             ->setRelatedModel($this->related);
 

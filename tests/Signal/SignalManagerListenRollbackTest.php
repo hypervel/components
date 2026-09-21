@@ -11,6 +11,7 @@ use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Signal\SignalHandler;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\SignalRegistry;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Engine\Exceptions\CoroutineCreateException;
@@ -55,6 +56,7 @@ class SignalManagerListenRollbackTest extends TestCase
                 'signal' => ['handlers' => [$handler::class]],
             ]));
             $container->shouldReceive('make')->with(SafeCaller::class)->andReturn(new SafeCaller($container));
+            $container->shouldReceive('make')->with(SignalRegistry::class)->andReturn(new SignalRegistry);
             $container->shouldReceive('make')->with($handler::class)->andReturn($handler);
             $manager = new SignalManager($container);
 
@@ -119,6 +121,7 @@ class SignalManagerListenRollbackTest extends TestCase
                 'signal' => ['handlers' => [$handler::class]],
             ]));
             $container->shouldReceive('make')->with(SafeCaller::class)->andReturn(new SafeCaller($container));
+            $container->shouldReceive('make')->with(SignalRegistry::class)->andReturn(new SignalRegistry);
             $container->shouldReceive('make')->with($handler::class)->andReturn($handler);
             $manager = new SignalManager($container);
 

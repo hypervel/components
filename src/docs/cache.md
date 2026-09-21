@@ -338,6 +338,14 @@ $value = Cache::store('file')->get('foo');
 Cache::store('redis')->put('bar', 'baz', 600); // 10 Minutes
 ```
 
+You may also pass an enum case as the store name. Backed enums use their values, while unit enums use their case names:
+
+```php
+use App\Enums\CacheStore;
+
+$value = Cache::store(CacheStore::Redis)->get('foo');
+```
+
 <a name="retrieving-items-from-the-cache"></a>
 ### Retrieving Items From the Cache
 

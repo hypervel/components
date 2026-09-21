@@ -149,11 +149,9 @@ class StoreContextTest extends TestCase
             ->with(Redis::OPT_PREFIX)
             ->andReturn('redis_prefix:');
 
-        $context = $this->createContextWithRedisFactory('default', function ($callback) use ($connection) {
-            return $callback($connection);
-        }, 'cache:');
+        $context = $this->createContext(prefix: 'cache:');
 
-        $this->assertSame('redis_prefix:', $context->optPrefix());
+        $this->assertSame('redis_prefix:', $context->optPrefix($connection));
     }
 
     public function testOptPrefixReturnsEmptyStringWhenNotSet(): void
@@ -163,11 +161,9 @@ class StoreContextTest extends TestCase
             ->with(Redis::OPT_PREFIX)
             ->andReturn(null);
 
-        $context = $this->createContextWithRedisFactory('default', function ($callback) use ($connection) {
-            return $callback($connection);
-        }, 'cache:');
+        $context = $this->createContext(prefix: 'cache:');
 
-        $this->assertSame('', $context->optPrefix());
+        $this->assertSame('', $context->optPrefix($connection));
     }
 
     public function testFullTagPrefixIncludesOptPrefix(): void
@@ -177,25 +173,9 @@ class StoreContextTest extends TestCase
             ->with(Redis::OPT_PREFIX)
             ->andReturn('redis:');
 
-        $context = $this->createContextWithRedisFactory('default', function ($callback) use ($connection) {
-            return $callback($connection);
-        }, 'cache:');
+        $context = $this->createContext(prefix: 'cache:');
 
-        $this->assertSame('redis:cache:_any:tag:', $context->fullTagPrefix());
-    }
-
-    public function testFullReverseIndexKeyIncludesOptPrefix(): void
-    {
-        $connection = m::mock(PhpRedisConnection::class);
-        $connection->shouldReceive('getOption')
-            ->with(Redis::OPT_PREFIX)
-            ->andReturn('redis:');
-
-        $context = $this->createContextWithRedisFactory('default', function ($callback) use ($connection) {
-            return $callback($connection);
-        }, 'cache:');
-
-        $this->assertSame('redis:cache:user:1:_any:tags', $context->fullReverseIndexKey('user:1'));
+        $this->assertSame('redis:cache:_any:tag:', $context->fullTagPrefix($connection));
     }
 
     public function testFullRegistryKeyIncludesOptPrefix(): void
@@ -205,11 +185,9 @@ class StoreContextTest extends TestCase
             ->with(Redis::OPT_PREFIX)
             ->andReturn('redis:');
 
-        $context = $this->createContextWithRedisFactory('default', function ($callback) use ($connection) {
-            return $callback($connection);
-        }, 'cache:');
+        $context = $this->createContext(prefix: 'cache:');
 
-        $this->assertSame('redis:cache:_any:tag:registry', $context->fullRegistryKey());
+        $this->assertSame('redis:cache:_any:tag:registry', $context->fullRegistryKey($connection));
     }
 
     public function testConstantsHaveExpectedValues(): void

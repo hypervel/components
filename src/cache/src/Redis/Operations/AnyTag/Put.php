@@ -151,13 +151,13 @@ class Put
 
             $args = [
                 $this->serialization->serializeForLua($connection, $value), // ARGV[1]
-                $seconds,                                    // ARGV[2]
-                $this->context->fullTagPrefix(),             // ARGV[3]
-                $this->context->fullRegistryKey(),           // ARGV[4]
-                time(),                                      // ARGV[5]
-                $key,                                        // ARGV[6]
-                $this->context->tagHashSuffix(),             // ARGV[7]
-                ...$tags,                                    // ARGV[8...]
+                $seconds,                                                   // ARGV[2]
+                $this->context->fullTagPrefix($connection),                 // ARGV[3]
+                $this->context->fullRegistryKey($connection),               // ARGV[4]
+                time(),                                                     // ARGV[5]
+                $key,                                                       // ARGV[6]
+                $this->context->tagHashSuffix(),                            // ARGV[7]
+                ...$tags,                                                   // ARGV[8...]
             ];
 
             $connection->evalWithShaCache($this->storeWithTagsScript(), $keys, $args);

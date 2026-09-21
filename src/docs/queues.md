@@ -3910,11 +3910,13 @@ class AppServiceProvider extends ServiceProvider
 
 Hypervel dispatches a `JobQueueing` event immediately before a job is sent to its queue and a `JobQueued` event after the queue accepts it. If the enqueue attempt throws an exception, a `JobQueueingFailed` event is dispatched with the original exception instead. Jobs deferred until a database transaction commits do not dispatch these events unless the enqueue attempt actually begins.
 
-The `JobPayloadFinalizing` event runs immediately before `JobQueueing` and may replace its encoded `payload`. It also provides the connection, queue, job, and normalized delay. Use this event for last-mile payload changes that must reach the queue backend. Listening to both events deliberately runs both listeners for each asynchronous job.
+The `JobPayloadFinalizing` event runs immediately before `JobQueueing` and may replace its encoded `payload`. It also provides the connection, queue, job, and normalized delay in seconds. Use this event for last-mile payload changes that must reach the queue backend. Listening to both events deliberately runs both listeners for each asynchronous job.
 
 When a job releases itself back onto the queue without throwing an exception, the worker dispatches a `JobReleased` event with the `connectionName` and `job`. This includes releases from job middleware.
 
 When a worker releases a job back onto the queue after an exception, the `JobReleasedAfterException` event provides the `connectionName`, `job`, `backoff` delay in seconds, and the original `exception`.
+
+When a job exceeds its timeout, the `JobTimedOut` event provides the `connectionName`, `job`, and `timeout` in seconds. The timeout comes from the job when specified, or from the worker's `--timeout` option otherwise.
 
 Using the `looping` method on the `Queue` [facade](/docs/{{version}}/facades), you may specify callbacks that execute before the worker attempts to fetch a job from a queue. For example, you might register a closure to rollback any transactions that were left open by a previously failed job:
 

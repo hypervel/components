@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Events;
 
 use Closure;
+use JsonException;
 
 class JobQueued
 {
@@ -12,6 +13,7 @@ class JobQueued
      * Create a new event instance.
      *
      * @param Closure|object|string $job
+     * @param null|int $delay the number of seconds the job was delayed
      */
     public function __construct(
         public string $connectionName,
@@ -25,6 +27,8 @@ class JobQueued
 
     /**
      * Get the decoded job payload.
+     *
+     * @throws JsonException
      */
     public function payload(): array
     {

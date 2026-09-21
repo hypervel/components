@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Foundation\Console;
+namespace Hypervel\Tests\Testing\Console;
 
 use Closure;
 use DateTime;
@@ -17,12 +17,15 @@ use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 
 #[WithConfig('filesystems.disks.local.serve', false)]
-class RouteListCommandHelperTest extends TestCase
+class RouteListCommandTest extends TestCase
 {
     use InteractsWithDeprecationHandling;
 
     private Registrar $router;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -65,7 +68,7 @@ class RouteListCommandHelperTest extends TestCase
         $this->assertStringContainsString('closure', $output);
         $this->assertStringContainsString('controller-invokable', $output);
         $this->assertStringContainsString('controller-method/{user}', $output);
-        $this->assertStringContainsString('RouteListCommandHelperTest.php:' . $closureLine, $output);
+        $this->assertStringContainsString('RouteListCommandTest.php:' . $closureLine, $output);
         $this->assertStringContainsString('Showing [6] routes', $output);
     }
 
@@ -91,7 +94,7 @@ class RouteListCommandHelperTest extends TestCase
         $output = Artisan::output();
 
         $this->assertStringContainsString('closure', $output);
-        $this->assertStringContainsString('RouteListCommandHelperTest.php:' . $closureLine, $output);
+        $this->assertStringContainsString('RouteListCommandTest.php:' . $closureLine, $output);
         $this->assertStringContainsString('controller-invokable', $output);
         $this->assertStringContainsString('RouteListFooController@show', $output);
         $this->assertStringContainsString('user.show', $output);
@@ -117,11 +120,11 @@ class RouteListCommandHelperTest extends TestCase
 
         $this->assertStringContainsString('foo', $output);
         $this->assertStringContainsString('foo.show', $output);
-        $this->assertStringContainsString('RouteListCommandHelperTest.php:' . $closureLine, $output);
+        $this->assertStringContainsString('RouteListCommandTest.php:' . $closureLine, $output);
         $this->assertStringContainsString('Showing [1] routes', $output);
     }
 
-    public function testRouteCanBeFilteredByAction()
+    public function testRouteCanBeFilteredByAction(): void
     {
         $this->withoutDeprecationHandling();
 
@@ -137,7 +140,7 @@ class RouteListCommandHelperTest extends TestCase
             ->assertSuccessful()
             ->expectsOutput('')
             ->expectsOutput(
-                '  GET|HEAD       foo/{user} Hypervel\Tests\Foundation\Console\RouteListFooContr…'
+                '  GET|HEAD       foo/{user} Hypervel\Tests\Testing\Console\RouteListFooControll…'
             )->expectsOutput('')
             ->expectsOutput(
                 '                                                              Showing [1] routes'
@@ -145,7 +148,7 @@ class RouteListCommandHelperTest extends TestCase
             ->expectsOutput('');
     }
 
-    public function testDisplayRoutesExceptVendor()
+    public function testDisplayRoutesExceptVendor(): void
     {
         $this->router->get('foo/{user}', [RouteListFooController::class, 'show']);
         $this->router->view('view', 'blade.path');
@@ -154,7 +157,7 @@ class RouteListCommandHelperTest extends TestCase
         $this->artisan(RouteListCommand::class, ['-v' => true, '--except-vendor' => true])
             ->assertSuccessful()
             ->expectsOutput('')
-            ->expectsOutput('  GET|HEAD       foo/{user} Hypervel\Tests\Foundation\Console\RouteListFooController@show')
+            ->expectsOutput('  GET|HEAD       foo/{user} Hypervel\Tests\Testing\Console\RouteListFooController@show')
             ->expectsOutput('  ANY            redirect ...... Hypervel\Routing\RedirectController')
             ->expectsOutput('  GET|HEAD       view .............................................. ')
             ->expectsOutput('')
@@ -172,7 +175,7 @@ class RouteListCommandHelperTest extends TestCase
 
         $this->artisan(RouteListCommand::class, ['-v' => true])
             ->assertSuccessful()
-            ->expectsOutputToContain('RouteListCommandHelperTest.php:' . $closureLine);
+            ->expectsOutputToContain('tests/Testing/Console/RouteListCommandTest.php:' . $closureLine);
     }
 
     public function testClosurePathIsDisplayedInNonVerboseMode(): void
@@ -185,7 +188,7 @@ class RouteListCommandHelperTest extends TestCase
 
         $this->artisan(RouteListCommand::class)
             ->assertSuccessful()
-            ->expectsOutputToContain('RouteListCommandHelperTest.php:' . $closureLine);
+            ->expectsOutputToContain('tests/Testing/Console/RouteListCommandTest.php:' . $closureLine);
     }
 
     public function testClosurePathIsIncludedInJsonOutput(): void
@@ -198,7 +201,7 @@ class RouteListCommandHelperTest extends TestCase
 
         $this->artisan(RouteListCommand::class, ['--json' => true])
             ->assertSuccessful()
-            ->expectsOutputToContain('RouteListCommandHelperTest.php:' . $closureLine);
+            ->expectsOutputToContain('tests\/Testing\/Console\/RouteListCommandTest.php:' . $closureLine);
     }
 
     public function testControllerRouteHasNullPathInJsonOutput(): void
@@ -245,11 +248,11 @@ class RouteListCommandHelperTest extends TestCase
         $this->assertStringContainsString('users/{user:name}', $output);
         $this->assertStringContainsString('RouteListFooController@show', $output);
         $this->assertStringContainsString('users/{user:name}/posts/{post:slug}', $output);
-        $this->assertStringContainsString('RouteListCommandHelperTest.php:' . $closureLine, $output);
+        $this->assertStringContainsString('RouteListCommandTest.php:' . $closureLine, $output);
         $this->assertStringContainsString('Showing [2] routes', $output);
     }
 
-    public function testDisplayRoutesWithBindingFieldsAsJson()
+    public function testDisplayRoutesWithBindingFieldsAsJson(): void
     {
         $this->router->get('users/{user:name}/posts/{post:slug}', function () {
         });
@@ -262,12 +265,18 @@ class RouteListCommandHelperTest extends TestCase
 
 class RouteListFooController extends Controller
 {
-    public function show(User $user)
+    /**
+     * Show the given user.
+     */
+    public function show(User $user): void
     {
         // ..
     }
 
-    public function __invoke()
+    /**
+     * Handle the request.
+     */
+    public function __invoke(): void
     {
         // ..
     }

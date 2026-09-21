@@ -23,7 +23,7 @@ class GetEntries
      * Get all cache key entries across the given tag sorted sets.
      *
      * @param array<string> $tagIds Array of tag identifiers (e.g., "_all:tag:users:entries")
-     * @return LazyCollection<int, string> Lazy collection yielding cache keys (without prefix)
+     * @return LazyCollection<int, string> Cache keys without the prefix; keys may repeat across scan pages
      */
     public function execute(array $tagIds): LazyCollection
     {
@@ -33,7 +33,6 @@ class GetEntries
         return new LazyCollection(function () use ($context, $prefix, $tagIds): Generator {
             foreach ($tagIds as $tagId) {
                 $cursor = null;
-                $seen = [];
 
                 do {
                     $entries = $context->withConnection(
@@ -49,15 +48,7 @@ class GetEntries
                     }
 
                     foreach (array_keys($entries) as $entry) {
-                        $entry = (string) $entry;
-
-                        if (isset($seen[$entry])) {
-                            continue;
-                        }
-
-                        $seen[$entry] = true;
-
-                        yield $entry;
+                        yield (string) $entry;
                     }
                 } while ($cursor !== 0);
             }

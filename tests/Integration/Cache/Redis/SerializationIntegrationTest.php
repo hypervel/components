@@ -44,6 +44,34 @@ class SerializationIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertSame($value, $this->cache()->get('compressed'));
     }
 
+    #[TestWith(['native'])]
+    #[TestWith(['compression'])]
+    public function testAllModeAddPreservesConfiguredSerialization(string $mode): void
+    {
+        if ($mode === 'compression') {
+            $this->configureCompression();
+        } else {
+            config(['cache.stores.redis.connection' => $this->createRedisConnectionWithOptions('cache_serialized', [
+                'serializer' => Redis::SERIALIZER_PHP,
+            ])]);
+        }
+
+        $this->setTagMode(TagMode::All);
+        $cache = $this->cache()->tags(['serialized']);
+        $value = ['content' => str_repeat('cache-value', 100)];
+
+        $this->assertTrue($cache->add('key', $value, 60));
+
+        $redis = $this->redis();
+        $key = $this->getCachePrefix() . $cache->taggedItemKey('key');
+        $expected = $redis->withConnection(
+            static fn (RedisConnection $connection): string => $connection->pack([$mode === 'native' ? $value : serialize($value)])[0],
+        );
+
+        $this->assertSame($expected, $redis->withoutSerializationOrCompression(static fn (): mixed => $redis->get($key)));
+        $this->assertSame($value, $cache->get('key'));
+    }
+
     public function testPutManyPreservesNumbersWhenPackingIgnoresThem(): void
     {
         if (! defined('Redis::OPT_PACK_IGNORE_NUMBERS')) {

@@ -17,11 +17,6 @@ interface Repository extends CacheInterface
      *
      * When an array is given, return a key-value map. Numeric entries are
      * requested keys, while string-keyed entries use their values as defaults.
-     *
-     * @template TCacheValue
-     *
-     * @param (Closure(): TCacheValue)|TCacheValue $default
-     * @return (TCacheValue is null ? mixed : TCacheValue)
      */
     public function get(array|UnitEnum|string $key, mixed $default = null): mixed;
 
@@ -62,11 +57,6 @@ interface Repository extends CacheInterface
 
     /**
      * Retrieve an item from the cache and delete it.
-     *
-     * @template TCacheValue
-     *
-     * @param (Closure(): TCacheValue)|TCacheValue $default
-     * @return (TCacheValue is null ? mixed : TCacheValue)
      */
     public function pull(UnitEnum|string $key, mixed $default = null): mixed;
 

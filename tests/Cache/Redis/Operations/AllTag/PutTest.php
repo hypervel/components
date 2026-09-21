@@ -241,6 +241,15 @@ class PutTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
+    public function testPutInClusterModeDoesNotPublishTagsWhenTheValueWriteFails(): void
+    {
+        [$store, , $connection] = $this->createClusterStore();
+        $connection->expects('setex')->with('prefix:mykey', 60, serialize('myvalue'))->andReturnFalse();
+        $connection->shouldNotReceive('zadd');
+
+        $this->assertFalse($store->allTagOps()->put()->execute('mykey', 'myvalue', 60, ['_all:tag:users:entries']));
+    }
+
     public function testPutReturnsFalseWhenClusterMembershipWriteFails(): void
     {
         [$store, , $connection] = $this->createClusterStore();

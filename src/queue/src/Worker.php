@@ -558,6 +558,9 @@ class Worker
         return (bool) count($this->timeoutJobIds);
     }
 
+    /**
+     * Handle a job that exceeded its timeout.
+     */
     protected function handleTimeoutJob(JobContract $job, WorkerOptions $options): void
     {
         $this->markJobAsFailedIfWillExceedMaxAttempts(
@@ -582,7 +585,8 @@ class Worker
         if ($this->events->hasListeners(JobTimedOut::class)) {
             $this->events->dispatch(new JobTimedOut(
                 $job->getConnectionName(),
-                $job
+                $job,
+                $this->timeoutForJob($job, $options)
             ));
         }
     }

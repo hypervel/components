@@ -47,6 +47,20 @@ final readonly class ConnectionName
     }
 
     /**
+     * Remove the write role when comparing model identities.
+     *
+     * Read aliases remain distinct because they can select another endpoint.
+     */
+    public static function withoutWriteType(?string $name): ?string
+    {
+        $suffix = '::' . self::WRITE;
+
+        return $name !== null && str_ends_with($name, $suffix)
+            ? substr($name, 0, -strlen($suffix))
+            : $name;
+    }
+
+    /**
      * Determine if the parsed name requests the read side.
      */
     public function isRead(): bool
