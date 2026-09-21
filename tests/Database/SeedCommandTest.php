@@ -19,8 +19,10 @@ use Hypervel\Foundation\Application;
 use Hypervel\Testing\Assert;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\NullOutput;
 
 class SeedCommandTest extends TestCase
@@ -73,6 +75,54 @@ class SeedCommandTest extends TestCase
         );
     }
 
+    #[DataProvider('seederProgressProvider')]
+    public function testReportsProgressForExplicitSeedersOnly(array $arguments, bool $reportsProgress): void
+    {
+        $seeder = new RecordsRootSeeder;
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $app = new ApplicationDatabaseSeedStub([
+            ConnectionResolverInterface::class => $resolver,
+            'DatabaseSeeder' => $seeder,
+            'Database\Seeders\DatabaseSeeder' => $seeder,
+            RecordsRootSeeder::class => $seeder,
+        ]);
+
+        $command = new SeedCommand($resolver);
+        $command->setHypervel($app);
+        $output = new BufferedOutput;
+
+        $this->assertSame(0, $command->run(
+            new ArrayInput($arguments + ['--force' => true, '--database' => 'sqlite']),
+            $output,
+        ));
+
+        $this->assertSame([$seeder], RecordsRootSeeder::$instances);
+        $text = $output->fetch();
+
+        if ($reportsProgress) {
+            $this->assertSame(2, substr_count($text, RecordsRootSeeder::class));
+            $this->assertStringContainsString('RUNNING', $text);
+            $this->assertMatchesRegularExpression('/[0-9,]+ ms DONE/', $text);
+        } else {
+            $this->assertStringNotContainsString('RUNNING', $text);
+            $this->assertStringNotContainsString('DONE', $text);
+        }
+    }
+
+    /**
+     * Provide default and explicitly requested root seeders.
+     */
+    public static function seederProgressProvider(): array
+    {
+        return [
+            'default' => [[], false],
+            'short default name' => [['--class' => 'DatabaseSeeder'], false],
+            'qualified default name' => [['class' => 'Database\Seeders\DatabaseSeeder'], false],
+            'explicit option' => [['--class' => RecordsRootSeeder::class], true],
+            'explicit argument' => [['class' => RecordsRootSeeder::class], true],
+        ];
+    }
+
     public function testFailedSeederRestoresPreviousDefaultConnection(): void
     {
         // Simulate a pre-existing Context override (e.g., from an outer
@@ -89,6 +139,7 @@ class SeedCommandTest extends TestCase
 
         $command = new SeedCommand($resolver);
         $command->setHypervel($app);
+        $output = new BufferedOutput;
 
         try {
             $command->run(
@@ -97,7 +148,7 @@ class SeedCommandTest extends TestCase
                     '--database' => 'sqlite',
                     '--class' => ThrowingSeeder::class,
                 ]),
-                new NullOutput,
+                $output,
             );
 
             self::fail('Expected the seeder to throw.');
@@ -110,6 +161,10 @@ class SeedCommandTest extends TestCase
             CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY),
             'Context should be restored to the pre-seed value even on exception',
         );
+
+        $text = $output->fetch();
+        $this->assertStringContainsString('RUNNING', $text);
+        $this->assertStringNotContainsString('DONE', $text);
     }
 
     public function testWithoutModelEvents(): void

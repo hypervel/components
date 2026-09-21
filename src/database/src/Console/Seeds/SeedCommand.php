@@ -69,8 +69,25 @@ class SeedCommand extends Command
         try {
             CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $this->getDatabase());
 
-            Model::unguarded(function () {
-                $this->getSeeder()->__invoke();
+            $seeder = $this->getSeeder();
+
+            $requestedClass = $this->input->getArgument('class') ?? $this->input->getOption('class');
+
+            $shouldReportProgress = ! in_array($requestedClass, [
+                'Database\Seeders\DatabaseSeeder', 'DatabaseSeeder',
+            ], true);
+
+            if ($shouldReportProgress) {
+                $this->components->twoColumnDetail(
+                    get_class($seeder),
+                    '<fg=yellow;options=bold>RUNNING</>'
+                );
+            }
+
+            $startTime = microtime(true);
+
+            Model::unguarded(function () use ($seeder) {
+                $seeder->__invoke();
             });
         } finally {
             if ($previousContext === null) {
@@ -78,6 +95,17 @@ class SeedCommand extends Command
             } else {
                 CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $previousContext);
             }
+        }
+
+        if ($shouldReportProgress) {
+            $runTime = number_format((microtime(true) - $startTime) * 1000);
+
+            $this->components->twoColumnDetail(
+                get_class($seeder),
+                "<fg=gray>{$runTime} ms</> <fg=green;options=bold>DONE</>"
+            );
+
+            $this->newLine();
         }
 
         return self::SUCCESS;
