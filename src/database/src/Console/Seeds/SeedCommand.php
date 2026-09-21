@@ -69,7 +69,8 @@ class SeedCommand extends Command
         try {
             CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $this->getDatabase());
 
-            $seeder = $this->getSeeder();
+            // Construct root seeders unguarded, matching children resolved by Seeder::call().
+            $seeder = Model::unguarded(fn (): Seeder => $this->getSeeder());
 
             $requestedClass = $this->input->getArgument('class') ?? $this->input->getOption('class');
 

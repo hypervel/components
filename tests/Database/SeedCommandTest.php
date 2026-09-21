@@ -123,6 +123,49 @@ class SeedCommandTest extends TestCase
         ];
     }
 
+    public function testRootSeederConstructorCanMassAssignModels(): void
+    {
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $app = new ApplicationDatabaseSeedStub;
+        $command = new SeedCommand($resolver);
+        $command->setHypervel($app);
+
+        $command->run(new ArrayInput([
+            '--force' => true,
+            '--database' => 'sqlite',
+            '--class' => MassAssigningRootSeeder::class,
+        ]), new NullOutput);
+
+        $this->assertSame('seeded', RecordsRootSeeder::$instances[0]->model->getAttribute('name'));
+    }
+
+    public function testFailedSeederResolutionDoesNotReportProgress(): void
+    {
+        $exception = new RuntimeException('Seeder resolution failed');
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $app = new ApplicationDatabaseSeedStub;
+        $app->bind(RecordsRootSeeder::class, fn () => throw $exception);
+        $command = new SeedCommand($resolver);
+        $command->setHypervel($app);
+        $output = new BufferedOutput;
+
+        try {
+            $command->run(new ArrayInput([
+                '--force' => true,
+                '--database' => 'sqlite',
+                '--class' => RecordsRootSeeder::class,
+            ]), $output);
+
+            $this->fail('Expected seeder resolution to throw.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $text = $output->fetch();
+        $this->assertStringNotContainsString('RUNNING', $text);
+        $this->assertStringNotContainsString('DONE', $text);
+    }
+
     public function testFailedSeederRestoresPreviousDefaultConnection(): void
     {
         // Simulate a pre-existing Context override (e.g., from an outer
@@ -418,5 +461,18 @@ class RecordsRootSeeder extends Seeder
     public function run(): void
     {
         static::$instances[] = $this;
+    }
+}
+
+class MassAssigningRootSeeder extends RecordsRootSeeder
+{
+    public Model $model;
+
+    /**
+     * Create a model while constructing the root seeder.
+     */
+    public function __construct()
+    {
+        $this->model = new class(['name' => 'seeded']) extends Model {};
     }
 }
