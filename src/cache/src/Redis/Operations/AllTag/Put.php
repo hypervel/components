@@ -64,7 +64,7 @@ class Put
             $pipeline = $connection->pipeline();
 
             // Publish the value first so Prune cannot discard fresh memberships.
-            // Unlike SET NX or counter writes, unconditional SETEX needs no
+            // Unlike SET NX, unconditional SETEX needs no
             // conditional membership publication; keep both writes in one pipeline.
             $pipeline->setex($prefix . $key, $seconds, $serialized);
 

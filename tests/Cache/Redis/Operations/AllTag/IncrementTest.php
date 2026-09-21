@@ -5,20 +5,33 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
-use Mockery as m;
 
 /**
  * Tests for the Increment operation (intersection tags).
  */
 class IncrementTest extends RedisCacheTestCase
 {
-    public function testIncrementWithTagsInLuaMode(): void
+    public function testIncrementWithTagsInPipelineMode(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:counter', 'prefix:_all:tag:users:entries'], [1, -1, 'counter'])
-            ->andReturn('5');
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+
+        $connection->shouldReceive('incrby')
+            ->once()
+            ->with('prefix:counter', 1)
+            ->andReturn($connection)
+            ->ordered();
+
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
+            ->andReturn($connection)
+            ->ordered();
+
+        $connection->shouldReceive('exec')
+            ->once()
+            ->andReturn([5, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->increment()->execute(
@@ -34,9 +47,21 @@ class IncrementTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:counter', 'prefix:_all:tag:users:entries'], [10, -1, 'counter'])
-            ->andReturn('15');
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
+            ->andReturn($connection);
+
+        $connection->shouldReceive('incrby')
+            ->once()
+            ->with('prefix:counter', 10)
+            ->andReturn($connection);
+
+        $connection->shouldReceive('exec')
+            ->once()
+            ->andReturn([15, 0]); // 0 means tag membership already existed
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->increment()->execute(
@@ -52,9 +77,26 @@ class IncrementTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:counter', 'prefix:_all:tag:users:entries', 'prefix:_all:tag:posts:entries'], [1, -1, 'counter'])
-            ->andReturn('1');
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+
+        // ZADD NX for each tag
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
+            ->andReturn($connection);
+        $connection->shouldReceive('zadd')
+            ->once()
+            ->with('prefix:_all:tag:posts:entries', ['NX'], -1, 'counter')
+            ->andReturn($connection);
+
+        $connection->shouldReceive('incrby')
+            ->once()
+            ->with('prefix:counter', 1)
+            ->andReturn($connection);
+
+        $connection->shouldReceive('exec')
+            ->once()
+            ->andReturn([1, 1, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->increment()->execute(
@@ -70,9 +112,17 @@ class IncrementTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $connection->expects('evalWithShaCache')
-            ->with(m::type('string'), ['prefix:counter'], [1, -1, 'counter'])
-            ->andReturn('1');
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+
+        // No ZADD calls expected
+        $connection->shouldReceive('incrby')
+            ->once()
+            ->with('prefix:counter', 1)
+            ->andReturn($connection);
+
+        $connection->shouldReceive('exec')
+            ->once()
+            ->andReturn([1]);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->increment()->execute(
@@ -123,11 +173,18 @@ class IncrementTest extends RedisCacheTestCase
         ));
     }
 
-    public function testIncrementReturnsFalseOnFailure(): void
+    public function testIncrementReturnsFalseOnPipelineFailure(): void
     {
         $connection = $this->mockConnection();
 
-        $connection->expects('evalWithShaCache')->andReturn(false);
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+
+        $connection->shouldReceive('zadd')->andReturn($connection);
+        $connection->shouldReceive('incrby')->andReturn($connection);
+
+        $connection->shouldReceive('exec')
+            ->once()
+            ->andReturn(false);
 
         $store = $this->createStore($connection);
         $result = $store->allTagOps()->increment()->execute(

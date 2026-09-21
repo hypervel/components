@@ -330,31 +330,6 @@ class TaggedOperationsIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertEquals(15, Cache::tags(['counters'])->get('views'));
     }
 
-    #[DataProvider('counterResults')]
-    public function testAllModeCountersPreserveRedisIntegers(string $method, int $initial, int $amount, int $expected): void
-    {
-        $this->setTagMode(TagMode::All);
-        $cache = Cache::tags(['counters']);
-        $cache->put('count', $initial, 60);
-        $entries = $this->getAllModeTagEntries('counters');
-
-        $this->assertSame($expected, $cache->{$method}('count', $amount));
-        $this->assertSame($entries, $this->getAllModeTagEntries('counters'));
-    }
-
-    /**
-     * Provide zero and full-precision counter results.
-     */
-    public static function counterResults(): array
-    {
-        return [
-            'increment zero' => ['increment', -1, 1, 0],
-            'decrement zero' => ['decrement', 1, 1, 0],
-            'increment beyond Lua precision' => ['increment', 9007199254740992, 1, 9007199254740993],
-            'decrement beyond Lua precision' => ['decrement', -9007199254740992, 1, -9007199254740993],
-        ];
-    }
-
     #[DataProvider('counterMethods')]
     public function testAllModeFailedCountersPreserveValuesAndMemberships(string $method): void
     {

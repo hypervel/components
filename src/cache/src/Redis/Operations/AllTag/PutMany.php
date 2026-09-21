@@ -73,7 +73,7 @@ class PutMany
             $pipeline = $connection->pipeline();
 
             // Publish values first so Prune cannot discard fresh memberships.
-            // Unlike SET NX or counter writes, unconditional SETEX needs no
+            // Unlike SET NX, unconditional SETEX needs no
             // conditional membership publication; keep these writes in one pipeline.
             foreach ($preparedEntries as $namespacedKey => $serialized) {
                 $pipeline->setex($prefix . $namespacedKey, $seconds, $serialized);

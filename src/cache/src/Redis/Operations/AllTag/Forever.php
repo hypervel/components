@@ -59,7 +59,7 @@ class Forever
             $pipeline = $connection->pipeline();
 
             // Publish the value first so Prune cannot discard fresh memberships.
-            // Unlike SET NX or counter writes, unconditional SET needs no
+            // Unlike SET NX, unconditional SET needs no
             // conditional membership publication; keep both writes in one pipeline.
             $pipeline->set($prefix . $key, $serialized);
 
