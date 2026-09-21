@@ -37,10 +37,10 @@ class RestartCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): void
     {
         $this->cache->forever(Worker::RESTART_SIGNAL_CACHE_KEY, $this->currentTime());
 
-        $this->info('Broadcasting queue restart signal.');
+        $this->components->info('Broadcasting queue restart signal.');
     }
 }

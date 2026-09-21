@@ -68,7 +68,7 @@ class ScheduleListCommand extends Command
             if ($this->option('json')) {
                 $this->output->writeln('[]');
             } else {
-                $this->info('No scheduled tasks have been defined.');
+                $this->components->info('No scheduled tasks have been defined.');
             }
 
             return;

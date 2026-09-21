@@ -16,6 +16,7 @@ use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Console\View\Components\Factory;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Console\Kernel;
@@ -308,6 +309,7 @@ class ScheduleRunCommandTest extends TestCase
         $event = new Event($mutex, 'test:skipped-background');
         $event->runInBackground();
         $command = $this->makeCommand();
+        $output = $this->captureOutput($command);
         if ($onAnotherServer) {
             $event->onOneServer();
             $schedule = m::mock(Schedule::class);
@@ -331,6 +333,13 @@ class ScheduleRunCommandTest extends TestCase
             $this->dispatched,
             static fn (object $event): bool => $event instanceof ScheduledBackgroundTaskFinished,
         )));
+
+        if ($onAnotherServer) {
+            $this->assertStringContainsString(
+                'Skipping [test:skipped-background], as command already run on another server.',
+                $output->fetch(),
+            );
+        }
     }
 
     /**
@@ -1246,7 +1255,9 @@ class ScheduleRunCommandTest extends TestCase
     {
         $output = new BufferedOutput;
 
-        $command->setOutput(new OutputStyle(new ArrayInput([]), $output));
+        $style = new OutputStyle(new ArrayInput([]), $output);
+        $command->setOutput($style);
+        (new ReflectionProperty($command, 'components'))->setValue($command, new Factory($style));
 
         return $output;
     }
