@@ -124,7 +124,7 @@ class ScheduleListCommandTest extends TestCase
         $this->assertStringContainsString('ScheduleListCommandTest.php', $data[8]['command']);
     }
 
-    public function testDisplayScheduleAsJsonWithSpecificEnvironment()
+    public function testDisplayScheduleAsJsonWithEnvironmentData(): void
     {
         $environment = 'production';
         $this->schedule->command(FooCommand::class)->quarterly()->environments($environment);
@@ -237,44 +237,63 @@ class ScheduleListCommandTest extends TestCase
             ->expectsOutputToContain('0 1-23/2 * * * (UTC)');
     }
 
-    public function testDisplayScheduleForEnvironment(): void
+    public function testDisplayScheduleWithEnvironmentFilterAsJson(): void
     {
         $this->schedule->command(FooCommand::class)->environments('production')->everyMinute();
         $this->schedule->command('inspire')->environments('local')->everyTwoMinutes();
-        $this->schedule->command('foobar')->everyFiveMinutes();
+        $this->schedule->job(FooJob::class)->everyFiveMinutes();
 
         $this->withoutMockingConsoleOutput()->artisan(ScheduleListCommand::class, [
             '--environment' => ['production'],
             '--json' => true,
         ]);
 
-        $data = json_decode(Artisan::output(), true);
+        $output = Artisan::output();
 
+        $this->assertJson($output);
+        $data = json_decode($output, true);
+
+        $this->assertIsArray($data);
         $this->assertCount(2, $data);
+
+        $this->assertSame('* * * * *', $data[0]['expression']);
         $this->assertSame('foo:command', $data[0]['command']);
         $this->assertSame(['production'], $data[0]['environments']);
-        $this->assertSame('foobar', $data[1]['command']);
+
+        $this->assertSame('*/5 * * * *', $data[1]['expression']);
+        $this->assertSame(FooJob::class, $data[1]['command']);
         $this->assertSame([], $data[1]['environments']);
     }
 
-    public function testDisplayScheduleForMultipleEnvironments(): void
+    public function testDisplayScheduleWithMultipleEnvironmentFilterAsJson(): void
     {
         $this->schedule->command(FooCommand::class)->environments('production')->everyMinute();
         $this->schedule->command('foobar', ['a' => 'b'])->environments(['staging', 'local'])->everyTwoMinutes();
         $this->schedule->command('inspire')->environments('local')->everyFiveMinutes();
+        $this->schedule->job(FooJob::class)->everyTenMinutes();
 
-        $this->withoutMockingConsoleOutput()->artisan(ScheduleListCommand::class, [
-            '--environment' => ['staging', 'local'],
-            '--json' => true,
-        ]);
+        $this->withoutMockingConsoleOutput()
+            ->artisan('schedule:list --environment=staging --environment=local --json');
 
-        $data = json_decode(Artisan::output(), true);
+        $output = Artisan::output();
 
-        $this->assertCount(2, $data);
+        $this->assertJson($output);
+        $data = json_decode($output, true);
+
+        $this->assertIsArray($data);
+        $this->assertCount(3, $data);
+
+        $this->assertSame('*/2 * * * *', $data[0]['expression']);
         $this->assertSame('foobar a=' . ProcessUtils::escapeArgument('b'), $data[0]['command']);
         $this->assertSame(['staging', 'local'], $data[0]['environments']);
+
+        $this->assertSame('*/5 * * * *', $data[1]['expression']);
         $this->assertSame('inspire', $data[1]['command']);
         $this->assertSame(['local'], $data[1]['environments']);
+
+        $this->assertSame('*/10 * * * *', $data[2]['expression']);
+        $this->assertSame(FooJob::class, $data[2]['command']);
+        $this->assertSame([], $data[2]['environments']);
     }
 
     public function testDisplayScheduleAsJsonInVerboseMode()

@@ -417,7 +417,7 @@ class Schedule
     public function eventsForEnvironments(array $environments): array
     {
         return array_values(array_filter(
-            $this->events,
+            $this->events(),
             static fn (Event $event): bool => array_any($environments, $event->runsInEnvironment(...))
         ));
     }
