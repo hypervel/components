@@ -39,7 +39,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             [456],
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $source->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $source->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $source->getConnection()->expects('insert')->with(
             'insert into "related_table" ("attr", "val", "updated_at", "created_at") values (?, ?, ?, ?)',
@@ -79,7 +79,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $source->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $source->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $sql = 'insert into "related_table" ("attr", "val", "updated_at", "created_at") values (?, ?, ?, ?)';
         $bindings = ['foo', 'bar', '2023-01-01 00:00:00', '2023-01-01 00:00:00'];
@@ -127,7 +127,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $source->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $source->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $source->getConnection()
             ->expects('select')
@@ -172,7 +172,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $source->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $source->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $sql = 'insert into "related_table" ("attr", "val", "updated_at", "created_at") values (?, ?, ?, ?)';
         $bindings = ['foo', 'bar', '2023-01-01 00:00:00', '2023-01-01 00:00:00'];
@@ -228,7 +228,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
         $source->exists = true;
         $this->mockConnectionForModels([$source, new RelatedModel], 'SQLite');
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $source->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $source->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $relatedSql = 'insert into "related_table" ("attr", "val", "updated_at", "created_at") values (?, ?, ?, ?)';
         $relatedBindings = ['foo', 'bar', '2023-01-01 00:00:00', '2023-01-01 00:00:00'];
@@ -278,7 +278,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $source->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $source->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $source->getConnection()
             ->expects('select')
@@ -333,7 +333,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
         $source->exists = true;
         $this->mockConnectionForModels([$source, new RelatedModel], 'SQLite');
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $source->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $source->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $source->getConnection()->expects('select')->with(
             'select "related_table".*, "pivot_table"."source_id" as "pivot_source_id", "pivot_table"."related_id" as "pivot_related_id" from "related_table" inner join "pivot_table" on "related_table"."id" = "pivot_table"."related_id" where "pivot_table"."source_id" = ? and ("attr" = ?) limit 1',
@@ -381,7 +381,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
         $source->exists = true;
         $this->mockConnectionForModels([$source, new RelatedModel], 'SQLite');
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $source->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $source->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $source->getConnection()->expects('select')->with(
             'select "related_table".*, "pivot_table"."source_id" as "pivot_source_id", "pivot_table"."related_id" as "pivot_related_id" from "related_table" inner join "pivot_table" on "related_table"."id" = "pivot_table"."related_id" where "pivot_table"."source_id" = ? and ("attr" = ?) limit 1',
@@ -458,7 +458,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $source->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $source->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $source->getConnection()
             ->expects('select')
@@ -566,7 +566,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $source->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $source->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $source->getConnection()
             ->expects('update')
@@ -671,7 +671,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $source->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $source->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $source->getConnection()
             ->expects('update')

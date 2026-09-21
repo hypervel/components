@@ -329,7 +329,7 @@ abstract class Factory
     {
         $results->each(function ($model) {
             if (! isset($this->connection)) {
-                $model->setConnection($model->newQueryWithoutScopes()->getConnection()->getName());
+                $model->setConnection($model->newQueryWithoutScopes()->getConnection()->getWritableName());
             }
 
             $model->save();

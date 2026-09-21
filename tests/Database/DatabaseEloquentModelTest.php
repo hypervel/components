@@ -1120,7 +1120,7 @@ class DatabaseEloquentModelTest extends TestCase
         $model = $this->getMockBuilder(ModelStub::class)->onlyMethods(['newModelQuery', 'updateTimestamps', 'refresh'])->getMock();
         $query = m::mock(Builder::class);
         $query->expects('insertGetId')->with(['name' => 'taylor'], 'id')->andReturn(1);
-        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getName' => 'default']));
+        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getWritableName' => 'default']));
         $model->expects($this->once())->method('newModelQuery')->willReturn($query);
         $model->expects($this->once())->method('updateTimestamps');
 
@@ -1140,7 +1140,7 @@ class DatabaseEloquentModelTest extends TestCase
         $model = $this->getMockBuilder(ModelStub::class)->onlyMethods(['newModelQuery', 'updateTimestamps', 'refresh'])->getMock();
         $query = m::mock(Builder::class);
         $query->expects('insert')->with([['name' => 'taylor']]);
-        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getName' => 'default']));
+        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getWritableName' => 'default']));
         $model->expects($this->once())->method('newModelQuery')->willReturn($query);
         $model->expects($this->once())->method('updateTimestamps');
         $model->setIncrementing(false);
@@ -1167,7 +1167,7 @@ class DatabaseEloquentModelTest extends TestCase
     {
         $connection = m::mock(Connection::class);
         $connection->shouldReceive('getTablePrefix')->andReturn('');
-        $connection->shouldReceive('getName')->andReturn('testing');
+        $connection->shouldReceive('getWritableName')->andReturn('testing');
         $grammar = new Grammar($connection);
         $processor = new Processor;
         $connection->shouldReceive('query')->andReturnUsing(
@@ -1211,7 +1211,7 @@ class DatabaseEloquentModelTest extends TestCase
     {
         $model = $this->getMockBuilder(ModelStub::class)->onlyMethods(['newModelQuery'])->getMock();
         $query = m::mock(Builder::class);
-        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getName' => 'default']));
+        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getWritableName' => 'default']));
         $model->expects($this->once())->method('newModelQuery')->willReturn($query);
         $events = m::mock(Dispatcher::class);
         $events->expects('until')->with('eloquent.saving: ' . get_class($model), $model)->andReturn(true);
@@ -1234,7 +1234,7 @@ class DatabaseEloquentModelTest extends TestCase
             ->with([['name' => 'taylor']], ['*'], null)
             ->andReturn(new BaseCollection([(object) ['id' => 1, 'name' => 'taylor']]));
         $query->expects('getConnection')
-            ->andReturn(m::mock(ConnectionInterface::class, ['getName' => 'default']));
+            ->andReturn(m::mock(ConnectionInterface::class, ['getWritableName' => 'default']));
         $model->expects($this->once())->method('newModelQuery')->willReturn($query);
         $model->expects($this->once())->method('updateTimestamps');
 
@@ -1266,7 +1266,7 @@ class DatabaseEloquentModelTest extends TestCase
             ->with([['name' => 'taylor']], ['*'], null)
             ->andReturn(new BaseCollection);
         $query->expects('getConnection')
-            ->andReturn(m::mock(ConnectionInterface::class, ['getName' => 'default']));
+            ->andReturn(m::mock(ConnectionInterface::class, ['getWritableName' => 'default']));
         $model->expects($this->once())->method('newModelQuery')->willReturn($query);
         $model->expects($this->once())->method('updateTimestamps');
 
@@ -1295,7 +1295,7 @@ class DatabaseEloquentModelTest extends TestCase
             ->with([['name' => 'taylor']], ['*'], null)
             ->andReturn(new BaseCollection([(object) ['name' => 'taylor']]));
         $query->expects('getConnection')
-            ->andReturn(m::mock(ConnectionInterface::class, ['getName' => 'default']));
+            ->andReturn(m::mock(ConnectionInterface::class, ['getWritableName' => 'default']));
         $model->expects($this->once())->method('newModelQuery')->willReturn($query);
         $model->expects($this->once())->method('updateTimestamps');
         $model->setIncrementing(false);
@@ -1328,7 +1328,7 @@ class DatabaseEloquentModelTest extends TestCase
             ->with([['name' => 'taylor']], ['*'], ['name'])
             ->andReturn(new BaseCollection);
         $query->expects('getConnection')
-            ->andReturn(m::mock(ConnectionInterface::class, ['getName' => 'default']));
+            ->andReturn(m::mock(ConnectionInterface::class, ['getWritableName' => 'default']));
         $model->expects($this->once())->method('newModelQuery')->willReturn($query);
         $model->expects($this->once())->method('updateTimestamps');
 
@@ -1353,7 +1353,7 @@ class DatabaseEloquentModelTest extends TestCase
     {
         $connection = m::mock(Connection::class);
         $connection->shouldReceive('getTablePrefix')->andReturn('');
-        $connection->shouldReceive('getName')->andReturn('testing');
+        $connection->shouldReceive('getWritableName')->andReturn('testing');
         $grammar = new PostgresGrammar($connection);
         $processor = new Processor;
         $connection->shouldReceive('query')->andReturnUsing(
@@ -1422,7 +1422,7 @@ class DatabaseEloquentModelTest extends TestCase
         $model = $this->getMockBuilder(ModelStub::class)->onlyMethods(['newModelQuery', 'updateTimestamps', 'refresh'])->getMock();
         $query = m::mock(Builder::class);
         $query->expects('insertGetId')->with(['name' => 'taylor'], 'id')->andReturn(1);
-        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getName' => 'default']));
+        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getWritableName' => 'default']));
         $model->expects($this->once())->method('newModelQuery')->willReturn($query);
         $model->expects($this->once())->method('updateTimestamps');
 
@@ -1439,7 +1439,7 @@ class DatabaseEloquentModelTest extends TestCase
         $model = $this->getMockBuilder(ModelStub::class)->onlyMethods(['newModelQuery', 'updateTimestamps', 'refresh'])->getMock();
         $query = m::mock(Builder::class);
         $query->expects('insertGetId')->with(['name' => 'taylor'], 'id')->andReturn(1);
-        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getName' => 'default']));
+        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getWritableName' => 'default']));
         $model->expects($this->once())->method('newModelQuery')->willReturn($query);
         $model->expects($this->once())->method('updateTimestamps');
 
@@ -1458,7 +1458,7 @@ class DatabaseEloquentModelTest extends TestCase
         $related1 = $this->getMockBuilder(ModelStub::class)->onlyMethods(['newModelQuery', 'updateTimestamps', 'refresh'])->getMock();
         $query = m::mock(Builder::class);
         $query->expects('insertGetId')->with(['name' => 'related1'], 'id')->andReturn(2);
-        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getName' => 'default']));
+        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getWritableName' => 'default']));
         $related1->expects($this->once())->method('newModelQuery')->willReturn($query);
         $related1->expects($this->once())->method('updateTimestamps');
         $related1->name = 'related1';
@@ -1467,7 +1467,7 @@ class DatabaseEloquentModelTest extends TestCase
         $model = $this->getMockBuilder(ModelStub::class)->onlyMethods(['newModelQuery', 'updateTimestamps', 'refresh'])->getMock();
         $query = m::mock(Builder::class);
         $query->expects('insertGetId')->with(['name' => 'taylor'], 'id')->andReturn(1);
-        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getName' => 'default']));
+        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getWritableName' => 'default']));
         $model->expects($this->once())->method('newModelQuery')->willReturn($query);
         $model->expects($this->once())->method('updateTimestamps');
 
@@ -1489,7 +1489,7 @@ class DatabaseEloquentModelTest extends TestCase
         $model = $this->getMockBuilder(ModelStub::class)->onlyMethods(['newModelQuery', 'updateTimestamps', 'refresh'])->getMock();
         $query = m::mock(Builder::class);
         $query->expects('insertGetId')->with(['name' => 'taylor'], 'id')->andReturn(1);
-        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getName' => 'default']));
+        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getWritableName' => 'default']));
         $model->expects($this->once())->method('newModelQuery')->willReturn($query);
         $model->expects($this->once())->method('updateTimestamps');
 
@@ -1508,7 +1508,7 @@ class DatabaseEloquentModelTest extends TestCase
         $related1 = $this->getMockBuilder(ModelStub::class)->onlyMethods(['newModelQuery', 'updateTimestamps', 'refresh'])->getMock();
         $query = m::mock(Builder::class);
         $query->expects('insertGetId')->with(['name' => 'related1'], 'id')->andReturn(2);
-        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getName' => 'default']));
+        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getWritableName' => 'default']));
         $related1->expects($this->once())->method('newModelQuery')->willReturn($query);
         $related1->expects($this->once())->method('updateTimestamps');
         $related1->name = 'related1';
@@ -1517,7 +1517,7 @@ class DatabaseEloquentModelTest extends TestCase
         $related2 = $this->getMockBuilder(ModelStub::class)->onlyMethods(['newModelQuery', 'updateTimestamps', 'refresh'])->getMock();
         $query = m::mock(Builder::class);
         $query->expects('insertGetId')->with(['name' => 'related2'], 'id')->andReturn(3);
-        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getName' => 'default']));
+        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getWritableName' => 'default']));
         $related2->expects($this->once())->method('newModelQuery')->willReturn($query);
         $related2->expects($this->once())->method('updateTimestamps');
         $related2->name = 'related2';
@@ -1526,7 +1526,7 @@ class DatabaseEloquentModelTest extends TestCase
         $model = $this->getMockBuilder(ModelStub::class)->onlyMethods(['newModelQuery', 'updateTimestamps', 'refresh'])->getMock();
         $query = m::mock(Builder::class);
         $query->expects('insertGetId')->with(['name' => 'taylor'], 'id')->andReturn(1);
-        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getName' => 'default']));
+        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getWritableName' => 'default']));
         $model->expects($this->once())->method('newModelQuery')->willReturn($query);
         $model->expects($this->once())->method('updateTimestamps');
 
@@ -3878,7 +3878,7 @@ class DatabaseEloquentModelTest extends TestCase
         $model = $this->getMockBuilder(ModelStub::class)->onlyMethods(['newModelQuery', 'updateTimestamps', 'refresh'])->getMock();
         $query = m::mock(Builder::class);
         $query->expects('insertGetId')->with([], 'id')->andReturn(1);
-        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getName' => 'default']));
+        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getWritableName' => 'default']));
         $model->expects($this->once())->method('newModelQuery')->willReturn($query);
 
         $this->assertTrue($model->save());
@@ -3891,7 +3891,7 @@ class DatabaseEloquentModelTest extends TestCase
 
         $query = m::mock(Builder::class);
         $query->expects('insertGetId')->with([], 'id')->andReturn('string id');
-        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getName' => 'default']));
+        $query->expects('getConnection')->andReturn(m::mock(ConnectionInterface::class, ['getWritableName' => 'default']));
         $model->expects($this->once())->method('newModelQuery')->willReturn($query);
 
         $this->assertTrue($model->save());
@@ -5160,7 +5160,7 @@ class SaveStub extends Model
         $grammar->shouldReceive('isExpression')->andReturnFalse();
         $processor = m::mock(Processor::class);
         $mock->shouldReceive('getPostProcessor')->andReturn($processor);
-        $mock->shouldReceive('getName')->andReturn('name');
+        $mock->shouldReceive('getWritableName')->andReturn('name');
         $mock->shouldReceive('query')->andReturnUsing(function () use ($mock, $grammar, $processor): BaseBuilder {
             return new BaseBuilder($mock, $grammar, $processor);
         });

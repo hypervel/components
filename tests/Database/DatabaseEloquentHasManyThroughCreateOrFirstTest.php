@@ -33,7 +33,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $parent->id = 123;
         $this->mockConnectionForModel($parent, 'SQLite', [789]);
         $parent->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $parent->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $parent->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
         $parent->getConnection()->expects('insert')->with(
             'insert into "child" ("attr", "val", "updated_at", "created_at") values (?, ?, ?, ?)',
             ['foo', 'bar', '2023-01-01 00:00:00', '2023-01-01 00:00:00'],
@@ -57,7 +57,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $parent->exists = true;
         $this->mockConnectionForModel($parent, 'SQLite');
         $parent->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $parent->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $parent->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $sql = 'insert into "child" ("attr", "val", "updated_at", "created_at") values (?, ?, ?, ?)';
         $bindings = ['foo', 'bar', '2023-01-01 00:00:00', '2023-01-01 00:00:00'];
@@ -105,7 +105,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $parent->exists = true;
         $this->mockConnectionForModel($parent, 'SQLite', [789]);
         $parent->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $parent->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $parent->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $parent->getConnection()
             ->expects('select')
@@ -140,7 +140,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $parent->exists = true;
         $this->mockConnectionForModel($parent, 'SQLite');
         $parent->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $parent->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $parent->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $parent->getConnection()
             ->expects('select')
@@ -181,7 +181,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $parent->exists = true;
         $this->mockConnectionForModel($parent, 'SQLite');
         $parent->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $parent->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $parent->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $parent->getConnection()
             ->expects('select')
@@ -251,7 +251,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $parent->exists = true;
         $this->mockConnectionForModel($parent, 'SQLite', [789]);
         $parent->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $parent->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $parent->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $parent->getConnection()
             ->expects('select')
@@ -290,7 +290,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $parent->exists = true;
         $this->mockConnectionForModel($parent, 'SQLite');
         $parent->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $parent->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $parent->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $parent->getConnection()
             ->expects('select')
@@ -339,7 +339,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $parent->exists = true;
         $this->mockConnectionForModel($parent, 'SQLite');
         $parent->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $parent->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $parent->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $parent->getConnection()
             ->expects('select')

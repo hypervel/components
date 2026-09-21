@@ -19,6 +19,7 @@ use Hypervel\Contracts\Support\CanBeEscapedWhenCastToString;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Coroutine\Mutex;
 use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionName;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
 use Hypervel\Database\Eloquent\Attributes\Boot;
 use Hypervel\Database\Eloquent\Attributes\Connection as ConnectionAttribute;
@@ -1426,7 +1427,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             $saved = $this->performInsert($query);
 
             if (! $this->getConnectionName()) {
-                $this->setConnection($query->getConnection()->getName());
+                $this->setConnection($query->getConnection()->getWritableName());
             }
         }
 
@@ -1464,7 +1465,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         $saved = $this->performInsertOrIgnore($query, $uniqueBy);
 
         if ($this->getConnectionName() === null) {
-            $this->setConnection($query->getConnection()->getName());
+            $this->setConnection($query->getConnection()->getWritableName());
         }
 
         if ($saved) {
@@ -2265,7 +2266,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         return $key !== null
             && $key === $model->getKey()
             && $this->getTable() === $model->getTable()
-            && $this->getConnectionName() === $model->getConnectionName();
+            && ConnectionName::withoutWriteType($this->getConnectionName()) === ConnectionName::withoutWriteType($model->getConnectionName());
     }
 
     /**
@@ -2562,7 +2563,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public function getQueueableConnection(): ?string
     {
-        return $this->getConnectionName();
+        return ConnectionName::withoutWriteType($this->getConnectionName());
     }
 
     /**

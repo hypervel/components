@@ -1359,6 +1359,19 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     }
 
     /**
+     * Get the connection name to retain when subsequent operations may write.
+     *
+     * Preserve a write alias so models reuse its transaction. Read aliases use
+     * the base connection so subsequent writes reach the primary.
+     */
+    public function getWritableName(): ?string
+    {
+        return $this->readWriteType === ConnectionName::WRITE
+            ? $this->getNameWithReadWriteType()
+            : $this->getName();
+    }
+
+    /**
      * Get an option from the configuration options.
      *
      * @return ($option is null ? array<string, mixed> : mixed)

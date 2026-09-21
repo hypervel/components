@@ -1431,7 +1431,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $model = new ModelParentStub;
         $model->foo_id = 7;
         $connection = $this->mockConnectionForModel($model, 'SQLite');
-        $connection->shouldReceive('getName')->andReturn('database');
+        $connection->shouldReceive('getWritableName')->andReturn('database');
         $connection->expects('select')->with(
             'select * from "model_parent_stubs" where (select * from "model_close_related_stubs" where "model_close_related_stubs"."id" = ?) > ? limit 1',
             [7, 5],
