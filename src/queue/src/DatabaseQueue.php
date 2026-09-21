@@ -629,7 +629,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
         ConnectionInterface $database,
         DatabaseJobRecord $jobRecord
     ): bool {
-        if ($exception->getConnectionName() !== $database->getName()) {
+        if ($exception->getConnectionName() !== $database->getNameWithReadWriteType()) {
             return false;
         }
 
