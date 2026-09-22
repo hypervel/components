@@ -915,6 +915,12 @@ class Validator implements ValidatorContract
 
     /**
      * Execute the callback if the data passes the validation rules.
+     *
+     * @template TWhenReturnType = never
+     *
+     * @param (callable($this): (null|TWhenReturnType|void)) $callback
+     * @param null|(callable($this): (null|TWhenReturnType|void)) $default
+     * @return $this|TWhenReturnType
      */
     public function whenPasses(callable $callback, ?callable $default = null): mixed
     {
@@ -930,6 +936,12 @@ class Validator implements ValidatorContract
 
     /**
      * Execute the callback if the data fails the validation rules.
+     *
+     * @template TWhenReturnType = never
+     *
+     * @param (callable($this): (null|TWhenReturnType|void)) $callback
+     * @param null|(callable($this): (null|TWhenReturnType|void)) $default
+     * @return $this|TWhenReturnType
      */
     public function whenFails(callable $callback, ?callable $default = null): mixed
     {
