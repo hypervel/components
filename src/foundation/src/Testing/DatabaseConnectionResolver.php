@@ -15,7 +15,7 @@ use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionName;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\Pool\DatabasePool;
-use LogicException;
+use Hypervel\Database\Pool\PooledConnection;
 use Throwable;
 use UnitEnum;
 
@@ -251,34 +251,33 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
             return $connection;
         }
 
+        /** @var PooledConnection $pooled */
         $pooled = $pool->borrow();
 
         try {
             $connection = $pooled->getConnection();
 
-            if (! $connection instanceof ConnectionInterface) {
-                throw new LogicException('The database pool returned an invalid connection.');
+            if ($connectionName->isWrite()) {
+                $connection->useWriteConnectionWhenReading();
             }
+
+            if ($connectionName->role !== null && $cacheKey === $connectionName->requested) {
+                $connection->setReadWriteType($connectionName->role);
+            }
+
+            static::$pooledConnections[$cacheKey] = $pooled;
+            static::$connections[$cacheKey] = $connection;
+
+            $pooled->dispatchConnectionEstablishedEvent();
         } catch (Throwable $exception) {
-            $pooled->discard();
+            unset(static::$pooledConnections[$cacheKey], static::$connections[$cacheKey]);
+
+            $this->discardFailedConnection($pooled, $exception);
 
             throw $exception;
         }
 
-        if ($connectionName->isWrite() && $connection instanceof Connection) {
-            $connection->useWriteConnectionWhenReading();
-        }
-
-        if ($connectionName->role !== null
-            && $cacheKey === $connectionName->requested
-            && $connection instanceof Connection
-        ) {
-            $connection->setReadWriteType($connectionName->role);
-        }
-
-        static::$pooledConnections[$cacheKey] = $pooled;
-
-        return static::$connections[$cacheKey] = $connection;
+        return $connection;
     }
 
     /**

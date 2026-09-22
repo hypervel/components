@@ -81,23 +81,6 @@ class PooledConnectionTest extends DatabaseTestCase
         $this->assertInstanceOf(Dispatcher::class, $dispatcher->getValue($pooledConnection));
     }
 
-    public function testConnectionEstablishedEventFiredOnConstruction(): void
-    {
-        $fired = false;
-        $this->app->make(Dispatcher::class)->listen(
-            ConnectionEstablished::class,
-            function (ConnectionEstablished $event) use (&$fired) {
-                $fired = true;
-                $this->assertSame('pool_test', $event->connectionName);
-            }
-        );
-
-        $pool = new DatabasePool($this->app, 'pool_test');
-        $this->createPooledConnection($pool);
-
-        $this->assertTrue($fired, 'ConnectionEstablished event should be fired when a pooled connection is created');
-    }
-
     public function testPassiveObserversDoNotCausePooledLifecycleEventsToDispatch(): void
     {
         $this->app->make('config')->set('database.connections.pool_test.pool.events', [
@@ -124,7 +107,7 @@ class PooledConnectionTest extends DatabaseTestCase
         $pooledConnection = $pool->borrow();
 
         try {
-            $pooledConnection->reconnect();
+            $this->app->make('db')->connection('pool_test');
             $pooledConnection->release();
 
             $this->assertSame([], $establishedConnections);
@@ -316,8 +299,7 @@ class PooledConnectionTest extends DatabaseTestCase
 
     public function testConnectionEstablishedEventFiredOnReconnect(): void
     {
-        $pool = new DatabasePool($this->app, 'pool_test');
-        $pooledConnection = $this->createPooledConnection($pool);
+        $connection = $this->app->make('db')->connection('pool_test');
 
         $count = 0;
         $this->app->make(Dispatcher::class)->listen(
@@ -327,8 +309,7 @@ class PooledConnectionTest extends DatabaseTestCase
             }
         );
 
-        // reconnect() should fire ConnectionEstablished again
-        $pooledConnection->reconnect();
+        $connection->reconnect();
 
         $this->assertSame(1, $count, 'ConnectionEstablished should fire on reconnect');
     }
@@ -871,13 +852,6 @@ class PooledConnectionTest extends DatabaseTestCase
 
             /** @var PooledConnection $pooledConnection */
             $pooledConnection = $pool->borrow();
-            $connectionEstablished = 0;
-            $this->app->make(Dispatcher::class)->listen(
-                ConnectionEstablished::class,
-                static function () use (&$connectionEstablished): void {
-                    ++$connectionEstablished;
-                }
-            );
 
             try {
                 $pooledConnection->getConnection();
@@ -891,7 +865,6 @@ class PooledConnectionTest extends DatabaseTestCase
 
             $this->assertSame($sharedPdo, $pool->getSharedInMemorySqlitePdo());
             $this->assertSame(1, (int) $sharedPdo->query('select count(*) from records')->fetchColumn());
-            $this->assertSame(0, $connectionEstablished);
         } finally {
             $pooledConnection?->release();
             $pool->close();

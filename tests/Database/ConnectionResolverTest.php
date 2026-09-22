@@ -139,8 +139,10 @@ class ConnectionResolverTest extends TestCase
         $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
         $pool->expects('borrow')->twice()->andReturn($firstWrapper, $secondWrapper);
         $firstWrapper->expects('getConnection')->andReturn($firstConnection);
+        $firstWrapper->expects('dispatchConnectionEstablishedEvent');
         $firstWrapper->expects('release');
         $secondWrapper->expects('getConnection')->andReturn($secondConnection);
+        $secondWrapper->expects('dispatchConnectionEstablishedEvent');
         $secondWrapper->expects('release');
 
         $resolver = $this->makeResolver('mysql', $poolManager);
@@ -169,6 +171,7 @@ class ConnectionResolverTest extends TestCase
             $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
             $pool->expects('borrow')->once()->andReturn($wrapper);
             $wrapper->expects('getConnection')->andReturn($connection);
+            $wrapper->expects('dispatchConnectionEstablishedEvent');
             $wrapper->expects('release');
 
             if ($role !== null) {
@@ -198,6 +201,7 @@ class ConnectionResolverTest extends TestCase
             $poolManager->expects('pool')->with($name)->andReturn($pool);
             $pool->expects('borrow')->andReturn($wrapper);
             $wrapper->expects('getConnection')->andReturn($connection);
+            $wrapper->expects('dispatchConnectionEstablishedEvent');
             $wrapper->expects('release');
 
             $this->assertSame($connection, $resolver->connection($name));
@@ -220,6 +224,7 @@ class ConnectionResolverTest extends TestCase
         $pool->expects('getName')->times(2)->andReturn('sqlite');
         $pool->expects('borrow')->once()->andReturn($wrapper);
         $wrapper->expects('getConnection')->once()->andReturn($connection);
+        $wrapper->expects('dispatchConnectionEstablishedEvent');
         $connection->expects('useWriteConnectionWhenReading')->once();
         $wrapper->expects('release')->once();
 
@@ -245,7 +250,9 @@ class ConnectionResolverTest extends TestCase
         $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
         $pool->expects('borrow')->twice()->andReturn($firstWrapper, $secondWrapper);
         $firstWrapper->expects('getConnection')->andReturn($firstConnection);
+        $firstWrapper->expects('dispatchConnectionEstablishedEvent');
         $secondWrapper->expects('getConnection')->andReturn($secondConnection);
+        $secondWrapper->expects('dispatchConnectionEstablishedEvent');
         $secondWrapper->expects('release');
 
         $resolver = $this->makeResolver('mysql', $poolManager);
@@ -280,6 +287,7 @@ class ConnectionResolverTest extends TestCase
             $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
             $pool->expects('borrow')->once()->andReturn($wrapper);
             $wrapper->expects('getConnection')->andReturn(m::mock(Connection::class));
+            $wrapper->expects('dispatchConnectionEstablishedEvent');
             $wrapper->expects('release')->andThrow($exception);
 
             $resolver->connection($name);
@@ -315,6 +323,7 @@ class ConnectionResolverTest extends TestCase
             $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
             $pool->expects('borrow')->once()->andReturn($wrapper);
             $wrapper->expects('getConnection')->andReturn(m::mock(Connection::class));
+            $wrapper->expects('dispatchConnectionEstablishedEvent');
             $wrapper->expects('release')->andThrow($failure);
 
             $resolver->connection($name);
@@ -343,6 +352,7 @@ class ConnectionResolverTest extends TestCase
             $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
             $pool->expects('borrow')->once()->andReturn($wrapper);
             $wrapper->expects('getConnection')->andReturn(m::mock(Connection::class));
+            $wrapper->expects('dispatchConnectionEstablishedEvent');
             $wrapper->expects('discard');
 
             $resolver->connection($name);
@@ -373,6 +383,35 @@ class ConnectionResolverTest extends TestCase
         } catch (RuntimeException $throwable) {
             $this->assertSame($exception, $throwable);
         }
+    }
+
+    public function testListenerFailureDiscardsTheExactWrapperWithoutDeferringRelease(): void
+    {
+        $exception = new RuntimeException('Connection listener failed.');
+        $poolManager = m::mock(PoolManager::class);
+        $pool = m::mock(DatabasePool::class);
+        $wrapper = m::mock(PooledConnection::class);
+
+        $poolManager->expects('pool')->with('mysql')->andReturn($pool);
+        $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
+        $pool->expects('borrow')->andReturn($wrapper);
+        $wrapper->expects('getConnection')->andReturn(m::mock(Connection::class));
+        $wrapper->expects('dispatchConnectionEstablishedEvent')->andThrow($exception);
+        $wrapper->expects('discard');
+        $wrapper->shouldNotReceive('release');
+
+        $resolver = $this->makeResolver('mysql', $poolManager);
+        $caught = null;
+
+        run(function () use ($resolver, &$caught): void {
+            try {
+                $resolver->connection();
+            } catch (RuntimeException $throwable) {
+                $caught = $throwable;
+            }
+        });
+
+        $this->assertSame($exception, $caught);
     }
 
     public function testWriteRoleConfigurationFailureDiscardsTheExactWrapper(): void
@@ -508,6 +547,7 @@ class ConnectionResolverTest extends TestCase
         $pool->allows('getSharedInMemorySqlitePdo')->andReturnNull();
         $pool->expects('borrow')->once()->andReturn($wrapper);
         $wrapper->expects('getConnection')->andReturn($connection);
+        $wrapper->expects('dispatchConnectionEstablishedEvent');
         $wrapper->expects('release');
 
         $resolver = $this->makeResolver('mysql', $poolManager);

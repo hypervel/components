@@ -53,6 +53,8 @@ class PooledConnection implements PoolConnection
 
     protected bool $invalid = false;
 
+    protected bool $connectionEstablishedEventPending = false;
+
     protected ?Dispatcher $dispatcher = null;
 
     /**
@@ -148,8 +150,32 @@ class PooledConnection implements PoolConnection
             $this->refresh($connection);
         });
 
-        // Fetch dispatcher from container (not $this->dispatcher) so Event::fake() works.
-        // Reconnection can be triggered after fake swaps the container binding.
+        $now = hrtime(true) / 1e9;
+        $this->lastUseTime = $now;
+        $this->stampGeneration($now);
+        $this->availableForReuse = false;
+        $this->markValid();
+        $this->connectionEstablishedEventPending = true;
+
+        return true;
+    }
+
+    /**
+     * Notify listeners after the resolver has registered the connection.
+     *
+     * @internal
+     */
+    public function dispatchConnectionEstablishedEvent(): void
+    {
+        if (! $this->connectionEstablishedEventPending) {
+            return;
+        }
+
+        // Consume before dispatch so this generation is notified only once.
+        $this->connectionEstablishedEventPending = false;
+
+        // Resolve from the container, not $this->dispatcher, so Event::fake()
+        // also applies to reconnects.
         if ($this->container->bound('events')) {
             /** @var Dispatcher $events */
             $events = $this->container->make('events');
@@ -158,14 +184,6 @@ class PooledConnection implements PoolConnection
                 $events->dispatch(new ConnectionEstablished($this->connection));
             }
         }
-
-        $now = hrtime(true) / 1e9;
-        $this->lastUseTime = $now;
-        $this->stampGeneration($now);
-        $this->availableForReuse = false;
-        $this->markValid();
-
-        return true;
     }
 
     /**
@@ -293,6 +311,8 @@ class PooledConnection implements PoolConnection
      */
     public function close(): bool
     {
+        $this->connectionEstablishedEventPending = false;
+
         if ($this->connection instanceof Connection) {
             try {
                 $this->connection->disconnect();
@@ -500,16 +520,9 @@ class PooledConnection implements PoolConnection
             $this->logger->warning('Database connection refreshed.');
         }
 
-        // Fetch dispatcher from container (not $this->dispatcher) so Event::fake() works.
-        // Reconnection can be triggered after fake swaps the container binding.
-        if ($this->container->bound('events')) {
-            /** @var Dispatcher $events */
-            $events = $this->container->make('events');
-
-            if ($events->hasListeners(ConnectionEstablished::class)) {
-                $events->dispatch(new ConnectionEstablished($connection));
-            }
-        }
+        // The resolver already owns a refreshed connection, so notify immediately.
+        $this->connectionEstablishedEventPending = true;
+        $this->dispatchConnectionEstablishedEvent();
 
         $this->stampGeneration(hrtime(true) / 1e9);
     }
