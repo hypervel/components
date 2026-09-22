@@ -402,6 +402,8 @@ class Flight extends Model
 }
 ```
 
+The `Connection` attribute also accepts enum cases. Backed enums use their value, while unit enums use their case name.
+
 <a name="default-attribute-values"></a>
 ### Default Attribute Values
 

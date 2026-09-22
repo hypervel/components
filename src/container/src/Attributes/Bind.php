@@ -30,7 +30,7 @@ class Bind
      * Create a new attribute instance.
      *
      * @param class-string $concrete
-     * @param non-empty-array<int, BackedEnum|non-empty-string|UnitEnum>|non-empty-string|UnitEnum $environments
+     * @param non-empty-array<int, non-empty-string|UnitEnum>|non-empty-string|UnitEnum $environments
      *
      * @throws InvalidArgumentException
      */

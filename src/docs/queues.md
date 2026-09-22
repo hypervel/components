@@ -104,7 +104,7 @@ ProcessPodcast::dispatch();
 ProcessPodcast::dispatch()->onQueue('emails');
 ```
 
-When dispatching or inspecting jobs, you may also use enums for connection and queue names. Backed enums use their value, while unbacked enums use their case name:
+When dispatching or inspecting jobs, you may also use enums for connection and queue names. Backed enums use their value, while unit enums use their case name:
 
 ```php
 use Hypervel\Support\Facades\Queue;
@@ -1674,7 +1674,7 @@ class ProcessPodcast implements ShouldQueue
 }
 ```
 
-You may also specify the job's queue or connection using the `Queue` and `Connection` attributes:
+You may also specify the job's queue or connection using the `Queue` and `Connection` attributes, which accept strings or enum cases. Backed enums use their value, while unit enums use their case name:
 
 ```php
 <?php

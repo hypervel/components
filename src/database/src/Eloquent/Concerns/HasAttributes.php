@@ -1252,7 +1252,7 @@ trait HasAttributes
     /**
      * Get an enum case instance from a given class and value.
      *
-     * @return BackedEnum|UnitEnum
+     * @return UnitEnum
      */
     protected function getEnumCaseFromValue(string $enumClass, string|int $value): mixed
     {
@@ -1264,7 +1264,7 @@ trait HasAttributes
     /**
      * Get the storable value from the given enum.
      *
-     * @param BackedEnum|UnitEnum $value
+     * @param UnitEnum $value
      */
     protected function getStorableEnumValue(string $expectedEnum, mixed $value): string|int
     {
