@@ -600,7 +600,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
             ->andReturn(1);
         $connection->expects('evalWithShaCache')
             ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
-            ->andReturn(1);
+            ->andReturn([1, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->flush();
@@ -625,7 +625,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
             ->andReturn(1);
         $connection->expects('evalWithShaCache')
             ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
-            ->andReturn(1);
+            ->andReturn([1, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->clear();

@@ -9,6 +9,7 @@ use Hypervel\Cache\Redis\Operations\AllTag\Flush as AllTagFlush;
 use Hypervel\Cache\Redis\Operations\AllTag\GetEntries;
 use Hypervel\Cache\Redis\Operations\AnyTag\Flush as AnyTagFlush;
 use Hypervel\Cache\Redis\Operations\AnyTag\GetTaggedKeys;
+use Hypervel\Cache\Redis\Operations\AnyTag\RemoveEmptyTags;
 use Hypervel\Cache\TagMode;
 use Hypervel\Coroutine\Parallel;
 use Hypervel\Support\Facades\Cache;
@@ -220,7 +221,7 @@ class ConcurrencyIntegrationTest extends RedisCacheIntegrationTestCase
                 // Publish after the scan snapshot, before its deletion chunk.
                 $cache->forever('late', 'late-value');
             });
-            (new AnyTagFlush($context, $reader))->execute(['race-flush']);
+            (new AnyTagFlush($context, $reader, new RemoveEmptyTags($context)))->execute(['race-flush']);
             $this->assertTrue($this->anyModeRegistryHasTag('race-flush'));
         } else {
             $members = array_keys($this->getAllModeTagEntries('race-flush'));
@@ -261,7 +262,8 @@ class ConcurrencyIntegrationTest extends RedisCacheIntegrationTestCase
         });
 
         try {
-            (new AnyTagFlush($this->store()->getContext(), $reader))->execute(['interrupted']);
+            $context = $this->store()->getContext();
+            (new AnyTagFlush($context, $reader, new RemoveEmptyTags($context)))->execute(['interrupted']);
             $this->fail('The flush must propagate cancellation.');
         } catch (CanceledException $caught) {
             $this->assertSame($exception, $caught);

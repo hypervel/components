@@ -177,7 +177,7 @@ class AnyTagSetTest extends RedisCacheTestCase
             ->andReturn(1);
         $this->connection->expects('evalWithShaCache')
             ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
-            ->andReturn(1);
+            ->andReturn([1, 1]);
 
         $this->assertTrue($tagSet->flush());
     }
@@ -204,7 +204,7 @@ class AnyTagSetTest extends RedisCacheTestCase
             ->andReturn(1);
         $this->connection->expects('evalWithShaCache')
             ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
-            ->andReturn(1);
+            ->andReturn([1, 1]);
 
         $result = $tagSet->flushTag('users');
 
@@ -242,7 +242,7 @@ class AnyTagSetTest extends RedisCacheTestCase
             ->andReturn(1);
         $this->connection->expects('evalWithShaCache')
             ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries', 'prefix:_any:tag:posts:entries'], ['users', 'posts'])
-            ->andReturn(1);
+            ->andReturn([2, 2]);
 
         $this->assertTrue($tagSet->reset());
     }
