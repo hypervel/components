@@ -411,8 +411,9 @@ abstract class Factory
     }
 
     /**
-     * Create a collection of models and persist them to the database.
+     * Create a collection of models.
      *
+     * @param null|int|iterable<int, array<string, mixed>> $records
      * @return EloquentCollection<int, TModel>
      */
     public function makeMany(iterable|int|null $records = null): EloquentCollection
