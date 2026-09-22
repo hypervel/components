@@ -62,6 +62,7 @@ use Mockery as m;
 use OutOfBoundsException;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
@@ -3065,14 +3066,18 @@ class HttpClientTest extends TestCase
         throw new RequestException(new Response($response));
     }
 
-    public function testStreamingResponseExceptionMessageIsNotSummarizedWhenBodyIsNotSeekable(): void
+    #[TestWith([false])]
+    #[TestWith([120])]
+    public function testStreamingResponseExceptionMessageIsNotSummarizedWhenBodyIsNotSeekable(int|false $truncateAt): void
     {
+        RequestException::$truncateAt = $truncateAt;
+
         $this->factory->fake([
-            '*' => \GuzzleHttp\Promise\Create::promiseFor(
+            '*' => Create::promiseFor(
                 new Psr7Response(
                     400,
                     ['Content-Type' => 'application/json'],
-                    new \GuzzleHttp\Psr7\NoSeekStream(Utils::streamFor(json_encode(['hello' => 'world'])))
+                    new NoSeekStream(Utils::streamFor(json_encode(['hello' => 'world'])))
                 )
             ),
         ]);
