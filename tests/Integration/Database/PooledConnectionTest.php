@@ -27,6 +27,7 @@ use Hypervel\Database\SQLiteConnection;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
 use Mockery as m;
@@ -67,18 +68,25 @@ class PooledConnectionTest extends DatabaseTestCase
         ]);
     }
 
-    public function testConstructorSetsEventDispatcher(): void
+    public function testReleaseUsesTheCurrentEventDispatcher(): void
     {
+        config(['database.connections.pool_test.pool.events' => [ConnectionReleasing::class]]);
         $pool = new DatabasePool($this->app, 'pool_test');
-        $pooledConnection = $this->createPooledConnection($pool);
+        $pooledConnection = $pool->borrow();
+        $listenerCalls = 0;
+        Event::listen(ConnectionReleasing::class, function () use (&$listenerCalls): void {
+            ++$listenerCalls;
+        });
 
-        $dispatcher = new ReflectionProperty(PooledConnection::class, 'dispatcher');
+        try {
+            Event::fake([ConnectionReleasing::class]);
+            $pooledConnection->release();
 
-        $this->assertNotNull(
-            $dispatcher->getValue($pooledConnection),
-            'PooledConnection should resolve the event dispatcher from the container'
-        );
-        $this->assertInstanceOf(Dispatcher::class, $dispatcher->getValue($pooledConnection));
+            Event::assertDispatched(ConnectionReleasing::class, fn (ConnectionReleasing $event): bool => $event->connection === $pooledConnection);
+            $this->assertSame(0, $listenerCalls);
+        } finally {
+            $pool->close();
+        }
     }
 
     public function testPassiveObserversDoNotCausePooledLifecycleEventsToDispatch(): void

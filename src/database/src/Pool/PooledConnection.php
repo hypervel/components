@@ -55,8 +55,6 @@ class PooledConnection implements PoolConnection
 
     protected bool $connectionEstablishedEventPending = false;
 
-    protected ?Dispatcher $dispatcher = null;
-
     /**
      * Create a new pooled connection instance.
      */
@@ -67,10 +65,6 @@ class PooledConnection implements PoolConnection
     ) {
         $this->factory = $container->make('db.factory');
         $this->logger = $container->make(StdoutLoggerInterface::class);
-
-        if ($container->bound('events')) {
-            $this->dispatcher = $container->make('events');
-        }
 
         $this->reconnect();
     }
@@ -174,8 +168,7 @@ class PooledConnection implements PoolConnection
         // Consume before dispatch so this generation is notified only once.
         $this->connectionEstablishedEventPending = false;
 
-        // Resolve from the container, not $this->dispatcher, so Event::fake()
-        // also applies to reconnects.
+        // Resolve from the container so Event::fake() also applies to reconnects.
         if ($this->container->bound('events')) {
             /** @var Dispatcher $events */
             $events = $this->container->make('events');
@@ -359,9 +352,15 @@ class PooledConnection implements PoolConnection
             // Dispatch release event if configured
             $events = $this->pool->getOptions()->events;
             if (in_array(ConnectionReleasing::class, $events, true)
-                && $this->dispatcher?->hasListeners(ConnectionReleasing::class)
+                && $this->container->bound('events')
             ) {
-                $this->dispatcher->dispatch(new ConnectionReleasing($this));
+                // Event::fake() can replace the dispatcher after this connection was created.
+                /** @var Dispatcher $dispatcher */
+                $dispatcher = $this->container->make('events');
+
+                if ($dispatcher->hasListeners(ConnectionReleasing::class)) {
+                    $dispatcher->dispatch(new ConnectionReleasing($this));
+                }
             }
         } catch (CanceledException $cancellation) {
             $cancellationFailure = $cancellation;
