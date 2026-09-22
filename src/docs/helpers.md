@@ -3388,6 +3388,12 @@ $value = when(true, 'Hello World');
 $value = when(true, fn () => 'Hello World');
 ```
 
+You may pass a default value as the third argument to return when the condition is false. The value and default may also be closures, which receive the resolved condition:
+
+```php
+$value = when($user, fn ($user) => $user->name, 'Guest');
+```
+
 The `when` function is primarily useful for conditionally rendering HTML attributes:
 
 ```blade
