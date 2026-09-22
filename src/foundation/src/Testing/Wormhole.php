@@ -26,10 +26,12 @@ class Wormhole
     /**
      * Travel forward the given number of microseconds.
      *
-     * @param null|callable $callback
-     * @return mixed
+     * @template TReturn
+     *
+     * @param null|(callable(): TReturn) $callback
+     * @return ($callback is null ? null : TReturn)
      */
-    public function microsecond($callback = null)
+    public function microsecond(?callable $callback = null): mixed
     {
         return $this->microseconds($callback);
     }
@@ -37,10 +39,12 @@ class Wormhole
     /**
      * Travel forward the given number of microseconds.
      *
-     * @param null|callable $callback
-     * @return mixed
+     * @template TReturn
+     *
+     * @param null|(callable(): TReturn) $callback
+     * @return ($callback is null ? null : TReturn)
      */
-    public function microseconds($callback = null)
+    public function microseconds(?callable $callback = null): mixed
     {
         Carbon::setTestNow(Date::now()->addMicroseconds($this->value));
 
@@ -50,10 +54,12 @@ class Wormhole
     /**
      * Travel forward the given number of milliseconds.
      *
-     * @param null|callable $callback
-     * @return mixed
+     * @template TReturn
+     *
+     * @param null|(callable(): TReturn) $callback
+     * @return ($callback is null ? null : TReturn)
      */
-    public function millisecond($callback = null)
+    public function millisecond(?callable $callback = null): mixed
     {
         return $this->milliseconds($callback);
     }
@@ -61,10 +67,12 @@ class Wormhole
     /**
      * Travel forward the given number of milliseconds.
      *
-     * @param null|callable $callback
-     * @return mixed
+     * @template TReturn
+     *
+     * @param null|(callable(): TReturn) $callback
+     * @return ($callback is null ? null : TReturn)
      */
-    public function milliseconds($callback = null)
+    public function milliseconds(?callable $callback = null): mixed
     {
         Carbon::setTestNow(Date::now()->addMilliseconds($this->value));
 
@@ -74,10 +82,12 @@ class Wormhole
     /**
      * Travel forward the given number of seconds.
      *
-     * @param null|callable $callback
-     * @return mixed
+     * @template TReturn
+     *
+     * @param null|(callable(): TReturn) $callback
+     * @return ($callback is null ? null : TReturn)
      */
-    public function second($callback = null)
+    public function second(?callable $callback = null): mixed
     {
         return $this->seconds($callback);
     }
@@ -85,10 +95,12 @@ class Wormhole
     /**
      * Travel forward the given number of seconds.
      *
-     * @param null|callable $callback
-     * @return mixed
+     * @template TReturn
+     *
+     * @param null|(callable(): TReturn) $callback
+     * @return ($callback is null ? null : TReturn)
      */
-    public function seconds($callback = null)
+    public function seconds(?callable $callback = null): mixed
     {
         Carbon::setTestNow(Date::now()->addSeconds($this->value));
 
@@ -98,10 +110,12 @@ class Wormhole
     /**
      * Travel forward the given number of minutes.
      *
-     * @param null|callable $callback
-     * @return mixed
+     * @template TReturn
+     *
+     * @param null|(callable(): TReturn) $callback
+     * @return ($callback is null ? null : TReturn)
      */
-    public function minute($callback = null)
+    public function minute(?callable $callback = null): mixed
     {
         return $this->minutes($callback);
     }
@@ -109,10 +123,12 @@ class Wormhole
     /**
      * Travel forward the given number of minutes.
      *
-     * @param null|callable $callback
-     * @return mixed
+     * @template TReturn
+     *
+     * @param null|(callable(): TReturn) $callback
+     * @return ($callback is null ? null : TReturn)
      */
-    public function minutes($callback = null)
+    public function minutes(?callable $callback = null): mixed
     {
         Carbon::setTestNow(Date::now()->addMinutes($this->value));
 
@@ -122,10 +138,12 @@ class Wormhole
     /**
      * Travel forward the given number of hours.
      *
-     * @param null|callable $callback
-     * @return mixed
+     * @template TReturn
+     *
+     * @param null|(callable(): TReturn) $callback
+     * @return ($callback is null ? null : TReturn)
      */
-    public function hour($callback = null)
+    public function hour(?callable $callback = null): mixed
     {
         return $this->hours($callback);
     }
@@ -133,10 +151,12 @@ class Wormhole
     /**
      * Travel forward the given number of hours.
      *
-     * @param null|callable $callback
-     * @return mixed
+     * @template TReturn
+     *
+     * @param null|(callable(): TReturn) $callback
+     * @return ($callback is null ? null : TReturn)
      */
-    public function hours($callback = null)
+    public function hours(?callable $callback = null): mixed
     {
         Carbon::setTestNow(Date::now()->addHours($this->value));
 
@@ -146,10 +166,12 @@ class Wormhole
     /**
      * Travel forward the given number of days.
      *
-     * @param null|callable $callback
-     * @return mixed
+     * @template TReturn
+     *
+     * @param null|(callable(): TReturn) $callback
+     * @return ($callback is null ? null : TReturn)
      */
-    public function day($callback = null)
+    public function day(?callable $callback = null): mixed
     {
         return $this->days($callback);
     }
@@ -157,10 +179,12 @@ class Wormhole
     /**
      * Travel forward the given number of days.
      *
-     * @param null|callable $callback
-     * @return mixed
+     * @template TReturn
+     *
+     * @param null|(callable(): TReturn) $callback
+     * @return ($callback is null ? null : TReturn)
      */
-    public function days($callback = null)
+    public function days(?callable $callback = null): mixed
     {
         Carbon::setTestNow(Date::now()->addDays($this->value));
 
@@ -170,10 +194,12 @@ class Wormhole
     /**
      * Travel forward the given number of weeks.
      *
-     * @param null|callable $callback
-     * @return mixed
+     * @template TReturn
+     *
+     * @param null|(callable(): TReturn) $callback
+     * @return ($callback is null ? null : TReturn)
      */
-    public function week($callback = null)
+    public function week(?callable $callback = null): mixed
     {
         return $this->weeks($callback);
     }
@@ -181,10 +207,12 @@ class Wormhole
     /**
      * Travel forward the given number of weeks.
      *
-     * @param null|callable $callback
-     * @return mixed
+     * @template TReturn
+     *
+     * @param null|(callable(): TReturn) $callback
+     * @return ($callback is null ? null : TReturn)
      */
-    public function weeks($callback = null)
+    public function weeks(?callable $callback = null): mixed
     {
         Carbon::setTestNow(Date::now()->addWeeks($this->value));
 
@@ -194,10 +222,12 @@ class Wormhole
     /**
      * Travel forward the given number of months.
      *
-     * @param null|callable $callback
-     * @return mixed
+     * @template TReturn
+     *
+     * @param null|(callable(): TReturn) $callback
+     * @return ($callback is null ? null : TReturn)
      */
-    public function month($callback = null)
+    public function month(?callable $callback = null): mixed
     {
         return $this->months($callback);
     }
@@ -205,10 +235,12 @@ class Wormhole
     /**
      * Travel forward the given number of months.
      *
-     * @param null|callable $callback
-     * @return mixed
+     * @template TReturn
+     *
+     * @param null|(callable(): TReturn) $callback
+     * @return ($callback is null ? null : TReturn)
      */
-    public function months($callback = null)
+    public function months(?callable $callback = null): mixed
     {
         Carbon::setTestNow(Date::now()->addMonths($this->value));
 
@@ -218,10 +250,12 @@ class Wormhole
     /**
      * Travel forward the given number of years.
      *
-     * @param null|callable $callback
-     * @return mixed
+     * @template TReturn
+     *
+     * @param null|(callable(): TReturn) $callback
+     * @return ($callback is null ? null : TReturn)
      */
-    public function year($callback = null)
+    public function year(?callable $callback = null): mixed
     {
         return $this->years($callback);
     }
@@ -229,10 +263,12 @@ class Wormhole
     /**
      * Travel forward the given number of years.
      *
-     * @param null|callable $callback
-     * @return mixed
+     * @template TReturn
+     *
+     * @param null|(callable(): TReturn) $callback
+     * @return ($callback is null ? null : TReturn)
      */
-    public function years($callback = null)
+    public function years(?callable $callback = null): mixed
     {
         Carbon::setTestNow(Date::now()->addYears($this->value));
 
@@ -252,10 +288,12 @@ class Wormhole
     /**
      * Handle the given optional execution callback.
      *
-     * @param null|callable $callback
-     * @return mixed
+     * @template TReturn
+     *
+     * @param null|(callable(): TReturn) $callback
+     * @return ($callback is null ? null : TReturn)
      */
-    protected function handleCallback($callback)
+    protected function handleCallback(?callable $callback): mixed
     {
         if ($callback) {
             try {
@@ -264,5 +302,7 @@ class Wormhole
                 Carbon::setTestNow();
             }
         }
+
+        return null;
     }
 }
