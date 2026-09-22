@@ -422,8 +422,8 @@ class CacheManager implements FactoryContract
         return $config['prefix'] ?? $this->app->make('config')->string('cache.prefix');
     }
 
-    // REMOVED: Laravel's per-store getSerializableClasses() hook cannot represent
-    // Hypervel's shared worker-lifetime policy.
+    // REMOVED: getSerializableClasses(); stores share a worker-lifetime
+    // SerializableClassPolicy instead of copying its current class list.
 
     /**
      * Get the cache connection configuration.
