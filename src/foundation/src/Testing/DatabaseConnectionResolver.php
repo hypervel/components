@@ -27,6 +27,7 @@ use function Hypervel\Support\enum_value;
  * Testbench needs stable bare connections across its setup, transaction, and
  * assertion helpers. The resolver therefore retains each borrowed wrapper
  * alongside its bare connection and explicitly discards both at teardown.
+ * Concurrent database tests enable pool.testing_enabled to use coroutine-owned connections.
  */
 class DatabaseConnectionResolver extends ConnectionResolver implements CachedConnectionResolver
 {
