@@ -198,8 +198,12 @@ class ConnectionEstablishedTest extends TestCase
             $this->assertSame($event->connection, DB::connection('established::write'));
         });
 
-        DB::connection('established::write');
+        try {
+            DB::connection('established::write');
 
-        $this->assertSame(1, $calls);
+            $this->assertSame(1, $calls);
+        } finally {
+            $this->app->make('db.resolver')->releaseConnections();
+        }
     }
 }
