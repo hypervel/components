@@ -820,11 +820,12 @@ trait HasRelationships
         $caller = Arr::first(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS), function ($trace) {
             return ! in_array(
                 $trace['function'],
-                array_merge(static::$manyMethods, ['guessBelongsToManyRelation'])
+                array_merge(static::$manyMethods, ['guessBelongsToManyRelation']),
+                true
             );
         });
 
-        return ! is_null($caller) ? $caller['function'] : null;
+        return $caller['function'] ?? null;
     }
 
     /**
