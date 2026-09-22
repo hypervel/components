@@ -334,7 +334,7 @@ class RateLimitedTest extends TestCase
             $this->assertSame($job, $result);
             $this->assertFalse($job->released);
 
-            CarbonImmutable::setTestNow(now()->addSeconds(1));
+            CarbonImmutable::setTestNow(now()->addSecond());
         }
 
         $result = $middleware->handle($job = $jobFactory(), $next);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Events\QueuedEventsTest;
 
+use Carbon\CarbonInterface;
 use Exception;
 use Hypervel\Bus\DebounceLock;
 use Hypervel\Bus\Dispatcher as BusDispatcher;
@@ -1049,17 +1050,26 @@ class TestDispatcherOptions implements ShouldQueue
 {
     public int $maxExceptions = 1;
 
-    public function retryUntil()
+    /**
+     * Get the retry deadline.
+     */
+    public function retryUntil(): CarbonInterface
     {
-        return now()->addHour(1);
+        return now()->addHour();
     }
 
-    public function tries()
+    /**
+     * Get the maximum number of attempts.
+     */
+    public function tries(): int
     {
         return 5;
     }
 
-    public function handle()
+    /**
+     * Handle the event.
+     */
+    public function handle(): void
     {
     }
 }

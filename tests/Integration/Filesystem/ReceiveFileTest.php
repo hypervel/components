@@ -16,6 +16,9 @@ use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 #[WithConfig('filesystems.disks.local.serve', true)]
 class ReceiveFileTest extends TestCase
 {
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         $this->beforeApplicationDestroyed(function (): void {
@@ -53,7 +56,7 @@ class ReceiveFileTest extends TestCase
 
     public function testItCanReceiveAFile(): void
     {
-        $result = Storage::temporaryUploadUrl('receive-file-test.txt', now()->addMinutes(1));
+        $result = Storage::temporaryUploadUrl('receive-file-test.txt', now()->addMinute());
 
         $response = $this->call('PUT', $result['url'], [], [], [], [], 'Hello World');
 
@@ -63,7 +66,7 @@ class ReceiveFileTest extends TestCase
 
     public function testUploadUsesTheQueryFlagInsteadOfFileContents(): void
     {
-        $result = Storage::temporaryUploadUrl('receive-file-test.txt', now()->addMinutes(1));
+        $result = Storage::temporaryUploadUrl('receive-file-test.txt', now()->addMinute());
 
         $response = $this->putJson($result['url'], ['upload' => false]);
 
@@ -74,7 +77,7 @@ class ReceiveFileTest extends TestCase
     public function testScopedDiskUploadsThroughItsServedParentRoute(): void
     {
         $result = Storage::disk('scoped-upload')
-            ->temporaryUploadUrl('receive-file-test.txt', now()->addMinutes(1));
+            ->temporaryUploadUrl('receive-file-test.txt', now()->addMinute());
 
         $this->assertStringContainsString(
             '/served-upload/tenant/receive-file-test.txt',
@@ -93,7 +96,7 @@ class ReceiveFileTest extends TestCase
 
     public function testStorageFailureReturnsServerError(): void
     {
-        $result = Storage::temporaryUploadUrl('receive-file-test.txt', now()->addMinutes(1));
+        $result = Storage::temporaryUploadUrl('receive-file-test.txt', now()->addMinute());
         $disk = m::mock(Filesystem::class);
         $disk->shouldReceive('put')->once()->with('receive-file-test.txt', 'Hello World')->andReturnFalse();
         $manager = Storage::getFacadeRoot();
@@ -110,7 +113,7 @@ class ReceiveFileTest extends TestCase
 
     public function testItWill403OnWrongSignature(): void
     {
-        $result = Storage::temporaryUploadUrl('receive-file-test.txt', now()->addMinutes(1));
+        $result = Storage::temporaryUploadUrl('receive-file-test.txt', now()->addMinute());
 
         $url = $result['url'] . 'c';
 
@@ -122,7 +125,7 @@ class ReceiveFileTest extends TestCase
 
     public function testItWill403OnExpiredUrl(): void
     {
-        $result = Storage::temporaryUploadUrl('receive-file-test.txt', now()->subMinutes(1));
+        $result = Storage::temporaryUploadUrl('receive-file-test.txt', now()->subMinute());
 
         $response = $this->call('PUT', $result['url'], [], [], [], [], 'Hello World');
 
@@ -134,7 +137,7 @@ class ReceiveFileTest extends TestCase
     {
         Storage::put('receive-file-test.txt', 'Original Content');
 
-        $downloadUrl = Storage::temporaryUrl('receive-file-test.txt', now()->addMinutes(1));
+        $downloadUrl = Storage::temporaryUrl('receive-file-test.txt', now()->addMinute());
 
         $response = $this->call('PUT', $downloadUrl, [], [], [], [], 'Malicious Content');
 
@@ -146,7 +149,7 @@ class ReceiveFileTest extends TestCase
     {
         Storage::put('receive-file-test.txt', 'Secret Content');
 
-        $uploadUrl = Storage::temporaryUploadUrl('receive-file-test.txt', now()->addMinutes(1));
+        $uploadUrl = Storage::temporaryUploadUrl('receive-file-test.txt', now()->addMinute());
 
         $response = $this->get($uploadUrl['url']);
 
@@ -155,7 +158,7 @@ class ReceiveFileTest extends TestCase
 
     public function testItCanReceiveAFileWithUriDelimitersInThePath(): void
     {
-        $result = Storage::temporaryUploadUrl('receive-file-test.txt?pad=x', now()->addMinutes(1));
+        $result = Storage::temporaryUploadUrl('receive-file-test.txt?pad=x', now()->addMinute());
 
         $response = $this->call('PUT', $result['url'], [], [], [], [], 'Hello Question');
 
@@ -166,7 +169,7 @@ class ReceiveFileTest extends TestCase
 
     public function testItCanReceiveAFileWithAnEncodedSeparatorInItsName(): void
     {
-        $result = Storage::temporaryUploadUrl('receive-file-test%2F.txt', now()->addMinutes(1));
+        $result = Storage::temporaryUploadUrl('receive-file-test%2F.txt', now()->addMinute());
 
         $response = $this->call('PUT', $result['url'], [], [], [], [], 'Hello Percent Escape');
 
@@ -177,14 +180,14 @@ class ReceiveFileTest extends TestCase
 
     public function testTemporaryUploadUrlPreservesPathSeparatorsInNestedPaths(): void
     {
-        $result = Storage::temporaryUploadUrl('nested/folder/receive-file-test.txt', now()->addMinutes(1));
+        $result = Storage::temporaryUploadUrl('nested/folder/receive-file-test.txt', now()->addMinute());
 
         $this->assertStringContainsString('nested/folder/receive-file-test.txt', $result['url']);
     }
 
     public function testUriDelimitersInThePathCannotHideAnExpiredUploadUrl(): void
     {
-        $result = Storage::temporaryUploadUrl('receive-file-test.txt?pad=x', now()->subMinutes(1));
+        $result = Storage::temporaryUploadUrl('receive-file-test.txt?pad=x', now()->subMinute());
 
         $response = $this->call('PUT', $result['url'], [], [], [], [], 'Hello Question');
 
