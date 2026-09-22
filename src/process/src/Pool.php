@@ -47,6 +47,8 @@ class Pool
      * Start all of the processes in the pool.
      *
      * The caller must wait for or stop the pool before its owning coroutine exits.
+     *
+     * @throws InvalidArgumentException
      */
     public function start(?callable $output = null): InvokedProcessPool
     {

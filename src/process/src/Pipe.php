@@ -42,7 +42,9 @@ class Pipe
     }
 
     /**
-     * Runs the processes in the pipe.
+     * Run the processes in the pipe.
+     *
+     * @throws InvalidArgumentException
      */
     public function run(?callable $output = null): ProcessResultContract
     {
