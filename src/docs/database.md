@@ -416,18 +416,7 @@ Custom query builders may declare their binding-slot names through the third `Qu
 <a name="static-analysis"></a>
 ### Static Analysis
 
-The Hypervel database package includes a PHPStan extension that understands named scopes and query methods forwarded through Eloquent models, builders, and relationships. If your application uses `phpstan/extension-installer`, the extension is loaded automatically:
-
-```shell
-composer require --dev phpstan/extension-installer
-```
-
-Without the extension installer, add the package extension to your `phpstan.neon` file:
-
-```neon
-includes:
-    - vendor/hypervel/database/extension.neon
-```
+The Hypervel database package includes a PHPStan extension that understands named scopes and query methods forwarded through Eloquent models, builders, and relationships. See the [static analysis setup instructions](/docs/{{version}}/installation#static-analysis) to enable it in your application.
 
 A scope that declares no return type, or declares `void`, `null`, or the query builder, stays chainable. Declaring a broader type such as `mixed` or `object` tells the analyzer the scope may return something else, so that type is preserved. When a scope declares a union containing the query builder, such as `Builder|int`, the builder becomes the chainable receiver and the remaining types are kept.
 
