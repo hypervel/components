@@ -8,14 +8,15 @@ use Generator;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Config\Repository as Config;
 use Hypervel\Container\Container;
+use Hypervel\Foundation\Application;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Facades\ParallelTesting as ParallelTestingFacade;
 use Hypervel\Testing\Concerns\TestCaches;
 use Hypervel\Testing\ParallelTesting;
+use Hypervel\Testing\ParallelTestingServiceProvider;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
-use ReflectionProperty;
 
 class TestCachesTest extends TestCase
 {
@@ -27,7 +28,7 @@ class TestCachesTest extends TestCase
 
         parent::setUp();
 
-        Container::setInstance($container = new Container);
+        Container::setInstance($container = new Application);
 
         Facade::setFacadeApplication($container);
 
@@ -111,19 +112,16 @@ class TestCachesTest extends TestCase
         $this->assertSame('new_prefix_', Container::getInstance()->make('config')->get('cache.prefix'));
     }
 
-    public function testBootTestCacheRegistersSetUpTestCaseCallback(): void
+    public function testBootTestCacheRegistersBootingCallback(): void
     {
-        Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '7');
+        $container = Container::getInstance();
+        $container->make(ParallelTesting::class)->resolveTokenUsing(fn () => '7');
 
-        $instance = $this->makeTestCachesInstance();
+        (new ParallelTestingServiceProvider($container))->register();
 
-        $method = new ReflectionMethod($instance, 'bootTestCache');
-        $method->invoke($instance);
-
-        $parallelTesting = Container::getInstance()->make(ParallelTesting::class);
-        $setUpCallbacks = (new ReflectionProperty($parallelTesting, 'setUpTestCaseCallbacks'))->getValue($parallelTesting);
-
-        $this->assertCount(1, $setUpCallbacks);
+        $this->assertSame('myapp_cache_', $container->make('config')->string('cache.prefix'));
+        $container->boot();
+        $this->assertSame('myapp_cache_test_7_', $container->make('config')->string('cache.prefix'));
     }
 
     public function testBootTestCacheSkipsIsolationIfOptedOut(): void
@@ -140,7 +138,7 @@ class TestCachesTest extends TestCase
         try {
             $_SERVER['HYPERVEL_PARALLEL_TESTING_WITHOUT_CACHE'] = '1';
 
-            Container::getInstance()->make(ParallelTesting::class)->callSetUpTestCaseCallbacks(new class {});
+            Container::getInstance()->boot();
 
             $this->assertSame('myapp_cache_', Container::getInstance()->make('config')->get('cache.prefix'));
         } finally {
@@ -170,6 +168,9 @@ class TestCachesTest extends TestCase
         $this->assertSame($driver, $cache->driver());
     }
 
+    /**
+     * Get the prefix from the test cache concern.
+     */
     protected function getParallelSafeCachePrefix(): string
     {
         $instance = $this->makeTestCachesInstance();
@@ -179,6 +180,9 @@ class TestCachesTest extends TestCase
         return $method->invoke($instance);
     }
 
+    /**
+     * Switch the prefix through the test cache concern.
+     */
     protected function switchToCachePrefix(string $prefix): void
     {
         $instance = $this->makeTestCachesInstance();
@@ -187,13 +191,19 @@ class TestCachesTest extends TestCase
         $method->invoke($instance, $prefix);
     }
 
+    /**
+     * Create an instance using the test cache concern.
+     */
     protected function makeTestCachesInstance(): object
     {
         return new class {
             use TestCaches;
 
-            public Container $app;
+            public Application $app;
 
+            /**
+             * Create a new test cache concern instance.
+             */
             public function __construct()
             {
                 $this->app = Container::getInstance();

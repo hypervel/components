@@ -13,8 +13,9 @@ trait TestCaches
      */
     protected function bootTestCache(): void
     {
-        ParallelTesting::setUpTestCase(function () {
-            if (ParallelTesting::option('without_cache')) {
+        // Stores capture their prefix when resolved, including during provider boot.
+        $this->app->booting(function () {
+            if (! ParallelTesting::inParallel() || ParallelTesting::option('without_cache')) {
                 return;
             }
 
