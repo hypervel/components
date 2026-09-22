@@ -119,7 +119,7 @@ abstract class HasOneOrManyThrough extends Relation
     }
 
     /**
-     * Get the fully qualified parent key name.
+     * Get the fully-qualified parent key name.
      */
     public function getQualifiedParentKeyName(): string
     {

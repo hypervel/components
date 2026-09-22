@@ -340,7 +340,7 @@ class AllTaggedCache extends NamespacedTaggedCache
     }
 
     /**
-     * Get a fully qualified key for a tagged item.
+     * Get a fully-qualified key for a tagged item.
      */
     public function taggedItemKey(string $key): string
     {

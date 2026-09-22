@@ -647,7 +647,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
     }
 
     /**
-     * Get the fully qualified path to the environment file.
+     * Get the fully-qualified path to the environment file.
      */
     public function environmentFilePath(): string
     {
