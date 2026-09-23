@@ -29,6 +29,17 @@ class ValidatedInputTest extends TestCase
         $this->assertEquals(['name' => 'Taylor', 'votes' => 100], $input->all());
     }
 
+    public function testAllSelectsZeroAndEmptyStringKeys(): void
+    {
+        $input = new ValidatedInput([0 => 'first', '' => 'empty', 'name' => 'Taylor']);
+
+        $this->assertSame([0 => 'first'], $input->all(0));
+        $this->assertSame($input->all([0]), $input->all('0'));
+        $this->assertSame(['' => 'empty'], $input->all(''));
+        $this->assertSame([0 => 'first', 'missing' => null], $input->all('0', 'missing'));
+        $this->assertSame([], $input->all([]));
+    }
+
     public function testCanMergeItems(): void
     {
         $input = new ValidatedInput(['name' => 'Taylor']);

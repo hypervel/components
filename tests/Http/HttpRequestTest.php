@@ -1189,6 +1189,13 @@ class HttpRequestTest extends TestCase
         $this->assertEquals(['developer' => ['age' => null]], $request->all('developer.age'));
         $this->assertEquals(['developer' => ['skills' => null]], $request->all('developer.skills'));
         $this->assertEquals(['developer' => ['name' => 'Taylor', 'age' => null]], $request->all());
+
+        $request = Request::create('/', 'POST', [0 => 'first', '' => 'empty', 'name' => 'Taylor']);
+        $this->assertSame([0 => 'first'], $request->all(0));
+        $this->assertSame($request->all([0]), $request->all('0'));
+        $this->assertSame(['' => 'empty'], $request->all(''));
+        $this->assertSame([0 => 'first', 'missing' => null], $request->all('0', 'missing'));
+        $this->assertSame([], $request->all([]));
     }
 
     public function testKeysMethod(): void

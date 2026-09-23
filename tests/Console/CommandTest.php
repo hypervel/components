@@ -447,6 +447,7 @@ class CommandTest extends TestCase
         $this->assertSame('admin', (string) $commandInput->string('role'));
         $this->assertSame('admin', $commandInput->arguments()['role']);
         $this->assertSame('user', $commandInput->options()['role']);
+        $this->assertSame([], $commandInput->all([]));
     }
 
     public function testArgumentAndOptionGettersPreserveObjectValuesAndAggregateArrays(): void

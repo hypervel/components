@@ -66,7 +66,7 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
      * @param (Closure(): TGetDefault)|TGetDefault $default
      * @return TGetDefault|TValue
      */
-    public function get(?string $key = null, mixed $default = null): mixed
+    public function get(string|int|null $key = null, mixed $default = null): mixed
     {
         return data_get($this->attributes, $key, $default);
     }
@@ -74,7 +74,7 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
     /**
      * Set an attribute on the fluent instance using "dot" notation.
      */
-    public function set(string $key, mixed $value): static
+    public function set(string|int $key, mixed $value): static
     {
         data_set($this->attributes, $key, $value);
 
@@ -98,7 +98,7 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
     /**
      * Get an attribute from the fluent instance.
      */
-    public function value(string $key, mixed $default = null): mixed
+    public function value(string|int $key, mixed $default = null): mixed
     {
         if (array_key_exists($key, $this->attributes)) {
             return $this->attributes[$key];
@@ -124,7 +124,7 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
     {
         $data = $this->data();
 
-        if (! $keys) {
+        if ($keys === null) {
             return $data;
         }
 

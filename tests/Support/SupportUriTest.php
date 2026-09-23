@@ -103,6 +103,16 @@ class SupportUriTest extends TestCase
         $this->assertSame('https://hypervel.org/docs', $withoutFragment->value());
     }
 
+    public function testQueryAllSelectsZeroKeys(): void
+    {
+        $query = Uri::of('https://hypervel.org/?0=first&name=Taylor')->query();
+
+        $this->assertSame([0 => 'first'], $query->all(0));
+        $this->assertSame($query->all([0]), $query->all('0'));
+        $this->assertSame([0 => 'first', 'missing' => null], $query->all('0', 'missing'));
+        $this->assertSame([], $query->all([]));
+    }
+
     public function testComplicatedQueryStringParsing(): void
     {
         $uri = Uri::of('https://example.com/users?key_1=value&key_2[sub_field]=value&key_3[]=value&key_4[9]=value&key_5[][][foo][9]=bar&key.6=value&flag_value');
