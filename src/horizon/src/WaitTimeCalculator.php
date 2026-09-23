@@ -96,7 +96,7 @@ class WaitTimeCalculator
      */
     protected function timeToClearFor(string $connection, string $queue): float
     {
-        // @phpstan-ignore-next-line RedisQueue has readyNow method
+        // @phpstan-ignore method.notFound (RedisQueue has readyNow method)
         $size = $this->queue->connection($connection)->readyNow($queue);
 
         return $size * $this->metrics->runtimeForQueue($queue);
