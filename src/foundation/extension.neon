@@ -1,0 +1,5 @@
+services:
+    -
+        class: Hypervel\Foundation\PHPStan\HelperFunctionReturnTypeExtension
+        tags:
+            - phpstan.broker.dynamicFunctionReturnTypeExtension

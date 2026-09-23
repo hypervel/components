@@ -15,6 +15,7 @@ use Hypervel\Cache\Redis\Operations\AnyTag\Increment;
 use Hypervel\Cache\Redis\Operations\AnyTag\Prune;
 use Hypervel\Cache\Redis\Operations\AnyTag\Put;
 use Hypervel\Cache\Redis\Operations\AnyTag\PutMany;
+use Hypervel\Cache\Redis\Operations\AnyTag\RemoveEmptyTags;
 use Hypervel\Cache\Redis\Operations\AnyTag\Touch;
 use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
@@ -44,6 +45,8 @@ class AnyTagOperations
     private ?Flush $flush = null;
 
     private ?Prune $prune = null;
+
+    private ?RemoveEmptyTags $removeEmptyTags = null;
 
     /**
      * Create a new any-tag operations instance.
@@ -143,7 +146,7 @@ class AnyTagOperations
      */
     public function flush(): Flush
     {
-        return $this->flush ??= new Flush($this->context, $this->getTaggedKeys());
+        return $this->flush ??= new Flush($this->context, $this->getTaggedKeys(), $this->removeEmptyTags());
     }
 
     /**
@@ -154,6 +157,14 @@ class AnyTagOperations
      */
     public function prune(): Prune
     {
-        return $this->prune ??= new Prune($this->context);
+        return $this->prune ??= new Prune($this->context, $this->removeEmptyTags());
+    }
+
+    /**
+     * Get the shared operation for deregistering empty tag hashes.
+     */
+    private function removeEmptyTags(): RemoveEmptyTags
+    {
+        return $this->removeEmptyTags ??= new RemoveEmptyTags($this->context);
     }
 }

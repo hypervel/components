@@ -7,12 +7,13 @@ namespace Hypervel\Support;
 use ArrayIterator;
 use Hypervel\Contracts\Support\ValidatedData;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Support\Traits\Dumpable;
 use Hypervel\Support\Traits\InteractsWithData;
-use Symfony\Component\VarDumper\VarDumper;
 use Traversable;
 
 class ValidatedInput implements ValidatedData
 {
+    use Dumpable;
     use InteractsWithData;
 
     /**
@@ -92,25 +93,15 @@ class ValidatedInput implements ValidatedData
     }
 
     /**
-     * Dump the validated inputs items and end the script.
-     *
-     * @return never
-     */
-    public function dd(mixed ...$keys): void
-    {
-        $this->dump(...$keys);
-
-        exit(1);
-    }
-
-    /**
      * Dump the items.
      */
-    public function dump(mixed $keys = []): static
+    public function dump(mixed ...$keys): static
     {
-        $keys = is_array($keys) ? $keys : func_get_args();
+        // Preserve array key lists, including calls using the named keys argument.
+        $firstArgument = reset($keys);
+        $keys = is_array($firstArgument) ? $firstArgument : $keys;
 
-        VarDumper::dump(count($keys) > 0 ? $this->only($keys) : $this->all());
+        dump($keys !== [] ? $this->only($keys) : $this->all());
 
         return $this;
     }

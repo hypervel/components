@@ -248,6 +248,8 @@ class SendEmails extends Command
 }
 ```
 
+You may also pass aliases directly to `Signature`, such as `#[Signature('mail:send {user}', aliases: ['mail:drip'])]`.
+
 The `Help` attribute sets the extended help text shown by `--help`, while the repeatable `Usage` attribute adds usage examples to the command's help screen.
 
 <a name="exit-codes"></a>

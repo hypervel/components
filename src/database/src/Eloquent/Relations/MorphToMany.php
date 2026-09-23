@@ -182,7 +182,7 @@ class MorphToMany extends BelongsToMany
     }
 
     /**
-     * Get the fully qualified morph type for the relation.
+     * Get the fully-qualified morph type for the relation.
      */
     public function getQualifiedMorphTypeName(): string
     {

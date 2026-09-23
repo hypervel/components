@@ -1461,7 +1461,7 @@ class Worker
      */
     public function sleep(float|int $seconds): void
     {
-        Sleep::usleep((int) ($seconds * 1000000));
+        Sleep::usleep((int) ($seconds * 1_000_000));
     }
 
     /**

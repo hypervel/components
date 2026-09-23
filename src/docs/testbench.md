@@ -620,7 +620,7 @@ class CustomConfigTest extends TestCase
 <a name="defining-databases"></a>
 ## Defining Databases
 
-Hypervel's normal testing traits may be used in Testbench tests:
+Hypervel's normal [database testing traits](/docs/{{version}}/database-testing#resetting-the-database-after-each-test) may be used in Testbench tests:
 
 ```php
 use Hypervel\Foundation\Testing\DatabaseMigrations;

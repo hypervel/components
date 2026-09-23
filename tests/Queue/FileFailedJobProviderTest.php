@@ -178,14 +178,14 @@ class FileFailedJobProviderTest extends TestCase
         $this->logFailedJob();
         $this->logFailedJob();
 
-        $this->provider->prune(now()->addDay(1));
+        $this->provider->prune(now()->addDay());
         $failedJobs = $this->provider->all();
         $this->assertEmpty($failedJobs);
 
         $this->logFailedJob();
         $this->logFailedJob();
 
-        $this->provider->prune(now()->subDay(1));
+        $this->provider->prune(now()->subDay());
         $failedJobs = $this->provider->all();
         $this->assertCount(2, $failedJobs);
     }
@@ -195,14 +195,14 @@ class FileFailedJobProviderTest extends TestCase
         $this->logFailedJob();
         $this->logFailedJob();
 
-        $this->provider->prune(now()->addHour(1));
+        $this->provider->prune(now()->addHour());
         $failedJobs = $this->provider->all();
         $this->assertEmpty($failedJobs);
 
         $this->logFailedJob();
         $this->logFailedJob();
 
-        $this->provider->prune(now()->subHour(1));
+        $this->provider->prune(now()->subHour());
         $failedJobs = $this->provider->all();
         $this->assertCount(2, $failedJobs);
     }

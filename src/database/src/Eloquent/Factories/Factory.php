@@ -252,10 +252,12 @@ abstract class Factory
             $records = array_fill(0, $records, []);
         }
 
-        // @phpstan-ignore return.type (TModel lost through Collection->map closure)
         return new EloquentCollection(
             (new Collection($records))->map(function ($record) {
-                return $this->state($record)->create();
+                /** @var TModel $model */
+                $model = $this->state($record)->create();
+
+                return $model;
             })
         );
     }
@@ -411,8 +413,9 @@ abstract class Factory
     }
 
     /**
-     * Create a collection of models and persist them to the database.
+     * Create a collection of models.
      *
+     * @param null|int|iterable<int, array<string, mixed>> $records
      * @return EloquentCollection<int, TModel>
      */
     public function makeMany(iterable|int|null $records = null): EloquentCollection
@@ -425,10 +428,12 @@ abstract class Factory
             $records = array_fill(0, $records, []);
         }
 
-        // @phpstan-ignore return.type (TModel lost through Collection->map closure)
         return new EloquentCollection(
             (new Collection($records))->map(function ($record) {
-                return $this->state($record)->make();
+                /** @var TModel $model */
+                $model = $this->state($record)->make();
+
+                return $model;
             })
         );
     }

@@ -4,6 +4,7 @@
 - [Environment](#environment)
 - [Creating Tests](#creating-tests)
     - [Choosing a Test Case](#choosing-a-test-case)
+    - [Reusable Test Traits](#reusable-test-traits)
     - [Running Tests in Coroutines](#running-tests-in-coroutines)
     - [Request Context](#request-context)
     - [Owning Asynchronous Test Resources](#owning-asynchronous-test-resources)
@@ -137,6 +138,13 @@ class LocationServiceTest extends TestCase
 
 > [!WARNING]
 > If you define your own `setUp` / `tearDown` methods within a test class, be sure to call the respective `parent::setUp()` / `parent::tearDown()` methods on the parent class. Typically, you should invoke `parent::setUp()` at the start of your own `setUp` method, and `parent::tearDown()` at the end of your `tearDown` method.
+
+<a name="reusable-test-traits"></a>
+### Reusable Test Traits
+
+When a test boots the application, its reusable traits may mark setup and cleanup methods with the `Hypervel\Foundation\Testing\Attributes\SetUp` and `Hypervel\Foundation\Testing\Attributes\TearDown` attributes. Hypervel runs these methods after creating the application and before destroying it, respectively. The conventional `setUp{TraitName}` and `tearDown{TraitName}` method names are also supported.
+
+These hooks run outside the test method's coroutine; use `setUp{TraitName}InCoroutine` or `tearDown{TraitName}InCoroutine` when a trait needs to share the test's [coroutine context](#running-tests-in-coroutines).
 
 <a name="running-tests-in-coroutines"></a>
 ### Running Tests in Coroutines
@@ -340,7 +348,7 @@ If you would like Hypervel to drop the test databases after the parallel test ru
 php artisan test --parallel --drop-databases
 ```
 
-If you need to run tests in parallel without automatically configuring parallel databases or cache prefixes, you may use the `--without-databases` and `--without-cache` options:
+To disable automatic test database configuration, use `--without-databases`. To keep cache and rate limiter prefixes unchanged, use `--without-cache`:
 
 ```shell
 php artisan test --parallel --without-databases --without-cache

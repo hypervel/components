@@ -127,6 +127,10 @@ class ConnectionResolver implements ConnectionResolverInterface
 
             CoroutineContext::set($contextKey, $connection);
 
+            // Listeners can resolve this connection. Notify before registering a
+            // deferred release, since a listener failure discards the wrapper.
+            $pooledConnection->dispatchConnectionEstablishedEvent();
+
             if (Coroutine::inCoroutine()) {
                 Coroutine::defer(function () use ($pooledConnection, $contextKey): void {
                     CoroutineContext::forget($contextKey);
@@ -139,15 +143,7 @@ class ConnectionResolver implements ConnectionResolverInterface
             CoroutineContext::forget($contextKey);
             unset($this->nonCoroutineConnections[$connectionOwnerName]);
 
-            try {
-                $pooledConnection->discard();
-            } catch (CanceledException $cancellation) {
-                if (! $exception instanceof CanceledException) {
-                    throw $cancellation;
-                }
-            } catch (Throwable) {
-                // Preserve the connection setup failure.
-            }
+            $this->discardFailedConnection($pooledConnection, $exception);
 
             throw $exception;
         }
@@ -217,6 +213,22 @@ class ConnectionResolver implements ConnectionResolverInterface
     protected function getContextKey(string $name): string
     {
         return sprintf('__database.connection.%s', $name);
+    }
+
+    /**
+     * Discard a failed connection while preserving cancellation precedence.
+     */
+    protected function discardFailedConnection(PooledConnection $pooledConnection, Throwable $exception): void
+    {
+        try {
+            $pooledConnection->discard();
+        } catch (CanceledException $cancellation) {
+            if (! $exception instanceof CanceledException) {
+                throw $cancellation;
+            }
+        } catch (Throwable) {
+            // Preserve the connection setup failure.
+        }
     }
 
     /**

@@ -144,7 +144,7 @@ class Response implements ArrayAccess, Stringable
     }
 
     /**
-     * Get the JSON decoded body of the response as an array or scalar value.
+     * Get the decoded JSON body of the response as an array or scalar value.
      *
      * @param null|int-mask<JSON_BIGINT_AS_STRING, JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_OBJECT_AS_ARRAY, JSON_THROW_ON_ERROR> $flags
      */
@@ -168,7 +168,7 @@ class Response implements ArrayAccess, Stringable
     }
 
     /**
-     * Get the JSON decoded body of the response as an object.
+     * Get the decoded JSON body of the response as an object.
      *
      *  Example:
      *  If the response body is:
@@ -223,7 +223,7 @@ class Response implements ArrayAccess, Stringable
     }
 
     /**
-     * Get the JSON decoded body of the response as a collection.
+     * Get the decoded JSON body of the response as a collection.
      *
      * @param null|int-mask<JSON_BIGINT_AS_STRING, JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_OBJECT_AS_ARRAY, JSON_THROW_ON_ERROR> $flags
      */
@@ -233,7 +233,7 @@ class Response implements ArrayAccess, Stringable
     }
 
     /**
-     * Get the JSON decoded body of the response as a fluent object.
+     * Get the decoded JSON body of the response as a fluent object.
      *
      * @param null|int-mask<JSON_BIGINT_AS_STRING, JSON_INVALID_UTF8_IGNORE, JSON_INVALID_UTF8_SUBSTITUTE, JSON_OBJECT_AS_ARRAY, JSON_THROW_ON_ERROR> $flags
      */

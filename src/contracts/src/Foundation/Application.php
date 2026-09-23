@@ -152,7 +152,7 @@ interface Application extends Container
     public function environmentFile(): string;
 
     /**
-     * Get the fully qualified path to the environment file.
+     * Get the fully-qualified path to the environment file.
      */
     public function environmentFilePath(): string;
 

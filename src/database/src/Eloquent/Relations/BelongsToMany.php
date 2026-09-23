@@ -1448,7 +1448,7 @@ class BelongsToMany extends Relation
     }
 
     /**
-     * Get the fully qualified foreign key for the relation.
+     * Get the fully-qualified foreign key for the relation.
      */
     public function getQualifiedForeignPivotKeyName(): string
     {
@@ -1464,7 +1464,7 @@ class BelongsToMany extends Relation
     }
 
     /**
-     * Get the fully qualified "related key" for the relation.
+     * Get the fully-qualified "related key" for the relation.
      */
     public function getQualifiedRelatedPivotKeyName(): string
     {
@@ -1480,7 +1480,7 @@ class BelongsToMany extends Relation
     }
 
     /**
-     * Get the fully qualified parent key name for the relation.
+     * Get the fully-qualified parent key name for the relation.
      */
     public function getQualifiedParentKeyName(): string
     {
@@ -1496,7 +1496,7 @@ class BelongsToMany extends Relation
     }
 
     /**
-     * Get the fully qualified related key name for the relation.
+     * Get the fully-qualified related key name for the relation.
      */
     public function getQualifiedRelatedKeyName(): string
     {

@@ -88,6 +88,7 @@ abstract class RedisCacheTestCase extends TestCase
         $client->shouldReceive('exec')->andReturn([])->byDefault();
 
         $connection = m::mock(PhpRedisConnection::class);
+        $connection->allows('isCluster')->andReturn(false)->byDefault();
         $connection->shouldReceive('release')->zeroOrMoreTimes();
         $connection->shouldReceive('withoutScanPrefix')
             ->andReturnUsing(fn (callable $callback): mixed => $callback())
@@ -136,6 +137,7 @@ abstract class RedisCacheTestCase extends TestCase
             ->byDefault();
 
         $connection = m::mock(PhpRedisClusterConnection::class);
+        $connection->allows('isCluster')->andReturn(true)->byDefault();
         $connection->shouldReceive('release')->zeroOrMoreTimes();
         $connection->shouldReceive('withoutScanPrefix')
             ->andReturnUsing(fn (callable $callback): mixed => $callback())

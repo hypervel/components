@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Cache\Redis\Operations\AnyTag;
 use Generator;
 use Hypervel\Cache\Redis\Operations\AnyTag\Flush;
 use Hypervel\Cache\Redis\Operations\AnyTag\GetTaggedKeys;
+use Hypervel\Cache\Redis\Operations\AnyTag\RemoveEmptyTags;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Mockery as m;
@@ -38,11 +39,11 @@ class FlushTest extends RedisCacheTestCase
             )->andReturn(1)->ordered();
         $connection->expects('evalWithShaCache')
             ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
-            ->andReturn(1)->ordered();
+            ->andReturn([1, 1])->ordered();
 
         $store = $this->createStore($connection);
         $store->setTagMode('any');
-        $operation = new Flush($store->getContext(), $getTaggedKeys);
+        $operation = new Flush($store->getContext(), $getTaggedKeys, new RemoveEmptyTags($store->getContext()));
 
         $result = $operation->execute(['users']);
         $this->assertTrue($result);
@@ -74,11 +75,11 @@ class FlushTest extends RedisCacheTestCase
             )->andReturn(1)->ordered();
         $connection->expects('evalWithShaCache')
             ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries', 'prefix:_any:tag:posts:entries'], ['users', 'posts'])
-            ->andReturn(1)->ordered();
+            ->andReturn([2, 2])->ordered();
 
         $store = $this->createStore($connection);
         $store->setTagMode('any');
-        $operation = new Flush($store->getContext(), $getTaggedKeys);
+        $operation = new Flush($store->getContext(), $getTaggedKeys, new RemoveEmptyTags($store->getContext()));
 
         $result = $operation->execute(['users', 'posts']);
         $this->assertTrue($result);
@@ -101,14 +102,26 @@ class FlushTest extends RedisCacheTestCase
         $connection->shouldNotReceive('del');
         $connection->expects('evalWithShaCache')
             ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
-            ->andReturn(1);
+            ->andReturn([1, 1]);
 
         $store = $this->createStore($connection);
         $store->setTagMode('any');
-        $operation = new Flush($store->getContext(), $getTaggedKeys);
+        $operation = new Flush($store->getContext(), $getTaggedKeys, new RemoveEmptyTags($store->getContext()));
 
         $result = $operation->execute(['users']);
         $this->assertTrue($result);
+    }
+
+    public function testFlushWithNoTagsDoesNotSendCommands(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldNotReceive('evalWithShaCache');
+        $getTaggedKeys = m::mock(GetTaggedKeys::class);
+        $getTaggedKeys->shouldNotReceive('execute');
+        $store = $this->createStore($connection);
+        $operation = new Flush($store->getContext(), $getTaggedKeys, new RemoveEmptyTags($store->getContext()));
+
+        $this->assertTrue($operation->execute([]));
     }
 
     /**
@@ -137,11 +150,11 @@ class FlushTest extends RedisCacheTestCase
             )->andReturn(1)->ordered();
         $connection->expects('evalWithShaCache')
             ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries', 'prefix:_any:tag:posts:entries'], ['users', 'posts'])
-            ->andReturn(1)->ordered();
+            ->andReturn([2, 2])->ordered();
 
         $store = $this->createStore($connection);
         $store->setTagMode('any');
-        $operation = new Flush($store->getContext(), $getTaggedKeys);
+        $operation = new Flush($store->getContext(), $getTaggedKeys, new RemoveEmptyTags($store->getContext()));
 
         $result = $operation->execute(['users', 'posts']);
         $this->assertTrue($result);
@@ -165,11 +178,11 @@ class FlushTest extends RedisCacheTestCase
             ->andReturn(1)->ordered();
         $connection->expects('evalWithShaCache')
             ->with(m::type('string'), ['custom_prefix:_any:tag:registry', 'custom_prefix:_any:tag:users:entries'], ['users'])
-            ->andReturn(1)->ordered();
+            ->andReturn([1, 1])->ordered();
 
         $store = $this->createStore($connection, 'custom_prefix:');
         $store->setTagMode('any');
-        $operation = new Flush($store->getContext(), $getTaggedKeys);
+        $operation = new Flush($store->getContext(), $getTaggedKeys, new RemoveEmptyTags($store->getContext()));
 
         $result = $operation->execute(['users']);
         $this->assertTrue($result);
@@ -216,7 +229,7 @@ class FlushTest extends RedisCacheTestCase
             ->andReturn(1)->ordered();
         $connection->expects('hlen')->with('prefix:_any:tag:users:entries')->andReturn(0)->ordered();
 
-        $operation = new Flush($store->getContext(), $getTaggedKeys);
+        $operation = new Flush($store->getContext(), $getTaggedKeys, new RemoveEmptyTags($store->getContext()));
         $result = $operation->execute(['users']);
         $this->assertTrue($result);
     }
@@ -247,7 +260,7 @@ class FlushTest extends RedisCacheTestCase
         $connection->shouldReceive('unlink')->andReturn(1);
         $connection->shouldReceive('zrem')->andReturn(1);
 
-        $operation = new Flush($store->getContext(), $getTaggedKeys);
+        $operation = new Flush($store->getContext(), $getTaggedKeys, new RemoveEmptyTags($store->getContext()));
         $result = $operation->execute(['users', 'posts']);
         $this->assertTrue($result);
     }
@@ -272,7 +285,7 @@ class FlushTest extends RedisCacheTestCase
             ->andReturn(1);
         $connection->expects('evalWithShaCache')
             ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
-            ->andReturn(1);
+            ->andReturn([1, 1]);
 
         $store = $this->createStore($connection);
         $store->setTagMode('any');
@@ -289,7 +302,9 @@ class FlushTest extends RedisCacheTestCase
         $connection->expects('hlen')->with('prefix:_any:tag:users:entries')->andReturn(1);
         $connection->shouldNotReceive('zrem');
 
-        $this->assertTrue((new Flush($store->getContext(), $getTaggedKeys))->execute(['users']));
+        $operation = new Flush($store->getContext(), $getTaggedKeys, new RemoveEmptyTags($store->getContext()));
+
+        $this->assertTrue($operation->execute(['users']));
     }
 
     public function testClusterFlushRestoresRegistrationWhenAWriterRacesWithDeregistration(): void
@@ -303,7 +318,9 @@ class FlushTest extends RedisCacheTestCase
         $connection->expects('hlen')->with('prefix:_any:tag:users:entries')->andReturn(1)->ordered();
         $connection->expects('zadd')->with('prefix:_any:tag:registry', ['NX'], StoreContext::MAX_EXPIRY, 'users')->andReturn(1)->ordered();
 
-        $this->assertTrue((new Flush($store->getContext(), $getTaggedKeys))->execute(['users']));
+        $operation = new Flush($store->getContext(), $getTaggedKeys, new RemoveEmptyTags($store->getContext()));
+
+        $this->assertTrue($operation->execute(['users']));
     }
 
     /**

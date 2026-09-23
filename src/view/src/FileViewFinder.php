@@ -47,7 +47,7 @@ class FileViewFinder implements ViewFinderInterface
     }
 
     /**
-     * Get the fully qualified location of the view.
+     * Get the fully-qualified location of the view.
      */
     public function find(string $view): string
     {

@@ -5,13 +5,19 @@ declare(strict_types=1);
 namespace Hypervel\Routing\Controllers;
 
 use Closure;
+use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
+use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * @phpstan-type NextClosure Closure(Request): Response
+ */
 class Middleware
 {
     /**
      * Create a new controller middleware definition.
      *
+     * @param array|(Closure(Request, NextClosure): Response)|string $middleware
      * @param null|array<string> $only
      * @param null|array<string> $except
      */

@@ -23,6 +23,7 @@ class Flush
     public function __construct(
         private readonly StoreContext $context,
         private readonly GetTaggedKeys $getTaggedKeys,
+        private readonly RemoveEmptyTags $removeEmptyTags,
     ) {
     }
 
@@ -34,6 +35,10 @@ class Flush
      */
     public function execute(array $tags): bool
     {
+        if ($tags === []) {
+            return true;
+        }
+
         $tags = array_map(strval(...), $tags);
         $tagKeys = array_map($this->context->tagHashKey(...), $tags);
         $isCluster = $this->context->isCluster();
@@ -55,7 +60,9 @@ class Flush
             $this->flushChunk(array_keys($buffer), $tagKeys, $isCluster);
         }
 
-        $this->removeEmptyTags($tags, $tagKeys, $isCluster);
+        $this->context->withConnection(
+            fn (RedisConnection $connection): array => $this->removeEmptyTags->execute($connection, $tags),
+        );
 
         return true;
     }
@@ -96,55 +103,6 @@ class Flush
     }
 
     /**
-     * Keep unfinished or concurrently repopulated hashes discoverable by Prune.
-     *
-     * @param array<int, string> $tags
-     * @param array<int, string> $tagKeys
-     */
-    private function removeEmptyTags(array $tags, array $tagKeys, bool $isCluster): void
-    {
-        if ($tags === []) {
-            return;
-        }
-
-        $registryKey = $this->context->registryKey();
-
-        $this->context->withConnection(function (RedisConnection $connection) use ($registryKey, $tags, $tagKeys, $isCluster): void {
-            if (! $isCluster) {
-                $connection->evalWithShaCache($this->removeEmptyTagsScript(), [$registryKey, ...$tagKeys], $tags);
-
-                return;
-            }
-
-            foreach ($tags as $index => $tag) {
-                $tagKey = $tagKeys[$index];
-
-                if (! $this->tagHashIsEmpty($connection, $tagKey)) {
-                    continue;
-                }
-
-                $connection->zrem($registryKey, $tag);
-
-                // As in Prune, restore a missing registration if a cross-slot writer
-                // repopulated the hash. NX preserves a score already published by it.
-                if (! $this->tagHashIsEmpty($connection, $tagKey)) {
-                    $connection->zadd($registryKey, ['NX'], StoreContext::MAX_EXPIRY, $tag);
-                }
-            }
-        });
-    }
-
-    /**
-     * Check the current hash state across concurrent writes.
-     *
-     * @phpstan-impure Redis may change between calls.
-     */
-    private function tagHashIsEmpty(RedisConnection $connection, string $tagKey): bool
-    {
-        return $connection->hlen($tagKey) === 0;
-    }
-
-    /**
      * Remove only scanned fields, their reverse indexes and values atomically.
      */
     protected function flushChunkScript(): string
@@ -159,22 +117,6 @@ class Flush
 
             redis.call('DEL', unpack(KEYS, tagCount + 1, tagCount + keyCount))
             redis.call('UNLINK', unpack(KEYS, tagCount + keyCount + 1, #KEYS))
-
-            return 1
-            LUA;
-    }
-
-    /**
-     * Deregister only hashes still empty after the flush.
-     */
-    protected function removeEmptyTagsScript(): string
-    {
-        return <<<'LUA'
-            for i = 2, #KEYS do
-                if redis.call('HLEN', KEYS[i]) == 0 then
-                    redis.call('ZREM', KEYS[1], ARGV[i - 1])
-                end
-            end
 
             return 1
             LUA;

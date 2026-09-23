@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Operations\AnyTag;
 
-use Hypervel\Cache\Redis\Operations\AnyTag\Prune;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
@@ -34,7 +33,7 @@ class PruneTest extends RedisCacheTestCase
             'empty_hashes_deleted' => 0,
             'expired_tags_removed' => 2,
             'orphaned_tags_removed' => 0,
-        ], (new Prune($store->getContext()))->execute());
+        ], $store->anyTagOps()->prune()->execute());
     }
 
     public function testPruneRemovesOrphansAtomicallyInBoundedPages(): void
@@ -67,15 +66,15 @@ class PruneTest extends RedisCacheTestCase
         $connection->shouldReceive('evalWithShaCache')
             ->once()
             ->with(
-                m::on(fn (string $script): bool => str_contains($script, "redis.call('ZREM', KEYS[2], ARGV[1])")),
-                ['prefix:_any:tag:users:entries', 'prefix:_any:tag:registry'],
+                m::on(fn (string $script): bool => str_contains($script, "redis.call('ZREM', KEYS[1], ARGV[i - 1])")),
+                ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'],
                 ['users'],
             )
             ->andReturn([0, 0]);
 
         $store = $this->createStore($connection);
         $store->setTagMode('any');
-        $result = (new Prune($store->getContext()))->execute(37);
+        $result = $store->anyTagOps()->prune()->execute(37);
 
         $this->assertSame(1, $result['hashes_scanned']);
         $this->assertSame(3, $result['fields_checked']);
@@ -101,7 +100,7 @@ class PruneTest extends RedisCacheTestCase
             ->once()
             ->with(
                 m::type('string'),
-                ['prefix:_any:tag:forever-tag:entries', 'prefix:_any:tag:registry'],
+                ['prefix:_any:tag:registry', 'prefix:_any:tag:forever-tag:entries'],
                 ['forever-tag'],
             )
             ->andReturn([1, 1]);
@@ -109,7 +108,7 @@ class PruneTest extends RedisCacheTestCase
 
         $store = $this->createStore($connection);
         $store->setTagMode('any');
-        $result = (new Prune($store->getContext()))->execute();
+        $result = $store->anyTagOps()->prune()->execute();
 
         $this->assertSame(1, $result['orphans_removed']);
         $this->assertSame(1, $result['empty_hashes_deleted']);
@@ -138,7 +137,7 @@ class PruneTest extends RedisCacheTestCase
             ->andReturn(2);
         $connection->shouldReceive('hLen')->once()->andReturn(1);
 
-        $result = (new Prune($store->getContext()))->execute();
+        $result = $store->anyTagOps()->prune()->execute();
 
         $this->assertSame(3, $result['fields_checked']);
         $this->assertSame(2, $result['orphans_removed']);
@@ -171,7 +170,7 @@ class PruneTest extends RedisCacheTestCase
             ->andReturn(false);
         $connection->shouldReceive('hLen')->once()->andReturn(1);
 
-        $result = (new Prune($store->getContext()))->execute();
+        $result = $store->anyTagOps()->prune()->execute();
 
         $this->assertSame(0, $result['orphans_removed']);
     }
@@ -203,7 +202,7 @@ class PruneTest extends RedisCacheTestCase
             ->andReturn(false);
         $connection->shouldReceive('hLen')->once()->andReturn(1);
 
-        $result = (new Prune($store->getContext()))->execute();
+        $result = $store->anyTagOps()->prune()->execute();
 
         $this->assertSame(0, $result['orphans_removed']);
     }
@@ -230,7 +229,7 @@ class PruneTest extends RedisCacheTestCase
             ->with('prefix:_any:tag:registry', ['NX'], StoreContext::MAX_EXPIRY, 'users')
             ->andReturn(0);
 
-        $result = (new Prune($store->getContext()))->execute();
+        $result = $store->anyTagOps()->prune()->execute();
 
         $this->assertSame(0, $result['empty_hashes_deleted']);
         $this->assertSame(0, $result['orphaned_tags_removed']);
@@ -255,7 +254,7 @@ class PruneTest extends RedisCacheTestCase
         );
 
         $store = $this->createStoreWithFakeClient($fakeClient, tagMode: 'any');
-        $result = (new Prune($store->getContext()))->execute();
+        $result = $store->anyTagOps()->prune()->execute();
 
         $this->assertSame(3, $fakeClient->getHScanCallCount());
         $this->assertCount(3, $fakeClient->getEvalShaCalls());

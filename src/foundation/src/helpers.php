@@ -812,6 +812,8 @@ if (! function_exists('response')) {
     /**
      * Return a new response from the application.
      *
+     * With no arguments, return the factory. Any argument, including null, creates a response.
+     *
      * @return ($content is null ? \Hypervel\Contracts\Routing\ResponseFactory : \Hypervel\Http\Response)
      */
     function response(mixed $content = null, int $status = 200, array $headers = []): \Hypervel\Contracts\Routing\ResponseFactory|\Hypervel\Http\Response
@@ -1012,6 +1014,8 @@ if (! function_exists('url')) {
 if (! function_exists('validator')) {
     /**
      * Create a new Validator instance.
+     *
+     * With no arguments, return the factory. Any argument, including null, creates a validator.
      *
      * @return ($data is null ? ValidatorFactoryContract : ValidatorContract)
      */

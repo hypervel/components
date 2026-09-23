@@ -71,7 +71,7 @@ class Authorize
     }
 
     /**
-     * Check if the given string looks like a fully qualified class name.
+     * Check if the given string looks like a fully-qualified class name.
      */
     protected function isClassName(string $value): bool
     {

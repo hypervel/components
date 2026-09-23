@@ -19,6 +19,9 @@ use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 #[WithConfig('filesystems.disks.local.serve', true)]
 class ServeFileTest extends TestCase
 {
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         $this->afterApplicationCreated(function (): void {
@@ -119,7 +122,7 @@ class ServeFileTest extends TestCase
     {
         $url = URL::to(URL::temporarySignedRoute(
             'storage.served-test',
-            now()->addMinutes(1),
+            now()->addMinute(),
             ['path' => 'serve-file-test.txt'],
             absolute: false,
         ));
@@ -132,7 +135,7 @@ class ServeFileTest extends TestCase
 
     public function testItCanServeAnExistingFile(): void
     {
-        $url = Storage::temporaryUrl('serve-file-test.txt', now()->addMinutes(1));
+        $url = Storage::temporaryUrl('serve-file-test.txt', now()->addMinute());
 
         $response = $this->get($url);
 
@@ -141,7 +144,7 @@ class ServeFileTest extends TestCase
 
     public function testDownloadUsesTheQueryFlagInsteadOfRequestBody(): void
     {
-        $url = Storage::temporaryUrl('serve-file-test.txt', now()->addMinutes(1));
+        $url = Storage::temporaryUrl('serve-file-test.txt', now()->addMinute());
 
         $response = $this->json('GET', $url, ['upload' => true]);
 
@@ -151,7 +154,7 @@ class ServeFileTest extends TestCase
 
     public function testItWill404OnMissingFile(): void
     {
-        $url = Storage::temporaryUrl('serve-missing-test.txt', now()->addMinutes(1));
+        $url = Storage::temporaryUrl('serve-missing-test.txt', now()->addMinute());
 
         $response = $this->get($url);
 
@@ -160,7 +163,7 @@ class ServeFileTest extends TestCase
 
     public function testItWill403OnWrongSignature(): void
     {
-        $url = Storage::temporaryUrl('serve-file-test.txt', now()->addMinutes(1));
+        $url = Storage::temporaryUrl('serve-file-test.txt', now()->addMinute());
 
         $url = $url . 'c';
 
@@ -171,7 +174,7 @@ class ServeFileTest extends TestCase
 
     public function testItCanServeAFileWithUriDelimitersInThePath(): void
     {
-        $url = Storage::temporaryUrl('serve-file-test.txt?pad=x', now()->addMinutes(1));
+        $url = Storage::temporaryUrl('serve-file-test.txt?pad=x', now()->addMinute());
 
         $response = $this->get($url);
 
@@ -180,7 +183,7 @@ class ServeFileTest extends TestCase
 
     public function testItCanServeAFileWithAnEncodedSeparatorInItsName(): void
     {
-        $url = Storage::temporaryUrl('serve-file-test%2F.txt', now()->addMinutes(1));
+        $url = Storage::temporaryUrl('serve-file-test%2F.txt', now()->addMinute());
 
         $response = $this->get($url);
 
@@ -189,7 +192,7 @@ class ServeFileTest extends TestCase
 
     public function testTemporaryUrlPreservesPathSeparatorsInNestedPaths(): void
     {
-        $url = Storage::temporaryUrl('nested/folder/serve-file-test.txt', now()->addMinutes(1));
+        $url = Storage::temporaryUrl('nested/folder/serve-file-test.txt', now()->addMinute());
 
         $this->assertStringContainsString('nested/folder/serve-file-test.txt', $url);
 
@@ -201,7 +204,7 @@ class ServeFileTest extends TestCase
     public function testNestedScopedDiskUsesTheNearestServedParentRouteAndEffectivePath(): void
     {
         $url = Storage::disk('scoped-grandchild')
-            ->temporaryUrl('serve-file-test.txt', now()->addMinutes(1));
+            ->temporaryUrl('serve-file-test.txt', now()->addMinute());
 
         $this->assertStringContainsString(
             '/served-parent/tenants/acme/documents/serve-file-test.txt',
@@ -217,7 +220,7 @@ class ServeFileTest extends TestCase
     public function testServedScopedDiskUsesItsOwnRouteWithoutRepeatingItsStoragePrefix(): void
     {
         $disk = Storage::disk('scoped-owner');
-        $url = $disk->temporaryUrl('serve-file-test.txt', now()->addMinutes(1));
+        $url = $disk->temporaryUrl('serve-file-test.txt', now()->addMinute());
 
         $this->assertSame('/served-parent/owned/serve-file-test.txt', $disk->url('serve-file-test.txt'));
         $this->assertStringContainsString('/scoped-owner/serve-file-test.txt', $url);
@@ -230,7 +233,7 @@ class ServeFileTest extends TestCase
 
     public function testUriDelimitersInThePathCannotHideAnExpiredUrl(): void
     {
-        $url = Storage::temporaryUrl('serve-file-test.txt?pad=x', now()->subMinutes(1));
+        $url = Storage::temporaryUrl('serve-file-test.txt?pad=x', now()->subMinute());
 
         $response = $this->get($url);
 
@@ -239,7 +242,7 @@ class ServeFileTest extends TestCase
 
     public function testHeadRequestSendsHeadersButNoBody(): void
     {
-        $url = Storage::temporaryUrl('serve-file-test.txt', now()->addMinutes(1));
+        $url = Storage::temporaryUrl('serve-file-test.txt', now()->addMinute());
 
         $response = $this->head($url);
 
