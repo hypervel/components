@@ -358,7 +358,7 @@ class Message
     /**
      * Dynamically pass missing methods to the Symfony instance.
      */
-    public function __call(string $method, array $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return $this->forwardDecoratedCallTo($this->message, $method, $parameters);
     }

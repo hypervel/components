@@ -814,7 +814,7 @@ class MailManager implements FactoryContract
     /**
      * Dynamically call the default driver instance.
      */
-    public function __call(string $method, array $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return $this->mailer()->{$method}(...$parameters);
     }

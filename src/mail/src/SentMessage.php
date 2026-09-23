@@ -34,7 +34,7 @@ class SentMessage
     /**
      * Dynamically pass missing methods to the Symfony instance.
      */
-    public function __call(string $method, array $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return $this->forwardCallTo($this->sentMessage, $method, $parameters);
     }
@@ -55,7 +55,7 @@ class SentMessage
     /**
      * Marshal the object from its serialized data.
      */
-    public function __unserialize(array $data)
+    public function __unserialize(array $data): void
     {
         $hasAttachments = ($data['hasAttachments'] ?? false) === true;
 
