@@ -427,6 +427,9 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
         return $result;
     }
 
+    /**
+     * Store multiple items in the cache.
+     */
     public function setMultiple(iterable $values, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         return $this->putMany(is_array($values) ? $values : iterator_to_array($values), $ttl);
@@ -835,6 +838,9 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
         return $result;
     }
 
+    /**
+     * Remove an item from the cache.
+     */
     public function delete(UnitEnum|string $key): bool
     {
         return $this->forget($key);
