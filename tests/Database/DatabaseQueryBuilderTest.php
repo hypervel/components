@@ -2736,7 +2736,8 @@ class DatabaseQueryBuilderTest extends TestCase
     public function testNestedHavings()
     {
         $builder = $this->getBuilder();
-        $builder->select('*')->from('users')->having('email', '=', 'foo')->orHaving(function ($q) {
+        $builder->select('*')->from('users')->having('email', '=', 'foo')->having(function ($q) {
+        })->orHaving(function ($q) {
             $q->having('name', '=', 'bar')->having('age', '=', 25);
         });
         $this->assertSame('select * from "users" having "email" = ? or ("name" = ? and "age" = ?)', $builder->toSql());

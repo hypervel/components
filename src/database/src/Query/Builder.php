@@ -738,6 +738,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a subquery cross join to the query.
+     *
+     * @param Closure|self|EloquentBuilder<*>|Relation<*, *, *>|string $query
      */
     public function crossJoinSub(Closure|self|EloquentBuilder|Relation|string $query, string $as): static
     {
@@ -2397,7 +2399,7 @@ class Builder implements BuilderContract
      */
     public function addNestedHavingQuery(self $query, string $boolean = 'and'): static
     {
-        if (count($query->havings)) {
+        if (! empty($query->havings)) {
             $type = 'Nested';
 
             $this->havings[] = compact('type', 'query', 'boolean');
