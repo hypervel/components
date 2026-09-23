@@ -16,7 +16,12 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Testing\Fakes\Fake;
 use Hypervel\Support\Uri;
 use Mockery;
+use Mockery\CompositeExpectation;
+use Mockery\Expectation;
+use Mockery\ExpectsHigherOrderMessage;
+use Mockery\HigherOrderMessage;
 use Mockery\LegacyMockInterface;
+use Mockery\MockInterface;
 use RuntimeException;
 
 abstract class Facade
@@ -70,8 +75,10 @@ abstract class Facade
 
     /**
      * Convert the facade into a Mockery spy.
+     *
+     * Tests only. Swaps the resolved facade instance for the worker lifetime.
      */
-    public static function spy()
+    public static function spy(): ?MockInterface
     {
         if (static::isMock()) {
             return null;
@@ -89,7 +96,7 @@ abstract class Facade
      *
      * Tests only. Swaps the resolved facade instance for the worker lifetime.
      */
-    public static function partialMock()
+    public static function partialMock(): MockInterface
     {
         $name = static::getFacadeAccessor();
 
@@ -105,7 +112,7 @@ abstract class Facade
      *
      * Tests only. Swaps the resolved facade instance for the worker lifetime.
      */
-    public static function shouldReceive()
+    public static function shouldReceive(): CompositeExpectation|Expectation|HigherOrderMessage
     {
         $name = static::getFacadeAccessor();
 
@@ -121,7 +128,7 @@ abstract class Facade
      *
      * Tests only. Swaps the resolved facade instance for the worker lifetime.
      */
-    public static function expects()
+    public static function expects(): CompositeExpectation|Expectation|ExpectsHigherOrderMessage
     {
         $name = static::getFacadeAccessor();
 
@@ -135,7 +142,7 @@ abstract class Facade
     /**
      * Create a fresh mock instance for the given class.
      */
-    protected static function createFreshMockInstance()
+    protected static function createFreshMockInstance(): MockInterface
     {
         return tap(static::createMock(), function ($mock) {
             static::swap($mock);
@@ -147,7 +154,7 @@ abstract class Facade
     /**
      * Create a fresh mock instance for the given class.
      */
-    protected static function createMock()
+    protected static function createMock(): MockInterface
     {
         $class = static::getMockableClass();
 
@@ -184,7 +191,7 @@ abstract class Facade
      * container binding; runtime use races across coroutines and changes every
      * subsequent facade call.
      */
-    public static function swap(mixed $instance)
+    public static function swap(mixed $instance): void
     {
         static::$resolvedInstance[static::getFacadeAccessor()] = $instance;
 
@@ -345,7 +352,7 @@ abstract class Facade
      *
      * @throws RuntimeException
      */
-    public static function __callStatic(string $method, array $args)
+    public static function __callStatic(string $method, array $args): mixed
     {
         $instance = static::getFacadeRoot();
 

@@ -48,7 +48,6 @@ trait RunTestsInCoroutine
             }
         };
 
-        /* @phpstan-ignore-next-line */
         run(function () use (&$testResult, &$exception, $capture, $methodName, $testArguments): void {
             $this->clearNonCoroutineTransactionContext();
 
@@ -101,6 +100,9 @@ trait RunTestsInCoroutine
         return true;
     }
 
+    /**
+     * Run trait and test setup hooks in the test coroutine.
+     */
     protected function invokeSetupInCoroutine(): void
     {
         // Call trait-specific coroutine setup methods (e.g., setUpDatabaseTransactionsInCoroutine)
@@ -116,6 +118,9 @@ trait RunTestsInCoroutine
         }
     }
 
+    /**
+     * Run test and trait teardown hooks while capturing failures.
+     */
     protected function invokeTearDownInCoroutine(callable $capture): void
     {
         if (method_exists($this, 'tearDownInCoroutine')) {

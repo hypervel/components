@@ -74,6 +74,9 @@ class File extends Facade
         static::getFacadeRoot()->replace($path, $content, $mode);
     }
 
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return 'files';

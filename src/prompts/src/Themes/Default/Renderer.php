@@ -95,10 +95,10 @@ abstract class Renderer implements Stringable
     /**
      * Render the output with a blank line above and below.
      */
-    public function __toString()
+    public function __toString(): string
     {
         return str_repeat(PHP_EOL, max(2 - $this->prompt->newLinesWritten(), 0))
             . $this->output
-            . (in_array($this->prompt->state, ['submit', 'cancel']) ? PHP_EOL : '');
+            . (in_array($this->prompt->state, ['submit', 'cancel'], true) ? PHP_EOL : '');
     }
 }

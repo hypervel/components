@@ -396,10 +396,9 @@ class FilesystemManager implements FactoryContract
             $config['root'] = '';
         }
 
-        /* @phpstan-ignore-next-line */
-        $adapter = new FtpAdapter(FtpConnectionOptions::fromArray($config));
+        $adapter = new FtpAdapter(FtpConnectionOptions::fromArray($config)); // @phpstan-ignore class.notFound, class.notFound
 
-        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore-line
+        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore argument.type, argument.type
     }
 
     /**
@@ -407,8 +406,7 @@ class FilesystemManager implements FactoryContract
      */
     public function createSftpDriver(array $config): Filesystem
     {
-        /* @phpstan-ignore-next-line */
-        $provider = SftpConnectionProvider::fromArray($config);
+        $provider = SftpConnectionProvider::fromArray($config); // @phpstan-ignore class.notFound
 
         $root = $config['root'] ?? '';
 
@@ -416,10 +414,9 @@ class FilesystemManager implements FactoryContract
             $config['permissions'] ?? []
         );
 
-        /* @phpstan-ignore-next-line */
-        $adapter = new SftpAdapter($provider, $root, $visibility);
+        $adapter = new SftpAdapter($provider, $root, $visibility); // @phpstan-ignore class.notFound
 
-        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore-line
+        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore argument.type, argument.type
     }
 
     /**
@@ -953,10 +950,8 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Dynamically call the default driver instance.
-     *
-     * @return mixed
      */
-    public function __call(string $method, array $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return $this->disk()->{$method}(...$parameters);
     }

@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Mail;
 
 use Aws\Command;
 use Aws\Exception\AwsException;
+use Aws\Result;
 use Aws\SesV2\SesV2Client;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Mail\Mailer;
@@ -13,10 +14,13 @@ use Hypervel\Mail\MailManager;
 use Hypervel\Mail\Transport\SesV2Transport;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use Symfony\Component\Mailer\Envelope;
 use Symfony\Component\Mailer\Exception\TransportException;
 use Symfony\Component\Mailer\Header\MetadataHeader;
+use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
+use Symfony\Component\Mime\RawMessage;
 
 class MailSesV2TransportTest extends TestCase
 {
@@ -60,6 +64,7 @@ class MailSesV2TransportTest extends TestCase
         $message->to('me@example.com');
         $message->bcc('you@example.com');
         $message->replyTo(new Address('taylor@example.com', 'Taylor Otwell'));
+        $message->getHeaders()->addIdHeader('Message-ID', 'mime-message-id@example.com');
         $message->getHeaders()->add(new MetadataHeader('FooTag', 'TagValue'));
         $message->getHeaders()->addTextHeader('X-SES-LIST-MANAGEMENT-OPTIONS', 'contactListName=TestList;topicName=TestTopic');
 
@@ -78,7 +83,30 @@ class MailSesV2TransportTest extends TestCase
             }))
             ->andReturn($sesResult);
 
-        (new SesV2Transport($client))->send($message);
+        $sentMessage = (new SesV2Transport($client))->send($message);
+
+        $this->assertSame('mime-message-id@example.com', $sentMessage->getMessageId());
+        $headers = $sentMessage->getOriginalMessage()->getHeaders();
+        $this->assertSame('ses-message-id', $headers->get('X-Message-ID')->getBodyAsString());
+        $this->assertSame('ses-message-id', $headers->get('X-SES-Message-ID')->getBodyAsString());
+    }
+
+    public function testSendRawMessageWithExplicitEnvelope(): void
+    {
+        $message = new RawMessage("From: sender@example.com\r\nTo: recipient@example.com\r\nSubject: Raw mail\r\n\r\nBody");
+        $envelope = new Envelope(new Address('sender@example.com'), [new Address('recipient@example.com')]);
+
+        $client = m::mock(SesV2Client::class);
+        $client->expects('sendEmail')->with([
+            'Source' => 'sender@example.com',
+            'Destination' => ['ToAddresses' => ['recipient@example.com']],
+            'Content' => ['Raw' => ['Data' => $message->toString()]],
+        ])->andReturn(new Result(['MessageId' => 'ses-message-id']));
+
+        $sentMessage = (new SesV2Transport($client))->send($message, $envelope);
+
+        $this->assertInstanceOf(SentMessage::class, $sentMessage);
+        $this->assertSame('ses-message-id', $sentMessage->getMessageId());
     }
 
     public function testSendWithTenantName(): void

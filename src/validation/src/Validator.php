@@ -1624,7 +1624,8 @@ class Validator implements ValidatorContract
         return (new Collection($this->rules))
             ->mapWithKeys(fn ($value, $key) => [
                 static::decodeAttributeWithPlaceholder((string) $key) => $value,
-            ])->all();
+            ])
+            ->all();
     }
 
     /**
@@ -1635,7 +1636,8 @@ class Validator implements ValidatorContract
         $rules = (new Collection($rules))
             ->mapWithKeys(function ($value, $key) {
                 return [static::encodeAttributeWithPlaceholder((string) $key) => $value];
-            })->toArray();
+            })
+            ->toArray();
 
         $this->initialRules = $rules;
 

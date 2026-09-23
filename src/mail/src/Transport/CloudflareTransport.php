@@ -14,6 +14,7 @@ use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mailer\Transport\AbstractTransport;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
+use Symfony\Component\Mime\Message;
 use Symfony\Component\Mime\MessageConverter;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
@@ -75,8 +76,9 @@ class CloudflareTransport extends AbstractTransport
      */
     protected function getPayload(SentMessage $message): array
     {
-        /* @phpstan-ignore-next-line */
-        $email = MessageConverter::toEmail($message->getOriginalMessage());
+        /** @var Message $originalMessage */
+        $originalMessage = $message->getOriginalMessage();
+        $email = MessageConverter::toEmail($originalMessage);
 
         $envelope = $message->getEnvelope();
 

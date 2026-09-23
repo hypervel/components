@@ -199,7 +199,7 @@ class Schedule
                     : $job;
 
                 if ($job instanceof ShouldQueue) {
-                    $this->dispatchToQueue($job, $queue ?? $job->queue, $connection ?? $job->connection); /* @phpstan-ignore-line */
+                    $this->dispatchToQueue($job, $queue ?? $job->queue, $connection ?? $job->connection); // @phpstan-ignore property.notFound, property.notFound
                 } else {
                     $this->dispatchNow($job);
                 }
@@ -494,7 +494,7 @@ class Schedule
     /**
      * Dynamically handle calls into the schedule instance.
      */
-    public function __call(string $method, array $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         if (static::hasMacro($method)) {
             return $this->macroCall($method, $parameters);

@@ -32,19 +32,7 @@ class Arr
     /**
      * Determine whether the given value is arrayable.
      *
-     * @return ($value is array
-     *     ? true
-     *     : ($value is Arrayable
-     *         ? true
-     *         : ($value is Traversable
-     *             ? true
-     *             : ($value is Jsonable
-     *                 ? true
-     *                 : ($value is JsonSerializable ? true : false)
-     *             )
-     *         )
-     *     )
-     * )
+     * @return ($value is array|Arrayable|Jsonable|JsonSerializable|Traversable ? true : false)
      */
     public static function arrayable(mixed $value): bool
     {

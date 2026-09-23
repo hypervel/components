@@ -43,7 +43,7 @@ class ProviderMakeCommand extends GeneratorCommand
 
         ServiceProvider::addProviderToBootstrapFile(
             $this->qualifyClass($this->getNameInput()),
-            $this->hypervel->getBootstrapProvidersPath(), /* @phpstan-ignore-line */
+            $this->hypervel->getBootstrapProvidersPath(), // @phpstan-ignore method.notFound
         );
 
         return $result;

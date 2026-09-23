@@ -10,6 +10,7 @@
     - [Missing Equivalents](#missing-equivalents)
 - [Type Declarations](#type-declarations)
     - [Inherited Properties](#inherited-properties)
+    - [Inherited Methods](#inherited-methods)
 - [Service Providers](#service-providers)
     - [Registering Bindings](#registering-bindings)
     - [Bootstrapping Services](#bootstrapping-services)
@@ -236,6 +237,11 @@ When a ported command accesses the application instance directly, replace Larave
 Models and commands are common examples, but they are not an exhaustive list. Audit properties declared by mailables, form requests, queueable jobs, and any other class that extends a Hypervel class or composes a Hypervel trait. Inspect the current parent class and every composed trait before adding or retaining a property declaration.
 
 Some typed properties have no default value. For example, a Hypervel mailable's `$markdown`, `$view`, and `$textView` properties must not be read directly before they have been initialized. Use `isset()` or `??` when testing an optional value, or assign a valid string before reading it.
+
+<a name="inherited-methods"></a>
+### Inherited Methods
+
+When overriding a framework method, use a signature compatible with its Hypervel declaration, including the return type. For example, a model's `boot()` override must declare `protected static function boot(): void`. Copying Laravel's untyped override causes a fatal error when PHP loads the class.
 
 <a name="service-providers"></a>
 ## Service Providers

@@ -422,29 +422,29 @@ assertType('Hypervel\Support\LazyCollection<(int|string), int>', $collection::ma
 assertType('Hypervel\Support\LazyCollection<(int|string), Hypervel\Support\Collection<int, User>>', $collection->groupBy('name'));
 assertType('Hypervel\Support\LazyCollection<(int|string), Hypervel\Support\Collection<int, User>>', $collection->groupBy('name', true));
 assertType('Hypervel\Support\LazyCollection<(int|string), Hypervel\Support\Collection<(int|string), mixed>>', $collection->groupBy(['name', 'email']));
-assertType("Hypervel\\Support\\LazyCollection<'foo', Hypervel\\Support\\Collection<int, User>>", $collection->groupBy(function ($user, $int) {
+assertType('Hypervel\Support\LazyCollection<string, Hypervel\Support\Collection<int, User>>', $collection->groupBy(function ($user, $int) {
     assertType('User', $user);
     assertType('int', $int);
 
     return 'foo';
 }));
-assertType('Hypervel\Support\LazyCollection<0, Hypervel\Support\Collection<int, User>>', $collection->groupBy(static fn ($user) => 0));
+assertType('Hypervel\Support\LazyCollection<int, Hypervel\Support\Collection<int, User>>', $collection->groupBy(static fn ($user) => 0));
 assertType('Hypervel\Support\LazyCollection<(int|string), Hypervel\Support\Collection<int, User>>', $collection->groupBy(static fn ($user) => Digit::One));
 assertType('Hypervel\Support\LazyCollection<(int|string), Hypervel\Support\Collection<int, User>>', $collection->groupBy(static fn ($user) => NamedDigit::One));
 assertType('Hypervel\Support\LazyCollection<(int|string), Hypervel\Support\Collection<int, User>>', $collection->groupBy(static fn ($user) => NumberedDigit::One));
 
-assertType("Hypervel\\Support\\LazyCollection<'foo', Hypervel\\Support\\Collection<'bar', User>>", $collection->keyBy(fn ($user) => 'bar')->groupBy(function ($user) {
+assertType('Hypervel\Support\LazyCollection<string, Hypervel\Support\Collection<string, User>>', $collection->keyBy(fn ($user) => 'bar')->groupBy(function ($user) {
     return 'foo';
 }, preserveKeys: true));
 
 assertType('Hypervel\Support\LazyCollection<(int|string), User>', $collection->keyBy('name'));
-assertType("Hypervel\\Support\\LazyCollection<'foo', User>", $collection->keyBy(function ($user, $int) {
+assertType('Hypervel\Support\LazyCollection<string, User>', $collection->keyBy(function ($user, $int) {
     assertType('User', $user);
     assertType('int', $int);
 
     return 'foo';
 }));
-assertType('Hypervel\Support\LazyCollection<0, User>', $collection->keyBy(static fn ($user): int => 0));
+assertType('Hypervel\Support\LazyCollection<int, User>', $collection->keyBy(static fn ($user): int => 0));
 assertType('Hypervel\Support\LazyCollection<(int|string), User>', $collection->keyBy(static fn ($user) => Digit::One));
 assertType('Hypervel\Support\LazyCollection<(int|string), User>', $collection->keyBy(static fn ($user) => NamedDigit::One));
 assertType('Hypervel\Support\LazyCollection<(int|string), User>', $collection->keyBy(static fn ($user) => NumberedDigit::One));

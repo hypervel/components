@@ -54,10 +54,8 @@ abstract class ServiceProvider
 
     /**
      * The migration paths available for publishing.
-     *
-     * @var array
      */
-    protected static $publishableMigrationPaths = [];
+    protected static array $publishableMigrationPaths = [];
 
     /**
      * Commands that should be run during the "optimize" command.

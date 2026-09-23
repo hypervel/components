@@ -20,10 +20,8 @@ class ReportableHandler
 
     /**
      * Indicates if reporting should stop after invoking this handler.
-     *
-     * @var bool
      */
-    protected $shouldStop = false;
+    protected bool $shouldStop = false;
 
     /**
      * Create a new reportable handler instance.
@@ -35,10 +33,8 @@ class ReportableHandler
 
     /**
      * Invoke the handler.
-     *
-     * @return bool
      */
-    public function __invoke(Throwable $e)
+    public function __invoke(Throwable $e): bool
     {
         $result = call_user_func($this->callback, $e);
 

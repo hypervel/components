@@ -79,9 +79,10 @@ class FakeProcessDescription
      */
     public function replaceOutput(string $output): static
     {
-        $this->output = (new Collection($this->output))->reject(function ($output) {
-            return $output['type'] === 'out';
-        })->values()->all();
+        $this->output = (new Collection($this->output))
+            ->reject(fn (array $output): bool => $output['type'] === 'out')
+            ->values()
+            ->all();
 
         if (strlen($output) > 0) {
             $this->output[] = [
@@ -98,9 +99,10 @@ class FakeProcessDescription
      */
     public function replaceErrorOutput(string $output): static
     {
-        $this->output = (new Collection($this->output))->reject(function ($output) {
-            return $output['type'] === 'err';
-        })->values()->all();
+        $this->output = (new Collection($this->output))
+            ->reject(fn (array $output): bool => $output['type'] === 'err')
+            ->values()
+            ->all();
 
         if (strlen($output) > 0) {
             $this->output[] = [

@@ -23,7 +23,7 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\Http\Request create(string $uri, string $method = 'GET', array $parameters = [], array $cookies = [], array $files = [], array $server = [], string|resource|null $content = null)
  * @method static \Hypervel\Http\Request createFrom(\Hypervel\Http\Request $from, \Hypervel\Http\Request|null $to = null)
  * @method static \Hypervel\Http\Request createFromBase(\Symfony\Component\HttpFoundation\Request $request)
- * @method static \Hypervel\Http\Request createFromGlobals()
+ * @method static never createFromGlobals()
  * @method static \Carbon\CarbonInterface|null date(string $key, string|null $format = null, \UnitEnum|string|null $tz = null)
  * @method static never dd(mixed ...$args)
  * @method static string decodedPath()
@@ -205,6 +205,9 @@ namespace Hypervel\Support\Facades;
  */
 class Request extends Facade
 {
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return 'request';

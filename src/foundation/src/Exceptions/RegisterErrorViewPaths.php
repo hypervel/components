@@ -11,14 +11,18 @@ class RegisterErrorViewPaths
     /**
      * Register the error view paths.
      */
-    public function __invoke()
+    public function __invoke(): void
     {
         if (! View::getFacadeRoot()) {
             return;
         }
 
-        View::replaceNamespace('errors', config()->collection('view.paths')->map(function ($path) {
-            return "{$path}/errors";
-        })->push(__DIR__ . '/views')->all());
+        View::replaceNamespace(
+            'errors',
+            config()->collection('view.paths')
+                ->map(fn ($path) => "{$path}/errors")
+                ->push(__DIR__ . '/views')
+                ->all()
+        );
     }
 }

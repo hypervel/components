@@ -202,12 +202,10 @@ class CacheTest extends TestCase
             return new class('0') extends Response {
                 public int $contentReads = 0;
 
-                public function __construct(string $content)
-                {
-                    parent::__construct($content);
-                }
-
-                public function getContent(): string|false
+                /**
+                 * Count reads of the response content.
+                 */
+                public function getContent(): string
                 {
                     ++$this->contentReads;
 

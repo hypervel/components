@@ -53,6 +53,9 @@ namespace Hypervel\Support\Facades;
  */
 class Blade extends Facade
 {
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return 'blade.compiler';

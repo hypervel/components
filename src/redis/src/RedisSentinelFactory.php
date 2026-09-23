@@ -18,7 +18,7 @@ class RedisSentinelFactory
     public function create(array $options = []): RedisSentinel
     {
         // https://github.com/phpredis/phpredis/blob/develop/sentinel.md#examples-for-version-60-or-later
-        return new RedisSentinel($options); /* @phpstan-ignore-line */
+        return new RedisSentinel($options); // @phpstan-ignore arguments.count, argument.type
     }
 
     /**

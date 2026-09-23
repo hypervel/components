@@ -27,6 +27,7 @@ use Sentry\Breadcrumb;
 use Sentry\Client;
 use Sentry\SentrySdk;
 use Sentry\State\Scope;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class EventHandler
@@ -123,6 +124,9 @@ class EventHandler
 
         try {
             $this->{$handlerMethod}(...$arguments);
+        } catch (CanceledException $exception) {
+            // Cancellation from application accessors or callbacks must propagate.
+            throw $exception;
         } catch (Throwable) {
             // Ignore
         }
