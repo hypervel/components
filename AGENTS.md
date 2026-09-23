@@ -841,7 +841,7 @@ When ported code adds a provider or listener, wire providers and aliases in both
 
 Follow the same cp-then-edit process as source files. This workflow applies to both Hyperf and Laravel test porting. Laravel-specific conversions are covered in Porting Laravel Tests below; Hyperf-specific conversions (namespaces, license headers, container and error-handler mocking, NonCoroutine tests) are covered in `docs/ai/porting-hyperf.md`.
 
-Test file names and directory structure should mirror the source for both Laravel and Hyperf ports, providing a 1:1 class-to-test mapping. For Laravel ports, this also enables automated porting of upstream PRs. When both Hyperf and Laravel have tests covering the same class, merge them into one file — take the more comprehensive version as the base and add unique tests from the other.
+Test file names and directory structure should mirror the source for both Laravel and Hyperf ports, providing a 1:1 class-to-test mapping. For Laravel ports, this also enables automated porting of upstream PRs. When both Hyperf and Laravel have tests covering the same class, merge them into one file — take the more comprehensive version as the base and add unique tests from the other. Consolidate overlapping coverage under upstream test names and placement, preserving stronger assertions and distinct Hypervel-specific coverage rather than redundant tests.
 
 #### 1. Audit source tests
 
@@ -857,7 +857,7 @@ Read all files in the existing Hypervel test directory for this package. Categor
 
 One entry per test file. Note the strategy:
 - **Copy and update** — no existing Hypervel test for this
-- **Merge** — Hypervel already has a test file with custom tests that must be preserved alongside the ported source tests
+- **Merge** — Merge upstream tests into the existing Hypervel test file, preserving distinct Hypervel-specific coverage
 - **Integration** — needs external service, goes in `tests/Integration/{PackageName}/`
 - **Investigate** — exposes missing functionality, an unsupported feature, or an architectural difference. STOP and explain what the test covers, whether Hypervel should support it, and your recommended fix or removal.
 
@@ -870,7 +870,7 @@ One entry per test file. Note the strategy:
 
 **For merged files:**
 1. Read BOTH the source file AND the existing Hypervel file
-2. Merge source tests into the Hypervel file, preserving all Hypervel-specific tests
+2. Merge source tests into the Hypervel file, preserving distinct Hypervel-specific coverage
 3. Update namespaces, types, docblocks, etc.
 
 **For stub/helper files:** Copy `Stub/` directory files the same way.
