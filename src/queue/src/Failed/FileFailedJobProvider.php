@@ -10,6 +10,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Str;
 use RuntimeException;
+use stdClass;
 use Throwable;
 
 class FileFailedJobProvider implements CountableFailedJobProvider, FailedJobProviderInterface, PrunableFailedJobProvider
@@ -110,12 +111,12 @@ class FileFailedJobProvider implements CountableFailedJobProvider, FailedJobProv
      */
     public function prune(DateTimeInterface $before): int
     {
-        return $this->lock(function () use ($before) {
+        return $this->lock(function () use ($before): int {
             $jobs = $this->read();
 
             $this->write(
                 $prunedJobs = (new Collection($jobs))
-                    ->reject(fn ($job) => $job->failed_at_timestamp <= $before->getTimestamp())
+                    ->reject(fn (stdClass $job): bool => $job->failed_at_timestamp <= $before->getTimestamp())
                     ->values()
                     ->all()
             );
