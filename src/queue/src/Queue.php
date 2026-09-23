@@ -254,7 +254,8 @@ abstract class Queue
     protected function getDisplayName(object $job): string
     {
         return method_exists($job, 'displayName')
-            ? $job->displayName() : get_class($job);
+            ? $job->displayName()
+            : get_class($job);
     }
 
     /**
@@ -303,7 +304,8 @@ abstract class Queue
         $expiration = $job->retryUntil ?? $job->retryUntil();
 
         return $expiration instanceof DateTimeInterface
-            ? $expiration->getTimestamp() : $expiration;
+            ? $expiration->getTimestamp()
+            : $expiration;
     }
 
     /**

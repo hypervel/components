@@ -168,8 +168,8 @@ class AblyBroadcaster extends Broadcaster
     {
         if ($this->isGuardedChannel($channel)) {
             return str_starts_with($channel, 'private-')
-                        ? Str::replaceFirst('private-', '', $channel)
-                        : Str::replaceFirst('presence-', '', $channel);
+                ? Str::replaceFirst('private-', '', $channel)
+                : Str::replaceFirst('presence-', '', $channel);
         }
 
         return $channel;

@@ -323,8 +323,8 @@ class ComponentTagCompiler
                 }
 
                 $formattedComponent = str_starts_with($component, $path['prefix'] . $delimiter)
-                        ? Str::after($component, $delimiter)
-                        : $component;
+                    ? Str::after($component, $delimiter)
+                    : $component;
 
                 if (! is_null($guess = match (true) {
                     $viewFactory->exists($guess = $path['prefixHash'] . $delimiter . $formattedComponent) => $guess,
@@ -730,8 +730,8 @@ class ComponentTagCompiler
             }
 
             return $token[0] === T_INLINE_HTML
-                        ? str_replace("'", "\\'", $token[1])
-                        : $token[1];
+                ? str_replace("'", "\\'", $token[1])
+                : $token[1];
         })->implode('');
     }
 
@@ -745,8 +745,8 @@ class ComponentTagCompiler
         return (new Collection($attributes))
             ->map(function (string $value, string $attribute) use ($escapeBound, $boundAttributes) {
                 return $escapeBound && isset($boundAttributes[$attribute]) && $value !== 'true' && ! is_numeric($value)
-                            ? "'{$attribute}' => \\Hypervel\\View\\Compilers\\BladeCompiler::sanitizeComponentAttribute({$value})"
-                            : "'{$attribute}' => {$value}";
+                    ? "'{$attribute}' => \\Hypervel\\View\\Compilers\\BladeCompiler::sanitizeComponentAttribute({$value})"
+                    : "'{$attribute}' => {$value}";
             })
             ->implode(',');
     }
@@ -757,7 +757,7 @@ class ComponentTagCompiler
     public function stripQuotes(string $value): string
     {
         return Str::startsWith($value, ['"', '\''])
-                    ? substr($value, 1, -1)
-                    : $value;
+            ? substr($value, 1, -1)
+            : $value;
     }
 }
