@@ -259,7 +259,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
             $names[$name] = $name;
         }
 
-        return Collection::make(array_values($names));
+        return new Collection(array_values($names));
     }
 
     /**
@@ -319,7 +319,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
             ? $connection->lrange($key, 0, -1)
             : $connection->zRange($key, 0, -1);
 
-        return Collection::make($payloads ?: [])
+        return (new Collection($payloads ?: []))
             ->map(fn (string $payload): InspectedJob => InspectedJob::fromPayload($payload, queue: $name));
     }
 
@@ -392,7 +392,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
      */
     protected function prepareBatchJobs(array $jobs, mixed $data, ?string $queue): array
     {
-        return Collection::make($jobs)
+        return (new Collection($jobs))
             ->map(function (object|string $job) use ($data, $queue): array {
                 $delay = $this->getJobDelay($job);
 

@@ -399,7 +399,7 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     {
         $queueName = $this->resolveQueueName($queue);
 
-        return Collection::make($jobs)
+        return (new Collection($jobs))
             ->map(function ($job) use ($data, $queueName) {
                 $delay = $this->getJobDelay($job);
 

@@ -372,7 +372,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      */
     protected function prepareBatchJobs(array $jobs, mixed $data, ?string $queue): array
     {
-        return Collection::make($jobs)
+        return (new Collection($jobs))
             ->map(function (object|string $job) use ($data, $queue): array {
                 $delay = $this->getJobDelay($job);
 
@@ -415,7 +415,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
             $this->insertDatabaseRows(
                 $connection,
                 $this->table,
-                Collection::make($jobs)
+                (new Collection($jobs))
                     ->map(fn (array $job): array => $this->buildDatabaseRecord(
                         $this->getQueue($queue),
                         $job['payload'],

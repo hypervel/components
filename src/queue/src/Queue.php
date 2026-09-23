@@ -547,7 +547,7 @@ abstract class Queue
             return [[], $jobs];
         }
 
-        return Collection::make($jobs)
+        return (new Collection($jobs))
             ->partition(fn ($job) => $this->shouldDispatchAfterCommit($job))
             ->map(fn ($partition) => $partition->values()->all())
             ->all();
