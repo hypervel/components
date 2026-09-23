@@ -302,7 +302,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     /**
      * Determine if a given string matches a given pattern.
      *
-     * @param iterable<string>|string $pattern
+     * @param null|BaseStringable|bool|float|int|iterable<null|BaseStringable|bool|float|int|string>|string $pattern
      */
     public function is(string|int|float|bool|BaseStringable|iterable|null $pattern, bool $ignoreCase = false): bool
     {
@@ -416,7 +416,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     }
 
     /**
-     * Masks a portion of a string with a repeated character.
+     * Mask a portion of a string with a repeated character.
      */
     public function mask(string $character, int $index, ?int $length = null, string $encoding = 'UTF-8'): static
     {
@@ -929,7 +929,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     /**
      * Execute the given callback if the string ends with a given substring.
      *
-     * @param iterable<string>|string $needles
+     * @param null|BaseStringable|bool|float|int|iterable<null|BaseStringable|bool|float|int|string>|string $needles
      */
     public function whenEndsWith(string|int|float|bool|BaseStringable|iterable|null $needles, callable $callback, ?callable $default = null): mixed
     {
@@ -939,7 +939,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     /**
      * Execute the given callback if the string doesn't end with a given substring.
      *
-     * @param iterable<string>|string $needles
+     * @param null|BaseStringable|bool|float|int|iterable<null|BaseStringable|bool|float|int|string>|string $needles
      */
     public function whenDoesntEndWith(string|int|float|bool|BaseStringable|iterable|null $needles, callable $callback, ?callable $default = null): mixed
     {
@@ -965,7 +965,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     /**
      * Execute the given callback if the string matches a given pattern.
      *
-     * @param iterable<string>|string $pattern
+     * @param null|BaseStringable|bool|float|int|iterable<null|BaseStringable|bool|float|int|string>|string $pattern
      */
     public function whenIs(string|int|float|bool|BaseStringable|iterable|null $pattern, callable $callback, ?callable $default = null): mixed
     {
@@ -999,7 +999,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     /**
      * Execute the given callback if the string starts with a given substring.
      *
-     * @param iterable<string>|string $needles
+     * @param null|BaseStringable|bool|float|int|iterable<null|BaseStringable|bool|float|int|string>|string $needles
      */
     public function whenStartsWith(string|int|float|bool|BaseStringable|iterable|null $needles, callable $callback, ?callable $default = null): mixed
     {
@@ -1009,7 +1009,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     /**
      * Execute the given callback if the string doesn't start with a given substring.
      *
-     * @param iterable<string>|string $needles
+     * @param null|BaseStringable|bool|float|int|iterable<null|BaseStringable|bool|float|int|string>|string $needles
      */
     public function whenDoesntStartWith(string|int|float|bool|BaseStringable|iterable|null $needles, callable $callback, ?callable $default = null): mixed
     {

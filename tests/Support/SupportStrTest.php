@@ -2214,6 +2214,43 @@ class SupportStrTest extends TestCase
         ThrowingSequenceStr::createUlidsNormally();
     }
 
+    public function testFactoriesAcceptNonClosureCallables(): void
+    {
+        $factory = new class {
+            /**
+             * Return a fixed UUID.
+             */
+            public function uuid(): Uuid
+            {
+                return Uuid::fromString('00000000-0000-0000-0000-000000000000');
+            }
+
+            /**
+             * Return a fixed ULID.
+             */
+            public function ulid(): Ulid
+            {
+                return new Ulid('01ARZ3NDEKTSV4RRFFQ69G5FAV');
+            }
+        };
+
+        Str::createRandomStringsUsing('strval');
+        Str::createUuidsUsing([$factory, 'uuid']);
+        Str::createUlidsUsing([$factory, 'ulid']);
+
+        $this->assertSame('7', Str::random(7));
+        $this->assertSame('00000000-0000-0000-0000-000000000000', (string) Str::uuid());
+        $this->assertSame('01ARZ3NDEKTSV4RRFFQ69G5FAV', (string) Str::ulid());
+
+        Str::createRandomStringsUsing();
+        Str::createUuidsUsing();
+        Str::createUlidsUsing();
+
+        $this->assertSame(7, strlen(Str::random(7)));
+        $this->assertNotSame('00000000-0000-0000-0000-000000000000', (string) Str::uuid());
+        $this->assertNotSame('01ARZ3NDEKTSV4RRFFQ69G5FAV', (string) Str::ulid());
+    }
+
     public function testResetFactoryState(): void
     {
         $uuid = Uuid::fromString('00000000-0000-0000-0000-000000000000');

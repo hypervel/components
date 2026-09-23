@@ -35,14 +35,14 @@ class Str
     /**
      * The callback that should be used to generate UUIDs.
      *
-     * @var null|(Closure(): Uuid)
+     * @var null|(Closure(): (string|Uuid))
      */
     protected static ?Closure $uuidFactory = null;
 
     /**
      * The callback that should be used to generate ULIDs.
      *
-     * @var null|(Closure(): \Symfony\Component\Uid\Ulid)
+     * @var null|(Closure(): Ulid)
      */
     protected static ?Closure $ulidFactory = null;
 
@@ -464,7 +464,7 @@ class Str
     /**
      * Determine if a given string matches a given pattern.
      *
-     * @param iterable<string>|string $pattern
+     * @param null|BaseStringable|bool|float|int|iterable<null|BaseStringable|bool|float|int|string>|string $pattern
      */
     public static function is(string|int|float|bool|BaseStringable|iterable|null $pattern, string|int|float|bool|BaseStringable|null $value, bool $ignoreCase = false): bool
     {
@@ -984,7 +984,7 @@ class Str
      */
     public static function createRandomStringsUsing(?callable $factory = null): void
     {
-        static::$randomStringFactory = $factory;
+        static::$randomStringFactory = $factory === null ? null : $factory(...);
     }
 
     /**
@@ -1846,11 +1846,11 @@ class Str
      * Tests only. The factory persists in a static property for the worker
      * lifetime and affects every subsequent UUID generation.
      *
-     * @param null|(callable(): Uuid) $factory
+     * @param null|(callable(): (string|Uuid)) $factory
      */
     public static function createUuidsUsing(?callable $factory = null): void
     {
-        static::$uuidFactory = $factory;
+        static::$uuidFactory = $factory === null ? null : $factory(...);
     }
 
     /**
@@ -1859,8 +1859,8 @@ class Str
      * Tests only. The sequence factory persists in a static property for the
      * worker lifetime and affects every subsequent UUID generation.
      *
-     * @param Uuid[] $sequence
-     * @param null|(callable(): Uuid) $whenMissing
+     * @param array<string|Uuid> $sequence
+     * @param null|(callable(): (string|Uuid)) $whenMissing
      */
     public static function createUuidsUsingSequence(array $sequence, ?callable $whenMissing = null): void
     {
@@ -1965,7 +1965,7 @@ class Str
      */
     public static function createUlidsUsing(?callable $factory = null): void
     {
-        static::$ulidFactory = $factory;
+        static::$ulidFactory = $factory === null ? null : $factory(...);
     }
 
     /**
