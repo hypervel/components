@@ -2,10 +2,13 @@
 
 declare(strict_types=1);
 
+use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Support\Stringable as SupportStringable;
+
 use function PHPStan\Testing\assertType;
 
 /** @var User $user */
-/** @var \Hypervel\Contracts\Database\Eloquent\CastsAttributes<\Hypervel\Support\Stringable, string|\Stringable> $cast */
+/** @var CastsAttributes<SupportStringable, string|Stringable> $cast */
 assertType('Hypervel\Support\Stringable|null', $cast->get($user, 'email', 'taylor@laravel.com', $user->getAttributes()));
 
 $cast->set($user, 'email', 'taylor@laravel.com', $user->getAttributes()); // This works.

@@ -6,7 +6,7 @@ use Hypervel\Database\Eloquent\Factories\Factory;
 
 use function PHPStan\Testing\assertType;
 
-/** @extends Hypervel\Database\Eloquent\Factories\Factory<User> */
+/** @extends Factory<User> */
 class UserFactory extends Factory
 {
     protected ?string $model = User::class;
@@ -18,7 +18,7 @@ class UserFactory extends Factory
     }
 }
 
-/** @extends Hypervel\Database\Eloquent\Factories\Factory<Post> */
+/** @extends Factory<Post> */
 class PostFactory extends Factory
 {
     protected ?string $model = Post::class;

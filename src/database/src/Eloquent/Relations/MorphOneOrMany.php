@@ -9,11 +9,11 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Str;
 
 /**
- * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
- * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
+ * @template TRelatedModel of Model
+ * @template TDeclaringModel of Model
  * @template TResult
  *
- * @extends \Hypervel\Database\Eloquent\Relations\HasOneOrMany<TRelatedModel, TDeclaringModel, TResult>
+ * @extends HasOneOrMany<TRelatedModel, TDeclaringModel, TResult>
  */
 abstract class MorphOneOrMany extends HasOneOrMany
 {
@@ -32,7 +32,7 @@ abstract class MorphOneOrMany extends HasOneOrMany
     /**
      * Create a new morph one or many relationship instance.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param Builder<TRelatedModel> $query
      * @param TDeclaringModel $parent
      */
     public function __construct(Builder $query, Model $parent, string $type, string $id, string $localKey)

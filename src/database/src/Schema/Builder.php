@@ -9,6 +9,7 @@ use Hypervel\Container\Container;
 use Hypervel\Database\Connection;
 use Hypervel\Database\MultipleColumnsSelectedException;
 use Hypervel\Database\PostgresConnection;
+use Hypervel\Database\Schema\Grammars\Grammar;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use LogicException;
@@ -32,12 +33,12 @@ class Builder
     /**
      * The schema grammar instance.
      */
-    protected Grammars\Grammar $grammar;
+    protected Grammar $grammar;
 
     /**
      * The Blueprint resolver callback.
      *
-     * @var Closure(\Hypervel\Database\Connection, string, null|Closure): \Hypervel\Database\Schema\Blueprint
+     * @var Closure(Connection, string, null|Closure): Blueprint
      */
     protected ?Closure $resolver = null;
 
@@ -762,7 +763,7 @@ class Builder
     /**
      * Determine whether every executable command is declared by the framework grammar.
      *
-     * @param class-string<Grammars\Grammar> $grammar
+     * @param class-string<Grammar> $grammar
      */
     protected function commandsAreDeclaredOn(Blueprint $blueprint, string $grammar): bool
     {
@@ -851,7 +852,7 @@ class Builder
     /**
      * Set the Schema Blueprint resolver callback.
      *
-     * @param Closure(\Hypervel\Database\Connection, string, null|Closure): \Hypervel\Database\Schema\Blueprint $resolver
+     * @param Closure(Connection, string, null|Closure): Blueprint $resolver
      */
     public function blueprintResolver(Closure $resolver): void
     {

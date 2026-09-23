@@ -11,7 +11,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @template TModel of \Hypervel\Database\Eloquent\Model
+ * @template TModel of Model
  */
 class ModelNotFoundException extends RecordsNotFoundException
 {

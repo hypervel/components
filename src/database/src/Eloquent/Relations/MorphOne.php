@@ -14,10 +14,10 @@ use Hypervel\Database\Eloquent\Relations\Concerns\SupportsDefaultModels;
 use Hypervel\Database\Query\JoinClause;
 
 /**
- * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
- * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
+ * @template TRelatedModel of Model
+ * @template TDeclaringModel of Model
  *
- * @extends \Hypervel\Database\Eloquent\Relations\MorphOneOrMany<TRelatedModel, TDeclaringModel, ?TRelatedModel>
+ * @extends MorphOneOrMany<TRelatedModel, TDeclaringModel, ?TRelatedModel>
  */
 class MorphOne extends MorphOneOrMany implements SupportsPartialRelations
 {
@@ -60,7 +60,7 @@ class MorphOne extends MorphOneOrMany implements SupportsPartialRelations
     /**
      * Add constraints for inner join subselect for one of many relationships.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param Builder<TRelatedModel> $query
      */
     public function addOneOfManySubQueryConstraints(Builder $query, ?string $column = null, ?string $aggregate = null): void
     {

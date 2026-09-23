@@ -336,7 +336,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Run a select statement and return the first column of the first row.
      *
-     * @throws \Hypervel\Database\MultipleColumnsSelectedException
+     * @throws MultipleColumnsSelectedException
      */
     public function scalar(string $query, array $bindings = [], bool $useReadPdo = true): mixed
     {
@@ -449,7 +449,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Execute the given callback in "dry run" mode.
      *
-     * @param (Closure(\Hypervel\Database\Connection): mixed) $callback
+     * @param (Closure(Connection): mixed) $callback
      * @return array{query: string, bindings: array, time: null|float}[]
      */
     public function pretend(Closure $callback): array

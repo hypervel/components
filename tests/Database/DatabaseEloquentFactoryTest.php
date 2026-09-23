@@ -10,6 +10,7 @@ use Faker\Generator;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Hypervel\Database\Eloquent\Attributes\UseFactory;
 use Hypervel\Database\Eloquent\Builder;
@@ -25,6 +26,7 @@ use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Database\Schema\Builder as SchemaBuilder;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Database\Fixtures\Models\Money\Price;
@@ -1374,7 +1376,7 @@ class DatabaseEloquentFactoryTest extends TestCase
     /**
      * Get a database connection instance.
      *
-     * @return \Hypervel\Database\ConnectionInterface
+     * @return ConnectionInterface
      */
     protected function connection()
     {
@@ -1384,7 +1386,7 @@ class DatabaseEloquentFactoryTest extends TestCase
     /**
      * Get a schema builder instance.
      *
-     * @return \Hypervel\Database\Schema\Builder
+     * @return SchemaBuilder
      */
     protected function schema()
     {

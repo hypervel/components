@@ -15,11 +15,11 @@ use Hypervel\Database\Eloquent\Relations\Concerns\SupportsDefaultModels;
 use Hypervel\Database\Query\JoinClause;
 
 /**
- * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
- * @template TIntermediateModel of \Hypervel\Database\Eloquent\Model
- * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
+ * @template TRelatedModel of Model
+ * @template TIntermediateModel of Model
+ * @template TDeclaringModel of Model
  *
- * @extends \Hypervel\Database\Eloquent\Relations\HasOneOrManyThrough<TRelatedModel, TIntermediateModel, TDeclaringModel, ?TRelatedModel>
+ * @extends HasOneOrManyThrough<TRelatedModel, TIntermediateModel, TDeclaringModel, ?TRelatedModel>
  */
 class HasOneThrough extends HasOneOrManyThrough implements SupportsPartialRelations
 {

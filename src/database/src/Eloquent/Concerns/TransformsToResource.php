@@ -18,7 +18,7 @@ trait TransformsToResource
     /**
      * Create a new resource object for the given resource.
      *
-     * @param null|class-string<\Hypervel\Http\Resources\Json\JsonResource> $resourceClass
+     * @param null|class-string<JsonResource> $resourceClass
      */
     public function toResource(?string $resourceClass = null): JsonResource
     {
@@ -52,7 +52,7 @@ trait TransformsToResource
     /**
      * Guess the resource class name for the model.
      *
-     * @return array<int, class-string<\Hypervel\Http\Resources\Json\JsonResource>>
+     * @return array<int, class-string<JsonResource>>
      */
     public static function guessResourceName(): array
     {
@@ -82,7 +82,7 @@ trait TransformsToResource
      * Get the resource class from the UseResource attribute.
      *
      * @param class-string $class
-     * @return null|class-string<\Hypervel\Http\Resources\Json\JsonResource>
+     * @return null|class-string<JsonResource>
      */
     protected function resolveResourceFromAttribute(string $class): ?string
     {

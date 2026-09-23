@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Attributes;
 
 use Attribute;
+use Hypervel\Http\Resources\Json\ResourceCollection;
 
 /**
  * Declare the resource collection class for a model using an attribute.
@@ -26,7 +27,7 @@ class UseResourceCollection
     /**
      * Create a new attribute instance.
      *
-     * @param class-string<\Hypervel\Http\Resources\Json\ResourceCollection> $class
+     * @param class-string<ResourceCollection> $class
      */
     public function __construct(
         public string $class,

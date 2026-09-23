@@ -344,7 +344,7 @@ class Post extends Model
 
 class Comment extends Model
 {
-    /** @return MorphTo<\Hypervel\Database\Eloquent\Model, $this> */
+    /** @return MorphTo<Model, $this> */
     public function commentable(): MorphTo
     {
         $morphTo = $this->morphTo();

@@ -55,7 +55,7 @@ class Migrator
     /**
      * The paths that have already been required.
      *
-     * @var array<string, null|\Hypervel\Database\Migrations\Migration>
+     * @var array<string, null|Migration>
      */
     protected static array $requiredPathCache = [];
 

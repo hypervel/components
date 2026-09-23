@@ -28,7 +28,7 @@ use SortDirection;
  * @template TKey of array-key
  * @template TValue
  *
- * @mixin \Hypervel\Database\Query\Builder<TKey, TValue>
+ * @mixin QueryBuilder<TKey, TValue>
  */
 trait BuildsQueries
 {
@@ -37,7 +37,7 @@ trait BuildsQueries
     /**
      * Chunk the results of the query.
      *
-     * @param callable(\Hypervel\Support\Collection<TKey, TValue>, int): mixed $callback
+     * @param callable(Collection<TKey, TValue>, int): mixed $callback
      */
     public function chunk(int $count, callable $callback): bool
     {
@@ -92,7 +92,7 @@ trait BuildsQueries
      * @template TReturn
      *
      * @param callable(TValue): TReturn $callback
-     * @return \Hypervel\Support\Collection<int, TReturn>
+     * @return Collection<int, TReturn>
      */
     public function chunkMap(callable $callback, int $count = 1000): Collection
     {
@@ -128,7 +128,7 @@ trait BuildsQueries
     /**
      * Chunk the results of a query by comparing IDs.
      *
-     * @param callable(\Hypervel\Support\Collection<TKey, TValue>, int): mixed $callback
+     * @param callable(Collection<TKey, TValue>, int): mixed $callback
      */
     public function chunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null): bool
     {
@@ -138,7 +138,7 @@ trait BuildsQueries
     /**
      * Chunk the results of a query by comparing IDs in descending order.
      *
-     * @param callable(\Hypervel\Support\Collection<TKey, TValue>, int): mixed $callback
+     * @param callable(Collection<TKey, TValue>, int): mixed $callback
      */
     public function chunkByIdDesc(int $count, callable $callback, ?string $column = null, ?string $alias = null): bool
     {
@@ -148,7 +148,7 @@ trait BuildsQueries
     /**
      * Chunk the results of a query by comparing IDs in a given order.
      *
-     * @param callable(\Hypervel\Support\Collection<TKey, TValue>, int): mixed $callback
+     * @param callable(Collection<TKey, TValue>, int): mixed $callback
      */
     public function orderedChunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null, SortDirection|bool $descending = false): bool
     {
@@ -238,7 +238,7 @@ trait BuildsQueries
     /**
      * Query lazily, by chunks of the given size.
      *
-     * @return \Hypervel\Support\LazyCollection<int, TValue>
+     * @return LazyCollection<int, TValue>
      */
     public function lazy(int $chunkSize = 1000): LazyCollection
     {
@@ -287,7 +287,7 @@ trait BuildsQueries
     /**
      * Query lazily, by chunking the results of a query by comparing IDs.
      *
-     * @return \Hypervel\Support\LazyCollection<int, TValue>
+     * @return LazyCollection<int, TValue>
      */
     public function lazyById(int $chunkSize = 1000, ?string $column = null, ?string $alias = null): LazyCollection
     {
@@ -297,7 +297,7 @@ trait BuildsQueries
     /**
      * Query lazily, by chunking the results of a query by comparing IDs in descending order.
      *
-     * @return \Hypervel\Support\LazyCollection<int, TValue>
+     * @return LazyCollection<int, TValue>
      */
     public function lazyByIdDesc(int $chunkSize = 1000, ?string $column = null, ?string $alias = null): LazyCollection
     {
@@ -307,7 +307,7 @@ trait BuildsQueries
     /**
      * Query lazily, by chunking the results of a query by comparing IDs in a given order.
      *
-     * @return \Hypervel\Support\LazyCollection<int, TValue>
+     * @return LazyCollection<int, TValue>
      */
     protected function orderedLazyById(int $chunkSize = 1000, ?string $column = null, ?string $alias = null, SortDirection|bool $descending = false): LazyCollection
     {
@@ -386,7 +386,7 @@ trait BuildsQueries
      *
      * @return TValue
      *
-     * @throws \Hypervel\Database\RecordNotFoundException
+     * @throws RecordNotFoundException
      */
     public function firstOrFail(array|string $columns = ['*'], ?string $message = null)
     {
@@ -405,8 +405,8 @@ trait BuildsQueries
      *
      * @return TValue
      *
-     * @throws \Hypervel\Database\RecordsNotFoundException
-     * @throws \Hypervel\Database\MultipleRecordsFoundException
+     * @throws RecordsNotFoundException
+     * @throws MultipleRecordsFoundException
      */
     public function sole(array|string $columns = ['*'])
     {

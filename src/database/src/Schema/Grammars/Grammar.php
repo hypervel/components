@@ -8,6 +8,7 @@ use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\Concerns\CompilesJsonPaths;
 use Hypervel\Database\Grammar as BaseGrammar;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Database\Schema\ColumnDefinition;
 use Hypervel\Support\Fluent;
 use RuntimeException;
 use UnitEnum;
@@ -269,7 +270,7 @@ abstract class Grammar extends BaseGrammar
     /**
      * Compile the column definition.
      *
-     * @param \Hypervel\Database\Schema\ColumnDefinition $column
+     * @param ColumnDefinition $column
      */
     protected function getColumn(Blueprint $blueprint, Fluent $column): string
     {

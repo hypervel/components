@@ -11,12 +11,12 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 
 /**
- * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
- * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
- * @template TPivotModel of \Hypervel\Database\Eloquent\Relations\Pivot = \Hypervel\Database\Eloquent\Relations\MorphPivot
+ * @template TRelatedModel of Model
+ * @template TDeclaringModel of Model
+ * @template TPivotModel of Pivot = MorphPivot
  * @template TAccessor of string = 'pivot'
  *
- * @extends \Hypervel\Database\Eloquent\Relations\BelongsToMany<TRelatedModel, TDeclaringModel, TPivotModel, TAccessor>
+ * @extends BelongsToMany<TRelatedModel, TDeclaringModel, TPivotModel, TAccessor>
  */
 class MorphToMany extends BelongsToMany
 {
@@ -42,7 +42,7 @@ class MorphToMany extends BelongsToMany
     /**
      * Create a new morph to many relationship instance.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param Builder<TRelatedModel> $query
      * @param TDeclaringModel $parent
      */
     public function __construct(

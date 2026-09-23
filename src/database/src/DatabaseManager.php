@@ -29,8 +29,8 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Database\Connection
- * @mixin \Hypervel\Database\PdoConnection
+ * @mixin Connection
+ * @mixin PdoConnection
  */
 class DatabaseManager implements ConnectionResolverInterface
 {
@@ -52,7 +52,7 @@ class DatabaseManager implements ConnectionResolverInterface
      * for Laravel API compatibility but is not populated during normal
      * pooled operation.
      *
-     * @var array<string, \Hypervel\Database\Connection>
+     * @var array<string, Connection>
      */
     protected array $connections = [];
 
