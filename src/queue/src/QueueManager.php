@@ -566,7 +566,7 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Dynamically pass calls to the default connection.
      */
-    public function __call(string $method, array $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return $this->connection()->{$method}(...$parameters);
     }

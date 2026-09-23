@@ -953,10 +953,8 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Dynamically call the default driver instance.
-     *
-     * @return mixed
      */
-    public function __call(string $method, array $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return $this->disk()->{$method}(...$parameters);
     }

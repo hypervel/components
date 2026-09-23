@@ -1402,7 +1402,7 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
     /**
      * Clone cache repository instance.
      */
-    public function __clone()
+    public function __clone(): void
     {
         $this->store = clone $this->store;
     }
