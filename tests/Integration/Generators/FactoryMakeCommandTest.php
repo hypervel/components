@@ -18,6 +18,7 @@ class FactoryMakeCommandTest extends TestCase
         $this->assertFileContains([
             'namespace Database\Factories;',
             'use Hypervel\Database\Eloquent\Factories\Factory;',
+            '@extends Factory<\App\Models\Model>',
             'class FooFactory extends Factory',
             'public function definition()',
         ], 'database/factories/FooFactory.php');
