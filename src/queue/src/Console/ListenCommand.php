@@ -8,7 +8,7 @@ use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
 use Hypervel\Queue\Listener;
 use Hypervel\Queue\ListenerOptions;
-use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'queue:listen')]
@@ -59,7 +59,7 @@ class ListenCommand extends Command
             $connection = $this->input->getArgument('connection')
         );
 
-        $this->components->info(sprintf('Processing jobs from the [%s] %s.', $queue, Str::of('queue')->plural(count(explode(',', $queue)))));
+        $this->components->info(sprintf('Processing jobs from the [%s] %s.', $queue, (new Stringable('queue'))->plural(explode(',', $queue))));
 
         $this->listener->listen(
             $connection,
