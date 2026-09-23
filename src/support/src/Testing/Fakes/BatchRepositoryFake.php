@@ -17,14 +17,14 @@ class BatchRepositoryFake implements BatchRepository
     /**
      * The batches stored in the repository.
      *
-     * @var \Hypervel\Bus\Batch[]
+     * @var Batch[]
      */
     protected array $batches = [];
 
     /**
      * Retrieve a list of batches.
      *
-     * @return \Hypervel\Bus\Batch[]
+     * @return Batch[]
      */
     public function get(int $limit, mixed $before): array
     {

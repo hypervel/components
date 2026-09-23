@@ -18,6 +18,7 @@ use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\Support\Renderable;
 use Hypervel\Contracts\Translation\HasLocalePreference;
+use Hypervel\Mail\Mailer as ConcreteMailer;
 use Hypervel\Queue\Attributes\Connection;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
@@ -269,7 +270,7 @@ class Mailable implements MailableContract, Renderable
         return $this->withLocale($this->locale, function () {
             $this->prepareMailableForDelivery();
 
-            /** @var \Hypervel\Mail\Mailer $mailer */
+            /** @var ConcreteMailer $mailer */
             $mailer = Container::getInstance()
                 ->make('mailer');
 
@@ -1432,7 +1433,7 @@ class Mailable implements MailableContract, Renderable
         return $this->assertionableRenderStrings = $this->withLocale($this->locale, function (): array {
             $this->prepareMailableForDelivery();
 
-            /** @var \Hypervel\Mail\Mailer $mailer */
+            /** @var ConcreteMailer $mailer */
             $mailer = Container::getInstance()
                 ->make('mailer');
 

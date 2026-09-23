@@ -7,7 +7,9 @@ namespace Hypervel\Http;
 use ArrayAccess;
 use Closure;
 use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Session\Session;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Routing\Route;
 use Hypervel\Session\SymfonySessionDecorator;
 use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
@@ -1195,7 +1197,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     /**
      * Get the session associated with the request.
      *
-     * @return \Hypervel\Contracts\Session\Session
+     * @return Session
      *
      * @throws RuntimeException
      */
@@ -1211,7 +1213,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     /**
      * Set the session instance on the request.
      *
-     * @param \Hypervel\Contracts\Session\Session $session
+     * @param Session $session
      */
     public function setHypervelSession($session): void
     {
@@ -1245,7 +1247,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     /**
      * Get the route handling the request.
      *
-     * @return ($param is null ? null|\Hypervel\Routing\Route : null|object|string)
+     * @return ($param is null ? null|Route : null|object|string)
      */
     public function route(?string $param = null, mixed $default = null): mixed
     {

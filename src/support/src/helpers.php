@@ -313,10 +313,10 @@ if (! function_exists('retry')) {
      * @param array<int, float|int>|int $times
      * @param callable(int): TValue $callback
      * @param CarbonInterval|(Closure(int, Throwable): CarbonInterval|float|int)|float|int $sleepMilliseconds
-     * @param null|(callable(\Throwable): bool) $when
+     * @param null|(callable(Throwable): bool) $when
      * @return TValue
      *
-     * @throws \Throwable
+     * @throws Throwable
      */
     function retry($times, callable $callback, $sleepMilliseconds = 0, $when = null)
     {
@@ -418,7 +418,7 @@ if (! function_exists('throw_if')) {
      *
      * @template TValue
      * @template TParams of mixed
-     * @template TException of \Throwable
+     * @template TException of Throwable
      * @template TExceptionValue of TException|class-string<TException>|string
      *
      * @param TValue $condition
@@ -454,7 +454,7 @@ if (! function_exists('throw_unless')) {
      *
      * @template TValue
      * @template TParams of mixed
-     * @template TException of \Throwable
+     * @template TException of Throwable
      * @template TExceptionValue of TException|class-string<TException>|string
      *
      * @param TValue $condition

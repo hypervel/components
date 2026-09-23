@@ -11,23 +11,24 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Reflector;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
+use UnitEnum;
 
 /**
- * @method \Hypervel\Routing\Route any(string $uri, callable|array|string|null $action = null)
- * @method \Hypervel\Routing\Route delete(string $uri, callable|array|string|null $action = null)
- * @method \Hypervel\Routing\Route get(string $uri, callable|array|string|null $action = null)
- * @method \Hypervel\Routing\Route options(string $uri, callable|array|string|null $action = null)
- * @method \Hypervel\Routing\Route patch(string $uri, callable|array|string|null $action = null)
- * @method \Hypervel\Routing\Route post(string $uri, callable|array|string|null $action = null)
- * @method \Hypervel\Routing\Route put(string $uri, callable|array|string|null $action = null)
+ * @method Route any(string $uri, callable|array|string|null $action = null)
+ * @method Route delete(string $uri, callable|array|string|null $action = null)
+ * @method Route get(string $uri, callable|array|string|null $action = null)
+ * @method Route options(string $uri, callable|array|string|null $action = null)
+ * @method Route patch(string $uri, callable|array|string|null $action = null)
+ * @method Route post(string $uri, callable|array|string|null $action = null)
+ * @method Route put(string $uri, callable|array|string|null $action = null)
  * @method $this as(string $value)
- * @method $this can(\UnitEnum|string $ability, array|string $models = [])
+ * @method $this can(UnitEnum|string $ability, array|string $models = [])
  * @method $this controller(string $controller)
- * @method $this domain(\BackedEnum|string $value)
+ * @method $this domain(BackedEnum|string $value)
  * @method $this metadata(array $metadata)
  * @method $this middleware(null|array|string $middleware)
- * @method $this missing(\Closure $missing)
- * @method $this name(\BackedEnum|string $value)
+ * @method $this missing(Closure $missing)
+ * @method $this name(BackedEnum|string $value)
  * @method $this namespace(null|string $value)
  * @method $this port(int $port)
  * @method $this prefix(string $prefix)
@@ -279,7 +280,7 @@ class RouteRegistrar
     /**
      * Dynamically handle calls into the route registrar.
      *
-     * @return \Hypervel\Routing\Route|static
+     * @return Route|static
      *
      * @throws BadMethodCallException
      */

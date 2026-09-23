@@ -29,7 +29,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Console\Scheduling\PendingEventAttributes
+ * @mixin PendingEventAttributes
  */
 class Schedule
 {

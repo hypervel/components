@@ -49,7 +49,7 @@ class ValidateSignature
     /**
      * Handle an incoming request.
      *
-     * @throws \Hypervel\Routing\Exceptions\InvalidSignatureException
+     * @throws InvalidSignatureException
      */
     public function handle(Request $request, Closure $next, string ...$args): Response
     {

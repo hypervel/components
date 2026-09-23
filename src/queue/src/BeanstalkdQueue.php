@@ -12,6 +12,8 @@ use Hypervel\Queue\Jobs\BeanstalkdJob;
 use Hypervel\Support\Collection;
 use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Contract\PheanstalkManagerInterface;
+use Pheanstalk\Contract\PheanstalkPublisherInterface;
+use Pheanstalk\Contract\PheanstalkSubscriberInterface;
 use Pheanstalk\Pheanstalk;
 use Pheanstalk\Values\Job;
 use Pheanstalk\Values\JobId;
@@ -23,7 +25,7 @@ class BeanstalkdQueue extends Queue implements QueueContract
     /**
      * Create a new Beanstalkd queue instance.
      *
-     * @param \Pheanstalk\Contract\PheanstalkManagerInterface&\Pheanstalk\Contract\PheanstalkPublisherInterface&\Pheanstalk\Contract\PheanstalkSubscriberInterface $pheanstalk
+     * @param PheanstalkManagerInterface&PheanstalkPublisherInterface&PheanstalkSubscriberInterface $pheanstalk
      * @param string $default the name of the default tube
      * @param int $timeToRun the "time to run" for all pushed jobs
      * @param int $blockFor the maximum number of seconds to block for a job
@@ -283,7 +285,7 @@ class BeanstalkdQueue extends Queue implements QueueContract
     /**
      * Get the underlying Pheanstalk instance.
      *
-     * @return \Pheanstalk\Contract\PheanstalkManagerInterface&\Pheanstalk\Contract\PheanstalkPublisherInterface&\Pheanstalk\Contract\PheanstalkSubscriberInterface
+     * @return PheanstalkManagerInterface&PheanstalkPublisherInterface&PheanstalkSubscriberInterface
      */
     public function getPheanstalk(): PheanstalkManagerInterface
     {

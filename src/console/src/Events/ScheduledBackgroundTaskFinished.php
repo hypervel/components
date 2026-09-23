@@ -11,7 +11,7 @@ class ScheduledBackgroundTaskFinished
     /**
      * Create a new event instance.
      *
-     * @param \Hypervel\Console\Scheduling\Event $task the scheduled event that ran
+     * @param Event $task the scheduled event that ran
      */
     public function __construct(
         public Event $task,

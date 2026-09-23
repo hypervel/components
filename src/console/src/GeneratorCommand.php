@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Console\Concerns\CreatesMatchingTest;
 use Hypervel\Console\Concerns\FindsAvailableModels;
 use Hypervel\Contracts\Console\PromptsForMissingInput;
+use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -175,7 +176,7 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
     /**
      * Execute the console command.
      *
-     * @throws \Hypervel\Contracts\Filesystem\FileNotFoundException
+     * @throws FileNotFoundException
      */
     public function handle(): bool|int
     {
@@ -372,7 +373,7 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
     /**
      * Build the class with the given name.
      *
-     * @throws \Hypervel\Contracts\Filesystem\FileNotFoundException
+     * @throws FileNotFoundException
      */
     protected function buildClass(string $name): string
     {

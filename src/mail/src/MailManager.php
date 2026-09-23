@@ -45,7 +45,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Mail\Mailer
+ * @mixin Mailer
  */
 class MailManager implements FactoryContract
 {

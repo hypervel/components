@@ -15,7 +15,7 @@ use Symfony\Component\Mime\Part\DataPart;
 use Symfony\Component\Mime\Part\File;
 
 /**
- * @mixin \Symfony\Component\Mime\Email
+ * @mixin Email
  */
 class Message
 {
@@ -235,7 +235,7 @@ class Message
     /**
      * Add an address debug header for a list of recipients.
      *
-     * @param \Symfony\Component\Mime\Address[] $addresses
+     * @param Address[] $addresses
      */
     protected function addAddressDebugHeader(string $header, array $addresses): static
     {

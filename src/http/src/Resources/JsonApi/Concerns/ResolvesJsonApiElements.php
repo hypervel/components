@@ -45,7 +45,7 @@ trait ResolvesJsonApiElements
     /**
      * Cached loaded relationships map.
      *
-     * @var null|array<int, array{0: \Hypervel\Http\Resources\JsonApi\JsonApiResource, 1: string, 2: string, 3: bool}>
+     * @var null|array<int, array{0: JsonApiResource, 1: string, 2: string, 3: bool}>
      */
     public ?array $loadedRelationshipsMap = null;
 

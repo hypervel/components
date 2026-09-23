@@ -246,7 +246,7 @@ class PendingProcess
 
         if ($fake = $this->fakeFor($command = $process->getCommandline())) {
             return tap($this->resolveAsynchronousFake($command, $output, $fake), function (InvokedProcessContract $process) {
-                /** @var \Hypervel\Process\FakeInvokedProcess $process */
+                /** @var FakeInvokedProcess $process */
                 $this->factory->recordIfRecording($this, $process->predictProcessResult());
             });
         } elseif ($this->factory->isRecording() && $this->factory->preventingStrayProcesses()) {

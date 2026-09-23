@@ -52,7 +52,7 @@ use function Hypervel\Support\defer;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Contracts\Cache\Store
+ * @mixin Store
  */
 class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract, RawReadable
 {

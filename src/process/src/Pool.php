@@ -9,8 +9,8 @@ use InvalidArgumentException;
 use Throwable;
 
 /**
- * @mixin \Hypervel\Process\Factory
- * @mixin \Hypervel\Process\PendingProcess
+ * @mixin Factory
+ * @mixin PendingProcess
  */
 class Pool
 {

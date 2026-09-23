@@ -268,7 +268,7 @@ class Event
     {
         $context = base64_encode(serialize(Repository::getInstance()->dehydrate()));
 
-        /** @var \Hypervel\Contracts\Foundation\Application $container */
+        /** @var ApplicationContract $container */
         $process = Process::fromShellCommandline(
             $this->command,
             $container->basePath(),

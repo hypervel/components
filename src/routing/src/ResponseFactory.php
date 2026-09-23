@@ -176,7 +176,7 @@ class ResponseFactory implements FactoryContract
     /**
      * Create a new streamed response instance as a file download.
      *
-     * @throws \Hypervel\Routing\Exceptions\StreamedResponseException
+     * @throws StreamedResponseException
      */
     public function streamDownload(callable $callback, ?string $name = null, array $headers = [], string $disposition = 'attachment'): StreamedResponse
     {

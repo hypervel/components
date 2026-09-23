@@ -6,6 +6,7 @@ namespace Hypervel\Support\Testing\Fakes;
 
 use Closure;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Foundation\Testing\Concerns\WithoutExceptionHandlingHandler;
 use Hypervel\Http\Request;
 use Hypervel\Support\Collection;
@@ -18,7 +19,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 /**
- * @mixin \Hypervel\Foundation\Exceptions\Handler
+ * @mixin Handler
  */
 class ExceptionHandlerFake implements ExceptionHandler, Fake
 {

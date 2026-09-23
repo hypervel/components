@@ -22,7 +22,7 @@ use Traversable;
  * @template TKey of array-key
  * @template TValue
  *
- * @implements \Hypervel\Contracts\Support\Arrayable<TKey, TValue>
+ * @implements Arrayable<TKey, TValue>
  * @implements ArrayAccess<TKey, TValue>
  */
 class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, JsonSerializable, Transient

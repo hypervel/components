@@ -51,7 +51,7 @@ trait CollectsResources
     /**
      * Get the resource that this resource collects.
      *
-     * @return null|class-string<\Hypervel\Http\Resources\Json\JsonResource>
+     * @return null|class-string<JsonResource>
      *
      * @throws LogicException
      */
