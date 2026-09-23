@@ -514,6 +514,10 @@ class SessionStoreTest extends TestCase
 
         $session->increment('bar');
         $this->assertEquals(1, $session->get('bar'));
+
+        $session->put('fraction', 1.5);
+        $this->assertSame(2.5, $session->increment('fraction'));
+        $this->assertSame(2.5, $session->get('fraction'));
     }
 
     public function testDecrement(): void
@@ -531,6 +535,10 @@ class SessionStoreTest extends TestCase
 
         $session->decrement('bar');
         $this->assertEquals(-1, $session->get('bar'));
+
+        $session->put('fraction', 1.5);
+        $this->assertSame(0.5, $session->decrement('fraction'));
+        $this->assertSame(0.5, $session->get('fraction'));
     }
 
     public function testHasOldInputWithoutKey(): void

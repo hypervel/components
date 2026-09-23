@@ -319,7 +319,7 @@ class Store implements Session
     }
 
     /**
-     * Checks if a key exists.
+     * Check if a key exists.
      */
     public function exists(array|UnitEnum|string $key): bool
     {
@@ -451,7 +451,7 @@ class Store implements Session
     /**
      * Increment the value of an item in the session.
      */
-    public function increment(UnitEnum|string $key, int $amount = 1): mixed
+    public function increment(UnitEnum|string $key, int $amount = 1): int|float
     {
         $this->put($key, $value = $this->get($key, 0) + $amount);
 
@@ -461,7 +461,7 @@ class Store implements Session
     /**
      * Decrement the value of an item in the session.
      */
-    public function decrement(UnitEnum|string $key, int $amount = 1): int
+    public function decrement(UnitEnum|string $key, int $amount = 1): int|float
     {
         return $this->increment($key, $amount * -1);
     }
@@ -504,8 +504,6 @@ class Store implements Session
 
     /**
      * Reflash a subset of the current flash data.
-     *
-     * @param array|mixed $keys
      */
     public function keep(mixed $keys = null): void
     {
