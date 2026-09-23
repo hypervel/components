@@ -117,6 +117,8 @@ If a check fails, use targeted checks while correcting the issue, then run the f
 
 The Working rules and the Avoid overengineering rules apply to all work in this repo. The Code conventions apply to newly written code. Laravel package ports preserve upstream naming, structure, and style except for the approved adaptations under Porting Packages. Hyperf ports follow `docs/ai/porting-hyperf.md`.
 
+Apply approved adaptations when porting or modifying code. Do not expand a change solely to apply style or modernization conventions elsewhere, unless that cleanup was explicitly requested.
+
 ### Working rules
 
 - **Never use subagents without explicit user consent** — Do not spawn or delegate work to subagents unless the user explicitly requests or approves their use.
@@ -186,7 +188,7 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 - **Only extract methods when justified** — extract only when the logic is complex enough to benefit from a name, it's likely to be reused, or two or more methods call it. Don't extract a simple one-liner with a single caller.
 - **Never abbreviate variable names** — `$attributes` not `$attrs`, `$connection` not `$conn`.
 - **Enum cases use PascalCase by default** — `case Pending` not `case pending`, `case OauthToken` not `case OAUTH_TOKEN`. Applies to both backed and unit enums. **Exception:** when `->name` is used as an external identifier (cache keys, cookie names, filesystem disks, rate limiter names, timezone strings) or appears in serialized output (e.g., `toArray()` returning `'name' => $this->name`), match the consuming system's convention (typically lowercase or snake_case).
-- **Strict comparisons only** — always `===` and `!==`, never `==` or `!=`. Loose comparison causes subtle bugs. When converting an upstream loose comparison, match the operand's real type — `$value === 0.0` for a float, not `=== 0`. If upstream relies on loose coercion intentionally, normalize the value explicitly before comparing strictly — don't silently change the contract.
+- **Strict comparisons by default** — Use `===` and `!==` in newly written code unless the supported API requires loose comparison. When converting an upstream comparison, verify operand types (`$value === 0.0` for a float, not `=== 0`) and preserve its behavior, including coercion and object equality. Keep loose comparisons where their semantics are intentional and needed to preserve supported behavior; do not replace them solely for consistency.
 - **Prefer union types over `mixed` when all types are known** — `mixed` is only for truly unconstrained values or cases that cannot be safely narrowed after control-flow analysis.
 - **Type decisions must be evidence-based** — check corresponding Laravel/Hyperf signatures and docblocks as a reference, then trace the real control flow through method bodies across all callers and callees to confirm the types are correct.
 - **Fail fast with framework and PHP exceptions** — don't add guards, wrapping, or defensive checks unless they handle a reachable invalid case or materially improve the error, and never swallow exceptions. If code would fail anyway (e.g. null passed to a typed parameter), let it fail naturally instead of adding a check that throws a custom exception — the stack trace is enough to diagnose.
