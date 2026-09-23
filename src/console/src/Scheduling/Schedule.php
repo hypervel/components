@@ -275,7 +275,7 @@ class Schedule
      */
     public function exec(string $command, array $parameters = [], bool $isSystem = true): Event
     {
-        if (count($parameters)) {
+        if ($parameters !== []) {
             $command .= ' ' . $this->compileParameters($parameters);
         }
 

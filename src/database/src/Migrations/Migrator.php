@@ -151,7 +151,7 @@ class Migrator
         // First we will just make sure that there are any migrations to run. If there
         // aren't, we will just make a note of it to the developer so they're aware
         // that all of the migrations have been run against this database system.
-        if (count($migrations) === 0) {
+        if ($migrations === []) {
             if ($this->hasMigrationEventListeners(NoPendingMigrations::class)) {
                 $this->fireMigrationEvent(new NoPendingMigrations('up'));
             }
@@ -340,7 +340,7 @@ class Migrator
         // the database back into its "empty" state ready for the migrations.
         $migrations = array_reverse($this->repository->getRan());
 
-        if (count($migrations) === 0) {
+        if ($migrations === []) {
             $this->write(Info::class, 'Nothing to rollback.');
 
             return [];

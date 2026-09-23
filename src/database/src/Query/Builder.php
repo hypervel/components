@@ -508,7 +508,7 @@ class Builder implements BuilderContract
     {
         $columns = func_get_args();
 
-        if (count($columns) > 0) {
+        if ($columns !== []) {
             $this->distinct = is_array($columns[0]) || is_bool($columns[0]) ? $columns[0] : $columns;
         } else {
             $this->distinct = true;
@@ -3016,7 +3016,7 @@ class Builder implements BuilderContract
         return $this->withoutFetchUsing(function () use ($column) {
             $result = (array) $this->first([$column]);
 
-            return count($result) > 0 ? array_first($result) : null;
+            return $result !== [] ? array_first($result) : null;
         });
     }
 
@@ -3028,7 +3028,7 @@ class Builder implements BuilderContract
         return $this->withoutFetchUsing(function () use ($expression, $bindings) {
             $result = (array) $this->selectRaw($expression, $bindings)->first();
 
-            return count($result) > 0 ? array_first($result) : null;
+            return $result !== [] ? array_first($result) : null;
         });
     }
 
