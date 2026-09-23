@@ -210,7 +210,7 @@ class MailChannel
         }
 
         return (new Collection($recipients))
-            ->mapWithKeys(function ($recipient, $email) {
+            ->mapWithKeys(function (mixed $recipient, int|string $email): array {
                 return is_numeric($email)
                     ? [$email => (is_string($recipient) ? $recipient : $recipient->email)]
                     : [$email => $recipient];

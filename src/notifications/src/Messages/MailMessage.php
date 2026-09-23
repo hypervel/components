@@ -323,7 +323,7 @@ class MailMessage extends SimpleMessage implements Renderable
     protected function parseAddresses(Arrayable|iterable $value): array
     {
         return (new Collection($value))
-            ->map(fn ($address, $name) => [$address, is_numeric($name) ? null : $name])
+            ->map(fn (mixed $address, int|string $name): array => [$address, is_numeric($name) ? null : $name])
             ->values()
             ->all();
     }
