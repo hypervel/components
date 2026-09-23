@@ -118,6 +118,7 @@ class Gate implements GateContract
     {
         $abilities = is_array($ability) ? $ability : func_get_args();
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($abilities as $ability) {
             if (! isset($this->abilities[(string) enum_value($ability)])) {
                 return false;

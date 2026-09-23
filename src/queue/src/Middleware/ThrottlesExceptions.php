@@ -174,6 +174,7 @@ class ThrottlesExceptions
      */
     protected function shouldDelete(Throwable $throwable): bool
     {
+        // Keep this loop to avoid an extra callback per item.
         foreach ($this->deleteWhenCallbacks as $callback) {
             if (call_user_func($callback, $throwable)) {
                 return true;
@@ -188,6 +189,7 @@ class ThrottlesExceptions
      */
     protected function shouldFail(Throwable $throwable): bool
     {
+        // Keep this loop to avoid an extra callback per item.
         foreach ($this->failWhenCallbacks as $callback) {
             if (call_user_func($callback, $throwable)) {
                 return true;

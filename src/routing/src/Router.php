@@ -1248,6 +1248,7 @@ class Router implements BindingRegistrar, RegistrarContract
     {
         $names = is_array($name) ? $name : func_get_args();
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($names as $value) {
             if (! $this->routes->hasNamedRoute($value)) {
                 return false;
@@ -1298,6 +1299,7 @@ class Router implements BindingRegistrar, RegistrarContract
      */
     public function uses(array|string ...$patterns): bool
     {
+        // Keep this loop to avoid an extra callback per item.
         foreach ($patterns as $pattern) {
             if (Str::is($pattern, $this->currentRouteAction())) {
                 return true;

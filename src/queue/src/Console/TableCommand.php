@@ -54,6 +54,7 @@ class TableCommand extends MigrationGeneratorCommand
             return parent::migrationExists($table);
         }
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ([
             join_paths($this->hypervel->databasePath('migrations'), '*_*_*_*_create_' . $table . '_table.php'),
             join_paths($this->hypervel->databasePath('migrations'), '0001_01_01_000002_create_jobs_table.php'),

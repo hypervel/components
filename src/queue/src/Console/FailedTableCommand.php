@@ -54,6 +54,7 @@ class FailedTableCommand extends MigrationGeneratorCommand
             return parent::migrationExists($table);
         }
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ([
             join_paths($this->hypervel->databasePath('migrations'), '*_*_*_*_create_' . $table . '_table.php'),
             // Laravel applications may keep failed_jobs in the bundled jobs migration.
