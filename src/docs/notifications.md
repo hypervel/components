@@ -172,6 +172,20 @@ When queueing notifications, a queued job will be created for each recipient and
 <a name="delaying-notifications"></a>
 #### Delaying Notifications
 
+You may configure a notification's default delay in seconds using the `Delay` attribute:
+
+```php
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Notifications\Notification;
+use Hypervel\Queue\Attributes\Delay;
+
+#[Delay(30)]
+class InvoicePaid extends Notification implements ShouldQueue
+{
+    // ...
+}
+```
+
 If you would like to delay the delivery of the notification, you may chain the `delay` method onto your notification instantiation:
 
 ```php
