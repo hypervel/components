@@ -25,10 +25,12 @@ trait InteractsWithContainer
     protected ?DeferredCallbackCollection $originalDeferredCallbacksCollection = null;
 
     /**
-     * Register an instance of an object in the container.
+     * Register an instance in the container.
      *
-     * @param object $instance
-     * @return object
+     * @template TInstance
+     *
+     * @param TInstance $instance
+     * @return TInstance
      */
     protected function swap(string $abstract, mixed $instance): mixed
     {
@@ -36,14 +38,15 @@ trait InteractsWithContainer
     }
 
     /**
-     * Register an instance of an object in the container.
+     * Register an instance in the container.
      *
-     * @param object $instance
-     * @return object
+     * @template TInstance
+     *
+     * @param TInstance $instance
+     * @return TInstance
      */
     protected function instance(string $abstract, mixed $instance): mixed
     {
-        /* @phpstan-ignore-next-line */
         $this->app->instance($abstract, $instance);
 
         return $instance;
@@ -99,71 +102,113 @@ trait InteractsWithContainer
         ViteFacade::clearResolvedInstance();
 
         $this->swap(Vite::class, new class extends Vite {
+            /**
+             * Return empty asset markup.
+             */
             public function __invoke(string|array $entrypoints, ?string $buildDirectory = null): HtmlString
             {
                 return new HtmlString('');
             }
 
+            /**
+             * Return an empty result for dynamic calls.
+             */
             public function __call(string $method, array $parameters): mixed
             {
                 return '';
             }
 
+            /**
+             * Return empty asset markup as a string.
+             */
             public function __toString(): string
             {
                 return '';
             }
 
+            /**
+             * Ignore integrity key configuration.
+             */
             public function useIntegrityKey(string|false $key): static
             {
                 return $this;
             }
 
+            /**
+             * Ignore build directory configuration.
+             */
             public function useBuildDirectory(string $path): static
             {
                 return $this;
             }
 
+            /**
+             * Ignore hot file configuration.
+             */
             public function useHotFile(string $path): static
             {
                 return $this;
             }
 
+            /**
+             * Ignore entry point configuration.
+             */
             public function withEntryPoints(array $entryPoints): static
             {
                 return $this;
             }
 
+            /**
+             * Ignore script tag attributes.
+             */
             public function useScriptTagAttributes(array|callable $attributes): static
             {
                 return $this;
             }
 
+            /**
+             * Ignore style tag attributes.
+             */
             public function useStyleTagAttributes(array|callable $attributes): static
             {
                 return $this;
             }
 
+            /**
+             * Ignore preload tag attributes.
+             */
             public function usePreloadTagAttributes(array|callable|false $attributes): static
             {
                 return $this;
             }
 
+            /**
+             * Return an empty list of preloaded assets.
+             */
             public function preloadedAssets(): array
             {
                 return [];
             }
 
+            /**
+             * Return empty React refresh markup.
+             */
             public function reactRefresh(): HtmlString
             {
                 return new HtmlString('');
             }
 
+            /**
+             * Return empty asset content.
+             */
             public function content(string $asset, ?string $buildDirectory = null): string
             {
                 return '';
             }
 
+            /**
+             * Return an empty asset URL.
+             */
             public function asset(string $asset, ?string $buildDirectory = null): string
             {
                 return '';
