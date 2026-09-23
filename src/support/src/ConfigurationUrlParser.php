@@ -141,7 +141,7 @@ class ConfigurationUrlParser
     protected function parseStringsToNativeTypes(mixed $value): mixed
     {
         if (is_array($value)) {
-            return array_map([$this, 'parseStringsToNativeTypes'], $value);
+            return array_map($this->parseStringsToNativeTypes(...), $value);
         }
 
         if (! is_string($value)) {
