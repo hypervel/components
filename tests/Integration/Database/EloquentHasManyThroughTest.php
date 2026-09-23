@@ -237,8 +237,8 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
 
         $this->assertTrue($mate->wasRecentlyCreated);
         $this->assertNull($mate->team_id);
-        $this->assertEquals('Adam', $mate->name);
-        $this->assertEquals('adam', $mate->slug);
+        $this->assertSame('Adam', $mate->name);
+        $this->assertSame('adam', $mate->slug);
     }
 
     public function testFirstOrCreateWhenModelExists(): void
@@ -253,8 +253,8 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         $this->assertFalse($mate->wasRecentlyCreated);
         $this->assertNotNull($mate->team_id);
         $this->assertTrue($team->is($mate->team));
-        $this->assertEquals('Adam Wathan', $mate->name);
-        $this->assertEquals('adam', $mate->slug);
+        $this->assertSame('Adam Wathan', $mate->name);
+        $this->assertSame('adam', $mate->slug);
     }
 
     public function testFirstOrCreateRegressionIssue(): void
@@ -275,8 +275,8 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
 
         $this->assertFalse($newJohn->wasRecentlyCreated);
         $this->assertTrue($john->is($newJohn));
-        $this->assertEquals('john', $newJohn->refresh()->slug);
-        $this->assertEquals('John', $newJohn->name);
+        $this->assertSame('john', $newJohn->refresh()->slug);
+        $this->assertSame('John', $newJohn->name);
 
         $this->assertSame('john', $john->refresh()->slug);
         $this->assertSame('John', $john->name);
@@ -295,7 +295,7 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         );
 
         $this->assertTrue($article->wasRecentlyCreated);
-        $this->assertEquals('Laravel Forever', $article->title);
+        $this->assertSame('Laravel Forever', $article->title);
         $this->assertTrue($tony->is($article->user));
     }
 
@@ -315,7 +315,7 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         );
 
         $this->assertFalse($newArticle->wasRecentlyCreated);
-        $this->assertEquals('Laravel Forever', $newArticle->title);
+        $this->assertSame('Laravel Forever', $newArticle->title);
         $this->assertTrue($taylor->is($newArticle->user));
         $this->assertTrue($existingArticle->is($newArticle));
     }
@@ -336,7 +336,7 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         ));
 
         $this->assertFalse($newArticle->wasRecentlyCreated);
-        $this->assertEquals('Laravel Forever', $newArticle->title);
+        $this->assertSame('Laravel Forever', $newArticle->title);
         $this->assertTrue($taylor->is($newArticle->user));
         $this->assertTrue($existingArticle->is($newArticle));
     }
@@ -358,7 +358,7 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
 
         $this->assertFalse($newArticle->wasRecentlyCreated);
         $this->assertTrue($existingTaylorArticle->is($newArticle));
-        $this->assertEquals('Laravel Forever', $newArticle->refresh()->title);
+        $this->assertSame('Laravel Forever', $newArticle->refresh()->title);
         $this->assertTrue($taylor->is($newArticle->user));
 
         $this->assertSame('Laravel Forever', $existingTaylorArticle->refresh()->title);
