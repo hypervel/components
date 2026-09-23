@@ -106,7 +106,7 @@ interface Validator extends MessageProvider
     /**
      * Get the exception to throw upon failed validation.
      *
-     * @return class-string<ValidationException>
+     * @return class-string<ValidationException>|ValidationException
      */
-    public function getException(): string;
+    public function getException(): string|ValidationException;
 }
