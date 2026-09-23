@@ -320,7 +320,7 @@ class Schedule
         }
 
         if (! empty($this->groupStack)) {
-            $group = end($this->groupStack);
+            $group = array_last($this->groupStack);
 
             $group->mergeAttributes($event);
         }
@@ -505,7 +505,7 @@ class Schedule
             || in_array($method, PendingEventAttributes::DEFERRED_EVENT_METHODS, true)
             || Event::hasMacro($method)
         ) {
-            $this->attributes ??= $this->groupStack ? clone end($this->groupStack) : new PendingEventAttributes($this);
+            $this->attributes ??= $this->groupStack ? clone array_last($this->groupStack) : new PendingEventAttributes($this);
 
             return $this->attributes->{$method}(...$parameters);
         }

@@ -1778,7 +1778,7 @@ class Container implements ContainerContract
             $resolutionState->buildStack[] = spl_object_id($concrete);
 
             try {
-                return $concrete($this, end($resolutionState->parameterOverrides) ?: []);
+                return $concrete($this, array_last($resolutionState->parameterOverrides) ?: []);
             } finally {
                 array_pop($resolutionState->buildStack);
             }
@@ -1903,7 +1903,7 @@ class Container implements ContainerContract
         ContainerResolutionState $resolutionState,
     ): array {
         $results = [];
-        $parameterOverrides = end($resolutionState->parameterOverrides) ?: [];
+        $parameterOverrides = array_last($resolutionState->parameterOverrides) ?: [];
 
         foreach ($recipe->parameters as $paramRecipe) {
             // If the dependency has an override for this particular build we will use
@@ -2264,9 +2264,7 @@ class Container implements ContainerContract
      */
     public function currentlyResolving(): int|string|null
     {
-        $buildStack = $this->currentBuildStack();
-
-        return end($buildStack) ?: null;
+        return array_last($this->currentBuildStack()) ?: null;
     }
 
     /**
