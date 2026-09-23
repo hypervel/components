@@ -15,14 +15,14 @@ interface Validator extends MessageProvider
     /**
      * Run the validator's rules against its data.
      *
-     * @throws \Hypervel\Validation\ValidationException
+     * @throws ValidationException
      */
     public function validate(): array;
 
     /**
      * Get the attributes and values that were validated.
      *
-     * @throws \Hypervel\Validation\ValidationException
+     * @throws ValidationException
      */
     public function validated(): array;
 

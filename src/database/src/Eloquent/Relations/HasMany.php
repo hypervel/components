@@ -5,19 +5,20 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Relations;
 
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Database\Eloquent\Model;
 
 /**
- * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
- * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
+ * @template TRelatedModel of Model
+ * @template TDeclaringModel of Model
  *
- * @extends \Hypervel\Database\Eloquent\Relations\HasOneOrMany<TRelatedModel, TDeclaringModel, \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>>
+ * @extends HasOneOrMany<TRelatedModel, TDeclaringModel, EloquentCollection<int, TRelatedModel>>
  */
 class HasMany extends HasOneOrMany
 {
     /**
      * Convert the relationship to a "has one" relationship.
      *
-     * @return \Hypervel\Database\Eloquent\Relations\HasOne<TRelatedModel, TDeclaringModel>
+     * @return HasOne<TRelatedModel, TDeclaringModel>
      */
     public function one(): HasOne
     {

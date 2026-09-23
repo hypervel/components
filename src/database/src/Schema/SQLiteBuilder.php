@@ -16,7 +16,7 @@ use RuntimeException;
 use Throwable;
 
 /**
- * @property \Hypervel\Database\Schema\Grammars\SQLiteGrammar $grammar
+ * @property SQLiteGrammar $grammar
  */
 class SQLiteBuilder extends Builder
 {

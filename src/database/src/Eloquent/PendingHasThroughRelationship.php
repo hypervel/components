@@ -6,15 +6,18 @@ namespace Hypervel\Database\Eloquent;
 
 use BadMethodCallException;
 use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Eloquent\Relations\HasManyThrough;
+use Hypervel\Database\Eloquent\Relations\HasOne;
 use Hypervel\Database\Eloquent\Relations\HasOneOrMany;
+use Hypervel\Database\Eloquent\Relations\HasOneThrough;
 use Hypervel\Database\Eloquent\Relations\MorphOneOrMany;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 
 /**
- * @template TIntermediateModel of \Hypervel\Database\Eloquent\Model
- * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
- * @template TLocalRelationship of \Hypervel\Database\Eloquent\Relations\HasOneOrMany<TIntermediateModel, TDeclaringModel>
+ * @template TIntermediateModel of Model
+ * @template TDeclaringModel of Model
+ * @template TLocalRelationship of HasOneOrMany<TIntermediateModel, TDeclaringModel>
  */
 class PendingHasThroughRelationship
 {
@@ -47,19 +50,19 @@ class PendingHasThroughRelationship
     /**
      * Define the distant relationship that this model has.
      *
-     * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
+     * @template TRelatedModel of Model
      *
-     * @param (callable(TIntermediateModel): (\Hypervel\Database\Eloquent\Relations\HasMany<TRelatedModel, TIntermediateModel>|\Hypervel\Database\Eloquent\Relations\HasOne<TRelatedModel, TIntermediateModel>|\Hypervel\Database\Eloquent\Relations\MorphOneOrMany<TRelatedModel, TIntermediateModel>))|string $callback
+     * @param (callable(TIntermediateModel): (HasMany<TRelatedModel, TIntermediateModel>|HasOne<TRelatedModel, TIntermediateModel>|MorphOneOrMany<TRelatedModel, TIntermediateModel>))|string $callback
      * @return (
      *     $callback is string
-     *     ? \Hypervel\Database\Eloquent\Relations\HasManyThrough<\Hypervel\Database\Eloquent\Model, TIntermediateModel, TDeclaringModel>|\Hypervel\Database\Eloquent\Relations\HasOneThrough<\Hypervel\Database\Eloquent\Model, TIntermediateModel, TDeclaringModel>
+     *     ? HasManyThrough<Model, TIntermediateModel, TDeclaringModel>|HasOneThrough<Model, TIntermediateModel, TDeclaringModel>
      *     : (
-     *         TLocalRelationship is \Hypervel\Database\Eloquent\Relations\HasMany<TIntermediateModel, TDeclaringModel>
-     *         ? \Hypervel\Database\Eloquent\Relations\HasManyThrough<TRelatedModel, TIntermediateModel, TDeclaringModel>
+     *         TLocalRelationship is HasMany<TIntermediateModel, TDeclaringModel>
+     *         ? HasManyThrough<TRelatedModel, TIntermediateModel, TDeclaringModel>
      *         : (
-     *              $callback is callable(TIntermediateModel): \Hypervel\Database\Eloquent\Relations\HasMany<TRelatedModel, TIntermediateModel>
-     *              ? \Hypervel\Database\Eloquent\Relations\HasManyThrough<TRelatedModel, TIntermediateModel, TDeclaringModel>
-     *              : \Hypervel\Database\Eloquent\Relations\HasOneThrough<TRelatedModel, TIntermediateModel, TDeclaringModel>
+     *              $callback is callable(TIntermediateModel): HasMany<TRelatedModel, TIntermediateModel>
+     *              ? HasManyThrough<TRelatedModel, TIntermediateModel, TDeclaringModel>
+     *              : HasOneThrough<TRelatedModel, TIntermediateModel, TDeclaringModel>
      *         )
      *     )
      * )

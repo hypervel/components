@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Concerns;
 
 use Hypervel\Support\Arr;
+use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Workbench\Workbench;
 
@@ -68,7 +69,7 @@ trait InteractsWithWorkbench
      *
      * @internal
      *
-     * @return null|array<int, class-string<\Hypervel\Support\ServiceProvider>>
+     * @return null|array<int, class-string<ServiceProvider>>
      */
     protected function getPackageProvidersUsingWorkbench(object $app): ?array
     {

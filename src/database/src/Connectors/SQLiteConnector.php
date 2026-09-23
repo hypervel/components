@@ -40,7 +40,7 @@ class SQLiteConnector extends Connector implements ConnectorInterface
     /**
      * Get the absolute database path.
      *
-     * @throws \Hypervel\Database\SQLiteDatabaseDoesNotExistException
+     * @throws SQLiteDatabaseDoesNotExistException
      */
     protected function parseDatabasePath(string $path): string
     {

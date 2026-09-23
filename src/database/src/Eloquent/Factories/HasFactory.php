@@ -8,7 +8,7 @@ use Hypervel\Database\Eloquent\Attributes\UseFactory;
 use ReflectionClass;
 
 /**
- * @template TFactory of \Hypervel\Database\Eloquent\Factories\Factory
+ * @template TFactory of Factory
  */
 trait HasFactory
 {

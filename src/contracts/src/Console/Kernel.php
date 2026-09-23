@@ -9,6 +9,7 @@ use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Foundation\Console\ClosureCommand;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
+use Symfony\Component\Console\Exception\CommandNotFoundException;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
@@ -78,7 +79,7 @@ interface Kernel
     /**
      * Run an Artisan console command by name.
      *
-     * @throws \Symfony\Component\Console\Exception\CommandNotFoundException
+     * @throws CommandNotFoundException
      */
     public function call(string $command, array $parameters = [], ?OutputInterface $outputBuffer = null): int;
 

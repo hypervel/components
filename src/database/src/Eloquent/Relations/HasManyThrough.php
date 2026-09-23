@@ -6,14 +6,15 @@ namespace Hypervel\Database\Eloquent\Relations;
 
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithDictionary;
 
 /**
- * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
- * @template TIntermediateModel of \Hypervel\Database\Eloquent\Model
- * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
+ * @template TRelatedModel of Model
+ * @template TIntermediateModel of Model
+ * @template TDeclaringModel of Model
  *
- * @extends \Hypervel\Database\Eloquent\Relations\HasOneOrManyThrough<TRelatedModel, TIntermediateModel, TDeclaringModel, \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>>
+ * @extends HasOneOrManyThrough<TRelatedModel, TIntermediateModel, TDeclaringModel, EloquentCollection<int, TRelatedModel>>
  */
 class HasManyThrough extends HasOneOrManyThrough
 {
@@ -22,7 +23,7 @@ class HasManyThrough extends HasOneOrManyThrough
     /**
      * Convert the relationship to a "has one through" relationship.
      *
-     * @return \Hypervel\Database\Eloquent\Relations\HasOneThrough<TRelatedModel, TIntermediateModel, TDeclaringModel>
+     * @return HasOneThrough<TRelatedModel, TIntermediateModel, TDeclaringModel>
      */
     public function one(): HasOneThrough
     {

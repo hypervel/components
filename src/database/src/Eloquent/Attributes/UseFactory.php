@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Attributes;
 
 use Attribute;
+use Hypervel\Database\Eloquent\Factories\Factory;
 
 /**
  * Declare the factory class for a model using an attribute.
@@ -29,7 +30,7 @@ class UseFactory
     /**
      * Create a new attribute instance.
      *
-     * @param class-string<\Hypervel\Database\Eloquent\Factories\Factory> $factoryClass
+     * @param class-string<Factory> $factoryClass
      */
     public function __construct(
         public string $factoryClass,

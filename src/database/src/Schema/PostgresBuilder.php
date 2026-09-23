@@ -9,7 +9,7 @@ use Hypervel\Database\Schema\Grammars\PostgresGrammar;
 use Override;
 
 /**
- * @property \Hypervel\Database\Schema\Grammars\PostgresGrammar $grammar
+ * @property PostgresGrammar $grammar
  */
 class PostgresBuilder extends Builder
 {

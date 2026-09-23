@@ -8,9 +8,9 @@ use Hypervel\Events\QueuedClosure;
 use Hypervel\Support\Collection as BaseCollection;
 
 /**
- * @method static \Hypervel\Database\Eloquent\Builder<static> withTrashed(bool $withTrashed = true)
- * @method static \Hypervel\Database\Eloquent\Builder<static> onlyTrashed()
- * @method static \Hypervel\Database\Eloquent\Builder<static> withoutTrashed()
+ * @method static Builder<static> withTrashed(bool $withTrashed = true)
+ * @method static Builder<static> onlyTrashed()
+ * @method static Builder<static> withoutTrashed()
  * @method static static restoreOrCreate(array<string, mixed> $attributes = [], array<string, mixed> $values = [])
  * @method static static createOrRestore(array<string, mixed> $attributes = [], array<string, mixed> $values = [])
  */

@@ -35,6 +35,7 @@ use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
 use Hypervel\Database\Eloquent\Relations\HasManyThrough;
 use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Support\Arr;
@@ -69,7 +70,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     use Concerns\TransformsToResource;
     use ForwardsCalls;
 
-    /** @use HasCollection<\Hypervel\Database\Eloquent\Collection<array-key, static & self>> */
+    /** @use HasCollection<Collection<array-key, static & self>> */
     use HasCollection;
 
     /**
@@ -258,14 +259,14 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * The Eloquent query builder class to use for the model.
      *
-     * @var class-string<\Hypervel\Database\Eloquent\Builder<*>>
+     * @var class-string<Builder<*>>
      */
     protected static string $builder = Builder::class;
 
     /**
      * The Eloquent collection class to use for the model.
      *
-     * @var class-string<\Hypervel\Database\Eloquent\Collection<*, *>>
+     * @var class-string<Collection<*, *>>
      */
     protected static string $collectionClass = Collection::class;
 
@@ -1549,8 +1550,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Set the keys for a select query.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<static> $query
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @param Builder<static> $query
+     * @return Builder<static>
      */
     protected function setKeysForSelectQuery(Builder $query): Builder
     {
@@ -1576,8 +1577,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Set the keys for a save update query.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<static> $query
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @param Builder<static> $query
+     * @return Builder<static>
      */
     protected function setKeysForSaveQuery(Builder $query): Builder
     {
@@ -1964,7 +1965,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Get a new query to restore one or more models by their queueable IDs.
      *
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @return Builder<static>
      */
     public function newQueryForRestoration(array|int|string $ids): Builder
     {
@@ -2110,7 +2111,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Convert the model instance to JSON.
      *
-     * @throws \Hypervel\Database\Eloquent\JsonEncodingException
+     * @throws JsonEncodingException
      */
     public function toJson(int $options = 0): string
     {
@@ -2126,7 +2127,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Convert the model instance to pretty print formatted JSON.
      *
-     * @throws \Hypervel\Database\Eloquent\JsonEncodingException
+     * @throws JsonEncodingException
      */
     public function toPrettyJson(int $options = 0): string
     {
@@ -2618,9 +2619,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Retrieve the child model query for a bound value.
      *
-     * @return Relations\Relation<self, $this, *>
+     * @return Relation<self, $this, *>
      */
-    protected function resolveChildRouteBindingQuery(string $childType, mixed $value, ?string $field): Relations\Relation
+    protected function resolveChildRouteBindingQuery(string $childType, mixed $value, ?string $field): Relation
     {
         $relationship = $this->{$this->childRouteBindingRelationshipName($childType)}();
 
@@ -2647,10 +2648,10 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Retrieve the model for a bound value.
      *
-     * @param  self|Builder|Relations\Relation<*, *, *>  $query
-     * @return Builder<static>|Relations\Relation<*, *, *>
+     * @param  self|Builder|Relation<*, *, *>  $query
+     * @return Builder<static>|Relation<*, *, *>
      */
-    public function resolveRouteBindingQuery(self|Builder|Relations\Relation $query, mixed $value, ?string $field = null): Builder|Relations\Relation
+    public function resolveRouteBindingQuery(self|Builder|Relation $query, mixed $value, ?string $field = null): Builder|Relation
     {
         return $query->where($field ?? $this->getRouteKeyName(), $value);
     }

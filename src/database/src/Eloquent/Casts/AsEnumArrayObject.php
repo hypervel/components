@@ -10,6 +10,7 @@ use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
 use Hypervel\Database\Eloquent\JsonEncodingException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
+use UnitEnum;
 
 use function Hypervel\Support\enum_from;
 use function Hypervel\Support\enum_value;
@@ -19,7 +20,7 @@ class AsEnumArrayObject implements Castable
     /**
      * Get the caster class to use when casting from / to this cast target.
      *
-     * @template TEnum of \UnitEnum
+     * @template TEnum of UnitEnum
      *
      * @param array{class-string<TEnum>} $arguments
      * @return CastsAttributes<ArrayObject<array-key, TEnum>, iterable<TEnum>>

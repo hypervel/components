@@ -90,8 +90,8 @@ trait AsPivot
     /**
      * Set the keys for a select query.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<static> $query
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @param Builder<static> $query
+     * @return Builder<static>
      */
     protected function setKeysForSelectQuery(Builder $query): Builder
     {
@@ -109,8 +109,8 @@ trait AsPivot
     /**
      * Set the keys for a save update query.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<static> $query
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @param Builder<static> $query
+     * @return Builder<static>
      */
     protected function setKeysForSaveQuery(Builder $query): Builder
     {
@@ -145,7 +145,7 @@ trait AsPivot
     /**
      * Get the query builder for a delete operation on the pivot.
      *
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @return Builder<static>
      */
     protected function getDeleteQuery(): Builder
     {
@@ -160,8 +160,8 @@ trait AsPivot
     /**
      * Apply the relation-owned predicates to a pivot identity query.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<static> $query
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @param Builder<static> $query
+     * @return Builder<static>
      */
     protected function applyPivotConstraints(Builder $query): Builder
     {
@@ -342,7 +342,7 @@ trait AsPivot
     /**
      * Get a new query to restore one or more models by their queueable IDs.
      *
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @return Builder<static>
      */
     public function newQueryForRestoration(array|int|string $ids): Builder
     {
@@ -365,7 +365,7 @@ trait AsPivot
      * Get a new query to restore multiple models by their queueable IDs.
      *
      * @param int[]|string[] $ids
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @return Builder<static>
      */
     protected function newQueryForCollectionRestoration(array $ids): Builder
     {

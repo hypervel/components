@@ -14,10 +14,10 @@ use InvalidArgumentException;
 use Override;
 
 /**
- * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
- * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
+ * @template TRelatedModel of Model
+ * @template TDeclaringModel of Model
  *
- * @extends \Hypervel\Database\Eloquent\Relations\BelongsTo<TRelatedModel, TDeclaringModel>
+ * @extends BelongsTo<TRelatedModel, TDeclaringModel>
  */
 class MorphTo extends BelongsTo
 {
@@ -36,7 +36,7 @@ class MorphTo extends BelongsTo
     /**
      * The models whose relations are being eager loaded.
      *
-     * @var \Hypervel\Database\Eloquent\Collection<int, TDeclaringModel>
+     * @var EloquentCollection<int, TDeclaringModel>
      */
     protected EloquentCollection $models;
 
@@ -68,7 +68,7 @@ class MorphTo extends BelongsTo
     /**
      * Create a new morph to relationship instance.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param Builder<TRelatedModel> $query
      * @param TDeclaringModel $parent
      */
     public function __construct(Builder $query, Model $parent, string $foreignKey, ?string $ownerKey, string $type, string $relation)
@@ -88,7 +88,7 @@ class MorphTo extends BelongsTo
     /**
      * Build a dictionary with the models.
      *
-     * @param \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> $models
+     * @param EloquentCollection<int, TRelatedModel> $models
      */
     protected function buildDictionary(EloquentCollection $models): void
     {
@@ -126,7 +126,7 @@ class MorphTo extends BelongsTo
      *
      * Called via eager load method of Eloquent query builder.
      *
-     * @return \Hypervel\Database\Eloquent\Collection<int, TDeclaringModel>
+     * @return EloquentCollection<int, TDeclaringModel>
      */
     public function getEager(): EloquentCollection
     {
@@ -140,7 +140,7 @@ class MorphTo extends BelongsTo
     /**
      * Get all of the relation results for a type.
      *
-     * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
+     * @return EloquentCollection<int, TRelatedModel>
      */
     protected function getResultsByType(int|string $type): EloquentCollection
     {
@@ -207,7 +207,7 @@ class MorphTo extends BelongsTo
     /**
      * Match the results for a given type to their parents.
      *
-     * @param \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> $results
+     * @param EloquentCollection<int, TRelatedModel> $results
      */
     protected function matchToMorphParents(int|string $type, EloquentCollection $results): void
     {
@@ -396,8 +396,8 @@ class MorphTo extends BelongsTo
     /**
      * Replay stored macro calls on the actual related instance.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
-     * @return \Hypervel\Database\Eloquent\Builder<TRelatedModel>
+     * @param Builder<TRelatedModel> $query
+     * @return Builder<TRelatedModel>
      */
     protected function replayMacros(Builder $query): Builder
     {

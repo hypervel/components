@@ -13,7 +13,7 @@ use JsonSerializable;
  * @template TKey of array-key
  * @template TItem
  *
- * @extends \ArrayObject<TKey, TItem>
+ * @extends BaseArrayObject<TKey, TItem>
  */
 class ArrayObject extends BaseArrayObject implements Arrayable, JsonSerializable
 {

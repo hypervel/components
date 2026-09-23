@@ -5,25 +5,30 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Relations;
 
 use Closure;
+use Hypervel\Contracts\Pagination\CursorPaginator;
+use Hypervel\Contracts\Pagination\Paginator;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithDictionary;
+use Hypervel\Database\MultipleRecordsFoundException;
 use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Pagination\Cursor;
+use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
+use Hypervel\Support\LazyCollection;
 
 /**
- * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
- * @template TIntermediateModel of \Hypervel\Database\Eloquent\Model
- * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
+ * @template TRelatedModel of Model
+ * @template TIntermediateModel of Model
+ * @template TDeclaringModel of Model
  * @template TResult
  *
- * @extends \Hypervel\Database\Eloquent\Relations\Relation<TRelatedModel, TIntermediateModel, TResult>
+ * @extends Relation<TRelatedModel, TIntermediateModel, TResult>
  */
 abstract class HasOneOrManyThrough extends Relation
 {
@@ -66,7 +71,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Create a new has many through relationship instance.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param Builder<TRelatedModel> $query
      * @param TDeclaringModel $farParent
      * @param TIntermediateModel $throughParent
      */
@@ -101,7 +106,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Set the join clause on the query.
      *
-     * @param null|\Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param null|Builder<TRelatedModel> $query
      */
     protected function performJoin(?Builder $query = null): void
     {
@@ -161,7 +166,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Build model dictionary keyed by the relation's foreign key.
      *
-     * @param \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> $results
+     * @param EloquentCollection<int, TRelatedModel> $results
      * @return array<array<array-key, TRelatedModel>>
      */
     protected function buildDictionary(EloquentCollection $results): array
@@ -277,7 +282,7 @@ abstract class HasOneOrManyThrough extends Relation
      *
      * @return TRelatedModel
      *
-     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<TRelatedModel>
+     * @throws ModelNotFoundException<TRelatedModel>
      */
     public function firstOrFail(array $columns = ['*']): Model
     {
@@ -315,7 +320,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Find a related model by its primary key.
      *
-     * @return ($id is (array<mixed>|\Hypervel\Contracts\Support\Arrayable<array-key, mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> : null|TRelatedModel)
+     * @return ($id is (array<mixed>|Arrayable<array-key, mixed>) ? EloquentCollection<int, TRelatedModel> : null|TRelatedModel)
      */
     public function find(mixed $id, array $columns = ['*']): EloquentCollection|Model|null
     {
@@ -335,8 +340,8 @@ abstract class HasOneOrManyThrough extends Relation
      *
      * @return TRelatedModel
      *
-     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<TRelatedModel>
-     * @throws \Hypervel\Database\MultipleRecordsFoundException
+     * @throws ModelNotFoundException<TRelatedModel>
+     * @throws MultipleRecordsFoundException
      */
     public function findSole(mixed $id, array $columns = ['*']): Model
     {
@@ -350,8 +355,8 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Find multiple related models by their primary keys.
      *
-     * @param array<mixed>|\Hypervel\Contracts\Support\Arrayable<array-key, mixed> $ids
-     * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
+     * @param array<mixed>|Arrayable<array-key, mixed> $ids
+     * @return EloquentCollection<int, TRelatedModel>
      */
     public function findMany(Arrayable|array $ids, array $columns = ['*']): EloquentCollection
     {
@@ -370,9 +375,9 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Find a related model by its primary key or throw an exception.
      *
-     * @return ($id is (array<mixed>|\Hypervel\Contracts\Support\Arrayable<array-key, mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> : TRelatedModel)
+     * @return ($id is (array<mixed>|Arrayable<array-key, mixed>) ? EloquentCollection<int, TRelatedModel> : TRelatedModel)
      *
-     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<TRelatedModel>
+     * @throws ModelNotFoundException<TRelatedModel>
      */
     public function findOrFail(mixed $id, array $columns = ['*']): EloquentCollection|Model
     {
@@ -399,8 +404,8 @@ abstract class HasOneOrManyThrough extends Relation
      * @param (Closure(): TValue)|list<string>|string $columns
      * @param null|(Closure(): TValue) $callback
      * @return (
-     *     $id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>)
-     *     ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>|TValue
+     *     $id is (Arrayable<array-key, mixed>|array<mixed>)
+     *     ? EloquentCollection<int, TRelatedModel>|TValue
      *     : TRelatedModel|TValue
      * )
      */
@@ -430,7 +435,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Execute the query as a "select" statement.
      *
-     * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
+     * @return EloquentCollection<int, TRelatedModel>
      */
     public function get(array $columns = ['*']): BaseCollection
     {
@@ -453,7 +458,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Get a paginator for the "select" statement.
      *
-     * @return \Hypervel\Pagination\LengthAwarePaginator<int, TRelatedModel>
+     * @return LengthAwarePaginator<int, TRelatedModel>
      */
     public function paginate(?int $perPage = null, array $columns = ['*'], string $pageName = 'page', ?int $page = null): mixed
     {
@@ -465,7 +470,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Paginate the given query into a simple paginator.
      *
-     * @return \Hypervel\Contracts\Pagination\Paginator<int, TRelatedModel>
+     * @return Paginator<int, TRelatedModel>
      */
     public function simplePaginate(?int $perPage = null, array $columns = ['*'], string $pageName = 'page', ?int $page = null): mixed
     {
@@ -477,7 +482,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Paginate the given query into a cursor paginator.
      *
-     * @return \Hypervel\Contracts\Pagination\CursorPaginator<int, TRelatedModel>
+     * @return CursorPaginator<int, TRelatedModel>
      */
     public function cursorPaginate(
         ?int $perPage = null,
@@ -549,7 +554,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Get a generator for the given query.
      *
-     * @return \Hypervel\Support\LazyCollection<int, TRelatedModel>
+     * @return LazyCollection<int, TRelatedModel>
      */
     public function cursor(): mixed
     {
@@ -573,7 +578,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Query lazily, by chunks of the given size.
      *
-     * @return \Hypervel\Support\LazyCollection<int, TRelatedModel>
+     * @return LazyCollection<int, TRelatedModel>
      */
     public function lazy(int $chunkSize = 1000): mixed
     {
@@ -583,7 +588,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Query lazily, by chunking the results of a query by comparing IDs.
      *
-     * @return \Hypervel\Support\LazyCollection<int, TRelatedModel>
+     * @return LazyCollection<int, TRelatedModel>
      */
     public function lazyById(int $chunkSize = 1000, ?string $column = null, ?string $alias = null): mixed
     {
@@ -597,7 +602,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Query lazily, by chunking the results of a query by comparing IDs in descending order.
      *
-     * @return \Hypervel\Support\LazyCollection<int, TRelatedModel>
+     * @return LazyCollection<int, TRelatedModel>
      */
     public function lazyByIdDesc(int $chunkSize = 1000, ?string $column = null, ?string $alias = null): mixed
     {
@@ -611,7 +616,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Prepare the query builder for query execution.
      *
-     * @return \Hypervel\Database\Eloquent\Builder<TRelatedModel>
+     * @return Builder<TRelatedModel>
      */
     protected function prepareQueryBuilder(array $columns = ['*']): Builder
     {
@@ -648,9 +653,9 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Add the constraints for a relationship query on the same table.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
-     * @param \Hypervel\Database\Eloquent\Builder<TDeclaringModel> $parentQuery
-     * @return \Hypervel\Database\Eloquent\Builder<TRelatedModel>
+     * @param Builder<TRelatedModel> $query
+     * @param Builder<TDeclaringModel> $parentQuery
+     * @return Builder<TRelatedModel>
      */
     public function getRelationExistenceQueryForSelfRelation(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
@@ -675,9 +680,9 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Add the constraints for a relationship query on the same table as the through parent.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
-     * @param \Hypervel\Database\Eloquent\Builder<TDeclaringModel> $parentQuery
-     * @return \Hypervel\Database\Eloquent\Builder<TRelatedModel>
+     * @param Builder<TRelatedModel> $query
+     * @param Builder<TDeclaringModel> $parentQuery
+     * @return Builder<TRelatedModel>
      */
     public function getRelationExistenceQueryForThroughSelfRelation(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {

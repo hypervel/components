@@ -21,8 +21,10 @@ use Hypervel\Database\Concerns\ExplainsQueries;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Relations\Relation;
+use Hypervel\Database\MultipleRecordsFoundException;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
+use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Pagination\Cursor;
 use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Pagination\Paginator;
@@ -38,18 +40,19 @@ use JsonException;
 use LogicException;
 use RuntimeException;
 use SortDirection;
+use stdClass;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
 /**
  * @template TKey of array-key = int
- * @template TValue = \stdClass
+ * @template TValue = stdClass
  * @template TBindingType of string = 'select'|'from'|'join'|'where'|'groupBy'|'having'|'order'|'union'|'unionOrder'
  */
 class Builder implements BuilderContract
 {
-    /** @use \Hypervel\Database\Concerns\BuildsQueries<TKey, TValue> */
+    /** @use BuildsQueries<TKey, TValue> */
     use BuildsWhereDateClauses, BuildsQueries, ExplainsQueries, ForwardsCalls, Macroable {
         __call as macroCall;
     }
@@ -91,7 +94,7 @@ class Builder implements BuilderContract
      *
      * @var null|array{
      *     function: string,
-     *     columns: array<\Hypervel\Contracts\Database\Query\Expression|string>
+     *     columns: array<ExpressionContract|string>
      * }
      */
     public ?array $aggregate = null;
@@ -99,7 +102,7 @@ class Builder implements BuilderContract
     /**
      * The columns that should be returned.
      *
-     * @var null|array<\Hypervel\Contracts\Database\Query\Expression|string>
+     * @var null|array<ExpressionContract|string>
      */
     public ?array $columns = null;
 
@@ -282,7 +285,7 @@ class Builder implements BuilderContract
     /**
      * Add a subselect expression to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|string  $query
+     * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|string  $query
      *
      * @throws InvalidArgumentException
      */
@@ -323,7 +326,7 @@ class Builder implements BuilderContract
     /**
      * Makes "from" fetch from a subquery.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|string  $query
+     * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|string  $query
      *
      * @throws InvalidArgumentException
      */
@@ -357,7 +360,7 @@ class Builder implements BuilderContract
     /**
      * Creates a subquery and parse it.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|string  $query
+     * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|string  $query
      */
     protected function createSub(Closure|self|EloquentBuilder|Relation|string $query): array
     {
@@ -520,7 +523,7 @@ class Builder implements BuilderContract
     /**
      * Set the table which the query is targeting.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|string  $table
+     * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string  $table
      */
     public function from(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $table, ?string $as = null): static
     {
@@ -622,7 +625,7 @@ class Builder implements BuilderContract
     /**
      * Add a "subquery join" clause to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|string  $query
+     * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|string  $query
      *
      * @throws InvalidArgumentException
      */
@@ -645,7 +648,7 @@ class Builder implements BuilderContract
     /**
      * Add a "lateral join" clause to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|string  $query
+     * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|string  $query
      */
     public function joinLateral(Closure|self|EloquentBuilder|Relation|string $query, string $as, string $type = 'inner'): static
     {
@@ -663,7 +666,7 @@ class Builder implements BuilderContract
     /**
      * Add a lateral left join to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|string  $query
+     * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|string  $query
      */
     public function leftJoinLateral(Closure|self|EloquentBuilder|Relation|string $query, string $as): static
     {
@@ -689,7 +692,7 @@ class Builder implements BuilderContract
     /**
      * Add a subquery left join to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|string  $query
+     * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|string  $query
      */
     public function leftJoinSub(Closure|self|EloquentBuilder|Relation|string $query, string $as, Closure|ExpressionContract|string $first, ExpressionContract|string|null $operator = null, ExpressionContract|string|null $second = null): static
     {
@@ -715,7 +718,7 @@ class Builder implements BuilderContract
     /**
      * Add a subquery right join to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|string  $query
+     * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|string  $query
      */
     public function rightJoinSub(Closure|self|EloquentBuilder|Relation|string $query, string $as, Closure|ExpressionContract|string $first, ExpressionContract|string|null $operator = null, ExpressionContract|string|null $second = null): static
     {
@@ -1399,7 +1402,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where between" statement to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|string  $column
+     * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string  $column
      */
     public function whereBetween(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column, iterable $values, string $boolean = 'and', bool $not = false): static
     {
@@ -1428,7 +1431,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where between" statement using columns to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|string  $column
+     * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string  $column
      */
     public function whereBetweenColumns(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column, array $values, string $boolean = 'and', bool $not = false): static
     {
@@ -1449,7 +1452,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where between" statement to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|string  $column
+     * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string  $column
      */
     public function orWhereBetween(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column, iterable $values): static
     {
@@ -1467,7 +1470,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where not between" statement to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|string  $column
+     * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string  $column
      */
     public function whereNotBetween(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column, iterable $values, string $boolean = 'and'): static
     {
@@ -1485,7 +1488,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not between" statement to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|\Hypervel\Contracts\Database\Query\Expression|string  $column
+     * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>|ExpressionContract|string  $column
      */
     public function orWhereNotBetween(Closure|self|EloquentBuilder|Relation|ExpressionContract|string $column, iterable $values): static
     {
@@ -1503,7 +1506,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where between columns" statement using a value to the query.
      *
-     * @param array{\Hypervel\Contracts\Database\Query\Expression|string, \Hypervel\Contracts\Database\Query\Expression|string} $columns
+     * @param array{ExpressionContract|string, ExpressionContract|string} $columns
      */
     public function whereValueBetween(mixed $value, array $columns, string $boolean = 'and', bool $not = false): static
     {
@@ -1522,7 +1525,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where between columns" statement using a value to the query.
      *
-     * @param array{\Hypervel\Contracts\Database\Query\Expression|string, \Hypervel\Contracts\Database\Query\Expression|string} $columns
+     * @param array{ExpressionContract|string, ExpressionContract|string} $columns
      */
     public function orWhereValueBetween(mixed $value, array $columns): static
     {
@@ -1532,7 +1535,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where not between columns" statement using a value to the query.
      *
-     * @param array{\Hypervel\Contracts\Database\Query\Expression|string, \Hypervel\Contracts\Database\Query\Expression|string} $columns
+     * @param array{ExpressionContract|string, ExpressionContract|string} $columns
      */
     public function whereValueNotBetween(mixed $value, array $columns, string $boolean = 'and'): static
     {
@@ -1542,7 +1545,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not between columns" statement using a value to the query.
      *
-     * @param array{\Hypervel\Contracts\Database\Query\Expression|string, \Hypervel\Contracts\Database\Query\Expression|string} $columns
+     * @param array{ExpressionContract|string, ExpressionContract|string} $columns
      */
     public function orWhereValueNotBetween(mixed $value, array $columns): static
     {
@@ -1829,7 +1832,7 @@ class Builder implements BuilderContract
     /**
      * Add a full sub-select to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>  $callback
+     * @param  Closure|self|EloquentBuilder<*>|Relation<*, *, *>  $callback
      *
      * @throws InvalidArgumentException
      */
@@ -1864,7 +1867,7 @@ class Builder implements BuilderContract
     /**
      * Add an "exists" clause to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>  $callback
+     * @param  Closure|self|EloquentBuilder<*>  $callback
      *
      * @throws InvalidArgumentException
      */
@@ -1887,7 +1890,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where exists" clause to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>  $callback
+     * @param  Closure|self|EloquentBuilder<*>  $callback
      *
      * @throws InvalidArgumentException
      */
@@ -1899,7 +1902,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where not exists" clause to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>  $callback
+     * @param  Closure|self|EloquentBuilder<*>  $callback
      *
      * @throws InvalidArgumentException
      */
@@ -1911,7 +1914,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not exists" clause to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>  $callback
+     * @param  Closure|self|EloquentBuilder<*>  $callback
      *
      * @throws InvalidArgumentException
      */
@@ -3035,8 +3038,8 @@ class Builder implements BuilderContract
     /**
      * Get a single column's value from the first result of a query if it's the sole matching record.
      *
-     * @throws \Hypervel\Database\RecordsNotFoundException
-     * @throws \Hypervel\Database\MultipleRecordsFoundException
+     * @throws RecordsNotFoundException
+     * @throws MultipleRecordsFoundException
      */
     public function soleValue(ExpressionContract|string $column): mixed
     {

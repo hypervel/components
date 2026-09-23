@@ -514,7 +514,7 @@ trait HasAttributes
     /**
      * Either throw a missing attribute exception or return null depending on Eloquent's configuration.
      *
-     * @throws \Hypervel\Database\Eloquent\MissingAttributeException
+     * @throws MissingAttributeException
      */
     protected function throwMissingAttributeExceptionIfApplicable(string $key): mixed
     {
@@ -1639,7 +1639,7 @@ trait HasAttributes
     /**
      * Determine if the given key is cast using a custom class.
      *
-     * @throws \Hypervel\Database\Eloquent\InvalidCastException
+     * @throws InvalidCastException
      */
     protected function isClassCastable(string $key): bool
     {
@@ -1697,7 +1697,7 @@ trait HasAttributes
     /**
      * Determine if the key is deviable using a custom class.
      *
-     * @throws \Hypervel\Database\Eloquent\InvalidCastException
+     * @throws InvalidCastException
      */
     protected function isClassDeviable(string $key): bool
     {
@@ -1717,7 +1717,7 @@ trait HasAttributes
     /**
      * Determine if the key is serializable using a custom class.
      *
-     * @throws \Hypervel\Database\Eloquent\InvalidCastException
+     * @throws InvalidCastException
      */
     protected function isClassSerializable(string $key): bool
     {

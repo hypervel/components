@@ -7,7 +7,7 @@ namespace {{ factoryNamespace }};
 use Hypervel\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Hypervel\Database\Eloquent\Factories\Factory<\{{ namespacedModel }}>
+ * @extends Factory<\{{ namespacedModel }}>
  */
 class {{ factory }}Factory extends Factory
 {

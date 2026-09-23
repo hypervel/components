@@ -7,6 +7,7 @@ namespace Hypervel\Testbench\Foundation;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\LazyCollection;
+use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use InvalidArgumentException;
 use Symfony\Component\Yaml\Yaml;
@@ -252,7 +253,7 @@ class Config extends Fluent implements ConfigContract
     /**
      * Add additional service providers.
      *
-     * @param array<int, class-string<\Hypervel\Support\ServiceProvider>> $providers
+     * @param array<int, class-string<ServiceProvider>> $providers
      */
     public function addProviders(array $providers): static
     {

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Testbench\Foundation;
 
 use Hypervel\Contracts\Console\Kernel as ConsoleKernel;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Testbench\Foundation\Console\CreateSqliteDbCommand;
 use Hypervel\Testbench\Foundation\Console\DropSqliteDbCommand;
 use Hypervel\Testbench\Foundation\Console\InstallCommand;
@@ -23,7 +24,7 @@ class TestbenchServiceProviderTest extends TestCase
     /**
      * Get package providers.
      *
-     * @param \Hypervel\Contracts\Foundation\Application $app
+     * @param Application $app
      * @return array<int, class-string>
      */
     #[Override]
