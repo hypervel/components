@@ -126,6 +126,7 @@ trait DatabaseTransactions
     protected function connectionsToTransact(): array
     {
         return property_exists($this, 'connectionsToTransact')
-            ? $this->connectionsToTransact : [null];
+            ? $this->connectionsToTransact
+            : [null];
     }
 }

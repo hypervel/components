@@ -1895,12 +1895,14 @@ class SupportStrTest extends TestCase
     {
         $this->assertSame("<p><em>hello world</em></p>\n", Str::markdown('*hello world*'));
         $this->assertSame("<h1>hello world</h1>\n", Str::markdown('# hello world'));
+        $this->assertSame('', Str::markdown(null));
     }
 
     public function testInlineMarkdown(): void
     {
         $this->assertSame("<em>hello world</em>\n", Str::inlineMarkdown('*hello world*'));
         $this->assertSame("<a href=\"https://hypervel.org\"><strong>Hypervel</strong></a>\n", Str::inlineMarkdown('[**Hypervel**](https://hypervel.org)'));
+        $this->assertSame('', Str::inlineMarkdown(null));
     }
 
     public function testRepeat(): void
@@ -1941,6 +1943,7 @@ class SupportStrTest extends TestCase
     {
         $this->assertSame('HHH', Str::transliterate('🎂🚧🏆', 'H'));
         $this->assertSame('Hello', Str::transliterate('🎂', 'Hello'));
+        $this->assertSame('', Str::transliterate(null));
     }
 
     #[DataProvider('specialCharacterProvider')]
@@ -2212,6 +2215,43 @@ class SupportStrTest extends TestCase
         $this->assertSame($sequenceUlid, ThrowingSequenceStr::ulid());
 
         ThrowingSequenceStr::createUlidsNormally();
+    }
+
+    public function testFactoriesAcceptNonClosureCallables(): void
+    {
+        $factory = new class {
+            /**
+             * Return a fixed UUID.
+             */
+            public function uuid(): Uuid
+            {
+                return Uuid::fromString('00000000-0000-0000-0000-000000000000');
+            }
+
+            /**
+             * Return a fixed ULID.
+             */
+            public function ulid(): Ulid
+            {
+                return new Ulid('01ARZ3NDEKTSV4RRFFQ69G5FAV');
+            }
+        };
+
+        Str::createRandomStringsUsing('strval');
+        Str::createUuidsUsing([$factory, 'uuid']);
+        Str::createUlidsUsing([$factory, 'ulid']);
+
+        $this->assertSame('7', Str::random(7));
+        $this->assertSame('00000000-0000-0000-0000-000000000000', (string) Str::uuid());
+        $this->assertSame('01ARZ3NDEKTSV4RRFFQ69G5FAV', (string) Str::ulid());
+
+        Str::createRandomStringsUsing();
+        Str::createUuidsUsing();
+        Str::createUlidsUsing();
+
+        $this->assertSame(7, strlen(Str::random(7)));
+        $this->assertNotSame('00000000-0000-0000-0000-000000000000', (string) Str::uuid());
+        $this->assertNotSame('01ARZ3NDEKTSV4RRFFQ69G5FAV', (string) Str::ulid());
     }
 
     public function testResetFactoryState(): void

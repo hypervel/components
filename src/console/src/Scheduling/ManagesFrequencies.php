@@ -322,7 +322,7 @@ trait ManagesFrequencies
      * @param array|int<0, 59>|string $minutes
      * @param array|int<0, 23>|string $hours
      */
-    protected function hourBasedSchedule(array|int|string $minutes, array|int|string $hours)
+    protected function hourBasedSchedule(array|int|string $minutes, array|int|string $hours): static
     {
         $minutes = is_array($minutes) ? implode(',', $minutes) : $minutes;
 
@@ -416,8 +416,6 @@ trait ManagesFrequencies
 
     /**
      * Schedule the event to run weekly on a given day and time.
-     *
-     * @param array|mixed $dayOfWeek
      */
     public function weeklyOn(mixed $dayOfWeek, string $time = '0:0'): static
     {
@@ -534,8 +532,6 @@ trait ManagesFrequencies
 
     /**
      * Set the days of the week the command should run on.
-     *
-     * @param array|mixed $days
      */
     public function days(mixed $days): static
     {

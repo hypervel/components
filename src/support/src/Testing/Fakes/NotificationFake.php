@@ -155,10 +155,10 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
      */
     public function assertNothingSent(): void
     {
-        $notificationNames = Collection::make($this->notifications)
+        $notificationNames = (new Collection($this->notifications))
             ->map(
-                fn ($notifiableModels) => Collection::make($notifiableModels)
-                    ->map(fn ($notifiables) => Collection::make($notifiables)->keys())
+                fn ($notifiableModels) => (new Collection($notifiableModels))
+                    ->map(fn ($notifiables) => (new Collection($notifiables))->keys())
             )
             ->flatten()->join("\n- ");
 
@@ -195,7 +195,7 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
      */
     public function assertSentTimes(string $notification, int $expectedCount): void
     {
-        $actualCount = Collection::make($this->notifications)
+        $actualCount = (new Collection($this->notifications))
             ->flatten(1)
             ->reduce(fn ($count, $sent) => $count + count($sent[$notification] ?? []), 0);
 
@@ -215,7 +215,7 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
      */
     public function assertCount(int $expectedCount): void
     {
-        $actualCount = Collection::make($this->notifications)->flatten(3)->count();
+        $actualCount = (new Collection($this->notifications))->flatten(3)->count();
 
         PHPUnit::assertSame(
             $expectedCount,
@@ -230,12 +230,12 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
     public function sent(mixed $notifiable, string $notification, ?callable $callback = null): Collection
     {
         if (! $this->hasSent($notifiable, $notification)) {
-            return Collection::make();
+            return new Collection;
         }
 
         $callback = $callback ?: fn () => true;
 
-        $notifications = Collection::make($this->notificationsFor($notifiable, $notification));
+        $notifications = new Collection($this->notificationsFor($notifiable, $notification));
 
         return $notifications->filter(
             fn ($arguments) => $callback(...array_values($arguments))

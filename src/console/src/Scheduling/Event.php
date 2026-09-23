@@ -513,8 +513,6 @@ class Event
     /**
      * E-mail the results of the scheduled operation if it produces output.
      *
-     * @param array|mixed $addresses
-     *
      * @throws LogicException
      */
     public function emailWrittenOutputTo(mixed $addresses): static
@@ -524,8 +522,6 @@ class Event
 
     /**
      * E-mail the results of the scheduled operation if it fails.
-     *
-     * @param array|mixed $addresses
      */
     public function emailOutputOnFailure(mixed $addresses): static
     {

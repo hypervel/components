@@ -784,8 +784,8 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
         $this->directive($name, function ($expression) use ($name) {
             return $expression !== ''
-                    ? "<?php if (\\Hypervel\\Support\\Facades\\Blade::check('{$name}', {$expression})): ?>"
-                    : "<?php if (\\Hypervel\\Support\\Facades\\Blade::check('{$name}')): ?>";
+                ? "<?php if (\\Hypervel\\Support\\Facades\\Blade::check('{$name}', {$expression})): ?>"
+                : "<?php if (\\Hypervel\\Support\\Facades\\Blade::check('{$name}')): ?>";
         });
 
         $this->directive('unless' . $name, function ($expression) use ($name) {
@@ -826,10 +826,10 @@ class BladeCompiler extends Compiler implements CompilerInterface
         if (is_null($class)) {
             $class = $alias;
             $alias = str_contains($class, '\View\Components\\')
-                            ? (new Stringable($class))->after('\View\Components\\')->explode('\\')
-                                ->map(fn ($segment) => Str::kebab($segment))
-                                ->implode(':')
-                            : Str::kebab(class_basename($class));
+                ? (new Stringable($class))->after('\View\Components\\')->explode('\\')
+                    ->map(fn ($segment) => Str::kebab($segment))
+                    ->implode(':')
+                : Str::kebab(class_basename($class));
         }
 
         if (! empty($prefix)) {
@@ -949,8 +949,8 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
         $this->directive($alias, function ($expression) use ($path) {
             return $expression
-                        ? "<?php \$__env->startComponent('{$path}', {$expression}); ?>"
-                        : "<?php \$__env->startComponent('{$path}'); ?>";
+                ? "<?php \$__env->startComponent('{$path}', {$expression}); ?>"
+                : "<?php \$__env->startComponent('{$path}'); ?>";
         });
 
         $this->directive('end' . $alias, function ($expression) {

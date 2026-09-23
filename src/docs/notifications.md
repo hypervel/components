@@ -172,6 +172,20 @@ When queueing notifications, a queued job will be created for each recipient and
 <a name="delaying-notifications"></a>
 #### Delaying Notifications
 
+You may configure a notification's default delay in seconds using the `Delay` attribute:
+
+```php
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Notifications\Notification;
+use Hypervel\Queue\Attributes\Delay;
+
+#[Delay(30)]
+class InvoicePaid extends Notification implements ShouldQueue
+{
+    // ...
+}
+```
+
 If you would like to delay the delivery of the notification, you may chain the `delay` method onto your notification instantiation:
 
 ```php
@@ -345,6 +359,15 @@ public function retryUntil(): DateTimeInterface
 
 > [!NOTE]
 > For more information on these job attributes and methods, please review the documentation on [queued jobs](/docs/{{version}}/queues#max-job-attempts-and-timeout).
+
+To customize the job used for all queued notifications, extend `Hypervel\Notifications\SendQueuedNotifications` and bind your subclass in a service provider's `register` method:
+
+```php
+use App\Jobs\SendNotification;
+use Hypervel\Notifications\SendQueuedNotifications;
+
+$this->app->bind(SendQueuedNotifications::class, SendNotification::class);
+```
 
 <a name="queued-notification-middleware"></a>
 #### Queued Notification Middleware

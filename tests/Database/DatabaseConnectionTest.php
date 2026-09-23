@@ -651,17 +651,19 @@ class DatabaseConnectionTest extends TestCase
         $this->assertSame('success', $result);
     }
 
-    public function testTransactionRetriesOnSerializationFailure(): void
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function testTransactionRetriesOnSerializationFailure(bool $transactionIsActive): void
     {
         $this->expectException(PDOException::class);
         $this->expectExceptionMessageIsOrContains('Serialization failure');
 
         $pdo = $this->getMockBuilder(PDOStub::class)->onlyMethods(['inTransaction', 'beginTransaction', 'commit', 'rollBack'])->getMock();
         $mock = $this->getMockConnection([], $pdo);
-        $pdo->expects($this->exactly(3))->method('inTransaction')->willReturn(true);
+        $pdo->expects($this->exactly(3))->method('inTransaction')->willReturn($transactionIsActive);
         $pdo->expects($this->exactly(3))->method('commit')->willThrowException(new PDOExceptionStub('Serialization failure', '40001'));
         $pdo->expects($this->exactly(3))->method('beginTransaction');
-        $pdo->expects($this->exactly(3))->method('rollBack');
+        $pdo->expects($this->exactly($transactionIsActive ? 3 : 0))->method('rollBack');
         $mock->transaction(function (): void {
         }, 3);
     }

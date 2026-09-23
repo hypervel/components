@@ -526,24 +526,29 @@ class NotificationSenderTest extends TestCase
 
     public function testNotificationFailedSentWithoutHttpTransportException(): void
     {
-        $this->expectException(TransportException::class);
-
         $notifiable = new AnonymousNotifiable;
         $manager = m::mock(ChannelManager::class);
         $manager->expects('driver')->andReturn($driver = m::mock());
         $response = m::mock(ResponseInterface::class);
-        $driver->expects('send')->andThrow(new HttpTransportException('Transport error', $response));
+        $exception = new HttpTransportException('Transport error', $response);
+        $driver->expects('send')->andThrow($exception);
         $bus = m::mock(BusDispatcherContract::class);
 
         $events = $this->mockEventDispatcher();
         $events->expects('until')->with(m::type(NotificationSending::class))->andReturn(true);
         $events->expects('dispatch')->withArgs(function (object $event): bool {
-            return $event instanceof NotificationFailed && $event->data['exception'] instanceof TransportException;
+            return $event instanceof NotificationFailed && $event->data['exception']::class === TransportException::class;
         });
 
         $sender = new NotificationSender($manager, $bus, $events);
 
-        $sender->sendNow($notifiable, new DummyNotificationWithViaConnections, ['mail']);
+        try {
+            $sender->sendNow($notifiable, new DummyNotificationWithViaConnections, ['mail']);
+
+            $this->fail('Expected the transport exception to be rethrown.');
+        } catch (TransportException $caught) {
+            $this->assertSame($exception, $caught);
+        }
     }
 
     public function testItPreservesNotificationStateMutatedInViaMethod(): void
@@ -687,15 +692,14 @@ class NotificationSenderTest extends TestCase
         $sender->send($notifiable, new DummyNotificationWithStringVia);
     }
 
-    public function testNotificationFailedStillNormalizesTransportExceptionWithoutListeners(): void
+    public function testNotificationFailedIsSkippedWithoutListeners(): void
     {
-        $this->expectException(TransportException::class);
-
         $notifiable = new AnonymousNotifiable;
         $manager = m::mock(ChannelManager::class);
         $manager->shouldReceive('driver')->andReturn($driver = m::mock());
         $response = m::mock(ResponseInterface::class);
-        $driver->shouldReceive('send')->andThrow(new HttpTransportException('Transport error', $response));
+        $exception = new HttpTransportException('Transport error', $response);
+        $driver->expects('send')->andThrow($exception);
         $bus = m::mock(BusDispatcherContract::class);
 
         $events = $this->mockEventDispatcher();
@@ -706,7 +710,13 @@ class NotificationSenderTest extends TestCase
 
         $sender = new NotificationSender($manager, $bus, $events);
 
-        $sender->sendNow($notifiable, new DummyNotificationWithViaConnections, ['mail']);
+        try {
+            $sender->sendNow($notifiable, new DummyNotificationWithViaConnections, ['mail']);
+
+            $this->fail('Expected the transport exception to be rethrown.');
+        } catch (TransportException $caught) {
+            $this->assertSame($exception, $caught);
+        }
     }
 
     /**

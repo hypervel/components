@@ -8,6 +8,7 @@ use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Console\ContainerCommandLoader;
 use Hypervel\Console\GeneratorCommand;
 use Hypervel\Console\Parser;
+use Hypervel\Console\View\Components\Factory;
 use Hypervel\Container\Container;
 use Symfony\Component\Console\Completion\CompletionInput;
 use Symfony\Component\Console\Completion\CompletionSuggestions;
@@ -55,6 +56,14 @@ class ConsoleTypingCommand extends Command
     use ConfirmableTrait;
 
     protected array $verbosityMap = ['custom' => 100];
+
+    /**
+     * Render stringable component details.
+     */
+    public function renderDetails(Factory $components, Stringable $label, Stringable $value): void
+    {
+        $components->twoColumnDetail($label, $value);
+    }
 
     /**
      * Get the console command arguments.

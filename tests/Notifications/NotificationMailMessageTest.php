@@ -12,6 +12,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Mail\Attachment;
 use Hypervel\Notifications\Messages\MailMessage;
+use Hypervel\Support\Collection;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 
@@ -107,6 +108,11 @@ class NotificationMailMessageTest extends TestCase
 
         $message = new MailMessage;
         $message->cc(['test@example.com', 'Test' => 'test@example.com']);
+
+        $this->assertSame([['test@example.com', null], ['test@example.com', 'Test']], $message->cc);
+
+        $message = new MailMessage;
+        $message->cc(new Collection(['test@example.com', 'Test' => 'test@example.com']));
 
         $this->assertSame([['test@example.com', null], ['test@example.com', 'Test']], $message->cc);
 

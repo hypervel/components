@@ -50,7 +50,7 @@ class CommandInput
     {
         $input = array_merge($this->options, $this->arguments);
 
-        if (! $keys) {
+        if ($keys === null) {
             return $input;
         }
 

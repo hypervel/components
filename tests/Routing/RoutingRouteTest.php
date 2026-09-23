@@ -1838,6 +1838,29 @@ class RoutingRouteTest extends TestCase
         $this->assertSame(1, $calls);
     }
 
+    public function testImplicitBindingsWithInvokableCallback(): void
+    {
+        $router = $this->getRouter();
+
+        $router->substituteImplicitBindingsUsing(new class {
+            /**
+             * Substitute the bindings and update the bound model.
+             */
+            public function __invoke(Container $container, Route $route, Closure $default): void
+            {
+                $default();
+                $route->parameter('bar')->value = 'otwell';
+            }
+        });
+
+        $router->get('foo/{bar}', [
+            'middleware' => SubstituteBindings::class,
+            'uses' => fn (RoutingTestUserModel $bar) => $bar->value,
+        ]);
+
+        $this->assertSame('otwell', $router->dispatch(Request::create('foo/taylor', 'GET'))->getContent());
+    }
+
     public function testImplicitBindingsWhereScopedBindingsArePrevented()
     {
         $router = $this->getRouter();

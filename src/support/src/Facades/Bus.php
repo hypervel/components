@@ -80,8 +80,6 @@ class Bus extends Facade
 
     /**
      * Dispatch the given chain of jobs.
-     *
-     * @param array|mixed $jobs
      */
     public static function dispatchChain(mixed $jobs): mixed
     {

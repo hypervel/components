@@ -134,9 +134,15 @@ trait Queueable
      */
     public function withDeduplicator(array|callable|null $deduplicator): static
     {
-        $this->deduplicator = $deduplicator instanceof Closure
-            ? new SerializableClosure($deduplicator)
-            : $deduplicator;
+        $this->deduplicator = match (true) {
+            $deduplicator instanceof Closure => new SerializableClosure($deduplicator),
+            // Notifications may pass callbacks keyed by channel; keep them serializable.
+            is_array($deduplicator) => array_map(
+                static fn (mixed $callback): mixed => $callback instanceof Closure ? new SerializableClosure($callback) : $callback,
+                $deduplicator,
+            ),
+            default => $deduplicator,
+        };
 
         return $this;
     }

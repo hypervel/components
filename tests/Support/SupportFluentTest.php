@@ -56,17 +56,29 @@ class SupportFluentTest extends TestCase
         $this->assertEquals($array, $fluent->getAttributes());
     }
 
-    public function testGetMethodReturnsAttribute()
+    public function testGetMethodReturnsAttribute(): void
     {
-        $fluent = new Fluent(['name' => 'Taylor']);
+        $fluent = new Fluent(['name' => 'Taylor', 0 => 'first']);
 
         $this->assertSame('Taylor', $fluent->get('name'));
+        $this->assertSame('first', $fluent->get(0));
         $this->assertSame('Default', $fluent->get('foo', 'Default'));
         $this->assertSame('Taylor', $fluent->name);
         $this->assertNull($fluent->foo);
     }
 
-    public function testSetMethodSetsAttribute()
+    public function testAllSelectsZeroAndEmptyStringKeys(): void
+    {
+        $fluent = new Fluent([0 => 'first', '' => 'empty', 'name' => 'Taylor']);
+
+        $this->assertSame([0 => 'first'], $fluent->all(0));
+        $this->assertSame($fluent->all([0]), $fluent->all('0'));
+        $this->assertSame(['' => 'empty'], $fluent->all(''));
+        $this->assertSame([0 => 'first', 'missing' => null], $fluent->all('0', 'missing'));
+        $this->assertSame([], $fluent->all([]));
+    }
+
+    public function testSetMethodSetsAttribute(): void
     {
         $fluent = new Fluent;
 
@@ -74,11 +86,13 @@ class SupportFluentTest extends TestCase
         $fluent->set('developer', true);
         $fluent->set('posts', 25);
         $fluent->set('computer.color', 'silver');
+        $fluent->set(0, 'first');
 
         $this->assertSame('Taylor', $fluent->name);
         $this->assertTrue($fluent->developer);
         $this->assertSame(25, $fluent->posts);
         $this->assertSame(['color' => 'silver'], $fluent->computer);
+        $this->assertSame('first', $fluent[0]);
     }
 
     public function testArrayAccessToAttributes()
@@ -193,7 +207,7 @@ class SupportFluentTest extends TestCase
         $this->assertEquals(['forge', 'vapour', 'spark'], $fluent->collect('authors.taylor.products')->all());
     }
 
-    public function testStringMethod()
+    public function testStringMethod(): void
     {
         $fluent = new Fluent([
             'int' => 123,
@@ -206,8 +220,8 @@ class SupportFluentTest extends TestCase
             'empty_str' => '',
             'null' => null,
         ]);
-        $this->assertTrue($fluent->string('int') instanceof Stringable);
-        $this->assertTrue($fluent->string('unknown_key') instanceof Stringable);
+        $this->assertInstanceOf(Stringable::class, $fluent->string('int'));
+        $this->assertInstanceOf(Stringable::class, $fluent->string('unknown_key'));
         $this->assertSame('123', $fluent->string('int')->value());
         $this->assertSame('456', $fluent->string('int_str')->value());
         $this->assertSame('123.456', $fluent->string('float')->value());

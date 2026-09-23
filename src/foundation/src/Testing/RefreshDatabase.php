@@ -290,7 +290,8 @@ trait RefreshDatabase
     protected function connectionsToTransact(): array
     {
         return property_exists($this, 'connectionsToTransact')
-            ? $this->connectionsToTransact : [null];
+            ? $this->connectionsToTransact
+            : [null];
     }
 
     /**
@@ -309,6 +310,9 @@ trait RefreshDatabase
         // ...
     }
 
+    /**
+     * Get the default database connection name.
+     */
     protected function getRefreshConnection(): string
     {
         return $this->app

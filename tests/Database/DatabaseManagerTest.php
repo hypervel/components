@@ -39,6 +39,28 @@ class DatabaseManagerTest extends TestCase
         ]);
     }
 
+    public function testReconnectorAcceptsArrayCallable(): void
+    {
+        $manager = $this->db->getDatabaseManager();
+        $reconnector = new class {
+            public ?Connection $connection = null;
+
+            /**
+             * Record the connection requesting reconnection.
+             */
+            public function reconnect(Connection $connection): void
+            {
+                $this->connection = $connection;
+            }
+        };
+
+        $manager->setReconnector([$reconnector, 'reconnect']);
+        $connection = $manager->connection();
+        $connection->reconnect();
+
+        $this->assertSame($connection, $reconnector->connection);
+    }
+
     public function testDisconnectDisconnectsNonPooledConnection()
     {
         $manager = $this->db->getDatabaseManager();

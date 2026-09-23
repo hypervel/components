@@ -323,9 +323,9 @@ class Validator implements ValidatorContract
     /**
      * The exception to throw upon failure.
      *
-     * @var class-string<ValidationException>
+     * @var class-string<ValidationException>|ValidationException
      */
-    protected $exception = ValidationException::class;
+    protected string|ValidationException $exception = ValidationException::class;
 
     /**
      * The custom callback to determine if an exponent is within allowed range.
@@ -1447,7 +1447,7 @@ class Validator implements ValidatorContract
     }
 
     /**
-     * Returns the data which was valid.
+     * Return the data which was valid.
      */
     public function valid(): array
     {
@@ -1462,7 +1462,7 @@ class Validator implements ValidatorContract
     }
 
     /**
-     * Returns the data which was invalid.
+     * Return the data which was invalid.
      */
     public function invalid(): array
     {
@@ -1732,7 +1732,8 @@ class Validator implements ValidatorContract
 
     /**
      * Get the data that should be injected into the iteration of a wildcard "sometimes" callback.
-     * @return array|Fluent|mixed
+     *
+     * @return Fluent|mixed
      */
     private function dataForSometimesIteration(string $attribute, bool $removeLastSegmentOfAttribute): mixed
     {
@@ -1880,7 +1881,7 @@ class Validator implements ValidatorContract
      */
     public function setImplicitAttributesFormatter(?callable $formatter = null): static
     {
-        $this->implicitAttributesFormatter = $formatter;
+        $this->implicitAttributesFormatter = $formatter === null ? null : $formatter(...);
 
         return $this;
     }
@@ -1945,9 +1946,9 @@ class Validator implements ValidatorContract
     /**
      * Get the exception to throw upon failed validation.
      *
-     * @return class-string<ValidationException>
+     * @return class-string<ValidationException>|ValidationException
      */
-    public function getException(): string
+    public function getException(): string|ValidationException
     {
         return $this->exception;
     }

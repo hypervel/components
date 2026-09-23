@@ -5,6 +5,8 @@ Console for Hypervel
 
 ## Differences From Laravel
 
+`CommandInput::all([])` returns an empty array. Use `all()` to retrieve all command input.
+
 `schedule:run` is a long-running process by default and replaces `schedule:work`. Use `schedule:run --once` in cron entries. See the [scheduling documentation](https://hypervel.org/docs/scheduling#running-the-scheduler).
 
 Scheduled tasks do not support `user()`. Run the scheduler as the required OS user, or use `exec()` with an explicit command to run an individual task as another user.

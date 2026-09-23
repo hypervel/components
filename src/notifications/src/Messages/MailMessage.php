@@ -320,9 +320,9 @@ class MailMessage extends SimpleMessage implements Renderable
     /**
      * Parse the multi-address array into the necessary format.
      */
-    protected function parseAddresses(array $value): array
+    protected function parseAddresses(Arrayable|iterable $value): array
     {
-        return Collection::make($value)->map(function ($address, $name) {
+        return (new Collection($value))->map(function ($address, $name) {
             return [$address, is_numeric($name) ? null : $name];
         })->values()->all();
     }

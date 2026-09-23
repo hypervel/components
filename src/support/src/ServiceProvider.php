@@ -80,6 +80,9 @@ abstract class ServiceProvider
      */
     public static array $reloadCommands = [];
 
+    /**
+     * Create a new service provider instance.
+     */
     public function __construct(
         protected ApplicationContract $app
     ) {
@@ -378,7 +381,7 @@ abstract class ServiceProvider
             return $paths;
         }
 
-        return collect(static::$publishes)->reduce(function ($paths, $p) {
+        return (new Collection(static::$publishes))->reduce(function ($paths, $p) {
             return array_merge($paths, $p);
         }, []);
     }

@@ -23,7 +23,7 @@ use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\InteractsWithTime;
-use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Throwable;
 
@@ -113,7 +113,7 @@ class WorkCommand extends Command
         // Use the input TTY directly; Symfony's stty availability probe shells out inside this coroutine.
         if (! $this->outputUsingJson() && defined('STDIN') && stream_isatty(STDIN)) {
             $this->components->info(
-                sprintf('Processing jobs from the [%s] %s.', $queue, Str::of('queue')->plural(count(explode(',', $queue))))
+                sprintf('Processing jobs from the [%s] %s.', $queue, (new Stringable('queue'))->plural(explode(',', $queue)))
             );
         }
 

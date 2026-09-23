@@ -13,6 +13,7 @@ use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Json;
@@ -319,13 +320,13 @@ class Store implements Session
     }
 
     /**
-     * Checks if a key exists.
+     * Check if a key exists.
      */
     public function exists(array|UnitEnum|string $key): bool
     {
         $placeholder = new stdClass;
 
-        return collect(is_array($key) ? $key : func_get_args())->doesntContain(function ($key) use ($placeholder) {
+        return (new Collection(is_array($key) ? $key : func_get_args()))->doesntContain(function ($key) use ($placeholder) {
             return $this->get($key, $placeholder) === $placeholder;
         });
     }
@@ -343,7 +344,7 @@ class Store implements Session
      */
     public function has(array|UnitEnum|string $key): bool
     {
-        return collect(is_array($key) ? $key : func_get_args())->doesntContain(function ($key) {
+        return (new Collection(is_array($key) ? $key : func_get_args()))->doesntContain(function ($key) {
             return is_null($this->get($key));
         });
     }
@@ -353,7 +354,7 @@ class Store implements Session
      */
     public function hasAny(array|UnitEnum|string $key): bool
     {
-        return collect(is_array($key) ? $key : func_get_args())->contains(function ($key) {
+        return (new Collection(is_array($key) ? $key : func_get_args()))->contains(function ($key) {
             return ! is_null($this->get($key));
         });
     }
@@ -451,7 +452,7 @@ class Store implements Session
     /**
      * Increment the value of an item in the session.
      */
-    public function increment(UnitEnum|string $key, int $amount = 1): mixed
+    public function increment(UnitEnum|string $key, int $amount = 1): int|float
     {
         $this->put($key, $value = $this->get($key, 0) + $amount);
 
@@ -461,7 +462,7 @@ class Store implements Session
     /**
      * Decrement the value of an item in the session.
      */
-    public function decrement(UnitEnum|string $key, int $amount = 1): int
+    public function decrement(UnitEnum|string $key, int $amount = 1): int|float
     {
         return $this->increment($key, $amount * -1);
     }
@@ -504,8 +505,6 @@ class Store implements Session
 
     /**
      * Reflash a subset of the current flash data.
-     *
-     * @param array|mixed $keys
      */
     public function keep(mixed $keys = null): void
     {

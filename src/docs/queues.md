@@ -2091,7 +2091,7 @@ class SendShipmentNotification
 }
 ```
 
-When sending a [mail message](/docs/{{version}}/mail) that is going to be queued on a FIFO queue, you should invoke the `onGroup` method and optionally the `withDeduplicator` method when sending the notification:
+When sending a [mail message](/docs/{{version}}/mail) that is going to be queued on a FIFO queue, you should invoke the `onGroup` method and optionally the `withDeduplicator` method when sending the mail message:
 
 ```php
 use App\Mail\InvoicePaid;
@@ -2115,6 +2115,23 @@ $invoicePaid = (new InvoicePaid($invoice))
 
 $user->notify($invoicePaid);
 ```
+
+Like jobs, mailables and notifications may define `messageGroup` and `deduplicationId` methods instead of calling `onGroup` and `withDeduplicator`.
+
+For notifications, you may pass arrays keyed by channel to give each channel its own message group and deduplicator:
+
+```php
+$invoicePaid = (new InvoicePaid($invoice))
+    ->onGroup(['mail' => 'invoice-mail', 'database' => 'invoice-history'])
+    ->withDeduplicator([
+        'mail' => fn () => 'invoice-mail-'.$invoice->id,
+        'database' => fn () => 'invoice-history-'.$invoice->id,
+    ]);
+
+$user->notify($invoicePaid);
+```
+
+Alternatively, define `withMessageGroups($notifiable, $channel)` and `withDeduplicators($notifiable, $channel)` on the notification. These methods receive the recipient and channel and return the message group and deduplicator callback for that delivery.
 
 <a name="queue-failover"></a>
 ### Queue Failover

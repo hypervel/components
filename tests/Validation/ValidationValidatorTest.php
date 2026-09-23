@@ -1233,7 +1233,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertSame('english is required!', $v->messages()->first('lang.en'));
     }
 
-    public function testCustomException()
+    public function testCustomException(): void
     {
         $trans = $this->getArrayTranslator();
 
@@ -1242,10 +1242,15 @@ class ValidationValidatorTest extends TestCase
         $exception = new class($v) extends ValidationException {};
         $v->setException($exception);
 
+        $this->assertSame($exception, $v->getException());
+        $this->expectExceptionObject($exception);
+
         try {
             $v->validate();
         } catch (ValidationException $e) {
             $this->assertSame($exception, $e);
+
+            throw $e;
         }
     }
 
@@ -8269,6 +8274,23 @@ class ValidationValidatorTest extends TestCase
         $validator->passes();
 
         $this->assertSame('Field versions.1.2.3: 3 / 4 / :second-index', $validator->errors()->first());
+    }
+
+    public function testImplicitAttributesFormatterAcceptsStringCallable(): void
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            ['names' => ['']],
+            ['names.*' => 'required'],
+            ['required' => ':attribute is required'],
+        );
+
+        $validator->setImplicitAttributesFormatter('strtoupper');
+        $this->assertSame('NAMES.0 is required', $validator->errors()->first());
+
+        $validator->setImplicitAttributesFormatter();
+        $validator->passes();
+        $this->assertSame('names.0 is required', $validator->errors()->first());
     }
 
     #[TestWith(['settings.version', 'settings\.version'])]

@@ -36,12 +36,10 @@ class ValidatedInput implements ValidatedData
 
     /**
      * Get the raw, underlying input array.
-     *
-     * @param null|array|mixed $keys
      */
     public function all(mixed $keys = null): array
     {
-        if (! $keys) {
+        if ($keys === null) {
             return $this->input;
         }
 

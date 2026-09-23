@@ -25,6 +25,7 @@ use Hypervel\Support\HtmlString;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\AssertionFailedError;
+use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
 
 class MailMailableTest extends TestCase
@@ -37,6 +38,7 @@ class MailMailableTest extends TestCase
         $mailable->to('taylor@laravel.com');
         $this->assertEquals([['name' => null, 'address' => 'taylor@laravel.com']], $mailable->to);
         $this->assertTrue($mailable->hasTo('taylor@laravel.com'));
+        $this->assertTrue($mailable->hasTo(new Address('taylor@laravel.com')));
         $mailable->assertHasTo('taylor@laravel.com');
         $mailable->to('taylor@laravel.com', 'Taylor Otwell');
 
@@ -49,6 +51,7 @@ class MailMailableTest extends TestCase
         $this->assertEquals([['name' => 'Taylor Otwell', 'address' => 'taylor@laravel.com']], $mailable->to);
         $this->assertTrue($mailable->hasTo('taylor@laravel.com', 'Taylor Otwell'));
         $this->assertTrue($mailable->hasTo('taylor@laravel.com'));
+        $this->assertFalse($mailable->hasTo(new Address('taylor@laravel.com')));
         $mailable->assertHasTo('taylor@laravel.com', 'Taylor Otwell');
         $mailable->assertHasTo('taylor@laravel.com');
 

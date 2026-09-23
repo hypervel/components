@@ -94,7 +94,7 @@ return (new Config)
         'standardize_not_equals' => true,
         'multiline_comment_opening_closing' => true,
         'fully_qualified_strict_types' => false,
-        // Since PHP 8.3, default null values can be declared as nullable.
+        // Explicit nullable declarations avoid PHP 8.4 deprecations.
         'nullable_type_declaration_for_default_null_value' => true,
         'new_with_parentheses' => [
             'named_class' => false,

@@ -77,7 +77,7 @@ trait InteractsWithInput
 
         $input = array_replace_recursive($input, $this->allFiles(), $input);
 
-        if (! $keys) {
+        if ($keys === null) {
             return $input;
         }
 

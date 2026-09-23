@@ -731,7 +731,7 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     public function setReconnector(callable $reconnector): void
     {
-        $this->reconnector = $reconnector;
+        $this->reconnector = $reconnector(...);
     }
 
     /**

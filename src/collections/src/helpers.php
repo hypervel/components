@@ -26,7 +26,7 @@ if (! function_exists('data_fill')) {
      * Fill in data where it's missing.
      *
      * @param mixed $target
-     * @param array|string $key
+     * @param array|int|string $key
      * @param mixed $value
      * @return mixed
      */
@@ -132,7 +132,7 @@ if (! function_exists('data_set')) {
      * Set an item on an array or object using dot notation.
      *
      * @param mixed $target
-     * @param array|string $key
+     * @param array|int|string $key
      * @param mixed $value
      * @param bool $overwrite
      * @return mixed
