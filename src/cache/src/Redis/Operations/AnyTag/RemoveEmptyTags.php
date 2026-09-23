@@ -47,9 +47,9 @@ class RemoveEmptyTags
 
             $registryRemoved = (int) $connection->zrem($registryKey, $tag);
 
-            // A writer publishes the hash before the registry. If it revived
-            // the hash during the cross-slot cleanup, restore only a missing
-            // registry member and let the writer's real expiry win.
+            // Keep revived hashes discoverable until pruning finds them empty.
+            // NX preserves any score the writer already republished; otherwise
+            // MAX_EXPIRY prevents the registry entry from expiring too soon.
             if (! $this->tagHashIsEmpty($connection, $tagKey)) {
                 $connection->zadd($registryKey, ['NX'], StoreContext::MAX_EXPIRY, $tag);
 
