@@ -266,20 +266,25 @@ class LogManager implements LoggerInterface
             $config['channels'] = explode(',', $config['channels']);
         }
 
-        $handlers = (new Collection($config['channels']))->flatMap(function ($channel) {
-            return $channel instanceof LoggerInterface
-                ? $channel->getHandlers() // @phpstan-ignore-line
-                : $this->channel($channel)->getHandlers(); // @phpstan-ignore-line
-        })->all();
+        $handlers = (new Collection($config['channels']))
+            ->flatMap(function ($channel) {
+                return $channel instanceof LoggerInterface
+                    ? $channel->getHandlers() // @phpstan-ignore method.notFound
+                    : $this->channel($channel)->getHandlers(); // @phpstan-ignore method.notFound
+            })
+            ->all();
 
-        $processors = (new Collection($config['channels']))->flatMap(function ($channel) {
-            return $channel instanceof LoggerInterface
-                ? $channel->getProcessors() // @phpstan-ignore-line
-                : $this->channel($channel)->getProcessors(); // @phpstan-ignore-line
+        $processors = (new Collection($config['channels']))
+            ->flatMap(function ($channel) {
+                return $channel instanceof LoggerInterface
+                    ? $channel->getProcessors() // @phpstan-ignore method.notFound
+                    : $this->channel($channel)->getProcessors(); // @phpstan-ignore method.notFound
+            })
             // Filter out the wrapped context processor from constituent channels.
             // Each constituent already had one pushed by get(); without filtering,
             // the stack would accumulate duplicates from every constituent.
-        })->reject(fn ($processor) => $processor instanceof ResolvedContextLogProcessor)->all();
+            ->reject(fn ($processor) => $processor instanceof ResolvedContextLogProcessor)
+            ->all();
 
         if ($config['ignore_exceptions'] ?? false) {
             $handlers = [new WhatFailureGroupHandler($handlers)];
@@ -786,12 +791,8 @@ class LogManager implements LoggerInterface
 
     /**
      * Dynamically call the default driver instance.
-     *
-     * @param string $method
-     * @param array $parameters
-     * @return mixed
      */
-    public function __call($method, $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return $this->driver()->{$method}(...$parameters);
     }
