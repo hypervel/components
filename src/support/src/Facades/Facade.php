@@ -76,9 +76,9 @@ abstract class Facade
     /**
      * Convert the facade into a Mockery spy.
      *
-     * @return null|MockInterface
+     * Tests only. Swaps the resolved facade instance for the worker lifetime.
      */
-    public static function spy()
+    public static function spy(): ?MockInterface
     {
         if (static::isMock()) {
             return null;
@@ -95,10 +95,8 @@ abstract class Facade
      * Initiate a partial mock on the facade.
      *
      * Tests only. Swaps the resolved facade instance for the worker lifetime.
-     *
-     * @return MockInterface
      */
-    public static function partialMock()
+    public static function partialMock(): MockInterface
     {
         $name = static::getFacadeAccessor();
 
@@ -113,10 +111,8 @@ abstract class Facade
      * Initiate a mock expectation on the facade.
      *
      * Tests only. Swaps the resolved facade instance for the worker lifetime.
-     *
-     * @return CompositeExpectation|Expectation|HigherOrderMessage
      */
-    public static function shouldReceive()
+    public static function shouldReceive(): CompositeExpectation|Expectation|HigherOrderMessage
     {
         $name = static::getFacadeAccessor();
 
@@ -131,10 +127,8 @@ abstract class Facade
      * Initiate a mock expectation on the facade.
      *
      * Tests only. Swaps the resolved facade instance for the worker lifetime.
-     *
-     * @return CompositeExpectation|Expectation|ExpectsHigherOrderMessage
      */
-    public static function expects()
+    public static function expects(): CompositeExpectation|Expectation|ExpectsHigherOrderMessage
     {
         $name = static::getFacadeAccessor();
 
@@ -147,10 +141,8 @@ abstract class Facade
 
     /**
      * Create a fresh mock instance for the given class.
-     *
-     * @return MockInterface
      */
-    protected static function createFreshMockInstance()
+    protected static function createFreshMockInstance(): MockInterface
     {
         return tap(static::createMock(), function ($mock) {
             static::swap($mock);
@@ -161,10 +153,8 @@ abstract class Facade
 
     /**
      * Create a fresh mock instance for the given class.
-     *
-     * @return MockInterface
      */
-    protected static function createMock()
+    protected static function createMock(): MockInterface
     {
         $class = static::getMockableClass();
 
