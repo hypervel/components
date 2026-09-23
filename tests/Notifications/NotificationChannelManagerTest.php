@@ -399,7 +399,9 @@ class NotificationChannelManagerTest extends TestCase
         $container->make(BusDispatcherContract::class)
             ->expects('dispatch')->times(2)->withArgs(function (SendQueuedNotifications $job) use ($deduplicator): bool {
                 $this->assertSame($deduplicator, $job->deduplicator);
-                $this->assertSame('queue:payload', ($job->deduplicator)('payload', 'queue'));
+
+                $restored = unserialize(serialize($job));
+                $this->assertSame('queue:payload', ($restored->deduplicator)('payload', 'queue'));
 
                 return true;
             });
