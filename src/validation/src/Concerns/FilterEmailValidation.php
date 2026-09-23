@@ -7,13 +7,14 @@ namespace Hypervel\Validation\Concerns;
 use Egulias\EmailValidator\EmailLexer;
 use Egulias\EmailValidator\Result\InvalidEmail;
 use Egulias\EmailValidator\Validation\EmailValidation;
+use Egulias\EmailValidator\Warning\Warning;
 
 class FilterEmailValidation implements EmailValidation
 {
     /**
      * Create a new validation instance.
      *
-     * @param int $flags the flags to pass to the filter_var function
+     * @param null|int $flags the flags to pass to the filter_var function
      */
     public function __construct(
         protected ?int $flags = null
@@ -29,7 +30,7 @@ class FilterEmailValidation implements EmailValidation
     }
 
     /**
-     * Returns true if the given email is valid.
+     * Return true if the given email is valid.
      */
     public function isValid(string $email, EmailLexer $emailLexer): bool
     {
@@ -39,7 +40,7 @@ class FilterEmailValidation implements EmailValidation
     }
 
     /**
-     * Returns the validation error.
+     * Return the validation error.
      */
     public function getError(): ?InvalidEmail
     {
@@ -47,9 +48,9 @@ class FilterEmailValidation implements EmailValidation
     }
 
     /**
-     * Returns the validation warnings.
+     * Return the validation warnings.
      *
-     * @return \Egulias\EmailValidator\Warning\Warning[]
+     * @return Warning[]
      */
     public function getWarnings(): array
     {
