@@ -1553,6 +1553,7 @@ class Str
     /**
      * Convert a value to studly caps case.
      *
+     * @param bool $normalize when true, all-uppercase words (e.g. acronyms) are lowercased before conversion so "CBOR" becomes "Cbor" instead of "CBOR"
      * @return ($value is '' ? '' : string)
      */
     public static function studly(string $value, bool $normalize = false): string
@@ -1575,6 +1576,7 @@ class Str
     /**
      * Convert a value to Pascal case.
      *
+     * @param bool $normalize when true, all-uppercase words (e.g. acronyms) are lowercased before conversion so "CBOR" becomes "Cbor" instead of "CBOR"
      * @return ($value is '' ? '' : string)
      */
     public static function pascal(string $value, bool $normalize = false): string
@@ -1583,7 +1585,7 @@ class Str
     }
 
     /**
-     * Returns the portion of the string specified by the start and length parameters.
+     * Return the portion of the string specified by the start and length parameters.
      */
     public static function substr(string $string, int $start, ?int $length = null, string $encoding = 'UTF-8'): string
     {
@@ -1591,7 +1593,7 @@ class Str
     }
 
     /**
-     * Returns the number of substring occurrences.
+     * Return the number of substring occurrences.
      */
     public static function substrCount(string $haystack, string $needle, int $offset = 0, ?int $length = null): int
     {
@@ -2006,6 +2008,10 @@ class Str
 
     /**
      * Always return the same ULID when generating new ULIDs.
+     *
+     * Tests only unless a callback is supplied. Without a callback, the factory
+     * persists in a static property for the worker lifetime and affects every
+     * subsequent ULID generation.
      *
      * @param null|(Closure(Ulid): mixed) $callback
      */

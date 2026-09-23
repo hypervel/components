@@ -785,7 +785,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     }
 
     /**
-     * Returns the portion of the string specified by the start and length parameters.
+     * Return the portion of the string specified by the start and length parameters.
      */
     public function substr(int $start, ?int $length = null, string $encoding = 'UTF-8'): static
     {
@@ -793,7 +793,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     }
 
     /**
-     * Returns the number of substring occurrences.
+     * Return the number of substring occurrences.
      */
     public function substrCount(string $needle, int $offset = 0, ?int $length = null): int
     {
