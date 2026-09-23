@@ -343,7 +343,7 @@ class ValidatedInputTest extends TestCase
         $input = new ValidatedInput(['name' => 'Fatih', 'surname' => 'AYDIN', 'foo' => ['bar' => null, 'baz' => '']]);
 
         $this->assertSame('Fatih', $input->input('name'));
-        $this->assertSame(null, $input->input('foo.bar'));
+        $this->assertNull($input->input('foo.bar'));
         $this->assertSame('test', $input->input('foo.bat', 'test'));
     }
 
@@ -361,9 +361,9 @@ class ValidatedInputTest extends TestCase
             'null' => null,
         ]);
 
-        $this->assertTrue($input->str('int') instanceof Stringable);
-        $this->assertTrue($input->str('int') instanceof Stringable);
-        $this->assertTrue($input->str('unknown_key') instanceof Stringable);
+        $this->assertInstanceOf(Stringable::class, $input->str('int'));
+        $this->assertInstanceOf(Stringable::class, $input->str('int'));
+        $this->assertInstanceOf(Stringable::class, $input->str('unknown_key'));
         $this->assertSame('123', $input->str('int')->value());
         $this->assertSame('456', $input->str('int_str')->value());
         $this->assertSame('123.456', $input->str('float')->value());
@@ -389,9 +389,9 @@ class ValidatedInputTest extends TestCase
             'null' => null,
         ]);
 
-        $this->assertTrue($input->string('int') instanceof Stringable);
-        $this->assertTrue($input->string('int') instanceof Stringable);
-        $this->assertTrue($input->string('unknown_key') instanceof Stringable);
+        $this->assertInstanceOf(Stringable::class, $input->string('int'));
+        $this->assertInstanceOf(Stringable::class, $input->string('int'));
+        $this->assertInstanceOf(Stringable::class, $input->string('unknown_key'));
         $this->assertSame('123', $input->string('int')->value());
         $this->assertSame('456', $input->string('int_str')->value());
         $this->assertSame('123.456', $input->string('float')->value());
@@ -535,13 +535,14 @@ class ValidatedInputTest extends TestCase
 
     public function testFileMethod(): void
     {
-        $file = $this->createStub(UploadedFile::class);
+        $file = UploadedFile::fake()->create('document.pdf');
 
         $input = new ValidatedInput([
             'name' => 'Taylor',
             'avatar' => $file,
         ]);
 
+        $this->assertInstanceOf(UploadedFile::class, $input->file('avatar'));
         $this->assertSame($file, $input->file('avatar'));
         $this->assertNull($input->file('name'));
         $this->assertNull($input->file('missing'));
@@ -624,6 +625,6 @@ class ValidatedInputTest extends TestCase
 
         $this->assertEquals(['name' => 'Fatih', 'surname' => 'AYDIN', 'foo' => ['bar' => null]], $input->except('foo.baz'));
         $this->assertEquals(['surname' => 'AYDIN'], $input->except('name', 'foo'));
-        $this->assertEquals([], $input->except('name', 'surname', 'foo'));
+        $this->assertSame([], $input->except('name', 'surname', 'foo'));
     }
 }

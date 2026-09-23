@@ -1180,6 +1180,14 @@ $validated = $request->safe()->except(['name', 'email']);
 $validated = $request->safe()->all();
 ```
 
+You may also use request [input retrieval methods](/docs/{{version}}/requests#retrieving-input), such as `string`, `integer`, `boolean`, `date`, and `enum`, to work with validated values:
+
+```php
+$quantity = $request->safe()->integer('quantity');
+
+$enabled = $request->safe()->boolean('enabled');
+```
+
 Uploaded files may be retrieved from the validated input using the `file` method. The method returns the given default value when the input is missing or is not an uploaded file:
 
 ```php
