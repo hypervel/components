@@ -1060,7 +1060,7 @@ class PendingRequest implements Transient
         }
 
         return (new Collection($options))
-            ->map(function ($value, $key) {
+            ->map(function (mixed $value, int|string $key): mixed {
                 if ($key === 'json' && $value instanceof JsonSerializable) {
                     return $value;
                 }
