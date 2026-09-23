@@ -46,6 +46,19 @@ class AutoScalerTest extends IntegrationTestCase
         $this->assertSame(7, $supervisor->processPools['second']->totalProcessCount());
     }
 
+    public function testScalerBalancesNumericQueueNames(): void
+    {
+        [$scaler, $supervisor] = $this->with_scaling_scenario(20, [
+            '1' => ['current' => 10, 'size' => 20, 'runtime' => 10],
+            '2' => ['current' => 10, 'size' => 10, 'runtime' => 10],
+        ]);
+
+        $scaler->scale($supervisor);
+
+        $this->assertSame(11, $supervisor->processPools['1']->totalProcessCount());
+        $this->assertSame(9, $supervisor->processPools['2']->totalProcessCount());
+    }
+
     public function testBalanceStaysEvenWhenQueueIsEmpty(): void
     {
         [$scaler, $supervisor] = $this->with_scaling_scenario(10, [
@@ -177,7 +190,7 @@ class AutoScalerTest extends IntegrationTestCase
 
         // Create process pools...
         $supervisor->processPools = collect($pools)->mapWithKeys(function ($pool, $name) {
-            return [$name => new FakePool($name, $pool['current'])];
+            return [$name => new FakePool((string) $name, $pool['current'])];
         });
 
         // Set stats per pool...

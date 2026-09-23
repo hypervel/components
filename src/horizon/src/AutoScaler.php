@@ -42,7 +42,7 @@ class AutoScaler
     /**
      * Get the process pools keyed by their queue name.
      *
-     * @return Collection<string, ProcessPool>
+     * @return Collection<array-key, ProcessPool>
      */
     protected function poolsByQueue(Supervisor $supervisor): Collection
     {
@@ -57,8 +57,9 @@ class AutoScaler
     protected function timeToClearPerQueue(Supervisor $supervisor, Collection $pools): Collection
     {
         return $pools->mapWithKeys(function ($pool, $queue) use ($supervisor) {
-            $queues = collect(explode(',', $queue))->map(function ($_queue) use ($supervisor) { // @phpstan-ignore argument.unresolvableType
-                // @phpstan-ignore-next-line RedisQueue has readyNow method
+            // Numeric queue names become integer collection keys.
+            $queues = collect(explode(',', (string) $queue))->map(function ($_queue) use ($supervisor) { // @phpstan-ignore argument.unresolvableType
+                // @phpstan-ignore method.notFound (RedisQueue has readyNow method)
                 $size = $this->queue->connection($supervisor->options->connection)->readyNow($_queue);
 
                 return [
@@ -77,7 +78,7 @@ class AutoScaler
     /**
      * Get the number of workers needed per queue for proper balance.
      *
-     * @return Collection<string, float|int>
+     * @return Collection<array-key, float|int>
      */
     protected function numberOfWorkersPerQueue(Supervisor $supervisor, Collection $queues): Collection
     {

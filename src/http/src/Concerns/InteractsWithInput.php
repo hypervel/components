@@ -184,6 +184,7 @@ trait InteractsWithInput
             $files = [$files];
         }
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($files as $file) {
             if ($this->isValidFile($file)) {
                 return true;
@@ -256,7 +257,7 @@ trait InteractsWithInput
     {
         $keys = is_array($keys) ? $keys : func_get_args();
 
-        dump(count($keys) > 0 ? $this->only($keys) : $this->all());
+        dump($keys !== [] ? $this->only($keys) : $this->all());
 
         return $this;
     }

@@ -2733,10 +2733,11 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame('select "category", count(*) as "total" from "item" where "department" = ? group by "category" having "total" > ?', $builder->toSql());
     }
 
-    public function testNestedHavings()
+    public function testNestedHavings(): void
     {
         $builder = $this->getBuilder();
-        $builder->select('*')->from('users')->having('email', '=', 'foo')->orHaving(function ($q) {
+        $builder->select('*')->from('users')->having('email', '=', 'foo')->having(function (Builder $q): void {
+        })->orHaving(function (Builder $q): void {
             $q->having('name', '=', 'bar')->having('age', '=', 25);
         });
         $this->assertSame('select * from "users" having "email" = ? or ("name" = ? and "age" = ?)', $builder->toSql());

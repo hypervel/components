@@ -24,7 +24,7 @@ class CommandManualFailTest extends TestCase
         parent::setUp();
     }
 
-    public function testFailArtisanCommandManually()
+    public function testFailArtisanCommandManually(): void
     {
         $this->artisan('app:fail')->assertFailed();
     }
@@ -43,7 +43,7 @@ class CommandManualFailTest extends TestCase
         $command->fail();
     }
 
-    public function testThrowsTheOriginalThrowableInstance()
+    public function testThrowsTheOriginalThrowableInstance(): void
     {
         $original = new RuntimeException('Something went wrong.');
 

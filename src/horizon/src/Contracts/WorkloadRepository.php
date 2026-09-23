@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Contracts;
 
+use Hypervel\Support\Collection;
+
 interface WorkloadRepository
 {
     /**
@@ -12,9 +14,9 @@ interface WorkloadRepository
      * @return array<int, array{
      *   "name": string,
      *   "length": int,
-     *   "wait": int,
+     *   "wait": float,
      *   "processes": int,
-     *   "split_queues": null|array<int, array{"name": string, "wait": int, "length": int}>
+     *   "split_queues": null|Collection<array-key, array{"name": string, "wait": float, "length": int}>
      * }>
      */
     public function get(): array;

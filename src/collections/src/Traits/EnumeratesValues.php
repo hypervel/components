@@ -715,6 +715,7 @@ trait EnumeratesValues
         // @phpstan-ignore return.type (type narrowing: filter only keeps matching instances, but PHPStan can't track this)
         return $this->filter(function ($value) use ($type) {
             if (is_array($type)) {
+                // Keep this loop to avoid an extra callback per item.
                 foreach ($type as $classType) {
                     if ($value instanceof $classType) {
                         return true;

@@ -105,7 +105,7 @@ class MemoizedStore implements AuthoritativeRawReadable, CanFlushLocks, LockProv
         }
 
         $retrieved = [];
-        if (count($missing) > 0) {
+        if ($missing !== []) {
             $retrieved = $this->repository->manyRaw($missing);
             foreach ($retrieved as $key => $value) {
                 $this->cache[$this->prefix((string) $key)] = $value;

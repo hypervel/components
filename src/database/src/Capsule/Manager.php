@@ -7,14 +7,19 @@ namespace Hypervel\Database\Capsule;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\DatabaseManager;
+use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Database\Schema\Builder as SchemaBuilder;
 use Hypervel\Database\SimpleConnectionResolver;
 use Hypervel\Support\Traits\CapsuleManagerTrait;
+use UnitEnum;
 
 /**
  * Standalone database manager for non-production use outside full application bootstrap.
@@ -87,10 +92,8 @@ class Manager
 
     /**
      * Get a fluent query builder instance.
-     *
-     * @param Builder|Closure|string $table
      */
-    public static function table($table, ?string $as = null, ?string $connection = null): Builder
+    public static function table(Closure|Builder|EloquentBuilder|Relation|Expression|UnitEnum|string $table, ?string $as = null, ?string $connection = null): Builder
     {
         return static::$instance->connection($connection)->table($table, $as);
     }
@@ -98,7 +101,7 @@ class Manager
     /**
      * Get a schema builder instance.
      */
-    public static function schema(?string $connection = null): \Hypervel\Database\Schema\Builder
+    public static function schema(?string $connection = null): SchemaBuilder
     {
         return static::$instance->connection($connection)->getSchemaBuilder();
     }

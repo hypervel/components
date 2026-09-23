@@ -272,6 +272,7 @@ class Builder
     {
         $tableColumns = array_map(strtolower(...), $this->getColumnListing($table));
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($columns as $column) {
             if (! in_array(strtolower($column), $tableColumns)) {
                 return false;

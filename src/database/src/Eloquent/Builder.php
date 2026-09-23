@@ -1412,11 +1412,18 @@ class Builder implements BuilderContract
 
         $column = $this->model->getUpdatedAtColumn();
 
-        if (! is_null($column)
-            && ! array_key_exists($column, $update)
-            && ! in_array($column, $update)) {
-            $update[] = $column;
+        if (is_null($column) || array_key_exists($column, $update)) {
+            return $update;
         }
+
+        // Keyed entries assign literal values; only list entries name columns.
+        foreach ($update as $key => $value) {
+            if (is_int($key) && $value === $column) {
+                return $update;
+            }
+        }
+
+        $update[] = $column;
 
         return $update;
     }

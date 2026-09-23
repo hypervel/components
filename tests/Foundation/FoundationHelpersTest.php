@@ -13,6 +13,7 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Http\Exceptions\HttpResponseException;
+use Hypervel\Http\Request;
 use Hypervel\Log\LogManager;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\CarbonImmutable;
@@ -231,6 +232,17 @@ class FoundationHelpersTest extends TestCase
         $this->assertSame('integer-backed', session(IntEnum::One));
         $this->assertSame('unit', session(UnitEnum::UTC));
         $this->assertSame('default', session(UnitEnum::EST, 'default'));
+    }
+
+    public function testOldReturnsNonStringInput(): void
+    {
+        $session = $this->app->make('session')->driver();
+        $session->flashInput(['quantity' => 3]);
+        $request = Request::create('/');
+        $request->setHypervelSession($session);
+        RequestContext::set($request);
+
+        $this->assertSame(3, old('quantity'));
     }
 
     public function testLogsResolvesAChannelNamedZero(): void

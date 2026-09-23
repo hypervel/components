@@ -330,8 +330,10 @@ abstract class HasOneOrMany extends Relation
     /**
      * Attach a collection of models to the parent instance.
      *
-     * @param iterable<TRelatedModel> $models
-     * @return iterable<TRelatedModel>
+     * @template TContainer of iterable<array-key, TRelatedModel>
+     *
+     * @param TContainer $models
+     * @return TContainer
      */
     public function saveMany(iterable $models): iterable
     {
@@ -345,8 +347,10 @@ abstract class HasOneOrMany extends Relation
     /**
      * Attach a collection of models to the parent instance without raising any events to the parent model.
      *
-     * @param iterable<TRelatedModel> $models
-     * @return iterable<TRelatedModel>
+     * @template TContainer of iterable<array-key, TRelatedModel>
+     *
+     * @param TContainer $models
+     * @return TContainer
      */
     public function saveManyQuietly(iterable $models): iterable
     {

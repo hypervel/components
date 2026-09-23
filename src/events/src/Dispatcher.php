@@ -25,6 +25,7 @@ use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\Attributes\Backoff;
 use Hypervel\Queue\Attributes\Connection;
 use Hypervel\Queue\Attributes\DebounceFor;
@@ -1150,7 +1151,7 @@ class Dispatcher implements DispatcherContract
     /**
      * Get the database transaction manager implementation from the resolver.
      */
-    protected function resolveTransactionManager(): ?\Hypervel\Database\DatabaseTransactionsManager
+    protected function resolveTransactionManager(): ?DatabaseTransactionsManager
     {
         if ($this->transactionManagerResolver === null) {
             return null;
@@ -1165,7 +1166,7 @@ class Dispatcher implements DispatcherContract
      * Boot-only. The resolver persists on the singleton Dispatcher for the
      * worker lifetime and is consulted for every transaction-aware dispatch.
      *
-     * @param callable(): ?\Hypervel\Database\DatabaseTransactionsManager $resolver
+     * @param callable(): ?DatabaseTransactionsManager $resolver
      */
     public function setTransactionManagerResolver(callable $resolver): static
     {
