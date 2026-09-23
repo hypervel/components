@@ -36,8 +36,7 @@ class MailChannel
      */
     public function send(mixed $notifiable, Notification $notification): ?SentMessage
     {
-        /* @phpstan-ignore-next-line */
-        $message = $notification->toMail($notifiable);
+        $message = $notification->toMail($notifiable); // @phpstan-ignore method.notFound
 
         if (! $notifiable->routeNotificationFor('mail', $notification)
             && ! $message instanceof Mailable

@@ -13,6 +13,7 @@ use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mailer\Transport\AbstractTransport;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
+use Symfony\Component\Mime\Message;
 use Symfony\Component\Mime\MessageConverter;
 use Throwable;
 
@@ -50,13 +51,16 @@ class ResendTransport extends AbstractTransport
     }
 
     /**
+     * Send the given message.
+     *
      * @throws \Symfony\Component\Mailer\Exception\TransportException
      * @throws Throwable
      */
     protected function doSend(SentMessage $message): void
     {
-        /* @phpstan-ignore-next-line */
-        $email = MessageConverter::toEmail($message->getOriginalMessage());
+        /** @var Message $originalMessage */
+        $originalMessage = $message->getOriginalMessage();
+        $email = MessageConverter::toEmail($originalMessage);
 
         $envelope = $message->getEnvelope();
 
@@ -102,8 +106,7 @@ class ResendTransport extends AbstractTransport
         }
 
         try {
-            /* @phpstan-ignore-next-line */
-            $result = $this->resend->emails->send([
+            $result = $this->resend->emails->send([ // @phpstan-ignore property.notFound
                 'from' => $envelope->getSender()->toString(),
                 'to' => $this->stringifyAddresses($this->getRecipients($email, $envelope)),
                 'cc' => $this->stringifyAddresses($email->getCc()),

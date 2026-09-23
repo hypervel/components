@@ -108,8 +108,7 @@ class PendingMail
      */
     public function queue(MailableContract $mailable): mixed
     {
-        /* @phpstan-ignore-next-line */
-        return $this->mailer->queue(
+        return $this->mailer->queue( // @phpstan-ignore method.notFound
             $this->fill($mailable)
         );
     }
@@ -119,8 +118,7 @@ class PendingMail
      */
     public function later(DateInterval|DateTimeInterface|int $delay, MailableContract $mailable): mixed
     {
-        /* @phpstan-ignore-next-line */
-        return $this->mailer->later(
+        return $this->mailer->later( // @phpstan-ignore method.notFound
             $delay,
             $this->fill($mailable)
         );
