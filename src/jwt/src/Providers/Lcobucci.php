@@ -198,11 +198,6 @@ class Lcobucci extends Provider implements ProviderContract
 
         $signer = $this->signers[$this->algo];
 
-        if (is_subclass_of($signer, Ecdsa::class) && method_exists($signer, 'create')) {
-            /* @phpstan-ignore-next-line */
-            return $signer::create();
-        }
-
         return new $signer;
     }
 

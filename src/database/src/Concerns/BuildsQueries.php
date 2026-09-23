@@ -8,6 +8,7 @@ use Generator;
 use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\MultipleRecordsFoundException;
+use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\RecordNotFoundException;
 use Hypervel\Database\RecordsNotFoundException;
@@ -525,9 +526,9 @@ trait BuildsQueries
     /**
      * Get the original column name of the given column, without any aliasing.
      *
-     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>  $builder
+     * @param  QueryBuilder|Builder<*>  $builder
      */
-    protected function getOriginalColumnNameForCursorPagination(\Hypervel\Database\Query\Builder|Builder $builder, string $parameter): string
+    protected function getOriginalColumnNameForCursorPagination(QueryBuilder|Builder $builder, string $parameter): string
     {
         $columns = $builder instanceof Builder ? $builder->getQuery()->getColumns() : $builder->getColumns();
 

@@ -145,7 +145,7 @@ namespace Hypervel\Support\Facades;
  * @method static bool missing(array|string $key)
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static string normalizeQueryString(string|null $qs)
- * @method static array|string|null old(string|null $key = null, \Hypervel\Database\Eloquent\Model|array|string|null $default = null)
+ * @method static mixed old(string|null $key = null, mixed $default = null)
  * @method static array only(mixed $keys)
  * @method static void overrideGlobals()
  * @method static string path()

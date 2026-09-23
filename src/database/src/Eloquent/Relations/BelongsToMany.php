@@ -131,9 +131,9 @@ class BelongsToMany extends Relation
     /**
      * Create a new belongs to many relationship instance.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param Builder<TRelatedModel> $query
      * @param TDeclaringModel $parent
-     * @param class-string<TRelatedModel>|string $table
+     * @param class-string<Model>|string $table
      */
     public function __construct(
         Builder $query,
@@ -1260,7 +1260,7 @@ class BelongsToMany extends Relation
     /**
      * Save an array of new models and attach them to the parent model.
      *
-     * @template TContainer of \Hypervel\Support\Collection<array-key, TRelatedModel>|array<array-key, TRelatedModel>
+     * @template TContainer of iterable<array-key, TRelatedModel>
      *
      * @param TContainer $models
      * @return TContainer
@@ -1279,7 +1279,7 @@ class BelongsToMany extends Relation
     /**
      * Save an array of new models without raising any events and attach them to the parent model.
      *
-     * @template TContainer of \Hypervel\Support\Collection<array-key, TRelatedModel>|array<array-key, TRelatedModel>
+     * @template TContainer of iterable<array-key, TRelatedModel>
      *
      * @param TContainer $models
      * @return TContainer

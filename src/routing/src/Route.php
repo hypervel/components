@@ -1012,6 +1012,7 @@ class Route
             return false;
         }
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($patterns as $pattern) {
             if (Str::is($pattern, $routeName)) {
                 return true;

@@ -116,6 +116,7 @@ class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagCon
 
         $keys = is_array($key) ? $key : func_get_args();
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($keys as $key) {
             if ($this->first($key) === '') {
                 return false;
@@ -136,6 +137,7 @@ class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagCon
 
         $keys = is_array($keys) ? $keys : func_get_args();
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($keys as $key) {
             if ($this->has($key)) {
                 return true;

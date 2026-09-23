@@ -23,6 +23,7 @@ use Hypervel\Testing\TestResponse;
 use Stringable;
 use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 trait MakesHttpRequests
 {
@@ -772,7 +773,7 @@ trait MakesHttpRequests
     protected function dispatchRequestLifecycleEvent(
         string $eventClass,
         Request $request,
-        ?\Symfony\Component\HttpFoundation\Response $response = null
+        ?SymfonyResponse $response = null
     ): void {
         if (! $this->app->bound('events')) {
             return;

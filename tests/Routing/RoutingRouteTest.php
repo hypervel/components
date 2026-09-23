@@ -2306,29 +2306,6 @@ class RoutingRouteTest extends TestCase
         $this->assertSame($response, $prepared[0]->response);
     }
 
-    public function testSerializedRouteActionsAllowOnlySerializableClosureClasses(): void
-    {
-        $captured = new RouteTestInsecureDeserializationStub;
-        $serializedClosure = serialize(SerializableClosure::unsigned(function () use ($captured) {
-            return $captured;
-        }));
-
-        RouteTestInsecureDeserializationStub::$instantiated = false;
-        unserialize($serializedClosure);
-        $this->assertTrue(RouteTestInsecureDeserializationStub::$instantiated);
-
-        $router = $this->getRouter();
-        $router->get('foo', ['uses' => $serializedClosure]);
-        RouteTestInsecureDeserializationStub::$instantiated = false;
-
-        try {
-            $router->dispatch(Request::create('foo', 'GET'));
-        } catch (Throwable) {
-        }
-
-        $this->assertFalse(RouteTestInsecureDeserializationStub::$instantiated);
-    }
-
     public function testSerializedMissingCallbacksAllowOnlySerializableClosureClasses(): void
     {
         $captured = new RouteTestInsecureDeserializationStub;
@@ -2369,6 +2346,29 @@ class RoutingRouteTest extends TestCase
         $container->bind(CallableDispatcherContract::class, fn ($app) => new CallableDispatcher($app));
 
         return $router;
+    }
+
+    public function testRouteDeserializationAllowedClasses(): void
+    {
+        $captured = new RouteTestInsecureDeserializationStub;
+        $serializedClosure = serialize(SerializableClosure::unsigned(function () use ($captured) {
+            return $captured;
+        }));
+
+        RouteTestInsecureDeserializationStub::$instantiated = false;
+        unserialize($serializedClosure);
+        $this->assertTrue(RouteTestInsecureDeserializationStub::$instantiated);
+
+        $router = $this->getRouter();
+        $router->get('foo', ['uses' => $serializedClosure]);
+        RouteTestInsecureDeserializationStub::$instantiated = false;
+
+        try {
+            $router->dispatch(Request::create('foo', 'GET'));
+        } catch (Throwable) {
+        }
+
+        $this->assertFalse(RouteTestInsecureDeserializationStub::$instantiated);
     }
 }
 

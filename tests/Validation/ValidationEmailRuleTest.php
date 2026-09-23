@@ -676,8 +676,7 @@ class ValidationEmailRuleTest extends TestCase
         );
     }
 
-    // REMOVED: testNativeValidationVsRfcCompliant — upstream no-op placeholder
-    // with an empty data set, zero assertions, and risky PHPUnit result.
+    // REMOVED: testNativeValidationVsRfcCompliant — upstream placeholder has no cases and exercises no behavior.
 
     #[TestWith(['abc."test"@example.com'])] // Mixed quotes in local part
     #[TestWith(['name@[127.0.0.1]'])] // Local-part with domain-literal IPv4 address

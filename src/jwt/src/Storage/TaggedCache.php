@@ -48,7 +48,7 @@ class TaggedCache implements StorageContract
      */
     public function add(string $key, mixed $value, int $minutes): bool
     {
-        /* @phpstan-ignore-next-line */
+        // @phpstan-ignore method.notFound
         return $this->cache->tags([$this->tag])->put($this->storageKey($key), $value, $minutes * 60);
     }
 
@@ -57,7 +57,7 @@ class TaggedCache implements StorageContract
      */
     public function forever(string $key, mixed $value): bool
     {
-        /* @phpstan-ignore-next-line */
+        // @phpstan-ignore method.notFound
         return $this->cache->tags([$this->tag])->forever($this->storageKey($key), $value);
     }
 
@@ -70,7 +70,7 @@ class TaggedCache implements StorageContract
             return $this->cache->get($this->storageKey($key));
         }
 
-        /* @phpstan-ignore-next-line */
+        // @phpstan-ignore method.notFound
         return $this->cache->tags([$this->tag])->get($key);
     }
 
@@ -83,7 +83,7 @@ class TaggedCache implements StorageContract
             return $this->cache->forget($this->storageKey($key));
         }
 
-        /* @phpstan-ignore-next-line */
+        // @phpstan-ignore method.notFound
         return $this->cache->tags([$this->tag])->forget($key);
     }
 
@@ -92,7 +92,7 @@ class TaggedCache implements StorageContract
      */
     public function flush(): bool
     {
-        /* @phpstan-ignore-next-line */
+        // @phpstan-ignore method.notFound
         return $this->cache->tags([$this->tag])->flush();
     }
 

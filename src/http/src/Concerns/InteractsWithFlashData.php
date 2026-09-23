@@ -11,7 +11,7 @@ trait InteractsWithFlashData
     /**
      * Retrieve an old input item.
      */
-    public function old(?string $key = null, Model|string|array|null $default = null): string|array|null
+    public function old(?string $key = null, mixed $default = null): mixed
     {
         $default = $default instanceof Model ? $default->getAttribute($key) : $default;
 

@@ -23,7 +23,7 @@ class WorkbenchServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Route::macro('text', function (string $url, string $content) {
-            return $this->get($url, fn () => response($content)->header('Content-Type', 'text/plain')); /* @phpstan-ignore method.notFound */
+            return $this->get($url, fn () => response($content)->header('Content-Type', 'text/plain'));
         });
     }
 }

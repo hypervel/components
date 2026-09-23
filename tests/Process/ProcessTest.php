@@ -279,7 +279,7 @@ class ProcessTest extends TestCase
         $this->assertFalse($siblingProcess->running());
     }
 
-    public function testProcessPoolCanReceiveOutputForEachProcessViaStartMethod()
+    public function testProcessPoolCanReceiveOutputForEachProcessViaStartMethod(): void
     {
         $factory = new Factory;
 
@@ -296,8 +296,8 @@ class ProcessTest extends TestCase
 
         $poolResults = $pool->wait();
 
-        $this->assertTrue(count($output[0]['out']) > 0);
-        $this->assertTrue(count($output[1]['out']) > 0);
+        $this->assertTrue($output[0]['out'] !== []);
+        $this->assertTrue($output[1]['out'] !== []);
         $this->assertInstanceOf(ProcessResult::class, $poolResults[0]);
         $this->assertInstanceOf(ProcessResult::class, $poolResults[1]);
         $this->assertTrue(str_contains($poolResults[0]->output(), 'ProcessTest.php'));

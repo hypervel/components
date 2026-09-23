@@ -80,7 +80,7 @@ class RedisMasterSupervisorRepository implements MasterSupervisorRepository
      */
     public function update(MasterSupervisor $master): void
     {
-        /** @phpstan-ignore-next-line */
+        // @phpstan-ignore method.nonObject (HigherOrderProxy: ->map->name returns Collection, not string)
         $supervisors = $master->supervisors->map->name->all();
 
         $this->pipeline(function ($pipe) use ($master, $supervisors) {

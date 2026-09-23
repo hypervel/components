@@ -49,6 +49,7 @@ trait InteractsWithData
 
         $data = $this->all();
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($keys as $value) {
             if (! Arr::has($data, $value)) {
                 return false;
@@ -100,6 +101,7 @@ trait InteractsWithData
     {
         $keys = is_array($key) ? $key : func_get_args();
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($keys as $value) {
             if ($this->isEmptyString($value)) {
                 return false;
@@ -116,6 +118,7 @@ trait InteractsWithData
     {
         $keys = is_array($key) ? $key : func_get_args();
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($keys as $value) {
             if (! $this->isEmptyString($value)) {
                 return false;
@@ -132,6 +135,7 @@ trait InteractsWithData
     {
         $keys = is_array($keys) ? $keys : func_get_args();
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($keys as $key) {
             if ($this->filled($key)) {
                 return true;
