@@ -80,7 +80,7 @@ class FakeProcessDescription
     public function replaceOutput(string $output): static
     {
         $this->output = (new Collection($this->output))
-            ->reject(fn ($output) => $output['type'] === 'out')
+            ->reject(fn (array $output): bool => $output['type'] === 'out')
             ->values()
             ->all();
 
@@ -100,7 +100,7 @@ class FakeProcessDescription
     public function replaceErrorOutput(string $output): static
     {
         $this->output = (new Collection($this->output))
-            ->reject(fn ($output) => $output['type'] === 'err')
+            ->reject(fn (array $output): bool => $output['type'] === 'err')
             ->values()
             ->all();
 
