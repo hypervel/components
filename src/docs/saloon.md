@@ -15,6 +15,7 @@
     - [Request Defaults](#request-defaults)
 - [Configuring Requests](#configuring-requests)
     - [Headers](#headers)
+    - [Request URL](#request-url)
     - [Query Parameters](#query-parameters)
     - [Authentication](#authentication)
     - [Request Bodies](#request-bodies)
@@ -466,6 +467,19 @@ $request
     ->acceptJson()
     ->withUserAgent('Acme Application/1.0');
 ```
+
+<a name="request-url"></a>
+### Request URL
+
+Use `withUrl` on a request when an API supplies a complete URL:
+
+```php
+$request->withUrl('https://api.example.com/repositories/123/issues?page=2');
+```
+
+The URL must be absolute HTTP or HTTPS. It replaces both the connector base URL and the request endpoint, without requiring `allowsBaseUrlOverride`. Authentication and middleware use the new URL. Only supply trusted URLs, since the request retains its credentials.
+
+The `url` method returns the override, or `null` when none was supplied. Explicit query strings and query parameters are still applied as described below.
 
 <a name="query-parameters"></a>
 ### Query Parameters
@@ -1659,11 +1673,11 @@ class UserPaginator extends LinkPaginator
 }
 ```
 
-You may also read a URL from a response header in `getLinks` and pass it to `resolveLink`. Pagination links must use the same scheme, host, port, and path as the current request.
+You may also read a URL from a response header in `getLinks` and pass it to `resolveLink`. Pagination links must use the same scheme, host, and port as the current request and must not contain user information. A different path is allowed, so an API may return links using its canonical resource IDs.
 
-The first request uses your configured page and per-page parameters. For each later request, the paginator follows the `next` link and uses its query string, including any page size or cursor supplied by the API. Repeated parameter names are preserved. Parameters configured separately on the request or connector, including authentication, still take precedence.
+The first request uses your configured page and per-page parameters. For each later request, the paginator follows the complete `next` URL, replacing any explicit raw query string with the link's query. Repeated parameter names are preserved. Parameters configured separately on the request or connector, including authentication, still take precedence. If you override `applyPagination`, call `applyNextLink($request)` for sequential continuation requests.
 
-Iteration ends when the response has no `next` link. If the API also supplies a `last` link containing a page number, you may use `pool` to request the remaining pages concurrently. Pooled requests use your configured page names and `perPageLimit`. Cursor-only links must be followed sequentially. Invalid or contradictory last-page numbers are rejected when pooling.
+Iteration ends when the response has no `next` link. If the API also supplies a `last` link containing a page number, you may use `pool` to request the remaining pages concurrently. Pooled requests use the original endpoint with your configured page names and `perPageLimit`. Cursor-only links must be followed sequentially. Invalid or contradictory last-page numbers are rejected when pooling.
 
 <a name="link-header-pagination"></a>
 ### Link Header Pagination

@@ -48,6 +48,11 @@ abstract class Request implements SelfBuilding
     protected Method $method;
 
     /**
+     * The caller-supplied absolute URL override.
+     */
+    protected ?string $url = null;
+
+    /**
      * Create a fresh request for container resolution.
      */
     public static function newInstance(): static
@@ -71,6 +76,24 @@ abstract class Request implements SelfBuilding
      * Resolve the request endpoint.
      */
     abstract public function resolveEndpoint(): string;
+
+    /**
+     * Get the absolute URL override.
+     */
+    public function url(): ?string
+    {
+        return $this->url;
+    }
+
+    /**
+     * Replace the connector base URL and request endpoint.
+     */
+    public function withUrl(string $url): static
+    {
+        $this->url = $url;
+
+        return $this;
+    }
 
     /**
      * Resolve whether this request may replace the connector base URL.

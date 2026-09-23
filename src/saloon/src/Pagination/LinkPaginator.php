@@ -19,9 +19,9 @@ use Psr\Http\Message\UriInterface;
 abstract class LinkPaginator extends PagedPaginator
 {
     /**
-     * The next page's complete query string.
+     * The next page's resolved URI.
      */
-    protected ?string $nextQuery = null;
+    protected ?UriInterface $nextUri = null;
 
     /**
      * The last independently addressable page for pooled requests.
@@ -49,14 +49,14 @@ abstract class LinkPaginator extends PagedPaginator
             }
         }
 
-        $this->nextQuery = $next?->getQuery();
+        $this->nextUri = $next;
         $this->lastPage = $lastPage;
 
         return $response;
     }
 
     /**
-     * Apply numbered pagination or the provider's complete continuation query.
+     * Apply numbered pagination or the provider's continuation URL.
      *
      * @param Request<mixed> $request
      * @return Request<mixed>
@@ -67,9 +67,21 @@ abstract class LinkPaginator extends PagedPaginator
             return parent::applyPagination($request);
         }
 
-        return $request->withQueryString(
-            $this->nextQuery ?? throw new PaginationException('The response has no next Link.'),
-        );
+        return $this->applyNextLink($request);
+    }
+
+    /**
+     * Apply the continuation URL and replace any explicit raw query.
+     *
+     * @template TRequest of Request<mixed>
+     * @param TRequest $request
+     * @return TRequest
+     */
+    protected function applyNextLink(Request $request): Request
+    {
+        $uri = $this->nextUri ?? throw new PaginationException('The response has no next Link.');
+
+        return $request->withUrl((string) $uri)->withQueryString($uri->getQuery());
     }
 
     /**
@@ -79,7 +91,7 @@ abstract class LinkPaginator extends PagedPaginator
      */
     protected function isLastPage(Response $response): bool
     {
-        return $this->nextQuery === null;
+        return $this->nextUri === null;
     }
 
     /**
@@ -89,7 +101,7 @@ abstract class LinkPaginator extends PagedPaginator
      */
     protected function getTotalPages(Response $response): int
     {
-        return $this->nextQuery === null
+        return $this->nextUri === null
             ? $this->startPage
             : ($this->lastPage ?? throw new PaginationException('Pooled Link pagination requires a numbered last Link.'));
     }
@@ -99,7 +111,7 @@ abstract class LinkPaginator extends PagedPaginator
      */
     protected function onRewind(): void
     {
-        $this->nextQuery = null;
+        $this->nextUri = null;
         $this->lastPage = null;
     }
 
@@ -134,8 +146,8 @@ abstract class LinkPaginator extends PagedPaginator
         if ($uri->getScheme() !== $currentUri->getScheme()
             || $uri->getHost() !== $currentUri->getHost()
             || $uri->getPort() !== $currentUri->getPort()
-            || $uri->getPath() !== $currentUri->getPath()) {
-            throw new PaginationException('Pagination Links must target the same scheme, host, port, and path as the request.');
+            || $uri->getUserInfo() !== '') {
+            throw new PaginationException('Pagination Links must target the same scheme, host, and port as the request without user information.');
         }
 
         return $uri;

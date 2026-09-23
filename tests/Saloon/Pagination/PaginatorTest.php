@@ -643,18 +643,18 @@ class PaginatorTest extends TestCase
         ];
     }
 
-    public function testBodyLinksReplaceTheQueryAndResetOnRewind(): void
+    public function testBodyLinksReplaceTheUrlAndQueryAndResetOnRewind(): void
     {
         $manager = $this->manager();
-        $queries = [];
-        $manager->fake([PagedRequestStub::class => static function (PendingRequest $pendingRequest) use (&$queries): MockResponse {
+        $urls = [];
+        $manager->fake([PagedRequestStub::class => static function (PendingRequest $pendingRequest) use (&$urls): MockResponse {
             $query = $pendingRequest->uri()->getQuery();
-            $queries[] = $query;
+            $urls[] = (string) $pendingRequest->uri();
             $first = ! str_contains($query, 'cursor=');
 
             return MockResponse::make([
                 'data' => [$first ? 1 : 2],
-                'links' => $first ? ['next' => '?cursor=a%2Fb&tag=one&tag=two&per_page=7'] : [],
+                'links' => $first ? ['next' => '/canonical/paged?cursor=a%2Fb&tag=one&tag=two&per_page=7'] : [],
             ]);
         }]);
         $request = (new PagedRequestStub)->withQueryString('old=value')->authenticate(new QueryAuthenticator('key', 'secret'));
@@ -663,23 +663,26 @@ class PaginatorTest extends TestCase
         $this->assertSame([1, 2], $paginator->collect()->all());
         $this->assertSame([1, 2], $paginator->collect()->all());
         $this->assertSame([
-            'old=value&page=1&per_page=2&key=secret',
-            'cursor=a%2Fb&tag=one&tag=two&per_page=7&key=secret',
-            'old=value&page=1&per_page=2&key=secret',
-            'cursor=a%2Fb&tag=one&tag=two&per_page=7&key=secret',
-        ], $queries);
+            'https://api.example.com/paged?old=value&page=1&per_page=2&key=secret',
+            'https://api.example.com/canonical/paged?cursor=a%2Fb&tag=one&tag=two&per_page=7&key=secret',
+            'https://api.example.com/paged?old=value&page=1&per_page=2&key=secret',
+            'https://api.example.com/canonical/paged?cursor=a%2Fb&tag=one&tag=two&per_page=7&key=secret',
+        ], $urls);
+        $this->assertNull($request->url());
     }
 
     public function testBodyLinksSupportNumberedPoolingAndReleaseContinuationStateOnRewind(): void
     {
         $manager = $this->manager();
         $queries = [];
-        $manager->fake([PagedRequestStub::class => static function (PendingRequest $pendingRequest) use (&$queries): MockResponse {
+        $paths = [];
+        $manager->fake([PagedRequestStub::class => static function (PendingRequest $pendingRequest) use (&$queries, &$paths): MockResponse {
             $query = $pendingRequest->queryParameters();
             $queries[] = $query;
+            $paths[] = $pendingRequest->uri()->getPath();
 
             return MockResponse::make(['data' => [$query['page']], 'links' => [
-                'next' => '?page=3&per_page=9', 'last' => '?page=4&per_page=9',
+                'next' => '/canonical/paged?page=3&per_page=9', 'last' => '/canonical/paged?page=4&per_page=9',
             ]]);
         }]);
         $paginator = (new BodyLinkPaginatorStub(new PaginationConnectorStub($manager), new PagedRequestStub))->startPage(2)->perPageLimit(5);
@@ -687,6 +690,7 @@ class PaginatorTest extends TestCase
         $this->assertCount(3, $paginator->pool());
         usort($queries, static fn (array $left, array $right): int => $left['page'] <=> $right['page']);
         $this->assertSame([['page' => 2, 'per_page' => 5], ['page' => 3, 'per_page' => 5], ['page' => 4, 'per_page' => 5]], $queries);
+        $this->assertSame(['/paged', '/paged', '/paged'], $paths);
         $this->assertSame(3, $paginator->totalResults());
 
         $manager->fake([PagedRequestStub::class => MockResponse::make(['data' => [2], 'links' => []])]);
@@ -695,16 +699,16 @@ class PaginatorTest extends TestCase
     }
 
     #[DataProvider('bodyLinkRelations')]
-    public function testBodyLinksUseTheSharedTargetRestrictions(string $relation): void
+    public function testBodyLinksUseTheSharedTargetRestrictions(string $relation, string $target): void
     {
         $manager = $this->manager();
         $manager->fake([PagedRequestStub::class => MockResponse::make(['data' => [1], 'links' => [
-            $relation => 'https://other.example.com/paged?page=2',
+            $relation => $target,
         ]])]);
         $paginator = new BodyLinkPaginatorStub(new PaginationConnectorStub($manager), new PagedRequestStub);
 
         $this->expectException(PaginationException::class);
-        $this->expectExceptionMessage('same scheme, host, port, and path');
+        $this->expectExceptionMessage('same scheme, host, and port');
 
         $paginator->current();
     }
@@ -714,8 +718,10 @@ class PaginatorTest extends TestCase
      */
     public static function bodyLinkRelations(): iterable
     {
-        yield 'next' => ['next'];
-        yield 'last' => ['last'];
+        yield 'next host' => ['next', 'https://other.example.com/paged?page=2'];
+        yield 'last host' => ['last', 'https://other.example.com/paged?page=2'];
+        yield 'next user information' => ['next', 'https://user:secret@api.example.com/paged?page=2'];
+        yield 'last user information' => ['last', 'https://user:secret@api.example.com/paged?page=2'];
     }
 
     public function testCustomLinkRelationsSupportIterationAndPooling(): void
@@ -780,12 +786,14 @@ class PaginatorTest extends TestCase
     }
 
     #[DataProvider('validLinkHeaders')]
-    public function testLinkHeadersNavigateOnlyEffectivePaginationRelations(array $headers, ?string $nextQuery): void
+    public function testLinkHeadersNavigateOnlyEffectivePaginationRelations(array $headers, ?string $nextQuery, string $nextPath = '/paged'): void
     {
         $manager = $this->manager();
         $queries = [];
-        $manager->fake([PagedRequestStub::class => static function (PendingRequest $pendingRequest) use (&$queries, $headers): MockResponse {
+        $paths = [];
+        $manager->fake([PagedRequestStub::class => static function (PendingRequest $pendingRequest) use (&$queries, &$paths, $headers): MockResponse {
             $queries[] = $pendingRequest->uri()->getQuery();
+            $paths[] = $pendingRequest->uri()->getPath();
 
             return MockResponse::make(['data' => [count($queries)]], headers: count($queries) === 1 ? ['Link' => $headers] : []);
         }]);
@@ -793,6 +801,7 @@ class PaginatorTest extends TestCase
 
         $this->assertSame($nextQuery === null ? [1] : [1, 2], $paginator->collect()->all());
         $this->assertSame($nextQuery === null ? ['page=1'] : ['page=1', $nextQuery], $queries);
+        $this->assertSame($nextQuery === null ? ['/paged'] : ['/paged', $nextPath], $paths);
     }
 
     /**
@@ -805,6 +814,8 @@ class PaginatorTest extends TestCase
             'last only' => [['<?page=1>; rel=last'], null],
             'relative path' => [['<paged?page=2>; rel=next'], 'page=2'],
             'root relative' => [['</paged?page=2>; rel=next'], 'page=2'],
+            'different path' => [['</canonical/paged?page=2>; rel=next'], 'page=2', '/canonical/paged'],
+            'last different path' => [['</canonical/paged?page=1>; rel=last'], null],
             'case and default port' => [['<HTTPS://API.EXAMPLE.COM:443/paged?page=2>; REL=NEXT'], 'page=2'],
             'several fields' => [['<?page=2>; rel=next', '<?page=3>; rel=last'], 'page=2'],
             'first rel wins' => [['<?page=2>; rel=next; rel=last'], 'page=2'],
@@ -846,8 +857,7 @@ class PaginatorTest extends TestCase
             'different scheme' => ['<http://api.example.com/paged?page=2>; rel=next'],
             'different host' => ['<https://other.example.com/paged?page=2>; rel=next'],
             'different port' => ['<https://api.example.com:8443/paged?page=2>; rel=next'],
-            'different path' => ['</other?page=2>; rel=next'],
-            'last different path' => ['</other?page=2>; rel=last'],
+            'user information' => ['<https://user:secret@api.example.com/paged?page=2>; rel=next'],
         ];
     }
 
