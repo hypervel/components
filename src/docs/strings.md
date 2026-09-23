@@ -2841,12 +2841,16 @@ $headline = Str::of('EmailNotificationSent')->headline();
 <a name="method-fluent-str-initials"></a>
 #### `initials` {.collection-method}
 
-The `initials` method will convert the string to its initials:
+The `initials` method will convert the string to its initials, optionally capitalizing them:
 
 ```php
 use Hypervel\Support\Str;
 
-$initials = Str::of('Taylor Otwell')->initials()->upper();
+$initials = Str::of('taylor otwell')->initials();
+
+// to
+
+$initials = Str::of('taylor otwell')->initials(capitalize: true);
 
 // TO
 ```
