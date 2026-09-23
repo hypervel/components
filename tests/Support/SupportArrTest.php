@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
+use ArrayIterator;
 use ArrayObject;
 use DateTime;
 use Hypervel\Contracts\Support\Jsonable;
@@ -524,6 +525,10 @@ class SupportArrTest extends TestCase
             return 'bar';
         }));
 
+        // Array is null
+        $this->assertSame('fallback', Arr::last(null, default: 'fallback'));
+        $this->assertSame('lazy', Arr::last(null, fn () => true, fn () => 'lazy'));
+
         // Callback is null and array is not empty
         $this->assertEquals(300, Arr::last($array));
 
@@ -554,8 +559,14 @@ class SupportArrTest extends TestCase
         $this->assertEquals(200, $value5);
     }
 
-    public function testLastAcceptsTraversableValuesWithAndWithoutACallback(): void
+    public function testLastAcceptsIterables(): void
     {
+        $items = new ArrayIterator(['first' => 100, 'second' => 200, 'third' => 300]);
+
+        $this->assertSame(300, Arr::last($items));
+        $this->assertSame(200, Arr::last($items, fn ($value, $key) => $key !== 'third'));
+        $this->assertSame('default', Arr::last(new ArrayIterator, default: 'default'));
+
         $values = static function (): iterable {
             yield 'first' => 100;
             yield 'second' => 200;
@@ -965,8 +976,12 @@ class SupportArrTest extends TestCase
         $this->assertTrue(Arr::every(['foo', 'bar'], fn ($value, $key) => is_string($value)));
     }
 
-    public function testEveryAcceptsTraversableValuesAndStopsAtTheFirstFailure(): void
+    public function testEveryAcceptsIterables(): void
     {
+        $items = new ArrayIterator(['first' => 1, 'second' => 2]);
+
+        $this->assertTrue(Arr::every($items, fn ($value, $key) => is_string($key) && $value > 0));
+
         $visited = [];
         $values = static function (): iterable {
             yield 'first' => 1;
@@ -990,8 +1005,12 @@ class SupportArrTest extends TestCase
         $this->assertTrue(Arr::some(['foo', 'bar'], fn ($value, $key) => is_string($value)));
     }
 
-    public function testSomeAcceptsTraversableValuesAndStopsAtTheFirstMatch(): void
+    public function testSomeAcceptsIterables(): void
     {
+        $items = new ArrayIterator(['first' => 1, 'second' => 2]);
+
+        $this->assertTrue(Arr::some($items, fn ($value, $key) => $key === 'second' && $value === 2));
+
         $visited = [];
         $values = static function (): iterable {
             yield 'first' => 1;
