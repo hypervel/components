@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Concerns;
 
 use Closure;
+use Hypervel\Config\Repository;
 use Hypervel\Database\Events\DatabaseRefreshed;
 use Hypervel\Database\SQLiteDatabase;
 use Hypervel\Testbench\Attributes\DefineDatabase;
@@ -72,7 +73,7 @@ trait HandlesDatabases
     {
         $app = hypervel_or_fail($this->app);
 
-        /** @var \Hypervel\Config\Repository $config */
+        /** @var Repository $config */
         $config = $app->make('config');
 
         $connection ??= $config->get('database.default');
