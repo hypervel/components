@@ -1093,6 +1093,17 @@ $html = Str::markdown('# Taylor <b>Otwell</b>', [
 // <h1>Taylor Otwell</h1>
 ```
 
+The `markdown` and `inlineMarkdown` methods, including their fluent equivalents, accept [CommonMark extensions](https://commonmark.thephpleague.com/extensions/overview/) through the `extensions` argument:
+
+```php
+use Hypervel\Support\Str;
+use League\CommonMark\Extension\Footnote\FootnoteExtension;
+
+$html = Str::markdown("Hello[^1]\n\n[^1]: A footnote.", extensions: [
+    new FootnoteExtension,
+]);
+```
+
 #### Markdown Security
 
 By default, Markdown supports raw HTML, which will expose Cross-Site Scripting (XSS) vulnerabilities when used with raw user input. As per the [CommonMark Security documentation](https://commonmark.thephpleague.com/security/), you may use the `html_input` option to either escape or strip raw HTML, and the `allow_unsafe_links` option to specify whether to allow unsafe links. If you need to allow some raw HTML, you should pass your compiled Markdown through an HTML Purifier:
@@ -2886,7 +2897,7 @@ Str::of('Inject: <script>alert("Hello XSS!");</script>')->inlineMarkdown([
 <a name="method-fluent-str-is"></a>
 #### `is` {.collection-method}
 
-The `is` method determines if a given string matches a given pattern. Asterisks may be used as wildcard values
+The `is` method determines if a given string matches a given pattern. Asterisks may be used as wildcard values:
 
 ```php
 use Hypervel\Support\Str;
@@ -2898,6 +2909,16 @@ $matches = Str::of('foobar')->is('foo*');
 $matches = Str::of('foobar')->is('baz*');
 
 // false
+```
+
+You may disable case sensitivity by setting the `ignoreCase` argument to `true`:
+
+```php
+use Hypervel\Support\Str;
+
+$matches = Str::of('photo.JPG')->is('*.jpg', ignoreCase: true);
+
+// true
 ```
 
 <a name="method-fluent-str-is-ascii"></a>
@@ -4414,6 +4435,7 @@ The `whenIsUlid` method invokes the given closure if the string is a valid ULID.
 
 ```php
 use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 
 $string = Str::of('01gd6r360bp37zj17nxb55yv40')->whenIsUlid(function (Stringable $string) {
     return $string->substr(0, 8);
