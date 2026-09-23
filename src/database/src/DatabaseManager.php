@@ -138,7 +138,7 @@ class DatabaseManager implements ConnectionResolverInterface
      *
      * @throws RuntimeException Always - dynamic connections not supported in Hypervel
      */
-    public function build(array $config): ConnectionInterface
+    public function build(array $config): never
     {
         throw new RuntimeException(
             'Dynamic database connections via DB::build() are not supported in Hypervel. '
@@ -151,7 +151,7 @@ class DatabaseManager implements ConnectionResolverInterface
      *
      * @throws RuntimeException Always - dynamic connections not supported in Hypervel
      */
-    public function connectUsing(string $name, array $config, bool $force = false): ConnectionInterface
+    public function connectUsing(string $name, array $config, bool $force = false): never
     {
         throw new RuntimeException(
             'Dynamic database connections via DB::connectUsing() are not supported in Hypervel. '
