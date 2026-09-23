@@ -348,7 +348,7 @@ If you would like Hypervel to drop the test databases after the parallel test ru
 php artisan test --parallel --drop-databases
 ```
 
-If you need to run tests in parallel without automatically configuring parallel databases or cache prefixes, you may use the `--without-databases` and `--without-cache` options:
+To disable automatic test database configuration, use `--without-databases`. To keep cache and rate limiter prefixes unchanged, use `--without-cache`:
 
 ```shell
 php artisan test --parallel --without-databases --without-cache
