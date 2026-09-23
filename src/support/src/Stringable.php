@@ -717,7 +717,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     /**
      * Transliterate a string to its closest ASCII representation.
      */
-    public function transliterate(?string $unknown = '?', ?bool $strict = false): static
+    public function transliterate(?string $unknown = '?', bool $strict = false): static
     {
         return new static(Str::transliterate($this->value, $unknown, $strict));
     }

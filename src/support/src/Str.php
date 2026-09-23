@@ -9,6 +9,7 @@ use Countable;
 use DateTimeInterface;
 use Hypervel\Support\Traits\Macroable;
 use League\CommonMark\Environment\Environment;
+use League\CommonMark\Extension\ExtensionInterface;
 use League\CommonMark\Extension\GithubFlavoredMarkdownExtension;
 use League\CommonMark\Extension\InlinesOnly\InlinesOnlyExtension;
 use League\CommonMark\GithubFlavoredMarkdownConverter;
@@ -110,9 +111,9 @@ class Str
     /**
      * Transliterate a string to its closest ASCII representation.
      */
-    public static function transliterate(string $string, ?string $unknown = '?', ?bool $strict = false): string
+    public static function transliterate(string|int|float|bool|BaseStringable|null $string, ?string $unknown = '?', bool $strict = false): string
     {
-        return ASCII::to_transliterate($string, $unknown, $strict);
+        return ASCII::to_transliterate((string) $string, $unknown, $strict);
     }
 
     /**
@@ -696,11 +697,13 @@ class Str
     /**
      * Convert GitHub flavored Markdown into HTML.
      *
-     * @param \League\CommonMark\Extension\ExtensionInterface[] $extensions
+     * @param ExtensionInterface[] $extensions
      * @return ($string is '' ? '' : string)
      */
-    public static function markdown(string $string, array $options = [], array $extensions = []): string
+    public static function markdown(string|int|float|bool|BaseStringable|null $string, array $options = [], array $extensions = []): string
     {
+        $string = (string) $string;
+
         $converter = new GithubFlavoredMarkdownConverter($options);
 
         $environment = $converter->getEnvironment();
@@ -715,11 +718,13 @@ class Str
     /**
      * Convert inline Markdown into HTML.
      *
-     * @param \League\CommonMark\Extension\ExtensionInterface[] $extensions
+     * @param ExtensionInterface[] $extensions
      * @return ($string is '' ? '' : string)
      */
-    public static function inlineMarkdown(string $string, array $options = [], array $extensions = []): string
+    public static function inlineMarkdown(string|int|float|bool|BaseStringable|null $string, array $options = [], array $extensions = []): string
     {
+        $string = (string) $string;
+
         $environment = new Environment($options);
 
         $environment->addExtension(new GithubFlavoredMarkdownExtension);
