@@ -134,7 +134,7 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
         parent::__construct();
 
         if (isset(class_uses_recursive($this)[CreatesMatchingTest::class])) {
-            $this->addTestOptions(); /* @phpstan-ignore-line */
+            $this->addTestOptions(); // @phpstan-ignore method.notFound
         }
 
         $this->addPathAndNamespaceOptions();
@@ -213,7 +213,7 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
         $info = $this->type;
 
         if (isset(class_uses_recursive($this)[CreatesMatchingTest::class])) {
-            $this->handleTestCreation($path); /* @phpstan-ignore-line */
+            $this->handleTestCreation($path); // @phpstan-ignore method.notFound
         }
 
         if (windows_os()) {
