@@ -22,19 +22,19 @@ namespace Hypervel\Support\Facades;
  * @method static void flushMacros()
  * @method static string getName()
  * @method static bool hasMacro(string $name)
- * @method static void hScan(mixed $key, mixed $cursor, mixed ...$arguments)
+ * @method static mixed hScan(mixed $key, mixed $cursor, mixed ...$arguments)
  * @method static bool isCluster()
  * @method static void macro(string $name, callable|object $macro)
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static ($callback is null ? \Redis : array<int, mixed>|false) pipeline(callable|null $callback = null)
- * @method static void scan(mixed $cursor, mixed ...$arguments)
- * @method static void sScan(mixed $key, mixed $cursor, mixed ...$arguments)
+ * @method static mixed scan(mixed $cursor, mixed ...$arguments)
+ * @method static mixed sScan(mixed $key, mixed $cursor, mixed ...$arguments)
  * @method static \Hypervel\Redis\Subscriber\Subscriber subscriber()
  * @method static ($callback is null ? \Redis|\RedisCluster : array<int, mixed>|false) transaction(callable|null $callback = null)
  * @method static mixed withConnection(callable $callback, bool $transform = true)
  * @method static mixed withoutSerializationOrCompression(callable $callback)
  * @method static mixed withPinnedConnection(callable $callback)
- * @method static void zScan(mixed $key, mixed $cursor, mixed ...$arguments)
+ * @method static mixed zScan(mixed $key, mixed $cursor, mixed ...$arguments)
  * @method static string _digest(mixed $value)
  * @method static string _pack(mixed $value)
  * @method static string _serialize(mixed $value) Serialize a value using configured serializer
@@ -351,6 +351,9 @@ class Redis extends Facade
         ];
     }
 
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return 'redis';

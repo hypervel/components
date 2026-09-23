@@ -16,7 +16,12 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Testing\Fakes\Fake;
 use Hypervel\Support\Uri;
 use Mockery;
+use Mockery\CompositeExpectation;
+use Mockery\Expectation;
+use Mockery\ExpectsHigherOrderMessage;
+use Mockery\HigherOrderMessage;
 use Mockery\LegacyMockInterface;
+use Mockery\MockInterface;
 use RuntimeException;
 
 abstract class Facade
@@ -70,6 +75,8 @@ abstract class Facade
 
     /**
      * Convert the facade into a Mockery spy.
+     *
+     * @return null|MockInterface
      */
     public static function spy()
     {
@@ -88,6 +95,8 @@ abstract class Facade
      * Initiate a partial mock on the facade.
      *
      * Tests only. Swaps the resolved facade instance for the worker lifetime.
+     *
+     * @return MockInterface
      */
     public static function partialMock()
     {
@@ -104,6 +113,8 @@ abstract class Facade
      * Initiate a mock expectation on the facade.
      *
      * Tests only. Swaps the resolved facade instance for the worker lifetime.
+     *
+     * @return CompositeExpectation|Expectation|HigherOrderMessage
      */
     public static function shouldReceive()
     {
@@ -120,6 +131,8 @@ abstract class Facade
      * Initiate a mock expectation on the facade.
      *
      * Tests only. Swaps the resolved facade instance for the worker lifetime.
+     *
+     * @return CompositeExpectation|Expectation|ExpectsHigherOrderMessage
      */
     public static function expects()
     {
@@ -134,6 +147,8 @@ abstract class Facade
 
     /**
      * Create a fresh mock instance for the given class.
+     *
+     * @return MockInterface
      */
     protected static function createFreshMockInstance()
     {
@@ -146,6 +161,8 @@ abstract class Facade
 
     /**
      * Create a fresh mock instance for the given class.
+     *
+     * @return MockInterface
      */
     protected static function createMock()
     {
@@ -184,7 +201,7 @@ abstract class Facade
      * container binding; runtime use races across coroutines and changes every
      * subsequent facade call.
      */
-    public static function swap(mixed $instance)
+    public static function swap(mixed $instance): void
     {
         static::$resolvedInstance[static::getFacadeAccessor()] = $instance;
 
@@ -345,7 +362,7 @@ abstract class Facade
      *
      * @throws RuntimeException
      */
-    public static function __callStatic(string $method, array $args)
+    public static function __callStatic(string $method, array $args): mixed
     {
         $instance = static::getFacadeRoot();
 
