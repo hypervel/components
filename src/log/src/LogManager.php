@@ -19,6 +19,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\RebindsCallbacksToSelf;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
+use Monolog\Formatter\FormatterInterface;
 use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\ErrorLogHandler;
 use Monolog\Handler\FormattableHandlerInterface;
@@ -43,7 +44,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Log\Logger
+ * @mixin Logger
  */
 class LogManager implements LoggerInterface
 {
@@ -267,7 +268,7 @@ class LogManager implements LoggerInterface
         }
 
         $handlers = (new Collection($config['channels']))
-            ->flatMap(function ($channel) {
+            ->flatMap(function (LoggerInterface|UnitEnum|string|null $channel): array {
                 return $channel instanceof LoggerInterface
                     ? $channel->getHandlers() // @phpstan-ignore method.notFound
                     : $this->channel($channel)->getHandlers(); // @phpstan-ignore method.notFound
@@ -275,7 +276,7 @@ class LogManager implements LoggerInterface
             ->all();
 
         $processors = (new Collection($config['channels']))
-            ->flatMap(function ($channel) {
+            ->flatMap(function (LoggerInterface|UnitEnum|string|null $channel): array {
                 return $channel instanceof LoggerInterface
                     ? $channel->getProcessors() // @phpstan-ignore method.notFound
                     : $this->channel($channel)->getProcessors(); // @phpstan-ignore method.notFound
@@ -283,7 +284,7 @@ class LogManager implements LoggerInterface
             // Filter out the wrapped context processor from constituent channels.
             // Each constituent already had one pushed by get(); without filtering,
             // the stack would accumulate duplicates from every constituent.
-            ->reject(fn ($processor) => $processor instanceof ResolvedContextLogProcessor)
+            ->reject(fn (callable $processor): bool => $processor instanceof ResolvedContextLogProcessor)
             ->all();
 
         if ($config['ignore_exceptions'] ?? false) {
@@ -505,7 +506,7 @@ class LogManager implements LoggerInterface
     /**
      * Get a Monolog formatter instance.
      */
-    protected function formatter(): \Monolog\Formatter\FormatterInterface
+    protected function formatter(): FormatterInterface
     {
         return new LineFormatter(null, $this->dateFormat, true, true, true);
     }
