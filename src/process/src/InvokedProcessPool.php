@@ -73,8 +73,10 @@ class InvokedProcessPool implements Countable
      */
     public function running(): Collection
     {
-        /* @phpstan-ignore-next-line */
-        return (new Collection($this->invokedProcesses))->filter->running()->values();
+        /** @var Collection<int|string, InvokedProcess> $running */
+        $running = (new Collection($this->invokedProcesses))->filter->running();
+
+        return $running->values();
     }
 
     /**
