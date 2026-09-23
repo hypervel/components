@@ -274,7 +274,7 @@ class NotificationSender
                         ->onQueue($queue)
                         ->delay(is_array($delay) ? ($delay[$channel] ?? null) : $delay)
                         ->onGroup(is_array($messageGroup) ? ($messageGroup[$channel] ?? null) : $messageGroup)
-                        ->withDeduplicator(is_array($deduplicator) ? ($deduplicator[$channel] ?? null) : $deduplicator)
+                        ->withDeduplicator(is_array($deduplicator) && ! is_callable($deduplicator) ? ($deduplicator[$channel] ?? null) : $deduplicator)
                         ->through($middleware)
                 );
             }
