@@ -105,9 +105,9 @@ trait SerializesAndRestoresModelIdentifiers
 
         /** @var EloquentCollection<int, Model> $restoredCollection */
         $restoredCollection = new $collectionClass(
-            SupportCollection::make($value->id)->map(function ($id) use ($collection) {
-                return $collection[$id] ?? null;
-            })->filter()
+            (new SupportCollection($value->id))
+                ->map(fn ($id) => $collection[$id] ?? null)
+                ->filter()
         );
 
         return $restoredCollection->loadMissing($value->relations ?? []);

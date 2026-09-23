@@ -945,14 +945,14 @@ class Mailable implements MailableContract, Renderable
      */
     public function attachFromStorageDisk(?string $disk, string $path, ?string $name = null, array $options = []): static
     {
-        $this->diskAttachments = Collection::make($this->diskAttachments)->push([
+        $this->diskAttachments = (new Collection($this->diskAttachments))->push([
             'disk' => $disk,
             'path' => $path,
             'name' => $name ?? basename($path),
             'options' => $options,
-        ])->unique(function ($file) {
-            return $file['name'] . $file['disk'] . $file['path'];
-        })->all();
+        ])
+            ->unique(fn ($file) => $file['name'] . $file['disk'] . $file['path'])
+            ->all();
 
         return $this;
     }
@@ -983,11 +983,10 @@ class Mailable implements MailableContract, Renderable
      */
     public function attachData(string $data, string $name, array $options = []): static
     {
-        $this->rawAttachments = Collection::make($this->rawAttachments)
+        $this->rawAttachments = (new Collection($this->rawAttachments))
             ->push(compact('data', 'name', 'options'))
-            ->unique(function ($file) {
-                return $file['name'] . $file['data'];
-            })->all();
+            ->unique(fn ($file) => $file['name'] . $file['data'])
+            ->all();
 
         return $this;
     }

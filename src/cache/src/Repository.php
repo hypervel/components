@@ -40,6 +40,7 @@ use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Collection;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
@@ -139,18 +140,19 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
      */
     public function many(array $keys): array
     {
-        $resolvedKeys = collect($keys)->map(function ($value, $key) {
-            return is_string($key) ? $key : (string) enum_value($value);
-        })->values()->all();
+        $resolvedKeys = (new Collection($keys))
+            ->map(fn ($value, $key) => is_string($key) ? $key : (string) enum_value($value))
+            ->values()
+            ->all();
 
         // manyRaw() fires RetrievingManyKeys + per-key CacheHit/CacheMissed events and
         // routes through the RawReadable raw-read path for wrapper stores — so a cached
         // sentinel is correctly classified as CacheHit rather than CacheMissed.
         $values = $this->manyRaw($resolvedKeys);
 
-        return collect($values)->map(function ($value, $key) use ($keys) {
-            return $this->handleManyResult($keys, (string) $key, $value);
-        })->all();
+        return (new Collection($values))
+            ->map(fn ($value, $key) => $this->handleManyResult($keys, (string) $key, $value))
+            ->all();
     }
 
     /**

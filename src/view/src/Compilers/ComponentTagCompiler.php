@@ -461,7 +461,7 @@ class ComponentTagCompiler
     {
         // If the class doesn't exist, we'll assume it is a class-less component and
         // return all of the attributes as both data and attributes since we have
-        // now way to partition them. The user can exclude attributes manually.
+        // no way to partition them. The user can exclude attributes manually.
         if (! class_exists($class)) {
             return [new Collection($attributes), new Collection($attributes)];
         }
@@ -469,8 +469,8 @@ class ComponentTagCompiler
         $constructor = (new ReflectionClass($class))->getConstructor();
 
         $parameterNames = $constructor
-                    ? (new Collection($constructor->getParameters()))->map(fn ($p) => $p->getName())->all()
-                    : [];
+            ? (new Collection($constructor->getParameters()))->map(fn ($parameter) => $parameter->getName())->all()
+            : [];
 
         return (new Collection($attributes))
             ->partition(fn ($value, $key) => in_array(Str::camel($key), $parameterNames))

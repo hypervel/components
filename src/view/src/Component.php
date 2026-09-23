@@ -114,7 +114,7 @@ abstract class Component
             $constructor = $class->getConstructor();
 
             static::$constructorParametersCache[static::class] = $constructor
-                ? (new Collection($constructor->getParameters()))->map(fn ($p) => $p->getName())->all()
+                ? (new Collection($constructor->getParameters()))->map(fn ($parameter) => $parameter->getName())->all()
                 : [];
         }
 
@@ -381,7 +381,7 @@ abstract class Component
             }
 
             static::$ignoredParameterNames[static::class] = (new Collection($constructor->getParameters()))
-                ->map(fn ($p) => $p->getName())
+                ->map(fn ($parameter) => $parameter->getName())
                 ->all();
         }
 

@@ -60,9 +60,10 @@ class ListFailedCommand extends Command
     {
         $failed = $this->hypervel->make(FailedJobProviderInterface::class)->all();
 
-        return Collection::make($failed)->map(function ($failed) {
-            return $this->parseFailedJob((array) $failed);
-        })->filter()->all();
+        return (new Collection($failed))
+            ->map(fn ($failed) => $this->parseFailedJob((array) $failed))
+            ->filter()
+            ->all();
     }
 
     /**
