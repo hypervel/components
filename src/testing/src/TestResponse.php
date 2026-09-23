@@ -39,6 +39,7 @@ use Throwable;
 /**
  * @template TResponse of \Symfony\Component\HttpFoundation\Response
  *
+ * @mixin TResponse
  * @mixin \Hypervel\Http\Response
  */
 class TestResponse implements ArrayAccess

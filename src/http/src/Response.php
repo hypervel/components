@@ -69,7 +69,7 @@ class Response extends SymfonyResponse implements Transient
      * Get the response content.
      */
     #[Override]
-    public function getContent(): string|false
+    public function getContent(): string
     {
         $content = parent::getContent();
 
@@ -150,7 +150,7 @@ class Response extends SymfonyResponse implements Transient
      * @throws RuntimeException always — Swoole manages headers via its own API
      */
     #[Override]
-    public function sendHeaders(?int $statusCode = null): static
+    public function sendHeaders(?int $statusCode = null): never
     {
         throw new RuntimeException('Response::sendHeaders() is not supported in Hypervel. Responses are emitted through Swoole\'s response API.');
     }
@@ -161,7 +161,7 @@ class Response extends SymfonyResponse implements Transient
      * @throws RuntimeException always — Swoole has no SAPI output stream
      */
     #[Override]
-    public function sendContent(): static
+    public function sendContent(): never
     {
         throw new RuntimeException('Response::sendContent() is not supported in Hypervel. Responses are emitted through Swoole\'s response API.');
     }
@@ -172,7 +172,7 @@ class Response extends SymfonyResponse implements Transient
      * @throws RuntimeException always — Swoole manages response emission
      */
     #[Override]
-    public function send(bool $flush = true): static
+    public function send(bool $flush = true): never
     {
         throw new RuntimeException('Response::send() is not supported in Hypervel. Responses are emitted through Swoole\'s response API.');
     }

@@ -304,7 +304,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      *
      * @throws RuntimeException always — superglobals don't exist in Swoole workers
      */
-    public static function createFromGlobals(): static
+    public static function createFromGlobals(): never
     {
         throw new RuntimeException('Request::createFromGlobals() is not supported in Hypervel. Requests are created from Swoole request objects.');
     }
@@ -791,6 +791,9 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
         return $this->headers->get('User-Agent');
     }
 
+    /**
+     * Get the content types accepted by the request.
+     */
     #[Override]
     public function getAcceptableContentTypes(): array
     {
@@ -956,6 +959,9 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
         return $newRequest;
     }
 
+    /**
+     * Duplicate the request with the given parameters.
+     */
     #[Override]
     public function duplicate(?array $query = null, ?array $request = null, ?array $attributes = null, ?array $cookies = null, ?array $files = null, ?array $server = null): static
     {
@@ -1165,6 +1171,8 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     }
 
     /**
+     * Determine if the request has an attached session.
+     *
      * @phpstan-assert-if-true SymfonySessionDecorator $this->session
      */
     #[Override]
@@ -1173,6 +1181,9 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
         return $this->session instanceof SymfonySessionDecorator;
     }
 
+    /**
+     * Get the Symfony session decorator for the request.
+     */
     #[Override]
     public function getSession(): SessionInterface
     {
