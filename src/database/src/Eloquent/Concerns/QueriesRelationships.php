@@ -836,17 +836,15 @@ trait QueriesRelationships
             // Here, we will grab the relationship sub-query and prepare to add it to the main query
             // as a sub-select. First, we'll get the "has" query and use that to get the relation
             // sub-query. We'll format this relationship name and append this column if needed.
-            // @phpstan-ignore-next-line (return type from mixin chain loses Eloquent\Builder context)
+            /** @var Builder $query */
             $query = $relation->getRelationExistenceQuery(
                 $relation->getRelated()->newQuery(),
                 $this,
                 new Expression($expression)
             )->setBindings([], 'select');
 
-            // @phpstan-ignore method.notFound ($query is Eloquent\Builder, not Query\Builder)
             $query->callScope($constraints);
 
-            // @phpstan-ignore method.notFound ($query is Eloquent\Builder, not Query\Builder)
             $query = $query->mergeConstraintsFrom($relation->getQuery())->toBase();
 
             // If the query contains certain elements like orderings / more than one column selected
