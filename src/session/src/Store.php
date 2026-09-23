@@ -13,6 +13,7 @@ use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Json;
@@ -325,7 +326,7 @@ class Store implements Session
     {
         $placeholder = new stdClass;
 
-        return collect(is_array($key) ? $key : func_get_args())->doesntContain(function ($key) use ($placeholder) {
+        return (new Collection(is_array($key) ? $key : func_get_args()))->doesntContain(function ($key) use ($placeholder) {
             return $this->get($key, $placeholder) === $placeholder;
         });
     }
@@ -343,7 +344,7 @@ class Store implements Session
      */
     public function has(array|UnitEnum|string $key): bool
     {
-        return collect(is_array($key) ? $key : func_get_args())->doesntContain(function ($key) {
+        return (new Collection(is_array($key) ? $key : func_get_args()))->doesntContain(function ($key) {
             return is_null($this->get($key));
         });
     }
@@ -353,7 +354,7 @@ class Store implements Session
      */
     public function hasAny(array|UnitEnum|string $key): bool
     {
-        return collect(is_array($key) ? $key : func_get_args())->contains(function ($key) {
+        return (new Collection(is_array($key) ? $key : func_get_args()))->contains(function ($key) {
             return ! is_null($this->get($key));
         });
     }
