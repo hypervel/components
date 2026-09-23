@@ -11,7 +11,7 @@ use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Traits\ForwardsCalls;
 
 /**
- * @mixin \Hypervel\Routing\Router
+ * @mixin Router
  */
 class RouteServiceProvider extends ServiceProvider
 {

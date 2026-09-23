@@ -22,6 +22,7 @@ use Hypervel\Routing\Redirector;
 use Hypervel\Support\ValidatedInput;
 use Hypervel\Validation\UnknownFields;
 use Hypervel\Validation\ValidatesWhenResolvedTrait;
+use Hypervel\Validation\ValidationException;
 use ReflectionClass;
 
 class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
@@ -272,7 +273,7 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
     /**
      * Handle a failed validation attempt.
      *
-     * @throws \Hypervel\Validation\ValidationException
+     * @throws ValidationException
      */
     protected function failedValidation(Validator $validator): void
     {

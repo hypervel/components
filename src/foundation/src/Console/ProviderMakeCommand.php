@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\GeneratorCommand;
+use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Support\ServiceProvider;
 use Symfony\Component\Console\Attribute\AsCommand;
 
@@ -31,7 +32,7 @@ class ProviderMakeCommand extends GeneratorCommand
     /**
      * Execute the console command.
      *
-     * @throws \Hypervel\Contracts\Filesystem\FileNotFoundException
+     * @throws FileNotFoundException
      */
     public function handle(): bool|int
     {

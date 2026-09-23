@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
+use Hypervel\Database\DatabaseTransactionRecord;
 use Hypervel\Database\DatabaseTransactionsManager as BaseManager;
 use Hypervel\Support\Collection;
 
@@ -39,7 +40,7 @@ class DatabaseTransactionsManager extends BaseManager
      * Skips the RefreshDatabase wrapper transaction(s) so callbacks are only
      * associated with transactions created within the test itself.
      *
-     * @return Collection<int, \Hypervel\Database\DatabaseTransactionRecord>
+     * @return Collection<int, DatabaseTransactionRecord>
      */
     public function callbackApplicableTransactions(): Collection
     {

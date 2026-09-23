@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\Concerns\CreatesMatchingTest;
 use Hypervel\Console\GeneratorCommand;
+use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Foundation\Inspiring;
 use Hypervel\Support\Facades\File;
 use Hypervel\Support\Str;
@@ -38,7 +39,7 @@ class ViewMakeCommand extends GeneratorCommand
     /**
      * Build the class with the given name.
      *
-     * @throws \Hypervel\Contracts\Filesystem\FileNotFoundException
+     * @throws FileNotFoundException
      */
     protected function buildClass(string $name): string
     {

@@ -10,6 +10,7 @@ use Hypervel\Foundation\Exceptions\ReportableHandler;
 use Hypervel\Http\Client\RequestException;
 use Hypervel\Support\Arr;
 use InvalidArgumentException;
+use Psr\Log\LogLevel;
 use Throwable;
 
 class Exceptions
@@ -93,7 +94,7 @@ class Exceptions
      * Set the log level for the given exception type.
      *
      * @param class-string<Throwable> $type
-     * @param \Psr\Log\LogLevel::* $level
+     * @param LogLevel::* $level
      */
     public function level(string $type, string $level): static
     {

@@ -7,6 +7,8 @@ use Faker\Factory as FakerFactory;
 use Faker\Generator as FakerGenerator;
 use Hypervel\Broadcasting\FakePendingBroadcast;
 use Hypervel\Broadcasting\PendingBroadcast;
+use Hypervel\Cache\CacheManager;
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
@@ -31,6 +33,7 @@ use Hypervel\Foundation\Bus\PendingClosureDispatch;
 use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
 use Hypervel\Http\Response as HypervelResponse;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Log\LogManager;
@@ -295,7 +298,7 @@ if (! function_exists('cache')) {
      *
      * @param null|array<string, mixed>|string $key key|data
      * @param mixed $default default|expiration|null
-     * @return ($key is null ? \Hypervel\Cache\CacheManager : ($key is string ? mixed : bool))
+     * @return ($key is null ? CacheManager : ($key is string ? mixed : bool))
      *
      * @throws InvalidArgumentException
      */
@@ -328,7 +331,7 @@ if (! function_exists('config')) {
      * If an array is passed as the key, we will assume you want to set an array of values.
      *
      * @param null|array<string, mixed>|string $key
-     * @return ($key is null ? \Hypervel\Config\Repository : ($key is string ? mixed : null))
+     * @return ($key is null ? ConfigRepository : ($key is string ? mixed : null))
      */
     function config(mixed $key = null, mixed $default = null): mixed
     {
@@ -415,7 +418,7 @@ if (! function_exists('csrf_token')) {
     /**
      * Get the CSRF token value.
      *
-     * @throws \RuntimeException
+     * @throws RuntimeException
      */
     function csrf_token(): ?string
     {
@@ -734,7 +737,7 @@ if (! function_exists('request')) {
      *
      * @param null|list<string>|string $key
      *
-     * @return ($key is null ? \Hypervel\Http\Request : ($key is string ? mixed : array<string, mixed>))
+     * @return ($key is null ? Request : ($key is string ? mixed : array<string, mixed>))
      */
     function request(array|string|null $key = null, mixed $default = null): mixed
     {
@@ -760,8 +763,8 @@ if (! function_exists('rescue')) {
      * @template TFallback
      *
      * @param callable(): TValue $callback
-     * @param (callable(\Throwable): TFallback)|TFallback $rescue
-     * @param bool|callable(\Throwable): bool $report
+     * @param (callable(Throwable): TFallback)|TFallback $rescue
+     * @param bool|callable(Throwable): bool $report
      * @return TFallback|TValue
      */
     function rescue(callable $callback, $rescue = null, $report = true)
