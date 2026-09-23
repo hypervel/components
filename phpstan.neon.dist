@@ -73,8 +73,6 @@ parameters:
       path: src/database/*
     - identifier: generics.notSubtype
       path: src/database/*
-    - identifier: method.templateTypeNotInParameter
-      path: src/database/*
 
     # Covariant template types in invariant/contravariant positions - Laravel uses @template-covariant
     # for semantic documentation on collection-like classes even though it violates strict variance rules.

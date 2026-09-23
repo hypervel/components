@@ -609,11 +609,13 @@ trait HasRelationships
     /**
      * Define a many-to-many relationship.
      *
-     * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
+     * @template TRelatedModel of Model
+     * @template TPivotTable of string|null
+     * @template TPivotModel of Pivot = Pivot
      *
      * @param class-string<TRelatedModel> $related
-     * @param null|class-string<\Hypervel\Database\Eloquent\Model>|string $table
-     * @return \Hypervel\Database\Eloquent\Relations\BelongsToMany<TRelatedModel, $this, \Hypervel\Database\Eloquent\Relations\Pivot>
+     * @param class-string<TPivotModel>|TPivotTable $table
+     * @return BelongsToMany<TRelatedModel, $this, TPivotModel>
      */
     public function belongsToMany(
         string $related,
@@ -647,7 +649,9 @@ trait HasRelationships
             $table = $this->joiningTable($related, $instance);
         }
 
-        return $this->newBelongsToMany(
+        // The constructor applies a pivot class supplied as the table through using().
+        /** @var BelongsToMany<TRelatedModel, $this, TPivotModel> $belongsToMany */
+        $belongsToMany = $this->newBelongsToMany(
             $instance->newQuery(),
             $this,
             $table,
@@ -657,6 +661,8 @@ trait HasRelationships
             $relatedKey ?: $instance->getKeyName(),
             $relation,
         );
+
+        return $belongsToMany;
     }
 
     /**

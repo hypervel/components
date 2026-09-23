@@ -128,6 +128,11 @@ trait SerializesAndRestoresModelIdentifiers
 
     /**
      * Get the query for model restoration.
+     *
+     * @template TModel of Model
+     *
+     * @param TModel $model
+     * @return Builder<TModel>
      */
     protected function getQueryForModelRestoration(Model $model, array|int|string $ids): Builder
     {
