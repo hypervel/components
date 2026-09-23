@@ -111,7 +111,7 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * The registered custom implicit binding callback.
      */
-    protected Closure|array|null $implicitBindingCallback = null;
+    protected ?Closure $implicitBindingCallback = null;
 
     /**
      * All of the verbs supported by the router.
@@ -951,7 +951,7 @@ class Router implements BindingRegistrar, RegistrarContract
      */
     public function substituteImplicitBindingsUsing(callable $callback): static
     {
-        $this->implicitBindingCallback = $callback;
+        $this->implicitBindingCallback = $callback(...);
 
         return $this;
     }
