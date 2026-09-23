@@ -204,17 +204,19 @@ class MailChannel
     /**
      * Get the recipients of the given message.
      */
-    protected function getRecipients(mixed $notifiable, Notification $notification, MailMessage $message): mixed
+    protected function getRecipients(mixed $notifiable, Notification $notification, MailMessage $message): array
     {
         if (is_string($recipients = $notifiable->routeNotificationFor('mail', $notification))) {
             $recipients = [$recipients];
         }
 
-        return (new Collection($recipients))->mapWithKeys(function ($recipient, $email) {
-            return is_numeric($email)
-                ? [$email => (is_string($recipient) ? $recipient : $recipient->email)]
-                : [$email => $recipient];
-        })->all();
+        return (new Collection($recipients))
+            ->mapWithKeys(function ($recipient, $email) {
+                return is_numeric($email)
+                    ? [$email => (is_string($recipient) ? $recipient : $recipient->email)]
+                    : [$email => $recipient];
+            })
+            ->all();
     }
 
     /**

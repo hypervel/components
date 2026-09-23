@@ -75,13 +75,15 @@ trait ReflectsClosures
     {
         $reflection = new ReflectionFunction($closure);
 
-        return (new Collection($reflection->getParameters()))->mapWithKeys(function ($parameter) {
-            if ($parameter->isVariadic()) {
-                return [$parameter->getName() => null];
-            }
+        return (new Collection($reflection->getParameters()))
+            ->mapWithKeys(function ($parameter) {
+                if ($parameter->isVariadic()) {
+                    return [$parameter->getName() => null];
+                }
 
-            return [$parameter->getName() => Reflector::getParameterClassName($parameter)];
-        })->all();
+                return [$parameter->getName() => Reflector::getParameterClassName($parameter)];
+            })
+            ->all();
     }
 
     /**
