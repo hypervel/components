@@ -172,7 +172,7 @@ class Worker
      *
      * @var callable[]
      */
-    protected static $popCallbacks = [];
+    protected static array $popCallbacks = [];
 
     /**
      * The custom exit code to be used when memory is exceeded.

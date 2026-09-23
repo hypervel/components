@@ -97,7 +97,6 @@ trait SerializesAndRestoresModelIdentifiers
             return $collection;
         }
 
-        /* @phpstan-ignore-next-line */
         $collection = $collection->keyBy->getKey();
 
         /** @var class-string<EloquentCollection<int, Model>> $collectionClass */
