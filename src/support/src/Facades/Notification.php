@@ -83,6 +83,9 @@ class Notification extends Facade
         return (new AnonymousNotifiable)->route($channel, $route);
     }
 
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return ChannelManager::class;

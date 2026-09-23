@@ -23,6 +23,9 @@ namespace Hypervel\Support\Facades;
  */
 class Jwt extends Facade
 {
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return 'jwt';

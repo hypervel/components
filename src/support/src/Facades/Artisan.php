@@ -35,6 +35,9 @@ use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
  */
 class Artisan extends Facade
 {
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return ConsoleKernelContract::class;

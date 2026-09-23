@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
+use Hypervel\RateLimiter\RateLimiter as RateLimiterManager;
+
 /**
  * @method static \Hypervel\RateLimiter\RateLimiter extend(string $name, \Closure $callback)
  * @method static \Hypervel\RateLimiter\RateLimiter for(\UnitEnum|string $name, \Closure $callback, \UnitEnum|string|null $store = null)
@@ -37,6 +39,6 @@ class RateLimiter extends Facade
      */
     protected static function getFacadeAccessor(): string
     {
-        return \Hypervel\RateLimiter\RateLimiter::class;
+        return RateLimiterManager::class;
     }
 }

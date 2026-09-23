@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
+use Hypervel\Foundation\Vite as FoundationVite;
+
 /**
  * @method static string asset(string $asset, string|null $buildDirectory = null)
  * @method static string content(string $asset, string|null $buildDirectory = null)
@@ -41,8 +43,11 @@ namespace Hypervel\Support\Facades;
  */
 class Vite extends Facade
 {
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
-        return \Hypervel\Foundation\Vite::class;
+        return FoundationVite::class;
     }
 }
