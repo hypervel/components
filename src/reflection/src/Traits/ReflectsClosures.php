@@ -11,6 +11,7 @@ use ReflectionException;
 use ReflectionFunction;
 use ReflectionIntersectionType;
 use ReflectionNamedType;
+use ReflectionParameter;
 use ReflectionUnionType;
 use RuntimeException;
 
@@ -76,7 +77,7 @@ trait ReflectsClosures
         $reflection = new ReflectionFunction($closure);
 
         return (new Collection($reflection->getParameters()))
-            ->mapWithKeys(function ($parameter) {
+            ->mapWithKeys(function (ReflectionParameter $parameter): array {
                 if ($parameter->isVariadic()) {
                     return [$parameter->getName() => null];
                 }
