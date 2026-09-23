@@ -36,6 +36,9 @@ class TestCachesTest extends TestCase
             'cache' => [
                 'prefix' => 'myapp_cache_',
             ],
+            'rate-limiter' => [
+                'prefix' => 'myapp_limiter_',
+            ],
         ]));
 
         $container->singleton(ParallelTesting::class, fn ($app) => new ParallelTesting($app));
@@ -120,8 +123,10 @@ class TestCachesTest extends TestCase
         (new ParallelTestingServiceProvider($container))->register();
 
         $this->assertSame('myapp_cache_', $container->make('config')->string('cache.prefix'));
+        $this->assertSame('myapp_limiter_', $container->make('config')->string('rate-limiter.prefix'));
         $container->boot();
         $this->assertSame('myapp_cache_test_7_', $container->make('config')->string('cache.prefix'));
+        $this->assertSame('myapp_limiter_test_7_', $container->make('config')->string('rate-limiter.prefix'));
     }
 
     public function testBootTestCacheSkipsIsolationIfOptedOut(): void
@@ -141,6 +146,7 @@ class TestCachesTest extends TestCase
             Container::getInstance()->boot();
 
             $this->assertSame('myapp_cache_', Container::getInstance()->make('config')->get('cache.prefix'));
+            $this->assertSame('myapp_limiter_', Container::getInstance()->make('config')->string('rate-limiter.prefix'));
         } finally {
             if ($hadValue) {
                 $_SERVER['HYPERVEL_PARALLEL_TESTING_WITHOUT_CACHE'] = $original;
