@@ -360,6 +360,15 @@ public function retryUntil(): DateTimeInterface
 > [!NOTE]
 > For more information on these job attributes and methods, please review the documentation on [queued jobs](/docs/{{version}}/queues#max-job-attempts-and-timeout).
 
+To customize the job used for all queued notifications, extend `Hypervel\Notifications\SendQueuedNotifications` and bind your subclass in a service provider's `register` method:
+
+```php
+use App\Jobs\SendNotification;
+use Hypervel\Notifications\SendQueuedNotifications;
+
+$this->app->bind(SendQueuedNotifications::class, SendNotification::class);
+```
+
 <a name="queued-notification-middleware"></a>
 #### Queued Notification Middleware
 
