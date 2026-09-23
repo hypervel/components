@@ -1663,6 +1663,20 @@ class HttpRequestTest extends TestCase
         $this->assertSame('foobar', $request->old('name', $model));
     }
 
+    public function testOldMethodReturnsNonStringInputAndDefaults(): void
+    {
+        $request = Request::create('/');
+        $model = m::mock(Price::class);
+        $model->expects('getAttribute')->with('stock')->andReturn(7);
+        $session = m::mock(Store::class);
+        $session->expects('getOldInput')->with('quantity', 0)->andReturn(3);
+        $session->expects('getOldInput')->with('stock', 7)->andReturn(7);
+        $request->setHypervelSession($session);
+
+        $this->assertSame(3, $request->old('quantity', 0));
+        $this->assertSame(7, $request->old('stock', $model));
+    }
+
     public function testFlushMethodCallsSession(): void
     {
         $request = Request::create('/');

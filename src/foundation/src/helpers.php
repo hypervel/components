@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use Carbon\CarbonInterface;
+use Faker\Factory as FakerFactory;
+use Faker\Generator as FakerGenerator;
 use Hypervel\Broadcasting\FakePendingBroadcast;
 use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Container\Container;
@@ -13,6 +15,7 @@ use Hypervel\Contracts\Broadcasting\Factory as BroadcastFactory;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Contracts\Cookie\Factory as CookieFactory;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Routing\ResponseFactory;
 use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
@@ -28,6 +31,7 @@ use Hypervel\Foundation\Bus\PendingClosureDispatch;
 use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Response as HypervelResponse;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Log\LogManager;
 use Hypervel\Queue\CallQueuedClosure;
@@ -500,11 +504,11 @@ if (! function_exists('event')) {
     }
 }
 
-if (! function_exists('fake') && class_exists(\Faker\Factory::class)) {
+if (! function_exists('fake') && class_exists(FakerFactory::class)) {
     /**
      * Get a faker instance.
      */
-    function fake(?string $locale = null): \Faker\Generator
+    function fake(?string $locale = null): FakerGenerator
     {
         if (app()->bound('config')) {
             $locale ??= app('config')->string('app.faker_locale');
@@ -512,10 +516,10 @@ if (! function_exists('fake') && class_exists(\Faker\Factory::class)) {
 
         $locale ??= 'en_US';
 
-        $abstract = \Faker\Generator::class . ':' . $locale;
+        $abstract = FakerGenerator::class . ':' . $locale;
 
         if (! app()->bound($abstract)) {
-            app()->singleton($abstract, fn () => \Faker\Factory::create($locale));
+            app()->singleton($abstract, fn () => FakerFactory::create($locale));
         }
 
         return app()->make($abstract);
@@ -610,7 +614,7 @@ if (! function_exists('old')) {
     /**
      * Retrieve an old input item.
      */
-    function old(?string $key = null, mixed $default = null): string|array|null
+    function old(?string $key = null, mixed $default = null): mixed
     {
         return app('request')->old($key, $default);
     }
@@ -814,11 +818,11 @@ if (! function_exists('response')) {
      *
      * With no arguments, return the factory. Any argument, including null, creates a response.
      *
-     * @return ($content is null ? \Hypervel\Contracts\Routing\ResponseFactory : \Hypervel\Http\Response)
+     * @return ($content is null ? ResponseFactory : HypervelResponse)
      */
-    function response(mixed $content = null, int $status = 200, array $headers = []): \Hypervel\Contracts\Routing\ResponseFactory|\Hypervel\Http\Response
+    function response(mixed $content = null, int $status = 200, array $headers = []): ResponseFactory|HypervelResponse
     {
-        $factory = app(\Hypervel\Contracts\Routing\ResponseFactory::class);
+        $factory = app(ResponseFactory::class);
 
         if (func_num_args() === 0) {
             return $factory;
@@ -914,7 +918,7 @@ if (! function_exists('to_route')) {
     /**
      * Create a new redirect response to a named route.
      */
-    function to_route(string $route, mixed $parameters = [], int $status = 302, array $headers = []): \Hypervel\Http\RedirectResponse
+    function to_route(string $route, mixed $parameters = [], int $status = 302, array $headers = []): RedirectResponse
     {
         return redirect()->route($route, $parameters, $status, $headers);
     }
