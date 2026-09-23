@@ -966,7 +966,7 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
      * Clone the current request.
      */
     #[Override]
-    public function __clone()
+    public function __clone(): void
     {
         parent::__clone();
 

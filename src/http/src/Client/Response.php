@@ -249,7 +249,7 @@ class Response implements ArrayAccess, Stringable
      *
      * @throws InvalidArgumentException
      */
-    public function resource()
+    public function resource(): mixed
     {
         return StreamWrapper::getResource($this->response->getBody());
     }
@@ -539,10 +539,8 @@ class Response implements ArrayAccess, Stringable
 
     /**
      * Dump the content from the response and end the script.
-     *
-     * @return never
      */
-    public function dd(?string $key = null): void
+    public function dd(?string $key = null): never
     {
         $this->dump($key);
 
@@ -561,10 +559,8 @@ class Response implements ArrayAccess, Stringable
 
     /**
      * Dump the headers from the response and end the script.
-     *
-     * @return never
      */
-    public function ddHeaders()
+    public function ddHeaders(): never
     {
         $this->dumpHeaders();
 
@@ -626,23 +622,16 @@ class Response implements ArrayAccess, Stringable
 
     /**
      * Get the body of the response.
-     *
-     * @return string
      */
-    public function __toString()
+    public function __toString(): string
     {
         return $this->body();
     }
 
     /**
      * Dynamically proxy other methods to the underlying response.
-     *
-     * @param string $method
-     * @param array $parameters
-     *
-     * @return mixed
      */
-    public function __call($method, $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return static::hasMacro($method)
             ? $this->macroCall($method, $parameters)
