@@ -144,6 +144,8 @@ class LocationServiceTest extends TestCase
 
 When a test boots the application, its reusable traits may mark setup and cleanup methods with the `Hypervel\Foundation\Testing\Attributes\SetUp` and `Hypervel\Foundation\Testing\Attributes\TearDown` attributes. Hypervel runs these methods after creating the application and before destroying it, respectively. The conventional `setUp{TraitName}` and `tearDown{TraitName}` method names are also supported.
 
+These hooks run outside the test method's coroutine; use `setUp{TraitName}InCoroutine` or `tearDown{TraitName}InCoroutine` when a trait needs to share the test's [coroutine context](#running-tests-in-coroutines).
+
 <a name="running-tests-in-coroutines"></a>
 ### Running Tests in Coroutines
 
