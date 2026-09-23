@@ -30,7 +30,7 @@ assertType('Hypervel\Support\LazyCollection<int, bool>', LazyCollection::times(3
 assertType('Hypervel\Support\Collection<int, mixed>', $collection->flatten());
 assertType('Hypervel\Support\LazyCollection<int, mixed>', $lazy->flatten());
 assertType(
-    "Hypervel\\Support\\Collection<'even'|'odd', Hypervel\\Support\\Collection<int, 1|2|3>>",
+    'Hypervel\Support\Collection<string, Hypervel\Support\Collection<int, 1|2|3>>',
     $collection->groupBy(static fn (int $value): array => [$value % 2 === 0 ? 'even' : 'odd'])
 );
 

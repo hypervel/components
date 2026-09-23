@@ -122,7 +122,9 @@ function generateArray(): iterable
     yield 1;
 }
 
+/* @phpstan-ignore staticMethod.alreadyNarrowedType */
 assertType('true', Arr::arrayable([]));
+/* @phpstan-ignore staticMethod.alreadyNarrowedType */
 assertType('true', Arr::arrayable(new class implements Arrayable {
     /**
      * Get the instance as an array.
@@ -132,6 +134,7 @@ assertType('true', Arr::arrayable(new class implements Arrayable {
         return [];
     }
 }));
+/* @phpstan-ignore staticMethod.alreadyNarrowedType */
 assertType('true', Arr::arrayable(new class implements Jsonable {
     /**
      * Convert the object to its JSON representation.
@@ -141,7 +144,9 @@ assertType('true', Arr::arrayable(new class implements Jsonable {
         return '{"foo":"bar"}';
     }
 }));
+/* @phpstan-ignore staticMethod.alreadyNarrowedType */
 assertType('true', Arr::arrayable(generateArray()));
+/* @phpstan-ignore staticMethod.alreadyNarrowedType */
 assertType('true', Arr::arrayable(new class implements JsonSerializable {
     /**
      * Return data for JSON serialization.
@@ -152,7 +157,9 @@ assertType('true', Arr::arrayable(new class implements JsonSerializable {
         return '{"foo":"bar"}';
     }
 }));
+/* @phpstan-ignore staticMethod.alreadyNarrowedType */
 assertType('true', Arr::arrayable(new ArrayObject));
+/* @phpstan-ignore staticMethod.impossibleType */
 assertType('false', Arr::arrayable(1));
 
 assertType('array<int, array<1|2|3>>', Arr::crossJoin([1], [2], ['a' => 3]));
