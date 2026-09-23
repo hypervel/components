@@ -454,7 +454,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertCount(2, $post->tags()->findMany(new Collection([$tag->id, $tag2->id])));
     }
 
-    public function testFindSoleMethod()
+    public function testFindSoleMethod(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -472,7 +472,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         try {
             $post->tags()->findSole($tag);
             $this->fail('Expected RecordsNotFoundException was not thrown.');
-        } catch (RecordsNotFoundException $e) {
+        } catch (RecordsNotFoundException) {
             $this->assertTrue(true);
         }
     }

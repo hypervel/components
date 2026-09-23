@@ -284,22 +284,26 @@ class ConnectionFactory
 
     /**
      * Create a new Closure that resolves to a PDO instance with a specific host or an array of hosts.
+     *
+     * @throws PDOException
      */
     protected function createPdoResolverWithHosts(array $config): Closure
     {
         return function () use ($config) {
+            $exception = null;
+
             foreach (Arr::shuffle($this->parseHosts($config)) as $host) {
                 $config['host'] = $host;
 
                 try {
                     return $this->createConnector($config)->connect($config);
                 } catch (PDOException $e) {
-                    continue;
+                    $exception = $e;
                 }
             }
 
-            if (isset($e)) {
-                throw $e;
+            if ($exception !== null) {
+                throw $exception;
             }
         };
     }
