@@ -13,8 +13,8 @@ class CommandFinished
      * Create a new event instance.
      *
      * @param string $command the command name
-     * @param \Symfony\Component\Console\Input\InputInterface $input the console input implementation
-     * @param \Symfony\Component\Console\Output\OutputInterface $output the command output implementation
+     * @param InputInterface $input the console input implementation
+     * @param OutputInterface $output the command output implementation
      * @param int $exitCode the command exit code
      */
     public function __construct(

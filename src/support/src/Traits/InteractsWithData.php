@@ -7,6 +7,7 @@ namespace Hypervel\Support\Traits;
 use BackedEnum;
 use Carbon\CarbonInterface;
 use Carbon\CarbonInterval;
+use Carbon\Exceptions\InvalidFormatException;
 use Carbon\Unit;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -299,7 +300,7 @@ trait InteractsWithData
     /**
      * Retrieve data from the instance as a Carbon instance.
      *
-     * @throws \Carbon\Exceptions\InvalidFormatException
+     * @throws InvalidFormatException
      */
     public function date(string $key, ?string $format = null, UnitEnum|string|null $tz = null): ?CarbonInterface
     {

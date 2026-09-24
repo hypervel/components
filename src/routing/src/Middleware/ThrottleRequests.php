@@ -62,8 +62,8 @@ class ThrottleRequests
     /**
      * Handle an incoming request.
      *
-     * @throws \Hypervel\Http\Exceptions\ThrottleRequestsException
-     * @throws \Hypervel\Routing\Exceptions\MissingRateLimiterException
+     * @throws ThrottleRequestsException
+     * @throws MissingRateLimiterException
      */
     public function handle(Request $request, Closure $next, int|string $maxAttempts = 60, float|int|string $decayMinutes = 1, string $prefix = ''): Response
     {
@@ -90,7 +90,7 @@ class ThrottleRequests
     /**
      * Handle an incoming request using a named limiter.
      *
-     * @throws \Hypervel\Http\Exceptions\ThrottleRequestsException
+     * @throws ThrottleRequestsException
      */
     protected function handleRequestUsingNamedLimiter(Request $request, Closure $next, string $limiterName, Closure $limiter): Response
     {
@@ -117,7 +117,7 @@ class ThrottleRequests
      *
      * @param array<AdmissionPolicy> $limits
      *
-     * @throws \Hypervel\Http\Exceptions\ThrottleRequestsException
+     * @throws ThrottleRequestsException
      */
     protected function handleRequest(
         Request $request,
@@ -198,7 +198,7 @@ class ThrottleRequests
     /**
      * Resolve the number of attempts if the user is authenticated or not.
      *
-     * @throws \Hypervel\Routing\Exceptions\MissingRateLimiterException
+     * @throws MissingRateLimiterException
      */
     protected function resolveMaxAttempts(Request $request, int|string $maxAttempts): int
     {

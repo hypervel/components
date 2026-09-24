@@ -9,7 +9,7 @@ use Hypervel\Support\Traits\ForwardsCalls;
 use Symfony\Component\Mailer\SentMessage as SymfonySentMessage;
 
 /**
- * @mixin \Symfony\Component\Mailer\SentMessage
+ * @mixin SymfonySentMessage
  */
 class SentMessage
 {

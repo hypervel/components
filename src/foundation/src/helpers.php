@@ -7,6 +7,8 @@ use Faker\Factory as FakerFactory;
 use Faker\Generator as FakerGenerator;
 use Hypervel\Broadcasting\FakePendingBroadcast;
 use Hypervel\Broadcasting\PendingBroadcast;
+use Hypervel\Cache\CacheManager;
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
@@ -31,6 +33,7 @@ use Hypervel\Foundation\Bus\PendingClosureDispatch;
 use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
 use Hypervel\Http\Response as HypervelResponse;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Log\LogManager;
@@ -295,11 +298,11 @@ if (! function_exists('cache')) {
      *
      * @param null|array<string, mixed>|string $key key|data
      * @param mixed $default default|expiration|null
-     * @return ($key is null ? \Hypervel\Cache\CacheManager : ($key is string ? mixed : bool))
+     * @return ($key is null ? CacheManager : ($key is string ? mixed : bool))
      *
      * @throws InvalidArgumentException
      */
-    function cache($key = null, $default = null)
+    function cache(mixed $key = null, mixed $default = null): mixed
     {
         $manager = Container::getInstance()->make('cache');
 
@@ -317,7 +320,7 @@ if (! function_exists('cache')) {
             );
         }
 
-        return $manager->put(key($key), reset($key), $default);
+        return $manager->put(key($key), array_first($key), ttl: $default);
     }
 }
 
@@ -328,7 +331,7 @@ if (! function_exists('config')) {
      * If an array is passed as the key, we will assume you want to set an array of values.
      *
      * @param null|array<string, mixed>|string $key
-     * @return ($key is null ? \Hypervel\Config\Repository : ($key is string ? mixed : null))
+     * @return ($key is null ? ConfigRepository : ($key is string ? mixed : null))
      */
     function config(mixed $key = null, mixed $default = null): mixed
     {
@@ -415,7 +418,7 @@ if (! function_exists('csrf_token')) {
     /**
      * Get the CSRF token value.
      *
-     * @throws \RuntimeException
+     * @throws RuntimeException
      */
     function csrf_token(): ?string
     {
@@ -528,16 +531,18 @@ if (! function_exists('fake') && class_exists(FakerFactory::class)) {
 
 if (! function_exists('info')) {
     /**
-     * @throws TypeError
+     * Write some information to the log.
+     *
+     * @param bool $callerLocation Whether to add the calling file and line to the context as "caller_location"
      */
-    function info(Arrayable|Jsonable|\Stringable|array|string $message, array $context = [], bool $callerLocation = false)
+    function info(Arrayable|Jsonable|Stringable|array|string $message, array $context = [], bool $callerLocation = false): void
     {
         if ($callerLocation) {
-            $traces = debug_backtrace();
+            $traces = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1);
             $context['caller_location'] = sprintf('%s:%s', $traces[0]['file'], $traces[0]['line']);
         }
 
-        return logger()->info($message, $context); // @phpstan-ignore method.void
+        logger()->info($message, $context);
     }
 }
 
@@ -563,7 +568,7 @@ if (! function_exists('logger')) {
      *
      * @return ($message is null ? LoggerInterface : null)
      */
-    function logger(Arrayable|Jsonable|\Stringable|array|string|null $message = null, array $context = []): ?LoggerInterface
+    function logger(Arrayable|Jsonable|Stringable|array|string|null $message = null, array $context = []): ?LoggerInterface
     {
         $logger = app(LoggerInterface::class);
         if (is_null($message)) {
@@ -734,7 +739,7 @@ if (! function_exists('request')) {
      *
      * @param null|list<string>|string $key
      *
-     * @return ($key is null ? \Hypervel\Http\Request : ($key is string ? mixed : array<string, mixed>))
+     * @return ($key is null ? Request : ($key is string ? mixed : array<string, mixed>))
      */
     function request(array|string|null $key = null, mixed $default = null): mixed
     {
@@ -760,8 +765,8 @@ if (! function_exists('rescue')) {
      * @template TFallback
      *
      * @param callable(): TValue $callback
-     * @param (callable(\Throwable): TFallback)|TFallback $rescue
-     * @param bool|callable(\Throwable): bool $report
+     * @param (callable(Throwable): TFallback)|TFallback $rescue
+     * @param bool|callable(Throwable): bool $report
      * @return TFallback|TValue
      */
     function rescue(callable $callback, $rescue = null, $report = true)
@@ -985,7 +990,7 @@ if (! function_exists('uri')) {
     /**
      * Generate a URI for the application.
      */
-    function uri(UriInterface|\Stringable|array|string $uri, mixed $parameters = [], bool $absolute = true): Uri
+    function uri(UriInterface|Stringable|array|string $uri, mixed $parameters = [], bool $absolute = true): Uri
     {
         if (! is_array($uri)) {
             $uri = (string) $uri;

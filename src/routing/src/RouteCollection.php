@@ -7,6 +7,8 @@ namespace Hypervel\Routing;
 use Hypervel\Container\Container;
 use Hypervel\Http\Request;
 use LogicException;
+use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\RouteCollection as SymfonyRouteCollection;
 
 class RouteCollection extends AbstractRouteCollection
@@ -188,8 +190,8 @@ class RouteCollection extends AbstractRouteCollection
     /**
      * Find the first route matching a given request.
      *
-     * @throws \Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException
-     * @throws \Symfony\Component\HttpKernel\Exception\NotFoundHttpException
+     * @throws MethodNotAllowedHttpException
+     * @throws NotFoundHttpException
      */
     public function match(Request $request): Route
     {

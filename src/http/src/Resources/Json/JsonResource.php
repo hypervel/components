@@ -148,7 +148,7 @@ class JsonResource implements ArrayAccess, JsonSerializable, Responsable, UrlRou
     /**
      * Convert the resource to JSON.
      *
-     * @throws \Hypervel\Database\Eloquent\JsonEncodingException
+     * @throws JsonEncodingException
      */
     public function toJson(int $options = 0): string
     {
@@ -164,7 +164,7 @@ class JsonResource implements ArrayAccess, JsonSerializable, Responsable, UrlRou
     /**
      * Convert the resource to pretty print formatted JSON.
      *
-     * @throws \Hypervel\Database\Eloquent\JsonEncodingException
+     * @throws JsonEncodingException
      */
     public function toPrettyJson(int $options = 0): string
     {

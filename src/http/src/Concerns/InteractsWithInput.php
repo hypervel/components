@@ -11,6 +11,7 @@ use Hypervel\Support\Fluent;
 use Hypervel\Support\Traits\Dumpable;
 use Hypervel\Support\Traits\InteractsWithData;
 use SplFileInfo;
+use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
 use Symfony\Component\HttpFoundation\InputBag;
 
 trait InteractsWithInput
@@ -159,7 +160,7 @@ trait InteractsWithInput
     /**
      * Convert the given array of Symfony UploadedFiles to custom Hypervel UploadedFiles.
      *
-     * @param array<string, \Symfony\Component\HttpFoundation\File\UploadedFile|\Symfony\Component\HttpFoundation\File\UploadedFile[]> $files
+     * @param array<string, SymfonyUploadedFile|SymfonyUploadedFile[]> $files
      * @return array<string, UploadedFile|UploadedFile[]>
      */
     protected function convertUploadedFiles(array $files): array

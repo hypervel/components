@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Console\Scheduling;
 
 /**
- * @mixin \Hypervel\Console\Scheduling\Schedule
+ * @mixin Schedule
  */
 class PendingEventAttributes
 {

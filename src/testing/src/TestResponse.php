@@ -14,6 +14,7 @@ use Hypervel\Cookie\CookieValuePrefix;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
+use Hypervel\Http\Response;
 use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
@@ -33,14 +34,15 @@ use JsonException;
 use LogicException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Cookie;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
 /**
- * @template TResponse of \Symfony\Component\HttpFoundation\Response
+ * @template TResponse of SymfonyResponse
  *
  * @mixin TResponse
- * @mixin \Hypervel\Http\Response
+ * @mixin Response
  */
 class TestResponse implements ArrayAccess
 {

@@ -36,6 +36,7 @@ use Hypervel\Queue\Events\WorkerQueueResumed;
 use Hypervel\Queue\Events\WorkerResuming;
 use Hypervel\Queue\Events\WorkerStarting;
 use Hypervel\Queue\Events\WorkerStopping;
+use Hypervel\Queue\QueueManager as ConcreteQueueManager;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
@@ -758,7 +759,7 @@ class Worker
             return [];
         }
 
-        /** @var \Hypervel\Queue\QueueManager $manager */
+        /** @var ConcreteQueueManager $manager */
         $manager = $this->manager;
 
         return $manager->getPausedQueues($connectionName, $queues);

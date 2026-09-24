@@ -71,7 +71,7 @@ class RouteUrlGenerator
     /**
      * Generate a URL for the given route.
      *
-     * @throws \Hypervel\Routing\Exceptions\UrlGenerationException
+     * @throws UrlGenerationException
      */
     public function to(Route $route, mixed $parameters = [], bool $absolute = false): string
     {

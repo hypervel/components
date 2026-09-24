@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\GeneratorCommand;
+use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'make:rule')]
@@ -31,7 +32,7 @@ class RuleMakeCommand extends GeneratorCommand
     /**
      * Build the class with the given name.
      *
-     * @throws \Hypervel\Contracts\Filesystem\FileNotFoundException
+     * @throws FileNotFoundException
      */
     protected function buildClass(string $name): string
     {

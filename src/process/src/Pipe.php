@@ -10,8 +10,8 @@ use Hypervel\Support\Collection;
 use InvalidArgumentException;
 
 /**
- * @mixin \Hypervel\Process\Factory
- * @mixin \Hypervel\Process\PendingProcess
+ * @mixin Factory
+ * @mixin PendingProcess
  */
 class Pipe
 {

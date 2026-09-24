@@ -132,7 +132,6 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
         // Must use the canonical binding key. rebinding() resolves aliases when
         // storing callbacks, but instance() doesn't when firing them. Using the
         // canonical key avoids the mismatch.
-        /** @var \Hypervel\Container\Container $container */
         $container->rebinding(Dispatcher::class, function ($app, $dispatcher) {
             foreach (static::$connections as $connection) {
                 if ($connection instanceof Connection && $dispatcher instanceof Dispatcher) {

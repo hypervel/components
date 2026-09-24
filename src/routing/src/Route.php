@@ -21,6 +21,7 @@ use Hypervel\Routing\Matching\MethodValidator;
 use Hypervel\Routing\Matching\PortValidator;
 use Hypervel\Routing\Matching\SchemeValidator;
 use Hypervel\Routing\Matching\UriValidator;
+use Hypervel\Routing\Matching\ValidatorInterface;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -37,6 +38,7 @@ use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionException;
 use Stringable;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\CompiledRoute;
 use Symfony\Component\Routing\Route as SymfonyRoute;
 use UnexpectedValueException;
@@ -223,7 +225,7 @@ class Route
     /**
      * The validators used by the routes.
      *
-     * @var null|array<int, \Hypervel\Routing\Matching\ValidatorInterface>
+     * @var null|array<int, ValidatorInterface>
      */
     public static ?array $validators = null;
 
@@ -318,7 +320,7 @@ class Route
     /**
      * Run the controller route action and return the response.
      *
-     * @throws \Symfony\Component\HttpKernel\Exception\NotFoundHttpException
+     * @throws NotFoundHttpException
      */
     protected function runController(): mixed
     {
@@ -1500,7 +1502,7 @@ class Route
     /**
      * Get the route validators for the instance.
      *
-     * @return array<int, \Hypervel\Routing\Matching\ValidatorInterface>
+     * @return array<int, ValidatorInterface>
      */
     public static function getValidators(): array
     {

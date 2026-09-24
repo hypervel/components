@@ -53,7 +53,7 @@ class ResendTransport extends AbstractTransport
     /**
      * Send the given message.
      *
-     * @throws \Symfony\Component\Mailer\Exception\TransportException
+     * @throws TransportException
      * @throws Throwable
      */
     protected function doSend(SentMessage $message): void

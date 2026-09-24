@@ -7,6 +7,7 @@ namespace Hypervel\Cache;
 use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Factory as FactoryContract;
+use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Container\Container;
@@ -27,9 +28,9 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Cache\Repository
- * @mixin \Hypervel\Contracts\Cache\LockProvider
- * @mixin \Hypervel\Cache\TaggableStore
+ * @mixin Repository
+ * @mixin LockProvider
+ * @mixin TaggableStore
  */
 class CacheManager implements FactoryContract
 {

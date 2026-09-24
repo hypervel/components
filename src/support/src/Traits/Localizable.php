@@ -6,6 +6,7 @@ namespace Hypervel\Support\Traits;
 
 use Closure;
 use Hypervel\Container\Container;
+use Hypervel\Foundation\Application;
 
 trait Localizable
 {
@@ -23,7 +24,7 @@ trait Localizable
             return $callback();
         }
 
-        /** @var \Hypervel\Foundation\Application $app */
+        /** @var Application $app */
         $app = Container::getInstance();
 
         $original = $app->getLocale();

@@ -208,7 +208,7 @@ class FoundationHelpersTest extends TestCase
         $this->assertInstanceOf(CacheManager::class, cache());
 
         // cache(['foo' => 'bar'], 1) puts
-        $cache->expects('put')->with('foo', 'bar', 1);
+        $cache->expects('put')->withArgs(['foo', 'bar', 'ttl' => 1]);
         cache(['foo' => 'bar'], 1);
 
         // cache('foo') gets
@@ -243,6 +243,32 @@ class FoundationHelpersTest extends TestCase
         RequestContext::set($request);
 
         $this->assertSame(3, old('quantity'));
+    }
+
+    public function testInfoWritesToTheLogger(): void
+    {
+        $logger = m::mock(LoggerInterface::class);
+        $logger->expects('info')->with('User login attempt failed.', ['id' => 1]);
+        $this->app->instance(LoggerInterface::class, $logger);
+
+        info('User login attempt failed.', ['id' => 1]);
+    }
+
+    public function testInfoAddsTheCallerLocationToTheContext(): void
+    {
+        $loggedContext = null;
+        $logger = m::mock(LoggerInterface::class);
+        $logger->expects('info')->withArgs(function (string $message, array $context) use (&$loggedContext): bool {
+            $loggedContext = $context;
+
+            return $message === 'Cache warmed.';
+        });
+        $this->app->instance(LoggerInterface::class, $logger);
+
+        info('Cache warmed.', ['id' => 1], callerLocation: true);
+        $line = __LINE__ - 1;
+
+        $this->assertSame(['id' => 1, 'caller_location' => __FILE__ . ':' . $line], $loggedContext);
     }
 
     public function testLogsResolvesAChannelNamedZero(): void

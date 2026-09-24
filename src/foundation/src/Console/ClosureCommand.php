@@ -13,7 +13,7 @@ use Hypervel\Support\Traits\ForwardsCalls;
 use ReflectionFunction;
 
 /**
- * @mixin \Hypervel\Console\Scheduling\Event
+ * @mixin Event
  */
 class ClosureCommand extends Command
 {

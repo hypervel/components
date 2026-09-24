@@ -6,6 +6,8 @@ namespace Hypervel\Routing;
 
 use Countable;
 use Hypervel\Http\Request;
+use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 interface RouteCollectionInterface extends Countable
 {
@@ -31,8 +33,8 @@ interface RouteCollectionInterface extends Countable
     /**
      * Find the first route matching a given request.
      *
-     * @throws \Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException
-     * @throws \Symfony\Component\HttpKernel\Exception\NotFoundHttpException
+     * @throws MethodNotAllowedHttpException
+     * @throws NotFoundHttpException
      */
     public function match(Request $request): Route;
 

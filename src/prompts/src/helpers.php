@@ -6,6 +6,7 @@ namespace Hypervel\Prompts;
 
 use Closure;
 use Hypervel\Prompts\Elements\ElementContract;
+use Hypervel\Prompts\Support\Logger;
 use Hypervel\Support\Collection;
 
 if (! function_exists('\Hypervel\Prompts\text')) {
@@ -349,7 +350,7 @@ if (! function_exists('\Hypervel\Prompts\task')) {
      *
      * @template TReturn of mixed
      *
-     * @param Closure(Support\Logger): TReturn $callback
+     * @param Closure(Logger): TReturn $callback
      * @return TReturn
      */
     function task(string $label, Closure $callback, ?int $limit = null, bool $keepSummary = false, ?string $subLabel = null): mixed

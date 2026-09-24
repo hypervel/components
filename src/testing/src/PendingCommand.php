@@ -19,6 +19,9 @@ use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\Tappable;
 use Mockery;
 use Mockery\Exception\NoMatchingExpectationException;
+use Mockery\Expectation;
+use Mockery\LegacyMockInterface;
+use Mockery\MockInterface;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -448,14 +451,13 @@ class PendingCommand
      */
     protected function mockConsoleOutput()
     {
-        /* @var \Mockery\ExpectationInterface&\Mockery\MockeryInterface $mock */
         $mock = Mockery::mock(OutputStyle::class . '[askQuestion]', [
             new ArrayInput($this->parameters),
             $this->createABufferedOutputMock(),
         ]);
 
         foreach ($this->test->expectedQuestions as $i => $question) {
-            /** @var \Mockery\Expectation $expectation */
+            /** @var Expectation $expectation */
             $expectation = $mock->shouldReceive('askQuestion');
             $expectation->once()
                 ->ordered()
@@ -483,7 +485,7 @@ class PendingCommand
     /**
      * Create a mock for the buffered output.
      *
-     * @return \Mockery\LegacyMockInterface|\Mockery\MockInterface
+     * @return LegacyMockInterface|MockInterface
      */
     private function createABufferedOutputMock()
     {
@@ -492,7 +494,7 @@ class PendingCommand
             ->shouldIgnoreMissing();
 
         if ($this->test->expectsOutput === false) {
-            /** @var \Mockery\Expectation $expectation */
+            /** @var Expectation $expectation */
             $expectation = $mock->shouldReceive('doWrite');
             $expectation->never();
 
@@ -503,13 +505,13 @@ class PendingCommand
             && count($this->test->expectedOutput) === 0
             && count($this->test->expectedOutputSubstrings) === 0
         ) {
-            /** @var \Mockery\Expectation $expectation */
+            /** @var Expectation $expectation */
             $expectation = $mock->shouldReceive('doWrite');
             $expectation->atLeast()->once();
         }
 
         foreach ($this->test->expectedOutput as $i => $output) {
-            /** @var \Mockery\Expectation $expectation */
+            /** @var Expectation $expectation */
             $expectation = $mock->shouldReceive('doWrite');
             $expectation->once()
                 ->ordered()
@@ -520,7 +522,7 @@ class PendingCommand
         }
 
         foreach ($this->test->expectedOutputSubstrings as $i => $text) {
-            /** @var \Mockery\Expectation $expectation */
+            /** @var Expectation $expectation */
             $expectation = $mock->shouldReceive('doWrite');
             $expectation->atLeast()
                 ->times(0)
@@ -534,7 +536,7 @@ class PendingCommand
         foreach ($this->test->unexpectedOutput as $output => $displayed) {
             $output = (string) $output;
 
-            /** @var \Mockery\Expectation $expectation */
+            /** @var Expectation $expectation */
             $expectation = $mock->shouldReceive('doWrite');
             $expectation->atLeast()
                 ->times(0)
@@ -548,7 +550,7 @@ class PendingCommand
         foreach ($this->test->unexpectedOutputSubstrings as $text => $displayed) {
             $text = (string) $text;
 
-            /** @var \Mockery\Expectation $expectation */
+            /** @var Expectation $expectation */
             $expectation = $mock->shouldReceive('doWrite');
             $expectation->atLeast()
                 ->times(0)

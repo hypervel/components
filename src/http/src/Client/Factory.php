@@ -30,7 +30,7 @@ use PHPUnit\Framework\Assert as PHPUnit;
 use Psr\Http\Message\StreamInterface;
 
 /**
- * @mixin \Hypervel\Http\Client\PendingRequest
+ * @mixin PendingRequest
  */
 class Factory
 {
