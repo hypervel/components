@@ -526,6 +526,10 @@ class ArtisanCommandTest extends TestCase
         m::close();
     }
 
+    /**
+     * Don't allow Mockery's InvalidCountException to be reported. Mocks setup
+     * in PendingCommand cause PHPUnit tearDown() to later throw the exception.
+     */
     protected function ignoringMockOnceExceptions(callable $callback): void
     {
         try {
