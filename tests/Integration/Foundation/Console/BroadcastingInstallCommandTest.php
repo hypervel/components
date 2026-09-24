@@ -238,6 +238,22 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertStringContainsString("channels: __DIR__ . '/../routes/channels.php',", $bootstrapContent);
     }
 
+    public function testReportsManualRegistrationWhenBootstrapHasNoRouting(): void
+    {
+        Process::fake();
+
+        $this->createdFiles[] = $this->app->basePath('routes/channels.php');
+
+        $bootstrapPath = $this->app->bootstrapPath('app.php');
+        file_put_contents($bootstrapPath, $this->skeletonBootstrapFixtureWithoutRouting());
+
+        $this->artisan('install:broadcasting', ['--reverb' => true, '--without-reverb' => true, '--without-node' => true])
+            ->expectsOutputToContain('Unable to register broadcast routes.')
+            ->assertSuccessful();
+
+        $this->assertSame($this->skeletonBootstrapFixtureWithoutRouting(), file_get_contents($bootstrapPath));
+    }
+
     public function testWritesBroadcastConnectionEnv(): void
     {
         Process::fake();
@@ -887,6 +903,26 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         //
     })
+    ->withExceptions(function (Exceptions $exceptions): void {
+        //
+    })->create();
+PHP;
+    }
+
+    /**
+     * Get a bootstrap fixture that does not register routing.
+     */
+    private function skeletonBootstrapFixtureWithoutRouting(): string
+    {
+        return <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+use Hypervel\Foundation\Application;
+use Hypervel\Foundation\Configuration\Exceptions;
+
+return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions): void {
         //
     })->create();
