@@ -40,15 +40,7 @@ class EncryptCookiesTest extends TestCase
 
         $this->router = new Router(new Dispatcher, $this->container);
 
-        EncryptCookiesTestMiddleware::flushState();
         EncryptCookiesTestMiddleware::except(['globally_unencrypted_cookie']);
-    }
-
-    protected function tearDown(): void
-    {
-        EncryptCookiesTestMiddleware::flushState();
-
-        parent::tearDown();
     }
 
     public function testSetCookieEncryption()

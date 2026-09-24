@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Http\Middleware;
+namespace Hypervel\Tests\Integration\Http\Middleware;
 
 use Hypervel\Encryption\Encrypter;
 use Hypervel\Http\Request;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Http\Fixtures\PreventRequestForgeryExceptStub;
+use Hypervel\Tests\Integration\Http\Fixtures\PreventRequestForgeryExceptStub;
 
 class PreventRequestForgeryExceptTest extends TestCase
 {
