@@ -21,7 +21,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Redis\RedisProxy
+ * @mixin RedisProxy
  */
 class RedisManager implements FactoryContract, ConnectionContract
 {

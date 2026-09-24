@@ -25,10 +25,9 @@ class SupportStringableTest extends TestCase
     protected Container $container;
 
     /**
-     * @param string $string
-     * @return \Hypervel\Support\Stringable
+     * Create a new stringable instance.
      */
-    protected function stringable($string = '')
+    protected function stringable(mixed $string = ''): Stringable
     {
         return new Stringable($string);
     }

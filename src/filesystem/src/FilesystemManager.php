@@ -41,12 +41,12 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @method \Hypervel\Contracts\Filesystem\Filesystem|mixed when(null|\Closure|mixed $value = null, null|callable $callback = null, null|callable $default = null)
- * @method \Hypervel\Contracts\Filesystem\Filesystem|mixed unless(null|\Closure|mixed $value = null, null|callable $callback = null, null|callable $default = null)
+ * @method Filesystem|mixed when(null|Closure|mixed $value = null, null|callable $callback = null, null|callable $default = null)
+ * @method Filesystem|mixed unless(null|Closure|mixed $value = null, null|callable $callback = null, null|callable $default = null)
  *
- * @mixin \Hypervel\Contracts\Filesystem\Filesystem
- * @mixin \Hypervel\Filesystem\FilesystemAdapter
- * @mixin \Hypervel\Filesystem\ClientPooledFilesystem
+ * @mixin Filesystem
+ * @mixin FilesystemAdapter
+ * @mixin ClientPooledFilesystem
  */
 class FilesystemManager implements FactoryContract
 {

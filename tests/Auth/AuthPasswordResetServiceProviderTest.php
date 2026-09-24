@@ -11,6 +11,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Mockery\MockInterface;
 
 class AuthPasswordResetServiceProviderTest extends TestCase
 {
@@ -39,7 +40,7 @@ class AuthPasswordResetServiceProviderTest extends TestCase
     /**
      * Register the provider and return its event-rebind callback.
      *
-     * @return array{Application&m\MockInterface, Closure}
+     * @return array{Application&MockInterface, Closure}
      */
     private function registerProvider(): array
     {

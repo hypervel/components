@@ -27,7 +27,7 @@ use Throwable;
 /**
  * Provides full-text search capabilities to Eloquent models.
  *
- * @mixin \Hypervel\Database\Eloquent\Model
+ * @mixin Model
  */
 trait Searchable
 {

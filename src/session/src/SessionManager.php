@@ -18,7 +18,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Session\Store
+ * @mixin Store
  */
 class SessionManager extends Manager
 {

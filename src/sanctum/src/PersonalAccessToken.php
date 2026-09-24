@@ -9,6 +9,7 @@ use Hypervel\Cache\ModelCacheCoordinator;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Sanctum\Contracts\HasAbilities;
@@ -22,10 +23,10 @@ use function Hypervel\Support\now;
  * @property array $abilities
  * @property string $token
  * @property string $name
- * @property \Hypervel\Database\Eloquent\Model $tokenable
+ * @property Model $tokenable
  * @property ?CarbonInterface $last_used_at
  * @property ?CarbonInterface $expires_at
- * @method static \Hypervel\Database\Eloquent\Builder where(string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and')
+ * @method static Builder where(string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and')
  * @method static static|null find(mixed $id, array $columns = ['*'])
  */
 class PersonalAccessToken extends Model implements HasAbilities

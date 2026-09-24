@@ -9,6 +9,7 @@ use DateTimeInterface;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
 use Hypervel\Contracts\Cache\LockProvider;
+use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Http\Request;
@@ -70,7 +71,7 @@ class StartSession
         $lockFor = $request->route()->locksFor()
             ?: $this->manager->defaultRouteBlockLockSeconds();
 
-        /** @var \Hypervel\Contracts\Cache\Repository&LockProvider $store */
+        /** @var LockProvider&Repository $store */
         $store = $this->cache->store($this->manager->blockDriver());
         $lock = $store
             ->lock('session:' . $session->getId(), (int) $lockFor)

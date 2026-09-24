@@ -78,7 +78,7 @@ class Encrypter implements EncrypterContract, StringEncrypter
     /**
      * Encrypt the given value.
      *
-     * @throws \Hypervel\Contracts\Encryption\EncryptException
+     * @throws EncryptException
      */
     public function encrypt(#[SensitiveParameter] mixed $value, bool $serialize = true): string
     {
@@ -116,7 +116,7 @@ class Encrypter implements EncrypterContract, StringEncrypter
     /**
      * Encrypt a string without serialization.
      *
-     * @throws \Hypervel\Contracts\Encryption\EncryptException
+     * @throws EncryptException
      */
     public function encryptString(#[SensitiveParameter] string $value): string
     {
@@ -126,7 +126,7 @@ class Encrypter implements EncrypterContract, StringEncrypter
     /**
      * Decrypt the given value.
      *
-     * @throws \Hypervel\Contracts\Encryption\DecryptException
+     * @throws DecryptException
      */
     public function decrypt(string $payload, bool $unserialize = true): mixed
     {
@@ -193,7 +193,7 @@ class Encrypter implements EncrypterContract, StringEncrypter
     /**
      * Decrypt the given string without unserialization.
      *
-     * @throws \Hypervel\Contracts\Encryption\DecryptException
+     * @throws DecryptException
      */
     public function decryptString(string $payload): string
     {
@@ -211,7 +211,7 @@ class Encrypter implements EncrypterContract, StringEncrypter
     /**
      * Get the JSON array from the given payload.
      *
-     * @throws \Hypervel\Contracts\Encryption\DecryptException
+     * @throws DecryptException
      */
     protected function getJsonPayload(string $payload): array
     {

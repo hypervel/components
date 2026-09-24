@@ -8,6 +8,7 @@ use Ably\AblyRest;
 use Closure;
 use GuzzleHttp\Client as GuzzleClient;
 use Hypervel\Broadcasting\Broadcasters\AblyBroadcaster;
+use Hypervel\Broadcasting\Broadcasters\Broadcaster as BaseBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\LogBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\NullBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\PusherBroadcaster;
@@ -48,7 +49,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Broadcasting\Broadcasters\Broadcaster
+ * @mixin BaseBroadcaster
  */
 class BroadcastManager implements BroadcastingFactoryContract
 {

@@ -6,6 +6,7 @@ namespace Hypervel\Permission\Contracts;
 
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Permission\Exceptions\PermissionDoesNotExist;
+use Hypervel\Permission\Models\Permission as PermissionModel;
 use UnitEnum;
 
 /**
@@ -13,9 +14,9 @@ use UnitEnum;
  * @property string $name
  * @property null|string $guard_name
  *
- * @mixin \Hypervel\Permission\Models\Permission
+ * @mixin PermissionModel
  *
- * @phpstan-require-extends \Hypervel\Permission\Models\Permission
+ * @phpstan-require-extends PermissionModel
  */
 interface Permission
 {

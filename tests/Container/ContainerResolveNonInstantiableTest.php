@@ -66,7 +66,7 @@ class ParentClass
 class VariadicParentClass
 {
     /**
-     * @var \Hypervel\Tests\Container\ChildClass
+     * @var ChildClass
      */
     public $child;
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
+use Faker\Generator;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Query\Grammars\SQLiteGrammar;
@@ -254,7 +255,7 @@ class InteractsWithDatabaseTest extends TestCase
         // Trigger faker initialization by calling make()
         $factory->make();
 
-        /** @var \Faker\Generator $faker */
+        /** @var Generator $faker */
         $faker = $fakerProperty->getValue($factory);
         $providerClasses = array_map(fn ($provider) => get_class($provider), $faker->getProviders());
 

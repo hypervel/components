@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 
@@ -12,8 +13,8 @@ if (! function_exists('collect')) {
      * @template TKey of array-key
      * @template TValue
      *
-     * @param null|\Hypervel\Contracts\Support\Arrayable<TKey, TValue>|iterable<TKey, TValue> $value
-     * @return \Hypervel\Support\Collection<TKey, TValue>
+     * @param null|Arrayable<TKey, TValue>|iterable<TKey, TValue> $value
+     * @return Collection<TKey, TValue>
      */
     function collect($value = []): Collection
     {
@@ -258,7 +259,7 @@ if (! function_exists('value')) {
      * @template TValue
      * @template TArgs
      *
-     * @param (\Closure(TArgs): TValue)|TValue $value
+     * @param (Closure(TArgs): TValue)|TValue $value
      * @param TArgs ...$args
      * @return TValue
      */
@@ -278,9 +279,9 @@ if (! function_exists('when')) {
      * @template TDefaultArgs
      *
      * @param mixed $condition
-     * @param (\Closure(TArgs): TValue)|TValue $value
-     * @param (\Closure(TDefaultArgs): TDefault)|TDefault $default
-     * @return ($condition is \Closure ? TDefault|TValue : ($condition is empty ? TDefault : TValue))
+     * @param (Closure(TArgs): TValue)|TValue $value
+     * @param (Closure(TDefaultArgs): TDefault)|TDefault $default
+     * @return ($condition is Closure ? TDefault|TValue : ($condition is empty ? TDefault : TValue))
      */
     function when($condition, $value, $default = null)
     {

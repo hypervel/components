@@ -8,6 +8,7 @@ use Hypervel\Sentry\SentryServiceProvider;
 use Hypervel\Sentry\Tracing\ViewEngineDecorator;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use Hypervel\View\Engines\EngineResolver;
+use Hypervel\View\Factory;
 use ReflectionProperty;
 use Sentry\Tracing\Transaction;
 
@@ -57,7 +58,7 @@ class ViewEngineDecoratorTest extends SentryTestCase
         file_put_contents($viewDir . '/hello.blade.php', 'Hello');
 
         try {
-            /** @var \Hypervel\View\Factory $viewFactory */
+            /** @var Factory $viewFactory */
             $viewFactory = $this->app->make('view');
             $viewFactory->addNamespace('sentrytest', $viewDir);
 
@@ -83,7 +84,7 @@ class ViewEngineDecoratorTest extends SentryTestCase
         file_put_contents($viewDir . '/second.blade.php', 'Second');
 
         try {
-            /** @var \Hypervel\View\Factory $viewFactory */
+            /** @var Factory $viewFactory */
             $viewFactory = $this->app->make('view');
             $viewFactory->addNamespace('sentryrace', $viewDir);
 

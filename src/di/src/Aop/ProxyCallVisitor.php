@@ -33,6 +33,7 @@ use PhpParser\Node\Scalar\MagicConst\Line as MagicConstLine;
 use PhpParser\Node\Scalar\MagicConst\Method as MagicConstMethod;
 use PhpParser\Node\Scalar\MagicConst\Trait_ as MagicConstTrait;
 use PhpParser\Node\Scalar\String_;
+use PhpParser\Node\Stmt;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\ClassLike;
 use PhpParser\Node\Stmt\ClassMethod;
@@ -775,7 +776,7 @@ class ProxyCallVisitor extends NodeVisitorAbstract
     /**
      * Find every named class-like and its namespace.
      *
-     * @return array<int, array{class: string, namespace: string, node: ClassLike, statements: array<int, Node\Stmt>}>
+     * @return array<int, array{class: string, namespace: string, node: ClassLike, statements: array<int, Stmt>}>
      */
     private function findNamedClassLikes(array $nodes): array
     {
@@ -809,7 +810,7 @@ class ProxyCallVisitor extends NodeVisitorAbstract
     /**
      * Collect function import aliases for the target namespace.
      *
-     * @param array<int, Node\Stmt> $statements
+     * @param array<int, Stmt> $statements
      * @return array<string, string>
      */
     private function collectFunctionImports(array $statements): array

@@ -7,11 +7,12 @@ namespace Hypervel\Tests\Socialite\Fixtures;
 use GuzzleHttp\Client;
 use Hypervel\Socialite\Two\FacebookProvider;
 use Mockery as m;
+use Mockery\MockInterface;
 
 class FacebookTestProviderStub extends FacebookProvider
 {
     /**
-     * @var \GuzzleHttp\Client|\Mockery\MockInterface
+     * @var Client|MockInterface
      */
     public $http;
 

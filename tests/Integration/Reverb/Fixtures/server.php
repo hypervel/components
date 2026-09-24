@@ -28,6 +28,7 @@ use Hypervel\Reverb\Servers\Hypervel\ReverbRouter;
 use Hypervel\Reverb\Webhooks\Jobs\WebhookDeliveryJob;
 use Hypervel\Server\ServerFactory;
 use Hypervel\Support\Facades\Queue;
+use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Foundation\Application as TestbenchApplication;
 use Hypervel\Tests\Integration\Reverb\Fixtures\ParallelTestApplicationProvider;
@@ -214,7 +215,7 @@ $app = TestbenchApplication::create(
             });
 
             $app->make(ReverbRouter::class)->get('/_test/queued-jobs', function () {
-                /** @var \Hypervel\Support\Testing\Fakes\QueueFake $fake */
+                /** @var QueueFake $fake */
                 $fake = Queue::getFacadeRoot();
 
                 $jobs = $fake->pushed(WebhookDeliveryJob::class)->map(function (WebhookDeliveryJob $job) {

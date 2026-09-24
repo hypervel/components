@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Cache\Redis;
 
+use Hypervel\Cache\RedisStore;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Testbench\TestCase;
@@ -154,7 +155,7 @@ class PhpRedisCacheLockTest extends TestCase
      */
     protected function assertLockCanBeAcquiredAndReleased(): void
     {
-        /** @var \Hypervel\Cache\RedisStore $store */
+        /** @var RedisStore $store */
         $store = Cache::store('redis');
 
         $store->lock('foo')->forceRelease();

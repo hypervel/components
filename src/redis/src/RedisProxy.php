@@ -34,7 +34,7 @@ use Throwable;
  * the same connection within a coroutine.
  *
  * @method bool|Redis discard()
- * @mixin \Hypervel\Redis\RedisConnection
+ * @mixin RedisConnection
  */
 class RedisProxy implements ConnectionContract
 {

@@ -73,7 +73,7 @@ class EncryptionServiceProvider extends ServiceProvider
     /**
      * Extract the encryption key from the given configuration.
      *
-     * @throws \Hypervel\Encryption\MissingAppKeyException
+     * @throws MissingAppKeyException
      */
     protected function key(#[SensitiveParameter] array $config): string
     {
