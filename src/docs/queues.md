@@ -2990,6 +2990,10 @@ After resuming a queue, workers will begin processing new jobs from that queue i
 
 Queue workers report paused and resumed queues in their console output.
 
+Pausing or resuming a queue dispatches the `Hypervel\Queue\Events\QueuePaused` or `Hypervel\Queue\Events\QueueResumed` event in the process that made the change. Their `connection` and `queue` properties identify the queue, and the `QueuePaused` event's `ttl` property is `null` unless the queue was paused for a limited time. Pausing or resuming every queue with the `--all` option dispatches the `QueuesPaused` or `QueuesResumed` event instead. Running workers dispatch the `WorkerQueuePaused` and `WorkerQueueResumed` events, with `connectionName` and `queue` properties, when they detect that one of their queues has been paused or resumed.
+
+A worker process may also be paused as a whole by sending it the `SIGUSR2` signal and resumed with `SIGCONT`. The worker dispatches the `WorkerPausing` and `WorkerResuming` events when it receives these signals. Both events provide the worker's `connectionName`, `queue`, and `workerOptions`.
+
 <a name="worker-restart-and-pause-signals"></a>
 #### Worker Restart and Pause Signals
 
