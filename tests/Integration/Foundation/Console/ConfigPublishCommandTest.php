@@ -138,10 +138,13 @@ class ConfigPublishCommandTest extends \Hypervel\Testbench\TestCase
             file_get_contents($destination)
         );
 
-        $published = require $destination;
+        // The stub must stay the framework app config without its provider and alias lists.
+        $framework = require $this->baseConfigPath . "/{$name}.php";
 
-        $this->assertArrayNotHasKey('providers', $published);
-        $this->assertArrayNotHasKey('aliases', $published);
+        $this->assertSame(
+            array_diff_key($framework, array_flip(['providers', 'aliases'])),
+            require $destination
+        );
     }
 
     public function testItFailsWithUnrecognizedConfigFile(): void

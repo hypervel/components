@@ -362,8 +362,8 @@ class EloquentUpdateTest extends DatabaseTestCase
 
         $this->assertEquals(11, $post->views);
         $this->assertEquals(7, $post->likes);
-        $this->assertArrayHasKey('views', $post->getChanges());
-        $this->assertArrayHasKey('likes', $post->getChanges());
+        $this->assertSame(['views' => 11, 'likes' => 7], $post->getChanges());
+        $this->assertSame(['views' => 10, 'likes' => 5], $post->getPrevious());
     }
 }
 
