@@ -51,6 +51,7 @@ class LazilyRefreshDatabaseTest extends TestCase
             '--drop-types' => false,
             '--seed' => false,
         ])->andReturn(0);
+        $kernel->expects('setArtisan')->with(null);
 
         $database = $this->app->make('db');
 
@@ -86,6 +87,7 @@ class LazilyRefreshDatabaseTest extends TestCase
             '--drop-types' => false,
             '--seed' => false,
         ])->andReturn(0);
+        $kernel->expects('setArtisan')->with(null);
 
         $this->app->make('db')->connection('testing2')->select('select 1');
 
@@ -103,6 +105,7 @@ class LazilyRefreshDatabaseTest extends TestCase
             '--drop-types' => false,
             '--seed' => false,
         ])->andReturn(0);
+        $kernel->expects('setArtisan')->with(null);
 
         $this->app->make('config')->set('database.connections.optout', [
             'driver' => 'sqlite',
@@ -145,6 +148,7 @@ class LazilyRefreshDatabaseTest extends TestCase
             '--drop-types' => false,
             '--seed' => false,
         ])->andReturn(0);
+        $kernel->expects('setArtisan')->with(null);
 
         $this->tearDownLazilyRefreshDatabaseInCoroutine();
 
