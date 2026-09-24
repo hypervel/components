@@ -57,6 +57,33 @@ class SupportMessageBagTest extends TestCase
         $this->assertEquals(['foo' => ['bar', 'baz'], 'bar' => ['foo']], $container->getMessages());
     }
 
+    public function testMergingKeyedMessagesAppendsCollidingKeys(): void
+    {
+        $container = new MessageBag(['email' => ['unique' => 'Taken']]);
+        $container->merge(new MessageBag(['email' => ['unique' => 'Reserved', 'max' => 'Too long']]));
+
+        $this->assertSame(['email' => ['unique' => 'Taken', 0 => 'Reserved', 'max' => 'Too long']], $container->getMessages());
+        $this->assertSame(['email: Taken', 'email: Reserved', 'email: Too long'], $container->all(':key: :message'));
+    }
+
+    public function testMergingPreservesIntegerFieldKeys(): void
+    {
+        $container = new MessageBag([0 => ['First']]);
+        $container->merge([0 => ['Second']]);
+
+        $this->assertSame([0 => ['First', 'Second']], $container->getMessages());
+        $this->assertSame(['0: First', '0: Second'], $container->all(':key: :message'));
+    }
+
+    public function testMergingAStringMessageCreatesAMessageList(): void
+    {
+        $container = new MessageBag(['email' => ['Taken']]);
+        $container->merge(['name' => 'Required']);
+
+        $this->assertSame(['email' => ['Taken'], 'name' => ['Required']], $container->getMessages());
+        $this->assertSame(['email: Taken', 'name: Required'], $container->all(':key: :message'));
+    }
+
     public function testMessageBagsCanConvertToArrays()
     {
         $container = new MessageBag([
@@ -209,6 +236,17 @@ class SupportMessageBagTest extends TestCase
         $container->add('foo', 'bar');
         $container->add('boom', 'baz');
         $this->assertEquals(['bar', 'baz'], $container->all());
+    }
+
+    public function testAllReturnsKeyedMessagesFromEveryField(): void
+    {
+        $container = new MessageBag([
+            'email' => ['unique' => 'Taken'],
+            'username' => ['unique' => 'Reserved'],
+        ]);
+
+        $this->assertSame(['Taken', 'Reserved'], $container->all());
+        $this->assertSame(['email: Taken', 'username: Reserved'], $container->all(':key: :message'));
     }
 
     public function testFormatIsRespected()
