@@ -56,7 +56,7 @@ class RateLimiter extends MultipleInstanceManager
     }
 
     /**
-     * Register a named limiter configuration.
+     * Register a named rate limiter configuration.
      *
      * Boot-only. The callback and store selection persist on the singleton
      * manager for the worker lifetime and affect every subsequent request.

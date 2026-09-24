@@ -38,13 +38,12 @@ class JsonApiResourceTest extends TestCase
         JsonApiResource::withoutWrapping();
     }
 
-    public function testFlushStateRestoresDefaultRelationshipDepth(): void
+    public function testFlushStateResetsMaxRelationshipDepthToDefault(): void
     {
         $this->assertSame(5, JsonApiResource::$maxRelationshipDepth);
 
-        JsonApiResource::maxRelationshipDepth(2);
-
-        $this->assertSame(2, JsonApiResource::$maxRelationshipDepth);
+        JsonApiResource::maxRelationshipDepth(10);
+        $this->assertSame(10, JsonApiResource::$maxRelationshipDepth);
 
         JsonApiResource::flushState();
 

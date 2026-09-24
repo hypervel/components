@@ -34,7 +34,6 @@ use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 use Hypervel\Queue\Attributes\FailOnTimeout;
 use Hypervel\Queue\Attributes\MaxExceptions;
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
-use Hypervel\Queue\Attributes\ReadsQueueAttributes;
 use Hypervel\Queue\Attributes\Timeout;
 use Hypervel\Queue\Attributes\Tries;
 use Hypervel\Queue\Attributes\UniqueFor;
@@ -43,6 +42,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
+use Hypervel\Support\Traits\ReadsClassAttributes;
 use Hypervel\Support\Traits\ReflectsClosures;
 use LogicException;
 use ReflectionClass;
@@ -56,7 +56,7 @@ use function Hypervel\Support\enum_value;
 class Dispatcher implements DispatcherContract
 {
     use Macroable;
-    use ReadsQueueAttributes;
+    use ReadsClassAttributes;
     use ReflectsClosures;
     use ResolvesQueueRoutes;
 

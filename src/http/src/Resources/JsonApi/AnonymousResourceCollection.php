@@ -8,11 +8,12 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
+use Hypervel\Http\Resources\Json\AnonymousResourceCollection as BaseAnonymousResourceCollection;
 use Hypervel\Support\Arr;
 use JsonSerializable;
 use Override;
 
-class AnonymousResourceCollection extends \Hypervel\Http\Resources\Json\AnonymousResourceCollection
+class AnonymousResourceCollection extends BaseAnonymousResourceCollection
 {
     use Concerns\ResolvesJsonApiRequest;
 

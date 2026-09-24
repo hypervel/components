@@ -669,6 +669,39 @@ class BusBatchTest extends TestCase
         $this->assertSame(CarbonImmutable::class, $batch->createdAt::class);
     }
 
+    public function testChainedJobsInBatchPreserveTheirQueueWhenBatchHasNoQueue(): void
+    {
+        $queue = m::mock(Factory::class);
+
+        $repository = new DatabaseBatchRepository(
+            new BatchFactory($queue),
+            $this->app->make('db'),
+            'job_batches'
+        );
+
+        $pendingBatch = (new PendingBatch($this->app, collect()))
+            ->onConnection('test-connection');
+
+        $batch = $repository->store($pendingBatch);
+
+        $firstJob = (new ChainHeadJob)->onQueue('custom-queue');
+        $secondJob = (new SecondTestJob)->onQueue('custom-queue');
+
+        $connection = m::mock(QueueContract::class);
+        $queue->expects('connection')
+            ->with('test-connection')
+            ->andReturn($connection);
+
+        $connection->expects('bulk')->with(m::type('array'), '', null);
+
+        $batch->add([
+            [$firstJob, $secondJob],
+        ]);
+
+        $this->assertSame('custom-queue', $secondJob->queue);
+        $this->assertSame('custom-queue', $firstJob->queue);
+    }
+
     public function testChainedJobsPreserveTheirRoutesWhenTheBatchHasNone(): void
     {
         $queue = m::mock(Factory::class);

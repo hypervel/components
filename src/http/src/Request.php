@@ -1185,6 +1185,8 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
 
     /**
      * Get the Symfony session decorator for the request.
+     *
+     * @throws SessionNotFoundException
      */
     #[Override]
     public function getSession(): SessionInterface

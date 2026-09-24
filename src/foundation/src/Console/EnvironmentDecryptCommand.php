@@ -59,7 +59,7 @@ class EnvironmentDecryptCommand extends Command
         $key = $this->parseKey($key);
 
         $encryptedFile = ($this->option('env')
-            ? Str::finish(dirname($this->hypervel->environmentFilePath()), DIRECTORY_SEPARATOR) . '.env.' . $this->option('env')
+            ? Str::finish($this->hypervel->environmentPath(), DIRECTORY_SEPARATOR) . '.env.' . $this->option('env')
             : $this->hypervel->environmentFilePath()) . '.encrypted';
 
         $outputFile = $this->outputFilePath();
@@ -161,7 +161,7 @@ class EnvironmentDecryptCommand extends Command
      */
     protected function outputFilePath(): string
     {
-        $path = Str::finish($this->option('path') ?: dirname($this->hypervel->environmentFilePath()), DIRECTORY_SEPARATOR);
+        $path = Str::finish($this->option('path') ?: $this->hypervel->environmentPath(), DIRECTORY_SEPARATOR);
 
         $outputFile = $this->option('filename') ?: ('.env' . ($this->option('env') ? '.' . $this->option('env') : ''));
         $outputFile = ltrim($outputFile, DIRECTORY_SEPARATOR);
