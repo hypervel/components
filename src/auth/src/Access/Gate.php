@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth\Access;
 
+use ArrayObject;
 use Closure;
 use Exception;
 use Hypervel\Auth\Access\Events\GateEvaluated;
@@ -52,18 +53,18 @@ class Gate implements GateContract
     protected $guessPolicyNamesUsingCallback;
 
     /**
-     * Cached model class to policy class mappings.
+     * The policy classes resolved for this gate's policy configuration.
      *
-     * Stores the resolved policy class string (or false for "no policy found")
-     * per model class. Persists for the worker lifetime — model-to-policy
-     * mappings don't change at runtime. The policy *instance* is not cached
-     * here; resolvePolicy() goes through the container each time.
+     * Stores the resolved policy class (or false for "no policy found") per
+     * model class. Gates created by forUser() share it; policy() and
+     * guessPolicyNamesUsing() replace it because they change how policies
+     * resolve. The policy *instance* is not cached here; resolvePolicy()
+     * goes through the container each time. Created on first use so that
+     * forUser() does not allocate a cache it immediately replaces.
      *
-     * Explicit policies ($this->policies) bypass this cache entirely.
-     *
-     * @var array<class-string, class-string|false>
+     * @var null|ArrayObject<string, class-string|false>
      */
-    protected static array $policyClassCache = [];
+    protected ?ArrayObject $policyClassCache = null;
 
     /**
      * Cached guest-access results for class methods.
@@ -268,6 +269,10 @@ class Gate implements GateContract
     public function policy(string $class, string $policy): static
     {
         $this->policies[$class] = $policy;
+
+        // Registrations change subclass and inherited-attribute resolution, so
+        // detach from the cache shared with gates keeping the previous policies.
+        $this->policyClassCache = null;
 
         return $this;
     }
@@ -601,17 +606,13 @@ class Gate implements GateContract
             $class = get_class($class);
         }
 
-        // Explicitly registered policies bypass the cache — they're a fast
-        // hash lookup, and the policies array can be modified at runtime.
+        // Explicitly registered policies are a fast hash lookup, so they bypass the cache.
         if (isset($this->policies[$class])) {
             return $this->resolvePolicy($this->policies[$class]);
         }
 
-        if (! array_key_exists($class, static::$policyClassCache)) {
-            static::$policyClassCache[$class] = $this->resolvePolicyClass($class);
-        }
-
-        $policyClass = static::$policyClassCache[$class];
+        $this->policyClassCache ??= new ArrayObject;
+        $policyClass = $this->policyClassCache[$class] ??= $this->resolvePolicyClass($class);
 
         return $policyClass !== false
             ? $this->resolvePolicy($policyClass)
@@ -621,9 +622,9 @@ class Gate implements GateContract
     /**
      * Resolve the policy class for the given model class.
      *
-     * Checks the UsePolicy attribute, convention-based guessing, and
-     * subclass fallback. Returns the policy class string or false if
-     * no policy is found.
+     * Checks the UsePolicy attribute, convention-based guessing, subclass
+     * fallback, and inherited UsePolicy attributes. Returns the policy class
+     * string or false if no policy is found.
      *
      * @return class-string|false
      */
@@ -647,7 +648,7 @@ class Gate implements GateContract
             }
         }
 
-        return false;
+        return $this->getPolicyFromAttribute($class, includeParents: true) ?? false;
     }
 
     /**
@@ -656,17 +657,23 @@ class Gate implements GateContract
      * @param class-string $class
      * @return null|class-string
      */
-    protected function getPolicyFromAttribute(string $class): ?string
+    protected function getPolicyFromAttribute(string $class, bool $includeParents = false): ?string
     {
         if (! class_exists($class)) {
             return null;
         }
 
-        $attributes = (new ReflectionClass($class))->getAttributes(UsePolicy::class);
+        $reflection = new ReflectionClass($class);
 
-        return $attributes !== []
-            ? $attributes[0]->newInstance()->class
-            : null;
+        do {
+            $attributes = $reflection->getAttributes(UsePolicy::class);
+
+            if ($attributes !== []) {
+                return $attributes[0]->newInstance()->class;
+            }
+        } while ($includeParents && $reflection = $reflection->getParentClass());
+
+        return null;
     }
 
     /**
@@ -705,8 +712,8 @@ class Gate implements GateContract
         $this->guessPolicyNamesUsingCallback = $callback;
 
         // A custom guess callback changes how unregistered policies are resolved,
-        // so any cached results from the default guesser may be stale.
-        static::$policyClassCache = [];
+        // so detach from the cache shared with gates keeping the previous guesser.
+        $this->policyClassCache = null;
 
         return $this;
     }
@@ -805,7 +812,7 @@ class Gate implements GateContract
      */
     public function forUser(mixed $user): static
     {
-        return new static(
+        $gate = new static(
             $this->container,
             fn () => $user,
             $this->abilities,
@@ -814,6 +821,11 @@ class Gate implements GateContract
             $this->afterCallbacks,
             $this->guessPolicyNamesUsingCallback,
         );
+
+        // The new gate has the same policy configuration, so it shares resolved policies.
+        $gate->policyClassCache = $this->policyClassCache ??= new ArrayObject;
+
+        return $gate;
     }
 
     /**
@@ -1124,7 +1136,6 @@ class Gate implements GateContract
      */
     public static function flushState(): void
     {
-        static::$policyClassCache = [];
         static::$guestMethodCache = [];
         static::$guestCallbackCache = null;
         static::$abilityMethodCache = [];
