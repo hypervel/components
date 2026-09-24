@@ -2989,23 +2989,6 @@ class HttpClientTest extends TestCase
         $this->assertSame(60, RequestException::$truncateAt);
     }
 
-    public function testAsyncRequestExceptionsRespectRequestTruncation(): void
-    {
-        RequestException::dontTruncate();
-
-        $this->factory->fake([
-            '*' => $this->factory::response(['error'], 403),
-        ]);
-
-        $exception = $this->factory->async()->throw()->truncateExceptionsAt(4)->get('http://foo.com/json')->wait();
-
-        $exception->report();
-
-        $this->assertInstanceOf(RequestException::class, $exception);
-        $this->assertSame("HTTP request returned status code 403:\n[\"er (truncated...)\n", $exception->getMessage());
-        $this->assertFalse(RequestException::$truncateAt);
-    }
-
     public function testRequestExceptionDoesNotTruncateButRequestDoes(): void
     {
         RequestException::dontTruncate();
@@ -3028,6 +3011,23 @@ class HttpClientTest extends TestCase
         $this->assertFalse(RequestException::$truncateAt);
     }
 
+    public function testAsyncRequestExceptionsRespectRequestTruncation(): void
+    {
+        RequestException::dontTruncate();
+
+        $this->factory->fake([
+            '*' => $this->factory::response(['error'], 403),
+        ]);
+
+        $exception = $this->factory->async()->throw()->truncateExceptionsAt(4)->get('http://foo.com/json')->wait();
+
+        $exception->report();
+
+        $this->assertInstanceOf(RequestException::class, $exception);
+        $this->assertSame("HTTP request returned status code 403:\n[\"er (truncated...)\n", $exception->getMessage());
+        $this->assertFalse(RequestException::$truncateAt);
+    }
+
     public function testRequestExceptionFlushStateRestoresDefaultTruncation(): void
     {
         RequestException::dontTruncate();
@@ -3037,6 +3037,16 @@ class HttpClientTest extends TestCase
         RequestException::flushState();
 
         $this->assertSame(RequestException::DEFAULT_TRUNCATE_AT, RequestException::$truncateAt);
+    }
+
+    public function testRequestExceptionEmptyBody(): void
+    {
+        $this->expectException(RequestException::class);
+        $this->expectExceptionMessageMatches('/HTTP request returned status code 403$/');
+
+        $response = new Psr7Response(403);
+
+        throw new RequestException(new Response($response));
     }
 
     public function testReportingExceptionTwiceDoesNotIncludeSummaryTwice(): void
@@ -3057,16 +3067,6 @@ class HttpClientTest extends TestCase
         $exception->report();
 
         $this->assertEquals(1, substr_count($exception->getMessage(), '{"error":{"code":403,"message":"The Request can not be completed"}}'));
-    }
-
-    public function testRequestExceptionEmptyBody(): void
-    {
-        $this->expectException(RequestException::class);
-        $this->expectExceptionMessageMatches('/HTTP request returned status code 403$/');
-
-        $response = new Psr7Response(403);
-
-        throw new RequestException(new Response($response));
     }
 
     #[TestWith([false])]
