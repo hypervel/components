@@ -63,7 +63,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
         $this->assertEquals([1], $query->getBindings());
     }
 
-    public function testGlobalScopeInParentClassAttributeIsApplied()
+    public function testGlobalScopeInParentClassAttributeIsApplied(): void
     {
         $model = new GlobalScopeInAttributeChildModel;
         $query = $model->newQuery();

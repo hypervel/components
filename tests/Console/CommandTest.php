@@ -588,9 +588,9 @@ class CommandTest extends TestCase
         $command->choice('Select all that apply.', ['option-1', 'option-2', 'option-3'], null, null, true);
     }
 
-    public function testSignatureAttributeCanSetAliases()
+    public function testSignatureAttributeCanSetAliases(): void
     {
-        $command = new CommandTestSignatureWithAliasesCommand;
+        $command = new SignatureWithAliasesCommand;
 
         $this->assertSame('foo:bar', $command->getName());
         $this->assertSame(['bar:baz', 'baz:qux'], $command->getAliases());
@@ -598,7 +598,7 @@ class CommandTest extends TestCase
 
     public function testAliasesAttributeCanSetAliases(): void
     {
-        $command = new CommandTestAliasesAttributeCommand;
+        $command = new AliasesAttributeCommand;
 
         $this->assertSame('foo:bar', $command->getName());
         $this->assertSame(['bar:baz', 'baz:qux'], $command->getAliases());
@@ -606,7 +606,7 @@ class CommandTest extends TestCase
 
     public function testAliasesAttributeOverridesSignatureAliases(): void
     {
-        $command = new CommandTestAliasesAttributeOverridesSignatureCommand;
+        $command = new AliasesAttributeOverridesSignatureCommand;
 
         $this->assertSame('foo:bar', $command->getName());
         $this->assertSame(['override:alias'], $command->getAliases());
@@ -614,21 +614,21 @@ class CommandTest extends TestCase
 
     public function testHiddenAttributeHidesCommand(): void
     {
-        $command = new CommandTestHiddenCommand;
+        $command = new HiddenCommand;
 
         $this->assertTrue($command->isHidden());
     }
 
     public function testHelpAttributeCanSetHelp(): void
     {
-        $command = new CommandTestHelpCommand;
+        $command = new HelpCommand;
 
         $this->assertSame('Extended help text.', $command->getHelp());
     }
 
     public function testUsageAttributeCanSetUsages(): void
     {
-        $command = new CommandTestUsageCommand;
+        $command = new UsageCommand;
 
         $this->assertSame(['foo:bar 1', 'foo:bar 1 --force'], $command->getUsages());
     }
@@ -661,26 +661,11 @@ class CommandTestStubCommand extends Command
 }
 
 #[Signature('foo:bar', aliases: ['bar:baz', 'baz:qux'])]
-class CommandTestSignatureWithAliasesCommand extends Command
+class SignatureWithAliasesCommand extends Command
 {
-    public function handle()
-    {
-    }
-}
-
-#[Signature('foo:bar')]
-#[Aliases(['bar:baz', 'baz:qux'])]
-class CommandTestAliasesAttributeCommand extends Command
-{
-    public function handle(): void
-    {
-    }
-}
-
-#[Signature('foo:bar', aliases: ['ignored:alias'])]
-#[Aliases(['override:alias'])]
-class CommandTestAliasesAttributeOverridesSignatureCommand extends Command
-{
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -688,8 +673,11 @@ class CommandTestAliasesAttributeOverridesSignatureCommand extends Command
 
 #[Signature('foo:bar')]
 #[Hidden]
-class CommandTestHiddenCommand extends Command
+class HiddenCommand extends Command
 {
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -697,8 +685,11 @@ class CommandTestHiddenCommand extends Command
 
 #[Signature('foo:bar')]
 #[Help('Extended help text.')]
-class CommandTestHelpCommand extends Command
+class HelpCommand extends Command
 {
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }
@@ -707,8 +698,35 @@ class CommandTestHelpCommand extends Command
 #[Signature('foo:bar {user}')]
 #[Usage('foo:bar 1')]
 #[Usage('foo:bar 1 --force')]
-class CommandTestUsageCommand extends Command
+class UsageCommand extends Command
 {
+    /**
+     * Execute the console command.
+     */
+    public function handle(): void
+    {
+    }
+}
+
+#[Signature('foo:bar')]
+#[Aliases(['bar:baz', 'baz:qux'])]
+class AliasesAttributeCommand extends Command
+{
+    /**
+     * Execute the console command.
+     */
+    public function handle(): void
+    {
+    }
+}
+
+#[Signature('foo:bar', aliases: ['ignored:alias'])]
+#[Aliases(['override:alias'])]
+class AliasesAttributeOverridesSignatureCommand extends Command
+{
+    /**
+     * Execute the console command.
+     */
     public function handle(): void
     {
     }

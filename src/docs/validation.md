@@ -2135,11 +2135,11 @@ use Hypervel\Support\Facades\Validator;
 use Hypervel\Validation\Rule;
 
 Validator::make($request->all(), [
-    'role_id' => Rule::excludeIf($request->user()->is_admin),
+    'role_id' => [Rule::excludeIf($request->user()->is_admin)],
 ]);
 
 Validator::make($request->all(), [
-    'role_id' => Rule::excludeIf(fn () => $request->user()->is_admin),
+    'role_id' => [Rule::excludeIf(fn () => $request->user()->is_admin)],
 ]);
 ```
 
@@ -2155,11 +2155,11 @@ use Hypervel\Support\Facades\Validator;
 use Hypervel\Validation\Rule;
 
 Validator::make($request->all(), [
-    'role_id' => Rule::excludeUnless($request->user()->is_admin),
+    'role_id' => [Rule::excludeUnless($request->user()->is_admin)],
 ]);
 
 Validator::make($request->all(), [
-    'role_id' => Rule::excludeUnless(fn () => $request->user()->is_admin),
+    'role_id' => [Rule::excludeUnless(fn () => $request->user()->is_admin)],
 ]);
 ```
 
@@ -2589,11 +2589,11 @@ use Hypervel\Support\Facades\Validator;
 use Hypervel\Validation\Rule;
 
 Validator::make($request->all(), [
-    'role_id' => Rule::prohibitedIf($request->user()->is_admin),
+    'role_id' => [Rule::prohibitedIf($request->user()->is_admin)],
 ]);
 
 Validator::make($request->all(), [
-    'role_id' => Rule::prohibitedIf(fn () => $request->user()->is_admin),
+    'role_id' => [Rule::prohibitedIf(fn () => $request->user()->is_admin)],
 ]);
 ```
 <a name="rule-prohibited-if-accepted"></a>
@@ -2627,11 +2627,11 @@ use Hypervel\Support\Facades\Validator;
 use Hypervel\Validation\Rule;
 
 Validator::make($request->all(), [
-    'role_id' => Rule::prohibitedUnless($request->user()->is_admin),
+    'role_id' => [Rule::prohibitedUnless($request->user()->is_admin)],
 ]);
 
 Validator::make($request->all(), [
-    'role_id' => Rule::prohibitedUnless(fn () => $request->user()->is_admin),
+    'role_id' => [Rule::prohibitedUnless(fn () => $request->user()->is_admin)],
 ]);
 ```
 
@@ -2685,11 +2685,11 @@ use Hypervel\Support\Facades\Validator;
 use Hypervel\Validation\Rule;
 
 Validator::make($request->all(), [
-    'role_id' => Rule::requiredIf($request->user()->is_admin),
+    'role_id' => [Rule::requiredIf($request->user()->is_admin)],
 ]);
 
 Validator::make($request->all(), [
-    'role_id' => Rule::requiredIf(fn () => $request->user()->is_admin),
+    'role_id' => [Rule::requiredIf(fn () => $request->user()->is_admin)],
 ]);
 ```
 
@@ -2715,11 +2715,11 @@ use Hypervel\Support\Facades\Validator;
 use Hypervel\Validation\Rule;
 
 Validator::make($request->all(), [
-    'role_id' => Rule::requiredUnless($request->user()->is_admin),
+    'role_id' => [Rule::requiredUnless($request->user()->is_admin)],
 ]);
 
 Validator::make($request->all(), [
-    'role_id' => Rule::requiredUnless(fn () => $request->user()->is_admin),
+    'role_id' => [Rule::requiredUnless(fn () => $request->user()->is_admin)],
 ]);
 ```
 
