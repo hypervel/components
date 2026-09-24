@@ -237,8 +237,8 @@ class Filesystem
                 throw new RuntimeException("Unable to write the complete replacement contents for [{$path}].");
             }
 
-            // Apply permissions after writing so a restrictive mode cannot block the write. Some
-            // filesystems, such as SMB mounts, do not support chmod.
+            // Apply permissions after writing so incomplete contents stay private and a restrictive
+            // mode cannot block the write. Some filesystems, such as SMB mounts, do not support chmod.
             @chmod($tempPath, $mode ?? 0666 & ~umask());
 
             if (! @rename($tempPath, $path)) {
