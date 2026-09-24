@@ -223,6 +223,8 @@ class Number
     /**
      * Convert the number to its human-readable equivalent.
      *
+     * @param array<int, string> $units
+     *
      * @phpstan-return non-empty-string|false
      */
     protected static function summarize(float|int $number, int $precision = 0, ?int $maxPrecision = null, array $units = []): false|string
