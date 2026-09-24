@@ -9,6 +9,7 @@ use Composer\Autoload\ClassLoader;
 use Hypervel\Filesystem\Filesystem;
 use JsonException;
 use RuntimeException;
+use Stringable;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Process\Process;
 
@@ -135,6 +136,8 @@ class Composer
 
     /**
      * Regenerate the Composer autoloader files.
+     *
+     * @param array<string>|string $extra
      */
     public function dumpAutoloads(string|array $extra = '', ?string $composerBinary = null): int
     {
@@ -155,6 +158,8 @@ class Composer
 
     /**
      * Get the Composer binary / command for the environment.
+     *
+     * @return array<string>
      */
     public function findComposer(?string $composerBinary = null): array
     {
@@ -210,6 +215,9 @@ class Composer
 
     /**
      * Get a new Symfony process instance.
+     *
+     * @param array<string> $command
+     * @param array<string, false|string|Stringable> $env
      */
     protected function getProcess(array $command, array $env = []): Process
     {

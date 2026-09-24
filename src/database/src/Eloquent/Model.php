@@ -367,6 +367,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Check if the model needs to be booted and if so, do it.
+     *
+     * @throws LogicException
+     * @throws RuntimeException
      */
     protected function bootIfNotBooted(): void
     {

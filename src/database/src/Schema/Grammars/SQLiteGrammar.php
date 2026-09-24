@@ -713,6 +713,8 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Compile a drop foreign key command.
+     *
+     * @throws RuntimeException
      */
     public function compileDropForeign(Blueprint $blueprint, Fluent $command): ?array
     {

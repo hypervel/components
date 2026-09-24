@@ -13,7 +13,7 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\Jwt\JwtManager forgetDrivers()
  * @method static \Hypervel\Contracts\Container\Container getContainer()
  * @method static string getDefaultDriver()
- * @method static array getDrivers()
+ * @method static array<array-key, mixed> getDrivers()
  * @method static bool hasBlacklistEnabled()
  * @method static bool invalidate(string $token, bool $forceForever = false)
  * @method static string refresh(string $token, bool $forceForever = false, bool $resetClaims = false, array $customClaims = [], int|false|null $ttl = false)

@@ -1262,6 +1262,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where in" clause to the query.
+     *
+     * @throws InvalidArgumentException
      */
     public function whereIn(ExpressionContract|string $column, mixed $values, string $boolean = 'and', bool $not = false): static
     {
@@ -3877,6 +3879,8 @@ class Builder implements BuilderContract
 
     /**
      * Update records in a PostgreSQL database using the update from syntax.
+     *
+     * @throws LogicException
      */
     public function updateFrom(array $values): int
     {
@@ -4292,6 +4296,8 @@ class Builder implements BuilderContract
 
     /**
      * Ensure the database connection supports vector queries.
+     *
+     * @throws RuntimeException
      */
     protected function ensureConnectionSupportsVectors(): void
     {

@@ -179,6 +179,8 @@ trait ConfiguresPrompts
      * @param bool|string $required
      * @param null|(Closure(PResult): mixed) $validate
      * @return PResult
+     *
+     * @throws PromptValidationException
      */
     protected function promptUntilValid($prompt, $required, $validate)
     {

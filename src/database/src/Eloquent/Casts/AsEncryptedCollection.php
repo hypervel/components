@@ -19,15 +19,23 @@ class AsEncryptedCollection implements Castable
      * Get the caster class to use when casting from / to this cast target.
      *
      * @return CastsAttributes<Collection<array-key, mixed>, iterable>
+     *
+     * @throws InvalidArgumentException
      */
     public static function castUsing(array $arguments): CastsAttributes
     {
         return new class($arguments) implements CastsAttributes {
+            /**
+             * Create a new encrypted collection cast instance.
+             */
             public function __construct(protected array $arguments)
             {
                 $this->arguments = array_pad(array_values($this->arguments), 2, '');
             }
 
+            /**
+             * Transform the attribute from the underlying model values.
+             */
             public function get(Model $model, string $key, mixed $value, array $attributes): ?Collection
             {
                 $collectionClass = empty($this->arguments[0]) ? Collection::class : $this->arguments[0];
@@ -61,6 +69,9 @@ class AsEncryptedCollection implements Castable
                     : $instance->mapInto($this->arguments[1][0]);
             }
 
+            /**
+             * Transform the attribute to its underlying model values.
+             */
             public function set(Model $model, string $key, mixed $value, array $attributes): ?array
             {
                 if (! is_null($value)) {

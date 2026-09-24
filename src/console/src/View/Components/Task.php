@@ -19,6 +19,8 @@ class Task extends Component
      * Render the component using the given arguments.
      *
      * @param null|(callable(): mixed) $task
+     *
+     * @throws Throwable
      */
     public function render(string $description, ?callable $task = null, int $verbosity = OutputInterface::VERBOSITY_NORMAL): void
     {

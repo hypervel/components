@@ -802,6 +802,8 @@ class RedisProxy implements ConnectionContract
 
     /**
      * Run a command against the Redis database.
+     *
+     * @throws Throwable
      */
     public function command(string $method, array $parameters = []): mixed
     {

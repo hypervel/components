@@ -62,6 +62,8 @@ abstract class Grammar extends BaseGrammar
 
     /**
      * Compile the query to determine the schemas.
+     *
+     * @throws RuntimeException
      */
     public function compileSchemas(): string
     {
@@ -245,6 +247,8 @@ abstract class Grammar extends BaseGrammar
 
     /**
      * Compile a drop foreign key command.
+     *
+     * @throws RuntimeException
      */
     public function compileDropForeign(Blueprint $blueprint, Fluent $command): array|string|null
     {

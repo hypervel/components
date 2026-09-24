@@ -326,6 +326,7 @@ class PendingProcess
      * Resolve the given fake handler for a synchronous process.
      *
      * @throws LogicException
+     * @throws Throwable
      */
     protected function resolveSynchronousFake(string $command, Closure $fake): ProcessResultContract
     {

@@ -47,6 +47,8 @@ trait MassPrunable
      * Get the prunable model query.
      *
      * @return Builder<static>
+     *
+     * @throws LogicException
      */
     public function prunable(): Builder
     {

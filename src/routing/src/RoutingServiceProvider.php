@@ -122,6 +122,8 @@ class RoutingServiceProvider extends ServiceProvider
 
     /**
      * Register a binding for the PSR-7 request implementation.
+     *
+     * @throws BindingResolutionException
      */
     protected function registerPsrRequest(): void
     {
@@ -145,6 +147,8 @@ class RoutingServiceProvider extends ServiceProvider
 
     /**
      * Register a binding for the PSR-7 response implementation.
+     *
+     * @throws BindingResolutionException
      */
     protected function registerPsrResponse(): void
     {

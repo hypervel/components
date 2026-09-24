@@ -1857,6 +1857,8 @@ trait ValidatesAttributes
      * Validate the value of an attribute is a multiple of a given value.
      *
      * @param array<int, int|string> $parameters
+     *
+     * @throws MathException
      */
     public function validateMultipleOf(string $attribute, mixed $value, mixed $parameters): bool
     {
@@ -1868,11 +1870,7 @@ trait ValidatesAttributes
     /**
      * Determine if a value is an exact multiple of a divisor.
      *
-     * Uses BigDecimal remainder for arbitrary-precision comparison. Both
-     * value and divisor must be numeric; the exception translation wrapping
-     * stays in the caller (validateMultipleOf) for non-numeric cases, but
-     * the BigDecimal exception is thrown from here since that's where the
-     * math operation lives.
+     * @throws MathException
      */
     protected function isMultipleOf(mixed $value, mixed $divisor): bool
     {

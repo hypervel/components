@@ -222,6 +222,8 @@ trait InteractsWithQueue
 
     /**
      * Ensure that queue interactions have been faked.
+     *
+     * @throws RuntimeException
      */
     private function ensureQueueInteractionsHaveBeenFaked(): void
     {

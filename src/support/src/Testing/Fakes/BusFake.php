@@ -369,6 +369,8 @@ class BusFake implements Fake, QueueingDispatcher
 
     /**
      * Assert if a job was dispatched with chained jobs based on a truth-test callback.
+     *
+     * @throws RuntimeException
      */
     protected function assertDispatchedWithChainOfObjects(string $command, array $expectedChain, ?callable $callback): void
     {

@@ -314,6 +314,8 @@ class Grammar extends BaseGrammar
 
     /**
      * Compile a "where like" clause.
+     *
+     * @throws RuntimeException
      */
     protected function whereLike(Builder $query, array $where): string
     {
@@ -695,6 +697,8 @@ class Grammar extends BaseGrammar
 
     /**
      * Compile a "where fulltext" clause.
+     *
+     * @throws RuntimeException
      */
     public function whereFullText(Builder $query, array $where): string
     {
