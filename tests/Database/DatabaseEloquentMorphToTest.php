@@ -626,6 +626,9 @@ class MorphToAssociateRelatedStub extends Model
 
 class AccessibleMorphTo extends MorphTo
 {
+    /**
+     * Match the eagerly loaded results to their parents for the given type.
+     */
     public function callMatchToMorphParents(int|string $type, EloquentCollection $results): void
     {
         $this->matchToMorphParents($type, $results);

@@ -21,6 +21,7 @@ use Hypervel\Database\Eloquent\Attributes\WithoutTimestamps;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 
 class DatabaseEloquentModelAttributesTest extends TestCase
@@ -584,6 +585,27 @@ class DatabaseEloquentModelAttributesTest extends TestCase
         }
     }
 
+    #[DataProvider('namedAttributeArguments')]
+    public function testVariadicAttributeAcceptsANamedArgument(string $model, string $getter, array $expected): void
+    {
+        $this->assertSame($expected, (new $model)->{$getter}());
+    }
+
+    /**
+     * Supply models whose attributes pass their list as a named argument.
+     */
+    public static function namedAttributeArguments(): array
+    {
+        return [
+            'fillable' => [ModelWithNamedFillableAttribute::class, 'getFillable', ['name', 'email']],
+            'guarded' => [ModelWithNamedGuardedAttribute::class, 'getGuarded', ['id', 'secret']],
+            'hidden' => [ModelWithNamedHiddenAttribute::class, 'getHidden', ['password', 'secret']],
+            'visible' => [ModelWithNamedVisibleAttribute::class, 'getVisible', ['id', 'name']],
+            'appends' => [ModelWithNamedAppendsAttribute::class, 'getAppends', ['full_name', 'is_admin']],
+            'touches' => [ModelWithNamedTouchesAttribute::class, 'getTouchedRelations', ['post', 'author']],
+        ];
+    }
+
     public function testClassAttributesAreInitializedWhenModelIsUnserialized(): void
     {
         $model = (new ReflectionClass(ModelWithTableAttribute::class))->newInstanceWithoutConstructor();
@@ -1034,6 +1056,9 @@ class PivotWithIncrementing extends Pivot
 
 trait AddsUrlAppend
 {
+    /**
+     * Append the URL attribute.
+     */
     protected function initializeAddsUrlAppend(): void
     {
         $this->mergeAppends(['url']);
@@ -1042,6 +1067,9 @@ trait AddsUrlAppend
 
 trait AddsApiTokenHidden
 {
+    /**
+     * Hide the API token attribute.
+     */
     protected function initializeAddsApiTokenHidden(): void
     {
         $this->mergeHidden(['api_token']);
@@ -1050,6 +1078,9 @@ trait AddsApiTokenHidden
 
 trait AddsEmailVisible
 {
+    /**
+     * Make the email attribute visible.
+     */
     protected function initializeAddsEmailVisible(): void
     {
         $this->mergeVisible(['email']);
@@ -1058,6 +1089,9 @@ trait AddsEmailVisible
 
 trait AddsPhoneFillable
 {
+    /**
+     * Make the phone attribute fillable.
+     */
     protected function initializeAddsPhoneFillable(): void
     {
         $this->mergeFillable(['phone']);
@@ -1090,6 +1124,36 @@ class ModelWithFillableAttributeAndTrait extends Model
 
 #[Fillable]
 class ModelWithEmptyFillableAttribute extends Model
+{
+}
+
+#[Fillable(columns: ['name', 'email'])]
+class ModelWithNamedFillableAttribute extends Model
+{
+}
+
+#[Guarded(columns: ['id', 'secret'])]
+class ModelWithNamedGuardedAttribute extends Model
+{
+}
+
+#[Hidden(columns: ['password', 'secret'])]
+class ModelWithNamedHiddenAttribute extends Model
+{
+}
+
+#[Visible(columns: ['id', 'name'])]
+class ModelWithNamedVisibleAttribute extends Model
+{
+}
+
+#[Appends(columns: ['full_name', 'is_admin'])]
+class ModelWithNamedAppendsAttribute extends Model
+{
+}
+
+#[Touches(relations: ['post', 'author'])]
+class ModelWithNamedTouchesAttribute extends Model
 {
 }
 

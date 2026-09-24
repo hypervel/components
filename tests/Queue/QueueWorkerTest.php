@@ -1633,8 +1633,11 @@ class QueueWorkerTest extends TestCase
 
         $this->assertSame(Worker::EXIT_SUCCESS, $status);
         $this->assertTrue($job->fired);
+        $this->assertTrue($worker->lostConnection);
         $this->events->shouldHaveReceived('dispatch')->with(m::on(
             static fn (object $event): bool => $event instanceof WorkerStopping
+                && $event->status === 0
+                && $event->workerOptions === $workerOptions
                 && $event->reason === WorkerStopReason::LostConnection
         ))->once();
     }
@@ -1656,6 +1659,7 @@ class QueueWorkerTest extends TestCase
 
         $this->assertSame(Worker::EXIT_SUCCESS, $status);
         $this->assertTrue($job->fired);
+        $this->assertFalse($worker->lostConnection);
         $this->events->shouldHaveReceived('dispatch')->with(m::on(
             static fn (object $event): bool => $event instanceof WorkerStopping
                 && $event->reason === WorkerStopReason::QueueEmpty
