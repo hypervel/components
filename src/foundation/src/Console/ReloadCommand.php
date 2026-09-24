@@ -7,6 +7,7 @@ namespace Hypervel\Foundation\Console;
 use Hypervel\Console\Command;
 use Hypervel\Support\Collection;
 use Hypervel\Support\ServiceProvider;
+use Hypervel\Support\Stringable;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'reload')]
@@ -29,7 +30,7 @@ class ReloadCommand extends Command
     {
         $this->components->info('Reloading services.');
 
-        $exceptions = Collection::wrap(explode(',', $this->option('except') ?? ''))
+        $exceptions = (new Stringable($this->option('except') ?? ''))->explode(',')
             ->map(fn ($except) => trim($except))
             ->filter()
             ->unique()

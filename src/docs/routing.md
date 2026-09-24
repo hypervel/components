@@ -108,7 +108,13 @@ Route::put($uri, $callback);
 Route::patch($uri, $callback);
 Route::delete($uri, $callback);
 Route::options($uri, $callback);
+Route::query($uri, $callback);
 ```
+
+The `query` method registers a route for HTTP `QUERY` requests. Like `GET`, a `QUERY` request only reads data, but it sends its query in the request body, which suits searches that are too large or complex to fit in a URL.
+
+> [!WARNING]
+> Swoole 6.2.2 rejects HTTP `QUERY` requests sent over HTTP/1.1 with a `400` response before they reach your application. Sending `QUERY` requests requires HTTP/2 on the connection to Hypervel, including the connection from any reverse proxy.
 
 Sometimes you may need to register a route that responds to multiple HTTP verbs. You may do so using the `match` method. Or, you may even register a route that responds to all HTTP verbs using the `any` method:
 
@@ -123,7 +129,7 @@ Route::any('/', function () {
 ```
 
 > [!NOTE]
-> When defining multiple routes that share the same URI, routes using the `get`, `post`, `put`, `patch`, `delete`, and `options` methods should be defined before routes using the `any`, `match`, and `redirect` methods. This ensures the incoming request is matched with the correct route.
+> When defining multiple routes that share the same URI, routes using the `get`, `post`, `put`, `patch`, `delete`, `options`, and `query` methods should be defined before routes using the `any`, `match`, and `redirect` methods. This ensures the incoming request is matched with the correct route.
 
 <a name="dependency-injection"></a>
 #### Dependency Injection

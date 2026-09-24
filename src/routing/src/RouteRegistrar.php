@@ -21,6 +21,7 @@ use UnitEnum;
  * @method Route patch(string $uri, callable|array|string|null $action = null)
  * @method Route post(string $uri, callable|array|string|null $action = null)
  * @method Route put(string $uri, callable|array|string|null $action = null)
+ * @method Route query(string $uri, callable|array|string|null $action = null)
  * @method $this as(string $value)
  * @method $this can(UnitEnum|string $ability, array|string $models = [])
  * @method $this controller(string $controller)
@@ -60,7 +61,7 @@ class RouteRegistrar
      * @var string[]
      */
     protected array $passthru = [
-        'get', 'post', 'put', 'patch', 'delete', 'options', 'any',
+        'get', 'post', 'put', 'patch', 'delete', 'options', 'query', 'any',
     ];
 
     /**

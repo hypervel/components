@@ -407,6 +407,7 @@ class UrlGenerator implements UrlGeneratorContract
         $url = $absolute ? $request->url() : '/' . $request->path();
 
         // REMOVED: Vapor's VAPOR_RAW_QUERY_STRING override; Swoole supplies the raw QUERY_STRING.
+        // Keep this explode() to avoid an extra Stringable allocation per call.
         $queryString = (new Collection(explode('&', (string) $request->server->get('QUERY_STRING'))))
             ->reject(function ($parameter) use ($ignoreQuery) {
                 $parameter = Str::before($parameter, '=');

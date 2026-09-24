@@ -61,6 +61,7 @@ abstract class Grammar
         if (str_contains($table, '.')) {
             $table = substr_replace($table, '.' . $prefix, strrpos($table, '.'), 1);
 
+            // Keep this explode() to avoid an extra Stringable allocation per call.
             return (new Collection(explode('.', $table)))
                 ->map($this->wrapValue(...))
                 ->implode('.');

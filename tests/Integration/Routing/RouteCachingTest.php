@@ -32,6 +32,17 @@ class RouteCachingTest extends RoutingTestCase
         $this->get('/foo/1')->assertRedirect('/foo/1/bar');
     }
 
+    public function testQueryRoutes(): void
+    {
+        $this->defineCacheRoutes(file_get_contents(__DIR__ . '/Fixtures/query_routes.php'));
+
+        $this->call('QUERY', '/search?term=hypervel', ['filter' => 'framework'])->assertExactJson([
+            'method' => 'QUERY',
+            'term' => 'hypervel',
+            'filter' => 'framework',
+        ]);
+    }
+
     public function testSetContainerInvalidatesControllerDispatcherCache()
     {
         $container1 = new Container;
