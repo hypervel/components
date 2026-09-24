@@ -25,7 +25,7 @@ Calling `refresh()` with an explicit non-positive TTL throws `InvalidArgumentExc
 
 Calling `refresh()` without arguments on a permanent native-expiry lock verifies ownership before returning. Database locks are not truly permanent because the database has no native TTL cleanup, so `refresh()` re-extends the driver's default safety timeout.
 
-`Cache::funnel()->acquire()` returns a caller-held concurrency lease that can be released explicitly after work spanning multiple operations. Laravel only exposes the callback-scoped funnel API.
+`Cache::funnel()->acquire()` returns a caller-held concurrency lease that can be released explicitly after work spanning multiple operations. Laravel only exposes the callback-scoped funnel API. The cache concurrency limiter's public `acquire()` returns that lease, so Laravel's protected `acquire($id)` and `release($lock)` hooks are not provided. Override `claimSlot()` to customize slot acquisition; the returned lease releases the slot.
 
 Cache funnel timeout failures throw `Hypervel\Contracts\Limiters\LimiterTimeoutException`, shared with Redis funnels and Redis throttles. Laravel uses separate cache and Redis limiter timeout exception classes.
 

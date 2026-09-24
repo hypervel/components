@@ -237,10 +237,9 @@ class Filesystem
                 throw new RuntimeException("Unable to write the complete replacement contents for [{$path}].");
             }
 
-            // Keep the temporary file private until its complete contents are written.
-            if (! @chmod($tempPath, $mode ?? 0666 & ~umask())) {
-                throw new RuntimeException("Unable to set permissions on the replacement file for [{$path}].");
-            }
+            // Apply permissions after writing so a restrictive mode cannot block the write. Some
+            // filesystems, such as SMB mounts, do not support chmod.
+            @chmod($tempPath, $mode ?? 0666 & ~umask());
 
             if (! @rename($tempPath, $path)) {
                 throw new RuntimeException("Unable to replace [{$path}] with temporary file [{$tempPath}].");
