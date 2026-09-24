@@ -20,6 +20,16 @@ class OptimizeCommandTest extends TestCase
         'bootstrap/cache/routes-v7.php',
     ];
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Testbench gives each ParaTest worker its own route cache path outside bootstrap/cache.
+        $this->beforeApplicationDestroyed(function () {
+            $this->app->make('files')->delete($this->app->getCachedRoutesPath());
+        });
+    }
+
     protected function getPackageProviders(ApplicationContract $app): array
     {
         return [ServiceProviderWithOptimize::class];
