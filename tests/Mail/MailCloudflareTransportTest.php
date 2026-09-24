@@ -28,7 +28,7 @@ class MailCloudflareTransportTest extends TestCase
     {
         $this->app->make('config')->set('services.cloudflare', [
             'account_id' => 'test-account-id',
-            'token' => 'test-token',
+            'key' => 'test-key',
         ]);
 
         $manager = new MailManager($this->app);
@@ -40,14 +40,14 @@ class MailCloudflareTransportTest extends TestCase
 
         $invoker = new ClassInvoker($transport);
         $this->assertSame('test-account-id', $invoker->accountId);
-        $this->assertSame('test-token', $invoker->key);
+        $this->assertSame('test-key', $invoker->key);
     }
 
     public function testGetTransportPrefersMailerConfiguration(): void
     {
         $this->app->make('config')->set('services.cloudflare', [
             'account_id' => 'service-account-id',
-            'token' => 'service-token',
+            'key' => 'service-key',
         ]);
 
         $manager = new MailManager($this->app);
@@ -55,39 +55,12 @@ class MailCloudflareTransportTest extends TestCase
         $transport = $manager->createSymfonyTransport([
             'transport' => 'cloudflare',
             'account_id' => 'mailer-account-id',
-            'token' => 'mailer-token',
+            'key' => 'mailer-key',
         ]);
 
         $invoker = new ClassInvoker($transport);
         $this->assertSame('mailer-account-id', $invoker->accountId);
-        $this->assertSame('mailer-token', $invoker->key);
-    }
-
-    public function testGetTransportAcceptsKeyFallback(): void
-    {
-        $manager = new MailManager($this->app);
-
-        $transport = $manager->createSymfonyTransport([
-            'transport' => 'cloudflare',
-            'account_id' => 'test-account-id',
-            'key' => 'test-key',
-        ]);
-
-        $this->assertSame('test-key', (new ClassInvoker($transport))->key);
-    }
-
-    public function testGetTransportAcceptsServiceKeyFallback(): void
-    {
-        $this->app->make('config')->set('services.cloudflare', [
-            'account_id' => 'test-account-id',
-            'key' => 'service-key',
-        ]);
-
-        $manager = new MailManager($this->app);
-
-        $transport = $manager->createSymfonyTransport(['transport' => 'cloudflare']);
-
-        $this->assertSame('service-key', (new ClassInvoker($transport))->key);
+        $this->assertSame('mailer-key', $invoker->key);
     }
 
     public function testSend(): void

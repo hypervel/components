@@ -271,6 +271,8 @@ class Middleware
         return $this;
     }
 
+    // Laravel's Folio page middleware methods, pages() and getPageMiddleware(), are omitted.
+
     /**
      * Register additional middleware aliases.
      */

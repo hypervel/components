@@ -316,19 +316,15 @@ class MailManager implements FactoryContract
                 'transport' => $transport,
                 'account_id' => $config['account_id']
                     ?? $this->config->get('services.cloudflare.account_id'),
-                'token' => $config['token']
-                    ?? $config['key']
-                    ?? $this->config->get('services.cloudflare.token')
-                    ?? $this->config->get('services.cloudflare.key'),
+                // Laravel's legacy "token" credential name is not supported.
+                'key' => $config['key'] ?? $this->config->get('services.cloudflare.key'),
                 ...$this->httpClientConstructionConfig($config),
             ],
             'mailgun' => $this->mailgunTransportConstructionConfig($config),
             'postmark' => [
                 'transport' => $transport,
-                'token' => $config['token']
-                    ?? $config['key']
-                    ?? $this->config->get('services.postmark.token')
-                    ?? $this->config->get('services.postmark.key'),
+                // Laravel's legacy "token" credential name is not supported.
+                'key' => $config['key'] ?? $this->config->get('services.postmark.key'),
                 ...(isset($config['message_stream_id'])
                     ? ['message_stream_id' => $config['message_stream_id']]
                     : []),
@@ -522,7 +518,7 @@ class MailManager implements FactoryContract
     {
         return new CloudflareTransport(
             $config['account_id'],
-            $config['token'],
+            $config['key'],
             $this->getHttpClient($config),
         );
     }
@@ -564,7 +560,7 @@ class MailManager implements FactoryContract
         return $factory->create(new Dsn( // @phpstan-ignore return.type
             'postmark+api',
             'default',
-            $config['token'],
+            $config['key'],
             null,
             null,
             $options

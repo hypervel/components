@@ -13,4 +13,6 @@ Hypervel omits Laravel's legacy `Attachment::fromCloudStorage()` helper. Use `At
 
 Hypervel supports Amazon SES through SES v2 only. The `ses` mailer uses the `ses-v2` transport.
 
+The Postmark and Cloudflare transports read their credential only from `key`. Laravel's legacy `token` name is not supported in mailer or `services` configuration.
+
 Ported from: https://github.com/laravel/framework

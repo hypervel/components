@@ -438,19 +438,6 @@ class MailManagerTest extends TestCase
         $this->assertSame('postmark-key', (new ClassInvoker($transport))->key);
     }
 
-    public function testPostmarkTransportAcceptsTokenConfiguration(): void
-    {
-        $transport = (new MailManager($this->app))
-            ->createSymfonyTransport([
-                'transport' => 'postmark',
-                'token' => 'postmark-token',
-                'key' => 'postmark-key',
-            ]);
-
-        $this->assertInstanceOf(PostmarkApiTransport::class, $transport);
-        $this->assertSame('postmark-token', (new ClassInvoker($transport))->key);
-    }
-
     #[DataProvider('poolableTransportDataProvider')]
     public function testConfiguredPoolableTransportsResolveToPoolProxy(string $transport): void
     {
@@ -623,9 +610,9 @@ class MailManagerTest extends TestCase
             'cloudflare' => [
                 'cloudflare',
                 'cloudflare',
-                ['account_id' => 'account', 'token' => 'first-token'],
-                'token',
-                'second-token',
+                ['account_id' => 'account', 'key' => 'first-key'],
+                'key',
+                'second-key',
             ],
             'mailgun' => [
                 'mailgun',
@@ -634,7 +621,7 @@ class MailManagerTest extends TestCase
                 'secret',
                 'second-secret',
             ],
-            'postmark' => ['postmark', 'postmark', ['token' => 'first-token'], 'token', 'second-token'],
+            'postmark' => ['postmark', 'postmark', ['key' => 'first-key'], 'key', 'second-key'],
         ];
     }
 

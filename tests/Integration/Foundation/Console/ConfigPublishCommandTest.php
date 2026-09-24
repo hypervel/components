@@ -85,7 +85,7 @@ class ConfigPublishCommandTest extends \Hypervel\Testbench\TestCase
         $expectedConfigs = $this->getExpectedConfigNames();
 
         // Every core framework config should be discoverable
-        foreach (['app', 'auth', 'cache', 'database', 'logging', 'session', 'view'] as $name) {
+        foreach (['app', 'auth', 'cache', 'database', 'logging', 'services', 'session', 'view'] as $name) {
             $this->assertContains($name, $expectedConfigs, "Config '{$name}' should be discoverable by config:publish.");
         }
     }
@@ -132,6 +132,16 @@ class ConfigPublishCommandTest extends \Hypervel\Testbench\TestCase
         $this->artisan('config:publish', ['name' => $name, '--force' => true])
             ->assertSuccessful()
             ->expectsOutputToContain("Published '{$name}' configuration file.");
+
+        $this->assertSame(
+            file_get_contents(dirname($this->baseConfigPath) . "/config-stubs/{$name}.php"),
+            file_get_contents($destination)
+        );
+
+        $published = require $destination;
+
+        $this->assertArrayNotHasKey('providers', $published);
+        $this->assertArrayNotHasKey('aliases', $published);
     }
 
     public function testItFailsWithUnrecognizedConfigFile(): void
