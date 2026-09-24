@@ -156,7 +156,7 @@ class EloquentDeleteTest extends DatabaseTestCase
         $post = Post::query()->create([]);
         $result = $post->deleteQuietly();
 
-        $this->assertEquals('\(^_^)/', $_SERVER['(-_-)']);
+        $this->assertSame('\(^_^)/', $_SERVER['(-_-)']);
         $this->assertTrue($result);
         $this->assertFalse($post->exists);
 
@@ -167,7 +167,7 @@ class EloquentDeleteTest extends DatabaseTestCase
         $role = Role::create([]);
         $result = $role->deleteQuietly();
         $this->assertTrue($result);
-        $this->assertEquals('\(^_^)/', $_SERVER['(-_-)']);
+        $this->assertSame('\(^_^)/', $_SERVER['(-_-)']);
 
         unset($_SERVER['(-_-)']);
     }

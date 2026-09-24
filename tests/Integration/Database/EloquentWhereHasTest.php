@@ -161,7 +161,10 @@ class EloquentWhereHasTest extends DatabaseTestCase
                 );
             };
 
-            return [$callbackEloquent, $callbackQuery];
+            return [
+                $callbackEloquent,
+                $callbackQuery,
+            ];
         };
 
         return [

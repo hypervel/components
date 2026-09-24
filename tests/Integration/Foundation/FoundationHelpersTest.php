@@ -12,16 +12,16 @@ use Swoole\Coroutine\CanceledException;
 
 class FoundationHelpersTest extends TestCase
 {
-    public function testRescue()
+    public function testRescue(): void
     {
-        $this->assertEquals(
+        $this->assertSame(
             'rescued!',
             rescue(function () {
                 throw new Exception;
             }, 'rescued!')
         );
 
-        $this->assertEquals(
+        $this->assertSame(
             'rescued!',
             rescue(function () {
                 throw new Exception;
@@ -30,7 +30,7 @@ class FoundationHelpersTest extends TestCase
             })
         );
 
-        $this->assertEquals(
+        $this->assertSame(
             'no need to rescue',
             rescue(function () {
                 return 'no need to rescue';
@@ -44,7 +44,7 @@ class FoundationHelpersTest extends TestCase
             }
         };
 
-        $this->assertEquals(
+        $this->assertSame(
             'rescued!',
             rescue(function () use ($testClass) {
                 $testClass->test([]);

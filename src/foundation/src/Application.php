@@ -879,6 +879,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
         return $this->maintenanceMode()->active();
     }
 
+    // Laravel's handleRequest() is omitted; the Swoole HTTP server handles requests through the kernel.
+
     /**
      * Handle the incoming Artisan command.
      */

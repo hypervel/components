@@ -18,7 +18,7 @@ class ValidationDateRuleTest extends TestCase
     public function testDefaultDateRule(): void
     {
         $rule = Rule::date();
-        $this->assertEquals('date', (string) $rule);
+        $this->assertSame('date', (string) $rule);
 
         $rule = new Date;
         $this->assertSame('date', (string) $rule);
@@ -27,25 +27,25 @@ class ValidationDateRuleTest extends TestCase
     public function testDateFormatRule(): void
     {
         $rule = Rule::date()->format('d/m/Y');
-        $this->assertEquals('date_format:"d/m/Y"', (string) $rule);
+        $this->assertSame('date_format:"d/m/Y"', (string) $rule);
     }
 
     public function testAfterTodayRule(): void
     {
         $rule = Rule::date()->afterToday();
-        $this->assertEquals('date|after:"today"', (string) $rule);
+        $this->assertSame('date|after:"today"', (string) $rule);
 
         $rule = Rule::date()->todayOrAfter();
-        $this->assertEquals('date|after_or_equal:"today"', (string) $rule);
+        $this->assertSame('date|after_or_equal:"today"', (string) $rule);
     }
 
     public function testBeforeTodayRule(): void
     {
         $rule = Rule::date()->beforeToday();
-        $this->assertEquals('date|before:"today"', (string) $rule);
+        $this->assertSame('date|before:"today"', (string) $rule);
 
         $rule = Rule::date()->todayOrBefore();
-        $this->assertEquals('date|before_or_equal:"today"', (string) $rule);
+        $this->assertSame('date|before_or_equal:"today"', (string) $rule);
     }
 
     public function testPastRule(): void
@@ -69,52 +69,52 @@ class ValidationDateRuleTest extends TestCase
     public function testAfterSpecificDateRule(): void
     {
         $rule = Rule::date()->after(CarbonImmutable::parse('2024-01-01'));
-        $this->assertEquals('date|after:"2024-01-01"', (string) $rule);
+        $this->assertSame('date|after:"2024-01-01"', (string) $rule);
 
         $rule = Rule::date()->format('d/m/Y')->after(CarbonImmutable::parse('2024-01-01'));
-        $this->assertEquals('date_format:"d/m/Y"|after:"01/01/2024"', (string) $rule);
+        $this->assertSame('date_format:"d/m/Y"|after:"01/01/2024"', (string) $rule);
     }
 
     public function testBeforeSpecificDateRule(): void
     {
         $rule = Rule::date()->before(CarbonImmutable::parse('2024-01-01'));
-        $this->assertEquals('date|before:"2024-01-01"', (string) $rule);
+        $this->assertSame('date|before:"2024-01-01"', (string) $rule);
 
         $rule = Rule::date()->format('d/m/Y')->before(CarbonImmutable::parse('2024-01-01'));
-        $this->assertEquals('date_format:"d/m/Y"|before:"01/01/2024"', (string) $rule);
+        $this->assertSame('date_format:"d/m/Y"|before:"01/01/2024"', (string) $rule);
     }
 
     public function testAfterOrEqualSpecificDateRule(): void
     {
         $rule = Rule::date()->afterOrEqual(CarbonImmutable::parse('2024-01-01'));
-        $this->assertEquals('date|after_or_equal:"2024-01-01"', (string) $rule);
+        $this->assertSame('date|after_or_equal:"2024-01-01"', (string) $rule);
 
         $rule = Rule::date()->format('d/m/Y')->afterOrEqual(CarbonImmutable::parse('2024-01-01'));
-        $this->assertEquals('date_format:"d/m/Y"|after_or_equal:"01/01/2024"', (string) $rule);
+        $this->assertSame('date_format:"d/m/Y"|after_or_equal:"01/01/2024"', (string) $rule);
     }
 
     public function testBeforeOrEqualSpecificDateRule(): void
     {
         $rule = Rule::date()->beforeOrEqual(CarbonImmutable::parse('2024-01-01'));
-        $this->assertEquals('date|before_or_equal:"2024-01-01"', (string) $rule);
+        $this->assertSame('date|before_or_equal:"2024-01-01"', (string) $rule);
 
         $rule = Rule::date()->format('d/m/Y')->beforeOrEqual(CarbonImmutable::parse('2024-01-01'));
-        $this->assertEquals('date_format:"d/m/Y"|before_or_equal:"01/01/2024"', (string) $rule);
+        $this->assertSame('date_format:"d/m/Y"|before_or_equal:"01/01/2024"', (string) $rule);
     }
 
     public function testBetweenDatesRule(): void
     {
         $rule = Rule::date()->between(CarbonImmutable::parse('2024-01-01'), CarbonImmutable::parse('2024-02-01'));
-        $this->assertEquals('date|after:"2024-01-01"|before:"2024-02-01"', (string) $rule);
+        $this->assertSame('date|after:"2024-01-01"|before:"2024-02-01"', (string) $rule);
 
         $rule = Rule::date()->format('d/m/Y')->between(CarbonImmutable::parse('2024-01-01'), CarbonImmutable::parse('2024-02-01'));
-        $this->assertEquals('date_format:"d/m/Y"|after:"01/01/2024"|before:"01/02/2024"', (string) $rule);
+        $this->assertSame('date_format:"d/m/Y"|after:"01/01/2024"|before:"01/02/2024"', (string) $rule);
     }
 
     public function testBetweenOrEqualDatesRule(): void
     {
         $rule = Rule::date()->betweenOrEqual('2024-01-01', '2024-02-01');
-        $this->assertEquals('date|after_or_equal:"2024-01-01"|before_or_equal:"2024-02-01"', (string) $rule);
+        $this->assertSame('date|after_or_equal:"2024-01-01"|before_or_equal:"2024-02-01"', (string) $rule);
     }
 
     public function testChainedRules(): void
@@ -123,7 +123,7 @@ class ValidationDateRuleTest extends TestCase
             ->format('Y-m-d')
             ->after('2024-01-01 00:00:00')
             ->before('2025-01-01 00:00:00');
-        $this->assertEquals('date_format:"Y-m-d"|after:"2024-01-01 00:00:00"|before:"2025-01-01 00:00:00"', (string) $rule);
+        $this->assertSame('date_format:"Y-m-d"|after:"2024-01-01 00:00:00"|before:"2025-01-01 00:00:00"', (string) $rule);
 
         $rule = Rule::date()
             ->format('Y-m-d')

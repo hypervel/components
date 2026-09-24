@@ -196,7 +196,7 @@ class Str
     /**
      * Get the character at the specified index.
      */
-    public static function charAt(string $subject, mixed $index): string|false
+    public static function charAt(string $subject, int $index): string|false
     {
         $length = mb_strlen($subject);
 

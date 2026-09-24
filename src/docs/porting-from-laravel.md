@@ -472,6 +472,7 @@ When porting Laravel configuration, pay particular attention to these current di
 - Laravel silently sends SQS FIFO jobs immediately when they request a positive per-message delay. Hypervel rejects that dispatch. Remove the delay or use a queue transport that supports delayed jobs.
 - The scheduling cache store is configured through `cache.schedule_store` and `SCHEDULE_CACHE_STORE`. Laravel's older `SCHEDULE_CACHE_DRIVER` name is not supported.
 - Hypervel Socialite's X OAuth 2 driver reads `services.x`. Rename Laravel's legacy `services.x-oauth-2` configuration key when porting an application.
+- The Postmark and Cloudflare mail transports read their credential from `key`. Rename a Laravel `token` entry in `config/services.php` or the mailer configuration to `key`. See the [mail driver guide](/docs/{{version}}/mail#driver-prerequisites).
 
 Application code should keep request-specific values in the request, session, context, or coroutine context instead of changing config values while the server is running.
 
@@ -553,7 +554,7 @@ Laravel's `Illuminate\Cache\RateLimiter` maps to `Hypervel\RateLimiter\RateLimit
 
 The lower-level API is intentionally different. Hypervel uses admission policies such as `Limit`, `SlidingWindow`, and `LeakyBucket` with operations including `consume`, `inspect`, `attempt`, and `clear`. Laravel's counter methods, including `tooManyAttempts`, `hit`, `remaining`, `availableIn`, `resetAttempts`, and `retriesLeft`, are not available. Although `attempt` and `clear` exist in both frameworks, their signatures and behavior differ; do not port those calls by name alone.
 
-When porting custom throttling code, rebuild it using Hypervel's policy API described in the [rate limiting documentation](/docs/{{version}}/rate-limiting). Replace Laravel's `RateLimitedWithRedis` and `ThrottlesExceptionsWithRedis` queue middleware with `Hypervel\Queue\Middleware\RateLimited` or `ThrottlesExceptions` and select the Redis limiter store using `store('redis')`.
+When porting custom throttling code, rebuild it using Hypervel's policy API described in the [rate limiting documentation](/docs/{{version}}/rate-limiting). Replace Laravel's `RateLimitedWithRedis` and `ThrottlesExceptionsWithRedis` queue middleware with `Hypervel\Queue\Middleware\RateLimited` or `ThrottlesExceptions` and select the Redis limiter store using `store('redis')`. For HTTP routes, remove `throttleWithRedis()` and the `redis` argument to `throttleApi()` from `bootstrap/app.php`, then [select Redis](/docs/{{version}}/routing#attaching-rate-limiters-to-routes) on the named limiter or as the default limiter store.
 
 <a name="pagination"></a>
 ### Pagination
@@ -577,6 +578,8 @@ Review concrete `Hypervel\Support\Carbon` type declarations that receive factory
 Hypervel's `Str` UUID methods, factories, sequences, and freeze callbacks use `Symfony\Component\Uid\Uuid` values. Laravel uses `Ramsey\Uuid\UuidInterface`. Review concrete UUID type declarations and calls to package-specific methods instead of changing only the framework namespace.
 
 Hypervel's `Str::orderedUuid()` returns a UUIDv7, while Laravel returns a timestamp-first COMB UUIDv4. Review code that validates UUID versions or depends on the exact ordering produced by this method.
+
+`Carbon::createFromId()` accepts ULIDs and v1, v6, and v7 UUIDs. Symfony UID does not provide timestamps for UUIDv2, so code that reads dates from UUIDv2 values needs another source.
 
 <a name="filesystem"></a>
 ### Filesystem

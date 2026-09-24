@@ -744,7 +744,7 @@ class RoutingRouteTest extends TestCase
         unset($_SERVER['__test.controller_callAction_parameters']);
         $router->get(($str = Str::random()) . '', RouteTestAnotherControllerWithParameterStub::class . '@oneArgument');
         $router->dispatch(Request::create($str, 'GET'));
-        $this->assertEquals([], $_SERVER['__test.controller_callAction_parameters']);
+        $this->assertSame([], $_SERVER['__test.controller_callAction_parameters']);
 
         // With model bindings
         unset($_SERVER['__test.controller_callAction_parameters']);
@@ -2775,10 +2775,10 @@ class ExampleMiddleware implements ExampleMiddlewareContract
 }
 
 #[Attribute(Attribute::TARGET_PARAMETER)]
-final class RoutingTestOnTenant
+final readonly class RoutingTestOnTenant
 {
     public function __construct(
-        public readonly RoutingTestTenant $tenant
+        public RoutingTestTenant $tenant
     ) {
     }
 }

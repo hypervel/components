@@ -407,7 +407,7 @@ class AuthenticateSessionTest extends TestCase
             $message = $e->getMessage();
         }
 
-        $this->assertEquals('Unauthenticated.', $message);
+        $this->assertSame('Unauthenticated.', $message);
         $this->assertNull($session->get('a'));
         $this->assertNull($session->get('b'));
     }
@@ -449,7 +449,7 @@ class AuthenticateSessionTest extends TestCase
             $message = $e->getMessage();
         }
 
-        $this->assertEquals('Unauthenticated.', $message);
+        $this->assertSame('Unauthenticated.', $message);
         $this->assertNull($session->get('password_hash_web'));
         $this->assertNull($session->get('a'));
         $this->assertNull($session->get('b'));
@@ -492,7 +492,7 @@ class AuthenticateSessionTest extends TestCase
             $message = $e->getMessage();
         }
 
-        $this->assertEquals('Unauthenticated.', $message);
+        $this->assertSame('Unauthenticated.', $message);
         $this->assertNull($session->get('password_hash_web'));
         $this->assertNull($session->get('a'));
         $this->assertNull($session->get('b'));

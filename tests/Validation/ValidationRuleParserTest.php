@@ -213,7 +213,7 @@ class ValidationRuleParserTest extends TestCase
             'users.*.name' => Rule::forEach(function ($value, $attribute, $data, $context) {
                 $this->assertSame('Taylor Otwell', $value);
                 $this->assertSame('users.0.name', $attribute);
-                $this->assertEquals($data['users.0.name'], 'Taylor Otwell');
+                $this->assertSame('Taylor Otwell', $data['users.0.name']);
                 $this->assertEquals(['name' => 'Taylor Otwell', 'email' => 'taylor@laravel.com'], $context);
 
                 return [Rule::requiredIf(true)];
@@ -243,7 +243,7 @@ class ValidationRuleParserTest extends TestCase
         ]);
 
         $this->assertEquals(['name' => ['required']], $results->rules);
-        $this->assertEquals([], $results->implicitAttributes);
+        $this->assertSame([], $results->implicitAttributes);
     }
 
     public function testExplodeHandlesForwardSlashesInWildcardRule(): void

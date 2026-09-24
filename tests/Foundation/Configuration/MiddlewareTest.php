@@ -138,7 +138,7 @@ class MiddlewareTest extends TestCase
         ], $method->invoke($middleware));
 
         $configuration->trustProxies(at: '*');
-        $this->assertEquals('*', $method->invoke($middleware));
+        $this->assertSame('*', $method->invoke($middleware));
 
         $configuration->trustProxies(at: [
             '192.168.1.3',
@@ -224,10 +224,10 @@ class MiddlewareTest extends TestCase
         $this->assertEquals(['^(.+\.)?laravel\.test$'], $middleware->hosts());
 
         $configuration->trustHosts(at: [], subdomains: false);
-        $this->assertEquals([], $middleware->hosts());
+        $this->assertSame([], $middleware->hosts());
 
         $configuration->trustHosts(at: static fn () => [], subdomains: false);
-        $this->assertEquals([], $middleware->hosts());
+        $this->assertSame([], $middleware->hosts());
     }
 
     public function testEncryptCookies()

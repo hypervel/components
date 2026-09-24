@@ -20,6 +20,12 @@ The application locale setters do not change the `app.locale` or `app.fallback_l
 
 Laravel's deprecated `VerifyCsrfToken` and `ValidateCsrfToken` middleware aliases and `Middleware::validateCsrfTokens()` method are intentionally not ported. Use `PreventRequestForgery` and configure request-forgery protection with `preventRequestForgery()`.
 
+Laravel's deprecated HTTP kernel `$routeMiddleware` property and `getRouteMiddleware()` method are not ported; use `$middlewareAliases` and `getMiddlewareAliases()`. Likewise, Vite's deprecated `makeTag()`, `makeScriptTag()`, and `makeStylesheetTag()` extension points are not ported; override `makeScriptTagWithAttributes()` or `makeStylesheetTagWithAttributes()` instead.
+
+Laravel Folio integration is omitted. `withRouting()` has no `pages` argument, and the middleware configuration has no `pages()` or `getPageMiddleware()` methods. Define page routes in the application's route files instead.
+
+Laravel's `Application::handleRequest()` is omitted. Hypervel's HTTP server handles each request through the HTTP kernel, so applications have no `public/index.php` entry point.
+
 The `php artisan serve` command starts Hypervel's configured Swoole servers directly instead of PHP's built-in development server.
 
 The default `dev` server process runs `php artisan watch` so the Watcher package can own and restart the long-running Swoole server. Official Hypervel skeletons and starter kits include `hypervel/watcher` as a development dependency.

@@ -1591,7 +1591,7 @@ class RouteRegistrarTest extends RoutingTestCase
 
         $this->router->removeMiddlewareFromGroup('web', 'test-middleware');
 
-        $this->assertEquals([], $this->router->getMiddlewareGroups()['web']);
+        $this->assertSame([], $this->router->getMiddlewareGroups()['web']);
     }
 
     public function testCanRemoveMiddlewareFromGroupNotUnregisteredMiddleware()
@@ -1600,14 +1600,14 @@ class RouteRegistrarTest extends RoutingTestCase
 
         $this->router->removeMiddlewareFromGroup('web', 'different-test-middleware');
 
-        $this->assertEquals([], $this->router->getMiddlewareGroups()['web']);
+        $this->assertSame([], $this->router->getMiddlewareGroups()['web']);
     }
 
     public function testCanRemoveMiddlewareFromGroupUnregisteredGroup()
     {
         $this->router->removeMiddlewareFromGroup('web', ['test-middleware']);
 
-        $this->assertEquals([], $this->router->getMiddlewareGroups());
+        $this->assertSame([], $this->router->getMiddlewareGroups());
     }
 
     public function testCanRegisterSingleton()

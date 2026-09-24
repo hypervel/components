@@ -89,7 +89,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable, Trans
     /**
      * Get the character at the specified index.
      */
-    public function charAt(mixed $index): string|false
+    public function charAt(int $index): string|false
     {
         return Str::charAt($this->value, $index);
     }

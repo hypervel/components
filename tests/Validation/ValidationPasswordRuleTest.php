@@ -71,6 +71,7 @@ class ValidationPasswordRuleTest extends TestCase
         $rule = (new Password(8))->when($is_privileged_user, function ($rule) {
             $rule->symbols();
         });
+        $this->assertInstanceOf(Password::class, $rule);
 
         $this->fails($rule, ['aaaaaaaa', '11111111'], [
             'validation.password.symbols',
@@ -80,6 +81,7 @@ class ValidationPasswordRuleTest extends TestCase
         $rule = (new Password(8))->when($is_privileged_user, function ($rule) {
             $rule->symbols();
         });
+        $this->assertInstanceOf(Password::class, $rule);
 
         $this->passes($rule, ['aaaaaaaa', '11111111']);
     }

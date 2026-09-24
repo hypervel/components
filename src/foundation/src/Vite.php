@@ -680,6 +680,8 @@ class Vite implements Htmlable
         return $attributes;
     }
 
+    // Laravel's deprecated makeTag(), makeScriptTag() and makeStylesheetTag() are omitted; use the *WithAttributes methods.
+
     /**
      * Generate a script tag with attributes for the given URL.
      */

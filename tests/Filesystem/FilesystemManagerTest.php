@@ -132,7 +132,7 @@ class FilesystemManagerTest extends TestCase
         file_put_contents($this->tempDir . '/read-only/path.txt', 'contents');
 
         // read operations work
-        $this->assertEquals('contents', $disk->get('path.txt'));
+        $this->assertSame('contents', $disk->get('path.txt'));
         $this->assertEquals(['path.txt'], $disk->files());
 
         // write operations fail
@@ -168,7 +168,7 @@ class FilesystemManagerTest extends TestCase
             ]);
 
             $scoped->put('dirname/filename.txt', 'file content');
-            $this->assertEquals('file content', $local->get('path-prefix/dirname/filename.txt'));
+            $this->assertSame('file content', $local->get('path-prefix/dirname/filename.txt'));
             $local->deleteDirectory('path-prefix');
         } finally {
             rmdir($this->tempDir . '/scoped');
@@ -493,7 +493,7 @@ class FilesystemManagerTest extends TestCase
             ]);
 
             $nestedScoped->put('dirname/filename.txt', 'file content');
-            $this->assertEquals('file content', $root->get('scoped-from-root-prefix/nested-scoped-prefix/dirname/filename.txt'));
+            $this->assertSame('file content', $root->get('scoped-from-root-prefix/nested-scoped-prefix/dirname/filename.txt'));
             $root->deleteDirectory('scoped-from-root-prefix');
         } finally {
             rmdir($this->tempDir . '/nested-scoped');
@@ -524,7 +524,7 @@ class FilesystemManagerTest extends TestCase
 
             $scoped->put('dirname/filename.txt', 'file content');
 
-            $this->assertEquals('private', $scoped->getVisibility('dirname/filename.txt'));
+            $this->assertSame('private', $scoped->getVisibility('dirname/filename.txt'));
         } finally {
             unlink($this->tempDir . '/visibility-scoped/path-prefix/dirname/filename.txt');
             rmdir($this->tempDir . '/visibility-scoped/path-prefix/dirname');
@@ -576,8 +576,8 @@ class FilesystemManagerTest extends TestCase
             ]);
 
             $scoped->put('dirname/filename.txt', 'file content');
-            $this->assertTrue(is_dir($this->tempDir . '/inline-scoped/path-prefix'));
-            $this->assertEquals(file_get_contents($this->tempDir . '/inline-scoped/path-prefix/dirname/filename.txt'), 'file content');
+            $this->assertDirectoryExists($this->tempDir . '/inline-scoped/path-prefix');
+            $this->assertSame('file content', file_get_contents($this->tempDir . '/inline-scoped/path-prefix/dirname/filename.txt'));
         } finally {
             unlink($this->tempDir . '/inline-scoped/path-prefix/dirname/filename.txt');
             rmdir($this->tempDir . '/inline-scoped/path-prefix/dirname');

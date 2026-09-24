@@ -129,7 +129,7 @@ class SupportArrTest extends TestCase
 
         // Case with empty two-dimensional arrays
         $emptyArray = [[], [], []];
-        $this->assertEquals([], Arr::collapse($emptyArray));
+        $this->assertSame([], Arr::collapse($emptyArray));
 
         // Case with both empty arrays and arrays with elements
         $mixedArray = [[], [1, 2], [], ['foo', 'bar']];
@@ -191,8 +191,8 @@ class SupportArrTest extends TestCase
     {
         // Test dividing an empty array
         [$keys, $values] = Arr::divide([]);
-        $this->assertEquals([], $keys);
-        $this->assertEquals([], $values);
+        $this->assertSame([], $keys);
+        $this->assertSame([], $values);
 
         // Test dividing an array with a single key-value pair
         [$keys, $values] = Arr::divide(['name' => 'Desk']);
@@ -405,7 +405,7 @@ class SupportArrTest extends TestCase
         $this->assertEquals([1, 2, 3], $array);
 
         $array = array_values(Arr::whereNotNull([null, null, null]));
-        $this->assertEquals([], $array);
+        $this->assertSame([], $array);
 
         $array = array_values(Arr::whereNotNull(['a', null, 'b', null, 'c']));
         $this->assertEquals(['a', 'b', 'c'], $array);
@@ -1251,7 +1251,7 @@ class SupportArrTest extends TestCase
         $mapped = Arr::map([], static function ($value, $key) {
             return $key . '-' . $value;
         });
-        $this->assertEquals([], $mapped);
+        $this->assertSame([], $mapped);
     }
 
     public function testMapNullValues(): void
@@ -1570,7 +1570,7 @@ class SupportArrTest extends TestCase
 
     public function testEmptyShuffle(): void
     {
-        $this->assertEquals([], Arr::shuffle([]));
+        $this->assertSame([], Arr::shuffle([]));
     }
 
     public function testSort(): void
@@ -1920,7 +1920,7 @@ class SupportArrTest extends TestCase
         $this->assertEquals(['a'], Arr::wrap($string));
         $this->assertEquals($array, Arr::wrap($array));
         $this->assertEquals([$object], Arr::wrap($object));
-        $this->assertEquals([], Arr::wrap(null));
+        $this->assertSame([], Arr::wrap(null));
         $this->assertEquals([null], Arr::wrap([null]));
         $this->assertEquals([null, null], Arr::wrap([null, null]));
         $this->assertEquals([''], Arr::wrap(''));
@@ -2036,7 +2036,7 @@ class SupportArrTest extends TestCase
         $this->assertEquals([4, 5, 6], Arr::take($array, -3));
 
         // Test with zero limit, should return an empty array.
-        $this->assertEquals([], Arr::take($array, 0));
+        $this->assertSame([], Arr::take($array, 0));
 
         // Test with a limit greater than the array size, should return the entire array.
         $this->assertEquals([1, 2, 3, 4, 5, 6], Arr::take($array, 10));

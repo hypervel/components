@@ -106,7 +106,7 @@ class LoadConfigurationTest extends TestCase
         $config = $app->make('config');
 
         // All centralized framework configs should be loaded
-        foreach (['app', 'auth', 'cache', 'database', 'logging', 'session', 'view'] as $key) {
+        foreach (['app', 'auth', 'cache', 'database', 'logging', 'services', 'session', 'view'] as $key) {
             $this->assertNotNull(
                 $config->get($key),
                 "Framework config '{$key}' should be loaded by LoadConfiguration."

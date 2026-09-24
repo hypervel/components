@@ -531,19 +531,19 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
         $tableName = $connection === 'with-prefix' ? 'example_table' : 'table';
         $defaultSchema = $this->driver === 'pgsql' ? 'public' : $currentSchema;
 
-        $this->assertEquals(
+        $this->assertSame(
             'comment on schema table',
             $tables->first(fn ($table) => $table['name'] === $tableName && $table['schema'] === 'my_schema')['comment']
         );
-        $this->assertEquals(
+        $this->assertSame(
             'comment on table',
             $tables->first(fn ($table) => $table['name'] === $tableName && $table['schema'] === $defaultSchema)['comment']
         );
-        $this->assertEquals(
+        $this->assertSame(
             'comment on schema column',
             collect($schema->getColumns('my_schema.table'))->firstWhere('name', 'name')['comment']
         );
-        $this->assertEquals(
+        $this->assertSame(
             'comment on column',
             collect($schema->getColumns('table'))->firstWhere('name', 'name')['comment']
         );

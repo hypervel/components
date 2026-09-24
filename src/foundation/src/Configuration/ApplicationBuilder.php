@@ -197,6 +197,8 @@ class ApplicationBuilder
                 $callback();
             }
 
+            // Laravel's Folio route registration and its withRouting(pages:) argument are omitted.
+
             if (is_callable($then)) {
                 $then($this->app);
             }
