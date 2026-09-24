@@ -18,6 +18,7 @@ use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
 use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Events\EventServiceProvider;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\Configuration\ApplicationBuilder;
 use Hypervel\Foundation\Events\LocaleUpdated;
 use Hypervel\Log\Context\ContextServiceProvider;
 use Hypervel\Log\LogServiceProvider;
@@ -113,6 +114,13 @@ class Application extends Container implements ApplicationContract, CachesConfig
     protected bool $mergeFrameworkConfiguration = true;
 
     /**
+     * The application builder class.
+     *
+     * @var class-string<ApplicationBuilder>
+     */
+    protected static string $applicationBuilder = ApplicationBuilder::class;
+
+    /**
      * Indicates if the application has been bootstrapped before.
      */
     protected bool $hasBeenBootstrapped = false;
@@ -200,14 +208,14 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Configure and create a new application builder instance.
      */
-    public static function configure(?string $basePath = null): Configuration\ApplicationBuilder
+    public static function configure(?string $basePath = null): ApplicationBuilder
     {
         $basePath = match (true) {
             is_string($basePath) => $basePath,
             default => static::inferBasePath(),
         };
 
-        return (new Configuration\ApplicationBuilder(new static($basePath)))
+        return (new static::$applicationBuilder(new static($basePath)))
             ->withKernels()
             ->withEvents()
             ->withCommands()

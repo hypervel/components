@@ -43,17 +43,27 @@ class ApplicationBuilder
 
     /**
      * Register the standard kernel classes for the application.
+     *
+     * Boot-only. Re-registering the kernels replaces shared bindings and can
+     * discard middleware or console configuration used by subsequent requests
+     * and commands.
      */
     public function withKernels(): static
     {
-        $this->app->singleton(
-            \Hypervel\Contracts\Http\Kernel::class,
+        // Explicitly sharing the concrete kernels keeps one instance when they are
+        // resolved directly, through other bindings, or with makeTransient().
+        $this->app->singleton(\Hypervel\Foundation\Http\Kernel::class);
+
+        $this->app->alias(
             \Hypervel\Foundation\Http\Kernel::class,
+            \Hypervel\Contracts\Http\Kernel::class,
         );
 
-        $this->app->singleton(
-            \Hypervel\Contracts\Console\Kernel::class,
+        $this->app->singleton(\Hypervel\Foundation\Console\Kernel::class);
+
+        $this->app->alias(
             \Hypervel\Foundation\Console\Kernel::class,
+            \Hypervel\Contracts\Console\Kernel::class,
         );
 
         return $this;
@@ -309,10 +319,11 @@ class ApplicationBuilder
      */
     public function withExceptions(?callable $using = null): static
     {
-        $this->app->singleton(
-            ExceptionHandler::class,
-            Handler::class
-        );
+        // Share the concrete handler so callbacks registered on it reach the handler
+        // resolved through the contract, other bindings, or makeTransient().
+        $this->app->singleton(Handler::class);
+
+        $this->app->alias(Handler::class, ExceptionHandler::class);
 
         if ($using !== null) {
             $this->app->afterResolving(
