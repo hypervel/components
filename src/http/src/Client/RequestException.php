@@ -43,8 +43,8 @@ class RequestException extends HttpClientException
     /**
      * Enable truncation of request exception messages.
      *
-     * Boot-only. The flag persists in a static property for the worker lifetime
-     * and applies to every HTTP client exception across all coroutines.
+     * Boot-only. The global default persists for the worker lifetime across all
+     * coroutines; per-request truncation settings take precedence.
      */
     public static function truncate(): void
     {
@@ -54,8 +54,8 @@ class RequestException extends HttpClientException
     /**
      * Set the truncation length for request exception messages.
      *
-     * Boot-only. The length persists in a static property for the worker
-     * lifetime and applies to every HTTP client exception across all coroutines.
+     * Boot-only. The global default persists for the worker lifetime across all
+     * coroutines; per-request truncation settings take precedence.
      */
     public static function truncateAt(int $length): void
     {
@@ -65,8 +65,8 @@ class RequestException extends HttpClientException
     /**
      * Disable truncation of request exception messages.
      *
-     * Boot-only. The flag persists in a static property for the worker lifetime
-     * and applies to every HTTP client exception across all coroutines.
+     * Boot-only. The global default persists for the worker lifetime across all
+     * coroutines; per-request truncation settings take precedence.
      */
     public static function dontTruncate(): void
     {
