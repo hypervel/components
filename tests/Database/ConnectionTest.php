@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
-use Hypervel\Contracts\Foundation\Application;
-use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\SQLiteConnection;
@@ -25,12 +23,6 @@ use Throwable;
 #[WithConfig('database.default', 'testing')]
 class ConnectionTest extends TestCase
 {
-    protected function defineEnvironment(Application $app): void
-    {
-        // Suppress "Database connection refreshing" warnings during disconnect tests
-        $app->make('config')->set(StdoutLoggerInterface::class . '.log_level', []);
-    }
-
     /**
      * Test that disconnect() rolls back any open transaction.
      *

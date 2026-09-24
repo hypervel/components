@@ -140,7 +140,6 @@ class PooledConnection implements PoolConnection
 
         // Set up reconnector for the connection
         $this->connection->setReconnector(function ($connection) {
-            $this->logger->warning('Database connection refreshing.');
             $this->refresh($connection);
         });
 
@@ -513,10 +512,6 @@ class PooledConnection implements PoolConnection
             $this->markInvalid();
 
             throw $exception;
-        }
-
-        if ($sharedPdo === null) {
-            $this->logger->warning('Database connection refreshed.');
         }
 
         // The resolver already owns a refreshed connection, so notify immediately.
