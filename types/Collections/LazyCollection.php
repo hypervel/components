@@ -552,6 +552,8 @@ assertType('Hypervel\Support\LazyCollection<int, int|string>', $collection::make
 
 assertType('Hypervel\Support\LazyCollection<int, int>', $collection::make([1])->mergeRecursive([2]));
 assertType('Hypervel\Support\LazyCollection<int, string>', $collection::make(['string'])->mergeRecursive(['string']));
+assertType('Hypervel\Support\LazyCollection<string, array<mixed>|int>', $collection::make(['a' => 1])->mergeRecursive(['a' => 2]));
+assertType('Hypervel\Support\LazyCollection<int|string, array<mixed>|int>', $collection::make([1, 'a' => 1])->mergeRecursive(['a' => 2]));
 
 assertType('Hypervel\Support\LazyCollection<string, int>', $collection::make(['string' => 'string'])->combine([2]));
 assertType('Hypervel\Support\LazyCollection<int, int>', $collection::make([1])->combine([1]));

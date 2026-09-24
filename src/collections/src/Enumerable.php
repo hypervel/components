@@ -658,7 +658,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @template TMergeRecursiveValue
      *
      * @param Arrayable<TKey, TMergeRecursiveValue>|iterable<TKey, TMergeRecursiveValue> $items
-     * @return static<TKey, TMergeRecursiveValue|TValue>
+     * @return static<TKey, (TKey is int ? TMergeRecursiveValue|TValue : array<array-key, mixed>|TMergeRecursiveValue|TValue)>
      */
     public function mergeRecursive(mixed $items): static;
 
