@@ -292,7 +292,7 @@ class AboutCommand extends Command
      */
     protected function sections(): array
     {
-        return (new Collection(explode(',', $this->option('only') ?? '')))
+        return (new Stringable($this->option('only') ?? ''))->explode(',')
             ->filter()
             ->map(fn ($only) => $this->toSearchKeyword($only))
             ->all();

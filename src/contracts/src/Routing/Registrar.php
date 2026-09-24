@@ -41,6 +41,11 @@ interface Registrar
     public function options(string $uri, array|string|callable $action): Route;
 
     /**
+     * Register a new QUERY route with the router.
+     */
+    public function query(string $uri, array|string|callable $action): Route;
+
+    /**
      * Register a new route with the given verbs.
      */
     public function match(array|string $methods, string $uri, array|string|callable $action): Route;

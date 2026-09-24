@@ -335,11 +335,12 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertSoftDeleted($this->table, $this->data);
     }
 
-    public function testAssertSoftDeletedSupportModelStrings()
+    public function testAssertSoftDeletedSupportModelStrings(): void
     {
         $this->mockCountBuilder(true);
 
         $this->assertSoftDeleted(ProductStub::class, $this->data);
+        $this->assertSoftDeleted(ProductStub::class, $this->data, deletedAtColumn: null);
     }
 
     public function testAssertSoftDeletedInDatabaseDoesNotFindResults(): void
@@ -401,11 +402,12 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertNotSoftDeleted($this->table, $this->data);
     }
 
-    public function testAssertNotSoftDeletedSupportModelStrings()
+    public function testAssertNotSoftDeletedSupportModelStrings(): void
     {
         $this->mockCountBuilder(true);
 
         $this->assertNotSoftDeleted(ProductStub::class, $this->data);
+        $this->assertNotSoftDeleted(ProductStub::class, $this->data, deletedAtColumn: null);
     }
 
     public function testAssertNotSoftDeletedOnlyFindsMatchingModels(): void

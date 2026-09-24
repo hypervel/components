@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Database;
 
 use Exception;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Prunable;
 use Hypervel\Database\Eloquent\SoftDeletes;
@@ -15,6 +16,7 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Schema;
 use LogicException;
+use Swoole\Coroutine\CanceledException;
 
 /**
  * The fixtures are intentionally smaller than Laravel's because this suite
@@ -31,6 +33,7 @@ class EloquentPrunableTest extends DatabaseTestCase
             'prunable_test_model_missing_prunable_methods',
             'prunable_with_custom_prune_method_test_models',
             'prunable_with_exceptions',
+            'prunable_with_cancellations',
         ])->each(function ($table) {
             Schema::create($table, function (Blueprint $table) {
                 $table->increments('id');
@@ -49,7 +52,7 @@ class EloquentPrunableTest extends DatabaseTestCase
         PrunableTestModelMissingPrunableMethod::create()->pruneAll();
     }
 
-    public function testPrunesRecords()
+    public function testPrunesRecords(): void
     {
         Event::fake();
 
@@ -84,7 +87,7 @@ class EloquentPrunableTest extends DatabaseTestCase
         $this->assertSame([], $observedEvents);
     }
 
-    public function testPrunesSoftDeletedRecords()
+    public function testPrunesSoftDeletedRecords(): void
     {
         Event::fake();
 
@@ -103,7 +106,7 @@ class EloquentPrunableTest extends DatabaseTestCase
         Event::assertDispatched(ModelsPruned::class, 3);
     }
 
-    public function testPruneWithCustomPruneMethod()
+    public function testPruneWithCustomPruneMethod(): void
     {
         Event::fake();
 
@@ -124,7 +127,7 @@ class EloquentPrunableTest extends DatabaseTestCase
         Event::assertDispatched(ModelsPruned::class, 1);
     }
 
-    public function testPruneWithExceptionAtOneOfModels()
+    public function testPruneWithExceptionAtOneOfModels(): void
     {
         Event::fake();
         Exceptions::fake();
@@ -143,6 +146,23 @@ class EloquentPrunableTest extends DatabaseTestCase
         Event::assertDispatched(fn (ModelsPruned $event) => $event->count === 9);
         Exceptions::assertReportedCount(1);
         Exceptions::assertReported(fn (Exception $exception) => $exception->getMessage() === 'foo bar');
+    }
+
+    public function testPruneRethrowsCancellationWithoutReportingIt(): void
+    {
+        Exceptions::fake();
+
+        PrunableWithCancellation::insert(array_fill(0, 10, ['name' => 'foo']));
+
+        try {
+            (new PrunableWithCancellation)->pruneAll();
+
+            $this->fail('The cancellation was not rethrown.');
+        } catch (CanceledException $exception) {
+            $this->assertSame('canceled', $exception->getMessage());
+        }
+
+        Exceptions::assertNothingReported();
     }
 }
 
@@ -198,6 +218,31 @@ class PrunableWithException extends Model
         if ($this->id === 5) {
             throw new Exception('foo bar');
         }
+    }
+}
+
+class PrunableWithCancellation extends Model
+{
+    use Prunable;
+
+    /**
+     * Get the prunable model query.
+     */
+    public function prunable(): Builder
+    {
+        return $this->where('id', '<=', 10);
+    }
+
+    /**
+     * Prune the model in the database.
+     */
+    public function prune(): int|bool|null
+    {
+        if ($this->id === 5) {
+            throw new CanceledException('canceled');
+        }
+
+        return true;
     }
 }
 

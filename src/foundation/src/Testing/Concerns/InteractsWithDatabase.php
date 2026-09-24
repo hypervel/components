@@ -26,10 +26,8 @@ trait InteractsWithDatabase
      *
      * @param class-string<Model>|iterable<Model>|Model|string $table
      * @param array<string, mixed> $data
-     * @param null|string $connection
-     * @return $this
      */
-    protected function assertDatabaseHas($table, array $data = [], $connection = null)
+    protected function assertDatabaseHas(iterable|Model|string $table, array $data = [], UnitEnum|string|null $connection = null): static
     {
         if (is_iterable($table)) {
             foreach ($table as $item) {
@@ -67,10 +65,8 @@ trait InteractsWithDatabase
      *
      * @param class-string<Model>|iterable<Model>|Model|string $table
      * @param array<string, mixed> $data
-     * @param null|string $connection
-     * @return $this
      */
-    protected function assertDatabaseMissing($table, array $data = [], $connection = null)
+    protected function assertDatabaseMissing(iterable|Model|string $table, array $data = [], UnitEnum|string|null $connection = null): static
     {
         if (is_iterable($table)) {
             foreach ($table as $item) {
@@ -107,11 +103,9 @@ trait InteractsWithDatabase
     /**
      * Assert the count of table entries.
      *
-     * @param Model|string $table
-     * @param null|string $connection
-     * @return $this
+     * @param class-string<Model>|Model|string $table
      */
-    protected function assertDatabaseCount($table, int $count, $connection = null)
+    protected function assertDatabaseCount(Model|string $table, int $count, UnitEnum|string|null $connection = null): static
     {
         $this->assertThat(
             $this->getTable($table),
@@ -125,10 +119,8 @@ trait InteractsWithDatabase
      * Assert that the given table or tables has no entries.
      *
      * @param class-string<Model>|iterable<class-string<Model>|Model|string>|Model|string $table
-     * @param null|string $connection
-     * @return $this
      */
-    protected function assertDatabaseEmpty($table, $connection = null)
+    protected function assertDatabaseEmpty(iterable|Model|string $table, UnitEnum|string|null $connection = null): static
     {
         if (is_iterable($table)) {
             foreach ($table as $item) {
@@ -151,11 +143,8 @@ trait InteractsWithDatabase
      *
      * @param class-string<Model>|iterable<class-string<Model>|Model|string>|Model|string $table
      * @param array<string, mixed> $data
-     * @param null|string $connection
-     * @param null|string $deletedAtColumn
-     * @return $this
      */
-    protected function assertSoftDeleted($table, array $data = [], $connection = null, $deletedAtColumn = 'deleted_at')
+    protected function assertSoftDeleted(iterable|Model|string $table, array $data = [], UnitEnum|string|null $connection = null, ?string $deletedAtColumn = 'deleted_at'): static
     {
         if (is_iterable($table)) {
             foreach ($table as $item) {
@@ -199,11 +188,8 @@ trait InteractsWithDatabase
      *
      * @param class-string<Model>|iterable<class-string<Model>|Model|string>|Model|string $table
      * @param array<string, mixed> $data
-     * @param null|string $connection
-     * @param null|string $deletedAtColumn
-     * @return $this
      */
-    protected function assertNotSoftDeleted($table, array $data = [], $connection = null, $deletedAtColumn = 'deleted_at')
+    protected function assertNotSoftDeleted(iterable|Model|string $table, array $data = [], UnitEnum|string|null $connection = null, ?string $deletedAtColumn = 'deleted_at'): static
     {
         if (is_iterable($table)) {
             foreach ($table as $item) {
@@ -246,9 +232,8 @@ trait InteractsWithDatabase
      * Assert the given model exists in the database.
      *
      * @param class-string<Model>|iterable<Model>|Model|string $model
-     * @return $this
      */
-    protected function assertModelExists($model)
+    protected function assertModelExists(iterable|Model|string $model): static
     {
         return $this->assertDatabaseHas($model);
     }
@@ -257,21 +242,16 @@ trait InteractsWithDatabase
      * Assert the given model does not exist in the database.
      *
      * @param class-string<Model>|iterable<Model>|Model|string $model
-     * @return $this
      */
-    protected function assertModelMissing($model)
+    protected function assertModelMissing(iterable|Model|string $model): static
     {
         return $this->assertDatabaseMissing($model);
     }
 
     /**
      * Specify the number of database queries that should occur throughout the test.
-     *
-     * @param int $expected
-     * @param null|string $connection
-     * @return $this
      */
-    public function expectsDatabaseQueryCount($expected, $connection = null)
+    public function expectsDatabaseQueryCount(int $expected, UnitEnum|string|null $connection = null): static
     {
         with($this->getConnection($connection), function ($connectionInstance) use ($expected, $connection) {
             $actual = 0;
@@ -297,12 +277,9 @@ trait InteractsWithDatabase
     /**
      * Determine if the argument is a soft deletable model.
      *
-     * @param mixed $model
-     * @return bool
-     *
      * @phpstan-assert-if-true Model $model
      */
-    protected function isSoftDeletableModel($model)
+    protected function isSoftDeletableModel(mixed $model): bool
     {
         return $model instanceof Model && $model::isSoftDeletable();
     }
@@ -330,11 +307,9 @@ trait InteractsWithDatabase
     /**
      * Get the database connection.
      *
-     * @param null|string $connection
      * @param null|class-string<Model>|Model|string $table
-     * @return Connection
      */
-    protected function getConnection($connection = null, $table = null)
+    protected function getConnection(UnitEnum|string|null $connection = null, Model|string|null $table = null): Connection
     {
         $database = $this->app->make('db');
 
@@ -353,9 +328,8 @@ trait InteractsWithDatabase
      * Get the table name from the given model or string.
      *
      * @param class-string<Model>|Model|string $table
-     * @return string
      */
-    protected function getTable($table)
+    protected function getTable(Model|string $table): string
     {
         if ($table instanceof Model) {
             return $table->getTable();
@@ -367,10 +341,9 @@ trait InteractsWithDatabase
     /**
      * Get the table connection specified in the given model.
      *
-     * @param class-string<Model>|Model|string $table
-     * @return null|string
+     * @param null|class-string<Model>|Model|string $table
      */
-    protected function getTableConnection($table)
+    protected function getTableConnection(Model|string|null $table): ?string
     {
         if ($table instanceof Model) {
             return $table->getConnectionName();
@@ -382,11 +355,9 @@ trait InteractsWithDatabase
     /**
      * Get the table column name used for soft deletes.
      *
-     * @param string $table
-     * @param string $defaultColumnName
-     * @return string
+     * @param class-string<Model>|Model|string $table
      */
-    protected function getDeletedAtColumn($table, $defaultColumnName = 'deleted_at')
+    protected function getDeletedAtColumn(Model|string $table, ?string $defaultColumnName = 'deleted_at'): ?string
     {
         return $this->newModelFor($table)?->getDeletedAtColumn() ?: $defaultColumnName;
     }
@@ -394,10 +365,9 @@ trait InteractsWithDatabase
     /**
      * Get the model entity from the given model or string.
      *
-     * @param Model|string $table
-     * @return null|Model
+     * @param null|class-string<Model>|Model|string $table
      */
-    protected function newModelFor($table)
+    protected function newModelFor(Model|string|null $table): ?Model
     {
         return is_subclass_of($table, Model::class) ? (new $table) : null;
     }

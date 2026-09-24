@@ -120,7 +120,7 @@ class Router implements BindingRegistrar, RegistrarContract
      *
      * @var array<int, string>
      */
-    public static array $verbs = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
+    public static array $verbs = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'QUERY'];
 
     /**
      * Create a new Router instance.
@@ -178,6 +178,14 @@ class Router implements BindingRegistrar, RegistrarContract
     public function options(string $uri, array|string|callable|null $action = null): Route
     {
         return $this->addRoute('OPTIONS', $uri, $action);
+    }
+
+    /**
+     * Register a new QUERY route with the router.
+     */
+    public function query(string $uri, array|string|callable|null $action = null): Route
+    {
+        return $this->addRoute('QUERY', $uri, $action);
     }
 
     /**

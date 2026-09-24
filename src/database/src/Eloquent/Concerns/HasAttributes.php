@@ -595,6 +595,8 @@ trait HasAttributes
 
     /**
      * Handle a lazy loading violation.
+     *
+     * @throws LazyLoadingViolationException
      */
     protected function handleLazyLoadingViolation(string $key): mixed
     {
@@ -773,6 +775,8 @@ trait HasAttributes
 
     /**
      * Ensure that the given casts are strings.
+     *
+     * @throws InvalidArgumentException
      */
     protected function ensureCastsAreStringValues(array $casts): array
     {
@@ -1265,6 +1269,8 @@ trait HasAttributes
      * Get the storable value from the given enum.
      *
      * @param UnitEnum $value
+     *
+     * @throws ValueError
      */
     protected function getStorableEnumValue(string $expectedEnum, mixed $value): string|int
     {
@@ -1303,6 +1309,8 @@ trait HasAttributes
 
     /**
      * Cast the given attribute to JSON.
+     *
+     * @throws JsonEncodingException
      */
     protected function castAttributeAsJson(string $key, mixed $value): string
     {
@@ -1390,6 +1398,8 @@ trait HasAttributes
 
     /**
      * Cast the given attribute to a hashed string.
+     *
+     * @throws RuntimeException
      */
     protected function castAttributeAsHashedString(string $key, #[SensitiveParameter] mixed $value): ?string
     {
@@ -1429,6 +1439,8 @@ trait HasAttributes
 
     /**
      * Return a decimal as string.
+     *
+     * @throws MathException
      */
     protected function asDecimal(float|string $value, int $decimals): string
     {

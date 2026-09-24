@@ -94,7 +94,7 @@ class PreventRequestForgery
      */
     protected function isReading(Request $request): bool
     {
-        return in_array($request->method(), ['HEAD', 'GET', 'OPTIONS'], true);
+        return in_array($request->method(), ['HEAD', 'GET', 'OPTIONS', 'QUERY'], true);
     }
 
     /**

@@ -83,6 +83,8 @@ class ThrottlesExceptions
 
     /**
      * Process the job.
+     *
+     * @throws Throwable
      */
     public function handle(mixed $job, callable $next): mixed
     {

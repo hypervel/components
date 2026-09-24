@@ -7,8 +7,8 @@ namespace Hypervel\Foundation\Console;
 use Hypervel\Console\Concerns\CreatesMatchingTest;
 use Hypervel\Console\GeneratorCommand;
 use Hypervel\Foundation\Inspiring;
-use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 use Override;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
@@ -163,7 +163,7 @@ class MailMakeCommand extends GeneratorCommand
         if (! $view) {
             $name = str_replace('\\', '/', $this->argument('name'));
 
-            $view = 'mail.' . (new Collection(explode('/', $name)))
+            $view = 'mail.' . (new Stringable($name))->explode('/')
                 ->map(fn ($part) => Str::kebab($part))
                 ->implode('.');
         }

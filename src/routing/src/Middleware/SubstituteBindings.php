@@ -27,6 +27,8 @@ class SubstituteBindings
 
     /**
      * Handle an incoming request.
+     *
+     * @throws ModelNotFoundException
      */
     public function handle(Request $request, Closure $next): Response
     {

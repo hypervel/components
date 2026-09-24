@@ -103,6 +103,8 @@ class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagCon
 
     /**
      * Determine if messages exist for all of the given keys.
+     *
+     * @param null|array<string>|string $key
      */
     public function has(array|string|null $key = null): bool
     {
@@ -128,6 +130,8 @@ class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagCon
 
     /**
      * Determine if messages exist for any of the given keys.
+     *
+     * @param null|array<string>|string $keys
      */
     public function hasAny(array|string|null $keys = []): bool
     {
@@ -149,6 +153,8 @@ class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagCon
 
     /**
      * Determine if messages don't exist for all of the given keys.
+     *
+     * @param null|array<string>|string $key
      */
     public function missing(array|string|null $key = null): bool
     {

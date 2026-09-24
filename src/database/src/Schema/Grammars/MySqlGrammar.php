@@ -10,6 +10,7 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\ColumnDefinition;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
+use Hypervel\Support\Stringable;
 use Override;
 
 /**
@@ -612,7 +613,7 @@ class MySqlGrammar extends Grammar
     public function escapeNames(array $names): array
     {
         return array_map(
-            fn ($name) => (new Collection(explode('.', $name)))->map($this->wrapValue(...))->implode('.'),
+            fn ($name) => (new Stringable($name))->explode('.')->map($this->wrapValue(...))->implode('.'),
             $names
         );
     }

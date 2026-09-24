@@ -308,6 +308,9 @@ trait BuildsQueries
      * Query lazily, by chunking the results of a query by comparing IDs in a given order.
      *
      * @return LazyCollection<int, TValue>
+     *
+     * @throws InvalidArgumentException
+     * @throws RuntimeException if the ID column is missing while iterating the results
      */
     protected function orderedLazyById(int $chunkSize = 1000, ?string $column = null, ?string $alias = null, SortDirection|bool $descending = false): LazyCollection
     {

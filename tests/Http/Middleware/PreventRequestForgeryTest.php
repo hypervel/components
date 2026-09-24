@@ -27,6 +27,16 @@ class PreventRequestForgeryTest extends TestCase
         $this->assertSame('OK', $response->getContent());
     }
 
+    public function testQueryRequestsPassWithoutToken(): void
+    {
+        $middleware = $this->createMiddleware();
+        $request = $this->createRequest(method: 'QUERY');
+
+        $response = $middleware->handle($request, fn (): Response => new Response('OK'));
+
+        $this->assertSame('OK', $response->getContent());
+    }
+
     public function testSameSiteHeaderRejectedByDefault(): void
     {
         $middleware = $this->createMiddleware();
@@ -131,11 +141,11 @@ class PreventRequestForgeryTest extends TestCase
     /**
      * Create a request with the given headers and token.
      */
-    protected function createRequest(array $server = [], ?string $token = null): Request
+    protected function createRequest(array $server = [], ?string $token = null, string $method = 'POST'): Request
     {
         $request = Request::create(
             'http://example.com/test',
-            'POST',
+            $method,
             $token ? ['_token' => $token] : [],
             [],
             [],

@@ -105,6 +105,8 @@ class ExceptionHandlerFake implements ExceptionHandler, Fake
      * Assert if an exception of the given type has not been reported.
      *
      * @param class-string<Throwable>|(Closure(Throwable): bool) $exception
+     *
+     * @throws ExpectationFailedException
      */
     public function assertNotReported(Closure|string $exception): void
     {
@@ -136,6 +138,8 @@ class ExceptionHandlerFake implements ExceptionHandler, Fake
 
     /**
      * Report or log an exception.
+     *
+     * @throws Throwable
      */
     public function report(Throwable $e): void
     {
@@ -250,8 +254,6 @@ class ExceptionHandlerFake implements ExceptionHandler, Fake
 
     /**
      * Handle dynamic method calls to the handler.
-     *
-     * @param array<string, mixed> $parameters
      */
     public function __call(string $method, array $parameters): mixed
     {

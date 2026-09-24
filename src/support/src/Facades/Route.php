@@ -64,6 +64,7 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\Routing\Router prependMiddlewareToGroup(string $group, string $middleware)
  * @method static \Hypervel\Routing\Router pushMiddlewareToGroup(string $group, string $middleware)
  * @method static \Hypervel\Routing\Route put(string $uri, callable|array|string|null $action = null)
+ * @method static \Hypervel\Routing\Route query(string $uri, callable|array|string|null $action = null)
  * @method static \Hypervel\Routing\Route redirect(string $uri, string $destination, int $status = 302)
  * @method static \Hypervel\Routing\Router removeMiddlewareFromGroup(string $group, array|string $middleware)
  * @method static array<int, mixed> resolveMiddleware(array $middleware, array $excluded = [])

@@ -31,6 +31,8 @@ trait TransformsToResource
 
     /**
      * Guess the resource class for the model.
+     *
+     * @throws LogicException
      */
     protected function guessResource(): JsonResource
     {

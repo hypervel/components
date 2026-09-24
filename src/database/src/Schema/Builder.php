@@ -325,6 +325,8 @@ class Builder
 
     /**
      * Get the data type for the given column name.
+     *
+     * @throws InvalidArgumentException
      */
     public function getColumnType(string $table, string $column, bool $fullDefinition = false): string
     {
@@ -691,6 +693,8 @@ class Builder
 
     /**
      * Create a new extension on the schema if it does not exist.
+     *
+     * @throws RuntimeException
      */
     public function ensureExtensionExists(string $name, ?string $schema = null): void
     {

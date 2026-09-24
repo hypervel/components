@@ -11,6 +11,7 @@ use Hypervel\Contracts\Queue\Factory;
 use Hypervel\Queue\Events\QueueBusy;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Stringable;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'queue:monitor')]
@@ -74,7 +75,7 @@ class MonitorCommand extends Command
      */
     protected function parseQueues(string $queues): Collection
     {
-        return (new Collection(explode(',', $queues)))->map(function (string $queue): array {
+        return (new Stringable($queues))->explode(',')->map(function (string $queue): array {
             [$connection, $queue] = array_pad(explode(':', $queue, 2), 2, null);
 
             if (! isset($queue)) {

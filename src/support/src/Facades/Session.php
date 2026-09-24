@@ -14,7 +14,7 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\Session\UserSessions forUser(\Hypervel\Contracts\Auth\Authenticatable|string|int $user, \UnitEnum|string|null $guard = null)
  * @method static \Hypervel\Contracts\Container\Container getContainer()
  * @method static string getDefaultDriver()
- * @method static array getDrivers()
+ * @method static array<array-key, mixed> getDrivers()
  * @method static array getSessionConfig()
  * @method static \Hypervel\Session\SessionManager setContainer(\Hypervel\Contracts\Container\Container $container)
  * @method static void setDefaultDriver(\UnitEnum|string $name)

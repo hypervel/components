@@ -87,6 +87,29 @@ class FileResponseBuilderTest extends TestCase
         $this->assertSame('bytes', $response->headers->get('Accept-Ranges'));
     }
 
+    #[DataProvider('acceptRangesProvider')]
+    public function testAcceptRangesFollowsWhetherTheRequestMethodIsSafe(string $method, string $acceptRanges): void
+    {
+        $response = $this->build(
+            Request::create('/file.txt', $method),
+            fn (?int $start, ?int $end): mixed => $this->stream('body'),
+            4,
+        );
+
+        $this->assertSame($acceptRanges, $response->headers->get('Accept-Ranges'));
+    }
+
+    /**
+     * Get request methods with their expected Accept-Ranges header.
+     */
+    public static function acceptRangesProvider(): array
+    {
+        return [
+            'safe query' => ['QUERY', 'bytes'],
+            'unsafe post' => ['POST', 'none'],
+        ];
+    }
+
     public function testBodyContainingOnlyZeroIsWritten(): void
     {
         $response = $this->build(

@@ -300,9 +300,10 @@ class BroadcastManager implements BroadcastingFactoryContract
     }
 
     /**
-     * Resolve the given broadcaster with Pool Proxy if need.
+     * Resolve the given broadcaster with a pool proxy if needed.
      *
      * @throws InvalidArgumentException
+     * @throws RuntimeException
      */
     protected function resolve(string $name): Broadcaster
     {

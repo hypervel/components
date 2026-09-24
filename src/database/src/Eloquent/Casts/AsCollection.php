@@ -22,11 +22,19 @@ class AsCollection implements Castable
     public static function castUsing(array $arguments): CastsAttributes
     {
         return new class($arguments) implements CastsAttributes {
+            /**
+             * Create a new collection cast instance.
+             */
             public function __construct(protected array $arguments)
             {
                 $this->arguments = array_pad(array_values($this->arguments), 2, '');
             }
 
+            /**
+             * Transform the attribute from the underlying model values.
+             *
+             * @throws InvalidArgumentException
+             */
             public function get(Model $model, string $key, mixed $value, array $attributes): ?Collection
             {
                 if (! isset($attributes[$key])) {
@@ -60,6 +68,9 @@ class AsCollection implements Castable
                     : $instance->mapInto($this->arguments[1][0]);
             }
 
+            /**
+             * Transform the attribute to its underlying model values.
+             */
             public function set(Model $model, string $key, mixed $value, array $attributes): array
             {
                 $encoded = Json::encode($value);

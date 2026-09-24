@@ -70,6 +70,8 @@ $response = $this->query('/search', ['filter' => 'active']);
 $response = $this->queryJson('/search', ['filter' => 'active']);
 ```
 
+Because these requests are simulated, they aren't affected by the [HTTP/1.1 limitation on `QUERY` routes](/docs/{{version}}/routing#available-router-methods) that applies in production.
+
 Instead of returning an `Hypervel\Http\Response` instance, test request methods return an instance of `Hypervel\Testing\TestResponse`, which provides a [variety of helpful assertions](#available-assertions) that allow you to inspect your application's responses:
 
 ```php tab=Pest

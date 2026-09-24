@@ -493,6 +493,8 @@ class Schedule
 
     /**
      * Dynamically handle calls into the schedule instance.
+     *
+     * @throws BadMethodCallException
      */
     public function __call(string $method, array $parameters): mixed
     {

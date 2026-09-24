@@ -19,7 +19,7 @@ use Hypervel\Support\Testing\Fakes\NotificationFake;
  * @method static \Hypervel\Notifications\ChannelManager forgetDrivers()
  * @method static \Hypervel\Contracts\Container\Container getContainer()
  * @method static string getDefaultDriver()
- * @method static array getDrivers()
+ * @method static array<array-key, mixed> getDrivers()
  * @method static string|null getLocale()
  * @method static bool hasMacro(string $name)
  * @method static \Hypervel\Notifications\ChannelManager locale(string $locale)

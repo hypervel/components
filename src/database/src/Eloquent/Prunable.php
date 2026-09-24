@@ -8,12 +8,15 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Events\ModelsPruned;
 use LogicException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 trait Prunable
 {
     /**
      * Prune all prunable models in the database.
+     *
+     * @throws Throwable
      */
     public function pruneAll(int $chunkSize = 1000): int
     {
@@ -29,14 +32,10 @@ trait Prunable
                         $model->prune();
 
                         ++$total;
+                    } catch (CanceledException $exception) {
+                        throw $exception;
                     } catch (Throwable $e) {
-                        $handler = app(ExceptionHandler::class);
-
-                        if ($handler) {
-                            $handler->report($e);
-                        } else {
-                            throw $e;
-                        }
+                        app(ExceptionHandler::class)->report($e);
                     }
                 });
 
@@ -54,6 +53,8 @@ trait Prunable
      * Get the prunable model query.
      *
      * @return Builder<static>
+     *
+     * @throws LogicException
      */
     public function prunable(): Builder
     {

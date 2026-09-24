@@ -124,6 +124,8 @@ trait ManagesFrequencies
      * Schedule the event to run multiple times per minute.
      *
      * @param int<1, 59> $seconds
+     *
+     * @throws InvalidArgumentException
      */
     protected function repeatEvery(int $seconds): static
     {

@@ -178,6 +178,8 @@ abstract class Queue
 
     /**
      * Create a payload for an object-based queue handler.
+     *
+     * @throws RuntimeException
      */
     protected function createObjectPayload(object $job, ?string $queue): array
     {

@@ -692,6 +692,7 @@ trait QueriesRelationships
      *
      * @param EloquentCollection<int, Model>|Model $related
      *
+     * @throws InvalidArgumentException
      * @throws RelationNotFoundException
      */
     public function whereBelongsTo(mixed $related, ?string $relationshipName = null, string $boolean = 'and'): static
@@ -733,8 +734,6 @@ trait QueriesRelationships
 
     /**
      * Add a "BelongsTo" relationship with an "or where" clause to the query.
-     *
-     * @throws RuntimeException
      */
     public function orWhereBelongsTo(mixed $related, ?string $relationshipName = null): static
     {
@@ -746,6 +745,7 @@ trait QueriesRelationships
      *
      * @param EloquentCollection<int, Model>|Model $related
      *
+     * @throws InvalidArgumentException
      * @throws RelationNotFoundException
      */
     public function whereAttachedTo(mixed $related, ?string $relationshipName = null, string $boolean = 'and'): static

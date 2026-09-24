@@ -23,11 +23,16 @@ class ConfigurationUrlParser
 
     /**
      * The drivers aliases map.
+     *
+     * @var array<string, string>
      */
     protected static array $driverAliases = self::DEFAULT_DRIVER_ALIASES;
 
     /**
      * Parse the database configuration, hydrating options using a database configuration URL if possible.
+     *
+     * @param array<string, mixed>|string $config
+     * @return array<string, mixed>
      */
     public function parseConfiguration(array|string $config): array
     {
@@ -62,6 +67,9 @@ class ConfigurationUrlParser
 
     /**
      * Get the primary database connection options.
+     *
+     * @param array<string, mixed> $url
+     * @return array<string, mixed>
      */
     protected function getPrimaryOptions(array $url): array
     {
@@ -77,6 +85,8 @@ class ConfigurationUrlParser
 
     /**
      * Get the database driver from the URL.
+     *
+     * @param array<string, mixed> $url
      */
     protected function getDriver(array $url): ?string
     {
@@ -91,6 +101,8 @@ class ConfigurationUrlParser
 
     /**
      * Get the database name from the URL.
+     *
+     * @param array<string, mixed> $url
      */
     protected function getDatabase(array $url): ?string
     {
@@ -101,6 +113,9 @@ class ConfigurationUrlParser
 
     /**
      * Get all of the additional database options from the query string.
+     *
+     * @param array<string, mixed> $url
+     * @return array<string, mixed>
      */
     protected function getQueryOptions(array $url): array
     {
@@ -119,6 +134,8 @@ class ConfigurationUrlParser
 
     /**
      * Parse the string URL to an array of components.
+     *
+     * @return array<string, mixed>
      *
      * @throws InvalidArgumentException
      */
@@ -159,6 +176,8 @@ class ConfigurationUrlParser
 
     /**
      * Get all of the current drivers' aliases.
+     *
+     * @return array<string, string>
      */
     public static function getDriverAliases(): array
     {

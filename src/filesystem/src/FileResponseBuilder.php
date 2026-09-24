@@ -49,9 +49,7 @@ class FileResponseBuilder
             );
         }
 
-        $headers['Accept-Ranges'] = in_array($request->getMethod(), ['GET', 'HEAD', 'OPTIONS', 'TRACE'], true)
-            ? 'bytes'
-            : 'none';
+        $headers['Accept-Ranges'] = $request->isMethodSafe() ? 'bytes' : 'none';
 
         $response = new IterableStreamedResponse([]);
 

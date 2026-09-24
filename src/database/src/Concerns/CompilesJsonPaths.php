@@ -30,6 +30,7 @@ trait CompilesJsonPaths
     {
         $value = preg_replace("/([\\\\]+)?\\'/", "'", $value);
 
+        // Keep this explode() to avoid an extra Stringable allocation per call.
         $jsonPath = (new Collection(explode($delimiter, $value)))
             ->map(fn ($segment) => $this->wrapJsonPathSegment($segment))
             ->join('.');

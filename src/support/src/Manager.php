@@ -23,11 +23,15 @@ abstract class Manager
 
     /**
      * The registered custom driver creators.
+     *
+     * @var array<array-key, Closure>
      */
     protected array $customCreators = [];
 
     /**
      * The array of created "drivers".
+     *
+     * @var array<array-key, mixed>
      */
     protected array $drivers = [];
 
@@ -135,6 +139,8 @@ abstract class Manager
 
     /**
      * Get all of the created "drivers".
+     *
+     * @return array<array-key, mixed>
      */
     public function getDrivers(): array
     {

@@ -17,7 +17,7 @@ use SensitiveParameter;
  * @method static \Hypervel\Hashing\HashManager forgetDrivers()
  * @method static \Hypervel\Contracts\Container\Container getContainer()
  * @method static string getDefaultDriver()
- * @method static array getDrivers()
+ * @method static array<array-key, mixed> getDrivers()
  * @method static array info(string $hashedValue)
  * @method static bool isHashed(string $value)
  * @method static string make(string $value, array $options = [])

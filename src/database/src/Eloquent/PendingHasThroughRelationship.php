@@ -104,6 +104,8 @@ class PendingHasThroughRelationship
 
     /**
      * Handle dynamic method calls into the model.
+     *
+     * @throws BadMethodCallException
      */
     public function __call(string $method, array $parameters): mixed
     {

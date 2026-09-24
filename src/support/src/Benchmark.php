@@ -13,6 +13,9 @@ class Benchmark
 
     /**
      * Measure a callable or array of callables over the given number of iterations.
+     *
+     * @param array<callable>|Closure $benchmarkables
+     * @return array<float|int>|float
      */
     public static function measure(Closure|array $benchmarkables, int $iterations = 1): array|float
     {
@@ -39,7 +42,7 @@ class Benchmark
      * @template TReturn of mixed
      *
      * @param (callable(): TReturn) $callback
-     * @return array{0: TReturn, 1: float}
+     * @return array{0: TReturn, 1: float|int}
      */
     public static function value(callable $callback): array
     {
@@ -54,6 +57,8 @@ class Benchmark
 
     /**
      * Measure a callable or array of callables over the given number of iterations, then dump and die.
+     *
+     * @param array<callable>|Closure $benchmarkables
      */
     public static function dd(Closure|array $benchmarkables, int $iterations = 1): never
     {
