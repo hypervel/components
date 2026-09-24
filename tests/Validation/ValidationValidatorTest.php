@@ -3519,6 +3519,25 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
     }
 
+    public function testValidateEncodingDoesNotThrowOnNonStringValue(): void
+    {
+        $trans = $this->getArrayTranslator();
+
+        foreach ([123, 1.5, true, false, null] as $value) {
+            $v = new Validator($trans, ['x' => $value], ['x' => 'encoding:utf-8']);
+            $this->assertFalse($v->passes());
+        }
+
+        $v = new Validator($trans, ['x' => null], ['x' => 'nullable|encoding:utf-8']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['x' => ['valid', ['nested']]], ['x' => 'encoding:utf-8']);
+        $this->assertTrue($v->passes());
+
+        $v = new Validator($trans, ['x' => ['valid', ["\xff"]]], ['x' => 'encoding:utf-8']);
+        $this->assertFalse($v->passes());
+    }
+
     public function testValidateHexColorDoesNotThrowOnNonStringValue(): void
     {
         $trans = $this->getArrayTranslator();
