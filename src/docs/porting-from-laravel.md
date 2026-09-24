@@ -530,6 +530,8 @@ Handwritten validation parameters use standard CSV quoting. Replace backslash-es
 
 `FailOnUnknownFields` accepts the contents of `array` fields without child rules. Add child rules or allowed keys (`array:name,email`) when those contents must be restricted. See [unknown fields](/docs/{{version}}/validation#request-failing-on-unknown-fields).
 
+Laravel's deprecated `InvokableRule` contract is not available. Change rules that implement it to implement `Hypervel\Contracts\Validation\ValidationRule` and rename their `__invoke` method to `validate`; code that calls such a rule object directly must call `validate` or keep its own `__invoke` method. See [rule objects](/docs/{{version}}/validation#using-rule-objects).
+
 <a name="request-and-input-data"></a>
 ### Request and Input Data
 

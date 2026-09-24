@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Validation;
 
 use Closure;
-use Hypervel\Contracts\Validation\InvokableRule;
 use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\ValidationRule;
 use Hypervel\Engine\Channel;
@@ -46,20 +45,17 @@ class ValidationDefaultRuleIsolationTest extends TestCase
     public function testNestedExecutableRulesAreClonedWithThePrototype(): void
     {
         $legacy = new DefaultLegacyRule;
-        $invokable = new DefaultInvokableRule;
         $validation = new DefaultValidationRule;
 
-        Password::defaults(Password::min(8)->rules([$legacy, $invokable, $validation]));
+        Password::defaults(Password::min(8)->rules([$legacy, $validation]));
 
         $first = Password::default()->appliedRules()['customRules'];
         $second = Password::default()->appliedRules()['customRules'];
 
         $this->assertNotSame($legacy, $first[0]);
-        $this->assertNotSame($invokable, $first[1]);
-        $this->assertNotSame($validation, $first[2]);
+        $this->assertNotSame($validation, $first[1]);
         $this->assertNotSame($first[0], $second[0]);
         $this->assertNotSame($first[1], $second[1]);
-        $this->assertNotSame($first[2], $second[2]);
     }
 
     public function testConfiguredDefaultsAreIsolatedBetweenCoroutines(): void
@@ -122,13 +118,6 @@ class DefaultLegacyRule implements Rule
     public function message(): string
     {
         return '';
-    }
-}
-
-class DefaultInvokableRule implements InvokableRule
-{
-    public function __invoke(string $attribute, mixed $value, Closure $fail): void
-    {
     }
 }
 

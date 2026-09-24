@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Validation;
 
 use Closure;
-use Hypervel\Contracts\Validation\InvokableRule;
 use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\ValidationRule;
 use Hypervel\Support\Fluent;
@@ -13,17 +12,23 @@ use Hypervel\Support\Fluent;
 class ConditionalRules
 {
     /**
+     * The boolean condition indicating if the rules should be added to the attribute.
+     */
+    protected bool|Closure $condition;
+
+    /**
      * Create a new conditional rules instance.
      *
-     * @param bool|Closure $condition the boolean condition indicating if the rules should be added to the attribute
-     * @param array|Closure|InvokableRule|Rule|string|ValidationRule $rules the rules to be added to the attribute
-     * @param array|Closure|InvokableRule|Rule|string|ValidationRule $defaultRules the rules to be added to the attribute if the condition fails
+     * @param bool|callable $condition the boolean condition indicating if the rules should be added to the attribute
+     * @param array|Closure|Rule|string|ValidationRule $rules the rules to be added to the attribute
+     * @param array|Closure|Rule|string|ValidationRule $defaultRules the rules to be added to the attribute if the condition fails
      */
     public function __construct(
-        protected bool|Closure $condition,
-        protected array|Closure|InvokableRule|Rule|string|ValidationRule $rules,
-        protected array|Closure|InvokableRule|Rule|string|ValidationRule $defaultRules = []
+        bool|callable $condition,
+        protected array|Closure|Rule|string|ValidationRule $rules,
+        protected array|Closure|Rule|string|ValidationRule $defaultRules = []
     ) {
+        $this->condition = is_bool($condition) ? $condition : $condition(...);
     }
 
     /**
