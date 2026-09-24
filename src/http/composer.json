@@ -1,8 +1,8 @@
 {
     "name": "hypervel/http",
-    "type": "library",
     "description": "The Hypervel HTTP package.",
     "license": "MIT",
+    "type": "library",
     "keywords": [
         "php",
         "swoole",
@@ -23,11 +23,6 @@
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
     },
-    "autoload": {
-        "psr-4": {
-            "Hypervel\\Http\\": "src/"
-        }
-    },
     "require": {
         "php": "^8.4",
         "ext-filter": "*",
@@ -36,11 +31,6 @@
         "guzzlehttp/promises": "^2.5.2 || ^3.0.2",
         "guzzlehttp/psr7": "^2.13 || ^3.1",
         "guzzlehttp/uri-template": "^1.0 || ^2.0",
-        "nesbot/carbon": "^3.13.1",
-        "psr/http-message": "^2.0",
-        "symfony/http-foundation": "^8.1",
-        "symfony/http-kernel": "^8.1",
-        "symfony/mime": "^8.1",
         "hypervel/collections": "^0.4",
         "hypervel/conditionable": "^0.4",
         "hypervel/container": "^0.4",
@@ -51,24 +41,34 @@
         "hypervel/object-pool": "^0.4",
         "hypervel/pagination": "^0.4",
         "hypervel/session": "^0.4",
-        "hypervel/support": "^0.4"
+        "hypervel/support": "^0.4",
+        "nesbot/carbon": "^3.13.1",
+        "psr/http-message": "^2.0",
+        "symfony/http-foundation": "^8.1",
+        "symfony/http-kernel": "^8.1",
+        "symfony/mime": "^8.1"
     },
     "suggest": {
         "ext-gd": "Required to use Hypervel\\Http\\Testing\\FileFactory::image().",
         "hypervel/image": "Required for image() method on requests (^0.4).",
         "hypervel/validation": "Required for validate() method on requests."
     },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Http\\": "src/"
+        }
+    },
     "config": {
         "sort-packages": true
     },
     "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        },
         "hypervel": {
             "providers": [
                 "Hypervel\\Http\\HttpServiceProvider"
             ]
-        },
-        "branch-alias": {
-            "dev-main": "0.4-dev"
         }
     }
 }

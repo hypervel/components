@@ -1,8 +1,8 @@
 {
     "name": "hypervel/cache",
-    "type": "library",
     "description": "The Hypervel Cache package.",
     "license": "MIT",
+    "type": "library",
     "keywords": [
         "php",
         "cache",
@@ -22,11 +22,6 @@
     "support": {
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
-    },
-    "autoload": {
-        "psr-4": {
-            "Hypervel\\Cache\\": "src/"
-        }
     },
     "require": {
         "php": "^8.4",
@@ -56,17 +51,22 @@
         "ext-redis": "Required to use the Redis cache driver (^6.1); the any tagging mode requires ^6.3.",
         "hypervel/telescope": "Required for benchmark monitoring detection (^0.4)."
     },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Cache\\": "src/"
+        }
+    },
     "config": {
         "sort-packages": true
     },
     "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        },
         "hypervel": {
             "providers": [
                 "Hypervel\\Cache\\CacheServiceProvider"
             ]
-        },
-        "branch-alias": {
-            "dev-main": "0.4-dev"
         }
     }
 }

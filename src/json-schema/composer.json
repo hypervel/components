@@ -1,8 +1,8 @@
 {
     "name": "hypervel/json-schema",
-    "type": "library",
     "description": "The Hypervel JSON Schema package.",
     "license": "MIT",
+    "type": "library",
     "keywords": [
         "php",
         "json-schema",
@@ -23,14 +23,14 @@
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
     },
+    "require": {
+        "php": "^8.4",
+        "hypervel/contracts": "^0.4"
+    },
     "autoload": {
         "psr-4": {
             "Hypervel\\JsonSchema\\": "src/"
         }
-    },
-    "require": {
-        "php": "^8.4",
-        "hypervel/contracts": "^0.4"
     },
     "config": {
         "sort-packages": true

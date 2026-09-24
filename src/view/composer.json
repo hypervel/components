@@ -8,10 +8,6 @@
         "view",
         "hypervel"
     ],
-    "support": {
-        "issues": "https://github.com/hypervel/components/issues",
-        "source": "https://github.com/hypervel/components"
-    },
     "authors": [
         {
             "name": "Albert Chen",
@@ -22,6 +18,10 @@
             "homepage": "https://github.com/binaryfire"
         }
     ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
     "require": {
         "php": "^8.4",
         "ext-filter": "*",
@@ -44,10 +44,14 @@
     "suggest": {
         "hypervel/foundation": "Required for the @vite, @viteReactRefresh, and @fonts directives."
     },
+    "minimum-stability": "dev",
     "autoload": {
         "psr-4": {
             "Hypervel\\View\\": "src/"
         }
+    },
+    "config": {
+        "sort-packages": true
     },
     "extra": {
         "branch-alias": {
@@ -58,9 +62,5 @@
                 "Hypervel\\View\\ViewServiceProvider"
             ]
         }
-    },
-    "config": {
-        "sort-packages": true
-    },
-    "minimum-stability": "dev"
+    }
 }

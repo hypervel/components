@@ -1,8 +1,8 @@
 {
     "name": "hypervel/collections",
-    "type": "library",
     "description": "The Hypervel Collections package.",
     "license": "MIT",
+    "type": "library",
     "keywords": [
         "php",
         "collections",
@@ -23,15 +23,6 @@
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
     },
-    "autoload": {
-        "psr-4": {
-            "Hypervel\\Support\\": "src/"
-        },
-        "files": [
-            "src/functions.php",
-            "src/helpers.php"
-        ]
-    },
     "require": {
         "php": "^8.4",
         "ext-filter": "*",
@@ -44,6 +35,15 @@
     "suggest": {
         "hypervel/http": "Required to convert collections to API resources (^0.4).",
         "symfony/var-dumper": "Required to use the dump method (^7.4 || ^8.0)."
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Support\\": "src/"
+        },
+        "files": [
+            "src/functions.php",
+            "src/helpers.php"
+        ]
     },
     "config": {
         "sort-packages": true

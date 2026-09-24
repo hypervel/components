@@ -1,8 +1,8 @@
 {
     "name": "hypervel/session",
-    "type": "library",
     "description": "The Hypervel Session package.",
     "license": "MIT",
+    "type": "library",
     "keywords": [
         "php",
         "session",
@@ -22,11 +22,6 @@
     "support": {
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
-    },
-    "autoload": {
-        "psr-4": {
-            "Hypervel\\Session\\": "src/"
-        }
     },
     "require": {
         "php": "^8.4",
@@ -55,17 +50,22 @@
     "suggest": {
         "ext-redis": "Required to use the Redis session driver (^6.1); user session tracking requires ^6.3."
     },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Session\\": "src/"
+        }
+    },
     "config": {
         "sort-packages": true
     },
     "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        },
         "hypervel": {
             "providers": [
                 "Hypervel\\Session\\SessionServiceProvider"
             ]
-        },
-        "branch-alias": {
-            "dev-main": "0.4-dev"
         }
     }
 }

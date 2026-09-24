@@ -1,8 +1,8 @@
 {
     "name": "hypervel/hashing",
-    "type": "library",
     "description": "The Hypervel Hashing package.",
     "license": "MIT",
+    "type": "library",
     "keywords": [
         "php",
         "hashing",
@@ -23,27 +23,27 @@
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
     },
-    "autoload": {
-        "psr-4": {
-            "Hypervel\\Hashing\\": "src/"
-        }
-    },
     "require": {
         "php": "^8.4",
         "hypervel/contracts": "^0.4",
         "hypervel/support": "^0.4"
     },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Hashing\\": "src/"
+        }
+    },
     "config": {
         "sort-packages": true
     },
     "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        },
         "hypervel": {
             "providers": [
                 "Hypervel\\Hashing\\HashingServiceProvider"
             ]
-        },
-        "branch-alias": {
-            "dev-main": "0.4-dev"
         }
     }
 }

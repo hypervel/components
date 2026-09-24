@@ -1,8 +1,8 @@
 {
     "name": "hypervel/testing",
-    "type": "library",
     "description": "The Hypervel Testing package.",
     "license": "MIT",
+    "type": "library",
     "keywords": [
         "php",
         "testing",
@@ -23,25 +23,11 @@
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
     },
-    "bin": [
-        "bin/hypervel-test-profile"
-    ],
-    "autoload": {
-        "psr-4": {
-            "Hypervel\\Testing\\": "src/"
-        }
-    },
     "require": {
         "php": "^8.4",
         "ext-dom": "*",
         "ext-mbstring": "*",
         "composer-runtime-api": "^2.2",
-        "mockery/mockery": "^1.6.15",
-        "nesbot/carbon": "^3.13.1",
-        "symfony/console": "^8.1",
-        "symfony/http-foundation": "^8.1",
-        "symfony/process": "^8.1",
-        "vlucas/phpdotenv": "^5.6.1",
         "hypervel/collections": "^0.4",
         "hypervel/conditionable": "^0.4",
         "hypervel/console": "^0.4",
@@ -56,12 +42,26 @@
         "hypervel/macroable": "^0.4",
         "hypervel/prompts": "^0.4",
         "hypervel/support": "^0.4",
-        "hypervel/view": "^0.4"
+        "hypervel/view": "^0.4",
+        "mockery/mockery": "^1.6.15",
+        "nesbot/carbon": "^3.13.1",
+        "symfony/console": "^8.1",
+        "symfony/http-foundation": "^8.1",
+        "symfony/process": "^8.1",
+        "vlucas/phpdotenv": "^5.6.1"
     },
     "suggest": {
         "brianium/paratest": "Required to run tests in parallel (^7.24).",
         "phpunit/phpunit": "Required to use Hypervel's testing assertions and PHPUnit integration (^13.0.3)."
     },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Testing\\": "src/"
+        }
+    },
+    "bin": [
+        "bin/hypervel-test-profile"
+    ],
     "config": {
         "sort-packages": true
     },

@@ -8,10 +8,6 @@
         "swoole",
         "hypervel"
     ],
-    "support": {
-        "issues": "https://github.com/hypervel/components/issues",
-        "source": "https://github.com/hypervel/components"
-    },
     "authors": [
         {
             "name": "Albert Chen",
@@ -22,27 +18,31 @@
             "homepage": "https://github.com/binaryfire"
         }
     ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
     "require": {
         "php": "^8.4",
         "ext-swoole": "^6.2.2",
-        "psr/container": "^2.0.1",
         "hypervel/collections": "^0.4",
         "hypervel/context": "^0.4",
         "hypervel/contracts": "^0.4",
-        "hypervel/reflection": "^0.4"
+        "hypervel/reflection": "^0.4",
+        "psr/container": "^2.0.1"
     },
+    "minimum-stability": "dev",
     "autoload": {
         "psr-4": {
             "Hypervel\\Container\\": "src/"
         }
     },
+    "config": {
+        "sort-packages": true
+    },
     "extra": {
         "branch-alias": {
             "dev-main": "0.4-dev"
         }
-    },
-    "config": {
-        "sort-packages": true
-    },
-    "minimum-stability": "dev"
+    }
 }

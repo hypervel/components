@@ -1,8 +1,8 @@
 {
     "name": "hypervel/events",
-    "type": "library",
     "description": "The Hypervel Events package.",
     "license": "MIT",
+    "type": "library",
     "keywords": [
         "php",
         "events",
@@ -23,17 +23,8 @@
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
     },
-    "autoload": {
-        "psr-4": {
-            "Hypervel\\Events\\": "src/"
-        },
-        "files": [
-            "src/functions.php"
-        ]
-    },
     "require": {
         "php": "^8.4",
-        "laravel/serializable-closure": "^2.0.11",
         "hypervel/bus": "^0.4",
         "hypervel/collections": "^0.4",
         "hypervel/container": "^0.4",
@@ -42,19 +33,28 @@
         "hypervel/macroable": "^0.4",
         "hypervel/queue": "^0.4",
         "hypervel/reflection": "^0.4",
-        "hypervel/support": "^0.4"
+        "hypervel/support": "^0.4",
+        "laravel/serializable-closure": "^2.0.11"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Events\\": "src/"
+        },
+        "files": [
+            "src/functions.php"
+        ]
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        },
         "hypervel": {
             "providers": [
                 "Hypervel\\Events\\EventServiceProvider"
             ]
-        },
-        "branch-alias": {
-            "dev-main": "0.4-dev"
         }
     }
 }

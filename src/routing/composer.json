@@ -1,8 +1,8 @@
 {
     "name": "hypervel/routing",
-    "type": "library",
     "description": "The Hypervel Routing package.",
     "license": "MIT",
+    "type": "library",
     "keywords": [
         "php",
         "routing",
@@ -22,11 +22,6 @@
     "support": {
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
-    },
-    "autoload": {
-        "psr-4": {
-            "Hypervel\\Routing\\": "src/"
-        }
     },
     "require": {
         "php": "^8.4",
@@ -57,17 +52,22 @@
         "symfony/psr-http-message-bridge": "^8.1",
         "symfony/routing": "^8.1"
     },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Routing\\": "src/"
+        }
+    },
     "config": {
         "sort-packages": true
     },
     "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        },
         "hypervel": {
             "providers": [
                 "Hypervel\\Routing\\RoutingServiceProvider"
             ]
-        },
-        "branch-alias": {
-            "dev-main": "0.4-dev"
         }
     }
 }
