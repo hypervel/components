@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Console\Scheduling;
+namespace Hypervel\Tests\Integration\Console\Scheduling;
 
 use Hypervel\Console\Events\SchedulePaused;
 use Hypervel\Console\Scheduling\Schedule;
@@ -14,7 +14,7 @@ use Mockery as m;
 
 class SchedulePauseCommandTest extends TestCase
 {
-    public function testPauseCommandBroadcastsPauseSignal(): void
+    public function testDispatchesEvent(): void
     {
         $cache = m::mock(Cache::class);
         $cache->shouldReceive('forever')
@@ -29,6 +29,22 @@ class SchedulePauseCommandTest extends TestCase
             ->assertSuccessful();
 
         Event::assertDispatched(SchedulePaused::class);
+    }
+
+    public function testFailsWhenPausingIsDisabled(): void
+    {
+        Schedule::withoutInterruptionPolling();
+
+        $cache = m::mock(Cache::class);
+        $cache->shouldNotReceive('forever');
+
+        $this->app->instance(Cache::class, $cache);
+        Event::fake();
+
+        $this->artisan('schedule:pause')
+            ->assertFailed();
+
+        Event::assertNotDispatched(SchedulePaused::class);
     }
 
     public function testPassiveObserverDoesNotCausePauseSignalToDispatch(): void
@@ -51,21 +67,5 @@ class SchedulePauseCommandTest extends TestCase
         $this->artisan('schedule:pause')->assertSuccessful();
 
         $this->assertSame([], $observedEvents);
-    }
-
-    public function testPauseCommandFailsWhenPausePollingIsDisabled(): void
-    {
-        Schedule::withoutInterruptionPolling();
-
-        $cache = m::mock(Cache::class);
-        $cache->shouldNotReceive('forever');
-
-        $this->app->instance(Cache::class, $cache);
-        Event::fake();
-
-        $this->artisan('schedule:pause')
-            ->assertFailed();
-
-        Event::assertNotDispatched(SchedulePaused::class);
     }
 }

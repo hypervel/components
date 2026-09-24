@@ -35,7 +35,7 @@ trait ManagesAttributes
     public bool $evenInMaintenanceMode = false;
 
     /**
-     * Indicates if the command should run when the scheduler is paused.
+     * Indicates if the command should run even when the scheduler is paused.
      */
     public bool $evenWhenPaused = false;
 
@@ -45,7 +45,7 @@ trait ManagesAttributes
     public bool $withoutOverlapping = false;
 
     /**
-     * Indicates if the event mutex should be released on termination signals.
+     * Indicates if the mutex should be released when the process receives a termination signal.
      */
     public bool $releaseOnTerminationSignals = true;
 
@@ -80,7 +80,7 @@ trait ManagesAttributes
     public ?string $description = null;
 
     /**
-     * The arbitrary attributes assigned to the event.
+     * The arbitrary attributes stored with the event.
      */
     public array $attributes = [];
 

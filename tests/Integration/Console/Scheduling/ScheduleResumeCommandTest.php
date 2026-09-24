@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Console\Scheduling;
+namespace Hypervel\Tests\Integration\Console\Scheduling;
 
 use Hypervel\Console\Events\ScheduleResumed;
 use Hypervel\Contracts\Cache\Repository as Cache;
@@ -13,7 +13,7 @@ use Mockery as m;
 
 class ScheduleResumeCommandTest extends TestCase
 {
-    public function testResumeCommandClearsPauseSignal(): void
+    public function testDispatchesEvent(): void
     {
         $cache = m::mock(Cache::class);
         $cache->shouldReceive('forget')
