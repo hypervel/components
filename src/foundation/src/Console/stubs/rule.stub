@@ -6,13 +6,14 @@ namespace {{ namespace }};
 
 use Closure;
 use Hypervel\Contracts\Validation\ValidationRule;
+use Hypervel\Translation\PotentiallyTranslatedString;
 
 class {{ class }} implements ValidationRule
 {
     /**
      * Run the validation rule.
      *
-     * @param  Closure(string, ?string=): \Hypervel\Translation\PotentiallyTranslatedString  $fail
+     * @param  Closure(string, ?string=): PotentiallyTranslatedString  $fail
      */
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
