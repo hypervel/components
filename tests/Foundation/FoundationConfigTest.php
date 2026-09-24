@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
+use Hypervel\Broadcasting\Broadcasters\LogBroadcaster;
+use Hypervel\Broadcasting\Broadcasters\NullBroadcaster;
+use Hypervel\Broadcasting\BroadcastManager;
 use Hypervel\Config\Repository;
 use Hypervel\ConnectionPool\PoolOptions;
 use Hypervel\Container\Container;
@@ -502,6 +505,32 @@ class FoundationConfigTest extends TestCase
 
         $this->assertSame(8443, $config['connections']['reverb']['options']['port']);
         $this->assertSame(9443, $config['connections']['pusher']['options']['port']);
+    }
+
+    #[DataProvider('broadcastConnectionEnvironmentValues')]
+    public function testBroadcastingConfigNormalizesANullDefaultConnection(?string $value, string $expected, string $broadcaster): void
+    {
+        $config = $this->withEnvironmentValue('BROADCAST_CONNECTION', $value, function (): array {
+            return require dirname(__DIR__, 2) . '/src/foundation/config/broadcasting.php';
+        });
+
+        $this->assertSame($expected, $config['default']);
+
+        $this->app->make('config')->set('broadcasting', $config);
+
+        $this->assertInstanceOf($broadcaster, $this->app->make(BroadcastManager::class)->connection());
+    }
+
+    /**
+     * Supply omitted, null and named default broadcast connections.
+     */
+    public static function broadcastConnectionEnvironmentValues(): array
+    {
+        return [
+            'omitted' => [null, 'null', NullBroadcaster::class],
+            'null' => ['null', 'null', NullBroadcaster::class],
+            'named' => ['log', 'log', LogBroadcaster::class],
+        ];
     }
 
     public function testViewCompiledPathFallsBackToStoragePathWhenDirectoryDoesNotExist(): void

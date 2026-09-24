@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Console\Scheduling;
+namespace Hypervel\Tests\Integration\Console\Scheduling;
 
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Queue\Events\QueuePaused;

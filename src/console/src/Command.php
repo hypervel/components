@@ -533,7 +533,7 @@ class Command extends SymfonyCommand
      */
     protected function setUpTraits(InputInterface $input, OutputInterface $output): array
     {
-        $uses = array_flip(class_uses_recursive(static::class));
+        $uses = class_uses_recursive(static::class);
 
         foreach ($uses as $trait) {
             if (method_exists($this, $method = 'setUp' . class_basename($trait))) {

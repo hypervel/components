@@ -87,7 +87,7 @@ class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagCon
     /**
      * Merge a new array of messages into the message bag.
      *
-     * @param array<array-key, array<string>>|MessageProvider $messages
+     * @param array<array-key, array<string>|string>|MessageProvider $messages
      * @return $this
      */
     public function merge(MessageProvider|array $messages): static
@@ -96,7 +96,18 @@ class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagCon
             $messages = $messages->getMessageBag()->getMessages();
         }
 
-        $this->messages = array_merge_recursive($this->messages, $messages);
+        foreach ($messages as $key => $fieldMessages) {
+            $this->messages[$key] ??= [];
+
+            foreach ((array) $fieldMessages as $messageKey => $message) {
+                // A message key already used for this field is appended instead of nesting both messages.
+                if (is_int($messageKey) || array_key_exists($messageKey, $this->messages[$key])) {
+                    $this->messages[$key][] = $message;
+                } else {
+                    $this->messages[$key][$messageKey] = $message;
+                }
+            }
+        }
 
         return $this;
     }
@@ -227,7 +238,11 @@ class MessageBag implements Countable, Jsonable, JsonSerializable, MessageBagCon
         $all = [];
 
         foreach ($this->messages as $key => $messages) {
-            $all = array_merge($all, $this->transform($messages, $format, $key));
+            // Append individually: merging would collapse keyed messages shared by different
+            // fields, and spreading into array_push() would treat those keys as named arguments.
+            foreach ($this->transform($messages, $format, $key) as $message) {
+                $all[] = $message;
+            }
         }
 
         return $all;

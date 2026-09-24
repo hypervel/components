@@ -2956,10 +2956,12 @@ class HttpClientTest extends TestCase
             $this->factory->throw()->truncateExceptionsAt(3)->get('http://foo.com/json');
             $this->fail('The request exception was not thrown.');
         } catch (RequestException $exception) {
+            // Ensure the exception message is truncated according to the request level truncation setting.
             $this->assertSame("HTTP request returned status code 403:\n[\"e (truncated...)\n", $exception->getMessage());
 
             $exception->report();
 
+            // Ensure that the truncation level is not changed when reporting the exception.
             $this->assertSame("HTTP request returned status code 403:\n[\"e (truncated...)\n", $exception->getMessage());
         }
 
@@ -6398,6 +6400,20 @@ class HttpClientTest extends TestCase
         $this->factory->assertSent(function (Request $request) {
             return $request->url() === 'https://laravel.com/docs/9.x/validation';
         });
+    }
+
+    public function testUrlParametersAreMergedAcrossCalls(): void
+    {
+        $this->factory->fake();
+
+        $this->factory
+            ->withUrlParameters(['endpoint' => 'https://hypervel.org', 'page' => 'docs', 1 => 'v1'])
+            ->withUrlParameters(['page' => 'blog', 'post' => 'release'])
+            ->get('{+endpoint}/{1}/{page}/{post}');
+
+        $this->factory->assertSent(
+            fn (Request $request): bool => $request->url() === 'https://hypervel.org/v1/blog/release'
+        );
     }
 
     public function testLiteralUrlBracesArePreservedWithoutUrlParameters(): void

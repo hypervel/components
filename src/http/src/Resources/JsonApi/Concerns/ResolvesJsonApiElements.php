@@ -64,6 +64,8 @@ trait ResolvesJsonApiElements
      *
      * Boot-only. The depth limit persists in a static property for the worker
      * lifetime and affects every subsequent JSON:API resource resolution.
+     *
+     * @param non-negative-int $depth
      */
     public static function maxRelationshipDepth(int $depth): void
     {

@@ -1266,6 +1266,9 @@ class MailMailableTest extends TestCase
         $this->mockContainer();
 
         $mailable = new class extends Mailable {
+            /**
+             * Build the message.
+             */
             public function build(): void
             {
             }
@@ -1274,6 +1277,9 @@ class MailMailableTest extends TestCase
         $mailable->assertHasNoAttachments();
 
         $mailableWithAttachment = new class extends Mailable {
+            /**
+             * Build the message.
+             */
             public function build(): void
             {
                 $this->attach('/path/to/foo.jpg');

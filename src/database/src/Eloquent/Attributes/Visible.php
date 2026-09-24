@@ -21,6 +21,9 @@ class Visible
      */
     public function __construct(array|string ...$columns)
     {
+        // A named argument keeps its name as the key, as in #[Visible(columns: [...])].
+        $columns = array_values($columns);
+
         $this->columns = is_array($columns[0] ?? null) ? $columns[0] : $columns;
     }
 }

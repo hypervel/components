@@ -40,6 +40,7 @@ class RedisConfigTest extends TestCase
             'backoff_algorithm' => 'decorrelated_jitter',
             'backoff_base' => 100,
             'backoff_cap' => 1000,
+            'tcp_keepalive' => 0,
             'pool' => [],
         ], [
             'scheme' => $connection['scheme'],
@@ -57,6 +58,7 @@ class RedisConfigTest extends TestCase
             'backoff_algorithm' => $connection['backoff_algorithm'],
             'backoff_base' => $connection['backoff_base'],
             'backoff_cap' => $connection['backoff_cap'],
+            'tcp_keepalive' => $connection['tcp_keepalive'],
             'pool' => $connection['pool'],
         ]);
         $this->assertArrayNotHasKey('retry_interval', $connection);
@@ -155,12 +157,12 @@ class RedisConfigTest extends TestCase
     public function testConnectionConfigMergesSharedAndConnectionOptions(): void
     {
         $redisConfig = [
-            'options' => ['prefix' => 'global:', 'serializer' => 1],
+            'options' => ['prefix' => 'global:', 'serializer' => 1, 'tcp_keepalive' => 30],
             'default' => [
                 'host' => '127.0.0.1',
                 'port' => 6379,
                 'database' => 0,
-                'options' => ['prefix' => 'default:'],
+                'options' => ['prefix' => 'default:', 'tcp_keepalive' => 0],
             ],
         ];
 
@@ -170,7 +172,7 @@ class RedisConfigTest extends TestCase
         $connectionConfig = (new RedisConfig($config))->connectionConfig('default');
 
         $this->assertSame(
-            ['prefix' => 'default:', 'serializer' => 1],
+            ['prefix' => 'default:', 'serializer' => 1, 'tcp_keepalive' => 0],
             $connectionConfig['options'],
         );
     }

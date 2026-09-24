@@ -340,6 +340,7 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
         'backoff_algorithm',
         'backoff_base',
         'backoff_cap',
+        'tcp_keepalive',
     ];
 
     protected Redis|RedisCluster|null $connection = null;
@@ -587,6 +588,18 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
                 $name = $this->phpRedisOption($name);
             }
 
+            // PhpRedis does not apply TCP keepalive to Cluster node connections, so only a
+            // disabled value is accepted, and it is never passed to the native client.
+            if ($name === Redis::OPT_TCP_KEEPALIVE && $redis instanceof RedisCluster) {
+                if (empty($value)) {
+                    continue;
+                }
+
+                throw new InvalidRedisOptionException(
+                    'The redis option `tcp_keepalive` is not supported for Redis Cluster connections.'
+                );
+            }
+
             $redis->setOption($name, $value);
         }
     }
@@ -603,7 +616,7 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
         foreach (self::CONNECTION_LEVEL_PHPREDIS_OPTIONS as $key) {
             $value = $this->config[$key];
 
-            if ($key === 'read_timeout' && empty($value)) {
+            if (($key === 'read_timeout' || $key === 'tcp_keepalive') && empty($value)) {
                 continue;
             }
 

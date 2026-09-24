@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Eloquent\Casts\Attribute;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\SoftDeletes;
@@ -13,6 +14,7 @@ use Hypervel\Database\Schema\Builder;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\TestCase;
+use RuntimeException;
 
 class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
 {
@@ -494,6 +496,15 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertCount(2, $country->posts);
     }
 
+    public function testEagerLoadingDoesNotReadTheEmptyFarParentKey(): void
+    {
+        $this->seedData();
+
+        $country = StrictKeyCountry::with('posts')->first();
+
+        $this->assertCount(2, $country->posts);
+    }
+
     /**
      * Helpers...
      */
@@ -638,6 +649,17 @@ class Country extends Eloquent
     public function users()
     {
         return $this->hasMany(User::class, 'country_id');
+    }
+}
+
+class StrictKeyCountry extends Country
+{
+    /**
+     * Reject a missing key, like a strict value-object cast.
+     */
+    protected function id(): Attribute
+    {
+        return Attribute::get(fn (?int $value): int => $value ?? throw new RuntimeException('The country key is missing.'));
     }
 }
 

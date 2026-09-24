@@ -58,5 +58,6 @@ class ThrottleRequestsRedisStoreTest extends TestCase
             ->assertNotFound()
             ->assertHeader('X-RateLimit-Remaining', 0);
         $this->get('/')->assertTooManyRequests();
+        $this->get('/?missing=yes')->assertTooManyRequests();
     }
 }

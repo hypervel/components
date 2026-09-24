@@ -104,6 +104,20 @@ class EnvironmentEncryptCommandTest extends TestCase
             ->with(base_path('.env.encrypted'), m::any(), null);
     }
 
+    public function testItEncryptsNamedEnvironmentFilesBesideAnEnvironmentFileInASubdirectory(): void
+    {
+        $this->app->loadEnvironmentFrom('secrets/.env');
+        $this->filesystem->expects('exists')->with(base_path('secrets/.env.production'))->andReturn(true);
+        $this->filesystem->expects('exists')->with(base_path('secrets/.env.production.encrypted'))->andReturn(false);
+
+        $this->artisan('env:encrypt', ['--env' => 'production'])
+            ->expectsQuestion('What encryption key would you like to use?', 'generate')
+            ->assertExitCode(0);
+
+        $this->filesystem->shouldHaveReceived('replace')
+            ->with(base_path('secrets/.env.production.encrypted'), m::any(), null);
+    }
+
     public function testItFailsWhenEnvironmentFileCannotBeFound(): void
     {
         $this->filesystem->expects('exists')->andReturn(false);

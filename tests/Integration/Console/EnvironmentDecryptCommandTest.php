@@ -249,6 +249,24 @@ class EnvironmentDecryptCommandTest extends TestCase
             ->with('/tmp' . DIRECTORY_SEPARATOR . '.env', 'APP_NAME="Hypervel Two"', 0600);
     }
 
+    public function testItDecryptsNamedEnvironmentFilesBesideAnEnvironmentFileInASubdirectory(): void
+    {
+        $this->app->loadEnvironmentFrom('secrets/.env');
+        $this->filesystem->expects('exists')->with(base_path('secrets/.env.production.encrypted'))->andReturn(true);
+        $this->filesystem->expects('exists')->with(base_path('secrets/.env.production'))->andReturn(false);
+        $this->filesystem->expects('get')->with(base_path('secrets/.env.production.encrypted'))->andReturn(
+            (new Encrypter('abcdefghijklmnopabcdefghijklmnop', 'AES-256-CBC'))
+                ->encrypt('APP_NAME=Hypervel')
+        );
+
+        $this->artisan('env:decrypt', ['--env' => 'production', '--key' => 'abcdefghijklmnopabcdefghijklmnop'])
+            ->expectsOutputToContain('Environment successfully decrypted.')
+            ->assertExitCode(0);
+
+        $this->filesystem->shouldHaveReceived('replace')
+            ->with(base_path('secrets/.env.production'), 'APP_NAME=Hypervel', 0600);
+    }
+
     public function testItCannotOverwriteEncryptedFiles(): void
     {
         $this->artisan('env:decrypt', ['--env' => 'production', '--key' => 'abcdefghijklmnop', '--filename' => '.env.production.encrypted'])

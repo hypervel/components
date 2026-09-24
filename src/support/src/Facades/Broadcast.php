@@ -10,7 +10,7 @@ use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactoryContract;
  * @method static \Ably\AblyRest ably(array $config)
  * @method static \Hypervel\Broadcasting\BroadcastManager addPoolableDriver(string $driver)
  * @method static void channelRoutes(array|null $attributes = null)
- * @method static \Hypervel\Contracts\Broadcasting\Broadcaster connection(\UnitEnum|string|null $driver = null)
+ * @method static \Hypervel\Contracts\Broadcasting\Broadcaster connection(\UnitEnum|string|null $name = null)
  * @method static \Hypervel\Contracts\Broadcasting\Broadcaster driver(\UnitEnum|string|null $name = null)
  * @method static \Hypervel\Broadcasting\PendingBroadcast event(mixed $event = null)
  * @method static \Hypervel\Broadcasting\BroadcastManager extend(string $driver, \Closure $callback)

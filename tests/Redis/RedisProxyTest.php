@@ -2311,6 +2311,7 @@ class RedisProxyTest extends TestCase
             'backoff_algorithm' => 'decorrelated_jitter',
             'backoff_base' => 100,
             'backoff_cap' => 1000,
+            'tcp_keepalive' => 0,
             'pool' => [
                 'min_retained_connections' => 1,
                 'max_connections' => 10,

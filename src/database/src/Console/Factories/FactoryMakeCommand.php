@@ -34,6 +34,8 @@ class FactoryMakeCommand extends GeneratorCommand
      */
     protected function getStub(): string
     {
+        // The shipped stub names the model by its fully-qualified name in the PHPDoc. Importing it
+        // would collide with the base Factory class or the generated factory for some model names.
         return $this->resolveStubPath('/stubs/factory.stub');
     }
 

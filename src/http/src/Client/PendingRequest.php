@@ -368,9 +368,9 @@ class PendingRequest implements Transient
      */
     public function bodyFormat(string $format): static
     {
-        return tap($this, function () use ($format) {
-            $this->bodyFormat = $format;
-        });
+        $this->bodyFormat = $format;
+
+        return $this;
     }
 
     /**
@@ -378,11 +378,11 @@ class PendingRequest implements Transient
      */
     public function withQueryParameters(array $parameters): static
     {
-        return tap($this, function () use ($parameters) {
-            $this->options = array_merge_recursive($this->options, [
-                'query' => $parameters,
-            ]);
-        });
+        $this->options = array_merge_recursive($this->options, [
+            'query' => $parameters,
+        ]);
+
+        return $this;
     }
 
     /**
@@ -416,11 +416,11 @@ class PendingRequest implements Transient
      */
     public function withHeaders(array $headers): static
     {
-        return tap($this, function () use ($headers) {
-            $this->options = array_merge_recursive($this->options, [
-                'headers' => $headers,
-            ]);
-        });
+        $this->options = array_merge_recursive($this->options, [
+            'headers' => $headers,
+        ]);
+
+        return $this;
     }
 
     /**
@@ -446,9 +446,9 @@ class PendingRequest implements Transient
      */
     public function withBasicAuth(string $username, #[SensitiveParameter] string $password): static
     {
-        return tap($this, function () use ($username, $password) {
-            $this->options['auth'] = [$username, $password];
-        });
+        $this->options['auth'] = [$username, $password];
+
+        return $this;
     }
 
     /**
@@ -456,9 +456,9 @@ class PendingRequest implements Transient
      */
     public function withDigestAuth(string $username, #[SensitiveParameter] string $password): static
     {
-        return tap($this, function () use ($username, $password) {
-            $this->options['auth'] = [$username, $password, 'digest'];
-        });
+        $this->options['auth'] = [$username, $password, 'digest'];
+
+        return $this;
     }
 
     // Laravel's withNtlmAuth() is omitted; built-in NTLM authentication is unsupported.
@@ -468,9 +468,9 @@ class PendingRequest implements Transient
      */
     public function withToken(#[SensitiveParameter] string $token, string $type = 'Bearer'): static
     {
-        return tap($this, function () use ($token, $type) {
-            $this->options['headers']['Authorization'] = trim($type . ' ' . $token);
-        });
+        $this->options['headers']['Authorization'] = trim($type . ' ' . $token);
+
+        return $this;
     }
 
     /**
@@ -488,9 +488,10 @@ class PendingRequest implements Transient
      */
     public function withUrlParameters(array $parameters = []): static
     {
-        return tap($this, function () use ($parameters) {
-            $this->urlParameters = $parameters;
-        });
+        // Replace by key so numeric template names such as {1} are not renumbered.
+        $this->urlParameters = array_replace($this->urlParameters, $parameters);
+
+        return $this;
     }
 
     /**
@@ -516,11 +517,11 @@ class PendingRequest implements Transient
      */
     public function withCookies(array $cookies, string $domain): static
     {
-        return tap($this, function () use ($cookies, $domain) {
-            foreach (CookieJar::fromArray($cookies, $domain) as $cookie) {
-                $this->cookies->setCookie($cookie);
-            }
-        });
+        foreach (CookieJar::fromArray($cookies, $domain) as $cookie) {
+            $this->cookies->setCookie($cookie);
+        }
+
+        return $this;
     }
 
     /**
@@ -528,15 +529,15 @@ class PendingRequest implements Transient
      */
     public function maxRedirects(int $max): static
     {
-        return tap($this, function () use ($max) {
-            // withoutRedirecting() and withOptions() may leave a boolean here,
-            // which cannot be indexed to apply the per-request limit.
-            if (! is_array($this->options['allow_redirects'] ?? null)) {
-                $this->options['allow_redirects'] = [];
-            }
+        // withoutRedirecting() and withOptions() may leave a boolean here,
+        // which cannot be indexed to apply the per-request limit.
+        if (! is_array($this->options['allow_redirects'] ?? null)) {
+            $this->options['allow_redirects'] = [];
+        }
 
-            $this->options['allow_redirects']['max'] = $max;
-        });
+        $this->options['allow_redirects']['max'] = $max;
+
+        return $this;
     }
 
     /**
@@ -544,9 +545,9 @@ class PendingRequest implements Transient
      */
     public function withoutRedirecting(): static
     {
-        return tap($this, function () {
-            $this->options['allow_redirects'] = false;
-        });
+        $this->options['allow_redirects'] = false;
+
+        return $this;
     }
 
     /**
@@ -554,9 +555,9 @@ class PendingRequest implements Transient
      */
     public function withoutVerifying(): static
     {
-        return tap($this, function () {
-            $this->options['verify'] = false;
-        });
+        $this->options['verify'] = false;
+
+        return $this;
     }
 
     /**
@@ -566,9 +567,9 @@ class PendingRequest implements Transient
      */
     public function sink($to): static
     {
-        return tap($this, function () use ($to) {
-            $this->options['sink'] = $to;
-        });
+        $this->options['sink'] = $to;
+
+        return $this;
     }
 
     /**
@@ -576,9 +577,9 @@ class PendingRequest implements Transient
      */
     public function timeout(float|int $seconds): static
     {
-        return tap($this, function () use ($seconds) {
-            $this->options['timeout'] = $seconds;
-        });
+        $this->options['timeout'] = $seconds;
+
+        return $this;
     }
 
     /**
@@ -586,9 +587,9 @@ class PendingRequest implements Transient
      */
     public function connectTimeout(float|int $seconds): static
     {
-        return tap($this, function () use ($seconds) {
-            $this->options['connect_timeout'] = $seconds;
-        });
+        $this->options['connect_timeout'] = $seconds;
+
+        return $this;
     }
 
     /**
@@ -616,10 +617,10 @@ class PendingRequest implements Transient
      */
     public function withOptions(array $options): static
     {
-        return tap($this, function () use ($options) {
-            $this->validateRequestOptions($options, 'fluent HTTP request options');
-            $this->options = $this->mergeOptionLayers($this->options, $options);
-        });
+        $this->validateRequestOptions($options, 'fluent HTTP request options');
+        $this->options = $this->mergeOptionLayers($this->options, $options);
+
+        return $this;
     }
 
     /**
@@ -703,9 +704,9 @@ class PendingRequest implements Transient
      */
     public function beforeSending(callable $callback): static
     {
-        return tap($this, function () use ($callback) {
-            $this->beforeSendingCallbacks[] = $callback;
-        });
+        $this->beforeSendingCallbacks[] = $callback;
+
+        return $this;
     }
 
     /**

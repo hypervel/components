@@ -1071,42 +1071,42 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
     /**
      * Determine if a cached value exists.
      *
-     * @param string|UnitEnum $key
+     * @param string|UnitEnum $offset
      */
-    public function offsetExists($key): bool
+    public function offsetExists($offset): bool
     {
-        return $this->has($key);
+        return $this->has($offset);
     }
 
     /**
      * Retrieve an item from the cache by key.
      *
-     * @param string|UnitEnum $key
+     * @param string|UnitEnum $offset
      */
-    public function offsetGet($key): mixed
+    public function offsetGet($offset): mixed
     {
-        return $this->get($key);
+        return $this->get($offset);
     }
 
     /**
      * Store an item in the cache for the default time.
      *
-     * @param string|UnitEnum $key
+     * @param string|UnitEnum $offset
      * @param mixed $value
      */
-    public function offsetSet($key, $value): void
+    public function offsetSet($offset, $value): void
     {
-        $this->put($key, $value, $this->default);
+        $this->put($offset, $value, $this->default);
     }
 
     /**
      * Remove an item from the cache.
      *
-     * @param string|UnitEnum $key
+     * @param string|UnitEnum $offset
      */
-    public function offsetUnset($key): void
+    public function offsetUnset($offset): void
     {
-        $this->forget($key);
+        $this->forget($offset);
     }
 
     /**

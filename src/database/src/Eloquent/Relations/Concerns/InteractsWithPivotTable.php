@@ -85,18 +85,6 @@ trait InteractsWithPivotTable
     }
 
     /**
-     * Sync the intermediate tables with a list of IDs without detaching within a transaction.
-     *
-     * @return array{attached: array, detached: array, updated: array}
-     *
-     * @throws Throwable
-     */
-    public function syncWithoutDetachingOrFail(BaseCollection|Model|array|int|string|null $ids): array
-    {
-        return $this->syncOrFail($ids, false);
-    }
-
-    /**
      * Sync the intermediate tables with a list of IDs or collection of models.
      *
      * @return array{attached: array, detached: array, updated: array}
@@ -163,6 +151,18 @@ trait InteractsWithPivotTable
     public function syncOrFail(BaseCollection|Model|array|int|string|null $ids, bool $detaching = true): array
     {
         return $this->getPivotConnection()->transaction(fn () => $this->sync($ids, $detaching));
+    }
+
+    /**
+     * Sync the intermediate tables with a list of IDs without detaching within a transaction.
+     *
+     * @return array{attached: array, detached: array, updated: array}
+     *
+     * @throws Throwable
+     */
+    public function syncWithoutDetachingOrFail(BaseCollection|Model|array|int|string|null $ids): array
+    {
+        return $this->syncOrFail($ids, false);
     }
 
     /**

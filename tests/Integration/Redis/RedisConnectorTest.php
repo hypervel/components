@@ -208,21 +208,32 @@ class RedisConnectorTest extends TestCase
         });
     }
 
-    public function testTcpKeepaliveOptionIsApplied(): void
+    #[DataProvider('tcpKeepaliveProvider')]
+    public function testTcpKeepaliveOptionIsApplied(array $keepalive, int $expected): void
     {
         $name = $this->addTestConnection([
             'host' => env('REDIS_HOST', '127.0.0.1'),
             'password' => env('REDIS_PASSWORD', null) ?: null,
             'port' => (int) env('REDIS_PORT', 6379),
             'database' => $this->getParallelRedisDb(),
-            'options' => [
-                'tcp_keepalive' => 60,
-            ],
+            ...$keepalive,
         ]);
 
-        $this->withClient($name, function (PhpRedis $client): void {
-            $this->assertSame(1, $client->getOption(PhpRedis::OPT_TCP_KEEPALIVE));
+        $this->withClient($name, function (PhpRedis $client) use ($expected): void {
+            $this->assertSame($expected, $client->getOption(PhpRedis::OPT_TCP_KEEPALIVE));
         });
+    }
+
+    /**
+     * Provide TCP keepalive configurations and the resulting option value.
+     */
+    public static function tcpKeepaliveProvider(): array
+    {
+        return [
+            'connection level' => [['tcp_keepalive' => 60], 1],
+            'connection options' => [['options' => ['tcp_keepalive' => 60]], 1],
+            'connection options override connection level' => [['tcp_keepalive' => 60, 'options' => ['tcp_keepalive' => 0]], 0],
+        ];
     }
 
     #[DataProvider('phpRedisBackoffAlgorithmsProvider')]

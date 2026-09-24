@@ -71,7 +71,7 @@ trait InteractsWithTestCase
     {
         /** @var array<class-string, class-string> $uses */
         $uses = static::$cachedTestCaseUses[static::class]
-            ??= array_flip(class_uses_recursive(static::class));
+            ??= class_uses_recursive(static::class);
 
         return $uses;
     }

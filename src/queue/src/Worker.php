@@ -130,11 +130,6 @@ class Worker
     protected ?float $lastJobProcessedAt = null;
 
     /**
-     * The terminal reason set by an asynchronous worker failure.
-     */
-    protected ?WorkerStopReason $stopReason = null;
-
-    /**
      * Signals awaiting delivery outside the asynchronous PCNTL handler.
      *
      * @var list<array{signal: int, connectionName: string, queue: string, options: WorkerOptions}>
@@ -145,6 +140,11 @@ class Worker
      * Indicates if the worker should exit.
      */
     public bool $shouldQuit = false;
+
+    /**
+     * Indicates if the worker lost its connection.
+     */
+    public bool $lostConnection = false;
 
     /**
      * Indicates if the worker is paused.
@@ -258,7 +258,7 @@ class Worker
 
         $this->jobsProcessed = 0;
         $this->lastJobProcessedAt = null;
-        $this->stopReason = null;
+        $this->lostConnection = false;
 
         // A new daemon run must report initially paused queues even when this worker is reused.
         $this->pausedQueues = [];
@@ -644,7 +644,7 @@ class Worker
         bool $hasRunningJobs = false,
     ): ?array {
         return match (true) {
-            $this->stopReason !== null => [static::EXIT_SUCCESS, $this->stopReason],
+            $this->lostConnection => [static::EXIT_SUCCESS, WorkerStopReason::LostConnection],
             $this->shouldQuit => [static::EXIT_SUCCESS, WorkerStopReason::Interrupted],
             $this->memoryExceeded($options->memory) => [static::$memoryExceededExitCode ?? static::EXIT_MEMORY_LIMIT, WorkerStopReason::MaxMemoryExceeded],
             $this->queueShouldRestart($lastRestart) => [static::EXIT_SUCCESS, WorkerStopReason::ReceivedRestartSignal],
@@ -844,7 +844,7 @@ class Worker
     protected function stopWorkerIfLostConnection(Throwable $e): void
     {
         if (static::$stopOnLostConnection && $this->causedByLostConnection($e)) {
-            $this->stopReason = WorkerStopReason::LostConnection;
+            $this->lostConnection = true;
         }
     }
 

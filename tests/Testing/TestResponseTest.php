@@ -645,12 +645,12 @@ class TestResponseTest extends TestCase
             'render' => <<<'EOT'
 <p>
     Hello,
-    laravel &amp; php &amp; friends
+    hypervel &amp; php &amp; friends
 </p>,
 EOT,
         ]);
 
-        $response->assertSeeText('Hello, laravel & php & friends');
+        $response->assertSeeText('Hello, hypervel & php & friends');
     }
 
     public function testAssertSeeTextEscapedCanFail(): void
@@ -691,12 +691,12 @@ EOT,
             'render' => <<<'EOT'
 <p>
     Hello,
-    laravel &amp; php &amp; friends
+    hypervel &amp; php &amp; friends
 </p>,
 EOT,
         ]);
 
-        $response->assertSeeTextInOrder(['Hello', 'laravel & php', 'friends']);
+        $response->assertSeeTextInOrder(['Hello', 'hypervel & php', 'friends']);
     }
 
     public function testAssertSeeTextInOrderCanFail(): void
