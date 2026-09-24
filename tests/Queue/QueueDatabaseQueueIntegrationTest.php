@@ -74,7 +74,7 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
                 'payload' => 'mock_payload',
                 'attempts' => 0,
                 'reserved_at' => null,
-                'available_at' => CarbonImmutable::now()->subSeconds(1)->getTimestamp(),
+                'available_at' => CarbonImmutable::now()->subSecond()->getTimestamp(),
                 'created_at' => CarbonImmutable::now()->getTimestamp(),
             ]);
 
@@ -94,7 +94,7 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
             'payload' => 'mock_payload',
             'attempts' => 0,
             'reserved_at' => null,
-            'available_at' => CarbonImmutable::now()->subSeconds(1)->getTimestamp(),
+            'available_at' => CarbonImmutable::now()->subSecond()->getTimestamp(),
             'created_at' => CarbonImmutable::now()->getTimestamp(),
         ];
 
@@ -129,7 +129,7 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
                 'payload' => 'mock_payload 2',
                 'attempts' => 0,
                 'reserved_at' => null,
-                'available_at' => CarbonImmutable::now()->subSeconds(1)->getTimestamp(),
+                'available_at' => CarbonImmutable::now()->subSecond()->getTimestamp(),
                 'created_at' => CarbonImmutable::now()->getTimestamp(),
             ]]);
 
@@ -150,7 +150,7 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
                 'payload' => 'mock_payload',
                 'attempts' => 0,
                 'reserved_at' => null,
-                'available_at' => CarbonImmutable::now()->addSeconds(60)->getTimestamp(),
+                'available_at' => CarbonImmutable::now()->addMinute()->getTimestamp(),
                 'created_at' => CarbonImmutable::now()->getTimestamp(),
             ]);
 

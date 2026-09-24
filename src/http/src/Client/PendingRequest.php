@@ -24,6 +24,7 @@ use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Http\Client\Events\ConnectionFailed;
 use Hypervel\Http\Client\Events\RequestSending;
 use Hypervel\Http\Client\Events\ResponseReceived;
+use Hypervel\Http\Client\RequestException as HttpRequestException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -722,7 +723,7 @@ class PendingRequest implements Transient
     /**
      * Throw an exception if a server or client error occurs.
      *
-     * @param null|(callable(Response, \Hypervel\Http\Client\RequestException): mixed) $callback
+     * @param null|(callable(Response, HttpRequestException): mixed) $callback
      */
     public function throw(?callable $callback = null): static
     {
@@ -734,7 +735,7 @@ class PendingRequest implements Transient
     /**
      * Throw an exception if a server or client error occurred and the given condition evaluates to true.
      *
-     * @param null|(callable(Response, \Hypervel\Http\Client\RequestException): mixed) $callback
+     * @param null|(callable(Response, HttpRequestException): mixed) $callback
      */
     public function throwIf(bool|callable $condition, ?callable $callback = null): static
     {
@@ -748,7 +749,7 @@ class PendingRequest implements Transient
     /**
      * Throw an exception if a server or client error occurred and the given condition evaluates to false.
      *
-     * @param null|(callable(Response, \Hypervel\Http\Client\RequestException): mixed) $callback
+     * @param null|(callable(Response, HttpRequestException): mixed) $callback
      */
     public function throwUnless(bool|callable $condition, ?callable $callback = null): static
     {
@@ -1059,13 +1060,15 @@ class PendingRequest implements Transient
             $options[$this->bodyFormat] = $this->pendingBody;
         }
 
-        return (new Collection($options))->map(function ($value, $key) {
-            if ($key === 'json' && $value instanceof JsonSerializable) {
-                return $value;
-            }
+        return (new Collection($options))
+            ->map(function (mixed $value, int|string $key): mixed {
+                if ($key === 'json' && $value instanceof JsonSerializable) {
+                    return $value;
+                }
 
-            return $value instanceof Arrayable ? $value->toArray() : $value;
-        })->all();
+                return $value instanceof Arrayable ? $value->toArray() : $value;
+            })
+            ->all();
     }
 
     /**
@@ -2079,7 +2082,7 @@ class PendingRequest implements Transient
      * Handle the given transport exception that carried a response.
      *
      * @throws ConnectionException
-     * @throws \Hypervel\Http\Client\RequestException
+     * @throws HttpRequestException
      */
     protected function marshalTransportExceptionWithResponse(TransferException $e, ResponseInterface $response): void
     {

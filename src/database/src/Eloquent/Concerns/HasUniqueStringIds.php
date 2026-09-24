@@ -87,7 +87,7 @@ trait HasUniqueStringIds
     /**
      * Throw an exception for the given invalid unique ID.
      *
-     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException
+     * @throws ModelNotFoundException
      */
     protected function handleInvalidUniqueId(mixed $value, ?string $field): never
     {

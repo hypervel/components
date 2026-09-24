@@ -382,10 +382,8 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
 
     /**
      * Pass other method calls down to the underlying client.
-     * @param mixed $name
-     * @param mixed $arguments
      */
-    public function __call($name, $arguments)
+    public function __call(string $name, array $arguments): mixed
     {
         try {
             if (static::hasMacro($name)) {

@@ -1000,6 +1000,16 @@ The first argument passed to the `make` method is the data under validation. The
 
 After determining whether the request validation failed, you may use the `withErrors` method to flash the error messages to the session. When using this method, the `$errors` variable will automatically be shared with your views after redirection, allowing you to easily display them back to the user. The `withErrors` method accepts a validator, a `MessageBag`, or a PHP `array`.
 
+#### Validation Callbacks
+
+The `whenPasses` and `whenFails` methods run validation and invoke a callback when it passes or fails, respectively. The callback receives the validator instance:
+
+```php
+$validator->whenFails(fn ($validator) => logger()->warning('Validation failed.', $validator->errors()->all()));
+```
+
+You may pass a second callback for the opposite result. Each method returns the callback's non-null result or the validator itself.
+
 #### Appending Rules
 
 Before running validation, you may use the `appendRules` method to add rules to an existing validator. The new rules are added to any rules already defined for each field:
@@ -1168,6 +1178,14 @@ $validated = $request->safe()->only(['name', 'email']);
 $validated = $request->safe()->except(['name', 'email']);
 
 $validated = $request->safe()->all();
+```
+
+You may also use request [input retrieval methods](/docs/{{version}}/requests#retrieving-input), such as `string`, `integer`, `boolean`, `date`, and `enum`, to work with validated values:
+
+```php
+$quantity = $request->safe()->integer('quantity');
+
+$enabled = $request->safe()->boolean('enabled');
 ```
 
 Uploaded files may be retrieved from the validated input using the `file` method. The method returns the given default value when the input is missing or is not an uploaded file:

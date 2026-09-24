@@ -13,9 +13,9 @@ use Hypervel\Database\Console\WipeCommand;
 /**
  * @method static void allowQueryDurationHandlersToRunAgain()
  * @method static string[] availableDrivers()
- * @method static \Hypervel\Database\ConnectionInterface build(array $config)
+ * @method static never build(array $config)
  * @method static \Hypervel\Database\ConnectionInterface connection(\UnitEnum|string|null $name = null)
- * @method static \Hypervel\Database\ConnectionInterface connectUsing(string $name, array $config, bool $force = false)
+ * @method static never connectUsing(string $name, array $config, bool $force = false)
  * @method static void disconnect(\UnitEnum|string|null $name = null)
  * @method static void extend(string $name, callable $resolver)
  * @method static void flushMacros()
@@ -72,6 +72,7 @@ use Hypervel\Database\Console\WipeCommand;
  * @method static string getServerVersion()
  * @method static string getTablePrefix()
  * @method static \Hypervel\Database\DatabaseTransactionsManager|null getTransactionManager()
+ * @method static string|null getWritableName()
  * @method static bool hasModifiedRecords()
  * @method static bool insert(string $query, array $bindings = [])
  * @method static bool inTransaction()
@@ -151,6 +152,9 @@ class DB extends Facade
         WipeCommand::prohibit($prohibit);
     }
 
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return 'db';

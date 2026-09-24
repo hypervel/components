@@ -6,9 +6,11 @@ namespace Hypervel\Tests\Database;
 
 use Carbon\CarbonInterface;
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Connection;
 use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentWithCastsTest extends TestCase
@@ -121,7 +123,7 @@ class DatabaseEloquentWithCastsTest extends TestCase
     /**
      * Get a database connection instance.
      *
-     * @return \Hypervel\Database\Connection
+     * @return Connection
      */
     protected function connection()
     {
@@ -131,7 +133,7 @@ class DatabaseEloquentWithCastsTest extends TestCase
     /**
      * Get a schema builder instance.
      *
-     * @return \Hypervel\Database\Schema\Builder
+     * @return Builder
      */
     protected function schema()
     {

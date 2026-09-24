@@ -19,6 +19,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\RebindsCallbacksToSelf;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
+use Monolog\Formatter\FormatterInterface;
 use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\ErrorLogHandler;
 use Monolog\Handler\FormattableHandlerInterface;
@@ -43,7 +44,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Log\Logger
+ * @mixin Logger
  */
 class LogManager implements LoggerInterface
 {
@@ -266,20 +267,25 @@ class LogManager implements LoggerInterface
             $config['channels'] = explode(',', $config['channels']);
         }
 
-        $handlers = (new Collection($config['channels']))->flatMap(function ($channel) {
-            return $channel instanceof LoggerInterface
-                ? $channel->getHandlers() // @phpstan-ignore-line
-                : $this->channel($channel)->getHandlers(); // @phpstan-ignore-line
-        })->all();
+        $handlers = (new Collection($config['channels']))
+            ->flatMap(function (LoggerInterface|UnitEnum|string|null $channel): array {
+                return $channel instanceof LoggerInterface
+                    ? $channel->getHandlers() // @phpstan-ignore method.notFound
+                    : $this->channel($channel)->getHandlers(); // @phpstan-ignore method.notFound
+            })
+            ->all();
 
-        $processors = (new Collection($config['channels']))->flatMap(function ($channel) {
-            return $channel instanceof LoggerInterface
-                ? $channel->getProcessors() // @phpstan-ignore-line
-                : $this->channel($channel)->getProcessors(); // @phpstan-ignore-line
+        $processors = (new Collection($config['channels']))
+            ->flatMap(function (LoggerInterface|UnitEnum|string|null $channel): array {
+                return $channel instanceof LoggerInterface
+                    ? $channel->getProcessors() // @phpstan-ignore method.notFound
+                    : $this->channel($channel)->getProcessors(); // @phpstan-ignore method.notFound
+            })
             // Filter out the wrapped context processor from constituent channels.
             // Each constituent already had one pushed by get(); without filtering,
             // the stack would accumulate duplicates from every constituent.
-        })->reject(fn ($processor) => $processor instanceof ResolvedContextLogProcessor)->all();
+            ->reject(fn (callable $processor): bool => $processor instanceof ResolvedContextLogProcessor)
+            ->all();
 
         if ($config['ignore_exceptions'] ?? false) {
             $handlers = [new WhatFailureGroupHandler($handlers)];
@@ -500,7 +506,7 @@ class LogManager implements LoggerInterface
     /**
      * Get a Monolog formatter instance.
      */
-    protected function formatter(): \Monolog\Formatter\FormatterInterface
+    protected function formatter(): FormatterInterface
     {
         return new LineFormatter(null, $this->dateFormat, true, true, true);
     }
@@ -786,12 +792,8 @@ class LogManager implements LoggerInterface
 
     /**
      * Dynamically call the default driver instance.
-     *
-     * @param string $method
-     * @param array $parameters
-     * @return mixed
      */
-    public function __call($method, $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return $this->driver()->{$method}(...$parameters);
     }

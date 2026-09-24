@@ -205,15 +205,12 @@ class BroadcastManager implements BroadcastingFactoryContract
             return;
         }
 
-        $queue = null;
-
-        if (method_exists($event, 'broadcastQueue')) {
-            $queue = $event->broadcastQueue();
-        } elseif (isset($event->broadcastQueue)) {
-            $queue = $event->broadcastQueue;
-        } elseif (isset($event->queue)) {
-            $queue = $event->queue;
-        }
+        $queue = match (true) {
+            method_exists($event, 'broadcastQueue') => $event->broadcastQueue(),
+            isset($event->broadcastQueue) => $event->broadcastQueue,
+            isset($event->queue) => $event->queue,
+            default => null,
+        };
 
         if (is_null($queue)) {
             $queue = $this->getAttributeValue($event, QueueAttribute::class, 'queue')

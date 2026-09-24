@@ -113,7 +113,7 @@ trait ValidatesAttributes
             try {
                 $records = $this->getDnsRecords($url . '.', DNS_A | DNS_AAAA);
 
-                if (is_array($records) && count($records) > 0) {
+                if (is_array($records) && $records !== []) {
                     return true;
                 }
             } catch (Exception) {
@@ -355,6 +355,8 @@ trait ValidatesAttributes
     /**
      * Validate that an attribute contains only alphabetic characters.
      * If the 'ascii' option is passed, validate that an attribute contains only ascii alphabetic characters.
+     *
+     * @param array<int, int|string> $parameters
      */
     public function validateAlpha(string $attribute, mixed $value, mixed $parameters): bool
     {
@@ -369,6 +371,8 @@ trait ValidatesAttributes
      * Validate that an attribute contains only alpha-numeric characters, dashes, and underscores.
      * If the 'ascii' option is passed, validate that an attribute contains only ascii alpha-numeric characters,
      * dashes, and underscores.
+     *
+     * @param array<int, int|string> $parameters
      */
     public function validateAlphaDash(string $attribute, mixed $value, mixed $parameters): bool
     {
@@ -386,6 +390,8 @@ trait ValidatesAttributes
     /**
      * Validate that an attribute contains only alpha-numeric characters.
      * If the 'ascii' option is passed, validate that an attribute contains only ascii alpha-numeric characters.
+     *
+     * @param array<int, int|string> $parameters
      */
     public function validateAlphaNum(string $attribute, mixed $value, mixed $parameters): bool
     {
@@ -467,6 +473,7 @@ trait ValidatesAttributes
             return false;
         }
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($parameters as $parameter) {
             if (! Arr::exists($value, $parameter) && ! Arr::exists($value, ValidationData::encodeKey((string) $parameter))) {
                 return false;
@@ -532,6 +539,7 @@ trait ValidatesAttributes
             return false;
         }
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($parameters as $parameter) {
             if (! in_array($parameter, $value)) {
                 return false;
@@ -552,6 +560,7 @@ trait ValidatesAttributes
             return false;
         }
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($parameters as $parameter) {
             if (in_array($parameter, $value)) {
                 return false;
@@ -1482,7 +1491,7 @@ trait ValidatesAttributes
                 }
             }
 
-            return count(array_diff($value, $parameters)) === 0;
+            return array_diff($value, $parameters) === [];
         }
 
         $parameters = array_map(
@@ -1531,6 +1540,7 @@ trait ValidatesAttributes
             return false;
         }
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($parameters as $parameter) {
             if (Arr::exists($value, $parameter) || Arr::exists($value, ValidationData::encodeKey((string) $parameter))) {
                 return true;
@@ -2302,15 +2312,10 @@ trait ValidatesAttributes
      */
     protected function convertValuesToBoolean(array $values): array
     {
-        return array_map(function ($value) {
-            if ($value === 'true') {
-                return true;
-            }
-            if ($value === 'false') {
-                return false;
-            }
-
-            return $value;
+        return array_map(fn ($value) => match ($value) {
+            'true' => true,
+            'false' => false,
+            default => $value,
         }, $values);
     }
 
@@ -2377,6 +2382,7 @@ trait ValidatesAttributes
      */
     protected function anyFailingRequired(array $attributes): bool
     {
+        // Keep this loop to avoid an extra callback per item.
         foreach ($attributes as $key) {
             if (! $this->validateRequired($key, $this->getValue($key))) {
                 return true;
@@ -2391,6 +2397,7 @@ trait ValidatesAttributes
      */
     protected function allFailingRequired(array $attributes): bool
     {
+        // Keep this loop to avoid an extra callback per item.
         foreach ($attributes as $key) {
             if ($this->validateRequired($key, $this->getValue($key))) {
                 return false;

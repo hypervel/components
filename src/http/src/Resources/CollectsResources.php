@@ -51,7 +51,7 @@ trait CollectsResources
     /**
      * Get the resource that this resource collects.
      *
-     * @return null|class-string<\Hypervel\Http\Resources\Json\JsonResource>
+     * @return null|class-string<JsonResource>
      *
      * @throws LogicException
      */
@@ -62,7 +62,7 @@ trait CollectsResources
         if (! array_key_exists(static::class, static::$cachedCollectsAttributes)) {
             $attribute = (new ReflectionClass($this))->getAttributes(Collects::class);
 
-            static::$cachedCollectsAttributes[static::class] = count($attribute) > 0
+            static::$cachedCollectsAttributes[static::class] = $attribute !== []
                 ? $attribute[0]->newInstance()->class
                 : false;
         }

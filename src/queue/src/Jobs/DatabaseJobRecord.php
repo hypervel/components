@@ -46,7 +46,7 @@ class DatabaseJobRecord
     /**
      * Dynamically access the underlying job information.
      */
-    public function __get(string $key)
+    public function __get(string $key): mixed
     {
         return $this->record->{$key};
     }

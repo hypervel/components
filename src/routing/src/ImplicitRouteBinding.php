@@ -6,6 +6,7 @@ namespace Hypervel\Routing;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Routing\UrlRoutable;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Routing\Exceptions\BackedEnumCaseNotFoundException;
 use Hypervel\Support\Reflector;
@@ -47,8 +48,8 @@ class ImplicitRouteBinding
     /**
      * Resolve the implicit route bindings for the given route.
      *
-     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<\Hypervel\Database\Eloquent\Model>
-     * @throws \Hypervel\Routing\Exceptions\BackedEnumCaseNotFoundException
+     * @throws ModelNotFoundException<Model>
+     * @throws BackedEnumCaseNotFoundException
      */
     public static function resolveForRoute(Container $container, Route $route): void
     {
@@ -125,7 +126,7 @@ class ImplicitRouteBinding
     /**
      * Resolve the backed enum route bindings for the route.
      *
-     * @throws \Hypervel\Routing\Exceptions\BackedEnumCaseNotFoundException
+     * @throws BackedEnumCaseNotFoundException
      */
     protected static function resolveBackedEnumsForRoute(Route $route, array $parameters, array $backedEnumParameters): void
     {

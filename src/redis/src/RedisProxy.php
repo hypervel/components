@@ -151,62 +151,47 @@ class RedisProxy implements ConnectionContract
 
     /**
      * Scan keys matching a pattern.
-     *
-     * @param mixed $cursor
-     * @param mixed ...$arguments
      */
-    public function scan($cursor, ...$arguments)
+    public function scan(mixed $cursor, mixed ...$arguments): mixed
     {
         return $this->__call('scan', [$cursor, ...$arguments]);
     }
 
     /**
      * Scan hash fields matching a pattern.
-     *
-     * @param mixed $key
-     * @param mixed $cursor
-     * @param mixed ...$arguments
      */
-    public function hScan($key, $cursor, ...$arguments)
+    public function hScan(mixed $key, mixed $cursor, mixed ...$arguments): mixed
     {
         return $this->__call('hScan', [$key, $cursor, ...$arguments]);
     }
 
     /**
      * Scan sorted set members matching a pattern.
-     *
-     * @param mixed $key
-     * @param mixed $cursor
-     * @param mixed ...$arguments
      */
-    public function zScan($key, $cursor, ...$arguments)
+    public function zScan(mixed $key, mixed $cursor, mixed ...$arguments): mixed
     {
         return $this->__call('zScan', [$key, $cursor, ...$arguments]);
     }
 
     /**
      * Scan set members matching a pattern.
-     *
-     * @param mixed $key
-     * @param mixed $cursor
-     * @param mixed ...$arguments
      */
-    public function sScan($key, $cursor, ...$arguments)
+    public function sScan(mixed $key, mixed $cursor, mixed ...$arguments): mixed
     {
         return $this->__call('sScan', [$key, $cursor, ...$arguments]);
     }
 
     /**
      * Pass dynamic method calls to a pooled Redis connection.
-     * @param mixed $name
-     * @param mixed $arguments
      */
-    public function __call($name, $arguments)
+    public function __call(string $name, array $arguments): mixed
     {
         $command = strtolower($name);
 
         if (in_array($command, ['subscribe', 'psubscribe'], true)) {
-            return $this->handleSubscribe($command, $arguments); // @phpstan-ignore method.void
+            $this->handleSubscribe($command, $arguments);
+
+            return null;
         }
 
         if (in_array($command, self::CONNECTION_BOUND_METHODS, true)) {
@@ -650,7 +635,10 @@ class RedisProxy implements ConnectionContract
             );
         }
 
-        $connection = $pool->borrow();
+        // Reuse the pin to avoid a second checkout; read it directly to preserve
+        // the caller's result transformation mode.
+        $contextConnection = CoroutineContext::get($this->getContextKey());
+        $connection = $contextConnection ?? $pool->borrow();
         $discoveryException = null;
         $releaseException = null;
         $masters = [];
@@ -671,10 +659,12 @@ class RedisProxy implements ConnectionContract
             ) ?? $exception;
         }
 
-        try {
-            $connection->release();
-        } catch (Throwable $exception) {
-            $releaseException = $exception;
+        if ($contextConnection === null) {
+            try {
+                $connection->release();
+            } catch (Throwable $exception) {
+                $releaseException = $exception;
+            }
         }
 
         // Preserve discovery failures over ordinary release failures while

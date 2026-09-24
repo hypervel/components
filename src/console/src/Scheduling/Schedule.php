@@ -29,7 +29,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Console\Scheduling\PendingEventAttributes
+ * @mixin PendingEventAttributes
  */
 class Schedule
 {
@@ -199,7 +199,7 @@ class Schedule
                     : $job;
 
                 if ($job instanceof ShouldQueue) {
-                    $this->dispatchToQueue($job, $queue ?? $job->queue, $connection ?? $job->connection); /* @phpstan-ignore-line */
+                    $this->dispatchToQueue($job, $queue ?? $job->queue, $connection ?? $job->connection); // @phpstan-ignore property.notFound, property.notFound
                 } else {
                     $this->dispatchNow($job);
                 }
@@ -275,7 +275,7 @@ class Schedule
      */
     public function exec(string $command, array $parameters = [], bool $isSystem = true): Event
     {
-        if (count($parameters)) {
+        if ($parameters !== []) {
             $command .= ' ' . $this->compileParameters($parameters);
         }
 
@@ -320,7 +320,7 @@ class Schedule
         }
 
         if (! empty($this->groupStack)) {
-            $group = end($this->groupStack);
+            $group = array_last($this->groupStack);
 
             $group->mergeAttributes($event);
         }
@@ -417,7 +417,7 @@ class Schedule
     public function eventsForEnvironments(array $environments): array
     {
         return array_values(array_filter(
-            $this->events,
+            $this->events(),
             static fn (Event $event): bool => array_any($environments, $event->runsInEnvironment(...))
         ));
     }
@@ -494,7 +494,7 @@ class Schedule
     /**
      * Dynamically handle calls into the schedule instance.
      */
-    public function __call(string $method, array $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         if (static::hasMacro($method)) {
             return $this->macroCall($method, $parameters);
@@ -505,7 +505,7 @@ class Schedule
             || in_array($method, PendingEventAttributes::DEFERRED_EVENT_METHODS, true)
             || Event::hasMacro($method)
         ) {
-            $this->attributes ??= $this->groupStack ? clone end($this->groupStack) : new PendingEventAttributes($this);
+            $this->attributes ??= $this->groupStack ? clone array_last($this->groupStack) : new PendingEventAttributes($this);
 
             return $this->attributes->{$method}(...$parameters);
         }

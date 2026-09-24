@@ -246,7 +246,7 @@ class PendingProcess
 
         if ($fake = $this->fakeFor($command = $process->getCommandline())) {
             return tap($this->resolveAsynchronousFake($command, $output, $fake), function (InvokedProcessContract $process) {
-                /** @var \Hypervel\Process\FakeInvokedProcess $process */
+                /** @var FakeInvokedProcess $process */
                 $this->factory->recordIfRecording($this, $process->predictProcessResult());
             });
         } elseif ($this->factory->isRecording() && $this->factory->preventingStrayProcesses()) {
@@ -264,8 +264,8 @@ class PendingProcess
         $command = $command ?? $this->command;
 
         $process = is_iterable($command)
-                ? new Process($command, null, $this->environment)
-                : Process::fromShellCommandline((string) $command, null, $this->environment);
+            ? new Process($command, null, $this->environment)
+            : Process::fromShellCommandline((string) $command, null, $this->environment);
 
         $process->setWorkingDirectory((string) ($this->path ?? getcwd()));
         $process->setTimeout($this->timeout);

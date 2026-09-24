@@ -6,15 +6,16 @@ namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'make:interface')]
 class InterfaceMakeCommand extends GeneratorCommand
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:interface';
+    protected ?string $signature = 'make:interface
+                    {name : The name of the interface}
+                    {--f|force : Create the interface even if the interface already exists}';
 
     /**
      * The console command description.
@@ -44,15 +45,5 @@ class InterfaceMakeCommand extends GeneratorCommand
             is_dir(app_path('Interfaces')) => $rootNamespace . '\Interfaces',
             default => $rootNamespace,
         };
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['force', 'f', InputOption::VALUE_NONE, 'Create the interface even if the interface already exists'],
-        ];
     }
 }

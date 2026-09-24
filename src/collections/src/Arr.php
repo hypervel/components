@@ -32,19 +32,7 @@ class Arr
     /**
      * Determine whether the given value is arrayable.
      *
-     * @return ($value is array
-     *     ? true
-     *     : ($value is Arrayable
-     *         ? true
-     *         : ($value is Traversable
-     *             ? true
-     *             : ($value is Jsonable
-     *                 ? true
-     *                 : ($value is JsonSerializable ? true : false)
-     *             )
-     *         )
-     *     )
-     * )
+     * @return ($value is array|Arrayable|Jsonable|JsonSerializable|Traversable ? true : false)
      */
     public static function arrayable(mixed $value): bool
     {
@@ -299,13 +287,17 @@ class Arr
      * @template TValue
      * @template TLastDefault
      *
-     * @param iterable<TKey, TValue> $array
+     * @param null|iterable<TKey, TValue> $array
      * @param null|(callable(TValue, TKey): bool) $callback
      * @param (Closure(): TLastDefault)|TLastDefault $default
      * @return TLastDefault|TValue
      */
-    public static function last(iterable $array, ?callable $callback = null, mixed $default = null): mixed
+    public static function last(?iterable $array, ?callable $callback = null, mixed $default = null): mixed
     {
+        if ($array === null) {
+            return value($default);
+        }
+
         if (! is_array($array)) {
             if (is_null($callback)) {
                 $found = false;
@@ -409,7 +401,7 @@ class Arr
 
         $keys = (array) $keys;
 
-        if (count($keys) === 0) {
+        if ($keys === []) {
             return;
         }
 
@@ -540,6 +532,7 @@ class Arr
             return false;
         }
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($keys as $key) {
             if (! static::has($array, $key)) {
                 return false;
@@ -568,6 +561,7 @@ class Arr
             return false;
         }
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($keys as $key) {
             if (static::has($array, $key)) {
                 return true;

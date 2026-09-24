@@ -16,9 +16,9 @@ use Throwable;
 class ViewClearCommand extends Command
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'view:clear';
+    protected ?string $signature = 'view:clear';
 
     /**
      * The console command description.

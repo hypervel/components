@@ -3,8 +3,12 @@
 declare(strict_types=1);
 
 use Carbon\CarbonInterface;
+use Faker\Factory as FakerFactory;
+use Faker\Generator as FakerGenerator;
 use Hypervel\Broadcasting\FakePendingBroadcast;
 use Hypervel\Broadcasting\PendingBroadcast;
+use Hypervel\Cache\CacheManager;
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
@@ -13,6 +17,7 @@ use Hypervel\Contracts\Broadcasting\Factory as BroadcastFactory;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Contracts\Cookie\Factory as CookieFactory;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Routing\ResponseFactory;
 use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
@@ -28,6 +33,8 @@ use Hypervel\Foundation\Bus\PendingClosureDispatch;
 use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Http\Exceptions\HttpResponseException;
 use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
+use Hypervel\Http\Response as HypervelResponse;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Log\LogManager;
 use Hypervel\Queue\CallQueuedClosure;
@@ -291,11 +298,11 @@ if (! function_exists('cache')) {
      *
      * @param null|array<string, mixed>|string $key key|data
      * @param mixed $default default|expiration|null
-     * @return ($key is null ? \Hypervel\Cache\CacheManager : ($key is string ? mixed : bool))
+     * @return ($key is null ? CacheManager : ($key is string ? mixed : bool))
      *
      * @throws InvalidArgumentException
      */
-    function cache($key = null, $default = null)
+    function cache(mixed $key = null, mixed $default = null): mixed
     {
         $manager = Container::getInstance()->make('cache');
 
@@ -313,7 +320,7 @@ if (! function_exists('cache')) {
             );
         }
 
-        return $manager->put(key($key), reset($key), $default);
+        return $manager->put(key($key), array_first($key), ttl: $default);
     }
 }
 
@@ -324,7 +331,7 @@ if (! function_exists('config')) {
      * If an array is passed as the key, we will assume you want to set an array of values.
      *
      * @param null|array<string, mixed>|string $key
-     * @return ($key is null ? \Hypervel\Config\Repository : ($key is string ? mixed : null))
+     * @return ($key is null ? ConfigRepository : ($key is string ? mixed : null))
      */
     function config(mixed $key = null, mixed $default = null): mixed
     {
@@ -411,7 +418,7 @@ if (! function_exists('csrf_token')) {
     /**
      * Get the CSRF token value.
      *
-     * @throws \RuntimeException
+     * @throws RuntimeException
      */
     function csrf_token(): ?string
     {
@@ -500,11 +507,11 @@ if (! function_exists('event')) {
     }
 }
 
-if (! function_exists('fake') && class_exists(\Faker\Factory::class)) {
+if (! function_exists('fake') && class_exists(FakerFactory::class)) {
     /**
      * Get a faker instance.
      */
-    function fake(?string $locale = null): \Faker\Generator
+    function fake(?string $locale = null): FakerGenerator
     {
         if (app()->bound('config')) {
             $locale ??= app('config')->string('app.faker_locale');
@@ -512,10 +519,10 @@ if (! function_exists('fake') && class_exists(\Faker\Factory::class)) {
 
         $locale ??= 'en_US';
 
-        $abstract = \Faker\Generator::class . ':' . $locale;
+        $abstract = FakerGenerator::class . ':' . $locale;
 
         if (! app()->bound($abstract)) {
-            app()->singleton($abstract, fn () => \Faker\Factory::create($locale));
+            app()->singleton($abstract, fn () => FakerFactory::create($locale));
         }
 
         return app()->make($abstract);
@@ -524,16 +531,18 @@ if (! function_exists('fake') && class_exists(\Faker\Factory::class)) {
 
 if (! function_exists('info')) {
     /**
-     * @throws TypeError
+     * Write some information to the log.
+     *
+     * @param bool $callerLocation Whether to add the calling file and line to the context as "caller_location"
      */
-    function info(Arrayable|Jsonable|\Stringable|array|string $message, array $context = [], bool $callerLocation = false)
+    function info(Arrayable|Jsonable|Stringable|array|string $message, array $context = [], bool $callerLocation = false): void
     {
         if ($callerLocation) {
-            $traces = debug_backtrace();
+            $traces = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1);
             $context['caller_location'] = sprintf('%s:%s', $traces[0]['file'], $traces[0]['line']);
         }
 
-        return logger()->info($message, $context); // @phpstan-ignore method.void
+        logger()->info($message, $context);
     }
 }
 
@@ -559,7 +568,7 @@ if (! function_exists('logger')) {
      *
      * @return ($message is null ? LoggerInterface : null)
      */
-    function logger(Arrayable|Jsonable|\Stringable|array|string|null $message = null, array $context = []): ?LoggerInterface
+    function logger(Arrayable|Jsonable|Stringable|array|string|null $message = null, array $context = []): ?LoggerInterface
     {
         $logger = app(LoggerInterface::class);
         if (is_null($message)) {
@@ -610,7 +619,7 @@ if (! function_exists('old')) {
     /**
      * Retrieve an old input item.
      */
-    function old(?string $key = null, mixed $default = null): string|array|null
+    function old(?string $key = null, mixed $default = null): mixed
     {
         return app('request')->old($key, $default);
     }
@@ -730,7 +739,7 @@ if (! function_exists('request')) {
      *
      * @param null|list<string>|string $key
      *
-     * @return ($key is null ? \Hypervel\Http\Request : ($key is string ? mixed : array<string, mixed>))
+     * @return ($key is null ? Request : ($key is string ? mixed : array<string, mixed>))
      */
     function request(array|string|null $key = null, mixed $default = null): mixed
     {
@@ -756,8 +765,8 @@ if (! function_exists('rescue')) {
      * @template TFallback
      *
      * @param callable(): TValue $callback
-     * @param (callable(\Throwable): TFallback)|TFallback $rescue
-     * @param bool|callable(\Throwable): bool $report
+     * @param (callable(Throwable): TFallback)|TFallback $rescue
+     * @param bool|callable(Throwable): bool $report
      * @return TFallback|TValue
      */
     function rescue(callable $callback, $rescue = null, $report = true)
@@ -812,11 +821,13 @@ if (! function_exists('response')) {
     /**
      * Return a new response from the application.
      *
-     * @return ($content is null ? \Hypervel\Contracts\Routing\ResponseFactory : \Hypervel\Http\Response)
+     * With no arguments, return the factory. Any argument, including null, creates a response.
+     *
+     * @return ($content is null ? ResponseFactory : HypervelResponse)
      */
-    function response(mixed $content = null, int $status = 200, array $headers = []): \Hypervel\Contracts\Routing\ResponseFactory|\Hypervel\Http\Response
+    function response(mixed $content = null, int $status = 200, array $headers = []): ResponseFactory|HypervelResponse
     {
-        $factory = app(\Hypervel\Contracts\Routing\ResponseFactory::class);
+        $factory = app(ResponseFactory::class);
 
         if (func_num_args() === 0) {
             return $factory;
@@ -912,7 +923,7 @@ if (! function_exists('to_route')) {
     /**
      * Create a new redirect response to a named route.
      */
-    function to_route(string $route, mixed $parameters = [], int $status = 302, array $headers = []): \Hypervel\Http\RedirectResponse
+    function to_route(string $route, mixed $parameters = [], int $status = 302, array $headers = []): RedirectResponse
     {
         return redirect()->route($route, $parameters, $status, $headers);
     }
@@ -979,7 +990,7 @@ if (! function_exists('uri')) {
     /**
      * Generate a URI for the application.
      */
-    function uri(UriInterface|\Stringable|array|string $uri, mixed $parameters = [], bool $absolute = true): Uri
+    function uri(UriInterface|Stringable|array|string $uri, mixed $parameters = [], bool $absolute = true): Uri
     {
         if (! is_array($uri)) {
             $uri = (string) $uri;
@@ -1012,6 +1023,8 @@ if (! function_exists('url')) {
 if (! function_exists('validator')) {
     /**
      * Create a new Validator instance.
+     *
+     * With no arguments, return the factory. Any argument, including null, creates a validator.
      *
      * @return ($data is null ? ValidatorFactoryContract : ValidatorContract)
      */

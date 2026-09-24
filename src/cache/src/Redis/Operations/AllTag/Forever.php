@@ -58,8 +58,9 @@ class Forever
 
             $pipeline = $connection->pipeline();
 
-            // Publish the value before its memberships so concurrent pruning
-            // cannot mistake a newly written member for an orphan.
+            // Publish the value first so Prune cannot discard fresh memberships.
+            // Unlike SET NX, unconditional SET needs no
+            // conditional membership publication; keep both writes in one pipeline.
             $pipeline->set($prefix . $key, $serialized);
 
             // ZADD to each tag's sorted set with score -1 (forever)

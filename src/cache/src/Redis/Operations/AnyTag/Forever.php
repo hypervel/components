@@ -127,11 +127,11 @@ class Forever
 
             $arguments = [
                 $this->serialization->serializeForLua($connection, $value), // ARGV[1]
-                $this->context->fullTagPrefix(),             // ARGV[2]
-                $this->context->fullRegistryKey(),           // ARGV[3]
-                $key,                                        // ARGV[4]
-                $this->context->tagHashSuffix(),             // ARGV[5]
-                ...$tags,                                    // ARGV[6...]
+                $this->context->fullTagPrefix($connection),                 // ARGV[2]
+                $this->context->fullRegistryKey($connection),               // ARGV[3]
+                $key,                                                       // ARGV[4]
+                $this->context->tagHashSuffix(),                            // ARGV[5]
+                ...$tags,                                                   // ARGV[6...]
             ];
 
             $connection->evalWithShaCache($this->storeForeverWithTagsScript(), $keys, $arguments);

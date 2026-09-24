@@ -24,6 +24,9 @@ use SensitiveParameter;
  */
 class Crypt extends Facade
 {
+    /**
+     * Get the registered name of the component.
+     */
     protected static function getFacadeAccessor(): string
     {
         return 'encrypter';
@@ -34,7 +37,7 @@ class Crypt extends Facade
      *
      * @throws RuntimeException
      */
-    public static function __callStatic(string $method, #[SensitiveParameter] array $args)
+    public static function __callStatic(string $method, #[SensitiveParameter] array $args): mixed
     {
         // This mirrors Facade::__callStatic() locally because delegating to the
         // parent would retain the sensitive packed arguments in its stack frame.

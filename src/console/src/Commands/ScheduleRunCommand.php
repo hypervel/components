@@ -141,7 +141,7 @@ class ScheduleRunCommand extends Command
         Dispatcher $dispatcher,
         Cache $cache,
         ExceptionHandler $handler,
-    ) {
+    ): void {
         $this->schedule = $schedule;
         $this->dispatcher = $dispatcher;
         $this->cache = $cache;
@@ -173,7 +173,7 @@ class ScheduleRunCommand extends Command
                 );
 
                 if (! $this->eventsRan && ! $noEventsAlerted && ! $this->option('whisper')) {
-                    $this->info('No scheduled commands are ready to run, waiting...');
+                    $this->components->info('No scheduled commands are ready to run, waiting...');
                     $noEventsAlerted = true;
                 }
 
@@ -186,13 +186,16 @@ class ScheduleRunCommand extends Command
         }
     }
 
+    /**
+     * Wait for running tasks to finish before stopping the scheduler.
+     */
     protected function stop(): void
     {
-        $this->info('Stopping the scheduling...');
+        $this->components->info('Stopping the scheduling...');
 
         while (true) {
             if ($this->concurrent->isEmpty()) {
-                $this->info('Done.');
+                $this->components->info('Done.');
                 break;
             }
 
@@ -224,7 +227,7 @@ class ScheduleRunCommand extends Command
         }, copyContext: [ContextRepository::CONTEXT_KEY]);
 
         if (! $this->eventsRan && ! $this->option('whisper')) {
-            $this->info('No scheduled commands are ready to run.');
+            $this->components->info('No scheduled commands are ready to run.');
         }
     }
 
@@ -282,6 +285,9 @@ class ScheduleRunCommand extends Command
         }
     }
 
+    /**
+     * Evaluate and run the scheduled events for the given time.
+     */
     protected function runEvents(Collection $events, CarbonInterface $startedAt): void
     {
         $paused = $this->isPaused();
@@ -430,7 +436,7 @@ class ScheduleRunCommand extends Command
         if ($this->schedule->serverShouldRun($event, $startedAt)) {
             $this->runEvent($event);
         } else {
-            $this->info(sprintf(
+            $this->components->info(sprintf(
                 'Skipping [%s], as command already run on another server.',
                 $event->getSummaryForDisplay()
             ));
@@ -457,6 +463,7 @@ class ScheduleRunCommand extends Command
 
         $this->eventsRan = true;
 
+        // Tasks can overlap, so write complete lines instead of leaving a task row open.
         $this->line($description);
 
         if ($this->dispatcher->hasListeners(ScheduledTaskStarting::class)) {
@@ -587,11 +594,18 @@ class ScheduleRunCommand extends Command
     }
 
     /**
-     * Listen for signals that should release owned event mutexes.
+     * Release owned event mutexes and terminate on shutdown signals.
      */
     protected function listenForSignals(): void
     {
-        $this->trap([SIGTERM, SIGINT, SIGQUIT], fn () => $this->releaseRunningEventMutexes());
+        $this->trap([SIGTERM, SIGINT, SIGQUIT], function (int $signal): void {
+            try {
+                $this->releaseRunningEventMutexes();
+            } finally {
+                // Tasks must not continue running after their overlap mutexes are released.
+                posix_kill(posix_getpid(), $signal);
+            }
+        });
     }
 
     /**

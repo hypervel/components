@@ -15,7 +15,7 @@ use Hypervel\Database\Query\Builder as QueryBuilder;
 
 use function PHPStan\Testing\assertType;
 
-/** @param \Hypervel\Database\Eloquent\Builder<User> $query */
+/** @param Builder<User> $query */
 function test(
     Builder $query,
     User $user,
@@ -296,7 +296,7 @@ class Post extends Model
         return $this->belongsTo(User::class);
     }
 
-    /** @return MorphTo<\Hypervel\Database\Eloquent\Model, $this> */
+    /** @return MorphTo<Model, $this> */
     public function taggable(): MorphTo
     {
         return $this->morphTo();
@@ -316,9 +316,9 @@ class Comment extends Model
 }
 
 /**
- * @template TModel of \Hypervel\Database\Eloquent\Model
+ * @template TModel of Model
  *
- * @extends \Hypervel\Database\Eloquent\Builder<TModel>
+ * @extends Builder<TModel>
  */
 class CommonBuilder extends Builder
 {

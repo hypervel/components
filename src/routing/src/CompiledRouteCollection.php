@@ -263,8 +263,8 @@ class CompiledRouteCollection extends AbstractRouteCollection
      * of cloning the entire Request object. RequestBridge also normalizes
      * trailing slashes for real HTTP requests upstream.
      *
-     * @throws \Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException
-     * @throws \Symfony\Component\HttpKernel\Exception\NotFoundHttpException
+     * @throws MethodNotAllowedHttpException
+     * @throws NotFoundHttpException
      */
     public function match(Request $request): Route
     {

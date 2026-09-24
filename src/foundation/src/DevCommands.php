@@ -5,11 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\Foundation;
 
 use Composer\InstalledVersions;
+use Hypervel\Support\Facades\File;
 use Hypervel\Support\NodePackageManager;
 use ReflectionClass;
 
+/**
+ * @phpstan-type DevCommandArray array{command: string, name: string, color: string, source: array{file?: string, line?: int, class?: string, function?: string}, priority: int}
+ * @phpstan-type DevCommandInputArray array{command: string, name: string, color: null|string, source: array{file?: string, line?: int, class?: string, function?: string}, priority: int}
+ */
 class DevCommands
 {
+    protected const DevCommandMode DEFAULT_MODE = DevCommandMode::TABS;
+
     /**
      * The resolved NodePackageManager instance.
      */
@@ -44,6 +51,41 @@ class DevCommands
     protected static array $except = [];
 
     /**
+     * The mode in which the "dev" command should run.
+     */
+    protected static DevCommandMode $mode = self::DEFAULT_MODE;
+
+    /**
+     * Whether to include timestamps in the output of the "dev" command.
+     */
+    protected static bool $withTimestamps = false;
+
+    /**
+     * Whether to automatically restart a "dev" command when it fails.
+     */
+    protected static bool $autoRestart = true;
+
+    /**
+     * Whether to exclude vendor commands.
+     */
+    protected static bool $withoutVendorCommands = false;
+
+    /**
+     * Whether to exclude the framework's default commands.
+     */
+    protected static bool $withoutDefaultCommands = false;
+
+    /**
+     * How many lines of output to buffer for each command when running in tabbed mode.
+     */
+    protected static ?int $bufferSize = null;
+
+    /**
+     * How many lines of output to buffer total when running in stream mode.
+     */
+    protected static ?int $streamBufferSize = null;
+
+    /**
      * Register the default development commands.
      *
      * Boot-only. The commands persist in static properties for the worker lifetime
@@ -59,7 +101,9 @@ class DevCommands
         self::artisan('watch', 'server');
         self::artisan('queue:listen --tries=1 --timeout=0', 'queue');
         // REMOVED: Hypervel has no Pail-equivalent command for the default logs process.
-        self::node('dev', 'vite');
+        if (File::exists(base_path('package.json'))) {
+            self::node('dev', 'vite');
+        }
     }
 
     /**
@@ -125,13 +169,21 @@ class DevCommands
     /**
      * Get the registered development commands.
      *
-     * @return list<array{command: string, name: string, color: string, source: array{file?: string, line?: int, class?: string, function?: string}, priority: int}>
+     * @return list<DevCommandArray>
      */
     public static function commands(): array
     {
         $commands = [];
 
         foreach (self::$commands as $command) {
+            if (self::$withoutVendorCommands && $command->priority() === DevCommand::PRIORITY_VENDOR) {
+                continue;
+            }
+
+            if (self::$withoutDefaultCommands && $command->priority() === DevCommand::PRIORITY_DEFAULT) {
+                continue;
+            }
+
             $cmd = $command->toArray();
 
             if ((! empty(self::$only) && ! in_array($cmd['name'], self::$only, true)) || in_array($cmd['name'], self::$except, true)) {
@@ -145,10 +197,120 @@ class DevCommands
     }
 
     /**
+     * Set the mode to inline, where all commands are run in the same terminal window.
+     *
+     * Boot-only. The mode is shared by all development command invocations in the worker.
+     */
+    public static function inline(): void
+    {
+        self::$mode = DevCommandMode::INLINE;
+    }
+
+    /**
+     * Set the mode to stream, where all commands are run in the same terminal window, but their output is interactive within a TUI.
+     *
+     * Boot-only. The mode is shared by all development command invocations in the worker.
+     */
+    public static function stream(): void
+    {
+        self::$mode = DevCommandMode::STREAM;
+    }
+
+    /**
+     * Set the mode to tabs, where each command is run in its own terminal tab.
+     *
+     * Boot-only. The mode is shared by all development command invocations in the worker.
+     */
+    public static function tabs(): void
+    {
+        self::$mode = DevCommandMode::TABS;
+    }
+
+    /**
+     * Get the mode in which the "dev" command should run.
+     */
+    public static function mode(): DevCommandMode
+    {
+        return self::$mode;
+    }
+
+    /**
+     * Enable timestamps in the output of the "dev" command.
+     *
+     * Boot-only. The setting is shared by all development command invocations in the worker.
+     */
+    public static function withTimestamps(): void
+    {
+        self::$withTimestamps = true;
+    }
+
+    /**
+     * Determine if timestamps should be included in the output of the "dev" command.
+     */
+    public static function shouldIncludeTimestamps(): bool
+    {
+        return self::$withTimestamps;
+    }
+
+    /**
+     * Disable automatic restart of a "dev" command when it fails.
+     *
+     * Boot-only. The setting is shared by all development command invocations in the worker.
+     */
+    public static function disableAutoRestart(): void
+    {
+        self::$autoRestart = false;
+    }
+
+    /**
+     * Determine if a "dev" command should automatically restart when it fails.
+     */
+    public static function shouldAutoRestart(): bool
+    {
+        return self::$autoRestart;
+    }
+
+    /**
+     * Set the number of lines of output to buffer for each command when running in tabbed mode.
+     *
+     * Boot-only. The buffer size is shared by all development command invocations in the worker.
+     */
+    public static function bufferSize(int $lines): void
+    {
+        self::$bufferSize = $lines;
+    }
+
+    /**
+     * Get the number of lines of output to buffer for each command when running in tabbed mode.
+     */
+    public static function getBufferSize(): ?int
+    {
+        return self::$bufferSize;
+    }
+
+    /**
+     * Set the number of lines of output to buffer total when running in stream mode.
+     *
+     * Boot-only. The buffer size is shared by all development command invocations in the worker.
+     */
+    public static function streamBufferSize(int $lines): void
+    {
+        self::$streamBufferSize = $lines;
+    }
+
+    /**
+     * Get the number of lines of output to buffer total when running in stream mode.
+     */
+    public static function getStreamBufferSize(): ?int
+    {
+        return self::$streamBufferSize;
+    }
+
+    /**
      * Fill in any empty colors in the given commands array, ensuring each command has a color assigned.
      *
-     * @param list<array{command: string, name: string, color: null|string, source: array{file?: string, line?: int, class?: string, function?: string}, priority: int}> $commands
-     * @return list<array{command: string, name: string, color: string, source: array{file?: string, line?: int, class?: string, function?: string}, priority: int}>
+     * @param list<DevCommandInputArray> $commands
+     * @return list<DevCommandArray>
      */
     protected static function fillInEmptyColors(array $commands): array
     {
@@ -164,7 +326,7 @@ class DevCommands
     /**
      * Get a color for a command, ensuring that colors are reused only after all available colors have been used at least once.
      *
-     * @param list<array{command: string, name: string, color: null|string, source: array{file?: string, line?: int, class?: string, function?: string}, priority: int}> $commands
+     * @param list<DevCommandInputArray> $commands
      */
     protected static function getColor(array $commands): string
     {
@@ -300,6 +462,26 @@ class DevCommands
     }
 
     /**
+     * Exclude any commands from the vendor directory.
+     *
+     * Boot-only. The filter is shared by all development command invocations in the worker.
+     */
+    public static function withoutVendorCommands(): void
+    {
+        self::$withoutVendorCommands = true;
+    }
+
+    /**
+     * Exclude the framework's default commands.
+     *
+     * Boot-only. The filter is shared by all development command invocations in the worker.
+     */
+    public static function withoutDefaultCommands(): void
+    {
+        self::$withoutDefaultCommands = true;
+    }
+
+    /**
      * Resolve and return the NodePackageManager instance.
      */
     protected static function getPackageManager(): NodePackageManager
@@ -317,5 +499,12 @@ class DevCommands
         self::$commands = [];
         self::$only = [];
         self::$except = [];
+        self::$mode = self::DEFAULT_MODE;
+        self::$withTimestamps = false;
+        self::$autoRestart = true;
+        self::$withoutVendorCommands = false;
+        self::$withoutDefaultCommands = false;
+        self::$bufferSize = null;
+        self::$streamBufferSize = null;
     }
 }

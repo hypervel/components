@@ -45,7 +45,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Mail\Mailer
+ * @mixin Mailer
  */
 class MailManager implements FactoryContract
 {
@@ -814,7 +814,7 @@ class MailManager implements FactoryContract
     /**
      * Dynamically call the default driver instance.
      */
-    public function __call(string $method, array $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return $this->mailer()->{$method}(...$parameters);
     }

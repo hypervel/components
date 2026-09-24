@@ -17,6 +17,9 @@ class SupportCarbonTest extends TestCase
 {
     protected Carbon $now;
 
+    /**
+     * Set up the test environment.
+     */
     protected function setUp(): void
     {
         parent::setUp();
@@ -111,8 +114,8 @@ class SupportCarbonTest extends TestCase
 
     public function testCarbonIsConditionable(): void
     {
-        $this->assertTrue(Carbon::now()->when(null, fn (Carbon $carbon) => $carbon->addDays(1))->isToday());
-        $this->assertTrue(Carbon::now()->when(true, fn (Carbon $carbon) => $carbon->addDays(1))->isTomorrow());
+        $this->assertTrue(Carbon::now()->when(null, fn (Carbon $carbon) => $carbon->addDay())->isToday());
+        $this->assertTrue(Carbon::now()->when(true, fn (Carbon $carbon) => $carbon->addDay())->isTomorrow());
     }
 
     public function testCreateFromId(): void

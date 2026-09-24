@@ -388,6 +388,30 @@ class NotificationChannelManagerTest extends TestCase
         $manager->send([new NotificationChannelManagerTestNotifiable], $notification);
     }
 
+    public function testQueuedNotificationForwardsArrayCallableDeduplicatorToQueueJob(): void
+    {
+        $deduplicator = [NotificationChannelManagerTestDeduplicator::class, 'resolve'];
+
+        $container = $this->getContainer();
+        $container->instance('queue.routes', $queueRoutes = m::mock(QueueRoutes::class));
+        $queueRoutes->expects('getQueue')->times(2)->andReturn(null);
+        $queueRoutes->expects('getConnection')->times(2)->andReturn(null);
+        $container->make(BusDispatcherContract::class)
+            ->expects('dispatch')->times(2)->withArgs(function (SendQueuedNotifications $job) use ($deduplicator): bool {
+                $this->assertSame($deduplicator, $job->deduplicator);
+
+                $restored = unserialize(serialize($job));
+                $this->assertSame('queue:payload', ($restored->deduplicator)('payload', 'queue'));
+
+                return true;
+            });
+
+        $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
+
+        $notification = (new NotificationChannelManagerTestQueuedNotificationWithTwoChannels)->withDeduplicator($deduplicator);
+        $manager->send([new NotificationChannelManagerTestNotifiable], $notification);
+    }
+
     public function testQueuedNotificationForwardsDeduplicatorSetToQueueJob(): void
     {
         $mockedDeduplicatorSet = [
@@ -403,6 +427,12 @@ class NotificationChannelManagerTest extends TestCase
             ->expects('dispatch')->times(2)->withArgs(function (SendQueuedNotifications $job) use ($mockedDeduplicatorSet): bool {
                 $this->assertInstanceOf(SerializableClosure::class, $job->deduplicator);
                 $this->assertEquals($mockedDeduplicatorSet[$job->channels[0]], $job->deduplicator->getClosure());
+
+                $restored = unserialize(serialize($job));
+                $this->assertSame(
+                    $mockedDeduplicatorSet[$job->channels[0]]('payload', 'queue'),
+                    ($restored->deduplicator)('payload', 'queue')
+                );
 
                 return true;
             });
@@ -668,6 +698,17 @@ class NotificationChannelManagerTestQueuedNotificationWithMessageGroups extends 
             'test2' => 'group-2',
             default => null,
         };
+    }
+}
+
+class NotificationChannelManagerTestDeduplicator
+{
+    /**
+     * Get a deduplication ID from the queue and payload.
+     */
+    public static function resolve(string $payload, string $queue): string
+    {
+        return $queue . ':' . $payload;
     }
 }
 

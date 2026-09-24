@@ -81,15 +81,14 @@ abstract class Queue
      *
      * @var callable[]
      */
-    protected static $createPayloadCallbacks = [];
+    protected static array $createPayloadCallbacks = [];
 
     /**
      * Push a new job onto the queue.
      */
     public function pushOn(UnitEnum|string|null $queue, object|string $job, mixed $data = ''): mixed
     {
-        /* @phpstan-ignore-next-line */
-        return $this->push($job, $data, $queue);
+        return $this->push($job, $data, $queue); // @phpstan-ignore method.notFound
     }
 
     /**
@@ -97,8 +96,7 @@ abstract class Queue
      */
     public function laterOn(UnitEnum|string|null $queue, DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = ''): mixed
     {
-        /* @phpstan-ignore-next-line */
-        return $this->later($delay, $job, $data, $queue);
+        return $this->later($delay, $job, $data, $queue); // @phpstan-ignore method.notFound
     }
 
     /**
@@ -112,11 +110,9 @@ abstract class Queue
             $delay = $this->getJobDelay($job);
 
             if ($delay !== null) {
-                /* @phpstan-ignore-next-line */
-                $this->later($delay, $job, $data, $queue);
+                $this->later($delay, $job, $data, $queue); // @phpstan-ignore method.notFound
             } else {
-                /* @phpstan-ignore-next-line */
-                $this->push($job, $data, $queue);
+                $this->push($job, $data, $queue); // @phpstan-ignore method.notFound
             }
         }
 
@@ -254,7 +250,8 @@ abstract class Queue
     protected function getDisplayName(object $job): string
     {
         return method_exists($job, 'displayName')
-            ? $job->displayName() : get_class($job);
+            ? $job->displayName()
+            : get_class($job);
     }
 
     /**
@@ -303,7 +300,8 @@ abstract class Queue
         $expiration = $job->retryUntil ?? $job->retryUntil();
 
         return $expiration instanceof DateTimeInterface
-            ? $expiration->getTimestamp() : $expiration;
+            ? $expiration->getTimestamp()
+            : $expiration;
     }
 
     /**
@@ -545,7 +543,7 @@ abstract class Queue
             return [[], $jobs];
         }
 
-        return Collection::make($jobs)
+        return (new Collection($jobs))
             ->partition(fn ($job) => $this->shouldDispatchAfterCommit($job))
             ->map(fn ($partition) => $partition->values()->all())
             ->all();

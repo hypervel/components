@@ -15,6 +15,7 @@ use Hypervel\Database\Concerns\BuildsQueries;
 use Hypervel\Database\Eloquent\Concerns\QueriesRelationships;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\Relation;
+use Hypervel\Database\MultipleRecordsFoundException;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Database\UniqueConstraintViolationException;
@@ -32,27 +33,28 @@ use ReflectionClass;
 use ReflectionException;
 use ReflectionMethod;
 use SortDirection;
+use UnitEnum;
 
 /**
  * Forwarded query methods operate on this builder, so their value type is TModel.
  * Keep toBase() and getQuery() unparameterized because raw queries return stdClass rows.
  *
- * @template TModel of \Hypervel\Database\Eloquent\Model
+ * @template TModel of Model
  *
  * @property-read $this|HigherOrderBuilderProxy $orWhere
  * @property-read $this|HigherOrderBuilderProxy $whereNot
  * @property-read $this|HigherOrderBuilderProxy $orWhereNot
  *
- * @method $this whereCan(\UnitEnum|string $ability, mixed $user = null)
- * @method $this withCan(\UnitEnum|string|list<\UnitEnum|string> $abilities, mixed $user = null)
+ * @method $this whereCan(UnitEnum|string $ability, mixed $user = null)
+ * @method $this withCan(UnitEnum|string|list<UnitEnum|string> $abilities, mixed $user = null)
  * @method $this fetchUsing(mixed ...$fetchUsing)
  * @method $this useWritePdo()
  *
- * @mixin \Hypervel\Database\Query\Builder<int, TModel>
+ * @mixin QueryBuilder<int, TModel>
  */
 class Builder implements BuilderContract
 {
-    /** @use \Hypervel\Database\Concerns\BuildsQueries<int, TModel> */
+    /** @use BuildsQueries<int, TModel> */
     use BuildsQueries, ForwardsCalls, QueriesRelationships {
         BuildsQueries::sole as baseSole;
     }
@@ -550,7 +552,7 @@ class Builder implements BuilderContract
      * @return TModel
      *
      * @throws ModelNotFoundException<TModel>
-     * @throws \Hypervel\Database\MultipleRecordsFoundException
+     * @throws MultipleRecordsFoundException
      */
     public function findSole(mixed $id, array|string $columns = ['*']): Model
     {
@@ -784,7 +786,7 @@ class Builder implements BuilderContract
      * @return TModel
      *
      * @throws ModelNotFoundException<TModel>
-     * @throws \Hypervel\Database\MultipleRecordsFoundException
+     * @throws MultipleRecordsFoundException
      */
     public function sole(array|string $columns = ['*']): Model
     {
@@ -811,7 +813,7 @@ class Builder implements BuilderContract
      * Get a single column's value from the first result of a query if it's the sole matching record.
      *
      * @throws ModelNotFoundException<TModel>
-     * @throws \Hypervel\Database\MultipleRecordsFoundException
+     * @throws MultipleRecordsFoundException
      */
     public function soleValue(Expression|string $column): mixed
     {
@@ -1008,7 +1010,7 @@ class Builder implements BuilderContract
     /**
      * Get a lazy collection for the given query.
      *
-     * @return \Hypervel\Support\LazyCollection<int, TModel>
+     * @return LazyCollection<int, TModel>
      */
     public function cursor(): LazyCollection
     {
@@ -1065,7 +1067,7 @@ class Builder implements BuilderContract
     /**
      * Paginate the given query.
      *
-     * @return \Hypervel\Pagination\LengthAwarePaginator<int, TModel>
+     * @return LengthAwarePaginator<int, TModel>
      *
      * @throws InvalidArgumentException
      */
@@ -1090,7 +1092,7 @@ class Builder implements BuilderContract
     /**
      * Paginate the given query into a simple paginator.
      *
-     * @return \Hypervel\Pagination\Paginator<int, TModel>
+     * @return Paginator<int, TModel>
      */
     public function simplePaginate(?int $perPage = null, array|string $columns = ['*'], string $pageName = 'page', ?int $page = null): Paginator
     {
@@ -1112,7 +1114,7 @@ class Builder implements BuilderContract
     /**
      * Paginate the given query into a cursor paginator.
      *
-     * @return \Hypervel\Pagination\CursorPaginator<int, TModel>
+     * @return CursorPaginator<int, TModel>
      */
     public function cursorPaginate(?int $perPage = null, array|string $columns = ['*'], string $cursorName = 'cursor', Cursor|string|null $cursor = null): CursorPaginator
     {
@@ -1412,11 +1414,18 @@ class Builder implements BuilderContract
 
         $column = $this->model->getUpdatedAtColumn();
 
-        if (! is_null($column)
-            && ! array_key_exists($column, $update)
-            && ! in_array($column, $update)) {
-            $update[] = $column;
+        if (is_null($column) || array_key_exists($column, $update)) {
+            return $update;
         }
+
+        // Keyed entries assign literal values; only list entries name columns.
+        foreach ($update as $key => $value) {
+            if (is_int($key) && $value === $column) {
+                return $update;
+            }
+        }
+
+        $update[] = $column;
 
         return $update;
     }
@@ -1674,7 +1683,7 @@ class Builder implements BuilderContract
         $attributes = array_merge($this->pendingAttributes, $attributes);
 
         return $this->model->newInstance($attributes)->setConnection(
-            $this->query->getConnection()->getName()
+            $this->query->getConnection()->getWritableName()
         );
     }
 
@@ -1976,7 +1985,7 @@ class Builder implements BuilderContract
     /**
      * Set a model instance for the model being queried.
      *
-     * @template TModelNew of \Hypervel\Database\Eloquent\Model
+     * @template TModelNew of Model
      *
      * @param TModelNew $model
      * @return static<TModelNew>

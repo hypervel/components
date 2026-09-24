@@ -79,12 +79,15 @@ class DatabaseQueueReservationTest extends TestCase
         $this->assertSame(2, $queue->pop('reports')?->attempts());
     }
 
-    #[TestWith([0])]
-    #[TestWith([1])]
-    public function testFailedReservationDoesNotBlockTheNextJob(int $transactionLevel): void
+    #[TestWith([0, null])]
+    #[TestWith([1, null])]
+    #[TestWith([0, 'write'])]
+    #[TestWith([1, 'write'])]
+    public function testFailedReservationDoesNotBlockTheNextJob(int $transactionLevel, ?string $role): void
     {
         [$queue, $events] = $this->createQueue();
         $database = $queue->getDatabase();
+        $database->setReadWriteType($role);
         $payload = json_encode(['job' => stdClass::class, 'data' => []]);
         $failedId = $queue->pushRaw($payload);
         $nextId = $queue->pushRaw($payload);
@@ -221,6 +224,43 @@ class DatabaseQueueReservationTest extends TestCase
             $queue->pop();
             $this->fail('Expected the query observer failure.');
         } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        }
+
+        $record = $database->table('jobs')->find($id);
+        $this->assertNotNull($record);
+        $this->assertSame(0, $record->attempts);
+        $this->assertNull($record->reserved_at);
+        $this->assertFalse($failed);
+    }
+
+    public function testObserverFailureOnAnotherRoleKeepsTheJobAvailable(): void
+    {
+        [$queue, $events] = $this->createQueue();
+        $database = $queue->getDatabase();
+        $id = $queue->pushRaw(json_encode(['job' => stdClass::class, 'data' => []]));
+        $failure = null;
+        $failed = false;
+        $events->listen(JobFailed::class, static function () use (&$failed): void {
+            $failed = true;
+        });
+        $events->listen(QueryExecuted::class, static function (QueryExecuted $event) use (&$failure): void {
+            if (! str_starts_with($event->sql, 'update ')) {
+                return;
+            }
+
+            throw $failure = new QueryException(
+                'queue-storage::read',
+                $event->sql,
+                $event->bindings,
+                new PDOException('The observer query failed.'),
+            );
+        });
+
+        try {
+            $queue->pop();
+            $this->fail('Expected the observer query to fail.');
+        } catch (QueryException $exception) {
             $this->assertSame($failure, $exception);
         }
 

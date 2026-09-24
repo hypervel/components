@@ -48,14 +48,14 @@ class Blueprint
     /**
      * The columns that should be added to the table.
      *
-     * @var list<\Hypervel\Database\Schema\ColumnDefinition>
+     * @var list<ColumnDefinition>
      */
     protected array $columns = [];
 
     /**
      * The commands that should be run for the table.
      *
-     * @var list<\Hypervel\Support\Fluent>
+     * @var list<Fluent>
      */
     protected array $commands = [];
 
@@ -1189,7 +1189,7 @@ class Blueprint
     /**
      * Add nullable creation and update timestamps to the table.
      *
-     * @return \Hypervel\Support\Collection<int, TColumnDefinition>
+     * @return Collection<int, TColumnDefinition>
      */
     public function timestamps(?int $precision = null): Collection
     {
@@ -1204,7 +1204,7 @@ class Blueprint
      *
      * Alias for self::timestamps().
      *
-     * @return \Hypervel\Support\Collection<int, TColumnDefinition>
+     * @return Collection<int, TColumnDefinition>
      */
     public function nullableTimestamps(?int $precision = null): Collection
     {
@@ -1214,7 +1214,7 @@ class Blueprint
     /**
      * Add nullable creation and update timestampTz columns to the table.
      *
-     * @return \Hypervel\Support\Collection<int, TColumnDefinition>
+     * @return Collection<int, TColumnDefinition>
      */
     public function timestampsTz(?int $precision = null): Collection
     {
@@ -1229,7 +1229,7 @@ class Blueprint
      *
      * Alias for self::timestampsTz().
      *
-     * @return \Hypervel\Support\Collection<int, TColumnDefinition>
+     * @return Collection<int, TColumnDefinition>
      */
     public function nullableTimestampsTz(?int $precision = null): Collection
     {
@@ -1239,7 +1239,7 @@ class Blueprint
     /**
      * Add creation and update datetime columns to the table.
      *
-     * @return \Hypervel\Support\Collection<int, TColumnDefinition>
+     * @return Collection<int, TColumnDefinition>
      */
     public function datetimes(?int $precision = null): Collection
     {
@@ -1632,7 +1632,7 @@ class Blueprint
     /**
      * Add a new column definition to the blueprint.
      *
-     * @template TDefinition of \Hypervel\Database\Schema\ColumnDefinition
+     * @template TDefinition of ColumnDefinition
      *
      * @param TDefinition $definition
      * @return TDefinition
@@ -1698,7 +1698,7 @@ class Blueprint
     /**
      * Add a new command definition to the blueprint.
      *
-     * @template TCommandDefinition of \Hypervel\Support\Fluent
+     * @template TCommandDefinition of Fluent
      *
      * @param TCommandDefinition $definition
      * @return TCommandDefinition
@@ -1740,7 +1740,7 @@ class Blueprint
     /**
      * Get the columns on the blueprint.
      *
-     * @return list<\Hypervel\Database\Schema\ColumnDefinition>
+     * @return list<ColumnDefinition>
      */
     public function getColumns(): array
     {
@@ -1750,7 +1750,7 @@ class Blueprint
     /**
      * Get the commands on the blueprint.
      *
-     * @return \Hypervel\Support\Fluent[]
+     * @return Fluent[]
      */
     public function getCommands(): array
     {
@@ -1776,7 +1776,7 @@ class Blueprint
     /**
      * Get the columns on the blueprint that should be added.
      *
-     * @return array<int, \Hypervel\Database\Schema\ColumnDefinition>
+     * @return array<int, ColumnDefinition>
      */
     public function getAddedColumns(): array
     {

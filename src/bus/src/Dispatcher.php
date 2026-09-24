@@ -195,8 +195,6 @@ class Dispatcher implements QueueingDispatcher
 
     /**
      * Retrieve the handler for a command.
-     *
-     * @return bool|mixed
      */
     public function getCommandHandler(mixed $command): mixed
     {

@@ -21,6 +21,7 @@ use Hypervel\Prompts\SuggestPrompt;
 use Hypervel\Prompts\TextareaPrompt;
 use Hypervel\Prompts\TextPrompt;
 use Hypervel\Support\Collection;
+use Hypervel\Validation\Validator;
 use RuntimeException;
 use stdClass;
 use Symfony\Component\Console\Input\InputInterface;
@@ -279,7 +280,7 @@ trait ConfiguresPrompts
      * @param mixed $field
      * @param mixed $value
      * @param mixed $rules
-     * @return \Hypervel\Validation\Validator
+     * @return Validator
      */
     protected function getPromptValidatorInstance($field, $value, $rules, array $messages = [], array $attributes = [])
     {

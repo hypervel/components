@@ -1460,10 +1460,10 @@ class SupportStringableTest extends TestCase
         $this->assertSame('bar', (string) $this->stringable('foo')->pipe($callback));
     }
 
-    public function testMarkdown()
+    public function testMarkdown(): void
     {
-        $this->assertEquals("<p><em>hello world</em></p>\n", $this->stringable('*hello world*')->markdown());
-        $this->assertEquals("<h1>hello world</h1>\n", $this->stringable('# hello world')->markdown());
+        $this->assertSame("<p><em>hello world</em></p>\n", (string) $this->stringable('*hello world*')->markdown());
+        $this->assertSame("<h1>hello world</h1>\n", (string) $this->stringable('# hello world')->markdown());
 
         $extension = new class implements ExtensionInterface {
             public bool $configured = false;
@@ -1477,10 +1477,10 @@ class SupportStringableTest extends TestCase
         $this->assertTrue($extension->configured);
     }
 
-    public function testInlineMarkdown()
+    public function testInlineMarkdown(): void
     {
-        $this->assertEquals("<em>hello world</em>\n", $this->stringable('*hello world*')->inlineMarkdown());
-        $this->assertEquals("<a href=\"https://hypervel.org\"><strong>Hypervel</strong></a>\n", $this->stringable('[**Hypervel**](https://hypervel.org)')->inlineMarkdown());
+        $this->assertSame("<em>hello world</em>\n", (string) $this->stringable('*hello world*')->inlineMarkdown());
+        $this->assertSame("<a href=\"https://hypervel.org\"><strong>Hypervel</strong></a>\n", (string) $this->stringable('[**Hypervel**](https://hypervel.org)')->inlineMarkdown());
 
         $extension = new class implements ExtensionInterface {
             public bool $configured = false;

@@ -648,6 +648,14 @@ if (Auth::guard('admin')->attempt($credentials)) {
 }
 ```
 
+The `guard`, `shouldUse`, and `setDefaultDriver` methods also accept enum cases. Backed enums use their values, while unit enums use their case names:
+
+```php
+use App\Enums\Guard;
+
+$user = Auth::guard(Guard::Admin)->user();
+```
+
 <a name="remembering-users"></a>
 ### Remembering Users
 

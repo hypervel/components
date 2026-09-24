@@ -6,12 +6,12 @@ namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\Concerns\CreatesMatchingTest;
 use Hypervel\Console\GeneratorCommand;
+use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Foundation\Inspiring;
 use Hypervel\Support\Facades\File;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'make:view')]
 class ViewMakeCommand extends GeneratorCommand
@@ -19,9 +19,12 @@ class ViewMakeCommand extends GeneratorCommand
     use CreatesMatchingTest;
 
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:view';
+    protected ?string $signature = 'make:view
+                    {name : The name of the view}
+                    {--extension=blade.php : The extension of the generated view}
+                    {--f|force : Create the view even if the view already exists}';
 
     /**
      * The console command description.
@@ -36,7 +39,7 @@ class ViewMakeCommand extends GeneratorCommand
     /**
      * Build the class with the given name.
      *
-     * @throws \Hypervel\Contracts\Filesystem\FileNotFoundException
+     * @throws FileNotFoundException
      */
     protected function buildClass(string $name): string
     {
@@ -205,16 +208,5 @@ class ViewMakeCommand extends GeneratorCommand
         return $this->option('pest')
             || (function_exists('\Pest\version')
                 && file_exists(base_path('tests') . '/Pest.php'));
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['extension', null, InputOption::VALUE_OPTIONAL, 'The extension of the generated view', 'blade.php'],
-            ['force', 'f', InputOption::VALUE_NONE, 'Create the view even if the view already exists'],
-        ];
     }
 }

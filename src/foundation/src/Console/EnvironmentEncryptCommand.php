@@ -213,7 +213,7 @@ class EnvironmentEncryptCommand extends Command
 
             try {
                 $value = $encrypter->decryptString($encrypted);
-            } catch (Exception $e) {
+            } catch (Exception) {
                 $this->fail('Unable to decrypt the encrypted environment entry on line ' . ($index + 1) . '.');
             }
 

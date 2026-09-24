@@ -23,8 +23,8 @@ trait CompilesComponents
     protected function compileComponent(string $expression): string
     {
         [$component, $alias, $data] = str_contains($expression, ',')
-                    ? array_map('trim', explode(',', trim($expression, '()'), 3)) + ['', '', '']
-                    : [trim($expression, '()'), '', ''];
+            ? array_map(trim(...), explode(',', trim($expression, '()'), 3)) + ['', '', '']
+            : [trim($expression, '()'), '', ''];
 
         $component = trim($component, '\'"');
 
@@ -98,6 +98,9 @@ trait CompilesComponents
         ]);
     }
 
+    /**
+     * Pop the latest component hash from the stack.
+     */
     protected function popComponentHashStack(): string
     {
         $stack = CoroutineContext::get(static::COMPONENT_HASH_STACK_CONTEXT_KEY, []);
@@ -198,8 +201,8 @@ unset(\$__defined_vars, \$__key, \$__value); ?>";
         }
 
         return is_string($value)
-               || (is_object($value) && ! $value instanceof ComponentAttributeBag && method_exists($value, '__toString'))
-                        ? e($value)
-                        : $value;
+            || (is_object($value) && ! $value instanceof ComponentAttributeBag && method_exists($value, '__toString'))
+                ? e($value)
+                : $value;
     }
 }

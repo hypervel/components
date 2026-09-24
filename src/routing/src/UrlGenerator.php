@@ -13,6 +13,7 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Http\Request;
+use Hypervel\Routing\Exceptions\UrlGenerationException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
@@ -428,6 +429,7 @@ class UrlGenerator implements UrlGeneratorContract
 
         $keys = is_array($keys) ? $keys : [$keys];
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($keys as $key) {
             if (hash_equals(
                 hash_hmac('sha256', $original, $key),
@@ -457,7 +459,7 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Get the URL to a named route.
      *
-     * @throws \Symfony\Component\Routing\Exception\RouteNotFoundException
+     * @throws RouteNotFoundException
      * @throws InvalidArgumentException
      */
     public function route(BackedEnum|string $name, mixed $parameters = [], bool $absolute = true): string
@@ -481,7 +483,7 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Get the URL for a given route instance.
      *
-     * @throws \Hypervel\Routing\Exceptions\UrlGenerationException
+     * @throws UrlGenerationException
      */
     public function toRoute(Route $route, mixed $parameters, bool $absolute): string
     {

@@ -22,7 +22,7 @@ abstract class AbstractRouteCollection implements Countable, IteratorAggregate, 
     /**
      * Handle the matched route.
      *
-     * @throws \Symfony\Component\HttpKernel\Exception\NotFoundHttpException
+     * @throws NotFoundHttpException
      */
     protected function handleMatchedRoute(Request $request, ?Route $route): Route
     {
@@ -94,7 +94,7 @@ abstract class AbstractRouteCollection implements Countable, IteratorAggregate, 
      *
      * @param array<int, string> $methods
      *
-     * @throws \Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException
+     * @throws MethodNotAllowedHttpException
      */
     protected function getRouteForMethods(Request $request, array $methods): Route
     {
@@ -110,7 +110,7 @@ abstract class AbstractRouteCollection implements Countable, IteratorAggregate, 
     /**
      * Throw a method not allowed HTTP exception.
      *
-     * @throws \Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException
+     * @throws MethodNotAllowedHttpException
      */
     protected function requestMethodNotAllowed(Request $request, array $others, string $method): never
     {

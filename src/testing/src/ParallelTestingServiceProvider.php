@@ -21,9 +21,18 @@ class ParallelTestingServiceProvider extends ServiceProvider
     public function boot(): void
     {
         if ($this->app->runningInConsole()) {
-            $this->bootTestCache();
             $this->bootTestDatabase();
             $this->bootTestViews();
+        }
+    }
+
+    /**
+     * Register testing services.
+     */
+    public function register(): void
+    {
+        if ($this->app->runningInConsole()) {
+            $this->bootTestCache();
         }
     }
 }

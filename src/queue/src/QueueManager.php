@@ -15,10 +15,17 @@ use Hypervel\Contracts\Queue\Monitor as MonitorContract;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\Queue\Connectors\ConnectorInterface;
+use Hypervel\Queue\Events\JobExceptionOccurred;
+use Hypervel\Queue\Events\JobFailed;
+use Hypervel\Queue\Events\JobProcessed;
+use Hypervel\Queue\Events\JobProcessing;
+use Hypervel\Queue\Events\Looping;
 use Hypervel\Queue\Events\QueuePaused;
 use Hypervel\Queue\Events\QueueResumed;
 use Hypervel\Queue\Events\QueuesPaused;
 use Hypervel\Queue\Events\QueuesResumed;
+use Hypervel\Queue\Events\WorkerStarting;
+use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use InvalidArgumentException;
@@ -27,7 +34,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Contracts\Queue\Queue
+ * @mixin Queue
  */
 class QueueManager implements FactoryContract, MonitorContract
 {
@@ -81,7 +88,7 @@ class QueueManager implements FactoryContract, MonitorContract
     public function before(mixed $callback): void
     {
         $this->app->make('events')
-            ->listen(Events\JobProcessing::class, $callback);
+            ->listen(JobProcessing::class, $callback);
     }
 
     /**
@@ -93,7 +100,7 @@ class QueueManager implements FactoryContract, MonitorContract
     public function after(mixed $callback): void
     {
         $this->app->make('events')
-            ->listen(Events\JobProcessed::class, $callback);
+            ->listen(JobProcessed::class, $callback);
     }
 
     /**
@@ -105,7 +112,7 @@ class QueueManager implements FactoryContract, MonitorContract
     public function exceptionOccurred(mixed $callback): void
     {
         $this->app->make('events')
-            ->listen(Events\JobExceptionOccurred::class, $callback);
+            ->listen(JobExceptionOccurred::class, $callback);
     }
 
     /**
@@ -117,7 +124,7 @@ class QueueManager implements FactoryContract, MonitorContract
     public function looping(mixed $callback): void
     {
         $this->app->make('events')
-            ->listen(Events\Looping::class, $callback);
+            ->listen(Looping::class, $callback);
     }
 
     /**
@@ -129,7 +136,7 @@ class QueueManager implements FactoryContract, MonitorContract
     public function failing(mixed $callback): void
     {
         $this->app->make('events')
-            ->listen(Events\JobFailed::class, $callback);
+            ->listen(JobFailed::class, $callback);
     }
 
     /**
@@ -141,7 +148,7 @@ class QueueManager implements FactoryContract, MonitorContract
     public function starting(mixed $callback): void
     {
         $this->app->make('events')
-            ->listen(Events\WorkerStarting::class, $callback);
+            ->listen(WorkerStarting::class, $callback);
     }
 
     /**
@@ -153,7 +160,7 @@ class QueueManager implements FactoryContract, MonitorContract
     public function stopping(mixed $callback): void
     {
         $this->app->make('events')
-            ->listen(Events\WorkerStopping::class, $callback);
+            ->listen(WorkerStopping::class, $callback);
     }
 
     /**
@@ -566,7 +573,7 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Dynamically pass calls to the default connection.
      */
-    public function __call(string $method, array $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return $this->connection()->{$method}(...$parameters);
     }

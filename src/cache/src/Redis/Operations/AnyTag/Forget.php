@@ -70,7 +70,7 @@ class Forget
             ];
 
             $args = [
-                $this->context->fullTagPrefix(),
+                $this->context->fullTagPrefix($connection),
                 $key,
                 $this->context->tagHashSuffix(),
             ];

@@ -7,6 +7,7 @@ namespace Hypervel\Support\Traits;
 use BackedEnum;
 use Carbon\CarbonInterface;
 use Carbon\CarbonInterval;
+use Carbon\Exceptions\InvalidFormatException;
 use Carbon\Unit;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -24,8 +25,6 @@ trait InteractsWithData
 {
     /**
      * Retrieve all data from the instance.
-     *
-     * @param null|array|mixed $keys
      */
     abstract public function all(mixed $keys = null): array;
 
@@ -51,6 +50,7 @@ trait InteractsWithData
 
         $data = $this->all();
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($keys as $value) {
             if (! Arr::has($data, $value)) {
                 return false;
@@ -102,6 +102,7 @@ trait InteractsWithData
     {
         $keys = is_array($key) ? $key : func_get_args();
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($keys as $value) {
             if ($this->isEmptyString($value)) {
                 return false;
@@ -118,6 +119,7 @@ trait InteractsWithData
     {
         $keys = is_array($key) ? $key : func_get_args();
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($keys as $value) {
             if (! $this->isEmptyString($value)) {
                 return false;
@@ -134,6 +136,7 @@ trait InteractsWithData
     {
         $keys = is_array($keys) ? $keys : func_get_args();
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($keys as $key) {
             if ($this->filled($key)) {
                 return true;
@@ -297,7 +300,7 @@ trait InteractsWithData
     /**
      * Retrieve data from the instance as a Carbon instance.
      *
-     * @throws \Carbon\Exceptions\InvalidFormatException
+     * @throws InvalidFormatException
      */
     public function date(string $key, ?string $format = null, UnitEnum|string|null $tz = null): ?CarbonInterface
     {
@@ -391,8 +394,6 @@ trait InteractsWithData
 
     /**
      * Get a subset containing the provided keys with values from the instance data.
-     *
-     * @param array|mixed $keys
      */
     public function only(mixed $keys): array
     {
@@ -415,8 +416,6 @@ trait InteractsWithData
 
     /**
      * Get all of the data except for a specified array of items.
-     *
-     * @param array|mixed $keys
      */
     public function except(mixed $keys): array
     {

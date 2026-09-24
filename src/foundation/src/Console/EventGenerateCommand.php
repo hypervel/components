@@ -12,9 +12,9 @@ use Symfony\Component\Console\Attribute\AsCommand;
 class EventGenerateCommand extends Command
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'event:generate';
+    protected ?string $signature = 'event:generate';
 
     /**
      * The console command description.

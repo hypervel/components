@@ -39,8 +39,8 @@ class AnyOf implements Rule, ValidatorAwareRule
             $validator = Validator::make(
                 Arr::isAssoc(Arr::wrap($value)) ? $value : [$value],
                 Arr::isAssoc(Arr::wrap($rule)) ? $rule : [$rule],
-                $this->validator->customMessages, // @phpstan-ignore-line
-                $this->validator->customAttributes // @phpstan-ignore-line
+                $this->validator->customMessages, // @phpstan-ignore property.notFound
+                $this->validator->customAttributes // @phpstan-ignore property.notFound
             );
 
             if ($validator->passes()) {

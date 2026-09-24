@@ -7,13 +7,14 @@ namespace Hypervel\Database\Eloquent\Casts;
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
 use Hypervel\Support\Stringable;
+use Stringable as BaseStringable;
 
 class AsStringable implements Castable
 {
     /**
      * Get the caster class to use when casting from / to this cast target.
      *
-     * @return CastsAttributes<Stringable, string|\Stringable>
+     * @return CastsAttributes<Stringable, BaseStringable|string>
      */
     public static function castUsing(array $arguments): CastsAttributes
     {

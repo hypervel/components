@@ -205,8 +205,8 @@ class ComponentAttributeBag implements Arrayable, ArrayAccess, IteratorAggregate
     {
         $attributeDefaults = array_map(function ($value) use ($escape) {
             return $this->shouldEscapeAttributeValue($escape, $value)
-                        ? e($value)
-                        : $value;
+                ? e($value)
+                : $value;
         }, $attributeDefaults);
 
         [$appendableAttributes, $nonAppendableAttributes] = (new Collection($this->attributes))
@@ -219,8 +219,8 @@ class ComponentAttributeBag implements Arrayable, ArrayAccess, IteratorAggregate
 
         $attributes = $appendableAttributes->mapWithKeys(function ($value, $key) use ($attributeDefaults, $escape) {
             $defaultsValue = isset($attributeDefaults[$key]) && $attributeDefaults[$key] instanceof AppendableAttributeValue
-                        ? $this->resolveAppendableAttributeDefault($attributeDefaults, $key, $escape)
-                        : ($attributeDefaults[$key] ?? '');
+                ? $this->resolveAppendableAttributeDefault($attributeDefaults, $key, $escape)
+                : ($attributeDefaults[$key] ?? '');
 
             if ($key === 'style') {
                 $value = Str::finish($value, ';');

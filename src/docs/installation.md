@@ -10,6 +10,7 @@
     - [Databases and Migrations](#databases-and-migrations)
     - [Directory Configuration](#directory-configuration)
 - [IDE Support](#ide-support)
+    - [Static Analysis](#static-analysis)
 - [Next Steps](#next-steps)
     - [Hypervel the Full Stack Framework](#hypervel-the-fullstack-framework)
     - [Hypervel the API Backend](#hypervel-the-api-backend)
@@ -206,6 +207,25 @@ You are free to use any code editor you wish when developing Hypervel applicatio
 For extensive and robust PHP support, take a look at [PhpStorm](https://www.jetbrains.com/phpstorm/), a JetBrains IDE. PhpStorm includes powerful code completion, refactoring, navigation, and debugging tools for PHP applications.
 
 Hypervel's application skeleton includes the `swoole/ide-helper` package in development so IDEs can understand Swoole classes, constants, and functions.
+
+<a name="static-analysis"></a>
+### Static Analysis
+
+The application skeleton includes PHPStan and `phpstan/extension-installer`, which loads Hypervel's extensions automatically. Run `composer analyse` to check your application. The database extension understands [Eloquent scopes and forwarded query methods](/docs/{{version}}/database#static-analysis), while the Foundation extension distinguishes factory calls such as `response()` from calls that create a response, such as `response(status: 204)`.
+
+For an existing application, install the extension installer and allow its Composer plugin when prompted:
+
+```shell
+composer require --dev phpstan/extension-installer
+```
+
+If you prefer to configure extensions manually, add these entries to your `phpstan.neon` file instead:
+
+```neon
+includes:
+    - vendor/hypervel/database/extension.neon
+    - vendor/hypervel/foundation/extension.neon
+```
 
 <a name="next-steps"></a>
 ## Next Steps

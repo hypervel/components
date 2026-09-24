@@ -202,14 +202,14 @@ class EventFake implements Fake, DispatcherContract
     public function dispatched(string $event, ?callable $callback = null): Collection
     {
         if (! $this->hasDispatched($event)) {
-            return Collection::make();
+            return new Collection;
         }
 
         $callback = $callback ?: function () {
             return true;
         };
 
-        return Collection::make($this->events[$event])->filter(function ($arguments) use ($callback) {
+        return (new Collection($this->events[$event]))->filter(function ($arguments) use ($callback) {
             return $callback(...$arguments);
         });
     }
@@ -360,7 +360,7 @@ class EventFake implements Fake, DispatcherContract
             return false;
         }
 
-        return Collection::make($this->eventsToDispatch)
+        return (new Collection($this->eventsToDispatch))
             ->filter(function ($event) use ($eventName, $payload) {
                 return $event instanceof Closure
                     ? $event($eventName, $payload)

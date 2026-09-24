@@ -40,6 +40,7 @@ use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Collection;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
@@ -51,7 +52,7 @@ use function Hypervel\Support\defer;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Contracts\Cache\Store
+ * @mixin Store
  */
 class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract, RawReadable
 {
@@ -120,12 +121,6 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
      *
      * When an array is given, return a key-value map. Numeric entries are
      * requested keys, while string-keyed entries use their values as defaults.
-     *
-     * @template TCacheValue
-     *
-     * @param (Closure(): TCacheValue)|TCacheValue $default
-     *
-     * @return (TCacheValue is null ? mixed : TCacheValue)
      */
     public function get(array|UnitEnum|string $key, mixed $default = null): mixed
     {
@@ -145,18 +140,19 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
      */
     public function many(array $keys): array
     {
-        $resolvedKeys = collect($keys)->map(function ($value, $key) {
-            return is_string($key) ? $key : (string) enum_value($value);
-        })->values()->all();
+        $resolvedKeys = (new Collection($keys))
+            ->map(fn ($value, $key) => is_string($key) ? $key : (string) enum_value($value))
+            ->values()
+            ->all();
 
         // manyRaw() fires RetrievingManyKeys + per-key CacheHit/CacheMissed events and
         // routes through the RawReadable raw-read path for wrapper stores — so a cached
         // sentinel is correctly classified as CacheHit rather than CacheMissed.
         $values = $this->manyRaw($resolvedKeys);
 
-        return collect($values)->map(function ($value, $key) use ($keys) {
-            return $this->handleManyResult($keys, (string) $key, $value);
-        })->all();
+        return (new Collection($values))
+            ->map(fn ($value, $key) => $this->handleManyResult($keys, (string) $key, $value))
+            ->all();
     }
 
     /**
@@ -183,12 +179,6 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
 
     /**
      * Retrieve an item from the cache and delete it.
-     *
-     * @template TCacheValue
-     *
-     * @param (Closure(): TCacheValue)|TCacheValue $default
-     *
-     * @return (TCacheValue is null ? mixed : TCacheValue)
      */
     public function pull(UnitEnum|string $key, mixed $default = null): mixed
     {
@@ -437,6 +427,9 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
         return $result;
     }
 
+    /**
+     * Store multiple items in the cache.
+     */
     public function setMultiple(iterable $values, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         return $this->putMany(is_array($values) ? $values : iterator_to_array($values), $ttl);
@@ -845,6 +838,9 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
         return $result;
     }
 
+    /**
+     * Remove an item from the cache.
+     */
     public function delete(UnitEnum|string $key): bool
     {
         return $this->forget($key);
@@ -1412,7 +1408,7 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
     /**
      * Clone cache repository instance.
      */
-    public function __clone()
+    public function __clone(): void
     {
         $this->store = clone $this->store;
     }

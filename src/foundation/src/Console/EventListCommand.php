@@ -7,7 +7,9 @@ namespace Hypervel\Foundation\Console;
 use Closure;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
+use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Support\Collection;
 use ReflectionFunction;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -203,7 +205,7 @@ class EventListCommand extends Command
     /**
      * Get the raw version of event listeners from the event dispatcher.
      *
-     * @throws \Hypervel\Contracts\Container\BindingResolutionException
+     * @throws BindingResolutionException
      */
     protected function getRawListeners(): array
     {
@@ -213,9 +215,9 @@ class EventListCommand extends Command
     /**
      * Get the event dispatcher.
      *
-     * @return \Hypervel\Events\Dispatcher
+     * @return Dispatcher
      *
-     * @throws \Hypervel\Contracts\Container\BindingResolutionException
+     * @throws BindingResolutionException
      */
     public function getEventsDispatcher()
     {

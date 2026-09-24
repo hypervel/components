@@ -8,15 +8,14 @@ use Hypervel\Console\Command;
 use Hypervel\Database\Migrations\MigrationRepositoryInterface;
 use Hypervel\Database\Migrations\Migrator;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'migrate:install')]
 class InstallCommand extends Command
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'migrate:install';
+    protected ?string $signature = 'migrate:install {--database= : The database connection to use}';
 
     /**
      * The console command description.
@@ -52,15 +51,5 @@ class InstallCommand extends Command
         }
 
         $this->components->info('Migration table created successfully.');
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['database', null, InputOption::VALUE_OPTIONAL, 'The database connection to use'],
-        ];
     }
 }

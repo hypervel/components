@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Relations\Concerns;
 
+use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\RelationNotFoundException;
 use Hypervel\Support\Arr;
@@ -84,7 +85,7 @@ trait SupportsInverseRelations
     /**
      * Set the inverse relation on all models in a collection.
      *
-     * @template TCollection of \Hypervel\Database\Eloquent\Collection
+     * @template TCollection of Collection
      * @param TCollection $models
      * @return TCollection
      */

@@ -595,12 +595,12 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
             ->once()
             ->andReturn(['key1', 'key2']);
 
-        // After getting keys, Flush uses pipeline for delete operations
-        $connection->shouldReceive('pipeline')->andReturn($connection);
-        $connection->shouldReceive('del')->andReturn($connection);
-        $connection->shouldReceive('unlink')->andReturn($connection);
-        $connection->shouldReceive('zrem')->andReturn($connection);
-        $connection->shouldReceive('exec')->andReturn([2, 1]);
+        $connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:_any:tag:users:entries', 'prefix:key1:_any:tags', 'prefix:key2:_any:tags', 'prefix:key1', 'prefix:key2'], [1, 2, 'key1', 'key2'])
+            ->andReturn(1);
+        $connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
+            ->andReturn([1, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->flush();
@@ -620,11 +620,12 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $connection->shouldReceive('hkeys')
             ->once()
             ->andReturn(['key1', 'key2']);
-        $connection->shouldReceive('pipeline')->andReturn($connection);
-        $connection->shouldReceive('del')->andReturn($connection);
-        $connection->shouldReceive('unlink')->andReturn($connection);
-        $connection->shouldReceive('zrem')->andReturn($connection);
-        $connection->shouldReceive('exec')->andReturn([2, 1]);
+        $connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:_any:tag:users:entries', 'prefix:key1:_any:tags', 'prefix:key2:_any:tags', 'prefix:key1', 'prefix:key2'], [1, 2, 'key1', 'key2'])
+            ->andReturn(1);
+        $connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:_any:tag:registry', 'prefix:_any:tag:users:entries'], ['users'])
+            ->andReturn([1, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->clear();

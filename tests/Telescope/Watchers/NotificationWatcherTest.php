@@ -12,22 +12,25 @@ use Hypervel\Telescope\Watchers\NotificationWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
-#[WithConfig('mail.driver', 'array')]
+#[WithConfig('mail.default', 'array')]
 #[WithConfig('telescope.watchers', [
     NotificationWatcher::class => true,
 ])]
 class NotificationWatcherTest extends FeatureTestCase
 {
-    public function testNotificationWatcherRegistersEntry()
+    public function testNotificationWatcherRegistersEntry(): void
     {
         $this->performNotificationAssertions('mail', 'telescope@hypervel.org');
     }
 
-    public function testNotificationWatcherRegistersArrayRoutes()
+    public function testNotificationWatcherRegistersArrayRoutes(): void
     {
         $this->performNotificationAssertions('mail', ['telescope@hypervel.org', 'nestedroute@hypervel.org']);
     }
 
+    /**
+     * Assert the recorded notification details.
+     */
     private function performNotificationAssertions(string $channel, array|string $route): void
     {
         Notification::route($channel, $route)
@@ -46,12 +49,18 @@ class NotificationWatcherTest extends FeatureTestCase
 
 class BoomerangNotification extends BaseNotification
 {
-    public function via($notifiable)
+    /**
+     * Get the notification's delivery channels.
+     */
+    public function via(mixed $notifiable): array
     {
         return ['mail'];
     }
 
-    public function toMail($notifiable)
+    /**
+     * Get the mail representation of the notification.
+     */
+    public function toMail(mixed $notifiable): MailMessage
     {
         return (new MailMessage)
             ->greeting('Throw a boomerang')

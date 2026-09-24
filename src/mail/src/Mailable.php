@@ -18,6 +18,7 @@ use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\Support\Renderable;
 use Hypervel\Contracts\Translation\HasLocalePreference;
+use Hypervel\Mail\Mailer as ConcreteMailer;
 use Hypervel\Queue\Attributes\Connection;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
@@ -269,7 +270,7 @@ class Mailable implements MailableContract, Renderable
         return $this->withLocale($this->locale, function () {
             $this->prepareMailableForDelivery();
 
-            /** @var \Hypervel\Mail\Mailer $mailer */
+            /** @var ConcreteMailer $mailer */
             $mailer = Container::getInstance()
                 ->make('mailer');
 
@@ -667,7 +668,7 @@ class Mailable implements MailableContract, Renderable
             ];
         }
 
-        $this->{$property} = Collection::make($this->{$property})
+        $this->{$property} = (new Collection($this->{$property}))
             ->reverse()
             ->unique('address')
             ->reverse()
@@ -742,12 +743,14 @@ class Mailable implements MailableContract, Renderable
             return true;
         }
 
-        return Collection::make($this->{$property})->contains(function ($actual) use ($expected) {
+        return (new Collection($this->{$property}))->contains(function ($actual) use ($expected) {
             if (! isset($expected['name'])) {
-                return $actual['address'] == $expected['address'];
+                return $actual['address'] === $expected['address'];
             }
 
-            return $actual == $expected;
+            // Symfony addresses without a name report '', while other recipients store null.
+            return $actual['address'] === $expected['address']
+                && ($actual['name'] ?? '') === $expected['name'];
         });
     }
 
@@ -856,7 +859,7 @@ class Mailable implements MailableContract, Renderable
             return $file->attachTo($this, $options);
         }
 
-        $this->attachments = Collection::make($this->attachments)
+        $this->attachments = (new Collection($this->attachments))
             ->push(compact('file', 'options'))
             ->unique('file')
             ->all();
@@ -911,7 +914,7 @@ class Mailable implements MailableContract, Renderable
                 : $parts;
         }
 
-        return Collection::make($this->attachments)->contains(
+        return (new Collection($this->attachments))->contains(
             fn ($attachment) => $attachment['file'] === $file && array_filter($attachment['options']) === array_filter($options)
         );
     }
@@ -927,7 +930,7 @@ class Mailable implements MailableContract, Renderable
 
         $attachments = $this->attachments();
 
-        return Collection::make(is_object($attachments) ? [$attachments] : $attachments)
+        return (new Collection(is_object($attachments) ? [$attachments] : $attachments))
             ->map(fn ($attached) => $attached instanceof Attachable ? $attached->toMailAttachment() : $attached)
             ->contains(fn ($attached) => $attached->isEquivalent($attachment, $options));
     }
@@ -945,14 +948,14 @@ class Mailable implements MailableContract, Renderable
      */
     public function attachFromStorageDisk(?string $disk, string $path, ?string $name = null, array $options = []): static
     {
-        $this->diskAttachments = Collection::make($this->diskAttachments)->push([
+        $this->diskAttachments = (new Collection($this->diskAttachments))->push([
             'disk' => $disk,
             'path' => $path,
             'name' => $name ?? basename($path),
             'options' => $options,
-        ])->unique(function ($file) {
-            return $file['name'] . $file['disk'] . $file['path'];
-        })->all();
+        ])
+            ->unique(fn ($file) => $file['name'] . $file['disk'] . $file['path'])
+            ->all();
 
         return $this;
     }
@@ -970,7 +973,7 @@ class Mailable implements MailableContract, Renderable
      */
     public function hasAttachmentFromStorageDisk(?string $disk, string $path, ?string $name = null, array $options = []): bool
     {
-        return Collection::make($this->diskAttachments)->contains(
+        return (new Collection($this->diskAttachments))->contains(
             fn ($attachment) => $attachment['disk'] === $disk
                 && $attachment['path'] === $path
                 && $attachment['name'] === ($name ?? basename($path))
@@ -983,11 +986,10 @@ class Mailable implements MailableContract, Renderable
      */
     public function attachData(string $data, string $name, array $options = []): static
     {
-        $this->rawAttachments = Collection::make($this->rawAttachments)
+        $this->rawAttachments = (new Collection($this->rawAttachments))
             ->push(compact('data', 'name', 'options'))
-            ->unique(function ($file) {
-                return $file['name'] . $file['data'];
-            })->all();
+            ->unique(fn ($file) => $file['name'] . $file['data'])
+            ->all();
 
         return $this;
     }
@@ -997,7 +999,7 @@ class Mailable implements MailableContract, Renderable
      */
     public function hasAttachedData(string $data, ?string $name, array $options = []): bool
     {
-        return Collection::make($this->rawAttachments)->contains(
+        return (new Collection($this->rawAttachments))->contains(
             fn ($attachment) => $attachment['data'] === $data
                 && $attachment['name'] === $name
                 && array_filter($attachment['options']) === array_filter($options)
@@ -1431,7 +1433,7 @@ class Mailable implements MailableContract, Renderable
         return $this->assertionableRenderStrings = $this->withLocale($this->locale, function (): array {
             $this->prepareMailableForDelivery();
 
-            /** @var \Hypervel\Mail\Mailer $mailer */
+            /** @var ConcreteMailer $mailer */
             $mailer = Container::getInstance()
                 ->make('mailer');
 
@@ -1584,7 +1586,7 @@ class Mailable implements MailableContract, Renderable
 
         $attachments = $this->attachments();
 
-        Collection::make(is_object($attachments) ? [$attachments] : $attachments)
+        (new Collection(is_object($attachments) ? [$attachments] : $attachments))
             ->each(function ($attachment) {
                 $this->attach($attachment);
             });
@@ -1643,7 +1645,7 @@ class Mailable implements MailableContract, Renderable
      *
      * @throws BadMethodCallException
      */
-    public function __call(string $method, array $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         if (static::hasMacro($method)) {
             return $this->macroCall($method, $parameters);

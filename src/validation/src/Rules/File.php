@@ -250,8 +250,8 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
         $validator = Validator::make(
             $this->data,
             [$attribute => $this->buildValidationRules()],
-            $this->validator->customMessages, // @phpstan-ignore-line
-            $this->validator->customAttributes // @phpstan-ignore-line
+            $this->validator->customMessages, // @phpstan-ignore property.notFound
+            $this->validator->customAttributes // @phpstan-ignore property.notFound
         );
 
         if ($validator->fails()) {
@@ -307,11 +307,11 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
 
         $mimes = array_diff($this->allowedMimetypes, $mimetypes);
 
-        if (count($mimetypes) > 0) {
+        if ($mimetypes !== []) {
             $rules[] = 'mimetypes:' . implode(',', $mimetypes);
         }
 
-        if (count($mimes) > 0) {
+        if ($mimes !== []) {
             $rules[] = 'mimes:' . implode(',', $mimes);
         }
 

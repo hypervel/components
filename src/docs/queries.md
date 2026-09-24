@@ -1324,11 +1324,31 @@ $users = DB::table('users')
     ->get();
 ```
 
-On PostgreSQL, the `mode` option accepts `plain` (the default), `phrase`, `websearch`, or `raw`. The `raw` mode allows you to use [PostgreSQL text search query syntax](https://www.postgresql.org/docs/current/textsearch-controls.html#TEXTSEARCH-PARSING-QUERIES):
+MySQL and MariaDB use natural language mode by default. Set `mode` to `boolean` for boolean search, or `expanded` to `true` for query expansion. Query expansion is ignored in boolean mode:
+
+```php
+$users = DB::table('users')
+    ->whereFullText('bio', '+web -designer', ['mode' => 'boolean'])
+    ->get();
+
+$users = DB::table('users')
+    ->whereFullText('bio', 'web developer', ['expanded' => true])
+    ->get();
+```
+
+On PostgreSQL, `language` selects the text-search configuration and defaults to `english`. Unrecognized languages also fall back to `english`. The `mode` option accepts `plain` (the default), `phrase`, `websearch`, or `raw`. The `raw` mode allows you to use [PostgreSQL text search query syntax](https://www.postgresql.org/docs/current/textsearch-controls.html#TEXTSEARCH-PARSING-QUERIES):
 
 ```php
 $users = DB::table('users')
     ->whereFullText('bio', 'web & developer', ['mode' => 'raw'])
+    ->get();
+```
+
+For a PostgreSQL column that already stores a `tsvector`, pass `vector => true` to search it directly. You may combine this with the `language` and `mode` options:
+
+```php
+$users = DB::table('users')
+    ->whereFullText('search_vector', 'web developer', ['vector' => true, 'mode' => 'websearch'])
     ->get();
 ```
 

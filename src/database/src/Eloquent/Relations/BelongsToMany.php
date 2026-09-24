@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Relations;
 
 use Closure;
+use Hypervel\Contracts\Database\Query\Expression;
+use Hypervel\Contracts\Pagination\CursorPaginator;
+use Hypervel\Contracts\Pagination\Paginator;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
@@ -13,22 +16,25 @@ use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
 use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithDictionary;
 use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithPivotTable;
+use Hypervel\Database\MultipleRecordsFoundException;
 use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Pagination\Cursor;
+use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
+use Hypervel\Support\LazyCollection;
 use Hypervel\Support\StrCache;
 use InvalidArgumentException;
 use SortDirection;
 
 /**
- * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
- * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
- * @template TPivotModel of \Hypervel\Database\Eloquent\Relations\Pivot = \Hypervel\Database\Eloquent\Relations\Pivot
+ * @template TRelatedModel of Model
+ * @template TDeclaringModel of Model
+ * @template TPivotModel of Pivot = Pivot
  * @template TAccessor of string = 'pivot'
  *
- * @extends \Hypervel\Database\Eloquent\Relations\Relation<TRelatedModel, TDeclaringModel, \Hypervel\Database\Eloquent\Collection<int, object{pivot: TPivotModel}&TRelatedModel>>
+ * @extends Relation<TRelatedModel, TDeclaringModel, EloquentCollection<int, object{pivot: TPivotModel}&TRelatedModel>>
  *
  * @todo use TAccessor when PHPStan bug is fixed: https://github.com/phpstan/phpstan/issues/12756
  */
@@ -70,7 +76,7 @@ class BelongsToMany extends Relation
     /**
      * The pivot table columns to retrieve.
      *
-     * @var array<\Hypervel\Contracts\Database\Query\Expression|string>
+     * @var array<Expression|string>
      */
     protected array $pivotColumns = [];
 
@@ -131,9 +137,9 @@ class BelongsToMany extends Relation
     /**
      * Create a new belongs to many relationship instance.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param Builder<TRelatedModel> $query
      * @param TDeclaringModel $parent
-     * @param class-string<TRelatedModel>|string $table
+     * @param class-string<Model>|string $table
      */
     public function __construct(
         Builder $query,
@@ -192,7 +198,7 @@ class BelongsToMany extends Relation
     /**
      * Set the join clause for the relation query.
      *
-     * @param null|\Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param null|Builder<TRelatedModel> $query
      * @return $this
      */
     protected function performJoin(?Builder $query = null): static
@@ -272,7 +278,7 @@ class BelongsToMany extends Relation
     /**
      * Build model dictionary keyed by the relation's foreign key.
      *
-     * @param \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> $results
+     * @param EloquentCollection<int, TRelatedModel> $results
      * @return array<array<array-key, TRelatedModel>>
      */
     protected function buildDictionary(EloquentCollection $results): array
@@ -314,7 +320,7 @@ class BelongsToMany extends Relation
     /**
      * Specify the custom pivot model to use for the relationship.
      *
-     * @template TNewPivotModel of \Hypervel\Database\Eloquent\Relations\Pivot
+     * @template TNewPivotModel of Pivot
      *
      * @param class-string<TNewPivotModel> $class
      * @return $this
@@ -348,7 +354,7 @@ class BelongsToMany extends Relation
     /**
      * Set a where clause for a pivot table column.
      *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
+     * @param Expression|string $column
      * @return $this
      */
     public function wherePivot(mixed $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
@@ -361,7 +367,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "where between" clause for a pivot table column.
      *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
+     * @param Expression|string $column
      * @return $this
      */
     public function wherePivotBetween(mixed $column, array $values, string $boolean = 'and', bool $not = false): static
@@ -374,7 +380,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "or where between" clause for a pivot table column.
      *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
+     * @param Expression|string $column
      * @return $this
      */
     public function orWherePivotBetween(mixed $column, array $values): static
@@ -385,7 +391,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "where pivot not between" clause for a pivot table column.
      *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
+     * @param Expression|string $column
      * @return $this
      */
     public function wherePivotNotBetween(mixed $column, array $values, string $boolean = 'and'): static
@@ -396,7 +402,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "or where not between" clause for a pivot table column.
      *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
+     * @param Expression|string $column
      * @return $this
      */
     public function orWherePivotNotBetween(mixed $column, array $values): static
@@ -407,7 +413,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "where in" clause for a pivot table column.
      *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
+     * @param Expression|string $column
      * @return $this
      */
     public function wherePivotIn(mixed $column, mixed $values, string $boolean = 'and', bool $not = false): static
@@ -420,7 +426,7 @@ class BelongsToMany extends Relation
     /**
      * Set an "or where" clause for a pivot table column.
      *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
+     * @param Expression|string $column
      * @return $this
      */
     public function orWherePivot(mixed $column, mixed $operator = null, mixed $value = null): static
@@ -433,7 +439,7 @@ class BelongsToMany extends Relation
      *
      * In addition, new pivot records will receive this value.
      *
-     * @param array<string, string>|\Hypervel\Contracts\Database\Query\Expression|string $column
+     * @param array<string, string>|Expression|string $column
      * @return $this
      *
      * @throws InvalidArgumentException
@@ -470,7 +476,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "where not in" clause for a pivot table column.
      *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
+     * @param Expression|string $column
      * @return $this
      */
     public function wherePivotNotIn(mixed $column, mixed $values, string $boolean = 'and'): static
@@ -491,7 +497,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "where null" clause for a pivot table column.
      *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
+     * @param Expression|string $column
      * @return $this
      */
     public function wherePivotNull(mixed $column, string $boolean = 'and', bool $not = false): static
@@ -504,7 +510,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "where not null" clause for a pivot table column.
      *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
+     * @param Expression|string $column
      * @return $this
      */
     public function wherePivotNotNull(mixed $column, string $boolean = 'and'): static
@@ -515,7 +521,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "or where null" clause for a pivot table column.
      *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
+     * @param Expression|string $column
      * @return $this
      */
     public function orWherePivotNull(mixed $column, bool $not = false): static
@@ -526,7 +532,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "or where not null" clause for a pivot table column.
      *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
+     * @param Expression|string $column
      * @return $this
      */
     public function orWherePivotNotNull(mixed $column): static
@@ -537,7 +543,7 @@ class BelongsToMany extends Relation
     /**
      * Add an "order by" clause for a pivot table column.
      *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
+     * @param Expression|string $column
      * @param 'asc'|'desc'|SortDirection $direction
      * @return $this
      */
@@ -549,7 +555,7 @@ class BelongsToMany extends Relation
     /**
      * Add an "order by desc" clause for a pivot table column.
      *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
+     * @param Expression|string $column
      * @return $this
      */
     public function orderByPivotDesc(mixed $column): static
@@ -561,8 +567,8 @@ class BelongsToMany extends Relation
      * Find a related model by its primary key or return a new instance of the related model.
      *
      * @return (
-     *     $id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>)
-     *     ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel&object{pivot: TPivotModel}>
+     *     $id is (Arrayable<array-key, mixed>|array<mixed>)
+     *     ? EloquentCollection<int, TRelatedModel&object{pivot: TPivotModel}>
      *     : TRelatedModel
      * )
      */
@@ -679,8 +685,8 @@ class BelongsToMany extends Relation
      * Find a related model by its primary key.
      *
      * @return (
-     *     $id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>)
-     *     ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel&object{pivot: TPivotModel}>
+     *     $id is (Arrayable<array-key, mixed>|array<mixed>)
+     *     ? EloquentCollection<int, TRelatedModel&object{pivot: TPivotModel}>
      *     : (TRelatedModel&object{pivot: TPivotModel})|null
      * )
      */
@@ -702,8 +708,8 @@ class BelongsToMany extends Relation
      *
      * @return object{pivot: TPivotModel}&TRelatedModel
      *
-     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<TRelatedModel>
-     * @throws \Hypervel\Database\MultipleRecordsFoundException
+     * @throws ModelNotFoundException<TRelatedModel>
+     * @throws MultipleRecordsFoundException
      */
     public function findSole(mixed $id, array $columns = ['*']): Model
     {
@@ -717,8 +723,8 @@ class BelongsToMany extends Relation
     /**
      * Find multiple related models by their primary keys.
      *
-     * @param array<mixed>|\Hypervel\Contracts\Support\Arrayable<array-key, mixed> $ids
-     * @return \Hypervel\Database\Eloquent\Collection<int, object{pivot: TPivotModel}&TRelatedModel>
+     * @param array<mixed>|Arrayable<array-key, mixed> $ids
+     * @return EloquentCollection<int, object{pivot: TPivotModel}&TRelatedModel>
      */
     public function findMany(Arrayable|array $ids, array $columns = ['*']): EloquentCollection
     {
@@ -737,12 +743,12 @@ class BelongsToMany extends Relation
      * Find a related model by its primary key or throw an exception.
      *
      * @return (
-     *     $id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>)
-     *     ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel&object{pivot: TPivotModel}>
+     *     $id is (Arrayable<array-key, mixed>|array<mixed>)
+     *     ? EloquentCollection<int, TRelatedModel&object{pivot: TPivotModel}>
      *     : TRelatedModel&object{pivot: TPivotModel}
      * )
      *
-     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<TRelatedModel>
+     * @throws ModelNotFoundException<TRelatedModel>
      */
     public function findOrFail(mixed $id, array $columns = ['*']): EloquentCollection|Model
     {
@@ -769,8 +775,8 @@ class BelongsToMany extends Relation
      * @param (Closure(): TValue)|list<string>|string $columns
      * @param null|(Closure(): TValue) $callback
      * @return (
-     *     $id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>)
-     *     ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel&object{pivot: TPivotModel}>|TValue
+     *     $id is (Arrayable<array-key, mixed>|array<mixed>)
+     *     ? EloquentCollection<int, TRelatedModel&object{pivot: TPivotModel}>|TValue
      *     : (TRelatedModel&object{pivot: TPivotModel})|TValue
      * )
      */
@@ -824,7 +830,7 @@ class BelongsToMany extends Relation
      *
      * @return object{pivot: TPivotModel}&TRelatedModel
      *
-     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<TRelatedModel>
+     * @throws ModelNotFoundException<TRelatedModel>
      */
     public function firstOrFail(array $columns = ['*']): Model
     {
@@ -869,7 +875,7 @@ class BelongsToMany extends Relation
     /**
      * Execute the query as a "select" statement.
      *
-     * @return \Hypervel\Database\Eloquent\Collection<int, object{pivot: TPivotModel}&TRelatedModel>
+     * @return EloquentCollection<int, object{pivot: TPivotModel}&TRelatedModel>
      */
     public function get(array $columns = ['*']): BaseCollection
     {
@@ -930,7 +936,7 @@ class BelongsToMany extends Relation
     /**
      * Get a paginator for the "select" statement.
      *
-     * @return \Hypervel\Pagination\LengthAwarePaginator<int, object{pivot: TPivotModel}&TRelatedModel>
+     * @return LengthAwarePaginator<int, object{pivot: TPivotModel}&TRelatedModel>
      */
     public function paginate(?int $perPage = null, array $columns = ['*'], string $pageName = 'page', ?int $page = null): mixed
     {
@@ -944,7 +950,7 @@ class BelongsToMany extends Relation
     /**
      * Paginate the given query into a simple paginator.
      *
-     * @return \Hypervel\Contracts\Pagination\Paginator<int, object{pivot: TPivotModel}&TRelatedModel>
+     * @return Paginator<int, object{pivot: TPivotModel}&TRelatedModel>
      */
     public function simplePaginate(?int $perPage = null, array $columns = ['*'], string $pageName = 'page', ?int $page = null): mixed
     {
@@ -958,7 +964,7 @@ class BelongsToMany extends Relation
     /**
      * Paginate the given query into a cursor paginator.
      *
-     * @return \Hypervel\Contracts\Pagination\CursorPaginator<int, object{pivot: TPivotModel}&TRelatedModel>
+     * @return CursorPaginator<int, object{pivot: TPivotModel}&TRelatedModel>
      */
     public function cursorPaginate(
         ?int $perPage = null,
@@ -1050,7 +1056,7 @@ class BelongsToMany extends Relation
     /**
      * Query lazily, by chunks of the given size.
      *
-     * @return \Hypervel\Support\LazyCollection<int, object{pivot: TPivotModel}&TRelatedModel>
+     * @return LazyCollection<int, object{pivot: TPivotModel}&TRelatedModel>
      */
     public function lazy(int $chunkSize = 1000): mixed
     {
@@ -1064,7 +1070,7 @@ class BelongsToMany extends Relation
     /**
      * Query lazily, by chunking the results of a query by comparing IDs.
      *
-     * @return \Hypervel\Support\LazyCollection<int, object{pivot: TPivotModel}&TRelatedModel>
+     * @return LazyCollection<int, object{pivot: TPivotModel}&TRelatedModel>
      */
     public function lazyById(int $chunkSize = 1000, ?string $column = null, ?string $alias = null): mixed
     {
@@ -1084,7 +1090,7 @@ class BelongsToMany extends Relation
     /**
      * Query lazily, by chunking the results of a query by comparing IDs in descending order.
      *
-     * @return \Hypervel\Support\LazyCollection<int, object{pivot: TPivotModel}&TRelatedModel>
+     * @return LazyCollection<int, object{pivot: TPivotModel}&TRelatedModel>
      */
     public function lazyByIdDesc(int $chunkSize = 1000, ?string $column = null, ?string $alias = null): mixed
     {
@@ -1104,7 +1110,7 @@ class BelongsToMany extends Relation
     /**
      * Get a lazy collection for the given query.
      *
-     * @return \Hypervel\Support\LazyCollection<int, object{pivot: TPivotModel}&TRelatedModel>
+     * @return LazyCollection<int, object{pivot: TPivotModel}&TRelatedModel>
      */
     public function cursor(): mixed
     {
@@ -1118,7 +1124,7 @@ class BelongsToMany extends Relation
     /**
      * Prepare the query builder for query execution.
      *
-     * @return \Hypervel\Database\Eloquent\Builder<TRelatedModel>
+     * @return Builder<TRelatedModel>
      */
     protected function prepareQueryBuilder(): Builder
     {
@@ -1222,7 +1228,7 @@ class BelongsToMany extends Relation
     /**
      * Get all of the IDs for the related models.
      *
-     * @return \Hypervel\Support\Collection<int, int|string>
+     * @return BaseCollection<int, int|string>
      */
     public function allRelatedIds(): BaseCollection
     {
@@ -1260,7 +1266,7 @@ class BelongsToMany extends Relation
     /**
      * Save an array of new models and attach them to the parent model.
      *
-     * @template TContainer of \Hypervel\Support\Collection<array-key, TRelatedModel>|array<array-key, TRelatedModel>
+     * @template TContainer of iterable<array-key, TRelatedModel>
      *
      * @param TContainer $models
      * @return TContainer
@@ -1279,7 +1285,7 @@ class BelongsToMany extends Relation
     /**
      * Save an array of new models without raising any events and attach them to the parent model.
      *
-     * @template TContainer of \Hypervel\Support\Collection<array-key, TRelatedModel>|array<array-key, TRelatedModel>
+     * @template TContainer of iterable<array-key, TRelatedModel>
      *
      * @param TContainer $models
      * @return TContainer
@@ -1344,9 +1350,9 @@ class BelongsToMany extends Relation
     /**
      * Add the constraints for a relationship query on the same table.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
-     * @param \Hypervel\Database\Eloquent\Builder<TDeclaringModel> $parentQuery
-     * @return \Hypervel\Database\Eloquent\Builder<TRelatedModel>
+     * @param Builder<TRelatedModel> $query
+     * @param Builder<TDeclaringModel> $parentQuery
+     * @return Builder<TRelatedModel>
      */
     public function getRelationExistenceQueryForSelfJoin(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
@@ -1448,7 +1454,7 @@ class BelongsToMany extends Relation
     }
 
     /**
-     * Get the fully qualified foreign key for the relation.
+     * Get the fully-qualified foreign key for the relation.
      */
     public function getQualifiedForeignPivotKeyName(): string
     {
@@ -1464,7 +1470,7 @@ class BelongsToMany extends Relation
     }
 
     /**
-     * Get the fully qualified "related key" for the relation.
+     * Get the fully-qualified "related key" for the relation.
      */
     public function getQualifiedRelatedPivotKeyName(): string
     {
@@ -1480,7 +1486,7 @@ class BelongsToMany extends Relation
     }
 
     /**
-     * Get the fully qualified parent key name for the relation.
+     * Get the fully-qualified parent key name for the relation.
      */
     public function getQualifiedParentKeyName(): string
     {
@@ -1496,7 +1502,7 @@ class BelongsToMany extends Relation
     }
 
     /**
-     * Get the fully qualified related key name for the relation.
+     * Get the fully-qualified related key name for the relation.
      */
     public function getQualifiedRelatedKeyName(): string
     {
@@ -1540,8 +1546,8 @@ class BelongsToMany extends Relation
     /**
      * Qualify the given column name by the pivot table.
      *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
-     * @return \Hypervel\Contracts\Database\Query\Expression|string
+     * @param Expression|string $column
+     * @return Expression|string
      */
     public function qualifyPivotColumn(mixed $column): mixed
     {

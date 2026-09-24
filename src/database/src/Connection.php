@@ -336,7 +336,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Run a select statement and return the first column of the first row.
      *
-     * @throws \Hypervel\Database\MultipleColumnsSelectedException
+     * @throws MultipleColumnsSelectedException
      */
     public function scalar(string $query, array $bindings = [], bool $useReadPdo = true): mixed
     {
@@ -449,7 +449,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Execute the given callback in "dry run" mode.
      *
-     * @param (Closure(\Hypervel\Database\Connection): mixed) $callback
+     * @param (Closure(Connection): mixed) $callback
      * @return array{query: string, bindings: array, time: null|float}[]
      */
     public function pretend(Closure $callback): array
@@ -1356,6 +1356,19 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
         $name = $this->getName() . ($this->readWriteType ? '::' . $this->readWriteType : '');
 
         return $name === '' ? null : $name;
+    }
+
+    /**
+     * Get the connection name to retain when subsequent operations may write.
+     *
+     * Preserve a write alias so models reuse its transaction. Read aliases use
+     * the base connection so subsequent writes reach the primary.
+     */
+    public function getWritableName(): ?string
+    {
+        return $this->readWriteType === ConnectionName::WRITE
+            ? $this->getNameWithReadWriteType()
+            : $this->getName();
     }
 
     /**

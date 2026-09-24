@@ -33,7 +33,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite', [456]);
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $model->getConnection()->expects('insert')->with(
             'insert into "child_table" ("attr", "val", "parent_id", "updated_at", "created_at") values (?, ?, ?, ?, ?)',
@@ -58,7 +58,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $sql = 'insert into "child_table" ("attr", "val", "parent_id", "updated_at", "created_at") values (?, ?, ?, ?, ?)';
         $bindings = ['foo', 'bar', 123, '2023-01-01 00:00:00', '2023-01-01 00:00:00'];
@@ -98,7 +98,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite', [456]);
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $model->getConnection()
             ->expects('select')
@@ -128,7 +128,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $model->getConnection()
             ->expects('select')
@@ -160,7 +160,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $model->getConnection()
             ->expects('select')
@@ -205,7 +205,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite', [456]);
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $model->getConnection()
             ->expects('select')
@@ -235,7 +235,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $model->getConnection()
             ->expects('select')
@@ -272,7 +272,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $model->getConnection()
             ->expects('select')
@@ -323,7 +323,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite', [456]);
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $model->getConnection()
             ->expects('select')
@@ -354,7 +354,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $model->getConnection()
             ->expects('select')
@@ -384,7 +384,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
-        $model->getConnection()->shouldReceive('getName')->andReturn('sqlite');
+        $model->getConnection()->shouldReceive('getWritableName')->andReturn('sqlite');
 
         $model->getConnection()
             ->expects('select')

@@ -15,7 +15,7 @@ use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionName;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\Pool\DatabasePool;
-use LogicException;
+use Hypervel\Database\Pool\PooledConnection;
 use Throwable;
 use UnitEnum;
 
@@ -27,6 +27,7 @@ use function Hypervel\Support\enum_value;
  * Testbench needs stable bare connections across its setup, transaction, and
  * assertion helpers. The resolver therefore retains each borrowed wrapper
  * alongside its bare connection and explicitly discards both at teardown.
+ * Concurrent database tests enable pool.testing_enabled to use coroutine-owned connections.
  */
 class DatabaseConnectionResolver extends ConnectionResolver implements CachedConnectionResolver
 {
@@ -131,7 +132,6 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
         // Must use the canonical binding key. rebinding() resolves aliases when
         // storing callbacks, but instance() doesn't when firing them. Using the
         // canonical key avoids the mismatch.
-        /** @var \Hypervel\Container\Container $container */
         $container->rebinding(Dispatcher::class, function ($app, $dispatcher) {
             foreach (static::$connections as $connection) {
                 if ($connection instanceof Connection && $dispatcher instanceof Dispatcher) {
@@ -251,34 +251,33 @@ class DatabaseConnectionResolver extends ConnectionResolver implements CachedCon
             return $connection;
         }
 
+        /** @var PooledConnection $pooled */
         $pooled = $pool->borrow();
 
         try {
             $connection = $pooled->getConnection();
 
-            if (! $connection instanceof ConnectionInterface) {
-                throw new LogicException('The database pool returned an invalid connection.');
+            if ($connectionName->isWrite()) {
+                $connection->useWriteConnectionWhenReading();
             }
+
+            if ($connectionName->role !== null && $cacheKey === $connectionName->requested) {
+                $connection->setReadWriteType($connectionName->role);
+            }
+
+            static::$pooledConnections[$cacheKey] = $pooled;
+            static::$connections[$cacheKey] = $connection;
+
+            $pooled->dispatchConnectionEstablishedEvent();
         } catch (Throwable $exception) {
-            $pooled->discard();
+            unset(static::$pooledConnections[$cacheKey], static::$connections[$cacheKey]);
+
+            $this->discardFailedConnection($pooled, $exception);
 
             throw $exception;
         }
 
-        if ($connectionName->isWrite() && $connection instanceof Connection) {
-            $connection->useWriteConnectionWhenReading();
-        }
-
-        if ($connectionName->role !== null
-            && $cacheKey === $connectionName->requested
-            && $connection instanceof Connection
-        ) {
-            $connection->setReadWriteType($connectionName->role);
-        }
-
-        static::$pooledConnections[$cacheKey] = $pooled;
-
-        return static::$connections[$cacheKey] = $connection;
+        return $connection;
     }
 
     /**

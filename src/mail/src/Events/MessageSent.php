@@ -7,9 +7,11 @@ namespace Hypervel\Mail\Events;
 use Exception;
 use Hypervel\Mail\SentMessage;
 use Hypervel\Support\Collection;
+use Symfony\Component\Mime\Email;
+use Symfony\Component\Mime\RawMessage;
 
 /**
- * @property \Symfony\Component\Mime\Email $message
+ * @property Email $message
  */
 class MessageSent
 {
@@ -39,7 +41,7 @@ class MessageSent
     /**
      * Marshal the object from its serialized data.
      */
-    public function __unserialize(array $data)
+    public function __unserialize(array $data): void
     {
         $this->sent = $data['sent'];
 
@@ -51,7 +53,7 @@ class MessageSent
     /**
      * Dynamically get the original message.
      */
-    public function __get(string $key)
+    public function __get(string $key): RawMessage
     {
         if ($key === 'message') {
             return $this->sent->getOriginalMessage();

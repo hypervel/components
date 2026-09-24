@@ -7,7 +7,6 @@ namespace Hypervel\Foundation\Console;
 use Hypervel\Console\Concerns\CreatesMatchingTest;
 use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputOption;
 
 #[AsCommand(name: 'make:job')]
 class JobMakeCommand extends GeneratorCommand
@@ -15,9 +14,13 @@ class JobMakeCommand extends GeneratorCommand
     use CreatesMatchingTest;
 
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:job';
+    protected ?string $signature = 'make:job
+                    {name : The name of the job}
+                    {--f|force : Create the class even if the job already exists}
+                    {--sync : Indicates that the job should be synchronous}
+                    {--batched : Indicates that the job should be batchable}';
 
     /**
      * The console command description.
@@ -59,17 +62,5 @@ class JobMakeCommand extends GeneratorCommand
     protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $rootNamespace . '\Jobs';
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['force', 'f', InputOption::VALUE_NONE, 'Create the class even if the job already exists'],
-            ['sync', null, InputOption::VALUE_NONE, 'Indicates that the job should be synchronous'],
-            ['batched', null, InputOption::VALUE_NONE, 'Indicates that the job should be batchable'],
-        ];
     }
 }

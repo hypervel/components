@@ -9,10 +9,12 @@ use Hypervel\ConnectionPool\Connection;
 use Hypervel\ConnectionPool\ConnectionPool;
 use Hypervel\ConnectionPool\Events\ConnectionReleasing;
 use Hypervel\ConnectionPool\PoolOptions;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\ConnectionPool\ConnectionPool as ConnectionPoolContract;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
+use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Tests\ConnectionPool\Fixtures\ActiveConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -119,6 +121,26 @@ class ConnectionTest extends TestCase
 
         $this->assertGreaterThanOrEqual($before, $assert);
         $this->assertLessThanOrEqual($after, $assert);
+    }
+
+    public function testReleaseUsesTheCurrentEventDispatcher(): void
+    {
+        $container = new Container;
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->allows('hasListeners')->with(ConnectionReleasing::class)->andReturnTrue();
+        $dispatcher->shouldNotReceive('dispatch');
+        $container->instance('events', $dispatcher);
+
+        $pool = m::mock(ConnectionPool::class);
+        $pool->expects('getOptions')->andReturn(PoolOptions::fromArray(['events' => [ConnectionReleasing::class]]));
+        $connection = new ActiveConnectionStub($container, $pool);
+        $pool->expects('release')->with($connection);
+
+        $fake = new EventFake($dispatcher, [ConnectionReleasing::class]);
+        $container->instance('events', $fake);
+        $connection->release();
+
+        $fake->assertDispatched(ConnectionReleasing::class, fn (ConnectionReleasing $event): bool => $event->connection === $connection);
     }
 
     public function testReleaseListenerCancellationStillReturnsTheConnectionOnce(): void
@@ -307,9 +329,8 @@ class ConnectionTest extends TestCase
     {
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnFalse();
-        $container->shouldReceive('bound')->with('events')->andReturnTrue();
-        $container->shouldReceive('make')->with('events')->andReturn($dispatcher = m::mock(Dispatcher::class));
-        $dispatcher->shouldReceive('dispatch')->never()->with(ConnectionReleasing::class)->andReturnNull();
+        $container->shouldNotReceive('bound')->with('events');
+        $container->shouldNotReceive('make')->with('events');
 
         $connection = new ActiveConnectionStub($container, $pool = m::mock(ConnectionPool::class));
         $pool->shouldReceive('release')->withAnyArgs()->andReturnNull();

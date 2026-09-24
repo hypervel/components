@@ -74,9 +74,7 @@ class JsonResource implements ArrayAccess, JsonSerializable, Responsable, UrlRou
     {
         return tap(static::newCollection($resource), function ($collection) {
             if (! array_key_exists(static::class, static::$cachedPreserveKeysAttributes)) {
-                static::$cachedPreserveKeysAttributes[static::class] = count(
-                    (new ReflectionClass(static::class))->getAttributes(PreserveKeys::class)
-                ) > 0;
+                static::$cachedPreserveKeysAttributes[static::class] = (new ReflectionClass(static::class))->getAttributes(PreserveKeys::class) !== [];
             }
 
             if (static::$cachedPreserveKeysAttributes[static::class]) {
@@ -150,7 +148,7 @@ class JsonResource implements ArrayAccess, JsonSerializable, Responsable, UrlRou
     /**
      * Convert the resource to JSON.
      *
-     * @throws \Hypervel\Database\Eloquent\JsonEncodingException
+     * @throws JsonEncodingException
      */
     public function toJson(int $options = 0): string
     {
@@ -166,7 +164,7 @@ class JsonResource implements ArrayAccess, JsonSerializable, Responsable, UrlRou
     /**
      * Convert the resource to pretty print formatted JSON.
      *
-     * @throws \Hypervel\Database\Eloquent\JsonEncodingException
+     * @throws JsonEncodingException
      */
     public function toPrettyJson(int $options = 0): string
     {

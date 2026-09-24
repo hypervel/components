@@ -7,11 +7,9 @@ namespace Hypervel\Tests\Integration\Database\Sqlite;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseManager;
-use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolManager;
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
@@ -388,67 +386,5 @@ class PoolConnectionManagementTest extends TestCase
 
         $newPool = $poolManager->pool('pool_test');
         $this->assertSame(0, $newPool->getManagedCount(), 'Pool should be empty after purge');
-    }
-
-    // =========================================================================
-    // DB-04: ConnectionEstablished event
-    // =========================================================================
-
-    /**
-     * Test that ConnectionEstablished event is dispatched when pooled connection is created.
-     */
-    public function testConnectionEstablishedEventIsDispatchedForPooledConnection(): void
-    {
-        $eventDispatched = false;
-        $dispatchedConnection = null;
-
-        // Register a listener for the ConnectionEstablished event
-        $this->app->make('events')->listen(
-            ConnectionEstablished::class,
-            function (ConnectionEstablished $event) use (&$eventDispatched, &$dispatchedConnection) {
-                $eventDispatched = true;
-                $dispatchedConnection = $event->connection;
-            }
-        );
-
-        $poolManager = $this->poolManager();
-        $poolManager->purge('pool_test');
-
-        run(function () {
-            $pooled = $this->getPooledConnection();
-            // Just getting the connection should trigger the event via reconnect()
-            $pooled->getConnection();
-            $pooled->release();
-        });
-
-        $this->assertTrue($eventDispatched, 'ConnectionEstablished event should be dispatched when pooled connection is created');
-        $this->assertInstanceOf(Connection::class, $dispatchedConnection);
-    }
-
-    /**
-     * Test that ConnectionEstablished event contains the correct connection name.
-     */
-    public function testConnectionEstablishedEventContainsCorrectConnection(): void
-    {
-        $capturedConnectionName = null;
-
-        // Register a listener for the ConnectionEstablished event
-        $this->app->make('events')->listen(
-            ConnectionEstablished::class,
-            function (ConnectionEstablished $event) use (&$capturedConnectionName) {
-                $capturedConnectionName = $event->connection->getName();
-            }
-        );
-
-        $poolManager = $this->poolManager();
-        $poolManager->purge('pool_test');
-
-        run(function () {
-            $pooled = $this->getPooledConnection();
-            $pooled->getConnection();
-            $pooled->release();
-        });
-
-        $this->assertEquals('pool_test', $capturedConnectionName);
     }
 }

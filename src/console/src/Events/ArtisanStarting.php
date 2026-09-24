@@ -11,7 +11,7 @@ class ArtisanStarting
     /**
      * Create a new event instance.
      *
-     * @param \Hypervel\Console\Application $artisan the Artisan application instance
+     * @param Application $artisan the Artisan application instance
      */
     public function __construct(
         public Application $artisan,

@@ -25,7 +25,7 @@ class ContainerCommandLoader implements CommandLoaderInterface
     /**
      * Resolve a command from the container.
      *
-     * @throws \Symfony\Component\Console\Exception\CommandNotFoundException
+     * @throws CommandNotFoundException
      */
     public function get(string $name): Command
     {

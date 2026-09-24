@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Redis;
 
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
+use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Facades\Redis;
@@ -42,6 +43,34 @@ class RedisClusterIntegrationTest extends TestCase
         $this->assertSame($native, $this->nativeClient($redis));
         $this->assertSame('first', $redis->get($firstKey));
         $this->assertSame('second', $redis->get($secondKey));
+    }
+
+    public function testSubscriberDiscoveryKeepsThePinnedConnectionAndItsRawMode(): void
+    {
+        $redis = $this->maxOneRedisConnection('test_cluster_pinned_subscriber');
+        config(["database.redis.{$redis->getName()}.pool.wait_timeout" => 0.05]);
+        $pool = $this->app->make(PoolManager::class)->pool($redis->getName());
+
+        $redis->withPinnedConnection(function () use ($redis, $pool): void {
+            $redis->withConnection(function (RedisConnection $connection) use ($redis, $pool): void {
+                $this->assertSame(1, $pool->getBorrowedCount());
+                $subscriber = $redis->subscriber();
+
+                try {
+                    $this->assertSame(1, $pool->getBorrowedCount());
+                    $this->assertFalse($connection->getShouldTransform());
+                    $this->assertSame($connection, $redis->withConnection(
+                        fn (RedisConnection $held): RedisConnection => $held,
+                        transform: false,
+                    ));
+                    $this->assertTrue($connection->set('subscriber:owned', 'usable'));
+                } finally {
+                    $subscriber->close();
+                }
+            }, transform: false);
+        });
+
+        $this->assertSame(0, $pool->getBorrowedCount());
     }
 
     public function testCrossSlotTransactionFailureReconnectsBeforePoolReuse(): void

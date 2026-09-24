@@ -1900,7 +1900,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals(['Car,Plane'], $builder->getBindings());
     }
 
-    public function testWhereFulltextPostgres()
+    public function testWhereFulltextPostgres(): void
     {
         $builder = $this->getPostgresBuilderWithProcessor();
         $builder->select('*')->from('users')->whereFullText('body', 'Hello World');
@@ -1951,6 +1951,11 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder->select('*')->from('users')->whereFullText('search_vector_nl', 'Hello World', ['vector' => true, 'language' => 'dutch']);
         $this->assertSame('select * from "users" where ("search_vector_nl") @@ plainto_tsquery(\'dutch\', ?)', $builder->toSql());
         $this->assertSame(['Hello World'], $builder->getBindings());
+
+        $builder = $this->getPostgresBuilderWithProcessor();
+        $builder->select('*')->from('users')->whereFullText('search_vector', '+Hello -World', ['vector' => true, 'mode' => 'websearch']);
+        $this->assertSame('select * from "users" where ("search_vector") @@ websearch_to_tsquery(\'english\', ?)', $builder->toSql());
+        $this->assertSame(['+Hello -World'], $builder->getBindings());
 
         $builder = $this->getPostgresBuilderWithProcessor();
         $builder->select('*')->from('users')->whereFullText(['tsv_title', 'tsv_body'], 'Car Plane', ['vector' => true]);
@@ -2728,10 +2733,11 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame('select "category", count(*) as "total" from "item" where "department" = ? group by "category" having "total" > ?', $builder->toSql());
     }
 
-    public function testNestedHavings()
+    public function testNestedHavings(): void
     {
         $builder = $this->getBuilder();
-        $builder->select('*')->from('users')->having('email', '=', 'foo')->orHaving(function ($q) {
+        $builder->select('*')->from('users')->having('email', '=', 'foo')->having(function (Builder $q): void {
+        })->orHaving(function (Builder $q): void {
             $q->having('name', '=', 'bar')->having('age', '=', 25);
         });
         $this->assertSame('select * from "users" having "email" = ? or ("name" = ? and "age" = ?)', $builder->toSql());

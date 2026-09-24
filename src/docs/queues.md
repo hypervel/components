@@ -104,7 +104,7 @@ ProcessPodcast::dispatch();
 ProcessPodcast::dispatch()->onQueue('emails');
 ```
 
-When dispatching or inspecting jobs, you may also use enums for connection and queue names. Backed enums use their value, while unbacked enums use their case name:
+When dispatching or inspecting jobs, you may also use enums for connection and queue names. Backed enums use their value, while unit enums use their case name:
 
 ```php
 use Hypervel\Support\Facades\Queue;
@@ -1674,7 +1674,7 @@ class ProcessPodcast implements ShouldQueue
 }
 ```
 
-You may also specify the job's queue or connection using the `Queue` and `Connection` attributes:
+You may also specify the job's queue or connection using the `Queue` and `Connection` attributes, which accept strings or enum cases. Backed enums use their value, while unit enums use their case name:
 
 ```php
 <?php
@@ -2091,7 +2091,7 @@ class SendShipmentNotification
 }
 ```
 
-When sending a [mail message](/docs/{{version}}/mail) that is going to be queued on a FIFO queue, you should invoke the `onGroup` method and optionally the `withDeduplicator` method when sending the notification:
+When sending a [mail message](/docs/{{version}}/mail) that is going to be queued on a FIFO queue, you should invoke the `onGroup` method and optionally the `withDeduplicator` method when sending the mail message:
 
 ```php
 use App\Mail\InvoicePaid;
@@ -2115,6 +2115,23 @@ $invoicePaid = (new InvoicePaid($invoice))
 
 $user->notify($invoicePaid);
 ```
+
+Like jobs, mailables and notifications may define `messageGroup` and `deduplicationId` methods instead of calling `onGroup` and `withDeduplicator`.
+
+For notifications, you may pass arrays keyed by channel to give each channel its own message group and deduplicator:
+
+```php
+$invoicePaid = (new InvoicePaid($invoice))
+    ->onGroup(['mail' => 'invoice-mail', 'database' => 'invoice-history'])
+    ->withDeduplicator([
+        'mail' => fn () => 'invoice-mail-'.$invoice->id,
+        'database' => fn () => 'invoice-history-'.$invoice->id,
+    ]);
+
+$user->notify($invoicePaid);
+```
+
+Alternatively, define `withMessageGroups($notifiable, $channel)` and `withDeduplicators($notifiable, $channel)` on the notification. These methods receive the recipient and channel and return the message group and deduplicator callback for that delivery.
 
 <a name="queue-failover"></a>
 ### Queue Failover
@@ -2699,7 +2716,7 @@ php artisan queue:work
 > [!NOTE]
 > To keep the `queue:work` process running permanently in the background, you should use a process monitor such as [Supervisor](#supervisor-configuration) to ensure that the queue worker does not stop running.
 
-You may include the `-v` flag when invoking the `queue:work` command if you would like the processed job IDs, connection names, and queue names to be included in the command's output:
+You may include the `-v` flag when invoking the `queue:work` command if you would like the processed job IDs, connection names, queue names, and worker memory usage to be included in the command's output:
 
 ```shell
 php artisan queue:work -v
@@ -3910,11 +3927,13 @@ class AppServiceProvider extends ServiceProvider
 
 Hypervel dispatches a `JobQueueing` event immediately before a job is sent to its queue and a `JobQueued` event after the queue accepts it. If the enqueue attempt throws an exception, a `JobQueueingFailed` event is dispatched with the original exception instead. Jobs deferred until a database transaction commits do not dispatch these events unless the enqueue attempt actually begins.
 
-The `JobPayloadFinalizing` event runs immediately before `JobQueueing` and may replace its encoded `payload`. It also provides the connection, queue, job, and normalized delay. Use this event for last-mile payload changes that must reach the queue backend. Listening to both events deliberately runs both listeners for each asynchronous job.
+The `JobPayloadFinalizing` event runs immediately before `JobQueueing` and may replace its encoded `payload`. It also provides the connection, queue, job, and normalized delay in seconds. Use this event for last-mile payload changes that must reach the queue backend. Listening to both events deliberately runs both listeners for each asynchronous job.
 
 When a job releases itself back onto the queue without throwing an exception, the worker dispatches a `JobReleased` event with the `connectionName` and `job`. This includes releases from job middleware.
 
 When a worker releases a job back onto the queue after an exception, the `JobReleasedAfterException` event provides the `connectionName`, `job`, `backoff` delay in seconds, and the original `exception`.
+
+When a job exceeds its timeout, the `JobTimedOut` event provides the `connectionName`, `job`, and `timeout` in seconds. The timeout comes from the job when specified, or from the worker's `--timeout` option otherwise.
 
 Using the `looping` method on the `Queue` [facade](/docs/{{version}}/facades), you may specify callbacks that execute before the worker attempts to fetch a job from a queue. For example, you might register a closure to rollback any transactions that were left open by a previously failed job:
 

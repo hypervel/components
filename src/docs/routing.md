@@ -197,6 +197,8 @@ The `route:list` Artisan command can easily provide an overview of all of the ro
 php artisan route:list
 ```
 
+The output includes custom binding fields such as `{post:slug}` and the file and line where each closure route is defined.
+
 By default, the route middleware that are assigned to each route will not be displayed in the `route:list` output; however, you can instruct Hypervel to display the route middleware and middleware group names by adding the `-v` option to the command:
 
 ```shell

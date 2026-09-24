@@ -76,7 +76,8 @@ class FoundationServiceProviderTest extends TestCase
 
     public function testDefaultDevelopmentProcessesAreRegistered(): void
     {
-        $this->assertSame(['server', 'queue', 'vite'], array_column(DevCommands::commands(), 'name'));
+        $this->assertFileDoesNotExist(base_path('package.json'));
+        $this->assertSame(['server', 'queue'], array_column(DevCommands::commands(), 'name'));
     }
 
     public function testClockSingletonIsRegistered(): void

@@ -23,7 +23,7 @@ use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\InteractsWithTime;
-use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Throwable;
 
@@ -112,8 +112,8 @@ class WorkCommand extends Command
 
         // Use the input TTY directly; Symfony's stty availability probe shells out inside this coroutine.
         if (! $this->outputUsingJson() && defined('STDIN') && stream_isatty(STDIN)) {
-            $this->info(
-                sprintf('Processing jobs from the [%s] %s.', $queue, Str::of('queue')->plural(count(explode(',', $queue))))
+            $this->components->info(
+                sprintf('Processing jobs from the [%s] %s.', $queue, (new Stringable('queue'))->plural(explode(',', $queue)))
             );
         }
 
@@ -314,21 +314,22 @@ class WorkCommand extends Command
         }
 
         $displayJobId = $jobId === null ? '' : (string) $jobId;
+        $isVerbose = $this->output->isVerbose();
 
-        $this->output->write(sprintf(
-            '  <fg=gray>%s</> %s%s',
+        $this->output->write(rtrim(sprintf(
+            '  <fg=gray>%s</> %s %s',
             $this->now()->format('Y-m-d H:i:s'),
             $jobName,
-            $this->output->isVerbose()
-                ? sprintf(' <fg=gray>%s</>', $displayJobId)
+            $isVerbose
+                ? sprintf('<fg=gray>%s</> <fg=blue>%s</> <fg=blue>%s</>', $displayJobId, $job->getConnectionName(), $job->getQueue())
                 : ''
-        ));
+        )));
 
         if ($status === 'starting') {
             $this->setLatestStartedAt(microtime(true));
 
             $dots = max(terminal()->width() - mb_strlen($jobName) - (
-                $this->output->isVerbose() ? (mb_strlen($displayJobId) + 1) : 0
+                $isVerbose ? mb_strlen($displayJobId) + mb_strlen($job->getConnectionName()) + mb_strlen($job->getQueue()) + 2 : 0
             ) - 33, 0);
 
             $this->output->write(' ' . str_repeat('<fg=gray>.</>', $dots));
@@ -339,13 +340,14 @@ class WorkCommand extends Command
         }
 
         $runTime = $this->runTimeForHumans($this->getLatestStartedAt());
+        $memory = $isVerbose ? round(memory_get_usage(true) / 1024 / 1024, 1) . 'MB' : '';
 
         $dots = max(terminal()->width() - mb_strlen($jobName) - (
-            $this->output->isVerbose() ? (mb_strlen($displayJobId) + 1) : 0
+            $isVerbose ? mb_strlen($displayJobId) + mb_strlen($job->getConnectionName()) + mb_strlen($job->getQueue()) + mb_strlen($memory) + 3 : 0
         ) - mb_strlen($runTime) - 31, 0);
 
         $this->output->write(' ' . str_repeat('<fg=gray>.</>', $dots));
-        $this->output->write(" <fg=gray>{$runTime}</>");
+        $this->output->write(" <fg=gray>{$runTime}" . ($memory ? " {$memory}" : '') . '</>');
 
         $this->output->writeln(match ($status) {
             'success' => ' <fg=green;options=bold>DONE</>',

@@ -4325,6 +4325,15 @@ $users = User::where('group', 'Development')->get();
 return $users->sum->votes;
 ```
 
+When a collection contains class names, higher order messages call static methods on those classes:
+
+```php
+use App\Notifications\Handlers\EmailHandler;
+use App\Notifications\Handlers\SmsHandler;
+
+$handlerClass = collect([EmailHandler::class, SmsHandler::class])->first->supports($notification);
+```
+
 <a name="lazy-collections"></a>
 ## Lazy Collections
 

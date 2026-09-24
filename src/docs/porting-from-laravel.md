@@ -10,6 +10,7 @@
     - [Missing Equivalents](#missing-equivalents)
 - [Type Declarations](#type-declarations)
     - [Inherited Properties](#inherited-properties)
+    - [Inherited Methods](#inherited-methods)
 - [Service Providers](#service-providers)
     - [Registering Bindings](#registering-bindings)
     - [Bootstrapping Services](#bootstrapping-services)
@@ -21,6 +22,7 @@
     - [Coroutine-Aware Dependencies](#coroutine-aware-dependencies)
 - [Configuration](#configuration)
 - [Other API Differences](#other-api-differences)
+    - [Development Processes](#development-processes)
     - [Scheduling](#scheduling)
     - [Maintenance Mode](#maintenance-mode)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
@@ -235,6 +237,11 @@ When a ported command accesses the application instance directly, replace Larave
 Models and commands are common examples, but they are not an exhaustive list. Audit properties declared by mailables, form requests, queueable jobs, and any other class that extends a Hypervel class or composes a Hypervel trait. Inspect the current parent class and every composed trait before adding or retaining a property declaration.
 
 Some typed properties have no default value. For example, a Hypervel mailable's `$markdown`, `$view`, and `$textView` properties must not be read directly before they have been initialized. Use `isset()` or `??` when testing an optional value, or assign a valid string before reading it.
+
+<a name="inherited-methods"></a>
+### Inherited Methods
+
+When overriding a framework method, use a signature compatible with its Hypervel declaration, including the return type. For example, a model's `boot()` override must declare `protected static function boot(): void`. Copying Laravel's untyped override causes a fatal error when PHP loads the class.
 
 <a name="service-providers"></a>
 ## Service Providers
@@ -473,6 +480,11 @@ Application code should keep request-specific values in the request, session, co
 
 Many Laravel APIs have direct Hypervel equivalents under the `Hypervel` namespace. The following differences commonly require more than a namespace replacement.
 
+<a name="development-processes"></a>
+### Development Processes
+
+For `artisan dev`, install `@laravel/multiplex` locally when using pnpm or Yarn. The default server process uses `hypervel/watcher`; Pail is not included. See [The Dev Command](/docs/{{version}}/artisan#the-dev-command).
+
 <a name="scheduling"></a>
 ### Scheduling
 
@@ -517,6 +529,11 @@ When porting schemas that place sibling assertions beside a local `$ref` or use 
 Handwritten validation parameters use standard CSV quoting. Replace backslash-escaped quotes inside quoted parameters with doubled quotes; backslashes are literal. Fluent rule builders handle quoting for you. See [rule parameters](/docs/{{version}}/validation#rule-parameters).
 
 `FailOnUnknownFields` accepts the contents of `array` fields without child rules. Add child rules or allowed keys (`array:name,email`) when those contents must be restricted. See [unknown fields](/docs/{{version}}/validation#request-failing-on-unknown-fields).
+
+<a name="request-and-input-data"></a>
+### Request and Input Data
+
+`all([])` on requests, validated input, `Fluent`, URI query strings, and command input returns an empty array. Check dynamically constructed key lists; use `all()` to retrieve every field. See [retrieving input](/docs/{{version}}/requests#retrieving-all-input-data).
 
 <a name="data-objects"></a>
 ### Data Objects

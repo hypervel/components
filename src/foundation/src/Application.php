@@ -647,7 +647,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
     }
 
     /**
-     * Get the fully qualified path to the environment file.
+     * Get the fully-qualified path to the environment file.
      */
     public function environmentFilePath(): string
     {
@@ -766,7 +766,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function environment(array|string ...$environments): bool|string
     {
-        if (count($environments) > 0) {
+        if ($environments !== []) {
             $patterns = is_array($environments[0]) ? $environments[0] : $environments;
 
             return Str::is($patterns, $this->make('env'));

@@ -28,7 +28,7 @@ use function Hypervel\Testbench\workbench_relative_path;
 /**
  * @api
  *
- * @phpstan-import-type TWorkbenchDiscoversConfig from \Hypervel\Testbench\Foundation\Config
+ * @phpstan-import-type TWorkbenchDiscoversConfig from Config
  */
 class Workbench
 {

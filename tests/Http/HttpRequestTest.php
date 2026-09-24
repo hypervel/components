@@ -1189,6 +1189,13 @@ class HttpRequestTest extends TestCase
         $this->assertEquals(['developer' => ['age' => null]], $request->all('developer.age'));
         $this->assertEquals(['developer' => ['skills' => null]], $request->all('developer.skills'));
         $this->assertEquals(['developer' => ['name' => 'Taylor', 'age' => null]], $request->all());
+
+        $request = Request::create('/', 'POST', [0 => 'first', '' => 'empty', 'name' => 'Taylor']);
+        $this->assertSame([0 => 'first'], $request->all(0));
+        $this->assertSame($request->all([0]), $request->all('0'));
+        $this->assertSame(['' => 'empty'], $request->all(''));
+        $this->assertSame([0 => 'first', 'missing' => null], $request->all('0', 'missing'));
+        $this->assertSame([], $request->all([]));
     }
 
     public function testKeysMethod(): void
@@ -1654,6 +1661,20 @@ class HttpRequestTest extends TestCase
         $session->expects('getOldInput')->with('name', 'foobar')->andReturn('foobar');
         $request->setHypervelSession($session);
         $this->assertSame('foobar', $request->old('name', $model));
+    }
+
+    public function testOldMethodReturnsNonStringInputAndDefaults(): void
+    {
+        $request = Request::create('/');
+        $model = m::mock(Price::class);
+        $model->expects('getAttribute')->with('stock')->andReturn(7);
+        $session = m::mock(Store::class);
+        $session->expects('getOldInput')->with('quantity', 0)->andReturn(3);
+        $session->expects('getOldInput')->with('stock', 7)->andReturn(7);
+        $request->setHypervelSession($session);
+
+        $this->assertSame(3, $request->old('quantity', 0));
+        $this->assertSame(7, $request->old('stock', $model));
     }
 
     public function testFlushMethodCallsSession(): void

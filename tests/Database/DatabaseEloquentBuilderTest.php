@@ -1431,7 +1431,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $model = new ModelParentStub;
         $model->foo_id = 7;
         $connection = $this->mockConnectionForModel($model, 'SQLite');
-        $connection->shouldReceive('getName')->andReturn('database');
+        $connection->shouldReceive('getWritableName')->andReturn('database');
         $connection->expects('select')->with(
             'select * from "model_parent_stubs" where (select * from "model_close_related_stubs" where "model_close_related_stubs"."id" = ?) > ? limit 1',
             [7, 5],
@@ -3437,6 +3437,38 @@ class DatabaseEloquentBuilderTest extends TestCase
         $result = $builder->upsert([['email' => 'foo', 'name' => 'bar'], ['name' => 'bar2', 'email' => 'foo2']], ['email']);
 
         $this->assertEquals(2, $result);
+    }
+
+    #[DataProvider('upsertUpdateColumnsProvider')]
+    public function testUpsertAddsUpdatedAtUnlessTheUpdateAlreadySetsIt(array $update, array $expected): void
+    {
+        CarbonImmutable::setTestNow($now = '2017-10-10 10:10:10');
+
+        $query = m::mock(BaseBuilder::class);
+        $query->expects('from')->with('foo_table')->andReturnSelf();
+        $query->from = 'foo_table';
+
+        $builder = new Builder($query);
+        $builder->setModel(new StubStringPrimaryKey);
+
+        $query->expects('upsert')
+            ->with([['email' => 'foo', 'updated_at' => $now, 'created_at' => $now]], ['email'], $expected)
+            ->andReturn(1);
+
+        $this->assertSame(1, $builder->upsert([['email' => 'foo']], ['email'], $update));
+    }
+
+    /**
+     * Provide upsert update columns and the columns the query should update.
+     */
+    public static function upsertUpdateColumnsProvider(): array
+    {
+        return [
+            'boolean value' => [['active' => true], ['active' => true, 'updated_at']],
+            'column name as a value' => [['last_changed_column' => 'updated_at'], ['last_changed_column' => 'updated_at', 'updated_at']],
+            'explicit timestamp value' => [['updated_at' => '2020-01-01 00:00:00'], ['updated_at' => '2020-01-01 00:00:00']],
+            'listed timestamp column' => [['email', 'updated_at'], ['email', 'updated_at']],
+        ];
     }
 
     public function testTouch(): void

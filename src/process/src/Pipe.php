@@ -10,8 +10,8 @@ use Hypervel\Support\Collection;
 use InvalidArgumentException;
 
 /**
- * @mixin \Hypervel\Process\Factory
- * @mixin \Hypervel\Process\PendingProcess
+ * @mixin Factory
+ * @mixin PendingProcess
  */
 class Pipe
 {
@@ -42,7 +42,9 @@ class Pipe
     }
 
     /**
-     * Runs the processes in the pipe.
+     * Run the processes in the pipe.
+     *
+     * @throws InvalidArgumentException
      */
     public function run(?callable $output = null): ProcessResultContract
     {

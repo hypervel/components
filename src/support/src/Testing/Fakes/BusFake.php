@@ -458,7 +458,7 @@ class BusFake implements Fake, QueueingDispatcher
      */
     public function assertNothingBatched(): void
     {
-        $jobNames = Collection::make($this->batches)
+        $jobNames = (new Collection($this->batches))
             ->map(fn ($batch) => $batch->jobs->map(fn ($job) => get_class($job)))
             ->flatten()
             ->join("\n- ");
@@ -481,12 +481,12 @@ class BusFake implements Fake, QueueingDispatcher
     public function dispatched(string $command, ?callable $callback = null): Collection
     {
         if (! $this->hasDispatched($command)) {
-            return Collection::make();
+            return new Collection;
         }
 
         $callback = $callback ?: fn () => true;
 
-        return Collection::make($this->commands[$command])->filter(fn ($command) => $callback($command));
+        return (new Collection($this->commands[$command]))->filter(fn ($command) => $callback($command));
     }
 
     /**
@@ -495,12 +495,12 @@ class BusFake implements Fake, QueueingDispatcher
     public function dispatchedSync(string $command, ?callable $callback = null): Collection
     {
         if (! $this->hasDispatchedSync($command)) {
-            return Collection::make();
+            return new Collection;
         }
 
         $callback = $callback ?: fn () => true;
 
-        return Collection::make($this->commandsSync[$command])->filter(fn ($command) => $callback($command));
+        return (new Collection($this->commandsSync[$command]))->filter(fn ($command) => $callback($command));
     }
 
     /**
@@ -509,12 +509,12 @@ class BusFake implements Fake, QueueingDispatcher
     public function dispatchedAfterResponse(string $command, ?callable $callback = null): Collection
     {
         if (! $this->hasDispatchedAfterResponse($command)) {
-            return Collection::make();
+            return new Collection;
         }
 
         $callback = $callback ?: fn () => true;
 
-        return Collection::make($this->commandsAfterResponse[$command])->filter(fn ($command) => $callback($command));
+        return (new Collection($this->commandsAfterResponse[$command]))->filter(fn ($command) => $callback($command));
     }
 
     /**
@@ -526,10 +526,10 @@ class BusFake implements Fake, QueueingDispatcher
     public function batched(callable $callback): Collection
     {
         if (empty($this->batches)) {
-            return Collection::make();
+            return new Collection;
         }
 
-        return Collection::make($this->batches)->filter(fn ($batch) => $callback($batch));
+        return (new Collection($this->batches))->filter(fn ($batch) => $callback($batch));
     }
 
     /**

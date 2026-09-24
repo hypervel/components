@@ -1,10 +1,12 @@
 includes:
     - src/database/extension.neon
+    - src/foundation/extension.neon
 
 parameters:
     level: max
     tmpDir: .cache/phpstan-types
     scanDirectories:
         - src/database/src/PHPStan
+        - src/foundation/src/PHPStan
     paths:
         - types

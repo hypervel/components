@@ -14,10 +14,10 @@ use Hypervel\Database\Eloquent\Relations\Concerns\SupportsDefaultModels;
 use function Hypervel\Support\enum_value;
 
 /**
- * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
- * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
+ * @template TRelatedModel of Model
+ * @template TDeclaringModel of Model
  *
- * @extends \Hypervel\Database\Eloquent\Relations\Relation<TRelatedModel, TDeclaringModel, ?TRelatedModel>
+ * @extends Relation<TRelatedModel, TDeclaringModel, ?TRelatedModel>
  */
 class BelongsTo extends Relation
 {
@@ -50,7 +50,7 @@ class BelongsTo extends Relation
     /**
      * Create a new belongs to relationship instance.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param Builder<TRelatedModel> $query
      * @param TDeclaringModel $child
      */
     public function __construct(Builder $query, Model $child, string $foreignKey, ?string $ownerKey, string $relationName)
@@ -234,9 +234,9 @@ class BelongsTo extends Relation
     /**
      * Add the constraints for a relationship query on the same table.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
-     * @param \Hypervel\Database\Eloquent\Builder<TDeclaringModel> $parentQuery
-     * @return \Hypervel\Database\Eloquent\Builder<TRelatedModel>
+     * @param Builder<TRelatedModel> $query
+     * @param Builder<TDeclaringModel> $parentQuery
+     * @return Builder<TRelatedModel>
      */
     public function getRelationExistenceQueryForSelfRelation(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
@@ -293,7 +293,7 @@ class BelongsTo extends Relation
     }
 
     /**
-     * Get the fully qualified foreign key of the relationship.
+     * Get the fully-qualified foreign key of the relationship.
      */
     public function getQualifiedForeignKeyName(): string
     {
@@ -317,7 +317,7 @@ class BelongsTo extends Relation
     }
 
     /**
-     * Get the fully qualified associated key of the relationship.
+     * Get the fully-qualified associated key of the relationship.
      */
     public function getQualifiedOwnerKeyName(): string
     {

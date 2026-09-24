@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\DatabaseEloquentCollectionTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\Schema\Builder as SchemaBuilder;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Tests\TestCase;
 use LogicException;
@@ -1049,7 +1051,7 @@ class DatabaseEloquentCollectionTest extends TestCase
     /**
      * Get a database connection instance.
      *
-     * @return \Hypervel\Database\ConnectionInterface
+     * @return ConnectionInterface
      */
     protected function connection()
     {
@@ -1059,7 +1061,7 @@ class DatabaseEloquentCollectionTest extends TestCase
     /**
      * Get a schema builder instance.
      *
-     * @return \Hypervel\Database\Schema\Builder
+     * @return SchemaBuilder
      */
     protected function schema()
     {

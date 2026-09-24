@@ -8,6 +8,7 @@ use Hypervel\Auth\Events\Authenticated;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Tests\Sentry\SentryTestCase;
+use Swoole\Coroutine\CanceledException;
 
 class AuthEventsTest extends SentryTestCase
 {
@@ -36,6 +37,28 @@ class AuthEventsTest extends SentryTestCase
         $this->assertEquals(123, $scope->getUser()->getId());
         $this->assertEquals('username', $scope->getUser()->getUsername());
         $this->assertEquals('foo@example.com', $scope->getUser()->getEmail());
+    }
+
+    public function testAuthenticatedEventPropagatesCancellationFromUserAccessor(): void
+    {
+        $cancellation = new CanceledException('Request canceled');
+        $user = new class extends AuthEventsTestUserModel {
+            /**
+             * Simulate cancellation during an email accessor's I/O.
+             */
+            public function getEmailAttribute(CanceledException $value): never
+            {
+                throw $value;
+            }
+        };
+        $user->forceFill(['email' => $cancellation]);
+
+        try {
+            $this->dispatchHypervelEvent(new Authenticated('test', $user));
+            $this->fail('The event handler swallowed coroutine cancellation.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+        }
     }
 
     public function testAuthenticatedEventFillsUserOnScopeWhenUsernameIsNotAString(): void

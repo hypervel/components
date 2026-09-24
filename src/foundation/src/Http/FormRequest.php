@@ -22,6 +22,7 @@ use Hypervel\Routing\Redirector;
 use Hypervel\Support\ValidatedInput;
 use Hypervel\Validation\UnknownFields;
 use Hypervel\Validation\ValidatesWhenResolvedTrait;
+use Hypervel\Validation\ValidationException;
 use ReflectionClass;
 
 class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
@@ -154,31 +155,31 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
 
             $config = [];
 
-            if (count($reflection->getAttributes(StopOnFirstFailure::class)) > 0) {
+            if ($reflection->getAttributes(StopOnFirstFailure::class) !== []) {
                 $config['stopOnFirstFailure'] = true;
             }
 
             $failOnUnknownFields = $reflection->getAttributes(FailOnUnknownFields::class);
 
-            if (count($failOnUnknownFields) > 0) {
+            if ($failOnUnknownFields !== []) {
                 $config['failOnUnknownFields'] = $failOnUnknownFields[0]->newInstance()->value;
             }
 
             $errorBag = $reflection->getAttributes(ErrorBag::class);
 
-            if (count($errorBag) > 0) {
+            if ($errorBag !== []) {
                 $config['errorBag'] = $errorBag[0]->newInstance()->name;
             }
 
             $redirectTo = $reflection->getAttributes(RedirectTo::class);
 
-            if (count($redirectTo) > 0) {
+            if ($redirectTo !== []) {
                 $config['redirect'] = $redirectTo[0]->newInstance()->url;
             }
 
             $redirectToRoute = $reflection->getAttributes(RedirectToRoute::class);
 
-            if (count($redirectToRoute) > 0) {
+            if ($redirectToRoute !== []) {
                 $config['redirectRoute'] = $redirectToRoute[0]->newInstance()->route;
             }
 
@@ -272,7 +273,7 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
     /**
      * Handle a failed validation attempt.
      *
-     * @throws \Hypervel\Validation\ValidationException
+     * @throws ValidationException
      */
     protected function failedValidation(Validator $validator): void
     {

@@ -43,7 +43,7 @@ class EventServiceProvider extends ServiceProvider
      *
      * @var null|iterable<int, string>
      */
-    protected static $eventDiscoveryPaths;
+    protected static ?iterable $eventDiscoveryPaths = null;
 
     /**
      * Register the application's event listeners.

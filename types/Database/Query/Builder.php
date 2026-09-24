@@ -17,7 +17,7 @@ use User;
 
 use function PHPStan\Testing\assertType;
 
-/** @param \Hypervel\Database\Eloquent\Builder<User> $userQuery */
+/** @param EloquentBuilder<User> $userQuery */
 function test(Builder $query, EloquentBuilder $userQuery): void
 {
     assertType('stdClass|null', $query->first());
@@ -112,7 +112,7 @@ function testExpressionContracts(Builder $query, ConnectionInterface $connection
         ->straightJoinSub($query->newQuery(), 'source', $expression, $expression);
 }
 
-/** @param \Hypervel\Database\Eloquent\Builder<User> $userQuery */
+/** @param EloquentBuilder<User> $userQuery */
 function testStatementEloquentFetchUsing(EloquentBuilder $userQuery): void
 {
     $userQuery->fetchUsing(PDO::FETCH_ASSOC);

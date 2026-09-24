@@ -1838,6 +1838,29 @@ class RoutingRouteTest extends TestCase
         $this->assertSame(1, $calls);
     }
 
+    public function testImplicitBindingsWithInvokableCallback(): void
+    {
+        $router = $this->getRouter();
+
+        $router->substituteImplicitBindingsUsing(new class {
+            /**
+             * Substitute the bindings and update the bound model.
+             */
+            public function __invoke(Container $container, Route $route, Closure $default): void
+            {
+                $default();
+                $route->parameter('bar')->value = 'otwell';
+            }
+        });
+
+        $router->get('foo/{bar}', [
+            'middleware' => SubstituteBindings::class,
+            'uses' => fn (RoutingTestUserModel $bar) => $bar->value,
+        ]);
+
+        $this->assertSame('otwell', $router->dispatch(Request::create('foo/taylor', 'GET'))->getContent());
+    }
+
     public function testImplicitBindingsWhereScopedBindingsArePrevented()
     {
         $router = $this->getRouter();
@@ -2283,29 +2306,6 @@ class RoutingRouteTest extends TestCase
         $this->assertSame($response, $prepared[0]->response);
     }
 
-    public function testSerializedRouteActionsAllowOnlySerializableClosureClasses(): void
-    {
-        $captured = new RouteTestInsecureDeserializationStub;
-        $serializedClosure = serialize(SerializableClosure::unsigned(function () use ($captured) {
-            return $captured;
-        }));
-
-        RouteTestInsecureDeserializationStub::$instantiated = false;
-        unserialize($serializedClosure);
-        $this->assertTrue(RouteTestInsecureDeserializationStub::$instantiated);
-
-        $router = $this->getRouter();
-        $router->get('foo', ['uses' => $serializedClosure]);
-        RouteTestInsecureDeserializationStub::$instantiated = false;
-
-        try {
-            $router->dispatch(Request::create('foo', 'GET'));
-        } catch (Throwable) {
-        }
-
-        $this->assertFalse(RouteTestInsecureDeserializationStub::$instantiated);
-    }
-
     public function testSerializedMissingCallbacksAllowOnlySerializableClosureClasses(): void
     {
         $captured = new RouteTestInsecureDeserializationStub;
@@ -2346,6 +2346,29 @@ class RoutingRouteTest extends TestCase
         $container->bind(CallableDispatcherContract::class, fn ($app) => new CallableDispatcher($app));
 
         return $router;
+    }
+
+    public function testRouteDeserializationAllowedClasses(): void
+    {
+        $captured = new RouteTestInsecureDeserializationStub;
+        $serializedClosure = serialize(SerializableClosure::unsigned(function () use ($captured) {
+            return $captured;
+        }));
+
+        RouteTestInsecureDeserializationStub::$instantiated = false;
+        unserialize($serializedClosure);
+        $this->assertTrue(RouteTestInsecureDeserializationStub::$instantiated);
+
+        $router = $this->getRouter();
+        $router->get('foo', ['uses' => $serializedClosure]);
+        RouteTestInsecureDeserializationStub::$instantiated = false;
+
+        try {
+            $router->dispatch(Request::create('foo', 'GET'));
+        } catch (Throwable) {
+        }
+
+        $this->assertFalse(RouteTestInsecureDeserializationStub::$instantiated);
     }
 }
 

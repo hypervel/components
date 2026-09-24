@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Relations;
 
 use Closure;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -14,11 +15,11 @@ use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Support\Arr;
 
 /**
- * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
- * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
+ * @template TRelatedModel of Model
+ * @template TDeclaringModel of Model
  * @template TResult
  *
- * @extends \Hypervel\Database\Eloquent\Relations\Relation<TRelatedModel, TDeclaringModel, TResult>
+ * @extends Relation<TRelatedModel, TDeclaringModel, TResult>
  */
 abstract class HasOneOrMany extends Relation
 {
@@ -38,7 +39,7 @@ abstract class HasOneOrMany extends Relation
     /**
      * Create a new has one or many relationship instance.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param Builder<TRelatedModel> $query
      * @param TDeclaringModel $parent
      */
     public function __construct(Builder $query, Model $parent, string $foreignKey, string $localKey)
@@ -65,7 +66,7 @@ abstract class HasOneOrMany extends Relation
     /**
      * Create and return an un-saved instance of the related models.
      *
-     * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
+     * @return EloquentCollection<int, TRelatedModel>
      */
     public function makeMany(iterable $records): EloquentCollection
     {
@@ -108,7 +109,7 @@ abstract class HasOneOrMany extends Relation
      * Match the eagerly loaded results to their single parents.
      *
      * @param array<int, TDeclaringModel> $models
-     * @param \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> $results
+     * @param EloquentCollection<int, TRelatedModel> $results
      * @return array<int, TDeclaringModel>
      */
     public function matchOne(array $models, EloquentCollection $results, string $relation): array
@@ -120,7 +121,7 @@ abstract class HasOneOrMany extends Relation
      * Match the eagerly loaded results to their many parents.
      *
      * @param array<int, TDeclaringModel> $models
-     * @param \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> $results
+     * @param EloquentCollection<int, TRelatedModel> $results
      * @return array<int, TDeclaringModel>
      */
     public function matchMany(array $models, EloquentCollection $results, string $relation): array
@@ -132,7 +133,7 @@ abstract class HasOneOrMany extends Relation
      * Match the eagerly loaded results to their many parents.
      *
      * @param array<int, TDeclaringModel> $models
-     * @param \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> $results
+     * @param EloquentCollection<int, TRelatedModel> $results
      * @return array<int, TDeclaringModel>
      */
     protected function matchOneOrMany(array $models, EloquentCollection $results, string $relation, string $type): array
@@ -173,7 +174,7 @@ abstract class HasOneOrMany extends Relation
     /**
      * Build model dictionary keyed by the relation's foreign key.
      *
-     * @param \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> $results
+     * @param EloquentCollection<int, TRelatedModel> $results
      * @return array<array<array-key, TRelatedModel>>
      */
     protected function buildDictionary(EloquentCollection $results): array
@@ -204,7 +205,7 @@ abstract class HasOneOrMany extends Relation
     /**
      * Find a model by its primary key or return a new instance of the related model.
      *
-     * @return ($id is (array<mixed>|\Hypervel\Contracts\Support\Arrayable<array-key, mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> : TRelatedModel)
+     * @return ($id is (array<mixed>|Arrayable<array-key, mixed>) ? EloquentCollection<int, TRelatedModel> : TRelatedModel)
      */
     public function findOrNew(mixed $id, array $columns = ['*']): EloquentCollection|Model
     {
@@ -330,8 +331,10 @@ abstract class HasOneOrMany extends Relation
     /**
      * Attach a collection of models to the parent instance.
      *
-     * @param iterable<TRelatedModel> $models
-     * @return iterable<TRelatedModel>
+     * @template TContainer of iterable<array-key, TRelatedModel>
+     *
+     * @param TContainer $models
+     * @return TContainer
      */
     public function saveMany(iterable $models): iterable
     {
@@ -345,8 +348,10 @@ abstract class HasOneOrMany extends Relation
     /**
      * Attach a collection of models to the parent instance without raising any events to the parent model.
      *
-     * @param iterable<TRelatedModel> $models
-     * @return iterable<TRelatedModel>
+     * @template TContainer of iterable<array-key, TRelatedModel>
+     *
+     * @param TContainer $models
+     * @return TContainer
      */
     public function saveManyQuietly(iterable $models): iterable
     {
@@ -406,7 +411,7 @@ abstract class HasOneOrMany extends Relation
     /**
      * Create a Collection of new instances of the related model.
      *
-     * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
+     * @return EloquentCollection<int, TRelatedModel>
      */
     public function createMany(iterable $records): EloquentCollection
     {
@@ -422,7 +427,7 @@ abstract class HasOneOrMany extends Relation
     /**
      * Create a Collection of new instances of the related model without raising any events to the parent model.
      *
-     * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
+     * @return EloquentCollection<int, TRelatedModel>
      */
     public function createManyQuietly(iterable $records): EloquentCollection
     {
@@ -432,7 +437,7 @@ abstract class HasOneOrMany extends Relation
     /**
      * Create a Collection of new instances of the related model, allowing mass-assignment.
      *
-     * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
+     * @return EloquentCollection<int, TRelatedModel>
      */
     public function forceCreateMany(iterable $records): EloquentCollection
     {
@@ -448,7 +453,7 @@ abstract class HasOneOrMany extends Relation
     /**
      * Create a Collection of new instances of the related model, allowing mass-assignment and without raising any events to the parent model.
      *
-     * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
+     * @return EloquentCollection<int, TRelatedModel>
      */
     public function forceCreateManyQuietly(iterable $records): EloquentCollection
     {
@@ -487,9 +492,9 @@ abstract class HasOneOrMany extends Relation
     /**
      * Add the constraints for a relationship query on the same table.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
-     * @param \Hypervel\Database\Eloquent\Builder<TDeclaringModel> $parentQuery
-     * @return \Hypervel\Database\Eloquent\Builder<TRelatedModel>
+     * @param Builder<TRelatedModel> $query
+     * @param Builder<TDeclaringModel> $parentQuery
+     * @return Builder<TRelatedModel>
      */
     public function getRelationExistenceQueryForSelfRelation(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
@@ -548,7 +553,7 @@ abstract class HasOneOrMany extends Relation
     }
 
     /**
-     * Get the fully qualified parent key name.
+     * Get the fully-qualified parent key name.
      */
     public function getQualifiedParentKeyName(): string
     {

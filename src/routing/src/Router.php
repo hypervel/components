@@ -15,6 +15,7 @@ use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
@@ -24,6 +25,7 @@ use Hypervel\Routing\Events\PreparingResponse;
 use Hypervel\Routing\Events\ResponsePrepared;
 use Hypervel\Routing\Events\RouteMatched;
 use Hypervel\Routing\Events\Routing;
+use Hypervel\Routing\Exceptions\BackedEnumCaseNotFoundException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -38,7 +40,7 @@ use Symfony\Bridge\PsrHttpMessage\Factory\HttpFoundationFactory;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 /**
- * @mixin \Hypervel\Routing\RouteRegistrar
+ * @mixin RouteRegistrar
  */
 class Router implements BindingRegistrar, RegistrarContract
 {
@@ -111,7 +113,7 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * The registered custom implicit binding callback.
      */
-    protected Closure|array|null $implicitBindingCallback = null;
+    protected ?Closure $implicitBindingCallback = null;
 
     /**
      * All of the verbs supported by the router.
@@ -909,8 +911,8 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Substitute the route bindings onto the route.
      *
-     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<\Hypervel\Database\Eloquent\Model>
-     * @throws \Hypervel\Routing\Exceptions\BackedEnumCaseNotFoundException
+     * @throws ModelNotFoundException<Model>
+     * @throws BackedEnumCaseNotFoundException
      */
     public function substituteBindings(Route $route): Route
     {
@@ -926,8 +928,8 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Substitute the implicit route bindings for the given route.
      *
-     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<\Hypervel\Database\Eloquent\Model>
-     * @throws \Hypervel\Routing\Exceptions\BackedEnumCaseNotFoundException
+     * @throws ModelNotFoundException<Model>
+     * @throws BackedEnumCaseNotFoundException
      */
     public function substituteImplicitBindings(Route $route): mixed
     {
@@ -951,7 +953,7 @@ class Router implements BindingRegistrar, RegistrarContract
      */
     public function substituteImplicitBindingsUsing(callable $callback): static
     {
-        $this->implicitBindingCallback = $callback;
+        $this->implicitBindingCallback = $callback(...);
 
         return $this;
     }
@@ -959,7 +961,7 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Call the binding callback for the given key.
      *
-     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<\Hypervel\Database\Eloquent\Model>
+     * @throws ModelNotFoundException<Model>
      */
     protected function performBinding(string $key, string $value, Route $route): mixed
     {
@@ -974,7 +976,7 @@ class Router implements BindingRegistrar, RegistrarContract
      */
     public function matched(string|callable $callback): void
     {
-        $this->events->listen(Events\RouteMatched::class, $callback);
+        $this->events->listen(RouteMatched::class, $callback);
     }
 
     /**
@@ -1248,6 +1250,7 @@ class Router implements BindingRegistrar, RegistrarContract
     {
         $names = is_array($name) ? $name : func_get_args();
 
+        // Keep this loop to avoid an extra callback per item.
         foreach ($names as $value) {
             if (! $this->routes->hasNamedRoute($value)) {
                 return false;
@@ -1298,6 +1301,7 @@ class Router implements BindingRegistrar, RegistrarContract
      */
     public function uses(array|string ...$patterns): bool
     {
+        // Keep this loop to avoid an extra callback per item.
         foreach ($patterns as $pattern) {
             if (Str::is($pattern, $this->currentRouteAction())) {
                 return true;

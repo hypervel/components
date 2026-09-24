@@ -2784,6 +2784,12 @@ An array of contextual data may also be passed to the function:
 info('User login attempt failed.', ['id' => $user->id]);
 ```
 
+To record where the function was called, pass `callerLocation: true`. The calling file and line will be added to the context under the `caller_location` key:
+
+```php
+info('Cache warmed.', callerLocation: true);
+```
+
 <a name="method-lazy"></a>
 #### `lazy()` {.collection-method}
 
@@ -3386,6 +3392,12 @@ The `when` function returns the value it is given if a given condition evaluates
 $value = when(true, 'Hello World');
 
 $value = when(true, fn () => 'Hello World');
+```
+
+You may pass a default value as the third argument to return when the condition is false. The value and default may also be closures, which receive the resolved condition:
+
+```php
+$value = when($user, fn ($user) => $user->name, 'Guest');
 ```
 
 The `when` function is primarily useful for conditionally rendering HTML attributes:

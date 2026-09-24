@@ -5,19 +5,21 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Contracts;
 
 use ArrayAccess;
+use Hypervel\Support\ServiceProvider;
+use Hypervel\Testbench\Foundation\Config as FoundationConfig;
 
 /**
- * @phpstan-import-type TExtraConfig from \Hypervel\Testbench\Foundation\Config
- * @phpstan-import-type TPurgeConfig from \Hypervel\Testbench\Foundation\Config
- * @phpstan-import-type TWorkbenchConfig from \Hypervel\Testbench\Foundation\Config
- * @phpstan-import-type TWorkbenchDiscoversConfig from \Hypervel\Testbench\Foundation\Config
+ * @phpstan-import-type TExtraConfig from FoundationConfig
+ * @phpstan-import-type TPurgeConfig from FoundationConfig
+ * @phpstan-import-type TWorkbenchConfig from FoundationConfig
+ * @phpstan-import-type TWorkbenchDiscoversConfig from FoundationConfig
  */
 interface Config extends ArrayAccess
 {
     /**
      * Add additional service providers.
      *
-     * @param array<int, class-string<\Hypervel\Support\ServiceProvider>> $providers
+     * @param array<int, class-string<ServiceProvider>> $providers
      */
     public function addProviders(array $providers): static;
 

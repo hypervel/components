@@ -29,8 +29,8 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Database\Connection
- * @mixin \Hypervel\Database\PdoConnection
+ * @mixin Connection
+ * @mixin PdoConnection
  */
 class DatabaseManager implements ConnectionResolverInterface
 {
@@ -52,7 +52,7 @@ class DatabaseManager implements ConnectionResolverInterface
      * for Laravel API compatibility but is not populated during normal
      * pooled operation.
      *
-     * @var array<string, \Hypervel\Database\Connection>
+     * @var array<string, Connection>
      */
     protected array $connections = [];
 
@@ -138,7 +138,7 @@ class DatabaseManager implements ConnectionResolverInterface
      *
      * @throws RuntimeException Always - dynamic connections not supported in Hypervel
      */
-    public function build(array $config): ConnectionInterface
+    public function build(array $config): never
     {
         throw new RuntimeException(
             'Dynamic database connections via DB::build() are not supported in Hypervel. '
@@ -151,7 +151,7 @@ class DatabaseManager implements ConnectionResolverInterface
      *
      * @throws RuntimeException Always - dynamic connections not supported in Hypervel
      */
-    public function connectUsing(string $name, array $config, bool $force = false): ConnectionInterface
+    public function connectUsing(string $name, array $config, bool $force = false): never
     {
         throw new RuntimeException(
             'Dynamic database connections via DB::connectUsing() are not supported in Hypervel. '
@@ -731,7 +731,7 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     public function setReconnector(callable $reconnector): void
     {
-        $this->reconnector = $reconnector;
+        $this->reconnector = $reconnector(...);
     }
 
     /**

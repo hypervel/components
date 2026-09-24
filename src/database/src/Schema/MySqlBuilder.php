@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Schema;
 
+use Hypervel\Database\Schema\Grammars\MySqlGrammar;
 use Override;
 
 /**
- * @property \Hypervel\Database\Schema\Grammars\MySqlGrammar $grammar
+ * @property MySqlGrammar $grammar
  */
 class MySqlBuilder extends Builder
 {

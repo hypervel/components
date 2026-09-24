@@ -9,6 +9,7 @@ use Countable;
 use DateTimeInterface;
 use Hypervel\Support\Traits\Macroable;
 use League\CommonMark\Environment\Environment;
+use League\CommonMark\Extension\ExtensionInterface;
 use League\CommonMark\Extension\GithubFlavoredMarkdownExtension;
 use League\CommonMark\Extension\InlinesOnly\InlinesOnlyExtension;
 use League\CommonMark\GithubFlavoredMarkdownConverter;
@@ -35,14 +36,14 @@ class Str
     /**
      * The callback that should be used to generate UUIDs.
      *
-     * @var null|(Closure(): Uuid)
+     * @var null|(Closure(): (string|Uuid))
      */
     protected static ?Closure $uuidFactory = null;
 
     /**
      * The callback that should be used to generate ULIDs.
      *
-     * @var null|(Closure(): \Symfony\Component\Uid\Ulid)
+     * @var null|(Closure(): Ulid)
      */
     protected static ?Closure $ulidFactory = null;
 
@@ -110,9 +111,9 @@ class Str
     /**
      * Transliterate a string to its closest ASCII representation.
      */
-    public static function transliterate(string $string, ?string $unknown = '?', ?bool $strict = false): string
+    public static function transliterate(string|int|float|bool|BaseStringable|null $string, ?string $unknown = '?', bool $strict = false): string
     {
-        return ASCII::to_transliterate($string, $unknown, $strict);
+        return ASCII::to_transliterate((string) $string, $unknown, $strict);
     }
 
     /**
@@ -464,7 +465,7 @@ class Str
     /**
      * Determine if a given string matches a given pattern.
      *
-     * @param iterable<string>|string $pattern
+     * @param null|BaseStringable|bool|float|int|iterable<null|BaseStringable|bool|float|int|string>|string $pattern
      */
     public static function is(string|int|float|bool|BaseStringable|iterable|null $pattern, string|int|float|bool|BaseStringable|null $value, bool $ignoreCase = false): bool
     {
@@ -696,11 +697,13 @@ class Str
     /**
      * Convert GitHub flavored Markdown into HTML.
      *
-     * @param \League\CommonMark\Extension\ExtensionInterface[] $extensions
+     * @param ExtensionInterface[] $extensions
      * @return ($string is '' ? '' : string)
      */
-    public static function markdown(string $string, array $options = [], array $extensions = []): string
+    public static function markdown(string|int|float|bool|BaseStringable|null $string, array $options = [], array $extensions = []): string
     {
+        $string = (string) $string;
+
         $converter = new GithubFlavoredMarkdownConverter($options);
 
         $environment = $converter->getEnvironment();
@@ -715,11 +718,13 @@ class Str
     /**
      * Convert inline Markdown into HTML.
      *
-     * @param \League\CommonMark\Extension\ExtensionInterface[] $extensions
+     * @param ExtensionInterface[] $extensions
      * @return ($string is '' ? '' : string)
      */
-    public static function inlineMarkdown(string $string, array $options = [], array $extensions = []): string
+    public static function inlineMarkdown(string|int|float|bool|BaseStringable|null $string, array $options = [], array $extensions = []): string
     {
+        $string = (string) $string;
+
         $environment = new Environment($options);
 
         $environment->addExtension(new GithubFlavoredMarkdownExtension);
@@ -984,7 +989,7 @@ class Str
      */
     public static function createRandomStringsUsing(?callable $factory = null): void
     {
-        static::$randomStringFactory = $factory;
+        static::$randomStringFactory = $factory === null ? null : $factory(...);
     }
 
     /**
@@ -1553,6 +1558,7 @@ class Str
     /**
      * Convert a value to studly caps case.
      *
+     * @param bool $normalize when true, all-uppercase words (e.g. acronyms) are lowercased before conversion so "CBOR" becomes "Cbor" instead of "CBOR"
      * @return ($value is '' ? '' : string)
      */
     public static function studly(string $value, bool $normalize = false): string
@@ -1575,6 +1581,7 @@ class Str
     /**
      * Convert a value to Pascal case.
      *
+     * @param bool $normalize when true, all-uppercase words (e.g. acronyms) are lowercased before conversion so "CBOR" becomes "Cbor" instead of "CBOR"
      * @return ($value is '' ? '' : string)
      */
     public static function pascal(string $value, bool $normalize = false): string
@@ -1583,7 +1590,7 @@ class Str
     }
 
     /**
-     * Returns the portion of the string specified by the start and length parameters.
+     * Return the portion of the string specified by the start and length parameters.
      */
     public static function substr(string $string, int $start, ?int $length = null, string $encoding = 'UTF-8'): string
     {
@@ -1591,7 +1598,7 @@ class Str
     }
 
     /**
-     * Returns the number of substring occurrences.
+     * Return the number of substring occurrences.
      */
     public static function substrCount(string $haystack, string $needle, int $offset = 0, ?int $length = null): int
     {
@@ -1844,11 +1851,11 @@ class Str
      * Tests only. The factory persists in a static property for the worker
      * lifetime and affects every subsequent UUID generation.
      *
-     * @param null|(callable(): Uuid) $factory
+     * @param null|(callable(): (string|Uuid)) $factory
      */
     public static function createUuidsUsing(?callable $factory = null): void
     {
-        static::$uuidFactory = $factory;
+        static::$uuidFactory = $factory === null ? null : $factory(...);
     }
 
     /**
@@ -1857,8 +1864,8 @@ class Str
      * Tests only. The sequence factory persists in a static property for the
      * worker lifetime and affects every subsequent UUID generation.
      *
-     * @param Uuid[] $sequence
-     * @param null|(callable(): Uuid) $whenMissing
+     * @param array<string|Uuid> $sequence
+     * @param null|(callable(): (string|Uuid)) $whenMissing
      */
     public static function createUuidsUsingSequence(array $sequence, ?callable $whenMissing = null): void
     {
@@ -1963,7 +1970,7 @@ class Str
      */
     public static function createUlidsUsing(?callable $factory = null): void
     {
-        static::$ulidFactory = $factory;
+        static::$ulidFactory = $factory === null ? null : $factory(...);
     }
 
     /**
@@ -2006,6 +2013,10 @@ class Str
 
     /**
      * Always return the same ULID when generating new ULIDs.
+     *
+     * Tests only unless a callback is supplied. Without a callback, the factory
+     * persists in a static property for the worker lifetime and affects every
+     * subsequent ULID generation.
      *
      * @param null|(Closure(Ulid): mixed) $callback
      */

@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Testing\Concerns;
 
 use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\Database\Connection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Seeder;
@@ -23,7 +24,7 @@ trait InteractsWithDatabase
     /**
      * Assert that a given where condition exists in the database.
      *
-     * @param class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|iterable<\Hypervel\Database\Eloquent\Model>|string $table
+     * @param class-string<Model>|iterable<Model>|Model|string $table
      * @param array<string, mixed> $data
      * @param null|string $connection
      * @return $this
@@ -64,7 +65,7 @@ trait InteractsWithDatabase
     /**
      * Assert that a given where condition does not exist in the database.
      *
-     * @param class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|iterable<\Hypervel\Database\Eloquent\Model>|string $table
+     * @param class-string<Model>|iterable<Model>|Model|string $table
      * @param array<string, mixed> $data
      * @param null|string $connection
      * @return $this
@@ -106,7 +107,7 @@ trait InteractsWithDatabase
     /**
      * Assert the count of table entries.
      *
-     * @param \Hypervel\Database\Eloquent\Model|string $table
+     * @param Model|string $table
      * @param null|string $connection
      * @return $this
      */
@@ -123,7 +124,7 @@ trait InteractsWithDatabase
     /**
      * Assert that the given table or tables has no entries.
      *
-     * @param class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|iterable<class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|string>|string $table
+     * @param class-string<Model>|iterable<class-string<Model>|Model|string>|Model|string $table
      * @param null|string $connection
      * @return $this
      */
@@ -148,7 +149,7 @@ trait InteractsWithDatabase
     /**
      * Assert the given record has been "soft deleted".
      *
-     * @param class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|iterable<class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|string>|string $table
+     * @param class-string<Model>|iterable<class-string<Model>|Model|string>|Model|string $table
      * @param array<string, mixed> $data
      * @param null|string $connection
      * @param null|string $deletedAtColumn
@@ -196,7 +197,7 @@ trait InteractsWithDatabase
     /**
      * Assert the given record has not been "soft deleted".
      *
-     * @param class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|iterable<class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|string>|string $table
+     * @param class-string<Model>|iterable<class-string<Model>|Model|string>|Model|string $table
      * @param array<string, mixed> $data
      * @param null|string $connection
      * @param null|string $deletedAtColumn
@@ -244,7 +245,7 @@ trait InteractsWithDatabase
     /**
      * Assert the given model exists in the database.
      *
-     * @param class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|iterable<\Hypervel\Database\Eloquent\Model>|string $model
+     * @param class-string<Model>|iterable<Model>|Model|string $model
      * @return $this
      */
     protected function assertModelExists($model)
@@ -255,7 +256,7 @@ trait InteractsWithDatabase
     /**
      * Assert the given model does not exist in the database.
      *
-     * @param class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|iterable<\Hypervel\Database\Eloquent\Model>|string $model
+     * @param class-string<Model>|iterable<Model>|Model|string $model
      * @return $this
      */
     protected function assertModelMissing($model)
@@ -330,8 +331,8 @@ trait InteractsWithDatabase
      * Get the database connection.
      *
      * @param null|string $connection
-     * @param null|class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|string $table
-     * @return \Hypervel\Database\Connection
+     * @param null|class-string<Model>|Model|string $table
+     * @return Connection
      */
     protected function getConnection($connection = null, $table = null)
     {
@@ -351,7 +352,7 @@ trait InteractsWithDatabase
     /**
      * Get the table name from the given model or string.
      *
-     * @param class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|string $table
+     * @param class-string<Model>|Model|string $table
      * @return string
      */
     protected function getTable($table)
@@ -366,7 +367,7 @@ trait InteractsWithDatabase
     /**
      * Get the table connection specified in the given model.
      *
-     * @param class-string<\Hypervel\Database\Eloquent\Model>|\Hypervel\Database\Eloquent\Model|string $table
+     * @param class-string<Model>|Model|string $table
      * @return null|string
      */
     protected function getTableConnection($table)
@@ -393,8 +394,8 @@ trait InteractsWithDatabase
     /**
      * Get the model entity from the given model or string.
      *
-     * @param \Hypervel\Database\Eloquent\Model|string $table
-     * @return null|\Hypervel\Database\Eloquent\Model
+     * @param Model|string $table
+     * @return null|Model
      */
     protected function newModelFor($table)
     {

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Concerns;
 
 use Closure;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\PHPUnit\AttributeParser;
 use PHPUnit\Framework\TestCase as PHPUnitTestCase;
@@ -14,7 +15,7 @@ use ReflectionClass;
 /**
  * @internal
  *
- * @property null|\Hypervel\Contracts\Foundation\Application $app
+ * @property null|Application $app
  */
 trait InteractsWithPHPUnit
 {

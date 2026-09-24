@@ -88,8 +88,6 @@ trait ManagesAttributes
 
     /**
      * Limit the environments the command should run in.
-     *
-     * @param array|mixed $environments
      */
     public function environments(mixed $environments): static
     {

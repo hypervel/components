@@ -9,7 +9,6 @@ use Hypervel\Support\Str;
 use LogicException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 use function Hypervel\Prompts\suggest;
@@ -18,9 +17,13 @@ use function Hypervel\Prompts\suggest;
 class PolicyMakeCommand extends GeneratorCommand
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:policy';
+    protected ?string $signature = 'make:policy
+                    {name : The name of the policy}
+                    {--f|force : Create the class even if the policy already exists}
+                    {--m|model= : The model that the policy applies to}
+                    {--g|guard= : The guard that the policy relies on}';
 
     /**
      * The console command description.
@@ -168,18 +171,6 @@ class PolicyMakeCommand extends GeneratorCommand
     protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $rootNamespace . '\Policies';
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['force', 'f', InputOption::VALUE_NONE, 'Create the class even if the policy already exists'],
-            ['model', 'm', InputOption::VALUE_OPTIONAL, 'The model that the policy applies to'],
-            ['guard', 'g', InputOption::VALUE_OPTIONAL, 'The guard that the policy relies on'],
-        ];
     }
 
     /**

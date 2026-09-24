@@ -15,6 +15,8 @@ The `array` cache store is request-local in Hypervel. Laravel can keep array-sto
 
 Hypervel also provides a `worker-array` cache store for deliberate worker-lifetime in-memory cache data. It is shared by coroutines in the same worker process and is cleared when that worker exits.
 
+`CacheManager::getSerializableClasses()` is omitted. Configure the shared [serializable class policy](https://hypervel.org/docs/cache#serializable-cached-objects) with `cache.serializable_classes` or provider contributions.
+
 `Cache::memo()` stores its per-request memoized repository directly in coroutine context instead of Laravel's scoped container binding. Coroutine teardown provides the request reset boundary in Hypervel without dynamic container bindings.
 
 Hypervel exposes refreshable locks through the `Hypervel\Contracts\Cache\RefreshableLock` capability interface and adds `getRemainingLifetime()` for drivers that can inspect TTLs. Laravel exposes `refresh()` directly on supported lock implementations without a typed capability contract.

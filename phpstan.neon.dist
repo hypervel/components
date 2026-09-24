@@ -5,6 +5,7 @@
 
 includes:
   - src/database/extension.neon
+  - src/foundation/extension.neon
 
 parameters:
   tmpDir: .cache/phpstan
@@ -71,8 +72,6 @@ parameters:
     - identifier: generics.lessTypes
       path: src/database/*
     - identifier: generics.notSubtype
-      path: src/database/*
-    - identifier: method.templateTypeNotInParameter
       path: src/database/*
 
     # Covariant template types in invariant/contravariant positions - Laravel uses @template-covariant

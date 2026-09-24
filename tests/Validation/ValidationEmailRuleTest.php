@@ -242,15 +242,18 @@ class ValidationEmailRuleTest extends TestCase
     #[RequiresPhpExtension('intl')]
     public function testValidateMxRecord(): void
     {
+        // Test DNS rule selection without depending on public DNS availability.
+        Validator::fakeDnsLookups();
+
         $this->fails(
             (new Email)->validateMxRecord(),
-            'plainaddress@example.com',
+            'plainaddress@example.invalid',
             ['The ' . self::ATTRIBUTE_REPLACED . ' must be a valid email address.']
         );
 
         $this->fails(
             Rule::email()->validateMxRecord(),
-            'plainaddress@example.com',
+            'plainaddress@example.invalid',
             ['The ' . self::ATTRIBUTE_REPLACED . ' must be a valid email address.']
         );
 
@@ -673,8 +676,7 @@ class ValidationEmailRuleTest extends TestCase
         );
     }
 
-    // REMOVED: testNativeValidationVsRfcCompliant — upstream no-op placeholder
-    // with an empty data set, zero assertions, and risky PHPUnit result.
+    // REMOVED: testNativeValidationVsRfcCompliant — upstream placeholder has no cases and exercises no behavior.
 
     #[TestWith(['abc."test"@example.com'])] // Mixed quotes in local part
     #[TestWith(['name@[127.0.0.1]'])] // Local-part with domain-literal IPv4 address
@@ -770,13 +772,13 @@ class ValidationEmailRuleTest extends TestCase
 
         $this->fails(
             (new Email)->rfcCompliant(strict: true)->preventSpoofing()->validateMxRecord(),
-            'test@example.com',
+            'test@example.invalid',
             ['The ' . self::ATTRIBUTE_REPLACED . ' must be a valid email address.']
         );
 
         $this->fails(
             Rule::email()->rfcCompliant(strict: true)->preventSpoofing()->validateMxRecord(),
-            'test@example.com',
+            'test@example.invalid',
             ['The ' . self::ATTRIBUTE_REPLACED . ' must be a valid email address.']
         );
 

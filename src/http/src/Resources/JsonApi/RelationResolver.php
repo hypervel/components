@@ -17,21 +17,21 @@ class RelationResolver
     /**
      * The relation resolver.
      *
-     * @var Closure(mixed):(null|\Hypervel\Database\Eloquent\Collection|\Hypervel\Database\Eloquent\Model|\Hypervel\Http\Resources\JsonApi\AnonymousResourceCollection|\Hypervel\Http\Resources\JsonApi\JsonApiResource)
+     * @var Closure(mixed):(null|AnonymousResourceCollection|Collection|JsonApiResource|Model)
      */
     public Closure $relationResolver;
 
     /**
      * The relation resource class.
      *
-     * @var null|class-string<\Hypervel\Http\Resources\JsonApi\JsonApiResource>
+     * @var null|class-string<JsonApiResource>
      */
     public ?string $relationResourceClass = null;
 
     /**
      * Construct a new resource relationship resolver.
      *
-     * @param null|class-string<\Hypervel\Http\Resources\JsonApi\JsonApiResource>|Closure(mixed):(null|\Hypervel\Database\Eloquent\Collection|\Hypervel\Database\Eloquent\Model|\Hypervel\Http\Resources\JsonApi\AnonymousResourceCollection|\Hypervel\Http\Resources\JsonApi\JsonApiResource) $resolver
+     * @param null|class-string<JsonApiResource>|Closure(mixed):(null|AnonymousResourceCollection|Collection|JsonApiResource|Model) $resolver
      *
      * @throws InvalidArgumentException
      */
@@ -78,7 +78,7 @@ class RelationResolver
     /**
      * Get the resource class.
      *
-     * @return null|class-string<\Hypervel\Http\Resources\JsonApi\JsonApiResource>
+     * @return null|class-string<JsonApiResource>
      */
     public function resourceClass(): ?string
     {

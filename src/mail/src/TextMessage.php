@@ -43,7 +43,7 @@ class TextMessage
     /**
      * Dynamically pass missing methods to the underlying message instance.
      */
-    public function __call(string $method, array $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return $this->forwardDecoratedCallTo($this->message, $method, $parameters);
     }

@@ -25,6 +25,7 @@ class Prune
      */
     public function __construct(
         private readonly StoreContext $context,
+        private readonly RemoveEmptyTags $removeEmptyTags,
     ) {
     }
 
@@ -190,26 +191,23 @@ class Prune
                 $keys[] = $prefix . $key;
             }
 
+            /** @var int $pageRemoved */
             $pageRemoved = $connection->evalWithShaCache(
                 $this->removeOrphanedFieldsScript(),
                 $keys,
                 $fieldKeys,
             );
 
-            $removed += is_int($pageRemoved) ? $pageRemoved : 0;
+            $removed += $pageRemoved;
         } while ($iterator !== 0);
 
-        $finalized = $connection->evalWithShaCache(
-            $this->removeEmptyTagFromRegistryScript(),
-            [$tagHash, $this->context->registryKey()],
-            [$tag],
-        );
+        $finalized = $this->removeEmptyTags->execute($connection, [$tag]);
 
         return [
             'checked' => $checked,
             'removed' => $removed,
-            'deleted' => is_array($finalized) && ($finalized[0] ?? 0) === 1,
-            'registry_removed' => is_array($finalized) && is_int($finalized[1] ?? null) ? $finalized[1] : 0,
+            'deleted' => $finalized['empty'] === 1,
+            'registry_removed' => $finalized['removed'],
         ];
     }
 
@@ -282,34 +280,13 @@ class Prune
             $removed += max(0, $pageRemoved - $repaired);
         } while ($iterator !== 0);
 
-        $deleted = false;
-        $registryRemoved = 0;
-
-        if ($this->tagHashIsEmpty($connection, $tagHash)) {
-            $registryRemoved = (int) $connection->zrem($this->context->registryKey(), $tag);
-            $deleted = true;
-
-            // A writer publishes the hash before the registry. If it revived
-            // the hash during the cross-slot cleanup, restore only a missing
-            // registry member and let the writer's real expiry win.
-            if (! $this->tagHashIsEmpty($connection, $tagHash)) {
-                $connection->zadd(
-                    $this->context->registryKey(),
-                    ['NX'],
-                    StoreContext::MAX_EXPIRY,
-                    $tag,
-                );
-
-                $deleted = false;
-                $registryRemoved = 0;
-            }
-        }
+        $finalized = $this->removeEmptyTags->execute($connection, [$tag]);
 
         return [
             'checked' => $checked,
             'removed' => $removed,
-            'deleted' => $deleted,
-            'registry_removed' => $registryRemoved,
+            'deleted' => $finalized['empty'] === 1,
+            'registry_removed' => $finalized['removed'],
         ];
     }
 
@@ -333,20 +310,6 @@ class Prune
     }
 
     /**
-     * Remove an empty tag from the registry in the same atomic operation.
-     */
-    protected function removeEmptyTagFromRegistryScript(): string
-    {
-        return <<<'LUA'
-            if redis.call('HLEN', KEYS[1]) == 0 then
-                return {1, redis.call('ZREM', KEYS[2], ARGV[1])}
-            end
-
-            return {0, 0}
-            LUA;
-    }
-
-    /**
      * Check the current Redis state without treating consecutive reads as stable.
      *
      * @phpstan-impure Redis may change between calls.
@@ -354,15 +317,5 @@ class Prune
     private function keyExists(RedisConnection $connection, string $key): bool
     {
         return (bool) $connection->exists($key);
-    }
-
-    /**
-     * Check the current hash state without treating consecutive reads as stable.
-     *
-     * @phpstan-impure Redis may change between calls.
-     */
-    private function tagHashIsEmpty(RedisConnection $connection, string $tagHash): bool
-    {
-        return $connection->hlen($tagHash) === 0;
     }
 }

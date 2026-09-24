@@ -9,7 +9,7 @@ use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Translation\HasLocalePreference;
-use Hypervel\Database\Eloquent\Collection as ModelCollection;
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Notifications\Events\NotificationDelivered;
 use Hypervel\Notifications\Events\NotificationFailed;
@@ -129,16 +129,15 @@ class NotificationSender
                 $response = $this->manager->driver($channel)->send($notifiable, $notification);
             }
         } catch (Throwable $exception) {
-            if (CoroutineContext::get(self::FAILED_EVENT_DISPATCHED_CONTEXT_KEY) !== true) {
-                if ($exception instanceof HttpTransportException) {
-                    $exception = new TransportException($exception->getMessage(), $exception->getCode());
-                }
-
-                if ($this->events->hasListeners(NotificationFailed::class)) {
-                    $this->events->dispatch(
-                        new NotificationFailed($notifiable, $notification, $channel, ['exception' => $exception])
-                    );
-                }
+            if (CoroutineContext::get(self::FAILED_EVENT_DISPATCHED_CONTEXT_KEY) !== true
+                && $this->events->hasListeners(NotificationFailed::class)
+            ) {
+                $this->events->dispatch(new NotificationFailed($notifiable, $notification, $channel, [
+                    // Queued listeners must serialize the event without the HTTP response.
+                    'exception' => $exception instanceof HttpTransportException
+                        ? new TransportException($exception->getMessage(), $exception->getCode())
+                        : $exception,
+                ]));
             }
 
             throw $exception;
@@ -274,7 +273,7 @@ class NotificationSender
                         ->onQueue($queue)
                         ->delay(is_array($delay) ? ($delay[$channel] ?? null) : $delay)
                         ->onGroup(is_array($messageGroup) ? ($messageGroup[$channel] ?? null) : $messageGroup)
-                        ->withDeduplicator(is_array($deduplicator) ? ($deduplicator[$channel] ?? null) : $deduplicator)
+                        ->withDeduplicator(is_array($deduplicator) && ! is_callable($deduplicator) ? ($deduplicator[$channel] ?? null) : $deduplicator)
                         ->through($middleware)
                 );
             }
@@ -288,7 +287,8 @@ class NotificationSender
     {
         if (! $notifiables instanceof Collection && ! is_array($notifiables)) {
             return $notifiables instanceof Model
-                ? new ModelCollection([$notifiables]) : [$notifiables];
+                ? new EloquentCollection([$notifiables])
+                : [$notifiables];
         }
 
         return $notifiables;

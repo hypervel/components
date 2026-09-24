@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Concerns;
 
 use Closure;
+use Hypervel\Database\Connection;
 use Hypervel\Database\DeadlockException;
 use LogicException;
 use RuntimeException;
@@ -12,7 +13,7 @@ use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 /**
- * @mixin \Hypervel\Database\Connection
+ * @mixin Connection
  */
 trait ManagesTransactions
 {

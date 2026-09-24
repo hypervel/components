@@ -207,6 +207,8 @@ $count = DB::connection('mysql::write')->table('users')->count();
 
 Use these suffixes when you need to explicitly inspect a replica or force reads through the write connection. Normal application queries do not need them; Hypervel routes reads, writes, transactions, and sticky reads automatically.
 
+Eloquent models created or retrieved through `::write` retain that connection for later saves and relation queries, including its current transaction. Models retrieved through `::read` use the base connection name for subsequent operations, so saves reach the primary.
+
 <a name="the-sticky-option"></a>
 #### The `sticky` Option
 
@@ -414,18 +416,7 @@ Custom query builders may declare their binding-slot names through the third `Qu
 <a name="static-analysis"></a>
 ### Static Analysis
 
-The Hypervel database package includes a PHPStan extension that understands named scopes and query methods forwarded through Eloquent models, builders, and relationships. If your application uses `phpstan/extension-installer`, the extension is loaded automatically:
-
-```shell
-composer require --dev phpstan/extension-installer
-```
-
-Without the extension installer, add the package extension to your `phpstan.neon` file:
-
-```neon
-includes:
-    - vendor/hypervel/database/extension.neon
-```
+The Hypervel database package includes a PHPStan extension that understands named scopes and query methods forwarded through Eloquent models, builders, and relationships. See the [static analysis setup instructions](/docs/{{version}}/installation#static-analysis) to enable it in your application.
 
 A scope that declares no return type, or declares `void`, `null`, or the query builder, stays chainable. Declaring a broader type such as `mixed` or `object` tells the analyzer the scope may return something else, so that type is preserved. When a scope declares a union containing the query builder, such as `Builder|int`, the builder becomes the chainable receiver and the remaining types are kept.
 

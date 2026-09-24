@@ -13,7 +13,7 @@ class FormBuilder
     /**
      * Each step that should be executed.
      *
-     * @var array<int, \Hypervel\Prompts\FormStep>
+     * @var array<int, FormStep>
      */
     protected array $steps = [];
 

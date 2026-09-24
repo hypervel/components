@@ -69,7 +69,7 @@ class EloquentUserProvider implements UserProvider
     /**
      * The callback that may modify the user retrieval queries.
      *
-     * @var null|(Closure(Builder):mixed)
+     * @var null|(Closure(Builder<*>):mixed)
      */
     protected ?Closure $queryCallback = null;
 
@@ -589,6 +589,11 @@ class EloquentUserProvider implements UserProvider
 
     /**
      * Get a new query builder for the model instance.
+     *
+     * @template TModel of Model
+     *
+     * @param null|TModel $model
+     * @return Builder<TModel>
      */
     protected function newModelQuery(?Model $model = null): Builder
     {
@@ -666,7 +671,7 @@ class EloquentUserProvider implements UserProvider
     /**
      * Get the callback that modifies the query before retrieving users.
      *
-     * @return null|(Closure(Builder):mixed)
+     * @return null|(Closure(Builder<*>):mixed)
      */
     public function getQueryCallback(): ?Closure
     {
@@ -679,7 +684,7 @@ class EloquentUserProvider implements UserProvider
      * Boot or tests only. User providers are held by cached guards; runtime use
      * mutates the query applied to every subsequent authentication lookup.
      *
-     * @param null|(Closure(Builder):mixed) $queryCallback
+     * @param null|(Closure(Builder<*>):mixed) $queryCallback
      */
     public function withQuery(?Closure $queryCallback = null): static
     {

@@ -41,7 +41,7 @@ class Prune
     {
         return $this->context->withConnection(function (RedisConnection $connection) use ($scanCount): array {
             $pattern = $this->context->tagScanPattern();
-            $optPrefix = $this->context->optPrefix();
+            $optPrefix = $this->context->optPrefix($connection);
             $prefix = $this->context->prefix();
             $now = time();
 

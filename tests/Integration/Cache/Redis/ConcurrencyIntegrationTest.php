@@ -4,9 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Cache\Redis;
 
+use Generator;
+use Hypervel\Cache\Redis\Operations\AllTag\Flush as AllTagFlush;
+use Hypervel\Cache\Redis\Operations\AllTag\GetEntries;
+use Hypervel\Cache\Redis\Operations\AnyTag\Flush as AnyTagFlush;
+use Hypervel\Cache\Redis\Operations\AnyTag\GetTaggedKeys;
+use Hypervel\Cache\Redis\Operations\AnyTag\RemoveEmptyTags;
 use Hypervel\Cache\TagMode;
 use Hypervel\Coroutine\Parallel;
 use Hypervel\Support\Facades\Cache;
+use Hypervel\Support\LazyCollection;
+use Mockery as m;
+use Swoole\Coroutine\CanceledException;
 
 /**
  * Integration tests for concurrent cache operations.
@@ -196,34 +205,80 @@ class ConcurrencyIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertRaceBetweenPutAndFlush();
     }
 
+    /**
+     * Verify that flushing a scan snapshot preserves a later write's membership.
+     */
     private function assertRaceBetweenPutAndFlush(): void
     {
-        $isAnyMode = $this->getTagMode()->isAnyMode();
+        $cache = Cache::tags(['race-flush']);
+        $cache->forever('early', 'early-value');
+        $context = $this->store()->getContext();
 
-        // Add initial items
-        for ($i = 0; $i < 10; ++$i) {
-            Cache::tags(['race-flush'])->put("initial-{$i}", 'value', 60);
+        if ($this->getTagMode()->isAnyMode()) {
+            $reader = m::mock(GetTaggedKeys::class);
+            $reader->expects('execute')->with('race-flush')->andReturnUsing(function () use ($cache): Generator {
+                yield 'early';
+                // Publish after the scan snapshot, before its deletion chunk.
+                $cache->forever('late', 'late-value');
+            });
+            (new AnyTagFlush($context, $reader, new RemoveEmptyTags($context)))->execute(['race-flush']);
+            $this->assertTrue($this->anyModeRegistryHasTag('race-flush'));
+        } else {
+            $members = array_keys($this->getAllModeTagEntries('race-flush'));
+            $reader = m::mock(GetEntries::class);
+            $reader->expects('execute')->with([$context->tagId('race-flush')])
+                ->andReturn(new LazyCollection(function () use ($members, $cache): Generator {
+                    yield from $members;
+                    $cache->forever('late', 'late-value');
+                }));
+            (new AllTagFlush($context, $reader))->execute([$context->tagId('race-flush')]);
         }
 
-        // Flush
-        Cache::tags(['race-flush'])->flush();
+        $read = $this->getTagMode()->isAnyMode() ? $this->cache() : $cache;
+        $this->assertNull($read->get('early'));
+        $this->assertSame('late-value', $read->get('late'));
 
-        // Immediately add new items
-        for ($i = 0; $i < 5; ++$i) {
-            Cache::tags(['race-flush'])->put("new-{$i}", 'value', 60);
+        $cache->flush();
+        $this->assertNull($read->get('late'));
+    }
+
+    public function testInterruptedAnyModeFlushKeepsRemainingMembersDiscoverableByPrune(): void
+    {
+        $this->setTagMode(TagMode::Any);
+        $cache = Cache::tags(['interrupted', 'other']);
+
+        for ($index = 0; $index < 1001; ++$index) {
+            $cache->forever('key-' . $index, 'value');
         }
 
-        // New items should exist
-        for ($i = 0; $i < 5; ++$i) {
-            $value = $isAnyMode ? Cache::get("new-{$i}") : Cache::tags(['race-flush'])->get("new-{$i}");
-            $this->assertSame('value', $value);
+        $exception = new CanceledException('Flush canceled between chunks');
+        $reader = m::mock(GetTaggedKeys::class);
+        $reader->expects('execute')->with('interrupted')->andReturnUsing(function () use ($exception): Generator {
+            for ($index = 0; $index < 1000; ++$index) {
+                yield 'key-' . $index;
+            }
+
+            throw $exception;
+        });
+
+        try {
+            $context = $this->store()->getContext();
+            (new AnyTagFlush($context, $reader, new RemoveEmptyTags($context)))->execute(['interrupted']);
+            $this->fail('The flush must propagate cancellation.');
+        } catch (CanceledException $caught) {
+            $this->assertSame($exception, $caught);
         }
 
-        // Old items should be gone
-        for ($i = 0; $i < 10; ++$i) {
-            $value = $isAnyMode ? Cache::get("initial-{$i}") : Cache::tags(['race-flush'])->get("initial-{$i}");
-            $this->assertNull($value);
-        }
+        $this->assertNull(Cache::get('key-0'));
+        $this->assertSame('value', Cache::get('key-1000'));
+        $this->assertTrue($this->anyModeRegistryHasTag('interrupted'));
+
+        Cache::tags(['other'])->flush();
+        $this->assertTrue($this->anyModeTagHasEntry('interrupted', 'key-1000'));
+        $this->store()->anyTagOps()->prune()->execute();
+
+        $this->assertFalse($this->anyModeTagHasEntry('interrupted', 'key-1000'));
+        $this->assertFalse($this->anyModeRegistryHasTag('interrupted'));
     }
 
     // =========================================================================

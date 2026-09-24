@@ -8,6 +8,7 @@ use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use Hypervel\Prompts\Support\Utils;
 use Hypervel\Prompts\Terminal;
 use Mockery;
+use Mockery\MockInterface;
 use PHPUnit\Framework\Assert;
 use RuntimeException;
 
@@ -26,23 +27,22 @@ trait FakesInputOutput
         // Force interactive mode when testing because we will be mocking the terminal.
         static::interactive();
 
+        /** @var MockInterface&Terminal $mock */
         $mock = Mockery::mock(Terminal::class);
 
-        $mock->shouldReceive('write')->byDefault(); // @phpstan-ignore-line
-        $mock->shouldReceive('exit')->byDefault(); // @phpstan-ignore-line
-        $mock->shouldReceive('setTty')->byDefault(); // @phpstan-ignore-line
-        $mock->shouldReceive('restoreTty')->byDefault(); // @phpstan-ignore-line
-        $mock->shouldReceive('cols')->byDefault()->andReturn(80); // @phpstan-ignore-line
-        $mock->shouldReceive('lines')->byDefault()->andReturn(24); // @phpstan-ignore-line
-        $mock->shouldReceive('initDimensions')->byDefault(); // @phpstan-ignore-line
-        $mock->shouldReceive('supportsTrueColor')->byDefault()->andReturn(false); // @phpstan-ignore-line
+        $mock->shouldReceive('write')->byDefault();
+        $mock->shouldReceive('exit')->byDefault();
+        $mock->shouldReceive('setTty')->byDefault();
+        $mock->shouldReceive('restoreTty')->byDefault();
+        $mock->shouldReceive('cols')->byDefault()->andReturn(80);
+        $mock->shouldReceive('lines')->byDefault()->andReturn(24);
+        $mock->shouldReceive('initDimensions')->byDefault();
+        $mock->shouldReceive('supportsTrueColor')->byDefault()->andReturn(false);
 
         static::fakeKeyPresses($keys, function (string $key) use ($mock): void {
-            /* @phpstan-ignore-next-line */
             $mock->shouldReceive('read')->once()->andReturn($key);
         });
 
-        /* @phpstan-ignore-next-line */
         static::$terminal = $mock;
 
         // The fake models the decorated interactive terminal supplied above.

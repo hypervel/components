@@ -54,10 +54,8 @@ abstract class ServiceProvider
 
     /**
      * The migration paths available for publishing.
-     *
-     * @var array
      */
-    protected static $publishableMigrationPaths = [];
+    protected static array $publishableMigrationPaths = [];
 
     /**
      * Commands that should be run during the "optimize" command.
@@ -80,6 +78,9 @@ abstract class ServiceProvider
      */
     public static array $reloadCommands = [];
 
+    /**
+     * Create a new service provider instance.
+     */
     public function __construct(
         protected ApplicationContract $app
     ) {
@@ -378,7 +379,7 @@ abstract class ServiceProvider
             return $paths;
         }
 
-        return collect(static::$publishes)->reduce(function ($paths, $p) {
+        return (new Collection(static::$publishes))->reduce(function ($paths, $p) {
             return array_merge($paths, $p);
         }, []);
     }

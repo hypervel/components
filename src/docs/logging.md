@@ -347,6 +347,14 @@ use Hypervel\Support\Facades\Log;
 Log::channel('slack')->info('Something happened!');
 ```
 
+The `channel` and `driver` methods also accept enum cases. Backed enums use their values, while unit enums use their case names:
+
+```php
+use App\Enums\LogChannel;
+
+Log::channel(LogChannel::Slack)->info('Something happened!');
+```
+
 If you would like to create an on-demand logging stack consisting of multiple channels, you may use the `stack` method:
 
 ```php

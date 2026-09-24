@@ -103,7 +103,7 @@ class GetEntriesTest extends RedisCacheTestCase
     /**
      * @test
      */
-    public function testGetEntriesDeduplicatesWithinTag(): void
+    public function testGetEntriesReturnsTheMembersInEachPage(): void
     {
         $connection = $this->mockConnection();
         $connection->shouldReceive('zScan')
@@ -120,8 +120,7 @@ class GetEntriesTest extends RedisCacheTestCase
 
         $entries = $operation->execute(['_all:tag:users:entries']);
 
-        // array_unique is applied within each tag
-        $this->assertCount(2, $entries->all());
+        $this->assertSame(['key1', 'key2'], $entries->all());
     }
 
     /**
@@ -280,8 +279,7 @@ class GetEntriesTest extends RedisCacheTestCase
     /**
      * @test
      *
-     * Documents that deduplication is per-tag, not global. If the same key
-     * exists in multiple tags, it will appear multiple times in the result.
+     * If the same key exists in multiple tags, it will appear multiple times in the result.
      * This is intentional - the Flush operation handles this gracefully
      * (deleting a non-existent key is a no-op).
      */

@@ -138,13 +138,13 @@ class Decrement
             ];
 
             $args = [
-                $value,                            // ARGV[1]
-                $this->context->fullTagPrefix(),   // ARGV[2]
-                $this->context->fullRegistryKey(), // ARGV[3]
-                time(),                            // ARGV[4]
-                $key,                              // ARGV[5]
-                $this->context->tagHashSuffix(),   // ARGV[6]
-                ...$tags,                          // ARGV[7...]
+                $value,                                       // ARGV[1]
+                $this->context->fullTagPrefix($connection),   // ARGV[2]
+                $this->context->fullRegistryKey($connection), // ARGV[3]
+                time(),                                       // ARGV[4]
+                $key,                                         // ARGV[5]
+                $this->context->tagHashSuffix(),              // ARGV[6]
+                ...$tags,                                     // ARGV[7...]
             ];
 
             return $connection->evalWithShaCache($this->decrementWithTagsScript(), $keys, $args);

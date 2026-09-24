@@ -6,9 +6,6 @@ namespace Hypervel\Queue\Failed;
 
 use Throwable;
 
-/**
- * @method array ids(string $queue = null)
- */
 interface FailedJobProviderInterface
 {
     /**

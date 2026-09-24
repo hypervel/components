@@ -187,17 +187,17 @@ class EventFakeTest extends TestCase
         $this->assertEquals('bar', Event::fake()->foo());
     }
 
-    public function testShouldDispatchAfterCommitEventsAreNotDispatchedIfTransactionFails()
+    public function testShouldDispatchAfterCommitEventsAreNotDispatchedIfTransactionFails(): void
     {
         Event::fake();
 
         try {
-            DB::transaction(function () {
+            DB::transaction(function (): void {
                 Event::dispatch(new ShouldDispatchAfterCommitEvent);
 
                 throw new Exception('foo');
             });
-        } catch (Exception $e) {
+        } catch (Exception) {
         }
 
         Event::assertNotDispatched(ShouldDispatchAfterCommitEvent::class);

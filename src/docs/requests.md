@@ -330,6 +330,8 @@ You may retrieve all of the incoming request's input data as an `array` using th
 $input = $request->all();
 ```
 
+Pass a key or an array of keys to `all` to select specific fields. Passing an empty array returns an empty array; omit the argument or pass `null` to retrieve all input.
+
 Using the `collect` method, you may retrieve all of the incoming request's input data as a [collection](/docs/{{version}}/collections):
 
 ```php

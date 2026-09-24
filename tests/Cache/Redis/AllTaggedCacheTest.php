@@ -304,16 +304,8 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
                 return ['key1' => 0, 'key2' => 0];
             });
-        // Delete cache entries
-        $connection->shouldReceive('del')
-            ->once()
-            ->with('prefix:key1', 'prefix:key2')
-            ->andReturn(2);
-
-        // Delete tag set
-        $connection->shouldReceive('del')
-            ->once()
-            ->with('prefix:_all:tag:people:entries')
+        $connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:_all:tag:people:entries', 'prefix:key1', 'prefix:key2'], [1, 'key1', 'key2'])
             ->andReturn(1);
 
         $store = $this->createStore($connection);
@@ -334,13 +326,8 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
                 return ['key1' => 0, 'key2' => 0];
             });
-        $connection->shouldReceive('del')
-            ->once()
-            ->with('prefix:key1', 'prefix:key2')
-            ->andReturn(2);
-        $connection->shouldReceive('del')
-            ->once()
-            ->with('prefix:_all:tag:people:entries')
+        $connection->expects('evalWithShaCache')
+            ->with(m::type('string'), ['prefix:_all:tag:people:entries', 'prefix:key1', 'prefix:key2'], [1, 'key1', 'key2'])
             ->andReturn(1);
 
         $store = $this->createStore($connection);
@@ -1323,11 +1310,6 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
                 return [];
             });
-        $connection->shouldReceive('del')
-            ->once()
-            ->with('prefix:_all:tag:users:entries')
-            ->andReturn(1);
-
         $captured = [];
         $tagged = (new Repository($this->createStore($connection), ['store' => 'redis']))->tags(['users']);
         $tagged->setEventDispatcher($this->capturingDispatcher($captured));

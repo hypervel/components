@@ -28,8 +28,8 @@ class MorphPivot extends Pivot
     /**
      * Set the keys for a save update query.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<static> $query
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @param Builder<static> $query
+     * @return Builder<static>
      */
     protected function setKeysForSaveQuery(Builder $query): Builder
     {
@@ -41,8 +41,8 @@ class MorphPivot extends Pivot
     /**
      * Set the keys for a select query.
      *
-     * @param \Hypervel\Database\Eloquent\Builder<static> $query
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @param Builder<static> $query
+     * @return Builder<static>
      */
     protected function setKeysForSelectQuery(Builder $query): Builder
     {
@@ -133,7 +133,7 @@ class MorphPivot extends Pivot
     /**
      * Get a new query to restore one or more models by their queueable IDs.
      *
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @return Builder<static>
      */
     public function newQueryForRestoration(array|int|string $ids): Builder
     {
@@ -156,7 +156,7 @@ class MorphPivot extends Pivot
     /**
      * Get a new query to restore multiple models by their queueable IDs.
      *
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @return Builder<static>
      */
     protected function newQueryForCollectionRestoration(array $ids): Builder
     {

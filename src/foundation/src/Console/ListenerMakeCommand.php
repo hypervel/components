@@ -9,7 +9,6 @@ use Hypervel\Console\GeneratorCommand;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 use function Hypervel\Prompts\suggest;
@@ -20,9 +19,13 @@ class ListenerMakeCommand extends GeneratorCommand
     use CreatesMatchingTest;
 
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'make:listener';
+    protected ?string $signature = 'make:listener
+                    {name : The name of the listener}
+                    {--e|event= : The event class being listened for}
+                    {--f|force : Create the class even if the listener already exists}
+                    {--queued : Indicates the event listener should be queued}';
 
     /**
      * The console command description.
@@ -102,18 +105,6 @@ class ListenerMakeCommand extends GeneratorCommand
     protected function getDefaultNamespace(string $rootNamespace): string
     {
         return $rootNamespace . '\Listeners';
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['event', 'e', InputOption::VALUE_OPTIONAL, 'The event class being listened for'],
-            ['force', 'f', InputOption::VALUE_NONE, 'Create the class even if the listener already exists'],
-            ['queued', null, InputOption::VALUE_NONE, 'Indicates the event listener should be queued'],
-        ];
     }
 
     /**

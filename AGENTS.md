@@ -117,6 +117,8 @@ If a check fails, use targeted checks while correcting the issue, then run the f
 
 The Working rules and the Avoid overengineering rules apply to all work in this repo. The Code conventions apply to newly written code. Laravel package ports preserve upstream naming, structure, and style except for the approved adaptations under Porting Packages. Hyperf ports follow `docs/ai/porting-hyperf.md`.
 
+Apply approved adaptations when porting or modifying code. Do not expand a change solely to apply style or modernization conventions elsewhere, unless that cleanup was explicitly requested.
+
 ### Working rules
 
 - **Never use subagents without explicit user consent** — Do not spawn or delegate work to subagents unless the user explicitly requests or approves their use.
@@ -175,7 +177,7 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 - **Contract signature dependencies are lazy** — contract signatures may natively reference types from optional split packages without a reverse Composer dependency. Do not remove these types or add cyclic dependencies solely for split-package isolation.
 - **Newly written classes use dependency injection** — inject contracts (e.g. `Repository $config`, `CacheRepository $cache`) via constructor or method injection rather than helpers, facades, or `new` for framework services. Dependencies become explicit in signatures and tests swap them in directly, without facade-mocking machinery. Fall back to `Container::getInstance()->make(...)` only where injection isn't possible — static contexts and traits, like the testing package's Concerns. Helpers (`config()`, `cache()`) are fine in non-class contexts such as route and config files.
 - **Never convert ported code to dependency injection** — ported code keeps its upstream facade, helper, and instantiation style. Converting it restructures classes and breaks 1:1 upstream mergeability.
-- **Use imported short class names** — applies to new and ported code. Replace fully or partially qualified class references with imported short names; use aliases for naming collisions. Classes in the current namespace need no import. Keep fully qualified names where genuinely clearer, such as middleware arrays and similar config-style identifier lists.
+- **Use imported short class names** — applies to new and ported code, including PHPDoc annotations. Replace fully or partially qualified class references with imported short names; use aliases for naming collisions. Classes in the current namespace need no import. Keep fully qualified names where genuinely clearer, such as middleware arrays and similar config-style identifier lists.
 - **Group traits in `Concerns/`** — follow the package's existing convention if it already has a `Concerns/` or `Traits/` directory; never mix both in one package. New Hypervel-original packages always use `Concerns/`; a newly ported package keeps its upstream directory name.
 - **Use Laravel observer conventions** — place Eloquent observers in a top-level `Observers/` directory. Register model-specific observers with `#[ObservedBy(...)]`; use `observe()` only for dynamic registration or observers supplied automatically by a reusable concern.
 - **Use attributed local scopes** — define local Eloquent query scopes as protected methods marked with `#[Scope]`, rather than legacy public `scopeFoo()` methods. Use separate scope classes only for genuine global scopes.
@@ -186,7 +188,7 @@ Build complete, long-term solutions, not MVPs or local workarounds. A broad chan
 - **Only extract methods when justified** — extract only when the logic is complex enough to benefit from a name, it's likely to be reused, or two or more methods call it. Don't extract a simple one-liner with a single caller.
 - **Never abbreviate variable names** — `$attributes` not `$attrs`, `$connection` not `$conn`.
 - **Enum cases use PascalCase by default** — `case Pending` not `case pending`, `case OauthToken` not `case OAUTH_TOKEN`. Applies to both backed and unit enums. **Exception:** when `->name` is used as an external identifier (cache keys, cookie names, filesystem disks, rate limiter names, timezone strings) or appears in serialized output (e.g., `toArray()` returning `'name' => $this->name`), match the consuming system's convention (typically lowercase or snake_case).
-- **Strict comparisons only** — always `===` and `!==`, never `==` or `!=`. Loose comparison causes subtle bugs. When converting an upstream loose comparison, match the operand's real type — `$value === 0.0` for a float, not `=== 0`. If upstream relies on loose coercion intentionally, normalize the value explicitly before comparing strictly — don't silently change the contract.
+- **Strict comparisons by default** — Use `===` and `!==` in newly written code unless the supported API requires loose comparison. When converting an upstream comparison, verify operand types (`$value === 0.0` for a float, not `=== 0`) and preserve its behavior, including coercion and object equality. Keep loose comparisons where their semantics are intentional and needed to preserve supported behavior; do not replace them solely for consistency.
 - **Prefer union types over `mixed` when all types are known** — `mixed` is only for truly unconstrained values or cases that cannot be safely narrowed after control-flow analysis.
 - **Type decisions must be evidence-based** — check corresponding Laravel/Hyperf signatures and docblocks as a reference, then trace the real control flow through method bodies across all callers and callees to confirm the types are correct.
 - **Fail fast with framework and PHP exceptions** — don't add guards, wrapping, or defensive checks unless they handle a reachable invalid case or materially improve the error, and never swallow exceptions. If code would fail anyway (e.g. null passed to a typed parameter), let it fail naturally instead of adding a check that throws a custom exception — the stack trace is enough to diagnose.
@@ -839,7 +841,7 @@ When ported code adds a provider or listener, wire providers and aliases in both
 
 Follow the same cp-then-edit process as source files. This workflow applies to both Hyperf and Laravel test porting. Laravel-specific conversions are covered in Porting Laravel Tests below; Hyperf-specific conversions (namespaces, license headers, container and error-handler mocking, NonCoroutine tests) are covered in `docs/ai/porting-hyperf.md`.
 
-Test file names and directory structure should mirror the source for both Laravel and Hyperf ports, providing a 1:1 class-to-test mapping. For Laravel ports, this also enables automated porting of upstream PRs. When both Hyperf and Laravel have tests covering the same class, merge them into one file — take the more comprehensive version as the base and add unique tests from the other.
+Test file names and directory structure should mirror the source for both Laravel and Hyperf ports, providing a 1:1 class-to-test mapping. For Laravel ports, this also enables automated porting of upstream PRs. When both Hyperf and Laravel have tests covering the same class, merge them into one file — take the more comprehensive version as the base and add unique tests from the other. Consolidate overlapping coverage under upstream test names and placement, preserving stronger assertions and distinct Hypervel-specific coverage rather than redundant tests.
 
 #### 1. Audit source tests
 
@@ -855,7 +857,7 @@ Read all files in the existing Hypervel test directory for this package. Categor
 
 One entry per test file. Note the strategy:
 - **Copy and update** — no existing Hypervel test for this
-- **Merge** — Hypervel already has a test file with custom tests that must be preserved alongside the ported source tests
+- **Merge** — Merge upstream tests into the existing Hypervel test file, preserving distinct Hypervel-specific coverage
 - **Integration** — needs external service, goes in `tests/Integration/{PackageName}/`
 - **Investigate** — exposes missing functionality, an unsupported feature, or an architectural difference. STOP and explain what the test covers, whether Hypervel should support it, and your recommended fix or removal.
 
@@ -868,7 +870,7 @@ One entry per test file. Note the strategy:
 
 **For merged files:**
 1. Read BOTH the source file AND the existing Hypervel file
-2. Merge source tests into the Hypervel file, preserving all Hypervel-specific tests
+2. Merge source tests into the Hypervel file, preserving distinct Hypervel-specific coverage
 3. Update namespaces, types, docblocks, etc.
 
 **For stub/helper files:** Copy `Stub/` directory files the same way.

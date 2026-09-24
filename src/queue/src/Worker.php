@@ -36,6 +36,7 @@ use Hypervel\Queue\Events\WorkerQueueResumed;
 use Hypervel\Queue\Events\WorkerResuming;
 use Hypervel\Queue\Events\WorkerStarting;
 use Hypervel\Queue\Events\WorkerStopping;
+use Hypervel\Queue\QueueManager as ConcreteQueueManager;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
@@ -172,7 +173,7 @@ class Worker
      *
      * @var callable[]
      */
-    protected static $popCallbacks = [];
+    protected static array $popCallbacks = [];
 
     /**
      * The custom exit code to be used when memory is exceeded.
@@ -558,6 +559,9 @@ class Worker
         return (bool) count($this->timeoutJobIds);
     }
 
+    /**
+     * Handle a job that exceeded its timeout.
+     */
     protected function handleTimeoutJob(JobContract $job, WorkerOptions $options): void
     {
         $this->markJobAsFailedIfWillExceedMaxAttempts(
@@ -582,7 +586,8 @@ class Worker
         if ($this->events->hasListeners(JobTimedOut::class)) {
             $this->events->dispatch(new JobTimedOut(
                 $job->getConnectionName(),
-                $job
+                $job,
+                $this->timeoutForJob($job, $options)
             ));
         }
     }
@@ -754,7 +759,7 @@ class Worker
             return [];
         }
 
-        /** @var \Hypervel\Queue\QueueManager $manager */
+        /** @var ConcreteQueueManager $manager */
         $manager = $this->manager;
 
         return $manager->getPausedQueues($connectionName, $queues);
@@ -1457,7 +1462,7 @@ class Worker
      */
     public function sleep(float|int $seconds): void
     {
-        Sleep::usleep((int) ($seconds * 1000000));
+        Sleep::usleep((int) ($seconds * 1_000_000));
     }
 
     /**

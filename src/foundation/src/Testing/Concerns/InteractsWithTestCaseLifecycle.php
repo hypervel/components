@@ -63,7 +63,6 @@ trait InteractsWithTestCaseLifecycle
     {
         Facade::clearResolvedInstances();
 
-        /* @phpstan-ignore-next-line */
         if (! $this->app) {
             $this->refreshApplication();
 
