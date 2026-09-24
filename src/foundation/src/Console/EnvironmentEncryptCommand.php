@@ -46,8 +46,10 @@ class EnvironmentEncryptCommand extends Command
     {
         $cipher = $this->option('cipher') ?: 'AES-256-CBC';
 
+        // The environment file may be in a subdirectory of the environment path, and the
+        // bootstrapper loads named environment files beside it.
         $environmentFile = $this->option('env')
-            ? Str::finish($this->hypervel->environmentPath(), DIRECTORY_SEPARATOR) . '.env.' . $this->option('env')
+            ? Str::finish(dirname($this->hypervel->environmentFilePath()), DIRECTORY_SEPARATOR) . '.env.' . $this->option('env')
             : $this->hypervel->environmentFilePath();
 
         $encryptedFile = $environmentFile . '.encrypted';
