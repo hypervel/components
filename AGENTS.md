@@ -413,7 +413,7 @@ In any test, PHPUnit assertion failures, skips, and incomplete markers extend `A
 
 ### Directory layout
 
-All tests live in `tests/{PackageName}/` (PascalCase). Tests that require external services go in `tests/Integration/{PackageName}/` — see Integration tests below. When only some integration tests for a package require one service, group them in `tests/Integration/{PackageName}/{ServiceName}/`. When every integration test for the package requires that service, keep them directly in the package directory.
+Laravel-ported tests follow upstream placement; the rules below apply to Hypervel-only test files. All tests live in `tests/{PackageName}/` (PascalCase). Tests that require external services go in `tests/Integration/{PackageName}/` — see Integration tests below. When only some integration tests for a package require one service, group them in `tests/Integration/{PackageName}/{ServiceName}/`. When every integration test for the package requires that service, keep them directly in the package directory.
 
 Package-specific tests that require one database driver go in `tests/Integration/{PackageName}/Database/{Postgres|MySql|MariaDb|Sqlite}/`. The database workflows discover these directories by convention.
 
