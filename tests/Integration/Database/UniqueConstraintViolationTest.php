@@ -99,6 +99,8 @@ class UniqueConstraintViolationTest extends DatabaseTestCase
         $this->assertSame('unique_composite_idx', $e->index);
         $this->assertSame(['first_name', 'last_name'], $e->columns);
     }
+
+    // REMOVED: SQL Server unique constraint tests; SQL Server is not supported.
 }
 
 class UniqueSingleModel extends Model
