@@ -268,11 +268,11 @@ class BroadcastManager implements BroadcastingFactoryContract
     }
 
     /**
-     * Get a driver instance.
+     * Get a broadcaster instance by name.
      */
-    public function connection(UnitEnum|string|null $driver = null): Broadcaster
+    public function connection(UnitEnum|string|null $name = null): Broadcaster
     {
-        return $this->driver($driver);
+        return $this->driver($name);
     }
 
     /**

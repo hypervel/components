@@ -147,37 +147,37 @@ class ValidatedInput implements ValidatedData
     /**
      * Determine if an item exists at an offset.
      */
-    public function offsetExists(mixed $key): bool
+    public function offsetExists(mixed $offset): bool
     {
-        return $this->exists($key);
+        return $this->exists($offset);
     }
 
     /**
      * Get an item at a given offset.
      */
-    public function offsetGet(mixed $key): mixed
+    public function offsetGet(mixed $offset): mixed
     {
-        return $this->input($key);
+        return $this->input($offset);
     }
 
     /**
      * Set the item at a given offset.
      */
-    public function offsetSet(mixed $key, mixed $value): void
+    public function offsetSet(mixed $offset, mixed $value): void
     {
-        if (is_null($key)) {
+        if (is_null($offset)) {
             $this->input[] = $value;
         } else {
-            $this->input[$key] = $value;
+            $this->input[$offset] = $value;
         }
     }
 
     /**
      * Unset the item at a given offset.
      */
-    public function offsetUnset(mixed $key): void
+    public function offsetUnset(mixed $offset): void
     {
-        unset($this->input[$key]);
+        unset($this->input[$offset]);
     }
 
     /**

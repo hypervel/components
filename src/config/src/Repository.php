@@ -257,21 +257,21 @@ class Repository implements ArrayAccess, ConfigContract
     /**
      * Determine if the given configuration option exists.
      *
-     * @param int|string $key
+     * @param int|string $offset
      */
-    public function offsetExists($key): bool
+    public function offsetExists($offset): bool
     {
-        return $this->has((string) $key);
+        return $this->has((string) $offset);
     }
 
     /**
      * Get a configuration option.
      *
-     * @param int|string $key
+     * @param int|string $offset
      */
-    public function offsetGet($key): mixed
+    public function offsetGet($offset): mixed
     {
-        return $this->get((string) $key);
+        return $this->get((string) $offset);
     }
 
     /**
@@ -281,12 +281,12 @@ class Repository implements ArrayAccess, ConfigContract
      * per-request mutation races across coroutines and affects every concurrent
      * request.
      *
-     * @param int|string $key
+     * @param int|string $offset
      * @param mixed $value
      */
-    public function offsetSet($key, $value): void
+    public function offsetSet($offset, $value): void
     {
-        $this->set((string) $key, $value);
+        $this->set((string) $offset, $value);
     }
 
     /**
@@ -296,11 +296,11 @@ class Repository implements ArrayAccess, ConfigContract
      * per-request mutation races across coroutines and affects every concurrent
      * request.
      *
-     * @param int|string $key
+     * @param int|string $offset
      */
-    public function offsetUnset($key): void
+    public function offsetUnset($offset): void
     {
-        $this->set((string) $key, null);
+        $this->set((string) $offset, null);
     }
 
     /**
