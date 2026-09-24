@@ -274,15 +274,7 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
             : $rootNamespace . $model;
     }
 
-    /**
-     * Get a list of possible model names.
-     *
-     * @return array<int, string>
-     */
-    protected function possibleModels(): array
-    {
-        return $this->findAvailableModels();
-    }
+    // Laravel's deprecated possibleModels() alias is omitted; use findAvailableModels().
 
     /**
      * Get a list of possible event names.

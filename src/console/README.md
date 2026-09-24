@@ -7,6 +7,8 @@ Console for Hypervel
 
 `CommandInput::all([])` returns an empty array. Use `all()` to retrieve all command input.
 
+Laravel's deprecated `GeneratorCommand::possibleModels()` alias is not ported. Generator commands should call `findAvailableModels()` instead.
+
 `schedule:run` is a long-running process by default and replaces `schedule:work`. Use `schedule:run --once` in cron entries. See the [scheduling documentation](https://hypervel.org/docs/scheduling#running-the-scheduler).
 
 Scheduled tasks do not support `user()`. Run the scheduler as the required OS user, or use `exec()` with an explicit command to run an individual task as another user.
