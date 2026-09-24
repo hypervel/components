@@ -8,6 +8,7 @@ use Hypervel\ConnectionPool\Exceptions\ConnectionException;
 use Hypervel\ConnectionPool\PoolOptions;
 use Hypervel\Contracts\ConnectionPool\ConnectionPool;
 use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Redis\Exceptions\InvalidRedisOptionException;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\PhpRedisClusterConnection;
 use Hypervel\Tests\Redis\Fixtures\FakeRedisClusterClient;
@@ -746,13 +747,16 @@ class PhpRedisClusterConnectionTest extends TestCase
         ];
     }
 
-    public function testClusterOptionsUseNativeFailoverAndTcpKeepaliveConstants(): void
+    public function testClusterOptionsUseNativeFailoverAndPackIgnoreNumbersConstants(): void
     {
         if (! defined(Redis::class . '::OPT_PACK_IGNORE_NUMBERS')) {
             $this->markTestSkipped('PhpRedis does not support OPT_PACK_IGNORE_NUMBERS.');
         }
 
-        $connection = new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig(['options' => ['failover' => RedisCluster::FAILOVER_DISTRIBUTE, 'tcp_keepalive' => 30, 'pack_ignore_numbers' => true]])) extends PhpRedisClusterConnectionStub {
+        $connection = new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig(['options' => ['failover' => RedisCluster::FAILOVER_DISTRIBUTE, 'pack_ignore_numbers' => true]])) extends PhpRedisClusterConnectionStub {
+            /**
+             * Apply the configured options to the given client.
+             */
             public function setOptionsForTest(RedisCluster $redis): void
             {
                 $this->setOptions($redis);
@@ -763,14 +767,46 @@ class PhpRedisClusterConnectionTest extends TestCase
             ->with(RedisCluster::OPT_SLAVE_FAILOVER, RedisCluster::FAILOVER_DISTRIBUTE)
             ->andReturnTrue();
         $redis->expects('setOption')
-            ->with(Redis::OPT_TCP_KEEPALIVE, 30)
-            ->andReturnTrue();
-        $redis->expects('setOption')
             ->with(Redis::OPT_PACK_IGNORE_NUMBERS, true)
             ->andReturnTrue();
         $this->expectDefaultConnectionOptions($redis);
 
         $connection->setOptionsForTest($redis);
+    }
+
+    #[DataProvider('clusterTcpKeepaliveConfigurations')]
+    public function testClusterRejectsTcpKeepalive(array $config): void
+    {
+        $connection = new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig($config)) extends PhpRedisClusterConnectionStub {
+            /**
+             * Apply the configured options to the given client.
+             */
+            public function setOptionsForTest(RedisCluster $redis): void
+            {
+                $this->setOptions($redis);
+            }
+        };
+        $redis = m::mock(RedisCluster::class);
+        $this->expectDefaultConnectionOptions($redis);
+
+        $this->expectExceptionObject(new InvalidRedisOptionException(
+            'The redis option `tcp_keepalive` is not supported for Redis Cluster connections.'
+        ));
+
+        $connection->setOptionsForTest($redis);
+    }
+
+    /**
+     * Provide Cluster configurations that set TCP keepalive.
+     */
+    public static function clusterTcpKeepaliveConfigurations(): array
+    {
+        return [
+            'connection level' => [['tcp_keepalive' => 30]],
+            'named option' => [['options' => ['tcp_keepalive' => 30]]],
+            'named option set to zero' => [['options' => ['tcp_keepalive' => 0]]],
+            'native option set to zero' => [['options' => [Redis::OPT_TCP_KEEPALIVE => 0]]],
+        ];
     }
 
     public function testFormatClusterPasswordReturnsPlainPasswordWithoutUsername(): void
