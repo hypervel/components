@@ -129,7 +129,9 @@ class RequestTest extends TestCase
 
     public function testCloneOwnsIndependentInitializedRequestState(): void
     {
+        $this->assertNull((new ContainerRequestStub)->url());
         $request = (new ContainerRequestStub)
+            ->withUrl('https://api.example.test/users/1')
             ->withHeader('X-Original', 'yes')
             ->withQueryParameters(['page' => 1])
             ->withOptions(['verify' => true])
@@ -142,6 +144,7 @@ class RequestTest extends TestCase
 
         $clone = clone $request;
         $clone
+            ->withUrl('https://api.example.test/users/2')
             ->withHeader('X-Clone', 'yes')
             ->withQueryParameters(['page' => 2])
             ->withOptions(['verify' => false])
@@ -153,6 +156,8 @@ class RequestTest extends TestCase
             ->invalidateCache();
         $clone->middleware()->onRequest(static fn ($pendingRequest) => $pendingRequest, 'clone');
 
+        $this->assertSame('https://api.example.test/users/1', $request->url());
+        $this->assertSame('https://api.example.test/users/2', $clone->url());
         $this->assertSame('yes', $request->headers()['X-Original']);
         $this->assertSame('application/json', $request->headers()['Content-Type']);
         $this->assertSame(['page' => 1], $request->queryParameters());

@@ -197,6 +197,42 @@ class CacheTest extends TestCase
         $http->assertSentCount(3);
     }
 
+    public function testRequestTypeCanOptOutOfConnectorCachingWithoutCacheControls(): void
+    {
+        $http = $this->http();
+        $http->fake(['*' => $http->sequence()->push(['version' => 1])->push(['version' => 2])]);
+        $manager = $this->manager($http);
+        $connector = new CacheableConnectorStub;
+        $request = new class extends Request {
+            protected Method $method = Method::GET;
+
+            /**
+             * Resolve the uncached endpoint.
+             */
+            public function resolveEndpoint(): string
+            {
+                return '/live';
+            }
+
+            /**
+             * Keep this request type out of connector caching.
+             */
+            public function cachingEnabled(): bool
+            {
+                return false;
+            }
+        };
+
+        $first = $manager->send($connector, $request);
+        $second = $manager->send($connector, $request);
+
+        $this->assertSame(1, $first->json('version'));
+        $this->assertSame(2, $second->json('version'));
+        $this->assertFalse($first->isCached());
+        $this->assertFalse($second->isCached());
+        $http->assertSentCount(2);
+    }
+
     public function testSaloonFakesDoNotReadOrPopulateTheCache(): void
     {
         $http = $this->http();

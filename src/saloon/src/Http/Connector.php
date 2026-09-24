@@ -22,7 +22,7 @@ use Hypervel\Support\Traits\Macroable;
 use Throwable;
 use UnitEnum;
 
-/** @template TDto */
+/** @template-covariant TDto */
 abstract class Connector
 {
     /** @use CreatesDtoFromResponse<TDto> */

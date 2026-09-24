@@ -7,6 +7,7 @@ use Hypervel\Saloon\Http\BaseResource;
 use Hypervel\Saloon\Http\Connector;
 use Hypervel\Saloon\Http\Request;
 use Hypervel\Saloon\Http\Response;
+use Hypervel\Saloon\Http\SoloRequest;
 
 use function PHPStan\Testing\assertType;
 
@@ -25,6 +26,30 @@ class SaloonTypeGetUserRequest extends Request
     }
 
     /** @param Response<SaloonTypeUserData> $response */
+    public function createDtoFromResponse(Response $response): SaloonTypeUserData
+    {
+        return new SaloonTypeUserData;
+    }
+}
+
+/** @extends SoloRequest<SaloonTypeUserData> */
+class SaloonTypeGetUserSoloRequest extends SoloRequest
+{
+    protected Method $method = Method::GET;
+
+    /**
+     * Resolve the standalone user endpoint.
+     */
+    public function resolveEndpoint(): string
+    {
+        return 'https://example.com/user';
+    }
+
+    /**
+     * Create the user data object.
+     *
+     * @param Response<mixed> $response
+     */
     public function createDtoFromResponse(Response $response): SaloonTypeUserData
     {
         return new SaloonTypeUserData;
@@ -75,3 +100,7 @@ assertType('Hypervel\Saloon\Http\Response<SaloonTypeUserData>', $response);
 assertType(SaloonTypeUserData::class, $response->dto());
 assertType(SaloonTypeUserData::class, $response->dtoOrFail());
 assertType('Hypervel\Saloon\Http\Request<SaloonTypeUserData>', $response->request());
+
+$soloRequest = new SaloonTypeGetUserSoloRequest;
+assertType(SaloonTypeUserData::class, $soloRequest->send()->dto());
+assertType(SaloonTypeUserData::class, (new SaloonTypeConnector)->send($soloRequest)->dto());

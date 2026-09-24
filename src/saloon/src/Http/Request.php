@@ -23,7 +23,7 @@ use Hypervel\Support\Traits\Macroable;
 use LogicException;
 use UnitEnum;
 
-/** @template TDto */
+/** @template-covariant TDto */
 abstract class Request implements SelfBuilding
 {
     /** @use CreatesDtoFromResponse<TDto> */
@@ -46,6 +46,11 @@ abstract class Request implements SelfBuilding
      * The HTTP method used by the request.
      */
     protected Method $method;
+
+    /**
+     * The caller-supplied absolute URL override.
+     */
+    protected ?string $url = null;
 
     /**
      * Create a fresh request for container resolution.
@@ -73,6 +78,24 @@ abstract class Request implements SelfBuilding
     abstract public function resolveEndpoint(): string;
 
     /**
+     * Get the absolute URL override.
+     */
+    public function url(): ?string
+    {
+        return $this->url;
+    }
+
+    /**
+     * Replace the connector base URL and request endpoint.
+     */
+    public function withUrl(string $url): static
+    {
+        $this->url = $url;
+
+        return $this;
+    }
+
+    /**
      * Resolve whether this request may replace the connector base URL.
      */
     public function allowsBaseUrlOverride(): ?bool
@@ -92,8 +115,6 @@ abstract class Request implements SelfBuilding
 
     /**
      * Determine if caching is enabled for this request.
-     *
-     * @internal
      */
     public function cachingEnabled(): bool
     {

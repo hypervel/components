@@ -11,6 +11,7 @@ use Hypervel\Http\Client\Factory;
 use Hypervel\RateLimiter\RateLimiter;
 use Hypervel\Saloon\Data\OAuthConfig;
 use Hypervel\Saloon\Exceptions\InvalidStateException;
+use Hypervel\Saloon\Exceptions\PendingRequestException;
 use Hypervel\Saloon\Http\Connector;
 use Hypervel\Saloon\Http\Faking\MockClient;
 use Hypervel\Saloon\Http\Faking\MockResponse;
@@ -31,6 +32,7 @@ use Hypervel\Support\Facades\Date;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use UnexpectedValueException;
 
 class OAuthGrantTest extends TestCase
@@ -171,6 +173,78 @@ class OAuthGrantTest extends TestCase
             $mockClient->assertSentCount(3);
         } finally {
             Date::setTestNow();
+        }
+    }
+
+    #[DataProvider('refreshEndpoints')]
+    public function testRefreshUsesTheConfiguredEndpoint(?string $endpoint, bool $allowOverride, string $expected): void
+    {
+        $manager = $this->manager();
+        $mockClient = $manager->fake([
+            GetRefreshTokenRequest::class => function (PendingRequest $pendingRequest) use ($expected): MockResponse {
+                $this->assertSame($expected, (string) $pendingRequest->uri());
+                $this->assertSame([
+                    'grant_type' => 'refresh_token',
+                    'refresh_token' => 'refresh',
+                    'client_id' => 'client',
+                    'client_secret' => 'secret',
+                ], $pendingRequest->body());
+                $this->assertSame('configured', $pendingRequest->headers()['X-OAuth']);
+                $this->assertSame('per-call', $pendingRequest->headers()['X-Request']);
+
+                return MockResponse::make(['access_token' => 'renewed']);
+            },
+        ]);
+        $config = new OAuthConfig(
+            clientId: 'client',
+            clientSecret: 'secret',
+            redirectUri: 'https://app.example.com/callback',
+            tokenEndpoint: 'oauth/token',
+            refreshEndpoint: $endpoint,
+            requestModifier: fn (Request $request) => $request->withHeader('X-OAuth', 'configured'),
+            allowBaseUrlOverride: $allowOverride,
+        );
+
+        $authenticator = (new AuthorizationCodeConnectorStub($manager, $config))->refreshAccessToken(
+            'refresh',
+            requestModifier: fn (Request $request) => $request->withHeader('X-Request', 'per-call'),
+        );
+
+        $this->assertSame('renewed', $authenticator->getAccessToken());
+        $this->assertSame('refresh', $authenticator->getRefreshToken());
+        $mockClient->assertSentCount(1);
+    }
+
+    /**
+     * Provide refresh endpoints and their resolved URLs.
+     */
+    public static function refreshEndpoints(): array
+    {
+        return [
+            'token endpoint default' => [null, false, 'https://provider.example.com/oauth/token'],
+            'relative refresh endpoint' => ['oauth/refresh?audience=users', false, 'https://provider.example.com/oauth/refresh?audience=users'],
+            'trusted absolute refresh endpoint' => ['https://oauth.example.net/refresh', true, 'https://oauth.example.net/refresh'],
+        ];
+    }
+
+    public function testAbsoluteRefreshEndpointRequiresOverridePermission(): void
+    {
+        $manager = $this->manager();
+        $mockClient = $manager->fake([MockResponse::make(['access_token' => 'renewed'])]);
+        $connector = new AuthorizationCodeConnectorStub($manager, new OAuthConfig(
+            clientId: 'client',
+            clientSecret: 'secret',
+            redirectUri: 'https://app.example.com/callback',
+            refreshEndpoint: 'https://oauth.example.net/refresh',
+        ));
+
+        $this->expectException(PendingRequestException::class);
+        $this->expectExceptionMessage('The request endpoint cannot replace the connector base URL.');
+
+        try {
+            $connector->refreshAccessToken('refresh');
+        } finally {
+            $mockClient->assertNothingSent();
         }
     }
 
