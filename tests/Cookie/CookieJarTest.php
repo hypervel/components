@@ -105,20 +105,20 @@ class CookieJarTest extends TestCase
         $cookie->queue('invalidCookie');
     }
 
-    public function testQueuedCookiesWithHandlingEmptyValues()
+    public function testQueuedCookiesWithHandlingEmptyValues(): void
     {
         $cookie = new CookieJar;
         $cookie->queue($cookie->make('foo', ''));
         $this->assertTrue($cookie->hasQueued('foo'));
-        $this->assertEquals('', $cookie->queued('foo')->getValue());
+        $this->assertSame('', $cookie->queued('foo')->getValue());
     }
 
-    public function testQueuedCookiesWithRepeatedValue()
+    public function testQueuedCookiesWithRepeatedValue(): void
     {
         $cookie = new CookieJar;
         $cookie->queue($cookie->make('foo', 'newBar'));
         $this->assertTrue($cookie->hasQueued('foo'));
-        $this->assertEquals('newBar', $cookie->queued('foo')->getValue());
+        $this->assertSame('newBar', $cookie->queued('foo')->getValue());
 
         $this->expectException(ArgumentCountError::class);
         $cookie->queue('invalidCookie');

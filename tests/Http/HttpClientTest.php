@@ -3020,7 +3020,7 @@ class HttpClientTest extends TestCase
 
         $exception->report();
 
-        $this->assertEquals("HTTP request returned status code 403:\n[\"e (truncated...)\n", $exception->getMessage());
+        $this->assertSame("HTTP request returned status code 403:\n[\"e (truncated...)\n", $exception->getMessage());
 
         $this->assertFalse(RequestException::$truncateAt);
     }
@@ -4577,7 +4577,7 @@ class HttpClientTest extends TestCase
 
         $this->assertNotNull($exception);
         $this->assertInstanceOf(Exception::class, $exception);
-        $this->assertEquals('Foo bar', $exception->getMessage());
+        $this->assertSame('Foo bar', $exception->getMessage());
 
         $this->factory->assertSentCount(1);
     }
@@ -4602,7 +4602,7 @@ class HttpClientTest extends TestCase
 
         $this->assertNotNull($exception);
         $this->assertInstanceOf(Exception::class, $exception);
-        $this->assertEquals('Foo bar', $exception->getMessage());
+        $this->assertSame('Foo bar', $exception->getMessage());
 
         $this->factory->assertSentCount(1);
     }

@@ -139,7 +139,7 @@ class ValidationExceptionTest extends TestCase
         $exception = $this->getException([], ['foo' => 'required']);
         $exception->errorBag('milwad');
 
-        $this->assertEquals('milwad', $exception->errorBag);
+        $this->assertSame('milwad', $exception->errorBag);
     }
 
     public function testExceptionRedirectToOneError()
@@ -147,7 +147,7 @@ class ValidationExceptionTest extends TestCase
         $exception = $this->getException([], ['foo' => 'required']);
         $exception->redirectTo('https://google.com');
 
-        $this->assertEquals('https://google.com', $exception->redirectTo);
+        $this->assertSame('https://google.com', $exception->redirectTo);
     }
 
     public function testExceptionGetResponseOneError()

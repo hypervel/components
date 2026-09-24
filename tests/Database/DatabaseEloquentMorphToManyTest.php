@@ -144,7 +144,18 @@ class DatabaseEloquentMorphToManyTest extends TestCase
         $queryBuilder->shouldReceive('getConnection')->andReturn($connection);
         $builder->shouldReceive('getQuery')->andReturn($queryBuilder);
 
-        return [$builder, $parent, 'taggable', 'taggables', 'taggable_id', 'tag_id', 'id', 'id', 'relation_name', false];
+        return [
+            $builder,
+            $parent,
+            'taggable',
+            'taggables',
+            'taggable_id',
+            'tag_id',
+            'id',
+            'id',
+            'relation_name',
+            false,
+        ];
     }
 }
 

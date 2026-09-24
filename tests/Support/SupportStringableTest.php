@@ -1318,12 +1318,12 @@ class SupportStringableTest extends TestCase
 
     public function testCharAt()
     {
-        $this->assertEquals('р', $this->stringable('Привет, мир!')->charAt(1));
-        $this->assertEquals('ち', $this->stringable('「こんにちは世界」')->charAt(4));
-        $this->assertEquals('w', $this->stringable('Привет, world!')->charAt(8));
-        $this->assertEquals('界', $this->stringable('「こんにちは世界」')->charAt(-2));
-        $this->assertEquals(null, $this->stringable('「こんにちは世界」')->charAt(-200));
-        $this->assertEquals(null, $this->stringable('Привет, мир!')->charAt('Привет, мир!', 100));
+        $this->assertSame('р', $this->stringable('Привет, мир!')->charAt(1));
+        $this->assertSame('ち', $this->stringable('「こんにちは世界」')->charAt(4));
+        $this->assertSame('w', $this->stringable('Привет, world!')->charAt(8));
+        $this->assertSame('界', $this->stringable('「こんにちは世界」')->charAt(-2));
+        $this->assertFalse($this->stringable('「こんにちは世界」')->charAt(-200));
+        $this->assertFalse($this->stringable('Привет, мир!')->charAt(100));
     }
 
     public function testSubstr()
@@ -1529,15 +1529,15 @@ class SupportStringableTest extends TestCase
 
     public function testWrap()
     {
-        $this->assertEquals('This is me!', $this->stringable('is')->wrap('This ', ' me!'));
-        $this->assertEquals('"value"', $this->stringable('value')->wrap('"'));
+        $this->assertSame('This is me!', (string) $this->stringable('is')->wrap('This ', ' me!'));
+        $this->assertSame('"value"', (string) $this->stringable('value')->wrap('"'));
     }
 
     public function testUnwrap()
     {
-        $this->assertEquals('value', $this->stringable('"value"')->unwrap('"'));
-        $this->assertEquals('bar', $this->stringable('foo-bar-baz')->unwrap('foo-', '-baz'));
-        $this->assertEquals('some: "json"', $this->stringable('{some: "json"}')->unwrap('{', '}'));
+        $this->assertSame('value', (string) $this->stringable('"value"')->unwrap('"'));
+        $this->assertSame('bar', (string) $this->stringable('foo-bar-baz')->unwrap('foo-', '-baz'));
+        $this->assertSame('some: "json"', (string) $this->stringable('{some: "json"}')->unwrap('{', '}'));
     }
 
     public function testToHtmlString()

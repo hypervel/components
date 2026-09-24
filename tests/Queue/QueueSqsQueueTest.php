@@ -447,7 +447,7 @@ class QueueSqsQueueTest extends TestCase
     {
         $this->queueName = 'emails.fifo';
         $queue = new SqsQueue($this->sqs, $this->queueName, $this->prefix, $suffix = '-staging');
-        $this->assertEquals("{$this->prefix}emails-staging.fifo", $queue->getQueue(null));
+        $this->assertSame("{$this->prefix}emails-staging.fifo", $queue->getQueue(null));
         $queueUrl = $this->baseUrl . '/' . $this->account . '/test' . $suffix . '.fifo';
         $this->assertEquals($queueUrl, $queue->getQueue('test.fifo'));
     }
@@ -500,7 +500,7 @@ class QueueSqsQueueTest extends TestCase
     public function testGetFifoQueueEnsuresTheQueueIsOnlySuffixedOnce(): void
     {
         $queue = new SqsQueue($this->sqs, "{$this->queueName}-staging.fifo", $this->prefix, $suffix = '-staging');
-        $this->assertEquals("{$this->prefix}{$this->queueName}{$suffix}.fifo", $queue->getQueue(null));
+        $this->assertSame("{$this->prefix}{$this->queueName}{$suffix}.fifo", $queue->getQueue(null));
         $queueUrl = $this->baseUrl . '/' . $this->account . '/test' . $suffix . '.fifo';
         $this->assertEquals($queueUrl, $queue->getQueue('test-staging.fifo'));
     }

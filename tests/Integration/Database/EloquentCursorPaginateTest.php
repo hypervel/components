@@ -95,7 +95,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
 
         $query = TestPost::query()->distinct();
 
-        $this->assertEquals(6, $query->get()->count());
+        $this->assertCount(6, $query->get());
         $this->assertEquals(6, $query->count());
         $this->assertCount(6, $query->cursorPaginate()->items());
     }
@@ -110,7 +110,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
 
         $query = TestPost::query()->whereNull('user_id');
 
-        $this->assertEquals(3, $query->get()->count());
+        $this->assertCount(3, $query->get());
         $this->assertEquals(3, $query->count());
         $this->assertCount(3, $query->cursorPaginate()->items());
     }
@@ -128,7 +128,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
 
         $query = TestUser::query()->has('posts');
 
-        $this->assertEquals(2, $query->get()->count());
+        $this->assertCount(2, $query->get());
         $this->assertEquals(2, $query->count());
         $this->assertCount(2, $query->cursorPaginate()->items());
     }
@@ -147,7 +147,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
             $query->where('title', 'Howdy');
         });
 
-        $this->assertEquals(1, $query->get()->count());
+        $this->assertCount(1, $query->get());
         $this->assertEquals(1, $query->count());
         $this->assertCount(1, $query->cursorPaginate()->items());
     }
@@ -168,7 +168,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
                 ->whereColumn('test_posts.user_id', 'test_users.id');
         });
 
-        $this->assertEquals(2, $query->get()->count());
+        $this->assertCount(2, $query->get());
         $this->assertEquals(2, $query->count());
         $this->assertCount(2, $query->cursorPaginate()->items());
     }
@@ -230,10 +230,10 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         $this->assertSame(['id'], $result->getOptions()['parameters']);
 
         $postB = $table2->where('id', '>', 1)->first();
-        $this->assertEquals('Post B', $postB->title, 'Expect `Post B` is the result of the second query');
+        $this->assertSame('Post B', $postB->title, 'Expect `Post B` is the result of the second query');
 
         $this->assertCount(1, $result->items(), 'Expect cursor paginated query should have 1 result');
-        $this->assertEquals('Post B', current($result->items())->title, 'Expect the paginated query would return `Post B`');
+        $this->assertSame('Post B', current($result->items())->title, 'Expect the paginated query would return `Post B`');
     }
 
     public function testPaginationWithMultipleAliases()
@@ -260,7 +260,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         $this->assertSame(['alias'], $result->getOptions()['parameters']);
 
         $this->assertCount(1, $result->items(), 'Expect cursor paginated query should have 1 result');
-        $this->assertEquals('B (post)', current($result->items())->alias, 'Expect the paginated query would return `B (post)`');
+        $this->assertSame('B (post)', current($result->items())->alias, 'Expect the paginated query would return `B (post)`');
     }
 
     public function testPaginationWithAliasedOrderBy()
@@ -271,7 +271,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         $clonedQuery = $query->clone();
         $anotherQuery = $query->clone();
 
-        $this->assertEquals(6, $query->get()->count());
+        $this->assertCount(6, $query->get());
         $this->assertEquals(6, $query->count());
         $this->assertCount(6, $query->cursorPaginate()->items());
         $this->assertCount(3, $clonedQuery->cursorPaginate(3)->items());
@@ -292,7 +292,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
 
         $query = TestPost::query()->orderBy('title')->distinct('title')->select('title');
 
-        $this->assertEquals(2, $query->get()->count());
+        $this->assertCount(2, $query->get());
         $this->assertEquals(2, $query->count());
         $this->assertCount(2, $query->cursorPaginate()->items());
     }
@@ -316,7 +316,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
         $query = TestUser::query()->join('test_posts', 'test_posts.user_id', '=', 'test_users.id')
             ->distinct('test_users.id')->select('test_users.*');
 
-        $this->assertEquals(5, $query->get()->count());
+        $this->assertCount(5, $query->get());
         $this->assertEquals(5, $query->count());
         $this->assertCount(5, $query->cursorPaginate()->items());
     }

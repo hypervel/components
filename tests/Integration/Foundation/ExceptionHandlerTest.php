@@ -68,7 +68,7 @@ class ExceptionHandlerTest extends TestCase
             ->assertStatus(500)
             ->assertSee('shouldnt report');
 
-        $this->assertEquals([], $reported);
+        $this->assertSame([], $reported);
     }
 
     public function testItRendersAuthorizationExceptionsWithCustomStatusCode()

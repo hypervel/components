@@ -67,6 +67,16 @@ class DatabaseEloquentBelongsToManyWithDefaultAttributesTest extends TestCase
         );
         $mockQueryBuilder->shouldReceive('getConnection')->andReturn($connection);
 
-        return [$builder, $parent, 'club_user', 'club_id', 'user_id', 'id', 'id', null, false];
+        return [
+            $builder,
+            $parent,
+            'club_user',
+            'club_id',
+            'user_id',
+            'id',
+            'id',
+            null,
+            false,
+        ];
     }
 }

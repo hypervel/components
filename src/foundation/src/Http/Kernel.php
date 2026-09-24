@@ -68,6 +68,8 @@ class Kernel implements KernelContract
      */
     protected array $middlewareGroups = [];
 
+    // Laravel's deprecated $routeMiddleware property is omitted; use $middlewareAliases.
+
     /**
      * The application's middleware aliases.
      *
@@ -630,7 +632,8 @@ class Kernel implements KernelContract
                 if (in_array($existingMiddleware, $this->middlewarePriority)) {
                     $middlewareIndex = array_search($existingMiddleware, $this->middlewarePriority);
 
-                    if ($after && $middlewareIndex > $index) {
+                    // $index is an insertion position, so a target at that position still moves it forward.
+                    if ($after && $middlewareIndex >= $index) {
                         $index = $middlewareIndex + 1;
                     } elseif ($after === false && $middlewareIndex < $index) {
                         $index = $middlewareIndex;
@@ -760,6 +763,8 @@ class Kernel implements KernelContract
 
         return $this;
     }
+
+    // Laravel's deprecated getRouteMiddleware() alias is omitted; use getMiddlewareAliases().
 
     /**
      * Get the application's route middleware aliases.

@@ -36,7 +36,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
         $model = new GlobalScopesModel;
         $query = $model->newQuery()->withoutGlobalScope(ActiveScope::class);
         $this->assertSame('select * from "table"', $query->toSql());
-        $this->assertEquals([], $query->getBindings());
+        $this->assertSame([], $query->getBindings());
     }
 
     public function testClassNameGlobalScopeIsApplied()
@@ -92,7 +92,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
         $model = new ClosureGlobalScopesModel;
         $query = $model->newQuery()->withoutGlobalScope('active_scope');
         $this->assertSame('select * from "table" order by "name" asc', $query->toSql());
-        $this->assertEquals([], $query->getBindings());
+        $this->assertSame([], $query->getBindings());
     }
 
     public function testAnonymousGlobalScopeCanBeRetrievedAndRemovedByItsIdentifier(): void
@@ -120,7 +120,7 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
 
         $query->withoutGlobalScope('active_scope');
         $this->assertSame('select * from "table" order by "name" asc', $query->toSql());
-        $this->assertEquals([], $query->getBindings());
+        $this->assertSame([], $query->getBindings());
     }
 
     public function testAllGlobalScopesCanBeRemoved()
@@ -128,11 +128,11 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
         $model = new ClosureGlobalScopesModel;
         $query = $model->newQuery()->withoutGlobalScopes();
         $this->assertSame('select * from "table"', $query->toSql());
-        $this->assertEquals([], $query->getBindings());
+        $this->assertSame([], $query->getBindings());
 
         $query = ClosureGlobalScopesModel::withoutGlobalScopes();
         $this->assertSame('select * from "table"', $query->toSql());
-        $this->assertEquals([], $query->getBindings());
+        $this->assertSame([], $query->getBindings());
     }
 
     public function testAllGlobalScopesCanBeRemovedExceptSpecified()

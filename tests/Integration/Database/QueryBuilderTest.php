@@ -143,8 +143,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
         $rows = DB::table('accounting')->get();
 
-        $this->assertEquals(1.5, $rows[0]->wallet_1);
-        $this->assertEquals(1.5, $rows[1]->wallet_1);
+        $this->assertSame(1.5, (float) $rows[0]->wallet_1);
+        $this->assertSame(1.5, (float) $rows[1]->wallet_1);
 
         // Decrement accepts integer, float, and numeric-string amounts.
         $affectedRowsCount = DB::table('accounting')->decrementEach([

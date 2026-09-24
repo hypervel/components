@@ -1011,7 +1011,7 @@ class FilesystemTest extends TestCase
         $allFiles = $files->allFiles($dirPath);
 
         $this->assertCount(1, $allFiles);
-        $this->assertEquals('test.txt', $allFiles[0]->getFilename());
+        $this->assertSame('test.txt', $allFiles[0]->getFilename());
     }
 
     public function testConcurrentCoroutineSharedGetAndLockedPut()

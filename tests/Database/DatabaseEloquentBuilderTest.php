@@ -1348,7 +1348,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $model = new Stub;
         $this->mockConnectionForModel($model, 'SQLite');
         $query = $model->newQuery()->whereNot('name', 'foo')->whereNot('name', '<>', 'bar');
-        $this->assertEquals('select * from "table" where not "name" = ? and not "name" <> ?', $query->toSql());
+        $this->assertSame('select * from "table" where not "name" = ? and not "name" <> ?', $query->toSql());
         $this->assertEquals(['foo', 'bar'], $query->getBindings());
     }
 
@@ -1378,7 +1378,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $model = new Stub;
         $this->mockConnectionForModel($model, 'SQLite');
         $query = $model->newQuery()->orWhereNot('name', 'foo')->orWhereNot('name', '<>', 'bar');
-        $this->assertEquals('select * from "table" where not "name" = ? or not "name" <> ?', $query->toSql());
+        $this->assertSame('select * from "table" where not "name" = ? or not "name" <> ?', $query->toSql());
         $this->assertEquals(['foo', 'bar'], $query->getBindings());
     }
 

@@ -354,7 +354,10 @@ class FileFailedJobProviderTest extends TestCase
 
         $this->provider->log($connection, $queue, json_encode(['uuid' => (string) $uuid]), $exception);
 
-        return [(string) $uuid, $exception];
+        return [
+            (string) $uuid,
+            $exception,
+        ];
     }
 }
 

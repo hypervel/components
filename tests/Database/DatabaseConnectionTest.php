@@ -2366,8 +2366,8 @@ class DatabaseConnectionTest extends TestCase
 
         $log = $mock->getRawQueryLog();
 
-        $this->assertEquals("select * from tbl where col = 'foo'", $log[0]['raw_query']);
-        $this->assertEquals(1.23, $log[0]['time']);
+        $this->assertSame("select * from tbl where col = 'foo'", $log[0]['raw_query']);
+        $this->assertSame(1.23, $log[0]['time']);
     }
 
     #[DataProvider('readWriteRoutingProvider')]

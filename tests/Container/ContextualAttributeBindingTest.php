@@ -678,38 +678,38 @@ final class ContainerTestImplB implements ContainerTestContract
 {
 }
 
-final class ContainerTestHasAttributeThatResolvesToImplA
+final readonly class ContainerTestHasAttributeThatResolvesToImplA
 {
     /**
      * Create a new test fixture.
      */
     public function __construct(
         #[ContainerTestAttributeThatResolvesContractImpl('A')]
-        public readonly ContainerTestContract $property
+        public ContainerTestContract $property
     ) {
     }
 }
 
-final class ContainerTestHasAttributeThatResolvesToImplB
+final readonly class ContainerTestHasAttributeThatResolvesToImplB
 {
     /**
      * Create a new test fixture.
      */
     public function __construct(
         #[ContainerTestAttributeThatResolvesContractImpl('B')]
-        public readonly ContainerTestContract $property
+        public ContainerTestContract $property
     ) {
     }
 }
 
 #[Attribute(Attribute::TARGET_PARAMETER)]
-final class ContainerTestConfigValue implements ContextualAttribute
+final readonly class ContainerTestConfigValue implements ContextualAttribute
 {
     /**
      * Create a new attribute instance.
      */
     public function __construct(
-        public readonly string $key
+        public string $key
     ) {
     }
 }
@@ -727,13 +727,13 @@ final class ContainerTestHasConfigValueProperty
 }
 
 #[Attribute(Attribute::TARGET_PARAMETER)]
-final class ContainerTestConfigValueWithResolve implements ContextualAttribute
+final readonly class ContainerTestConfigValueWithResolve implements ContextualAttribute
 {
     /**
      * Create a new attribute instance.
      */
     public function __construct(
-        public readonly string $key
+        public string $key
     ) {
     }
 
@@ -816,7 +816,7 @@ final class ComplexDependency implements ContainerTestContract
     }
 }
 
-final class AuthedTest
+final readonly class AuthedTest
 {
     /**
      * Create a new test fixture.
@@ -868,7 +868,7 @@ final class NullableAuthenticatedWithDefault
     }
 }
 
-final class CacheTest
+final readonly class CacheTest
 {
     /**
      * Create a new test fixture.
@@ -902,7 +902,7 @@ final class OrdinaryCacheTest
     }
 }
 
-final class ConfigTest
+final readonly class ConfigTest
 {
     /**
      * Create a new test fixture.
@@ -912,7 +912,7 @@ final class ConfigTest
     }
 }
 
-final class ContextTest
+final readonly class ContextTest
 {
     /**
      * Create a new test fixture.
@@ -922,7 +922,7 @@ final class ContextTest
     }
 }
 
-final class ContextHiddenTest
+final readonly class ContextHiddenTest
 {
     /**
      * Create a new test fixture.
@@ -932,7 +932,7 @@ final class ContextHiddenTest
     }
 }
 
-final class DatabaseTest
+final readonly class DatabaseTest
 {
     /**
      * Create a new test fixture.
@@ -948,7 +948,7 @@ final class DatabaseTest
     }
 }
 
-final class GuardTest
+final readonly class GuardTest
 {
     /**
      * Create a new test fixture.
@@ -968,7 +968,7 @@ final class GuardTest
     }
 }
 
-final class LogTest
+final readonly class LogTest
 {
     /**
      * Create a new test fixture.
@@ -1000,7 +1000,7 @@ final class CustomNamedLogTest
     }
 }
 
-final class RouteParameterTest
+final readonly class RouteParameterTest
 {
     /**
      * Create a new test fixture.
@@ -1010,7 +1010,7 @@ final class RouteParameterTest
     }
 }
 
-final class RouteParameterTestWithoutParameterName
+final readonly class RouteParameterTestWithoutParameterName
 {
     /**
      * Create a new test fixture.
@@ -1116,7 +1116,7 @@ final class ContextualAttributeTestRoute
     }
 }
 
-final class StorageTest
+final readonly class StorageTest
 {
     /**
      * Create a new test fixture.
@@ -1136,62 +1136,62 @@ final class StorageTest
     }
 }
 
-final class GiveTestSimple
+final readonly class GiveTestSimple
 {
     /**
      * Create a new test fixture.
      */
     public function __construct(
         #[Give(SimpleDependency::class)]
-        public readonly ContainerTestContract $dependency
+        public ContainerTestContract $dependency
     ) {
     }
 }
 
-final class GiveTestComplex
+final readonly class GiveTestComplex
 {
     /**
      * Create a new test fixture.
      */
     public function __construct(
         #[Give(ComplexDependency::class, ['param' => true])]
-        public readonly ContainerTestContract $dependency
+        public ContainerTestContract $dependency
     ) {
     }
 }
 
-final class TimezoneObject
+final readonly class TimezoneObject
 {
     /**
      * Create a new test fixture.
      */
     public function __construct(
         #[Config('app.timezone')]
-        public readonly ?string $timezone
+        public ?string $timezone
     ) {
     }
 }
 
-final class LocaleObject
+final readonly class LocaleObject
 {
     /**
      * Create a new test fixture.
      */
     public function __construct(
         #[Config('app.locale')]
-        public readonly ?string $locale
+        public ?string $locale
     ) {
     }
 }
 
-final class HasParameterAwareAttribute
+final readonly class HasParameterAwareAttribute
 {
     /**
      * Create a new test fixture.
      */
     public function __construct(
         #[ContainerTestParameterAwareAttribute]
-        public readonly ?string $name,
+        public ?string $name,
     ) {
     }
 }

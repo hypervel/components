@@ -579,6 +579,8 @@ Hypervel's `Str` UUID methods, factories, sequences, and freeze callbacks use `S
 
 Hypervel's `Str::orderedUuid()` returns a UUIDv7, while Laravel returns a timestamp-first COMB UUIDv4. Review code that validates UUID versions or depends on the exact ordering produced by this method.
 
+`Carbon::createFromId()` accepts ULIDs and v1, v6, and v7 UUIDs. Symfony UID does not provide timestamps for UUIDv2, so code that reads dates from UUIDv2 values needs another source.
+
 <a name="filesystem"></a>
 ### Filesystem
 
