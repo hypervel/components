@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace {{ namespace }};
 
-use Hypervel\Broadcasting\Channel;
 use Hypervel\Broadcasting\InteractsWithSockets;
 use Hypervel\Broadcasting\PresenceChannel;
 use Hypervel\Broadcasting\PrivateChannel;
@@ -27,7 +26,7 @@ class {{ class }}
     /**
      * Get the channels the event should broadcast on.
      *
-     * @return array<int, Channel>
+     * @return array<int, \Hypervel\Broadcasting\Channel>
      */
     public function broadcastOn(): array
     {

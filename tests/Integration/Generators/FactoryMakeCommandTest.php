@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Generators;
 
-use Symfony\Component\Process\Process;
-
 class FactoryMakeCommandTest extends TestCase
 {
     protected array $files = [
@@ -39,10 +37,6 @@ class FactoryMakeCommandTest extends TestCase
         $this->assertFileDoesNotContains([
             'use App\Models\Factory;',
         ], 'database/factories/PlantFactory.php');
-
-        $lint = new Process([PHP_BINARY, '-l', $this->app->basePath('database/factories/PlantFactory.php')]);
-        $lint->run();
-
-        $this->assertTrue($lint->isSuccessful(), $lint->getOutput() . $lint->getErrorOutput());
+        $this->assertPhpFileCompiles('database/factories/PlantFactory.php');
     }
 }
