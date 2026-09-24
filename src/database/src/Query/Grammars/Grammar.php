@@ -1408,9 +1408,9 @@ class Grammar extends BaseGrammar
         }, $bindings);
 
         $query = '';
+        $bindingIndex = 0;
 
         $isStringLiteral = false;
-        $bindingIndex = 0;
 
         for ($i = 0; $i < strlen($sql); ++$i) {
             $char = $sql[$i];

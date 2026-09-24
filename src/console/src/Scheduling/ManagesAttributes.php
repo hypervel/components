@@ -118,6 +118,7 @@ trait ManagesAttributes
 
     /**
      * Do not allow the event to overlap each other.
+     *
      * The expiration time of the underlying cache lock may be specified in minutes.
      */
     public function withoutOverlapping(int $expiresAt = 1440, bool $releaseOnTerminationSignals = true): static
