@@ -2883,9 +2883,10 @@ class HttpClientTest extends TestCase
                 'message' => 'The Request can not be completed',
             ],
         ];
+
         $response = new Psr7Response(403, [], json_encode($error));
 
-        throw new RequestException(new Response($response));
+        throw tap(new RequestException(new Response($response)), fn ($exception) => $exception->report());
     }
 
     public function testRequestExceptionTruncatedSummary(): void
@@ -2903,7 +2904,7 @@ class HttpClientTest extends TestCase
         ];
         $response = new Psr7Response(403, [], json_encode($error));
 
-        throw new RequestException(new Response($response));
+        throw tap(new RequestException(new Response($response)), fn ($exception) => $exception->report());
     }
 
     public function testRequestExceptionWithoutTruncatedSummary(): void
@@ -2923,7 +2924,7 @@ class HttpClientTest extends TestCase
         ];
         $response = new Psr7Response(403, [], json_encode($error));
 
-        throw new RequestException(new Response($response));
+        throw tap(new RequestException(new Response($response)), fn ($exception) => $exception->report());
     }
 
     public function testRequestExceptionWithCustomTruncatedSummary(): void
@@ -2941,7 +2942,7 @@ class HttpClientTest extends TestCase
         ];
         $response = new Psr7Response(403, [], json_encode($error));
 
-        throw new RequestException(new Response($response));
+        throw tap(new RequestException(new Response($response)), fn ($exception) => $exception->report());
     }
 
     public function testRequestLevelTruncationLevelOnRequestException(): void
