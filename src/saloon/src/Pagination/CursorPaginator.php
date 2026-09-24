@@ -47,9 +47,12 @@ abstract class CursorPaginator extends Paginator
     /**
      * Get the next cursor.
      *
+     * The default query encoding omits null and encodes booleans as 1/0;
+     * override applyPagination() when the API requires another encoding.
+     *
      * @param Response<mixed> $response
      */
-    abstract protected function getNextCursor(Response $response): int|string;
+    abstract protected function getNextCursor(Response $response): bool|float|int|string|null;
 
     /**
      * Reject pooled cursor pagination because later cursors depend on earlier responses.

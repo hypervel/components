@@ -4,135 +4,48 @@ declare(strict_types=1);
 
 namespace Hypervel\Saloon\Pagination;
 
-use GuzzleHttp\Psr7\Query;
-use GuzzleHttp\Psr7\Uri;
-use GuzzleHttp\Psr7\UriResolver;
-use Hypervel\Saloon\Http\Request;
 use Hypervel\Saloon\Http\Response;
 use Hypervel\Saloon\Pagination\Exceptions\PaginationException;
 use Psr\Http\Message\UriInterface;
 
 /**
  * @template TItem
- * @extends PagedPaginator<TItem>
+ * @extends LinkPaginator<TItem>
  */
-abstract class LinkHeaderPaginator extends PagedPaginator
+abstract class LinkHeaderPaginator extends LinkPaginator
 {
     /**
-     * The next page's complete query string.
+     * The relation identifying the next page.
      */
-    protected ?string $nextQuery = null;
+    protected string $nextRelation = 'next';
 
     /**
-     * The last independently addressable page for pooled requests.
+     * The relation identifying the last page.
      */
-    protected ?int $lastPage = null;
+    protected string $lastRelation = 'last';
 
     /**
-     * Get the current response and resolve its pagination links.
-     *
-     * @return Response<mixed>
-     */
-    public function current(): Response
-    {
-        $response = parent::current();
-        $uri = $response->toPsrRequest()->getUri();
-        $links = $this->parseLinks($response->toPsrResponse()->getHeader('Link'), $uri);
-        $next = $links['next'] ?? null;
-        $lastPage = $this->pooling && isset($links['last']) ? $this->pageFromUri($links['last']) : null;
-
-        if ($lastPage !== null) {
-            $currentPage = $this->pageFromUri($uri) ?? $this->pageNumber;
-            if (($next !== null && $lastPage <= $currentPage)
-                || ($next === null && $lastPage > $currentPage)) {
-                throw new PaginationException('The last Link page contradicts the current page or next relation.');
-            }
-        }
-
-        $this->nextQuery = $next?->getQuery();
-        $this->lastPage = $lastPage;
-
-        return $response;
-    }
-
-    /**
-     * Apply numbered pagination or the provider's complete continuation query.
-     *
-     * @param Request<mixed> $request
-     * @return Request<mixed>
-     */
-    protected function applyPagination(Request $request): Request
-    {
-        if ($this->currentResponse === null || $this->pooling) {
-            return parent::applyPagination($request);
-        }
-
-        return $request->withQueryString(
-            $this->nextQuery ?? throw new PaginationException('The response has no next Link.'),
-        );
-    }
-
-    /**
-     * Determine whether the response has no continuation link.
+     * Get the next and last page links from the response headers.
      *
      * @param Response<mixed> $response
+     * @return array{next?: UriInterface, last?: UriInterface}
      */
-    protected function isLastPage(Response $response): bool
+    protected function getLinks(Response $response, UriInterface $currentUri): array
     {
-        return $this->nextQuery === null;
-    }
-
-    /**
-     * Resolve the last independently addressable page.
-     *
-     * @param Response<mixed> $response
-     */
-    protected function getTotalPages(Response $response): int
-    {
-        return $this->nextQuery === null
-            ? $this->startPage
-            : ($this->lastPage ?? throw new PaginationException('Pooled Link pagination requires a numbered last Link.'));
-    }
-
-    /**
-     * Clear continuation state when iteration restarts.
-     */
-    protected function onRewind(): void
-    {
-        $this->nextQuery = null;
-        $this->lastPage = null;
-    }
-
-    /**
-     * Read an optional page number without flattening repeated names.
-     */
-    protected function pageFromUri(UriInterface $uri): ?int
-    {
-        $query = Query::parse($uri->getQuery());
-
-        if (! array_key_exists($this->pageName, $query)) {
-            return null;
-        }
-
-        $value = $query[$this->pageName];
-        $page = is_string($value) ? filter_var($value, FILTER_VALIDATE_INT) : false;
-
-        if ($page === false) {
-            throw new PaginationException("The Link [{$this->pageName}] parameter must be an integer.");
-        }
-
-        return $page;
+        return $this->parseLinks($response->toPsrResponse()->getHeader('Link'), $currentUri);
     }
 
     /**
      * Parse pagination relations without splitting quoted values or URI commas.
      *
      * @param list<string> $headers
-     * @return array<string, UriInterface>
+     * @return array{next?: UriInterface, last?: UriInterface}
      */
     protected function parseLinks(array $headers, UriInterface $currentUri): array
     {
         $links = [];
+        $nextRelation = strtolower($this->nextRelation);
+        $lastRelation = strtolower($this->lastRelation);
 
         foreach ($headers as $header) {
             $position = 0;
@@ -215,24 +128,23 @@ abstract class LinkHeaderPaginator extends PagedPaginator
                 }
 
                 foreach (preg_split('/[ \t]+/', strtolower(trim($relations))) as $relation) {
-                    if ($relation !== 'next' && $relation !== 'last') {
+                    $key = match ($relation) {
+                        $nextRelation => 'next',
+                        $lastRelation => 'last',
+                        default => null,
+                    };
+
+                    if ($key === null) {
                         continue;
                     }
 
-                    $uri = UriResolver::resolve($currentUri, new Uri($target));
+                    $uri = $this->resolveLink($target, $currentUri);
 
-                    if ($uri->getScheme() !== $currentUri->getScheme()
-                        || $uri->getHost() !== $currentUri->getHost()
-                        || $uri->getPort() !== $currentUri->getPort()
-                        || $uri->getPath() !== $currentUri->getPath()) {
-                        throw new PaginationException('Pagination Links must target the same scheme, host, port, and path as the request.');
-                    }
-
-                    if (isset($links[$relation]) && (string) $links[$relation] !== (string) $uri) {
+                    if (isset($links[$key]) && (string) $links[$key] !== (string) $uri) {
                         throw new PaginationException("Conflicting [{$relation}] pagination Links were returned.");
                     }
 
-                    $links[$relation] = $uri;
+                    $links[$key] = $uri;
                 }
             }
         }

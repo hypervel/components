@@ -11,6 +11,7 @@ use Hypervel\Saloon\Enums\Method;
 use Hypervel\Saloon\Exceptions\MissingAuthenticatorException;
 use Hypervel\Saloon\Exceptions\PendingRequestException;
 use Hypervel\Saloon\Http\Auth\AccessTokenAuthenticator;
+use Hypervel\Saloon\Http\Auth\CookieAuthenticator;
 use Hypervel\Saloon\Http\Auth\HeaderAuthenticator;
 use Hypervel\Saloon\Http\Auth\QueryAuthenticator;
 use Hypervel\Saloon\Http\Auth\TokenAuthenticator;
@@ -23,6 +24,7 @@ use Hypervel\Saloon\Traits\Body\HasJsonBody;
 use Hypervel\Saloon\Traits\Body\HasStringBody;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\StreamInterface;
 
 class PendingRequestTest extends TestCase
@@ -116,6 +118,48 @@ class PendingRequestTest extends TestCase
 
         $this->assertNull($pendingRequest->queryString());
         $this->assertSame('base=old', $pendingRequest->uri()->getQuery());
+    }
+
+    public function testFullUrlOverrideIsVisibleToAuthenticationAndKeepsQueryOverlays(): void
+    {
+        $request = (new PendingRequestRequestStub)
+            ->withUrl('https://uploads.example.com/files?tag=a&tag=b&token=old')
+            ->withQueryParameters(['limit' => 10]);
+        $pendingRequest = $this->pendingRequest(new PendingRequestConnectorStub, $request);
+
+        $pendingRequest
+            ->authenticate(new CookieAuthenticator('session', 'secret'))
+            ->authenticate(new QueryAuthenticator('token', 'secret'))
+            ->finalizeUri();
+
+        $this->assertSame('https://uploads.example.com/files?tag=a&tag=b&version=1&limit=10&token=secret', (string) $pendingRequest->uri());
+        $this->assertSame('uploads.example.com', $pendingRequest->cookies()[0]['Domain']);
+        $this->assertTrue($pendingRequest->cookies()[0]['Secure']);
+
+        $pendingRequest->withQueryString('cursor=next&token=stale')->finalizeUri();
+
+        $this->assertSame('https://uploads.example.com/files?cursor=next&version=1&limit=10&token=secret', (string) $pendingRequest->uri());
+    }
+
+    #[DataProvider('invalidFullUrls')]
+    public function testFullUrlOverrideRequiresAnAbsoluteHttpUrl(string $url): void
+    {
+        $pendingRequest = $this->pendingRequest(
+            new PendingRequestConnectorStub,
+            (new PendingRequestRequestStub)->withUrl($url),
+        );
+
+        $this->expectException(PendingRequestException::class);
+
+        $pendingRequest->uri();
+    }
+
+    /**
+     * Provide URLs that cannot replace the full request URL.
+     */
+    public static function invalidFullUrls(): array
+    {
+        return [[''], ['/users'], ['//api.example.com/users'], ['file:///etc/passwd']];
     }
 
     public function testConnectorAndRequestBodyTypesMustMatch(): void

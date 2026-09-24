@@ -7,7 +7,10 @@ namespace Hypervel\Saloon\Http;
 use Hypervel\Saloon\Http\Connectors\NullConnector;
 use Hypervel\Saloon\Http\Faking\MockClient;
 
-/** @template TDto */
+/**
+ * @template TDto
+ * @extends Request<TDto>
+ */
 abstract class SoloRequest extends Request
 {
     /**

@@ -184,11 +184,14 @@ class PendingRequest
             return $this->uri;
         }
 
-        $uri = UrlResolver::resolve(
-            $this->connector->resolveBaseUrl(),
-            $this->request->resolveEndpoint(),
-            $this->request->allowsBaseUrlOverride() ?? $this->connector->allowsBaseUrlOverride(),
-        );
+        $url = $this->request->url();
+        $uri = $url !== null
+            ? UrlResolver::resolve('', $url, false)
+            : UrlResolver::resolve(
+                $this->connector->resolveBaseUrl(),
+                $this->request->resolveEndpoint(),
+                $this->request->allowsBaseUrlOverride() ?? $this->connector->allowsBaseUrlOverride(),
+            );
         $query = $this->queryString();
 
         return UrlResolver::withQuery(

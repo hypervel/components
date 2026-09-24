@@ -15,6 +15,7 @@
     - [Request Defaults](#request-defaults)
 - [Configuring Requests](#configuring-requests)
     - [Headers](#headers)
+    - [Request URL](#request-url)
     - [Query Parameters](#query-parameters)
     - [Authentication](#authentication)
     - [Request Bodies](#request-bodies)
@@ -54,6 +55,7 @@
 - [API Pagination](#api-pagination)
     - [Page Pagination](#page-pagination)
     - [Offset and Cursor Pagination](#offset-and-cursor-pagination)
+    - [Link Pagination](#link-pagination)
     - [Link Header Pagination](#link-header-pagination)
     - [Pooled Pagination](#pooled-pagination)
 - [Rate Limiting](#rate-limiting)
@@ -465,6 +467,19 @@ $request
     ->acceptJson()
     ->withUserAgent('Acme Application/1.0');
 ```
+
+<a name="request-url"></a>
+### Request URL
+
+Use `withUrl` on a request when an API supplies a complete URL:
+
+```php
+$request->withUrl('https://api.example.com/repositories/123/issues?page=2');
+```
+
+The URL must be absolute HTTP or HTTPS. It replaces both the connector base URL and the request endpoint, without requiring `allowsBaseUrlOverride`. Authentication and middleware use the new URL. Only supply trusted URLs, since the request retains its credentials.
+
+The `url` method returns the override, or `null` when none was supplied. Explicit query strings and query parameters are still applied as described below.
 
 <a name="query-parameters"></a>
 ### Query Parameters
@@ -1267,6 +1282,20 @@ if ($authenticator->hasExpired() && $authenticator->isRefreshable()) {
 
 OAuth token expiry values use immutable dates. Saloon rejects negative or unrepresentable expiry durations instead of creating an already-expired token.
 
+Refresh requests use the configured `tokenEndpoint` by default. If your provider uses a separate endpoint, set `refreshEndpoint` on your `OAuthConfig`:
+
+```php
+return new OAuthConfig(
+    clientId: $this->clientId,
+    clientSecret: $this->clientSecret,
+    redirectUri: $this->redirectUri,
+    tokenEndpoint: 'oauth/token',
+    refreshEndpoint: 'oauth/refresh',
+);
+```
+
+For an absolute refresh URL, also set `allowBaseUrlOverride: true`.
+
 <a name="customizing-oauth-requests"></a>
 ### Customizing OAuth Requests
 
@@ -1444,6 +1473,15 @@ $request->invalidateCache();
 
 The request or its connector must implement `Cacheable` before these controls are used. `invalidateCache` removes the matching value and refreshes it from the network.
 
+To always keep a request type out of connector caching, override `cachingEnabled` on a request without the `HasCaching` trait. This is useful for live streams that must not be buffered:
+
+```php
+public function cachingEnabled(): bool
+{
+    return false;
+}
+```
+
 <a name="custom-cache-keys"></a>
 ### Custom Cache Keys
 
@@ -1595,7 +1633,51 @@ If a request implements `MapPaginatedResponseItems`, its `mapPaginatedResponseIt
 
 Extend `OffsetPaginator` for APIs that use `limit` and `offset`. A per-page limit must be configured before iteration. Extend `CursorPaginator` for APIs where each response supplies the next cursor, and implement `getNextCursor`.
 
+Cursors may be strings, numbers, booleans, or null. The default query encoding omits null and sends booleans as `1` or `0`. Override `applyPagination` when your API requires another encoding, and use `isLastPage` to determine when pagination ends.
+
 Cursor pagination is always sequential because a later request depends on the previous response. Rewinding a paginator clears its iterator state and begins again at the configured start page.
+
+<a name="link-pagination"></a>
+### Link Pagination
+
+For APIs that return pagination URLs in the response body, extend `LinkPaginator` and implement `getLinks`. Return the `next` and `last` links when they are available, using `resolveLink` to resolve each URL against the current request:
+
+```php
+use Hypervel\Saloon\Http\Request;
+use Hypervel\Saloon\Http\Response;
+use Hypervel\Saloon\Pagination\LinkPaginator;
+use Psr\Http\Message\UriInterface;
+
+/** @extends LinkPaginator<array<string, mixed>> */
+class UserPaginator extends LinkPaginator
+{
+    protected function getLinks(Response $response, UriInterface $currentUri): array
+    {
+        $links = [];
+
+        foreach (['next', 'last'] as $relation) {
+            $target = $response->json("links.pages.{$relation}");
+
+            if ($target !== null) {
+                $links[$relation] = $this->resolveLink($target, $currentUri);
+            }
+        }
+
+        return $links;
+    }
+
+    protected function getPageItems(Response $response, Request $request): array
+    {
+        return $response->json('data');
+    }
+}
+```
+
+You may also read a URL from a response header in `getLinks` and pass it to `resolveLink`. Pagination links must use the same scheme, host, and port as the current request and must not contain user information. A different path is allowed, so an API may return links using its canonical resource IDs.
+
+The first request uses your configured page and per-page parameters. For each later request, the paginator follows the complete `next` URL, replacing any explicit raw query string with the link's query. Repeated parameter names are preserved. Parameters configured separately on the request or connector, including authentication, still take precedence. If you override `applyPagination`, call `applyNextLink($request)` for sequential continuation requests.
+
+Iteration ends when the response has no `next` link. If the API also supplies a `last` link containing a page number, you may use `pool` to request the remaining pages concurrently. Pooled requests use the original endpoint with your configured page names and `perPageLimit`. Cursor-only links must be followed sequentially. Invalid or contradictory last-page numbers are rejected when pooling.
 
 <a name="link-header-pagination"></a>
 ### Link Header Pagination
@@ -1617,11 +1699,7 @@ class RepositoryPaginator extends LinkHeaderPaginator
 }
 ```
 
-The first request uses your configured page and per-page parameters. For each later request, the paginator follows the `next` link and uses its query string, including any page size or cursor supplied by the API. Repeated parameter names are preserved. Parameters configured separately on the request or connector, including authentication, still take precedence.
-
-Pagination links must use the same scheme, host, port, and path as the current request.
-
-Iteration ends when the response has no `next` link. If the API also supplies a `last` link containing a page number, you may use `pool` to request the remaining pages concurrently. Pooled requests use your configured page names and `perPageLimit`. Cursor-only links must be followed sequentially. Malformed header syntax or conflicting pagination links throw a `PaginationException`; invalid or contradictory last-page numbers are rejected when pooling.
+`LinkHeaderPaginator` uses the same navigation and pooling behavior as `LinkPaginator`. It reads the `next` and `last` relations by default. You may override its protected `$nextRelation` and `$lastRelation` properties when an API uses different relation names. Malformed header syntax or conflicting pagination links throw a `PaginationException`.
 
 <a name="pooled-pagination"></a>
 ### Pooled Pagination
