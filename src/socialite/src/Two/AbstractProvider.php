@@ -11,6 +11,7 @@ use Hypervel\Http\Request;
 use Hypervel\Socialite\AbstractProvider as BaseProvider;
 use Hypervel\Socialite\Contracts\Provider as ProviderContract;
 use Hypervel\Socialite\Two\Exceptions\InvalidAudienceException;
+use Hypervel\Socialite\Two\Exceptions\InvalidCodeException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
 use SensitiveParameter;
@@ -146,6 +147,9 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
 
     /**
      * Get the User instance for the authenticated user.
+     *
+     * @throws InvalidStateException
+     * @throws InvalidCodeException
      */
     public function user(): User
     {
@@ -352,10 +356,19 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
 
     /**
      * Get the code from the request.
+     *
+     * @throws InvalidCodeException
      */
     protected function getCode(): string
     {
-        return $this->getRequest()->input('code');
+        $code = $this->getRequest()->input('code');
+
+        // Declined authorization can omit the code; throw an Exception rather than letting the return type raise a TypeError.
+        if (! is_string($code) || $code === '') {
+            throw new InvalidCodeException('The authorization code is missing or invalid.');
+        }
+
+        return $code;
     }
 
     /**

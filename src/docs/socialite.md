@@ -103,6 +103,8 @@ Route::get('/auth/callback', function () {
 
 The `redirect` method provided by the `Socialite` facade takes care of redirecting the user to the OAuth provider, while the `user` method will examine the incoming request and retrieve the user's information from the provider after they have approved the authentication request.
 
+For OAuth 2.0 providers, after validating the state, the `user` method will throw a `Hypervel\Socialite\Two\Exceptions\InvalidCodeException` if the authorization code is missing, empty, or not a string. This typically happens when the user declines the authentication request.
+
 <a name="authentication-and-storage"></a>
 ### Authentication and Storage
 
