@@ -429,6 +429,18 @@ class QueueManagerTest extends TestCase
         $this->assertSame($queue, $manager->connection('sync'));
     }
 
+    public function testPayloadCallbacksCanBeRegisteredWithoutResolvingTheDefaultConnection(): void
+    {
+        $container = $this->getContainer();
+        $container->make('config')->set('queue.default', 'missing');
+
+        $manager = new QueueManager($container);
+
+        $manager->createPayloadUsing(static fn (string $connection, ?string $queue, array $payload): array => []);
+
+        $this->assertFalse($manager->connected('missing'));
+    }
+
     protected function getContainer(): Container
     {
         $container = new Container;

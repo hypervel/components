@@ -12,7 +12,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Contracts\Queue\Monitor as MonitorContract;
-use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\ObjectPool\Concerns\HasPoolProxy;
 use Hypervel\Queue\Connectors\ConnectorInterface;
 use Hypervel\Queue\Events\JobExceptionOccurred;
@@ -34,7 +34,7 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin Queue
+ * @mixin QueueContract
  */
 class QueueManager implements FactoryContract, MonitorContract
 {
@@ -357,7 +357,7 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Resolve a queue connection instance.
      */
-    public function connection(UnitEnum|string|null $name = null): Queue
+    public function connection(UnitEnum|string|null $name = null): QueueContract
     {
         if ($name instanceof UnitEnum) {
             $name = (string) enum_value($name);
@@ -382,7 +382,7 @@ class QueueManager implements FactoryContract, MonitorContract
      *
      * @throws InvalidArgumentException
      */
-    protected function resolve(string $name): Queue
+    protected function resolve(string $name): QueueContract
     {
         $config = $this->getConfig($name);
 
@@ -568,6 +568,18 @@ class QueueManager implements FactoryContract, MonitorContract
         }
 
         return $this;
+    }
+
+    /**
+     * Register a callback to be executed when creating job payloads.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs on every subsequent payload creation across all
+     * coroutines. Passing null clears the registry.
+     */
+    public function createPayloadUsing(?callable $callback): void
+    {
+        Queue::createPayloadUsing($callback);
     }
 
     /**
