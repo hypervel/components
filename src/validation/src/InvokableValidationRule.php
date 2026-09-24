@@ -6,7 +6,6 @@ namespace Hypervel\Validation;
 
 use Hypervel\Contracts\Validation\DataAwareRule;
 use Hypervel\Contracts\Validation\ImplicitRule;
-use Hypervel\Contracts\Validation\InvokableRule;
 use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\ValidationRule;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
@@ -39,17 +38,17 @@ class InvokableValidationRule implements Rule, ValidatorAwareRule
     /**
      * Create a new explicit Invokable validation rule.
      *
-     * @param InvokableRule|ValidationRule $invokable the invokable that validates the attribute
+     * @param ValidationRule $invokable the invokable that validates the attribute
      */
     protected function __construct(
-        protected InvokableRule|ValidationRule $invokable
+        protected ValidationRule $invokable
     ) {
     }
 
     /**
      * Create a new implicit or explicit Invokable validation rule.
      */
-    public static function make(InvokableRule|ValidationRule $invokable): InvokableValidationRule
+    public static function make(ValidationRule $invokable): InvokableValidationRule
     {
         if ($invokable->implicit ?? false) {
             return new class($invokable) extends InvokableValidationRule implements ImplicitRule {};
@@ -73,11 +72,7 @@ class InvokableValidationRule implements Rule, ValidatorAwareRule
             $this->invokable->setValidator($this->validator);
         }
 
-        $method = $this->invokable instanceof ValidationRule
-            ? 'validate'
-            : '__invoke';
-
-        $this->invokable->{$method}($attribute, $value, function ($attribute, $message = null) {
+        $this->invokable->validate($attribute, $value, function ($attribute, $message = null) {
             $this->failed = true;
 
             return $this->pendingPotentiallyTranslatedString($attribute, $message);
@@ -89,7 +84,7 @@ class InvokableValidationRule implements Rule, ValidatorAwareRule
     /**
      * Get the underlying invokable rule.
      */
-    public function invokable(): InvokableRule|ValidationRule
+    public function invokable(): ValidationRule
     {
         return $this->invokable;
     }

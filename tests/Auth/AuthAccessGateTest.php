@@ -14,6 +14,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Support\Testing\Fakes\EventFake;
 use Hypervel\Tests\Auth\Fixtures\AbilitiesEnum;
+use Hypervel\Tests\Auth\Fixtures\ChildOfDummyWithUsePolicy;
 use Hypervel\Tests\Auth\Fixtures\DummyWithoutUsePolicy;
 use Hypervel\Tests\Auth\Fixtures\DummyWithUsePolicy;
 use Hypervel\Tests\Auth\Fixtures\DummyWithUsePolicyPolicy;
@@ -1580,13 +1581,23 @@ class AuthAccessGateTest extends TestCase
     public function testPolicyCacheReturnsSameResultOnSecondCall()
     {
         $gate = $this->getBasicGate();
-        $gate->policy(AccessGateTestDummy::class, AccessGateTestPolicy::class);
 
-        $first = $gate->getPolicyFor(new AccessGateTestDummy);
-        $second = $gate->getPolicyFor(new AccessGateTestDummy);
+        $guesses = 0;
+        $gate->guessPolicyNamesUsing(function () use (&$guesses) {
+            ++$guesses;
+
+            return [AccessGateTestPolicy::class];
+        });
+
+        // Resolve through gates created by forUser() first, so the result must reach the shared cache.
+        $first = $gate->forUser((object) ['id' => 2])->getPolicyFor(new AccessGateTestDummy);
+        $second = $gate->forUser((object) ['id' => 3])->getPolicyFor(new AccessGateTestDummy);
+        $third = $gate->getPolicyFor(new AccessGateTestDummy);
 
         $this->assertInstanceOf(AccessGateTestPolicy::class, $first);
         $this->assertInstanceOf(AccessGateTestPolicy::class, $second);
+        $this->assertInstanceOf(AccessGateTestPolicy::class, $third);
+        $this->assertSame(1, $guesses);
     }
 
     public function testPolicyCacheDoesNotInterfereWithExplicitPolicies()
@@ -1603,24 +1614,51 @@ class AuthAccessGateTest extends TestCase
         $this->assertInstanceOf(AccessGateTestPolicy::class, $result);
     }
 
-    public function testPolicyCacheIsClearedByFlushState()
+    public function testPolicyCacheIsClearedWhenGuessCallbackChanges()
     {
         $gate = $this->getBasicGate();
 
         $counter = 0;
-        $gate->guessPolicyNamesUsing(function () use (&$counter) {
+        $guesser = function () use (&$counter) {
             ++$counter;
             return [];
-        });
+        };
+        $gate->guessPolicyNamesUsing($guesser);
 
+        $gate->getPolicyFor('SomeClassA');
         $gate->getPolicyFor('SomeClassA');
         $this->assertSame(1, $counter);
 
-        // After flush, the guesser should be called again for the same class
-        Gate::flushState();
+        // After the guesser changes, the same class should be guessed again
+        $gate->guessPolicyNamesUsing($guesser);
 
         $gate->getPolicyFor('SomeClassA');
         $this->assertSame(2, $counter);
+    }
+
+    public function testPolicyCacheIsClearedWhenAPolicyIsRegistered()
+    {
+        $gate = $this->getBasicGate();
+        $userGate = $gate->forUser((object) ['id' => 2]);
+
+        $this->assertInstanceOf(DummyWithUsePolicyPolicy::class, $gate->getPolicyFor(ChildOfDummyWithUsePolicy::class));
+
+        $gate->policy(DummyWithUsePolicy::class, AccessGateTestPolicy::class);
+
+        // The registered parent policy precedes the inherited attribute, while the
+        // earlier gate keeps its previous policies and cached resolution.
+        $this->assertInstanceOf(AccessGateTestPolicy::class, $gate->getPolicyFor(ChildOfDummyWithUsePolicy::class));
+        $this->assertInstanceOf(DummyWithUsePolicyPolicy::class, $userGate->getPolicyFor(ChildOfDummyWithUsePolicy::class));
+    }
+
+    public function testPolicyCacheIsNotSharedBetweenGatesWithDifferentPolicies()
+    {
+        $registered = $this->getBasicGate();
+        $registered->policy(DummyWithUsePolicy::class, AccessGateTestPolicy::class);
+        $unregistered = $this->getBasicGate();
+
+        $this->assertInstanceOf(AccessGateTestPolicy::class, $registered->getPolicyFor(ChildOfDummyWithUsePolicy::class));
+        $this->assertInstanceOf(DummyWithUsePolicyPolicy::class, $unregistered->getPolicyFor(ChildOfDummyWithUsePolicy::class));
     }
 
     public function testPolicyCacheStoresNullForClassWithNoPolicy()
@@ -1675,10 +1713,7 @@ class AuthAccessGateTest extends TestCase
     public function testFlushStateClearsAllCaches()
     {
         $gate = $this->getBasicGate();
-
-        // Populate policy cache
         $gate->policy(AccessGateTestDummy::class, AccessGateTestPolicy::class);
-        $gate->getPolicyFor(new AccessGateTestDummy);
 
         // Populate ability method cache
         $gate->check('update-dash', new AccessGateTestDummy);
@@ -1687,7 +1722,6 @@ class AuthAccessGateTest extends TestCase
         Gate::flushState();
 
         // Verify everything still works after flush
-        $gate->policy(AccessGateTestDummy::class, AccessGateTestPolicy::class);
         $result = $gate->getPolicyFor(new AccessGateTestDummy);
         $this->assertInstanceOf(AccessGateTestPolicy::class, $result);
     }

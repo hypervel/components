@@ -14,6 +14,7 @@ use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Http\Request;
+use Hypervel\Sanctum\Contracts\HasApiTokens as HasApiTokensContract;
 use Hypervel\Sanctum\Events\TokenAuthenticated;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
@@ -111,7 +112,7 @@ class SanctumGuard implements GuardContract
             }
 
             if ($this->supportsTokens($user)) {
-                /** @var Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $tokenUser */
+                /** @var Authenticatable&HasApiTokensContract $tokenUser */
                 $tokenUser = $user;
                 $user = $tokenUser->withAccessToken(new TransientToken);
             }
@@ -130,7 +131,7 @@ class SanctumGuard implements GuardContract
                 $tokenable = $model::findTokenable($accessToken);
 
                 if ($this->supportsTokens($tokenable)) {
-                    /** @var Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $tokenable */
+                    /** @var Authenticatable&HasApiTokensContract $tokenable */
                     $user = $tokenable->withAccessToken($accessToken);
 
                     if ($this->events?->hasListeners(TokenAuthenticated::class)) {

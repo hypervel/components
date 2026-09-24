@@ -15,6 +15,7 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
 use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
 use Mockery as m;
+use Mockery\MockInterface;
 use Redis;
 use RedisCluster;
 
@@ -67,9 +68,9 @@ abstract class RedisCacheTestCase extends TestCase
      * unexpected fallthrough to real Redis connections when expectations
      * don't match.
      *
-     * @return m\MockInterface|PhpRedisConnection connection with _mockClient property for setting expectations
+     * @return MockInterface|PhpRedisConnection connection with _mockClient property for setting expectations
      */
-    protected function mockConnection(): m\MockInterface|PhpRedisConnection
+    protected function mockConnection(): MockInterface|PhpRedisConnection
     {
         // Anonymous mock - not bound to Redis extension class
         // This prevents fallthrough to real Redis when expectations don't match
@@ -121,9 +122,9 @@ abstract class RedisCacheTestCase extends TestCase
      * by its class definition, triggering cluster mode (sequential commands
      * instead of pipelines).
      *
-     * @return m\MockInterface|PhpRedisClusterConnection connection with _mockClient property for setting expectations
+     * @return MockInterface|PhpRedisClusterConnection connection with _mockClient property for setting expectations
      */
-    protected function mockClusterConnection(): m\MockInterface|PhpRedisClusterConnection
+    protected function mockClusterConnection(): MockInterface|PhpRedisClusterConnection
     {
         // Mock that identifies as RedisCluster for instanceof checks
         $client = m::mock(RedisCluster::class);
@@ -165,7 +166,7 @@ abstract class RedisCacheTestCase extends TestCase
     protected function createRedisFactory(
         RedisConnection $connection,
         string $connectionName = 'default'
-    ): m\MockInterface|RedisFactory {
+    ): MockInterface|RedisFactory {
         $redisProxy = m::mock(RedisProxy::class);
         $redisProxy->shouldReceive('withConnection')
             ->andReturnUsing(fn (callable $callback) => $callback($connection));
@@ -184,13 +185,13 @@ abstract class RedisCacheTestCase extends TestCase
     /**
      * Create a RedisStore with a mocked connection.
      *
-     * @param m\MockInterface|RedisConnection $connection the mocked connection (from mockConnection())
+     * @param MockInterface|RedisConnection $connection the mocked connection (from mockConnection())
      * @param string $prefix cache key prefix
      * @param string $connectionName Redis connection name
      * @param null|string $tagMode optional tag mode ('any' or 'all'). If provided, setTagMode() is called.
      */
     protected function createStore(
-        m\MockInterface|RedisConnection $connection,
+        MockInterface|RedisConnection $connection,
         string $prefix = 'prefix:',
         string $connectionName = 'default',
         ?string $tagMode = null,
@@ -225,7 +226,7 @@ abstract class RedisCacheTestCase extends TestCase
      * @param string $prefix cache key prefix
      * @param string $connectionName Redis connection name
      * @param null|string $tagMode optional tag mode ('any' or 'all')
-     * @return array{0: RedisStore, 1: m\MockInterface, 2: m\MockInterface} [store, clusterClient, connection]
+     * @return array{0: RedisStore, 1: MockInterface, 2: MockInterface} [store, clusterClient, connection]
      */
     protected function createClusterStore(
         string $prefix = 'prefix:',

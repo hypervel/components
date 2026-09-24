@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Generators;
 
+use Hypervel\Filesystem\Filesystem;
+
 class EnumMakeCommandTest extends TestCase
 {
     protected array $files = [
@@ -50,7 +52,7 @@ class EnumMakeCommandTest extends TestCase
     {
         $enumsFolderPath = app_path('Enums');
 
-        /** @var \Hypervel\Filesystem\Filesystem $files */
+        /** @var Filesystem $files */
         $files = $this->app->make('files');
 
         $files->ensureDirectoryExists($enumsFolderPath);
@@ -70,7 +72,7 @@ class EnumMakeCommandTest extends TestCase
     {
         $enumerationsFolderPath = app_path('Enumerations');
 
-        /** @var \Hypervel\Filesystem\Filesystem $files */
+        /** @var Filesystem $files */
         $files = $this->app->make('files');
 
         $files->ensureDirectoryExists($enumerationsFolderPath);

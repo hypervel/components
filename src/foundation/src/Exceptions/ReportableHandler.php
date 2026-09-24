@@ -62,6 +62,9 @@ class ReportableHandler
     /**
      * Indicate that report handling should stop after invoking this callback.
      *
+     * Boot-only. The flag persists on the registered callback and stops report
+     * handling for every exception it subsequently handles in the worker.
+     *
      * @return $this
      */
     public function stop(): static

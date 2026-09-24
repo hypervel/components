@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\ApiClient;
 
 use BadMethodCallException;
+use Closure;
 use GuzzleHttp\ClientInterface;
+use GuzzleHttp\Cookie\SetCookie;
 use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\ApiClient\Concerns\HasContext;
 use Hypervel\Container\Container;
@@ -16,19 +18,22 @@ use Hypervel\Http\Client\PendingRequest as ClientPendingRequest;
 use Hypervel\Http\Client\Request as HttpRequest;
 use Hypervel\Http\Client\Response as HttpResponse;
 use Hypervel\Pipeline\Pipeline;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Http;
+use Hypervel\Support\Stringable;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\ForwardsCalls;
 use InvalidArgumentException;
 use JsonSerializable;
 use LogicException;
 use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\StreamInterface;
 use Throwable;
 
 /**
  * @template TResource of ApiResource = ApiResource
  * @method static baseUrl(string $url)
- * @method static withBody(null|resource|\Psr\Http\Message\StreamInterface|string|\Hypervel\Support\Stringable $content, string $contentType = 'application/json')
+ * @method static withBody(null|resource|StreamInterface|string|Stringable $content, string $contentType = 'application/json')
  * @method static asJson()
  * @method static asForm()
  * @method static attach(array|string $name, resource|string $contents = '', ?string $filename = null, array $headers = [])
@@ -46,15 +51,15 @@ use Throwable;
  * @method static withToken(string $token, string $type = 'Bearer')
  * @method static withUserAgent(bool|string $userAgent)
  * @method static withUrlParameters(array $parameters = [])
- * @method static withCookie(\GuzzleHttp\Cookie\SetCookie $cookie)
+ * @method static withCookie(SetCookie $cookie)
  * @method static withCookies(array $cookies, string $domain)
  * @method static maxRedirects(int $max)
  * @method static withoutRedirecting()
  * @method static withoutVerifying()
- * @method static sink(\Psr\Http\Message\StreamInterface|resource|string $to)
+ * @method static sink(resource|StreamInterface|string $to)
  * @method static timeout(float|int $seconds)
  * @method static connectTimeout(float|int $seconds)
- * @method static retry(array|int $times, \Closure|int $sleepMilliseconds = 0, ?callable $when = null, bool $throw = true)
+ * @method static retry(array|int $times, Closure|int $sleepMilliseconds = 0, ?callable $when = null, bool $throw = true)
  * @method static withOptions(array $options)
  * @method static withMiddleware(callable $middleware)
  * @method static withRequestMiddleware(callable $middleware)
@@ -69,7 +74,7 @@ use Throwable;
  * @method static throwUnless(bool|callable $condition, ?callable $callback = null)
  * @method static dump()
  * @method static dd()
- * @method static stub(callable|\Hypervel\Support\Collection $callback)
+ * @method static stub(callable|Collection $callback)
  * @method static preventStrayRequests(bool $prevent = true)
  * @method static allowStrayRequests(array $only)
  * @method static truncateExceptionsAt(int $length)

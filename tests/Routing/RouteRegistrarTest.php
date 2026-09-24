@@ -12,6 +12,7 @@ use Hypervel\Routing\CallableDispatcher;
 use Hypervel\Routing\Contracts\CallableDispatcher as CallableDispatcherContract;
 use Hypervel\Routing\Contracts\ControllerDispatcher as ControllerDispatcherContract;
 use Hypervel\Routing\ControllerDispatcher;
+use Hypervel\Routing\Route;
 use Hypervel\Routing\Router;
 use Hypervel\Routing\RouteRegistrar;
 use Hypervel\Tests\Routing\Fixtures\CategoryBackedEnum;
@@ -173,7 +174,7 @@ class RouteRegistrarTest extends RoutingTestCase
                 'destroy',
             ]);
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertTrue($route->allowsTrashedBindings());
         }
@@ -550,8 +551,8 @@ class RouteRegistrarTest extends RoutingTestCase
 
         $routeCollection = $this->router->getRoutes();
 
-        $this->assertInstanceOf(\Hypervel\Routing\Route::class, $routeCollection->match(Request::create('foo', 'GET')));
-        $this->assertInstanceOf(\Hypervel\Routing\Route::class, $routeCollection->match(Request::create('bar', 'GET')));
+        $this->assertInstanceOf(Route::class, $routeCollection->match(Request::create('foo', 'GET')));
+        $this->assertInstanceOf(Route::class, $routeCollection->match(Request::create('bar', 'GET')));
     }
 
     public function testRegisteringNonApprovedAttributesThrows(): void
@@ -1268,7 +1269,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->router->resource('users', RouteRegistrarControllerStub::class)
             ->where($wheres);
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
@@ -1281,7 +1282,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->router->get('/{foo}/{bar}')->whereNumber(['foo', 'bar']);
         $this->router->get('/api/{bar}/{foo}')->whereNumber(['bar', 'foo']);
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
@@ -1294,7 +1295,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->router->get('/{foo}/{bar}')->whereAlpha(['foo', 'bar']);
         $this->router->get('/api/{bar}/{foo}')->whereAlpha(['bar', 'foo']);
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
@@ -1306,7 +1307,7 @@ class RouteRegistrarTest extends RoutingTestCase
 
         $this->router->get('/{foo}')->whereAlphaNumeric(['1a2b3c']);
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
@@ -1339,7 +1340,7 @@ class RouteRegistrarTest extends RoutingTestCase
         $this->router->get('/{foo}/{bar}')->whereIn(['foo', 'bar'], ['one', 'two']);
         $this->router->get('/api/{bar}/{foo}')->whereIn(['bar', 'foo'], ['one', 'two']);
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
@@ -1370,7 +1371,7 @@ class RouteRegistrarTest extends RoutingTestCase
             $router->get('/');
         });
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
@@ -1388,7 +1389,7 @@ class RouteRegistrarTest extends RoutingTestCase
             $router->get('/');
         });
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
@@ -1402,7 +1403,7 @@ class RouteRegistrarTest extends RoutingTestCase
             $router->get('/');
         });
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
@@ -1420,7 +1421,7 @@ class RouteRegistrarTest extends RoutingTestCase
             $router->get('/');
         });
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
@@ -1438,7 +1439,7 @@ class RouteRegistrarTest extends RoutingTestCase
             $router->get('/');
         });
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
@@ -1456,7 +1457,7 @@ class RouteRegistrarTest extends RoutingTestCase
             $router->get('/');
         });
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
@@ -1470,7 +1471,7 @@ class RouteRegistrarTest extends RoutingTestCase
             $router->get('/');
         });
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
@@ -1488,7 +1489,7 @@ class RouteRegistrarTest extends RoutingTestCase
             $router->get('/');
         });
 
-        /** @var \Hypervel\Routing\Route $route */
+        /** @var Route $route */
         foreach ($this->router->getRoutes() as $route) {
             $this->assertEquals($wheres, $route->wheres);
         }
@@ -1825,7 +1826,7 @@ class RouteRegistrarTest extends RoutingTestCase
     /**
      * Get the last route registered with the router.
      *
-     * @return \Hypervel\Routing\Route
+     * @return Route
      */
     protected function getRoute()
     {

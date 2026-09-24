@@ -11,6 +11,7 @@ use Hypervel\Sentry\Features\LogFeature;
 use Hypervel\Support\Facades\Log;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use Sentry\EventType;
+use Sentry\Logs\Log as SentryLog;
 use Sentry\Logs\LogLevel;
 
 use function Sentry\logger;
@@ -178,7 +179,11 @@ class LogLogsIntegrationTest extends SentryTestCase
         $this->assertEquals('bar', $log->attributes()->get('foo')->getValue());
     }
 
-    /** @return \Sentry\Logs\Log[] */
+    /**
+     * Get and flush the captured logs.
+     *
+     * @return SentryLog[]
+     */
     private function getAndFlushCapturedLogs(): array
     {
         $logs = logger()->aggregator()->all();

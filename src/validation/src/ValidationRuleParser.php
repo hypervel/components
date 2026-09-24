@@ -7,7 +7,6 @@ namespace Hypervel\Validation;
 use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Validation\CompilableRules;
-use Hypervel\Contracts\Validation\InvokableRule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Contracts\Validation\ValidationRule;
 use Hypervel\Support\Arr;
@@ -118,7 +117,9 @@ class ValidationRuleParser
             $rule = new ClosureValidationRule($rule);
         }
 
-        if ($rule instanceof InvokableRule || $rule instanceof ValidationRule) {
+        // REMOVED: Laravel's deprecated InvokableRule contract is omitted;
+        // implement ValidationRule::validate() instead.
+        if ($rule instanceof ValidationRule) {
             $rule = InvokableValidationRule::make($rule);
         }
 
@@ -145,7 +146,6 @@ class ValidationRuleParser
     {
         return is_object($rule)
             && ! $rule instanceof Closure
-            && ! $rule instanceof InvokableRule
             && ! $rule instanceof ValidationRule
             && ! $rule instanceof RuleContract
             && ! $rule instanceof CompilableRules

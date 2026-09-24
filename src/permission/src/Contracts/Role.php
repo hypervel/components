@@ -6,6 +6,7 @@ namespace Hypervel\Permission\Contracts;
 
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Permission\Exceptions\RoleDoesNotExist;
+use Hypervel\Permission\Models\Role as RoleModel;
 use UnitEnum;
 
 /**
@@ -13,9 +14,9 @@ use UnitEnum;
  * @property string $name
  * @property null|string $guard_name
  *
- * @mixin \Hypervel\Permission\Models\Role
+ * @mixin RoleModel
  *
- * @phpstan-require-extends \Hypervel\Permission\Models\Role
+ * @phpstan-require-extends RoleModel
  */
 interface Role
 {

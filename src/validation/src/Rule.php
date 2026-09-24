@@ -7,7 +7,6 @@ namespace Hypervel\Validation;
 use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Support\Arrayable;
-use Hypervel\Contracts\Validation\InvokableRule;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Contracts\Validation\ValidationRule;
 use Hypervel\Support\Arr;
@@ -64,8 +63,8 @@ class Rule
      */
     public static function when(
         bool|callable $condition,
-        array|Closure|InvokableRule|RuleContract|string|ValidationRule $rules,
-        array|Closure|InvokableRule|RuleContract|string|ValidationRule $defaultRules = []
+        array|Closure|RuleContract|string|ValidationRule $rules,
+        array|Closure|RuleContract|string|ValidationRule $defaultRules = []
     ): ConditionalRules {
         return new ConditionalRules($condition, $rules, $defaultRules);
     }
@@ -75,8 +74,8 @@ class Rule
      */
     public static function unless(
         bool|callable $condition,
-        array|Closure|InvokableRule|RuleContract|string|ValidationRule $rules,
-        array|Closure|InvokableRule|RuleContract|string|ValidationRule $defaultRules = []
+        array|Closure|RuleContract|string|ValidationRule $rules,
+        array|Closure|RuleContract|string|ValidationRule $defaultRules = []
     ): ConditionalRules {
         return new ConditionalRules($condition, $defaultRules, $rules);
     }

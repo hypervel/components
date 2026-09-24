@@ -8,11 +8,12 @@ use GuzzleHttp\Client;
 use Hypervel\Socialite\Two\GoogleProvider;
 use Hypervel\Socialite\Two\User;
 use Mockery as m;
+use Mockery\MockInterface;
 
 class GoogleTestProviderStub extends GoogleProvider
 {
     /**
-     * @var \GuzzleHttp\Client|\Mockery\MockInterface
+     * @var Client|MockInterface
      */
     public $http;
 

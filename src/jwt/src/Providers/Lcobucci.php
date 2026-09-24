@@ -19,6 +19,7 @@ use Lcobucci\JWT\Signer\Ecdsa;
 use Lcobucci\JWT\Signer\Key;
 use Lcobucci\JWT\Signer\Key\InMemory;
 use Lcobucci\JWT\Signer\Rsa;
+use Lcobucci\JWT\Token\Plain;
 use Lcobucci\JWT\Token\RegisteredClaims;
 use Lcobucci\JWT\Validation\Constraint\SignedWith;
 use Throwable;
@@ -64,7 +65,7 @@ class Lcobucci extends Provider implements ProviderContract
     /**
      * Create a JSON Web Token.
      *
-     * @throws \Hypervel\Jwt\Exceptions\JwtException
+     * @throws JwtException
      */
     public function encode(array $payload): string
     {
@@ -82,12 +83,12 @@ class Lcobucci extends Provider implements ProviderContract
     /**
      * Decode a JSON Web Token.
      *
-     * @throws \Hypervel\Jwt\Exceptions\JwtException
+     * @throws JwtException
      */
     public function decode(string $token): array
     {
         try {
-            /** @var \Lcobucci\JWT\Token\Plain */
+            /** @var Plain */
             $token = $this->config->parser()->parse($token);
         } catch (Throwable $exception) {
             throw new TokenInvalidException(
@@ -177,7 +178,7 @@ class Lcobucci extends Provider implements ProviderContract
      *
      * Signer is rebuilt before config because buildConfig() reads $this->signer.
      *
-     * @throws \Hypervel\Jwt\Exceptions\JwtException
+     * @throws JwtException
      */
     protected function onConfigurationChanged(): void
     {
@@ -188,7 +189,7 @@ class Lcobucci extends Provider implements ProviderContract
     /**
      * Get the signer instance.
      *
-     * @throws \Hypervel\Jwt\Exceptions\JwtException
+     * @throws JwtException
      */
     protected function getSigner(): Signer
     {
@@ -208,9 +209,11 @@ class Lcobucci extends Provider implements ProviderContract
     }
 
     /**
-     * @throws \Hypervel\Jwt\Exceptions\JwtException
+     * Get the key used to sign the tokens.
+     *
+     * @throws JwtException
      */
-    protected function getSigningKey(): mixed
+    protected function getSigningKey(): Key
     {
         if ($this->isAsymmetric()) {
             if (! $privateKey = $this->getPrivateKey()) {
@@ -228,9 +231,11 @@ class Lcobucci extends Provider implements ProviderContract
     }
 
     /**
-     * @throws \Hypervel\Jwt\Exceptions\JwtException
+     * Get the key used to verify the tokens.
+     *
+     * @throws JwtException
      */
-    protected function getVerificationKey(): mixed
+    protected function getVerificationKey(): Key
     {
         if ($this->isAsymmetric()) {
             if (! $public = $this->getPublicKey()) {

@@ -673,6 +673,8 @@ assertType('Hypervel\Support\Collection<int, int|string>', $collection::make(['s
 
 assertType('Hypervel\Support\Collection<int, int|string>', $collection::make([1])->mergeRecursive([2 => 'string']));
 assertType('Hypervel\Support\Collection<int, string>', $collection::make(['string'])->mergeRecursive(['string']));
+assertType('Hypervel\Support\Collection<string, array<mixed>|int>', $collection::make(['a' => 1])->mergeRecursive(['a' => 2]));
+assertType('Hypervel\Support\Collection<int|string, array<mixed>|int>', $collection::make([1, 'a' => 1])->mergeRecursive(['a' => 2]));
 
 assertType('Hypervel\Support\Collection<string, int>', $collection::make(['string' => 'string'])->combine([2]));
 assertType('Hypervel\Support\Collection<int, int>', $collection::make([1])->combine([1]));

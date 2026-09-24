@@ -6,8 +6,6 @@ namespace Hypervel\Data\Support\Validation;
 
 use BackedEnum;
 use DateTimeInterface;
-use Hypervel\Contracts\Validation\InvokableRule as InvokableRuleContract;
-use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Data\Attributes\Validation\CustomValidationAttribute;
 use Hypervel\Data\Attributes\Validation\ObjectValidationAttribute;
 use Hypervel\Data\Attributes\Validation\Rule;
@@ -21,7 +19,7 @@ class RuleDenormalizer
     /**
      * Convert one declaration into Validator rules.
      *
-     * @return list<InvokableRuleContract|object|RuleContract|string>
+     * @return list<object|string>
      */
     public function execute(mixed $rule, ValidationPath $path): array
     {
@@ -55,10 +53,6 @@ class RuleDenormalizer
 
         if ($rule instanceof Rule) {
             return $this->execute($rule->get(), $path);
-        }
-
-        if ($rule instanceof RuleContract || $rule instanceof InvokableRuleContract) {
-            return [$rule];
         }
 
         return [$rule];

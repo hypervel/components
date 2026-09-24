@@ -138,7 +138,7 @@ These URLs typically follow a standard schema convention:
 driver://username:password@host:port/database?options
 ```
 
-For convenience, Hypervel supports these URLs as an alternative to configuring your database with multiple configuration options. If the `url` configuration option is present, it will be used to extract the database connection and credential information. In Hypervel's default database configuration file, SQLite uses the `DATABASE_URL` environment variable while MariaDB, MySQL, and PostgreSQL use the `DB_URL` environment variable.
+For convenience, Hypervel supports these URLs as an alternative to configuring your database with multiple configuration options. If the `url` (or corresponding `DB_URL` environment variable) configuration option is present, it will be used to extract the database connection and credential information.
 
 <a name="read-and-write-connections"></a>
 ### Read and Write Connections

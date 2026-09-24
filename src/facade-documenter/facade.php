@@ -30,6 +30,7 @@ use PHPStan\PhpDocParser\Ast\ConstExpr\ConstExprTrueNode;
 use PHPStan\PhpDocParser\Ast\ConstExpr\ConstFetchNode;
 use PHPStan\PhpDocParser\Ast\PhpDoc\MethodTagValueNode;
 use PHPStan\PhpDocParser\Ast\PhpDoc\MethodTagValueParameterNode;
+use PHPStan\PhpDocParser\Ast\PhpDoc\PhpDocNode;
 use PHPStan\PhpDocParser\Ast\Type\ArrayShapeNode;
 use PHPStan\PhpDocParser\Ast\Type\ArrayTypeNode;
 use PHPStan\PhpDocParser\Ast\Type\CallableTypeNode;
@@ -255,8 +256,8 @@ function debug($message)
 /**
  * Resolve the proxies for the Facade.
  *
- * @param \ReflectionClass $class
- * @return \Hypervel\Support\Collection<class-string>
+ * @param ReflectionClass $class
+ * @return Collection<class-string>
  */
 function resolveProxies($class)
 {
@@ -268,7 +269,7 @@ function resolveProxies($class)
  * Determine the fully qualified class name.
  *
  * @param string $class
- * @param \ReflectionClass $source
+ * @param ReflectionClass $source
  * @return class-string
  */
 function determineFqcn($class, $source)
@@ -319,7 +320,7 @@ function resolveCanonicalClassName(string $name): ?string
 /**
  * Resolve a class name relative to the method that declares it.
  *
- * @param \ReflectionClassDocblockContext|\ReflectionMethodDecorator $method
+ * @param ReflectionClassDocblockContext|ReflectionMethodDecorator $method
  */
 function resolveRelativeClassName($method, string $name): ?string
 {
@@ -336,8 +337,8 @@ function resolveRelativeClassName($method, string $name): ?string
 /**
  * Resolve the classes referenced in the @see docblocks.
  *
- * @param \ReflectionClass $class
- * @return \Hypervel\Support\Collection<class-string>
+ * @param ReflectionClass $class
+ * @return Collection<class-string>
  */
 function resolveDocSees($class)
 {
@@ -348,8 +349,8 @@ function resolveDocSees($class)
 /**
  * Resolve the classes referenced methods in the @methods docblocks.
  *
- * @param \ReflectionClass $class
- * @return \Hypervel\Support\Collection<\PHPStan\PhpDocParser\Ast\PhpDoc\MethodTagValueNode>
+ * @param ReflectionClass $class
+ * @return Collection<MethodTagValueNode>
  */
 function resolveDocMethods($class)
 {
@@ -385,8 +386,8 @@ function resolveDocMethods($class)
 /**
  * Resolve the parameters type from the @param docblocks.
  *
- * @param \ReflectionMethodDecorator $method
- * @param \ReflectionParameter $parameter
+ * @param ReflectionMethodDecorator $method
+ * @param ReflectionParameter $parameter
  * @return null|string
  */
 function resolveDocParamType($method, $parameter)
@@ -420,7 +421,7 @@ function resolveDocParamType($method, $parameter)
 /**
  * Resolve the return type from the @return docblock.
  *
- * @param \ReflectionMethodDecorator $method
+ * @param ReflectionMethodDecorator $method
  * @return null|string
  */
 function resolveReturnDocType($method)
@@ -442,7 +443,7 @@ function resolveReturnDocType($method)
  * Parse the given docblock.
  *
  * @param string $docblock
- * @return \PHPStan\PhpDocParser\Ast\PhpDoc\PhpDocNode
+ * @return PhpDocNode
  */
 function parseDocblock($docblock)
 {
@@ -475,8 +476,8 @@ function parseDocblock($docblock)
 /**
  * Resolve the types from the docblock.
  *
- * @param \ReflectionClassDocblockContext|\ReflectionMethodDecorator $method
- * @param \PHPStan\PhpDocParser\Ast\Type\TypeNode $typeNode
+ * @param ReflectionClassDocblockContext|ReflectionMethodDecorator $method
+ * @param TypeNode $typeNode
  * @return null|string
  */
 function resolveDocblockTypes($method, $typeNode, int $depth = 1)
@@ -725,8 +726,8 @@ function resolveDocblockTypes($method, $typeNode, int $depth = 1)
 /**
  * Resolve and flatten the members of a PHPDoc union.
  *
- * @param \ReflectionClassDocblockContext|\ReflectionMethodDecorator $method
- * @param \PHPStan\PhpDocParser\Ast\Type\TypeNode $typeNode
+ * @param ReflectionClassDocblockContext|ReflectionMethodDecorator $method
+ * @param TypeNode $typeNode
  * @return list<string>
  */
 function resolveDocblockUnionMembers($method, $typeNode, int $depth): array
@@ -772,7 +773,7 @@ function resolveDocblockUnionMembers($method, $typeNode, int $depth): array
 /**
  * Resolve a method template type by name.
  *
- * @param \ReflectionClassDocblockContext|\ReflectionMethodDecorator $method
+ * @param ReflectionClassDocblockContext|ReflectionMethodDecorator $method
  */
 function resolveTemplateType($method, string $name, int $depth): ?string
 {
@@ -823,8 +824,8 @@ function isArrayRefinementType(string $name): bool
  * matching constants and unioning their inferred value types. Returns 'mixed'
  * when the constant or class cannot be resolved.
  *
- * @param \PHPStan\PhpDocParser\Ast\ConstExpr\ConstFetchNode $node
- * @param \ReflectionClassDocblockContext|\ReflectionMethodDecorator $method
+ * @param ConstFetchNode $node
+ * @param ReflectionClassDocblockContext|ReflectionMethodDecorator $method
  * @return string
  */
 function resolveConstFetchType($node, $method)
@@ -859,8 +860,8 @@ function resolveConstFetchType($node, $method)
 /**
  * Resolve key-of<...> / value-of<...> when the inner type is a ConstFetchNode.
  *
- * @param \PHPStan\PhpDocParser\Ast\ConstExpr\ConstFetchNode $node
- * @param \ReflectionClassDocblockContext|\ReflectionMethodDecorator $method
+ * @param ConstFetchNode $node
+ * @param ReflectionClassDocblockContext|ReflectionMethodDecorator $method
  * @param bool $keyType true to resolve the key type, false to resolve the value type
  * @return string
  */
@@ -900,7 +901,7 @@ function resolveKeyOrValueOf($node, $method, $keyType)
  * null when the class cannot be found.
  *
  * @param string $className
- * @param \ReflectionClassDocblockContext|\ReflectionMethodDecorator $method
+ * @param ReflectionClassDocblockContext|ReflectionMethodDecorator $method
  * @return null|string
  */
 function resolveClassConstantClass($className, $method)
@@ -943,8 +944,8 @@ function inferValueType($value)
  * Unknown node types must return false so new PHPDoc syntax falls back to a
  * conservative union instead of producing a misleading conditional.
  *
- * @param \ReflectionClassDocblockContext|\ReflectionMethodDecorator $method
- * @param \PHPStan\PhpDocParser\Ast\Type\TypeNode $typeNode
+ * @param ReflectionClassDocblockContext|ReflectionMethodDecorator $method
+ * @param TypeNode $typeNode
  * @return bool
  */
 function canPreserveConditionalTarget($method, $typeNode)
@@ -1140,8 +1141,8 @@ function isKnownOptionalDependency($type)
 /**
  * Resolve the declared type.
  *
- * @param \ReflectionMethodDecorator $method
- * @param null|\ReflectionType $type
+ * @param ReflectionMethodDecorator $method
+ * @param null|ReflectionType $type
  * @return null|string
  */
 function resolveType($method, $type)
@@ -1193,7 +1194,7 @@ function resolveType($method, $type)
  *
  * @param string $docblock
  * @param string $tag
- * @return \Hypervel\Support\Collection<string>
+ * @return Collection<string>
  */
 function resolveDocTags($docblock, $tag)
 {
@@ -1210,8 +1211,8 @@ function resolveDocTags($docblock, $tag)
 /**
  * Resolve method names that should be excluded from a facade docblock.
  *
- * @param \ReflectionClass $facade
- * @return \Hypervel\Support\Collection<int, string>
+ * @param ReflectionClass $facade
+ * @return Collection<int, string>
  */
 function resolveIgnoredMethods($facade)
 {
@@ -1229,9 +1230,9 @@ function resolveIgnoredMethods($facade)
 /**
  * Recursively resolve docblock mixins.
  *
- * @param \ReflectionClass $class
- * @param \Hypervel\Support\Collection<class-string> $encountered
- * @return \Hypervel\Support\Collection<\ReflectionClass>
+ * @param ReflectionClass $class
+ * @param Collection<class-string> $encountered
+ * @return Collection<ReflectionClass>
  */
 function resolveDocMixins($class, $encountered = new Collection)
 {
@@ -1253,8 +1254,8 @@ function resolveDocMixins($class, $encountered = new Collection)
 /**
  * Resolve the classes referenced methods in the @methods docblocks.
  *
- * @param \ReflectionMethodDecorator $method
- * @return \Hypervel\Support\Collection<int, string>
+ * @param ReflectionMethodDecorator $method
+ * @return Collection<int, string>
  */
 function resolveDocParameters($method)
 {
@@ -1265,7 +1266,7 @@ function resolveDocParameters($method)
 /**
  * Determine if the method is magic.
  *
- * @param \PHPStan\PhpDocParser\Ast\PhpDoc\MethodTagValueNode|\ReflectionMethodDecorator $method
+ * @param MethodTagValueNode|ReflectionMethodDecorator $method
  * @return bool
  */
 function isMagic($method)
@@ -1276,7 +1277,7 @@ function isMagic($method)
 /**
  * Determine if the method is marked as @internal.
  *
- * @param \PHPStan\PhpDocParser\Ast\PhpDoc\MethodTagValueNode|\ReflectionMethodDecorator $method
+ * @param MethodTagValueNode|ReflectionMethodDecorator $method
  * @return bool
  */
 function isInternal($method)
@@ -1291,7 +1292,7 @@ function isInternal($method)
 /**
  * Determine if the method is deprecated.
  *
- * @param \PHPStan\PhpDocParser\Ast\PhpDoc\MethodTagValueNode|\ReflectionMethodDecorator $method
+ * @param MethodTagValueNode|ReflectionMethodDecorator $method
  * @return bool
  */
 function isDeprecated($method)
@@ -1306,7 +1307,7 @@ function isDeprecated($method)
 /**
  * Determine if the method is for a builtin contract.
  *
- * @param \PHPStan\PhpDocParser\Ast\PhpDoc\MethodTagValueNode|\ReflectionMethodDecorator $method
+ * @param MethodTagValueNode|ReflectionMethodDecorator $method
  * @return bool
  */
 function fulfillsBuiltinInterface($method)
@@ -1325,7 +1326,7 @@ function fulfillsBuiltinInterface($method)
 /**
  * Resolve the methods name.
  *
- * @param \PHPStan\PhpDocParser\Ast\PhpDoc\MethodTagValueNode|\ReflectionMethodDecorator $method
+ * @param MethodTagValueNode|ReflectionMethodDecorator $method
  * @return string
  */
 function resolveName($method)
@@ -1338,8 +1339,8 @@ function resolveName($method)
 /**
  * Resolve the classes methods.
  *
- * @param \ReflectionClass $class
- * @return \Hypervel\Support\Collection<\PHPStan\PhpDocParser\Ast\PhpDoc\MethodTagValueNode|\ReflectionMethodDecorator>
+ * @param ReflectionClass $class
+ * @return Collection<MethodTagValueNode|ReflectionMethodDecorator>
  */
 function resolveMethods($class)
 {
@@ -1354,8 +1355,8 @@ function resolveMethods($class)
 /**
  * Determine if the given method conflicts with a Facade method.
  *
- * @param \ReflectionClass $facade
- * @param \PHPStan\PhpDocParser\Ast\PhpDoc\MethodTagValueNode|\ReflectionMethodDecorator $method
+ * @param ReflectionClass $facade
+ * @param MethodTagValueNode|ReflectionMethodDecorator $method
  * @return bool
  */
 function conflictsWithFacade($facade, $method)
@@ -1374,8 +1375,8 @@ function conflictsWithFacade($facade, $method)
 /**
  * Normalise the method details into a easier format to work with.
  *
- * @param \PHPStan\PhpDocParser\Ast\PhpDoc\MethodTagValueNode|\ReflectionMethodDecorator $method
- * @return array|\PHPStan\PhpDocParser\Ast\PhpDoc\MethodTagValueNode
+ * @param MethodTagValueNode|ReflectionMethodDecorator $method
+ * @return array|MethodTagValueNode
  */
 function normaliseDetails($method)
 {
@@ -1405,8 +1406,8 @@ function normaliseDetails($method)
 /**
  * Resolve the parameters for the method.
  *
- * @param \ReflectionMethodDecorator $method
- * @return \Hypervel\Support\Collection<int, \DynamicParameter|\ReflectionParameter>
+ * @param ReflectionMethodDecorator $method
+ * @return Collection<int, DynamicParameter|ReflectionParameter>
  */
 function resolveParameters($method)
 {
@@ -1423,8 +1424,8 @@ function resolveParameters($method)
  * the exact direct or nested trait source range holds the relevant `use`
  * statements.
  *
- * @param \ReflectionClassDocblockContext|\ReflectionMethodDecorator $method
- * @return \ReflectionClass
+ * @param ReflectionClassDocblockContext|ReflectionMethodDecorator $method
+ * @return ReflectionClass
  */
 function resolveImportSource($method)
 {
@@ -1458,7 +1459,7 @@ function resolveImportSource($method)
  * Resolve every direct and nested trait used by a class.
  *
  * @param array<class-string, true> $resolved
- * @return list<\ReflectionClass>
+ * @return list<ReflectionClass>
  */
 function resolveNestedTraits(ReflectionClass $class, array &$resolved = []): array
 {
@@ -1480,8 +1481,8 @@ function resolveNestedTraits(ReflectionClass $class, array &$resolved = []): arr
 /**
  * Resolve the classes imports.
  *
- * @param \ReflectionClass $class
- * @return \Hypervel\Support\Collection<string, class-string>
+ * @param ReflectionClass $class
+ * @return Collection<string, class-string>
  */
 function resolveClassImports($class)
 {
@@ -1579,7 +1580,7 @@ function isIgnorablePhpToken(PhpToken $token): bool
 /**
  * Return the next significant PHP token index.
  *
- * @param list<\PhpToken> $tokens
+ * @param list<PhpToken> $tokens
  */
 function nextSignificantPhpTokenIndex(array $tokens, int $offset): ?int
 {
@@ -1595,7 +1596,7 @@ function nextSignificantPhpTokenIndex(array $tokens, int $offset): ?int
 /**
  * Parse the class imports from one namespace-level use statement.
  *
- * @param list<\PhpToken> $tokens
+ * @param list<PhpToken> $tokens
  * @return array<string, class-string>
  */
 function parseClassUseStatement(array $tokens): array
@@ -1642,8 +1643,8 @@ function parseClassUseStatement(array $tokens): array
 /**
  * Split use-statement tokens into comma-separated imports.
  *
- * @param list<\PhpToken> $tokens
- * @return list<list<\PhpToken>>
+ * @param list<PhpToken> $tokens
+ * @return list<list<PhpToken>>
  */
 function splitClassUseSegments(array $tokens): array
 {
@@ -1671,7 +1672,7 @@ function splitClassUseSegments(array $tokens): array
 /**
  * Convert parsed use segments into an alias map.
  *
- * @param list<list<\PhpToken>> $segments
+ * @param list<list<PhpToken>> $segments
  * @return array<string, class-string>
  */
 function parseClassUseSegments(array $segments, string $prefix = ''): array
@@ -1721,7 +1722,7 @@ function parseClassUseSegments(array $segments, string $prefix = ''): array
  * matching its representation keeps generated metadata stable after formatting.
  *
  * @param string $method
- * @param \Hypervel\Support\Collection<string, class-string> $imports
+ * @param Collection<string, class-string> $imports
  * @return string
  */
 function shortenImportedGlobalTypes($method, $imports)
@@ -1863,7 +1864,7 @@ class ReflectionClassDocblockContext
 }
 
 /**
- * @mixin \ReflectionMethod
+ * @mixin ReflectionMethod
  */
 class ReflectionMethodDecorator
 {

@@ -11,6 +11,7 @@ use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\SerializesModels;
 use Hypervel\Support\Collection;
 use Hypervel\Telescope\Contracts\EntriesRepository;
+use Hypervel\Telescope\EntryUpdate;
 
 class ProcessPendingUpdates implements ShouldQueue
 {
@@ -22,7 +23,7 @@ class ProcessPendingUpdates implements ShouldQueue
     /**
      * Create a new job instance.
      *
-     * @param Collection<int, \Hypervel\Telescope\EntryUpdate> $pendingUpdates the pending entry updates
+     * @param Collection<int, EntryUpdate> $pendingUpdates the pending entry updates
      * @param int $attempt the number of times the job has been attempted
      */
     public function __construct(

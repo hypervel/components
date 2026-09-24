@@ -52,6 +52,7 @@ use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Sentry\ClientBuilder;
 use Sentry\Integration as SdkIntegration;
+use Sentry\Integration\IntegrationInterface;
 use Sentry\Logger\DebugFileLogger;
 use Sentry\SentrySdk;
 use Sentry\Serializer\RepresentationSerializer;
@@ -248,7 +249,7 @@ class SentryServiceProvider extends ServiceProvider
                 if ($options->hasDefaultIntegrations()) {
                     // Remove the default error and fatal exception listeners to let the framework handle those
                     // through the exception handler and log channel integration
-                    $integrations = array_filter($integrations, static function (SdkIntegration\IntegrationInterface $integration): bool {
+                    $integrations = array_filter($integrations, static function (IntegrationInterface $integration): bool {
                         if ($integration instanceof SdkIntegration\ErrorListenerIntegration) {
                             return false;
                         }
@@ -362,7 +363,7 @@ class SentryServiceProvider extends ServiceProvider
         $handler = new EventHandler($this->app, $userConfig);
 
         try {
-            /** @var \Hypervel\Contracts\Events\Dispatcher $dispatcher */
+            /** @var Dispatcher $dispatcher */
             $dispatcher = $this->app->make('events');
 
             $handler->subscribe($dispatcher);
@@ -459,7 +460,7 @@ class SentryServiceProvider extends ServiceProvider
         $handler = new TracingEventHandler($tracingConfig);
 
         try {
-            /** @var \Hypervel\Contracts\Events\Dispatcher $dispatcher */
+            /** @var Dispatcher $dispatcher */
             $dispatcher = $this->app->make('events');
 
             $handler->subscribe($dispatcher);
@@ -707,7 +708,7 @@ class SentryServiceProvider extends ServiceProvider
     /**
      * Resolve the integrations from the user configuration with the container.
      *
-     * @return SdkIntegration\IntegrationInterface[]
+     * @return IntegrationInterface[]
      */
     private function resolveIntegrationsFromUserConfig(array $userIntegrations): array
     {
@@ -719,16 +720,16 @@ class SentryServiceProvider extends ServiceProvider
         $integrations = [];
 
         foreach ($integrationsToResolve as $userIntegration) {
-            if ($userIntegration instanceof SdkIntegration\IntegrationInterface) {
+            if ($userIntegration instanceof IntegrationInterface) {
                 $integrations[] = $userIntegration;
             } elseif (is_string($userIntegration)) {
                 $resolvedIntegration = $this->app->make($userIntegration);
 
-                if (! $resolvedIntegration instanceof SdkIntegration\IntegrationInterface) {
+                if (! $resolvedIntegration instanceof IntegrationInterface) {
                     throw new RuntimeException(
                         sprintf(
                             'Sentry integrations must be an instance of `%s` got `%s`.',
-                            SdkIntegration\IntegrationInterface::class,
+                            IntegrationInterface::class,
                             $resolvedIntegration::class
                         )
                     );
@@ -739,7 +740,7 @@ class SentryServiceProvider extends ServiceProvider
                 throw new RuntimeException(
                     sprintf(
                         'Sentry integrations must either be a valid container reference or an instance of `%s`.',
-                        SdkIntegration\IntegrationInterface::class
+                        IntegrationInterface::class
                     )
                 );
             }

@@ -102,6 +102,27 @@ class ValidationRuleParserTest extends TestCase
         ], $rules);
     }
 
+    public function testConditionalRulesAcceptNonClosureCallableConditions(): void
+    {
+        $rules = ValidationRuleParser::filterConditionalRules([
+            'name' => Rule::when([$this, 'conditionIsMet'], ['required'], ['nullable']),
+            'email' => Rule::unless([$this, 'conditionIsMet'], ['required'], ['nullable']),
+        ]);
+
+        $this->assertSame([
+            'name' => ['required'],
+            'email' => ['nullable'],
+        ], $rules);
+    }
+
+    /**
+     * Determine if the conditional test rules apply.
+     */
+    public function conditionIsMet(Fluent $input): bool
+    {
+        return true;
+    }
+
     public function testEmptyConditionalRulesArePreserved(): void
     {
         $isAdmin = true;

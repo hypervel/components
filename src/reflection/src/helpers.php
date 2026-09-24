@@ -16,7 +16,7 @@ if (! function_exists('lazy')) {
      * @param array<string, mixed> $eager
      * @return TValue
      *
-     * @throws \ReflectionException
+     * @throws ReflectionException
      */
     function lazy(string|Closure $class, Closure|int $callback = 0, int $options = 0, array $eager = []): object
     {
@@ -64,7 +64,7 @@ if (! function_exists('proxy')) {
      * @param array<string, mixed> $eager
      * @return TValue
      *
-     * @throws \ReflectionException
+     * @throws ReflectionException
      */
     function proxy(string|Closure $class, Closure|int $callback = 0, int $options = 0, array $eager = []): object
     {

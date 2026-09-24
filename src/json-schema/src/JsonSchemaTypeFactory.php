@@ -6,13 +6,14 @@ namespace Hypervel\JsonSchema;
 
 use Closure;
 use Hypervel\Contracts\JsonSchema\JsonSchema as JsonSchemaContract;
+use Hypervel\JsonSchema\Types\Type;
 
 class JsonSchemaTypeFactory extends JsonSchema implements JsonSchemaContract
 {
     /**
      * Create a new object schema instance.
      *
-     * @param array<string, Types\Type>|(Closure(JsonSchemaTypeFactory): array<string, Types\Type>) $properties
+     * @param array<string, Type>|(Closure(JsonSchemaTypeFactory): array<string, Type>) $properties
      */
     public function object(Closure|array $properties = []): Types\ObjectType
     {
@@ -76,7 +77,7 @@ class JsonSchemaTypeFactory extends JsonSchema implements JsonSchemaContract
     /**
      * Create a new anyOf schema instance.
      *
-     * @param array<int, Types\Type>|(Closure(JsonSchemaTypeFactory): array<int, Types\Type>) $schemas
+     * @param array<int, Type>|(Closure(JsonSchemaTypeFactory): array<int, Type>) $schemas
      */
     public function anyOf(Closure|array $schemas): Types\AnyOfType
     {

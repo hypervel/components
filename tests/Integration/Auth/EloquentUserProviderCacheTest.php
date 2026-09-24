@@ -11,6 +11,7 @@ use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\FileStore;
 use Hypervel\Cache\ModelCacheCoordinator;
+use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Builder;
@@ -726,7 +727,7 @@ class EloquentUserProviderCacheTest extends TestCase
     /**
      * Create a provider backed by the real serializing cache manager.
      *
-     * @param class-string<\Hypervel\Contracts\Auth\Authenticatable&Model> $model
+     * @param class-string<Authenticatable&Model> $model
      */
     protected function makeRealCachedProvider(string $model = User::class): EloquentUserProvider
     {

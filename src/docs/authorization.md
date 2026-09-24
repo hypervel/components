@@ -410,6 +410,8 @@ class Order extends Model
 }
 ```
 
+Models that extend a class with the `UsePolicy` attribute use its policy as well, unless the child model declares its own `UsePolicy` attribute, a policy is discovered for it, or a policy is registered for it or one of its parent classes.
+
 <a name="writing-policies"></a>
 ## Writing Policies
 

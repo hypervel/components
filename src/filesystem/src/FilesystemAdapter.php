@@ -56,7 +56,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
 /**
- * @mixin \League\Flysystem\FilesystemOperator
+ * @mixin FilesystemOperator
  */
 class FilesystemAdapter implements CloudFilesystemContract
 {

@@ -222,6 +222,9 @@ class Handler implements ExceptionHandlerContract
 
     /**
      * Register a reportable callback.
+     *
+     * Boot-only. The callback persists on the shared handler and affects exception
+     * reporting for every subsequent request and job in the worker.
      */
     public function reportable(callable $reportUsing): ReportableHandler
     {
@@ -236,6 +239,9 @@ class Handler implements ExceptionHandlerContract
 
     /**
      * Register a renderable callback.
+     *
+     * Boot-only. The callback persists on the shared handler and affects exception
+     * rendering for every subsequent request in the worker.
      */
     public function renderable(callable $renderUsing): static
     {
@@ -250,6 +256,9 @@ class Handler implements ExceptionHandlerContract
 
     /**
      * Register a new exception mapping.
+     *
+     * Boot-only. The mapping persists on the shared handler and affects exception
+     * reporting and rendering for every subsequent request and job in the worker.
      *
      * @throws InvalidArgumentException
      */
@@ -276,6 +285,9 @@ class Handler implements ExceptionHandlerContract
      * Indicate that the given exception type should not be reported.
      *
      * Alias of "ignore".
+     *
+     * Boot-only. The exception types persist on the shared handler and affect
+     * exception reporting for every subsequent request and job in the worker.
      */
     public function dontReport(array|string $exceptions): static
     {
@@ -284,6 +296,9 @@ class Handler implements ExceptionHandlerContract
 
     /**
      * Register a callback to determine if an exception should not be reported.
+     *
+     * Boot-only. The callback persists on the shared handler and affects exception
+     * reporting for every subsequent request and job in the worker.
      *
      * @param (callable(Throwable): bool) $dontReportWhen
      */
@@ -300,6 +315,9 @@ class Handler implements ExceptionHandlerContract
 
     /**
      * Indicate that the given exception type should not be reported.
+     *
+     * Boot-only. The exception types persist on the shared handler and affect
+     * exception reporting for every subsequent request and job in the worker.
      */
     public function ignore(array|string $exceptions): static
     {
@@ -328,8 +346,8 @@ class Handler implements ExceptionHandlerContract
     /**
      * Register a callback to determine if jobs should stop retrying for an exception.
      *
-     * Boot-only. The callback persists on the shared handler and is considered for
-     * every subsequently failed job in the worker.
+     * Boot-only. The callback persists on the shared handler and affects job retry
+     * decisions for every subsequent job in the worker.
      *
      * @template TException of Throwable
      *
@@ -405,6 +423,9 @@ class Handler implements ExceptionHandlerContract
 
     /**
      * Indicate that the given attributes should never be flashed to the session on validation errors.
+     *
+     * Boot-only. The attributes persist on the shared handler and are omitted
+     * from every subsequent validation redirect in the worker.
      */
     public function dontFlash(array|string $attributes): static
     {
@@ -417,6 +438,9 @@ class Handler implements ExceptionHandlerContract
 
     /**
      * Set the log level for the given exception type.
+     *
+     * Boot-only. The level persists on the shared handler and affects how later
+     * exceptions of that type are logged in the worker.
      *
      * @param class-string<Throwable> $type
      * @param LogLevel::* $level
@@ -625,6 +649,9 @@ class Handler implements ExceptionHandlerContract
 
     /**
      * Specify the callback that should be used to throttle reportable exceptions.
+     *
+     * Boot-only. The callback persists on the shared handler and affects exception
+     * reporting for every subsequent request and job in the worker.
      */
     public function throttleUsing(callable $throttleUsing): static
     {
@@ -718,6 +745,9 @@ class Handler implements ExceptionHandlerContract
 
     /**
      * Register a closure that should be used to build exception context data.
+     *
+     * Boot-only. The closure persists on the shared handler and runs for every
+     * subsequently logged exception in the worker.
      */
     public function buildContextUsing(Closure $contextCallback): static
     {
@@ -806,6 +836,9 @@ class Handler implements ExceptionHandlerContract
 
     /**
      * Prepare the final, rendered response for an exception using the given callback.
+     *
+     * Boot-only. The callback replaces the shared handler's response callback for
+     * every subsequent request in the worker.
      */
     public function respondUsing(callable $callback): static
     {
@@ -955,6 +988,9 @@ class Handler implements ExceptionHandlerContract
 
     /**
      * Register the callable that determines if the exception handler response should be JSON.
+     *
+     * Boot-only. The callable replaces the shared handler's JSON check for every
+     * subsequent request in the worker.
      *
      * @param callable(Request $request, Throwable): bool $callback
      */
@@ -1179,6 +1215,9 @@ class Handler implements ExceptionHandlerContract
 
     /**
      * Do not report duplicate exceptions.
+     *
+     * Boot-only. The setting persists on the shared handler and applies to every
+     * subsequent request and job in the worker.
      */
     public function dontReportDuplicates(): static
     {

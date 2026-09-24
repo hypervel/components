@@ -11,6 +11,7 @@ use Hypervel\Tests\Redis\Fixtures\FakeRedisClient;
 use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Mockery\MockInterface;
 use RedisException;
 
 /**
@@ -24,7 +25,7 @@ class FlushByPatternTest extends TestCase
      * Returns both the connection (as a partial mock) and the client so tests
      * can set up unlink expectations while using FakeRedisClient for scan behavior.
      *
-     * @return array{m\MockInterface&PhpRedisConnectionStub, FakeRedisClient}
+     * @return array{MockInterface&PhpRedisConnectionStub, FakeRedisClient}
      */
     private function createConnectionWithClient(FakeRedisClient $client): array
     {

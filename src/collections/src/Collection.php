@@ -27,12 +27,12 @@ use UnitEnum;
  * @template-covariant TValue
  *
  * @implements ArrayAccess<TKey, TValue>
- * @implements \Hypervel\Support\Enumerable<TKey, TValue>
+ * @implements Enumerable<TKey, TValue>
  */
 class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerable, Transient
 {
     /**
-     * @use \Hypervel\Support\Traits\EnumeratesValues<TKey, TValue>
+     * @use EnumeratesValues<TKey, TValue>
      */
     use EnumeratesValues;
 
@@ -93,7 +93,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Get a lazy collection for the items in this collection.
      *
-     * @return \Hypervel\Support\LazyCollection<TKey, TValue>
+     * @return LazyCollection<TKey, TValue>
      */
     public function lazy(): LazyCollection
     {
@@ -856,7 +856,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @template TMergeRecursiveValue
      *
      * @param Arrayable<TKey, TMergeRecursiveValue>|iterable<TKey, TMergeRecursiveValue> $items
-     * @return static<TKey, TMergeRecursiveValue|TValue>
+     * @return static<TKey, (TKey is int ? TMergeRecursiveValue|TValue : array<array-key, mixed>|TMergeRecursiveValue|TValue)>
      */
     public function mergeRecursive(mixed $items): static
     {
