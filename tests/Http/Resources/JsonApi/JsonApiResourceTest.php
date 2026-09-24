@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Http\Resources\JsonApi;
 
 use BadMethodCallException;
+use Hypervel\Database\Eloquent\Attributes\UseResource;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
 use Hypervel\Http\Resources\Json\JsonResource;
@@ -122,9 +123,27 @@ class JsonApiResourceTest extends TestCase
 
         $resource->resolveResourceData($request);
     }
+
+    public function testRelatedModelWithAPlainResourceIsIdentifiedAsAJsonApiResource(): void
+    {
+        $parent = (new JsonApiResourceParentModel)->forceFill(['id' => 1]);
+        $parent->setRelation('child', (new JsonApiResourcePlainResourceModel)->forceFill(['id' => 2]));
+        $resource = new JsonApiGuessedChildParentResource($parent);
+
+        $data = $resource->resolveResourceData(JsonApiRequest::create('/?include=child'));
+
+        $this->assertSame([
+            'data' => ['id' => '2', 'type' => 'json_api_resource_plain_resource_models'],
+        ], $data['relationships']->child);
+    }
 }
 
 class JsonApiResourceTestModel extends Model
+{
+}
+
+#[UseResource(JsonApiPlainResource::class)]
+class JsonApiResourcePlainResourceModel extends JsonApiResourceTestModel
 {
 }
 
@@ -206,4 +225,27 @@ class JsonApiChildResource extends JsonApiResource
     {
         return [];
     }
+}
+
+class JsonApiGuessedChildParentResource extends JsonApiResource
+{
+    /**
+     * Transform the resource into an array.
+     */
+    public function toAttributes(Request $request): array
+    {
+        return [];
+    }
+
+    /**
+     * Get the resource's relationships.
+     */
+    public function toRelationships(Request $request): array
+    {
+        return ['child'];
+    }
+}
+
+class JsonApiPlainResource extends JsonResource
+{
 }
