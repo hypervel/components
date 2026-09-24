@@ -488,7 +488,8 @@ class PendingRequest implements Transient
      */
     public function withUrlParameters(array $parameters = []): static
     {
-        $this->urlParameters = array_merge($this->urlParameters, $parameters);
+        // Replace by key so numeric template names such as {1} are not renumbered.
+        $this->urlParameters = array_replace($this->urlParameters, $parameters);
 
         return $this;
     }

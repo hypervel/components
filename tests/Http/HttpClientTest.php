@@ -6407,12 +6407,12 @@ class HttpClientTest extends TestCase
         $this->factory->fake();
 
         $this->factory
-            ->withUrlParameters(['endpoint' => 'https://hypervel.org', 'page' => 'docs'])
+            ->withUrlParameters(['endpoint' => 'https://hypervel.org', 'page' => 'docs', 1 => 'v1'])
             ->withUrlParameters(['page' => 'blog', 'post' => 'release'])
-            ->get('{+endpoint}/{page}/{post}');
+            ->get('{+endpoint}/{1}/{page}/{post}');
 
         $this->factory->assertSent(
-            fn (Request $request): bool => $request->url() === 'https://hypervel.org/blog/release'
+            fn (Request $request): bool => $request->url() === 'https://hypervel.org/v1/blog/release'
         );
     }
 
