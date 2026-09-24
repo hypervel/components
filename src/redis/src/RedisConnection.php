@@ -588,8 +588,13 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
                 $name = $this->phpRedisOption($name);
             }
 
-            // PhpRedis does not apply TCP keepalive to Cluster node connections.
+            // PhpRedis does not apply TCP keepalive to Cluster node connections, so only a
+            // disabled value is accepted, and it is never passed to the native client.
             if ($name === Redis::OPT_TCP_KEEPALIVE && $redis instanceof RedisCluster) {
+                if (empty($value)) {
+                    continue;
+                }
+
                 throw new InvalidRedisOptionException(
                     'The redis option `tcp_keepalive` is not supported for Redis Cluster connections.'
                 );

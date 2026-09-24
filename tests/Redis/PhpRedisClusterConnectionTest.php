@@ -774,8 +774,8 @@ class PhpRedisClusterConnectionTest extends TestCase
         $connection->setOptionsForTest($redis);
     }
 
-    #[DataProvider('clusterTcpKeepaliveConfigurations')]
-    public function testClusterRejectsTcpKeepalive(array $config): void
+    #[DataProvider('enabledClusterTcpKeepaliveConfigurations')]
+    public function testClusterRejectsEnabledTcpKeepalive(array $config): void
     {
         $connection = new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig($config)) extends PhpRedisClusterConnectionStub {
             /**
@@ -797,15 +797,43 @@ class PhpRedisClusterConnectionTest extends TestCase
     }
 
     /**
-     * Provide Cluster configurations that set TCP keepalive.
+     * Provide Cluster configurations that enable TCP keepalive.
      */
-    public static function clusterTcpKeepaliveConfigurations(): array
+    public static function enabledClusterTcpKeepaliveConfigurations(): array
     {
         return [
             'connection level' => [['tcp_keepalive' => 30]],
             'named option' => [['options' => ['tcp_keepalive' => 30]]],
-            'named option set to zero' => [['options' => ['tcp_keepalive' => 0]]],
-            'native option set to zero' => [['options' => [Redis::OPT_TCP_KEEPALIVE => 0]]],
+            'native option' => [['options' => [Redis::OPT_TCP_KEEPALIVE => 30]]],
+        ];
+    }
+
+    #[DataProvider('disabledClusterTcpKeepaliveConfigurations')]
+    public function testClusterSkipsDisabledTcpKeepalive(array $config): void
+    {
+        $connection = new class($this->getContainer(), $this->getMockedPool(), $this->clusterConfig($config)) extends PhpRedisClusterConnectionStub {
+            /**
+             * Apply the configured options to the given client.
+             */
+            public function setOptionsForTest(RedisCluster $redis): void
+            {
+                $this->setOptions($redis);
+            }
+        };
+        $redis = m::mock(RedisCluster::class);
+        $this->expectDefaultConnectionOptions($redis);
+
+        $connection->setOptionsForTest($redis);
+    }
+
+    /**
+     * Provide Cluster configurations that disable TCP keepalive explicitly.
+     */
+    public static function disabledClusterTcpKeepaliveConfigurations(): array
+    {
+        return [
+            'named option' => [['options' => ['tcp_keepalive' => 0]]],
+            'native option' => [['options' => [Redis::OPT_TCP_KEEPALIVE => 0]]],
         ];
     }
 

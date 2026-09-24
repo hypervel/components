@@ -157,12 +157,12 @@ class RedisConfigTest extends TestCase
     public function testConnectionConfigMergesSharedAndConnectionOptions(): void
     {
         $redisConfig = [
-            'options' => ['prefix' => 'global:', 'serializer' => 1],
+            'options' => ['prefix' => 'global:', 'serializer' => 1, 'tcp_keepalive' => 30],
             'default' => [
                 'host' => '127.0.0.1',
                 'port' => 6379,
                 'database' => 0,
-                'options' => ['prefix' => 'default:'],
+                'options' => ['prefix' => 'default:', 'tcp_keepalive' => 0],
             ],
         ];
 
@@ -172,7 +172,7 @@ class RedisConfigTest extends TestCase
         $connectionConfig = (new RedisConfig($config))->connectionConfig('default');
 
         $this->assertSame(
-            ['prefix' => 'default:', 'serializer' => 1],
+            ['prefix' => 'default:', 'serializer' => 1, 'tcp_keepalive' => 0],
             $connectionConfig['options'],
         );
     }
