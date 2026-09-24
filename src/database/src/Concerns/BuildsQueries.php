@@ -310,7 +310,7 @@ trait BuildsQueries
      * @return LazyCollection<int, TValue>
      *
      * @throws InvalidArgumentException
-     * @throws RuntimeException
+     * @throws RuntimeException if the ID column is missing while iterating the results
      */
     protected function orderedLazyById(int $chunkSize = 1000, ?string $column = null, ?string $alias = null, SortDirection|bool $descending = false): LazyCollection
     {

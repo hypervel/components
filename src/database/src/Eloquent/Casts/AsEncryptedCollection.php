@@ -19,8 +19,6 @@ class AsEncryptedCollection implements Castable
      * Get the caster class to use when casting from / to this cast target.
      *
      * @return CastsAttributes<Collection<array-key, mixed>, iterable>
-     *
-     * @throws InvalidArgumentException
      */
     public static function castUsing(array $arguments): CastsAttributes
     {
@@ -35,6 +33,8 @@ class AsEncryptedCollection implements Castable
 
             /**
              * Transform the attribute from the underlying model values.
+             *
+             * @throws InvalidArgumentException
              */
             public function get(Model $model, string $key, mixed $value, array $attributes): ?Collection
             {
