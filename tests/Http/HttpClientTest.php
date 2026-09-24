@@ -6400,6 +6400,20 @@ class HttpClientTest extends TestCase
         });
     }
 
+    public function testUrlParametersAreMergedAcrossCalls(): void
+    {
+        $this->factory->fake();
+
+        $this->factory
+            ->withUrlParameters(['endpoint' => 'https://hypervel.org', 'page' => 'docs'])
+            ->withUrlParameters(['page' => 'blog', 'post' => 'release'])
+            ->get('{+endpoint}/{page}/{post}');
+
+        $this->factory->assertSent(
+            fn (Request $request): bool => $request->url() === 'https://hypervel.org/blog/release'
+        );
+    }
+
     public function testLiteralUrlBracesArePreservedWithoutUrlParameters(): void
     {
         $this->factory->fake();
