@@ -40,6 +40,7 @@ class RedisConfigTest extends TestCase
             'backoff_algorithm' => 'decorrelated_jitter',
             'backoff_base' => 100,
             'backoff_cap' => 1000,
+            'tcp_keepalive' => 0,
             'pool' => [],
         ], [
             'scheme' => $connection['scheme'],
@@ -57,6 +58,7 @@ class RedisConfigTest extends TestCase
             'backoff_algorithm' => $connection['backoff_algorithm'],
             'backoff_base' => $connection['backoff_base'],
             'backoff_cap' => $connection['backoff_cap'],
+            'tcp_keepalive' => $connection['tcp_keepalive'],
             'pool' => $connection['pool'],
         ]);
         $this->assertArrayNotHasKey('retry_interval', $connection);

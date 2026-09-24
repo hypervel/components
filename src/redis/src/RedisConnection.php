@@ -340,6 +340,7 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
         'backoff_algorithm',
         'backoff_base',
         'backoff_cap',
+        'tcp_keepalive',
     ];
 
     protected Redis|RedisCluster|null $connection = null;
@@ -603,7 +604,7 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
         foreach (self::CONNECTION_LEVEL_PHPREDIS_OPTIONS as $key) {
             $value = $this->config[$key];
 
-            if ($key === 'read_timeout' && empty($value)) {
+            if (($key === 'read_timeout' || $key === 'tcp_keepalive') && empty($value)) {
                 continue;
             }
 

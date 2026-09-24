@@ -74,6 +74,7 @@ run(function (): void {
                     'backoff_algorithm' => 'decorrelated_jitter',
                     'backoff_base' => 100,
                     'backoff_cap' => 1000,
+                    'tcp_keepalive' => 0,
                     'sentinel' => ['enabled' => false],
                     'pool' => [
                         'min_retained_connections' => 1,
