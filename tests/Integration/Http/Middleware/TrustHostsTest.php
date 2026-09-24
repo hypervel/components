@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Http\Middleware\TrustHostsTest;
 
+use Hypervel\Foundation\Configuration\Middleware;
 use Hypervel\Http\Middleware\TrustHosts;
 use Hypervel\Http\Request;
 use Hypervel\Support\Facades\Route;
@@ -17,17 +18,8 @@ class TrustHostsTest extends TestCase
     {
         parent::setUp();
 
-        AlwaysTrustHosts::flushState();
-
         Route::get('/host', fn (Request $request) => $request->getHost())
             ->middleware(AlwaysTrustHosts::class);
-    }
-
-    protected function tearDown(): void
-    {
-        AlwaysTrustHosts::flushState();
-
-        parent::tearDown();
     }
 
     public function testRequestSucceedsWithTrustedHostPattern(): void
@@ -62,6 +54,15 @@ class TrustHostsTest extends TestCase
         $this->call('GET', 'http://b.example.com/host')
             ->assertOk()
             ->assertContent('b.example.com');
+    }
+
+    public function testMiddlewareConfigurationAcceptsInvokableTrustedHostCallbacks(): void
+    {
+        (new Middleware)->trustHosts(at: new TrustedHostsResolver, subdomains: false);
+
+        $this->call('GET', 'http://example.com/host')
+            ->assertOk()
+            ->assertContent('example.com');
     }
 
     public function testRequestAwareResolverUsesVerifiedHostPatterns(): void
@@ -157,5 +158,18 @@ class AlwaysTrustHosts extends TrustHosts
     protected function shouldSpecifyTrustedHosts(): bool
     {
         return true;
+    }
+}
+
+class TrustedHostsResolver
+{
+    /**
+     * Get the trusted host patterns.
+     *
+     * @return array<int, string>
+     */
+    public function __invoke(): array
+    {
+        return ['^example\.com$'];
     }
 }

@@ -105,11 +105,11 @@ class TrustHosts
      * Boot-only. The list persists in static properties for the worker lifetime
      * and applies to every subsequent request.
      *
-     * @param array<int, string>|(Closure(): array<int, string>) $hosts
+     * @param array<int, string>|(callable(): array<int, string>) $hosts
      */
-    public static function at(array|Closure $hosts, bool $subdomains = true): void
+    public static function at(array|callable $hosts, bool $subdomains = true): void
     {
-        static::$alwaysTrust = $hosts;
+        static::$alwaysTrust = is_array($hosts) ? $hosts : $hosts(...);
         static::$subdomains = $subdomains;
     }
 
