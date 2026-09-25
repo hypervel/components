@@ -51,7 +51,7 @@ class DebouncedJobTest extends QueueTestCase
         DebouncedTestJob::resetState();
 
         dispatch(new DebouncedTestJob('entity-1'));
-        $this->travelDebounceTo(CarbonImmutable::now()->addSeconds(31));
+        $this->travelTo(CarbonImmutable::now()->addSeconds(31));
         $this->runQueueWorkerCommand(['--once' => true]);
 
         $this->assertTrue(DebouncedTestJob::$handled);
@@ -63,12 +63,18 @@ class DebouncedJobTest extends QueueTestCase
 
         DebouncedTestJob::resetState();
 
+        // Dispatch two jobs with the same debounce identity.
+        // The second dispatch supersedes the first.
         dispatch(new DebouncedTestJob('entity-1'));
         dispatch(new DebouncedTestJob('entity-1'));
 
-        $this->travelDebounceTo(CarbonImmutable::now()->addSeconds(31));
+        // Advance time past the debounce window so jobs become available.
+        $this->travelTo(CarbonImmutable::now()->addSeconds(31));
+
+        // Process both jobs from the queue.
         $this->runQueueWorkerCommand(['--once' => true], 2);
 
+        // Only the second (latest) dispatch should have executed.
         $this->assertSame(1, DebouncedTestJob::$handleCount);
     }
 
@@ -79,11 +85,17 @@ class DebouncedJobTest extends QueueTestCase
         DebouncedTestJob::resetState();
 
         dispatch($job = new DebouncedTestJob('entity-1'));
-        $this->travelDebounceTo(CarbonImmutable::now()->addSeconds(31));
+        $this->travelTo(CarbonImmutable::now()->addSeconds(31));
         $this->runQueueWorkerCommand(['--once' => true]);
 
         $this->assertTrue($job::$handled);
-        $this->assertNotNull($this->app->get(Cache::class)->get(DebounceLock::getKey($job)));
+
+        // Debounce token persists after execution (cleaned up by GC TTL)
+        // to prevent a race where a superseded job sees an empty cache
+        // and executes via fail-open.
+        $this->assertNotNull(
+            $this->app->get(Cache::class)->get(DebounceLock::getKey($job))
+        );
     }
 
     public function testFailedDebouncedJobStillCallsHandler(): void
@@ -112,7 +124,7 @@ class DebouncedJobTest extends QueueTestCase
         dispatch(new DebouncedTestJob('entity-1'));
         dispatch(new DebouncedTestJob('entity-1'));
 
-        $this->travelDebounceTo(CarbonImmutable::now()->addSeconds(31));
+        $this->travelTo(CarbonImmutable::now()->addSeconds(31));
         $this->runQueueWorkerCommand(['--once' => true], 2);
 
         $this->assertSame(1, $firedCount);
@@ -165,15 +177,18 @@ class DebouncedJobTest extends QueueTestCase
         dispatch(new DebouncedTestJob('entity-1'));
         dispatch(new DebouncedTestJob('entity-2'));
 
-        $this->travelDebounceTo(CarbonImmutable::now()->addSeconds(31));
+        $this->travelTo(CarbonImmutable::now()->addSeconds(31));
         $this->runQueueWorkerCommand(['--once' => true], 2);
 
+        // Both should execute — different identities.
         $this->assertSame(2, DebouncedTestJob::$handleCount);
     }
 
     public function testDebounceLockKeyFormat(): void
     {
-        $key = DebounceLock::getKey(new DebouncedTestJob('entity-1'));
+        $job = new DebouncedTestJob('entity-1');
+
+        $key = DebounceLock::getKey($job);
 
         $this->assertStringStartsWith('laravel_debounced_job:', $key);
         $this->assertStringEndsWith(':entity-1', $key);
@@ -195,7 +210,7 @@ class DebouncedJobTest extends QueueTestCase
         $pending = dispatch(new DebouncedWithMaxWaitJob('entity-1'));
         unset($pending);
 
-        $this->travelDebounceTo(CarbonImmutable::now()->addSeconds(61));
+        $this->travelTo(CarbonImmutable::now()->addSeconds(61));
 
         $job = new DebouncedWithMaxWaitJob('entity-1');
         $pending = dispatch($job);
@@ -213,11 +228,13 @@ class DebouncedJobTest extends QueueTestCase
 
         dispatch($job = new DebouncedTestJob('entity-1'));
 
+        // Simulate cache eviction by manually removing the debounce token.
         $this->app->get(Cache::class)->forget(DebounceLock::getKey($job));
 
-        $this->travelDebounceTo(CarbonImmutable::now()->addSeconds(31));
+        $this->travelTo(CarbonImmutable::now()->addSeconds(31));
         $this->runQueueWorkerCommand(['--once' => true]);
 
+        // Job should execute (fail-open) even though token was evicted.
         $this->assertTrue(DebouncedTestJob::$handled);
     }
 
@@ -232,8 +249,10 @@ class DebouncedJobTest extends QueueTestCase
         $ownerA = $lock->acquire($jobA)['owner'];
         $ownerB = $lock->acquire($jobB)['owner'];
 
+        // Releasing with A's owner should not wipe B's token.
         $lock->release($jobA, $ownerA);
 
+        // B should still be the current owner.
         $this->assertSame($ownerB, $lock->getCurrentOwner($jobB));
     }
 
@@ -243,19 +262,21 @@ class DebouncedJobTest extends QueueTestCase
         $lock = new DebounceLock($cache);
         $job = new DebouncedWithMaxWaitJob('entity-1');
 
-        $this->assertFalse($lock->acquire($job)['maxWaitExceeded']);
+        $first = $lock->acquire($job);
 
-        $firstOwner = $cache->get(DebounceLock::getKey($job));
+        $this->assertFalse($first['maxWaitExceeded']);
 
-        $this->assertIsString($firstOwner);
-
-        $lock->release($job, $firstOwner);
+        // Simulate rollback cleanup.
+        $lock->release($job, $first['owner']);
 
         $this->assertNull($cache->get(DebounceLock::getKey($job) . ':first_dispatched_at'));
 
-        $this->travelDebounceTo(CarbonImmutable::now()->addSeconds(61));
+        // If timestamp cleanup worked, max wait should not appear exceeded.
+        $this->travelTo(CarbonImmutable::now()->addSeconds(61));
 
-        $this->assertFalse($lock->acquire($job)['maxWaitExceeded']);
+        $second = $lock->acquire($job);
+
+        $this->assertFalse($second['maxWaitExceeded']);
     }
 
     public function testSupersededDebouncedJobDoesNotDispatchChain(): void
@@ -265,13 +286,19 @@ class DebouncedJobTest extends QueueTestCase
         DebouncedTestJob::resetState();
         ChainReceiverJob::resetState();
 
+        // First dispatch with a chain — will be superseded.
         dispatch(new DebouncedTestJob('entity-1'))->chain([new ChainReceiverJob]);
+
+        // Second dispatch supersedes the first (no chain).
         dispatch(new DebouncedTestJob('entity-1'));
 
-        $this->travelDebounceTo(CarbonImmutable::now()->addSeconds(31));
+        $this->travelTo(CarbonImmutable::now()->addSeconds(31));
         $this->runQueueWorkerCommand(['--once' => true], 2);
 
+        // Only the second dispatch should have executed.
         $this->assertSame(1, DebouncedTestJob::$handleCount);
+
+        // Chain from superseded job should not have been dispatched.
         $this->assertFalse(ChainReceiverJob::$handled);
         $this->assertSame(0, Queue::size());
     }
@@ -286,7 +313,10 @@ class DebouncedJobTest extends QueueTestCase
 
         $key = DebounceLock::getKey(new DebouncedWithCustomCacheJob('entity-1'));
 
+        // Token should exist in the custom 'array' store.
         $this->assertNotNull(CacheFacade::store('array')->get($key));
+
+        // Token should not exist in the default 'database' store.
         $this->assertNull(CacheFacade::store('database')->get($key));
     }
 
@@ -296,16 +326,20 @@ class DebouncedJobTest extends QueueTestCase
 
         DebouncedWithMaxWaitJob::resetState();
 
+        // First dispatch at t=0.
         dispatch(new DebouncedWithMaxWaitJob('entity-1'));
 
-        $this->travelDebounceTo(CarbonImmutable::now()->addSeconds(50));
+        // Second dispatch at t=50 (within maxWait of 60s).
+        $this->travelTo(CarbonImmutable::now()->addSeconds(50));
         dispatch(new DebouncedWithMaxWaitJob('entity-1'));
 
-        $this->travelDebounceTo(CarbonImmutable::now()->addSeconds(11));
+        // Third dispatch at t=61 — exceeds maxWait.
+        $this->travelTo(CarbonImmutable::now()->addSeconds(11));
         $job = new DebouncedWithMaxWaitJob('entity-1');
         $pending = dispatch($job);
         unset($pending);
 
+        // The job should be queued with delay=0 since max wait was exceeded.
         $this->assertSame(0, $job->delay);
     }
 
@@ -315,19 +349,22 @@ class DebouncedJobTest extends QueueTestCase
 
         DebouncedWithMaxWaitJob::resetState();
 
+        // First dispatch at t=0, which runs once the debounce window closes.
         dispatch(new DebouncedWithMaxWaitJob('entity-1'));
 
-        $this->travelDebounceTo(CarbonImmutable::now()->addSeconds(31));
+        $this->travelTo(CarbonImmutable::now()->addSeconds(31));
         $this->runQueueWorkerCommand(['--once' => true]);
 
         $this->assertSame(1, DebouncedWithMaxWaitJob::$handleCount);
 
-        $this->travelDebounceTo(CarbonImmutable::now()->addSeconds(61));
+        // Second dispatch at t=92, long after the first job stopped waiting.
+        $this->travelTo(CarbonImmutable::now()->addSeconds(61));
 
         $job = new DebouncedWithMaxWaitJob('entity-1');
         $pending = dispatch($job);
         unset($pending);
 
+        // The job should be debounced again rather than forced to run immediately.
         $this->assertSame(30, $job->delay);
     }
 
@@ -337,10 +374,10 @@ class DebouncedJobTest extends QueueTestCase
 
         dispatch(new DebouncedWithReleasingMiddlewareJob('entity-1'));
 
-        $this->travelDebounceTo(CarbonImmutable::now()->addSeconds(31));
+        $this->travelTo(CarbonImmutable::now()->addSeconds(31));
         $this->runQueueWorkerCommand(['--once' => true]);
 
-        $this->travelDebounceTo(CarbonImmutable::now()->addSeconds(30));
+        $this->travelTo(CarbonImmutable::now()->addSeconds(30));
 
         $job = new DebouncedWithReleasingMiddlewareJob('entity-1');
         $pending = dispatch($job);
@@ -353,16 +390,18 @@ class DebouncedJobTest extends QueueTestCase
     {
         $this->markTestSkippedWhenUsingQueueDrivers(['beanstalkd']);
 
+        // Regular debounced job (no maxWait) — delay should always be the debounce value.
         $job1 = new DebouncedTestJob('entity-1');
         $pending = dispatch($job1);
         unset($pending);
 
         $this->assertSame(30, $job1->delay);
 
-        $this->travelDebounceTo(CarbonImmutable::now()->addMinutes(10));
+        // Dispatch again much later — still gets the full delay.
+        $this->travelTo(CarbonImmutable::now()->addMinutes(10));
         $job2 = new DebouncedTestJob('entity-1');
-        $pending = dispatch($job2);
-        unset($pending);
+        $pending2 = dispatch($job2);
+        unset($pending2);
 
         $this->assertSame(30, $job2->delay);
     }
@@ -380,18 +419,19 @@ class DebouncedJobTest extends QueueTestCase
 
         ChildOfDebouncedTestJob::resetState();
 
+        // Dispatch two jobs with the same debounce identity.
+        // The second dispatch supersedes the first.
         dispatch(new ChildOfDebouncedTestJob('entity-1'));
         dispatch(new ChildOfDebouncedTestJob('entity-1'));
 
-        $this->travelDebounceTo(CarbonImmutable::now()->addSeconds(31));
+        // Advance time past the debounce window so jobs become available.
+        $this->travelTo(CarbonImmutable::now()->addSeconds(31));
+
+        // Process both jobs from the queue.
         $this->runQueueWorkerCommand(['--once' => true], 2);
 
+        // Only the second (latest) dispatch should have executed.
         $this->assertSame(1, ChildOfDebouncedTestJob::$handleCount);
-    }
-
-    protected function travelDebounceTo(CarbonImmutable $date): void
-    {
-        $this->travelTo($date);
     }
 }
 

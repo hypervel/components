@@ -644,7 +644,7 @@ If a debounced job is superseded by a newer dispatch, Hypervel will dispatch the
 > If your application dispatches debounced jobs from multiple web servers or containers, you should ensure that all of your servers are communicating with the same central cache server.
 
 > [!WARNING]
-> Debouncing is a best-effort way to coalesce work, not a guarantee that only one matching job will run. Concurrent dispatch and cleanup across multiple servers may allow more than one matching job to run, and dispatch during middleware may extend an active `maxWait` window. Debounced jobs should be idempotent.
+> Debouncing is a best-effort way to coalesce work, not a guarantee that only one matching job will run. Concurrent dispatch and cleanup, including cleanup after a failed or rolled-back dispatch, may allow more than one matching job to run. Dispatch during middleware and failed-dispatch cleanup may also extend an active `maxWait` window. Debounced jobs should be idempotent.
 
 <a name="encrypted-jobs"></a>
 ### Encrypted Jobs
