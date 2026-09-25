@@ -711,9 +711,13 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
      */
     protected function newQueryException(string $query, array $bindings, Exception $previous): QueryException
     {
-        $exceptionType = ($isUniqueConstraintError = $this->isUniqueConstraintError($previous))
-            ? UniqueConstraintViolationException::class
-            : QueryException::class;
+        $isUniqueConstraintError = $this->isUniqueConstraintError($previous);
+
+        $exceptionType = match (true) {
+            $isUniqueConstraintError => UniqueConstraintViolationException::class,
+            $this->isDataTypeError($previous) => InvalidValueException::class,
+            default => QueryException::class,
+        };
 
         $queryException = new $exceptionType(
             $this->getNameWithReadWriteType(),
@@ -738,6 +742,14 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
      * Determine if the given database exception was caused by a unique constraint violation.
      */
     protected function isUniqueConstraintError(Exception $exception): bool
+    {
+        return false;
+    }
+
+    /**
+     * Determine if the given database exception was caused by an invalid or out of range value.
+     */
+    protected function isDataTypeError(Exception $exception): bool
     {
         return false;
     }
