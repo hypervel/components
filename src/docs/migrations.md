@@ -1277,13 +1277,19 @@ $table->uuid('id');
 The `vector` method creates a `vector` equivalent column:
 
 ```php
-$table->vector('embedding', dimensions: 100);
+$table->vector('embedding', dimensions: 1536);
 ```
 
-When utilizing PostgreSQL, the `pgvector` extension must be loaded before `vector` columns can be created:
+Vector columns are supported on PostgreSQL connections using the `pgvector` extension and MariaDB 11.7 or later. When utilizing PostgreSQL, `pgvector` must be loaded before `vector` columns can be created:
 
 ```php
 Schema::ensureVectorExtensionExists();
+```
+
+To speed up [vector similarity queries](/docs/{{version}}/queries#vector-similarity-clauses), you may add a vector index to the column. Calling the `index` method on a `vector` column creates a vector index using cosine distance:
+
+```php
+$table->vector('embedding', dimensions: 1536)->index();
 ```
 
 <a name="column-method-tsvector"></a>
@@ -1582,8 +1588,6 @@ Hypervel's schema builder blueprint class provides methods for creating each typ
 | `$table->vectorIndex('embedding');`                            | Adds a vector index (MariaDB / PostgreSQL).                    |
 
 </div>
-
-Chaining `index` onto a `vector` column definition will create a vector index instead of a regular index.
 
 <a name="online-index-creation"></a>
 #### Online Index Creation
