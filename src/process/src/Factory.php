@@ -49,9 +49,9 @@ class Factory
     public function result(array|string $output = '', array|string $errorOutput = '', int $exitCode = 0): FakeProcessResult
     {
         return new FakeProcessResult(
+            exitCode: $exitCode,
             output: $output,
             errorOutput: $errorOutput,
-            exitCode: $exitCode,
         );
     }
 
