@@ -81,7 +81,7 @@ class Processor
      * Process the results of a views query.
      *
      * @param list<array<string, mixed>> $results
-     * @return list<array{name: string, schema: string, schema_qualified_name: string, definition: string}>
+     * @return list<array{name: string, schema: null|string, schema_qualified_name: string, definition: string}>
      */
     public function processViews(array $results): array
     {
@@ -112,7 +112,7 @@ class Processor
      * Process the results of a columns query.
      *
      * @param list<array<string, mixed>> $results
-     * @return list<array{name: string, type: string, type_name: string, collation: null|string, nullable: bool, default: mixed, auto_increment: bool, comment: null|string, generation: null|array{type: string, expression: null|string}}>
+     * @return list<array{name: string, type: string, type_name: string, collation: null|string, nullable: bool, default: mixed, auto_increment: bool, comment: null|string, generation: null|array{type: null|string, expression: null|string}}>
      */
     public function processColumns(array $results, string $sql = ''): array
     {
@@ -134,7 +134,7 @@ class Processor
      * Process the results of a foreign keys query.
      *
      * @param list<array<string, mixed>> $results
-     * @return list<array{name: null|string, columns: list<string>, foreign_schema: string, foreign_table: string, foreign_columns: list<string>, on_update: string, on_delete: string}>
+     * @return list<array{name: null|string, columns: list<string>, foreign_schema: null|string, foreign_table: string, foreign_columns: list<string>, on_update: null|string, on_delete: null|string}>
      */
     public function processForeignKeys(array $results): array
     {

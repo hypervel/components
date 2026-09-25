@@ -526,6 +526,8 @@ An `array` field without child rules accepts its contents, including when declar
 
 Confirmation fields are accepted when the base field uses the `confirmed` rule, including custom `confirmed:...` field names.
 
+Only the request's form or JSON input is checked. Query string parameters, such as pagination values or a signed URL's `signature`, are always allowed.
+
 Rejecting unknown fields can provide additional protection against mass-assignment style issues by preventing unexpected input keys from flowing deeper into your application. However, you should still configure your model's `$fillable` / `$guarded` properties and only persist trusted, validated input.
 
 <a name="customizing-the-redirect-location"></a>
@@ -3261,25 +3263,28 @@ The `Password` rule object allows you to easily customize the password complexit
 
 ```php
 // Require at least 8 characters...
-Password::min(8)
+Password::min(8);
+
+// Require at most 256 characters...
+Password::min(16)->max(256);
 
 // Require at least one letter...
-Password::min(8)->letters()
+Password::min(8)->letters();
 
 // Require at least one uppercase and one lowercase letter...
-Password::min(8)->mixedCase()
+Password::min(8)->mixedCase();
 
 // Require at least one number...
-Password::min(8)->numbers()
+Password::min(8)->numbers();
 
 // Require at least one symbol...
-Password::min(8)->symbols()
+Password::min(8)->symbols();
 ```
 
 In addition, you may ensure that a password has not been compromised in a public password data breach leak using the `uncompromised` method:
 
 ```php
-Password::min(8)->uncompromised()
+Password::min(8)->uncompromised();
 ```
 
 Internally, the `Password` rule object uses the [k-Anonymity](https://en.wikipedia.org/wiki/K-anonymity) model to determine if a password has been leaked via the [haveibeenpwned.com](https://haveibeenpwned.com) service without sacrificing the user's privacy or security.
@@ -3295,11 +3300,12 @@ Of course, you may chain all the methods in the examples above:
 
 ```php
 Password::min(8)
+    ->max(256)
     ->letters()
     ->mixedCase()
     ->numbers()
     ->symbols()
-    ->uncompromised()
+    ->uncompromised();
 ```
 
 You may convert a `Password` rule object to a string suitable for the HTML `passwordrules` attribute using the `toPasswordRulesString` method:

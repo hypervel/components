@@ -44,6 +44,8 @@ class MiddlewareNameResolver
 
     /**
      * Parse the middleware group and format it for usage.
+     *
+     * @throws LogicException
      */
     protected static function parseMiddlewareGroup(string $name, array $map, array $middlewareGroups): array
     {
@@ -88,6 +90,8 @@ class MiddlewareNameResolver
 
     /**
      * Validate that the middleware group contains no indirect cycles.
+     *
+     * @throws LogicException
      */
     private static function validateMiddlewareGroup(
         string $name,

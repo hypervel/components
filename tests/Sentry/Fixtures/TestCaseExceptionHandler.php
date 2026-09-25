@@ -63,6 +63,24 @@ class TestCaseExceptionHandler implements ExceptionHandler
     }
 
     /**
+     * Determine if a given exception is being reported.
+     */
+    public function isReporting(Throwable $e): bool
+    {
+        return $this->handler->isReporting($e);
+    }
+
+    /**
+     * Create the context for an exception.
+     *
+     * @return array<array-key, mixed>
+     */
+    public function buildContextForException(Throwable $e): array
+    {
+        return $this->handler->buildContextForException($e);
+    }
+
+    /**
      * Register a callback to run after an HTTP error response is rendered.
      */
     public function afterResponse(callable $callback): void

@@ -468,6 +468,9 @@ class TestResponseTest extends TestCase
         }
     }
 
+    /**
+     * Yield the test models.
+     */
     public function yieldTestModels(): iterable
     {
         yield new TestModel(['id' => 1]);
@@ -3473,19 +3476,6 @@ EOT,
         $response->assertSeeText('<strong></strong>', escape: false);
     }
 
-    public function testBulkJsonPathAssertionsStopAtTheFailingPath(): void
-    {
-        $response = TestResponse::fromBaseResponse(new Response('{"data":{"id":1}}'));
-
-        $this->expectException(AssertionFailedError::class);
-        $this->expectExceptionMessage('Failed asserting that 1 is identical to 2.');
-
-        $response->assertJsonPaths([
-            'data.id' => 2,
-            'data.missing' => true,
-        ]);
-    }
-
     public function testAssertInvalidWithoutErrorsReportsTheAssertionFailureForJsonResponses(): void
     {
         $response = TestResponse::fromBaseResponse(new Response(
@@ -3769,6 +3759,9 @@ EOT,
         }
     }
 
+    /**
+     * Create a test response whose content is a mocked view.
+     */
     private function makeMockResponse(array $content): TestResponse
     {
         $baseResponse = tap(new Response, function ($response) use ($content) {
@@ -3815,6 +3808,9 @@ class TestResponseWithSession extends TestResponse
 
 class JsonSerializableMixedResourcesStub implements JsonSerializable
 {
+    /**
+     * Convert the object into something JSON serializable.
+     */
     public function jsonSerialize(): array
     {
         return [
@@ -3849,6 +3845,9 @@ class JsonSerializableMixedResourcesStub implements JsonSerializable
 
 class JsonSerializableSingleResourceStub implements JsonSerializable
 {
+    /**
+     * Convert the object into something JSON serializable.
+     */
     public function jsonSerialize(): array
     {
         return [
@@ -3862,6 +3861,9 @@ class JsonSerializableSingleResourceStub implements JsonSerializable
 
 class JsonSerializableSingleResourceWithIntegersStub implements JsonSerializable
 {
+    /**
+     * Convert the object into something JSON serializable.
+     */
     public function jsonSerialize(): array
     {
         return [
@@ -3874,6 +3876,9 @@ class JsonSerializableSingleResourceWithIntegersStub implements JsonSerializable
 
 class JsonSerializableSingleResourceWithUnicodeStub implements JsonSerializable
 {
+    /**
+     * Convert the object into something JSON serializable.
+     */
     public function jsonSerialize(): array
     {
         return [

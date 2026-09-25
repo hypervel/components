@@ -223,4 +223,17 @@ class ExceptionHandlerFakeTest extends TestCase
         $this->assertSame($fake, $result);
         $this->assertSame($newHandler, $fake->handler());
     }
+
+    public function testReportingStateAndContextComeFromTheHandler(): void
+    {
+        $exception = new RuntimeException('Test exception');
+        $handler = $this->createMock(ExceptionHandler::class);
+        $handler->expects($this->once())->method('isReporting')->with($exception)->willReturn(true);
+        $handler->expects($this->once())->method('buildContextForException')->with($exception)->willReturn(['key' => 'value']);
+
+        $fake = Exceptions::fake()->setHandler($handler);
+
+        $this->assertTrue($fake->isReporting($exception));
+        $this->assertSame(['key' => 'value'], $fake->buildContextForException($exception));
+    }
 }

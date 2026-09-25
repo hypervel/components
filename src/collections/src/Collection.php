@@ -1501,6 +1501,8 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
 
     /**
      * Sort items in descending order.
+     *
+     * @param int-mask-of<SORT_FLAG_CASE|SORT_LOCALE_STRING|SORT_NATURAL|SORT_NUMERIC|SORT_REGULAR|SORT_STRING> $options
      */
     public function sortDesc(int $options = SORT_REGULAR): static
     {
@@ -1515,6 +1517,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * Sort the collection using the given callback.
      *
      * @param array<array-key, array{int|string, 'asc'|'desc'|bool|SortDirection}|(callable(TValue, TValue): mixed)|int|string>|(callable(TValue, TKey): mixed)|int|string $callback
+     * @param int-mask-of<SORT_FLAG_CASE|SORT_LOCALE_STRING|SORT_NATURAL|SORT_NUMERIC|SORT_REGULAR|SORT_STRING> $options
      */
     public function sortBy(callable|array|int|string $callback, int $options = SORT_REGULAR, SortDirection|bool $descending = false): static
     {
@@ -1552,6 +1555,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * Sort the collection using multiple comparisons.
      *
      * @param array<array-key, array{int|string, 'asc'|'desc'|bool|SortDirection}|(callable(TValue, TValue): mixed)|int|string> $comparisons
+     * @param int-mask-of<SORT_FLAG_CASE|SORT_LOCALE_STRING|SORT_NATURAL|SORT_NUMERIC|SORT_REGULAR|SORT_STRING> $options
      */
     protected function sortByMany(array $comparisons = [], int $options = SORT_REGULAR): static
     {
@@ -1610,6 +1614,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * Sort the collection in descending order using the given callback.
      *
      * @param array<array-key, array{int|string, 'asc'|'desc'|bool|SortDirection}|(callable(TValue, TValue): mixed)|int|string>|(callable(TValue, TKey): mixed)|int|string $callback
+     * @param int-mask-of<SORT_FLAG_CASE|SORT_LOCALE_STRING|SORT_NATURAL|SORT_NUMERIC|SORT_REGULAR|SORT_STRING> $options
      */
     public function sortByDesc(callable|array|int|string $callback, int $options = SORT_REGULAR): static
     {
@@ -1628,6 +1633,8 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
 
     /**
      * Sort the collection keys.
+     *
+     * @param int-mask-of<SORT_FLAG_CASE|SORT_LOCALE_STRING|SORT_NATURAL|SORT_NUMERIC|SORT_REGULAR|SORT_STRING> $options
      */
     public function sortKeys(int $options = SORT_REGULAR, SortDirection|bool $descending = false): static
     {
@@ -1643,6 +1650,8 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
 
     /**
      * Sort the collection keys in descending order.
+     *
+     * @param int-mask-of<SORT_FLAG_CASE|SORT_LOCALE_STRING|SORT_NATURAL|SORT_NUMERIC|SORT_REGULAR|SORT_STRING> $options
      */
     public function sortKeysDesc(int $options = SORT_REGULAR): static
     {

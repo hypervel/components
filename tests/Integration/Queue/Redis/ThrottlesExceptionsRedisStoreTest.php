@@ -124,6 +124,38 @@ class ThrottlesExceptionsRedisStoreTest extends TestCase
         $this->assertTrue($class::$handled);
     }
 
+    public function testReportingExceptions(): void
+    {
+        $this->spy(ExceptionHandler::class)
+            ->expects('report')
+            ->times(2)
+            ->with(m::type(RuntimeException::class));
+
+        $job = new class {
+            /**
+             * Release the job.
+             */
+            public function release(): static
+            {
+                return $this;
+            }
+        };
+        $next = function (): never {
+            throw new RuntimeException('Whoops!');
+        };
+
+        $middleware = (new ThrottlesExceptions)->store('redis');
+
+        $middleware->report();
+        $middleware->handle($job, $next);
+
+        $middleware->report(fn (): bool => true);
+        $middleware->handle($job, $next);
+
+        $middleware->report(fn (): bool => false);
+        $middleware->handle($job, $next);
+    }
+
     public function testItCanBackoffUsingException(): void
     {
         $job = new class {
@@ -158,38 +190,6 @@ class ThrottlesExceptionsRedisStoreTest extends TestCase
         $this->assertSame($job, $result);
         $this->assertSame($expectedException, $receivedException);
         $this->assertSame(300, $job->releasedAfter);
-    }
-
-    public function testReportingExceptions(): void
-    {
-        $this->spy(ExceptionHandler::class)
-            ->expects('report')
-            ->times(2)
-            ->with(m::type(RuntimeException::class));
-
-        $job = new class {
-            /**
-             * Release the job.
-             */
-            public function release(): static
-            {
-                return $this;
-            }
-        };
-        $next = function (): never {
-            throw new RuntimeException('Whoops!');
-        };
-
-        $middleware = (new ThrottlesExceptions)->store('redis');
-
-        $middleware->report();
-        $middleware->handle($job, $next);
-
-        $middleware->report(fn (): bool => true);
-        $middleware->handle($job, $next);
-
-        $middleware->report(fn (): bool => false);
-        $middleware->handle($job, $next);
     }
 }
 

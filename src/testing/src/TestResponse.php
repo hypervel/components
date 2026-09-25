@@ -1455,6 +1455,7 @@ class TestResponse implements ArrayAccess
      * Assert that the session is missing a given key in the flashed input array.
      *
      * @param list<string>|string $key
+     * @return $this
      */
     public function assertSessionMissingInput(array|string $key): static
     {

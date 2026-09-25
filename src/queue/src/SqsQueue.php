@@ -40,10 +40,8 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
 
     /**
      * The cache key prefix for extended SQS payloads.
-     *
-     * IMPORTANT: Uses Laravel's prefix for cross-framework queue interoperability.
      */
-    public const string EXTENDED_PAYLOAD_CACHE_PREFIX = 'laravel:sqs-payloads:';
+    public const string EXTENDED_PAYLOAD_CACHE_PREFIX = 'hypervel:sqs-payloads:';
 
     /**
      * The overflow storage options for large payload offloading.
@@ -759,9 +757,9 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Delete all of the jobs from the queue.
      */
-    public function clear(UnitEnum|string|null $queue): int
+    public function clear(UnitEnum|string|null $queue = null): int
     {
-        return tap($this->size($queue), function () use ($queue) {
+        return tap($this->size($queue), function () use ($queue): void {
             $this->sqs->purgeQueue([
                 'QueueUrl' => $this->getQueue($queue),
             ]);

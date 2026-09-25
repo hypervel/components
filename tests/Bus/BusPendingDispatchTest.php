@@ -60,41 +60,6 @@ class BusPendingDispatchTest extends TestCase
         $this->pendingDispatch->onQueue('test-queue');
     }
 
-    public function testConditionableCanConfigurePendingDispatch(): void
-    {
-        $this->job->expects('onQueue')->with('conditional-queue');
-
-        $this->pendingDispatch->when(true, fn (PendingDispatch $pendingDispatch): PendingDispatch => $pendingDispatch->onQueue('conditional-queue'));
-    }
-
-    public function testWhenMethodOfConditionableTraitWithTrue(): void
-    {
-        $this->job->expects('delay')->with(300);
-
-        $this->pendingDispatch->when(true, fn (PendingDispatch $pendingDispatch): PendingDispatch => $pendingDispatch->delay(300));
-    }
-
-    public function testWhenMethodOfConditionableTraitWithFalse(): void
-    {
-        $this->job->shouldReceive('delay')->never();
-
-        $this->pendingDispatch->when(false, fn (PendingDispatch $pendingDispatch): PendingDispatch => $pendingDispatch->delay(300));
-    }
-
-    public function testUnlessMethodOfConditionableTraitWithTrue(): void
-    {
-        $this->job->shouldReceive('delay')->never();
-
-        $this->pendingDispatch->unless(true, fn (PendingDispatch $pendingDispatch): PendingDispatch => $pendingDispatch->delay(300));
-    }
-
-    public function testUnlessMethodOfConditionableTraitWithFalse(): void
-    {
-        $this->job->expects('delay')->with(300);
-
-        $this->pendingDispatch->unless(false, fn (PendingDispatch $pendingDispatch): PendingDispatch => $pendingDispatch->delay(300));
-    }
-
     public function testOnGroup(): void
     {
         $this->job->expects('onGroup')->with('test-group');
@@ -213,6 +178,19 @@ class BusPendingDispatchTest extends TestCase
         $this->assertSame('', $job->debounceOwner);
     }
 
+    public function testPrepareForDispatchCanAbortDispatchBeforeUniqueLockCacheIsResolved(): void
+    {
+        Container::setInstance($container = new Container);
+
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('dispatch')->never();
+        $dispatcher->shouldReceive('dispatchAfterResponse')->never();
+        $container->instance(Dispatcher::class, $dispatcher);
+
+        $pendingDispatch = new PendingDispatch(new PreparingUniquePendingDispatchJob(false));
+        unset($pendingDispatch);
+    }
+
     public function testPrepareForDispatchAllowsDispatch(): void
     {
         Container::setInstance($container = new Container);
@@ -270,6 +248,34 @@ class BusPendingDispatchTest extends TestCase
         $this->job->expects('appendToChain')->with($newJob);
         $this->pendingDispatch->appendToChain($newJob);
     }
+
+    public function testWhenMethodOfConditionableTraitWithTrue(): void
+    {
+        $this->job->expects('delay')->with(300);
+
+        $this->pendingDispatch->when(true, fn (PendingDispatch $pendingDispatch): PendingDispatch => $pendingDispatch->delay(300));
+    }
+
+    public function testWhenMethodOfConditionableTraitWithFalse(): void
+    {
+        $this->job->shouldReceive('delay')->never();
+
+        $this->pendingDispatch->when(false, fn (PendingDispatch $pendingDispatch): PendingDispatch => $pendingDispatch->delay(300));
+    }
+
+    public function testUnlessMethodOfConditionableTraitWithTrue(): void
+    {
+        $this->job->shouldReceive('delay')->never();
+
+        $this->pendingDispatch->unless(true, fn (PendingDispatch $pendingDispatch): PendingDispatch => $pendingDispatch->delay(300));
+    }
+
+    public function testUnlessMethodOfConditionableTraitWithFalse(): void
+    {
+        $this->job->expects('delay')->with(300);
+
+        $this->pendingDispatch->unless(false, fn (PendingDispatch $pendingDispatch): PendingDispatch => $pendingDispatch->delay(300));
+    }
 }
 
 class PreparingPendingDispatchJob implements PreparesForDispatch
@@ -295,6 +301,10 @@ class PreparingPendingDispatchJob implements PreparesForDispatch
 class PreparingDebouncedPendingDispatchJob extends PreparingPendingDispatchJob
 {
     use Queueable;
+}
+
+class PreparingUniquePendingDispatchJob extends PreparingPendingDispatchJob implements ShouldBeUnique
+{
 }
 
 class UniquePendingDispatchJob implements ShouldBeUnique

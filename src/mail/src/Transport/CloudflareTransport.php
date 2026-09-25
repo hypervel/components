@@ -40,6 +40,8 @@ class CloudflareTransport extends AbstractTransport
     }
 
     /**
+     * Send the given message.
+     *
      * @throws TransportException
      */
     protected function doSend(SentMessage $message): void

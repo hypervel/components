@@ -167,7 +167,7 @@ class Lottery
     }
 
     /**
-     * Force the lottery to always result in a lose.
+     * Force the lottery to always result in a loss.
      *
      * Tests only. Without a callback, the result factory persists in static
      * state for the worker lifetime and affects every subsequent lottery.

@@ -72,7 +72,9 @@ class AuthManager implements FactoryContract
             $name = (string) enum_value($name);
         }
 
-        $name ??= $this->getDefaultDriver();
+        $name = $name === null || $name === ''
+            ? $this->getDefaultDriver()
+            : $name;
 
         return $this->guards[$name] ??= $this->resolve($name);
     }
@@ -195,7 +197,9 @@ class AuthManager implements FactoryContract
             $name = (string) enum_value($name);
         }
 
-        $name ??= $this->getDefaultDriver();
+        $name = $name === null || $name === ''
+            ? $this->getDefaultDriver()
+            : $name;
 
         $this->setDefaultDriver($name);
 

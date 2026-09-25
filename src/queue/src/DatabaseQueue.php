@@ -674,7 +674,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Delete all of the jobs from the queue.
      */
-    public function clear(UnitEnum|string|null $queue): int
+    public function clear(UnitEnum|string|null $queue = null): int
     {
         return $this->getDatabase()->table($this->table)
             ->where('queue', $this->getQueue($queue))

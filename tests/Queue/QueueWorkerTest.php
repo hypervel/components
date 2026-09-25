@@ -288,12 +288,8 @@ class QueueWorkerTest extends TestCase
 
         Worker::$reportJobExceptions = false;
 
-        try {
-            $worker = $this->getWorker('default', ['queue' => [$job]]);
-            $worker->runNextJob('default', 'queue', new WorkerOptions);
-        } finally {
-            Worker::$reportJobExceptions = true;
-        }
+        $worker = $this->getWorker('default', ['queue' => [$job]]);
+        $worker->runNextJob('default', 'queue', new WorkerOptions);
 
         $this->exceptionHandler->shouldNotHaveReceived('report');
         $this->assertTrue($job->hasFailed());
@@ -623,15 +619,13 @@ class QueueWorkerTest extends TestCase
         $worker->startMonitorForTest($options);
         $worker->currentTime = 105;
 
-        Worker::$timeoutExceededExitCode = 17;
+        Worker::$timedOutExitCode = 17;
 
         try {
             $timer->fire(1);
             $this->fail('Expected the timeout monitor to terminate the worker.');
         } catch (WorkerKilledException $exception) {
             $this->assertSame(17, $exception->status);
-        } finally {
-            Worker::$timeoutExceededExitCode = null;
         }
     }
 
@@ -1007,6 +1001,21 @@ class QueueWorkerTest extends TestCase
         $this->assertFalse($worker->daemonShouldRunForTest($options, 'default', 'queue'));
     }
 
+    public function testForcedWorkerDoesNotCheckMaintenanceMode(): void
+    {
+        $events = m::mock(EventDispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(Looping::class)->andReturn(false);
+
+        $worker = new LoopAwareWorker(
+            new WorkerFakeManager('default', new WorkerFakeConnection('default', [])),
+            $events,
+            $this->exceptionHandler,
+            fn (): never => $this->fail('A forced worker should not check maintenance mode.'),
+        );
+
+        $this->assertTrue($worker->daemonShouldRunForTest(new WorkerOptions(force: true), 'default', 'queue'));
+    }
+
     public function testQueuePauseEventsTrackOnlyTheCurrentSelection(): void
     {
         $paused = ['emails'];
@@ -1247,12 +1256,8 @@ class QueueWorkerTest extends TestCase
 
         Worker::$reportJobExceptions = false;
 
-        try {
-            $worker = $this->getWorker('default', ['queue' => [$job]]);
-            $worker->runNextJob('default', 'queue', $this->workerOptions(['backoff' => 10]));
-        } finally {
-            Worker::$reportJobExceptions = true;
-        }
+        $worker = $this->getWorker('default', ['queue' => [$job]]);
+        $worker->runNextJob('default', 'queue', $this->workerOptions(['backoff' => 10]));
 
         $this->exceptionHandler->shouldNotHaveReceived('report');
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobExceptionOccurred::class))->once();
@@ -1284,6 +1289,8 @@ class QueueWorkerTest extends TestCase
 
     public function testJobIsNotReleasedIfItHasExpired(): void
     {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::create(2026, 1, 1, 0, 0, 0));
+
         $e = new RuntimeException;
 
         $job = new WorkerFakeJob(function ($job) use ($e) {
@@ -1293,13 +1300,11 @@ class QueueWorkerTest extends TestCase
             throw $e;
         });
 
-        $job->retryUntil = now()->addSeconds(1)->getTimestamp();
+        $job->retryUntil = $now->addSecond()->getTimestamp();
 
         $job->attempts = 0;
 
-        CarbonImmutable::setTestNow(
-            CarbonImmutable::now()->addSeconds(1)
-        );
+        CarbonImmutable::setTestNow($now->addSecond());
 
         $worker = $this->getWorker('default', ['queue' => [$job]]);
         $worker->runNextJob('default', 'queue', $this->workerOptions());
@@ -1527,13 +1532,13 @@ class QueueWorkerTest extends TestCase
         Worker::popUsing('myworker', null);
     }
 
-    public function testFlushStateResetsWorkerStaticState()
+    public function testFlushStateResetsWorkerStaticState(): void
     {
         Worker::popUsing('myworker', function ($pop) {
             return $pop('custom');
         });
         Worker::$memoryExceededExitCode = 99;
-        Worker::$timeoutExceededExitCode = 98;
+        Worker::$timedOutExitCode = 98;
         Worker::$reportJobExceptions = false;
         Worker::$stopOnLostConnection = false;
         Worker::$restartable = false;
@@ -1542,7 +1547,7 @@ class QueueWorkerTest extends TestCase
         Worker::flushState();
 
         $this->assertNull(Worker::$memoryExceededExitCode);
-        $this->assertNull(Worker::$timeoutExceededExitCode);
+        $this->assertNull(Worker::$timedOutExitCode);
         $this->assertTrue(Worker::$reportJobExceptions);
         $this->assertTrue(Worker::$stopOnLostConnection);
         $this->assertTrue(Worker::$restartable);
@@ -1651,17 +1656,15 @@ class QueueWorkerTest extends TestCase
 
         Worker::$stopOnLostConnection = false;
 
-        try {
-            $status = $worker->daemon('default', 'queue', $workerOptions);
-        } finally {
-            Worker::$stopOnLostConnection = true;
-        }
+        $status = $worker->daemon('default', 'queue', $workerOptions);
 
         $this->assertSame(Worker::EXIT_SUCCESS, $status);
         $this->assertTrue($job->fired);
         $this->assertFalse($worker->lostConnection);
         $this->events->shouldHaveReceived('dispatch')->with(m::on(
             static fn (object $event): bool => $event instanceof WorkerStopping
+                && $event->status === Worker::EXIT_SUCCESS
+                && $event->workerOptions === $workerOptions
                 && $event->reason === WorkerStopReason::QueueEmpty
         ))->once();
     }
@@ -2481,28 +2484,62 @@ class BrokenQueueConnection implements Queue
 
 class ShouldntRetryExceptionHandler implements ExceptionHandlerContract
 {
+    /**
+     * Report or log an exception.
+     */
     public function report(Throwable $e): void
     {
     }
 
+    /**
+     * Determine if the exception should be reported.
+     */
     public function shouldReport(Throwable $e): bool
     {
         return true;
     }
 
+    /**
+     * Render an exception into an HTTP response.
+     */
     public function render(Request $request, Throwable $e): Response
     {
         return new Response;
     }
 
+    /**
+     * Render an exception to the console.
+     */
     public function renderForConsole(OutputInterface $output, Throwable $e): void
     {
     }
 
+    /**
+     * Determine if a given exception is being reported.
+     */
+    public function isReporting(Throwable $e): bool
+    {
+        return true;
+    }
+
+    /**
+     * Create the context for an exception.
+     */
+    public function buildContextForException(Throwable $e): array
+    {
+        return [];
+    }
+
+    /**
+     * Register a callback to be called after an HTTP error response is rendered.
+     */
     public function afterResponse(callable $callback): void
     {
     }
 
+    /**
+     * Determine if jobs should stop retrying for the given exception.
+     */
     public function shouldStopRetries(Throwable $e): bool
     {
         return true;

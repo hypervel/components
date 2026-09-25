@@ -247,7 +247,7 @@ class ScheduleListCommandTest extends TestCase
         $this->schedule->job(FooJob::class)->everyFiveMinutes();
 
         $this->withoutMockingConsoleOutput()->artisan(ScheduleListCommand::class, [
-            '--environment' => ['production'],
+            '--environment' => 'production',
             '--json' => true,
         ]);
 

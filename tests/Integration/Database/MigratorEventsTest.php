@@ -178,7 +178,7 @@ class MigratorEventsTest extends TestCase
         });
     }
 
-    public function testMigrationSkippedEventIsFired()
+    public function testMigrationSkippedEventIsFired(): void
     {
         Event::fake();
 
@@ -187,8 +187,8 @@ class MigratorEventsTest extends TestCase
             '--realpath' => true,
         ]);
 
-        Event::assertDispatched(MigrationSkipped::class, function ($event) {
-            return $event->migrationName === '2014_10_13_000000_skipped_migration';
+        Event::assertDispatched(MigrationSkipped::class, function (MigrationSkipped $event): bool {
+            return $event->name === '2014_10_13_000000_skipped_migration';
         });
     }
 }

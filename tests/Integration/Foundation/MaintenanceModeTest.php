@@ -479,10 +479,15 @@ class MaintenanceModeTest extends TestCase
     {
         file_put_contents(storage_path('framework/down'), json_encode(['status' => 503]));
 
+        $exception = new RuntimeException('deactivation failed');
         $mode = m::mock(MaintenanceModeContract::class);
         $mode->shouldReceive('active')->once()->andReturnTrue();
-        $mode->shouldReceive('deactivate')->once()->andThrow(new RuntimeException('deactivation failed'));
+        $mode->shouldReceive('deactivate')->once()->andThrow($exception);
         $this->app->instance(MaintenanceModeContract::class, $mode);
+
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldReceive('report')->once()->with($exception);
+        $this->app->instance(ExceptionHandler::class, $handler);
 
         $this->artisan(UpCommand::class)
             ->expectsOutputToContain('Failed to disable maintenance mode: deactivation failed.')

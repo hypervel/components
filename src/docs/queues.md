@@ -165,6 +165,18 @@ Hypervel uses a complete `key` and `secret` pair when both are configured, inclu
 
 The optional `credentials` setting takes precedence and may contain an AWS credential value or a supported `ecs` or `instance` provider. If you supply callable or object credentials, set `pool.fingerprint` because these values cannot form an automatic pool identity. The optional `version` setting defaults to `latest`. Within the optional `http` array, `timeout` and `connect_timeout` each default to 60 seconds, and additional AWS SDK HTTP options are preserved.
 
+When credentials come from the `ecs` or `instance` provider or from the AWS SDK's default credential chain, you may enable the optional `credential_cache` setting so that the processes and pooled connections on the same host or container share the credentials they fetch, instead of each fetching its own copy:
+
+```php
+'credential_cache' => [
+    'enabled' => true,
+    'store' => null,
+    'fallback_store' => 'file',
+],
+```
+
+A `null` store uses your default cache store, and the optional `fallback_store` is tried when the primary store is unavailable. Credentials are only shared between processes that use the same cache store, so a store local to one process, such as `array`, shares nothing. When the store supports [atomic locks](/docs/{{version}}/cache#atomic-locks), one process refreshes expiring credentials while the others wait for the result, although a lock timeout or an expired lock can still lead to an extra fetch. Cache failures never prevent a connection from fetching its credentials directly. Static `key` and `secret` values and custom credential values, such as arrays, objects, and callables, are never cached. Credentials that never expire, such as keys from environment variables or a shared credentials file, are not stored in the shared cache either, because they have no expiration time to limit how long a shared copy may be used. Each connection's AWS client still keeps them for as long as the client exists.
+
 `min_retained_objects` is an idle-trimming floor and does not eagerly connect. `max_objects` should be at least the maximum number of jobs a worker may process concurrently: a popped SQS or Beanstalkd job keeps its connection leased until `delete()`, `release()`, or `bury()` finishes. Backend failures discard the leased connection so a potentially desynchronized client is never returned to the pool.
 
 Automatic identities are sufficient for scalar and array connector configuration. Use `pool.name` for an explicit readable identity and `pool.fingerprint` when custom connector input contains an object, closure, or resource. Reusing an explicit name with a different driver, fingerprint, or normalized options fails immediately.
@@ -279,7 +291,7 @@ The following dependencies are needed for the listed queue drivers. These depend
 <a name="laravel-job-interoperability"></a>
 ### Laravel Job Interoperability
 
-Hypervel queue workers can process compatible jobs that were dispatched by a Laravel application sharing the same queue backend. Hypervel uses Laravel-compatible queue payload handler names and selected cache key prefixes so that restart signals, unique job locks, overlapping locks, and throttled exception buckets can be shared safely.
+Hypervel queue workers can process compatible jobs that were dispatched by a Laravel application sharing the same queue backend. Hypervel uses Laravel-compatible queue payload handler names and selected cache key prefixes so that restart signals, unique job locks, and overlapping locks can be shared safely.
 
 For this to work, the Laravel job class and any classes referenced by the serialized payload must be autoloadable and compatible in your Hypervel application. Encrypted jobs require compatible encryption configuration, and jobs containing serialized models require compatible model classes and database records.
 
@@ -1001,14 +1013,26 @@ public function middleware(): array
 }
 ```
 
-The `backoff` method also accepts a closure, allowing the delay to be determined from the exception:
+The `backoff` method also accepts a closure that receives the thrown exception, allowing the delay to be determined dynamically:
 
 ```php
+use App\Exceptions\RateLimitedException;
+use Hypervel\Queue\Middleware\ThrottlesExceptions;
 use Throwable;
 
-return [(new ThrottlesExceptions(10, 5 * 60))->backoff(
-    fn (Throwable $exception) => $exception->getCode() === 429 ? 5 : 1
-)];
+/**
+ * Get the middleware the job should pass through.
+ *
+ * @return array<int, object>
+ */
+public function middleware(): array
+{
+    return [(new ThrottlesExceptions(10, 5 * 60))->backoff(
+        fn (Throwable $throwable) => $throwable instanceof RateLimitedException
+            ? $throwable->retryAfterMinutes()
+            : 5
+    )];
+}
 ```
 
 The middleware's `backoff` method controls the ordinary queue retry delay after an individual exception. It is separate from the rate limiter's [exponential backoff policy](/docs/{{version}}/rate-limiting#exponential-backoff).
@@ -2835,6 +2859,23 @@ php artisan queue:work --force
 #### Resource Considerations
 
 Daemon queue workers do not "reboot" the framework before processing each job. Therefore, you should release any heavy resources after each job completes. For example, if you are doing image manipulation with the [GD library](https://www.php.net/manual/en/book.image.php), you should free the memory with `imagedestroy` when you are done processing the image.
+
+<a name="lost-database-connections"></a>
+#### Lost Database Connections
+
+When a queue worker detects a lost database connection while fetching or processing a job, it stops so that your process manager can start a fresh worker. If your jobs use several database connections, such as read replicas, you may prefer to keep the worker running when one of them briefly drops. To do so, set the static `$stopOnLostConnection` property on the `Hypervel\Queue\Worker` class to `false` in the `boot` method of your `AppServiceProvider`:
+
+```php
+use Hypervel\Queue\Worker;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    Worker::$stopOnLostConnection = false;
+}
+```
 
 <a name="queue-priorities"></a>
 ### Queue Priorities

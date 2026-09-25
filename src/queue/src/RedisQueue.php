@@ -690,7 +690,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue, IndexAw
     /**
      * Delete all of the jobs from the queue.
      */
-    public function clear(UnitEnum|string|null $queue): int
+    public function clear(UnitEnum|string|null $queue = null): int
     {
         $queue = $this->getQueueRedisKey($queue);
 

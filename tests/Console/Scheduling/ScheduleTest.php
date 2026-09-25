@@ -224,7 +224,7 @@ class ScheduleTest extends TestCase
         $this->assertSame(['staging', 'production'], $filteredEvents[1]->environments);
         $this->assertSame('* * * * *', $filteredEvents[1]->expression);
 
-        $this->assertMatchesRegularExpression('/^foobar\b/', $filteredEvents[2]->command);
+        $this->assertSame('foobar', $filteredEvents[2]->command);
         $this->assertSame([], $filteredEvents[2]->environments);
         $this->assertSame('0 * * * *', $filteredEvents[2]->expression);
     }

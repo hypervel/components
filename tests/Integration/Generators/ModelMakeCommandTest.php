@@ -64,6 +64,28 @@ class ModelMakeCommandTest extends TestCase
         ], 'app/Models/Foo.php');
     }
 
+    public function testItCanGenerateModelFileWithPivotAndFactoryOptions(): void
+    {
+        $this->artisan('make:model', ['name' => 'Foo', '--pivot' => true, '--factory' => true])
+            ->assertExitCode(0);
+
+        $this->assertFileContains([
+            'namespace App\Models;',
+            'use Hypervel\Database\Eloquent\Factories\HasFactory;',
+            'use Hypervel\Database\Eloquent\Relations\Pivot;',
+            'class Foo extends Pivot',
+            '/** @use HasFactory<\Database\Factories\FooFactory> */',
+            'use HasFactory;',
+        ], 'app/Models/Foo.php');
+
+        $this->assertFileNotContains([
+            '{{ factoryImport }}',
+            '{{ factory }}',
+        ], 'app/Models/Foo.php');
+
+        $this->assertFilenameExists('database/factories/FooFactory.php');
+    }
+
     public function testItCanGenerateModelFileWithMorphPivotOption()
     {
         $this->artisan('make:model', ['name' => 'Foo', '--morph-pivot' => true])
@@ -74,6 +96,28 @@ class ModelMakeCommandTest extends TestCase
             'use Hypervel\Database\Eloquent\Relations\MorphPivot;',
             'class Foo extends MorphPivot',
         ], 'app/Models/Foo.php');
+    }
+
+    public function testItCanGenerateModelFileWithMorphPivotAndFactoryOptions(): void
+    {
+        $this->artisan('make:model', ['name' => 'Foo', '--morph-pivot' => true, '--factory' => true])
+            ->assertExitCode(0);
+
+        $this->assertFileContains([
+            'namespace App\Models;',
+            'use Hypervel\Database\Eloquent\Factories\HasFactory;',
+            'use Hypervel\Database\Eloquent\Relations\MorphPivot;',
+            'class Foo extends MorphPivot',
+            '/** @use HasFactory<\Database\Factories\FooFactory> */',
+            'use HasFactory;',
+        ], 'app/Models/Foo.php');
+
+        $this->assertFileNotContains([
+            '{{ factoryImport }}',
+            '{{ factory }}',
+        ], 'app/Models/Foo.php');
+
+        $this->assertFilenameExists('database/factories/FooFactory.php');
     }
 
     public function testItCanGenerateModelFileWithControllerOption()

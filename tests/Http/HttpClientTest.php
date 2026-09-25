@@ -3704,40 +3704,6 @@ class HttpClientTest extends TestCase
         $this->assertSame('Something unexpected', $result->getMessage());
     }
 
-    public function testAsyncRequestRetriesWithBackoffArray(): void
-    {
-        $this->factory->fake([
-            '*' => $this->factory::response(['error'], 403),
-        ]);
-
-        $response = $this->factory
-            ->async()
-            ->retry([1, 2], throw: false)
-            ->get('http://foo.com/get')
-            ->wait();
-
-        $this->assertTrue($response->failed());
-
-        $this->factory->assertSentCount(3);
-    }
-
-    public function testAsyncRequestRetriesWithIntegerTries(): void
-    {
-        $this->factory->fake([
-            '*' => $this->factory::response(['error'], 403),
-        ]);
-
-        $response = $this->factory
-            ->async()
-            ->retry(2, 1000, null, false)
-            ->get('http://foo.com/get')
-            ->wait();
-
-        $this->assertTrue($response->failed());
-
-        $this->factory->assertSentCount(2);
-    }
-
     #[DataProvider('redirectRetryModes')]
     public function testRetryPreservesRedirectResponses(bool $async, bool $throw): void
     {
@@ -4462,6 +4428,40 @@ class HttpClientTest extends TestCase
         $this->assertTrue($response->failed());
 
         $this->factory->assertSentCount(3);
+    }
+
+    public function testAsyncRequestRetriesWithBackoffArray(): void
+    {
+        $this->factory->fake([
+            '*' => $this->factory::response(['error'], 403),
+        ]);
+
+        $response = $this->factory
+            ->async()
+            ->retry([1, 2], throw: false)
+            ->get('http://foo.com/get')
+            ->wait();
+
+        $this->assertTrue($response->failed());
+
+        $this->factory->assertSentCount(3);
+    }
+
+    public function testAsyncRequestRetriesWithIntegerTries(): void
+    {
+        $this->factory->fake([
+            '*' => $this->factory::response(['error'], 403),
+        ]);
+
+        $response = $this->factory
+            ->async()
+            ->retry(2, 1000, null, false)
+            ->get('http://foo.com/get')
+            ->wait();
+
+        $this->assertTrue($response->failed());
+
+        $this->factory->assertSentCount(2);
     }
 
     public function testRequestExceptionIsNotThrownWithoutRetriesIfRetryNotNecessary(): void

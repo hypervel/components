@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
+use __PHP_Incomplete_Class;
+use Aws\Credentials\Credentials;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
@@ -16,6 +18,7 @@ use Hypervel\Queue\Failed\FileFailedJobProvider;
 use Hypervel\Queue\Failed\NullFailedJobProvider;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\QueueServiceProvider;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -130,5 +133,50 @@ class QueueServiceProviderTest extends TestCase
             100,
             (new ReflectionProperty(FileFailedJobProvider::class, 'limit'))->getValue($provider),
         );
+    }
+
+    #[DefineEnvironment('enableSqsCredentialCaching')]
+    public function testSqsCredentialCachingAllowsCachedCredentialsToBeUnserialized(): void
+    {
+        $store = $this->app->make('cache')->store('serialized');
+        $store->forever('credentials', new Credentials('key', 'secret', 'token', 1893456000));
+
+        $credentials = $store->get('credentials');
+
+        $this->assertInstanceOf(Credentials::class, $credentials);
+        $this->assertSame('key', $credentials->getAccessKeyId());
+        $this->assertSame('secret', $credentials->getSecretKey());
+        $this->assertSame('token', $credentials->getSecurityToken());
+        $this->assertSame(1893456000, $credentials->getExpiration());
+    }
+
+    #[DefineEnvironment('useSerializingCacheStore')]
+    public function testSqsCredentialsAreNotUnserializedWithoutCredentialCaching(): void
+    {
+        $store = $this->app->make('cache')->store('serialized');
+        $store->forever('credentials', new Credentials('key', 'secret'));
+
+        $this->assertInstanceOf(__PHP_Incomplete_Class::class, $store->get('credentials'));
+    }
+
+    /**
+     * Configure a serializing cache store under the shipped class policy.
+     */
+    protected function useSerializingCacheStore(Application $app): void
+    {
+        $app->make('config')->set([
+            'cache.serializable_classes' => false,
+            'cache.stores.serialized' => ['driver' => 'array', 'serialize' => true],
+        ]);
+    }
+
+    /**
+     * Enable SQS credential caching with an uncast setting, as the connector accepts.
+     */
+    protected function enableSqsCredentialCaching(Application $app): void
+    {
+        $this->useSerializingCacheStore($app);
+
+        $app->make('config')->set('queue.connections.sqs.credential_cache', ['enabled' => '1']);
     }
 }

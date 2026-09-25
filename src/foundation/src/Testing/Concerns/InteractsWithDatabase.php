@@ -24,8 +24,8 @@ trait InteractsWithDatabase
     /**
      * Assert that a given where condition exists in the database.
      *
-     * @param class-string<Model>|iterable<Model>|Model|string $table
-     * @param array<string, mixed> $data
+     * @param class-string<Model>|iterable<class-string<Model>|Model|string>|Model|string $table
+     * @param array<string, mixed>|list<array<string, mixed>> $data
      */
     protected function assertDatabaseHas(iterable|Model|string $table, array $data = [], UnitEnum|string|null $connection = null): static
     {
@@ -63,8 +63,8 @@ trait InteractsWithDatabase
     /**
      * Assert that a given where condition does not exist in the database.
      *
-     * @param class-string<Model>|iterable<Model>|Model|string $table
-     * @param array<string, mixed> $data
+     * @param class-string<Model>|iterable<class-string<Model>|Model|string>|Model|string $table
+     * @param array<string, mixed>|list<array<string, mixed>> $data
      */
     protected function assertDatabaseMissing(iterable|Model|string $table, array $data = [], UnitEnum|string|null $connection = null): static
     {
@@ -142,13 +142,22 @@ trait InteractsWithDatabase
      * Assert the given record has been "soft deleted".
      *
      * @param class-string<Model>|iterable<class-string<Model>|Model|string>|Model|string $table
-     * @param array<string, mixed> $data
+     * @param array<string, mixed>|list<array<string, mixed>> $data
      */
     protected function assertSoftDeleted(iterable|Model|string $table, array $data = [], UnitEnum|string|null $connection = null, ?string $deletedAtColumn = 'deleted_at'): static
     {
         if (is_iterable($table)) {
             foreach ($table as $item) {
                 $this->assertSoftDeleted($item, $data, $connection, $deletedAtColumn);
+            }
+
+            return $this;
+        }
+
+        // Expand row lists before applying a model, so every row gets its key, connection and deleted-at column.
+        if ($data !== [] && array_is_list($data) && array_all($data, fn ($row) => is_array($row))) {
+            foreach ($data as $row) {
+                $this->assertSoftDeleted($table, $row, $connection, $deletedAtColumn);
             }
 
             return $this;
@@ -161,14 +170,6 @@ trait InteractsWithDatabase
                 $table->getConnectionName(),
                 $table->getDeletedAtColumn()
             );
-        }
-
-        if ($data !== [] && array_is_list($data) && array_all($data, fn ($row) => is_array($row))) {
-            foreach ($data as $row) {
-                $this->assertSoftDeleted($table, $row, $connection, $deletedAtColumn);
-            }
-
-            return $this;
         }
 
         $this->assertThat(
@@ -187,13 +188,22 @@ trait InteractsWithDatabase
      * Assert the given record has not been "soft deleted".
      *
      * @param class-string<Model>|iterable<class-string<Model>|Model|string>|Model|string $table
-     * @param array<string, mixed> $data
+     * @param array<string, mixed>|list<array<string, mixed>> $data
      */
     protected function assertNotSoftDeleted(iterable|Model|string $table, array $data = [], UnitEnum|string|null $connection = null, ?string $deletedAtColumn = 'deleted_at'): static
     {
         if (is_iterable($table)) {
             foreach ($table as $item) {
                 $this->assertNotSoftDeleted($item, $data, $connection, $deletedAtColumn);
+            }
+
+            return $this;
+        }
+
+        // Expand row lists before applying a model, so every row gets its key, connection and deleted-at column.
+        if ($data !== [] && array_is_list($data) && array_all($data, fn ($row) => is_array($row))) {
+            foreach ($data as $row) {
+                $this->assertNotSoftDeleted($table, $row, $connection, $deletedAtColumn);
             }
 
             return $this;
@@ -206,14 +216,6 @@ trait InteractsWithDatabase
                 $table->getConnectionName(),
                 $table->getDeletedAtColumn()
             );
-        }
-
-        if ($data !== [] && array_is_list($data) && array_all($data, fn ($row) => is_array($row))) {
-            foreach ($data as $row) {
-                $this->assertNotSoftDeleted($table, $row, $connection, $deletedAtColumn);
-            }
-
-            return $this;
         }
 
         $this->assertThat(
@@ -231,7 +233,7 @@ trait InteractsWithDatabase
     /**
      * Assert the given model exists in the database.
      *
-     * @param class-string<Model>|iterable<Model>|Model|string $model
+     * @param class-string<Model>|iterable<class-string<Model>|Model|string>|Model|string $model
      */
     protected function assertModelExists(iterable|Model|string $model): static
     {
@@ -241,7 +243,7 @@ trait InteractsWithDatabase
     /**
      * Assert the given model does not exist in the database.
      *
-     * @param class-string<Model>|iterable<Model>|Model|string $model
+     * @param class-string<Model>|iterable<class-string<Model>|Model|string>|Model|string $model
      */
     protected function assertModelMissing(iterable|Model|string $model): static
     {

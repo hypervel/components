@@ -189,7 +189,7 @@ class Worker
      * Boot-only. Mutates process-global worker configuration; runtime use
      * races across coroutines and changes every concurrent timeout exit.
      */
-    public static ?int $timeoutExceededExitCode = null;
+    public static ?int $timedOutExitCode = null;
 
     /**
      * Indicates if the worker should report job exceptions.
@@ -522,7 +522,7 @@ class Worker
                     if ($this->hasTimeoutJobs()) {
                         $this->shouldQuit = true;
                         $this->kill(
-                            static::$timeoutExceededExitCode ?? static::EXIT_ERROR,
+                            static::$timedOutExitCode ?? static::EXIT_ERROR,
                             $options,
                             WorkerStopReason::TimedOut,
                             $connectionName,
@@ -605,7 +605,7 @@ class Worker
      */
     protected function daemonShouldRun(WorkerOptions $options, string $connectionName, string $queue): bool
     {
-        return ! ((($this->isDownForMaintenance)() && ! $options->force)
+        return ! ((! $options->force && ($this->isDownForMaintenance)())
             || $this->paused
             || ($this->events->hasListeners(Looping::class)
                 && $this->events->until(new Looping($connectionName, $queue, $options)) === false));
@@ -1533,7 +1533,7 @@ class Worker
     {
         static::$popCallbacks = [];
         static::$memoryExceededExitCode = null;
-        static::$timeoutExceededExitCode = null;
+        static::$timedOutExitCode = null;
         static::$reportJobExceptions = true;
         static::$stopOnLostConnection = true;
         static::$restartable = true;

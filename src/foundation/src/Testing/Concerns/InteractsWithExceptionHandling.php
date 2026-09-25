@@ -77,6 +77,8 @@ trait InteractsWithExceptionHandling
 
         $exceptionHandler = new class($this->originalExceptionHandler, $except) implements ExceptionHandler, WithoutExceptionHandlingHandler {
             /**
+             * Create a new exception handler instance.
+             *
              * @param list<class-string<Throwable>> $except
              */
             public function __construct(
@@ -130,6 +132,25 @@ trait InteractsWithExceptionHandling
             public function renderForConsole(OutputInterface $output, Throwable $e): void
             {
                 (new ConsoleApplication)->renderThrowable($e, $output);
+            }
+
+            /**
+             * Determine if a given exception is being reported.
+             */
+            public function isReporting(Throwable $e): bool
+            {
+                return false;
+            }
+
+            /**
+             * Create the context for an exception.
+             *
+             * @return array<array-key, mixed>
+             */
+            public function buildContextForException(Throwable $e): array
+            {
+                // Only reporting is disabled; direct logs still need the exception's context.
+                return $this->originalHandler->buildContextForException($e);
             }
 
             /**

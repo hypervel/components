@@ -997,6 +997,8 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
      * Boot-only. Persists on the cached repository for the worker lifetime
      * and applies to every subsequent write that falls back to the default
      * TTL; per-request use races across coroutines.
+     *
+     * @return $this
      */
     public function setDefaultCacheTime(?int $seconds): static
     {
@@ -1019,6 +1021,8 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
      * Boot-only. Replaces the backing store on the cached repository for the
      * worker lifetime; per-request use races and every concurrent
      * read/write through this repository would hit the wrong store.
+     *
+     * @return $this
      */
     public function setStore(Store $store): static
     {

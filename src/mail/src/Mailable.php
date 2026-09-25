@@ -540,6 +540,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Set the locale of the message.
+     *
+     * @return $this
      */
     public function locale(string $locale): static
     {
@@ -582,6 +584,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Set the recipients of the message.
+     *
+     * @return $this
      */
     public function to(array|object|string $address, ?string $name = null): static
     {
@@ -602,6 +606,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Set the recipients of the message.
+     *
+     * @return $this
      */
     public function cc(array|object|string $address, ?string $name = null): static
     {
@@ -618,6 +624,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Set the recipients of the message.
+     *
+     * @return $this
      */
     public function bcc(array|object|string $address, ?string $name = null): static
     {
@@ -652,6 +660,8 @@ class Mailable implements MailableContract, Renderable
      * Set the recipients of the message.
      *
      * All recipients are stored internally as [['name' => ?, 'address' => ?]]
+     *
+     * @return $this
      */
     protected function setAddress(array|object|string $address, ?string $name = null, string $property = 'to'): static
     {
@@ -1602,6 +1612,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Set the name of the mailer that should send the message.
+     *
+     * @return $this
      */
     public function mailer(?string $mailer): static
     {

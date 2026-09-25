@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth;
 
+use Hypervel\Auth\AuthManager;
 use Hypervel\Auth\Middleware\AuthenticateWithBasicAuth;
+use Hypervel\Config\Repository;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Http\Request;
+use Hypervel\Pipeline\Pipeline;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Symfony\Component\HttpFoundation\Response;
@@ -81,5 +85,32 @@ class AuthenticateWithBasicAuthMiddlewareTest extends TestCase
         $result = $middleware->handle($request, fn () => $expectedResponse, 'web');
 
         $this->assertSame($expectedResponse, $result);
+    }
+
+    public function testFieldOnlyDefinitionUsesDefaultGuard(): void
+    {
+        $container = new Container;
+        $container->instance('config', new Repository([
+            'auth' => [
+                'defaults' => ['guard' => 'web'],
+                'guards' => ['web' => ['driver' => 'basic']],
+            ],
+        ]));
+
+        $guard = m::mock(Guard::class);
+        $guard->shouldReceive('basic')->with('username')->once()->andReturnNull();
+
+        $auth = new AuthManager($container);
+        $auth->extend('basic', fn () => $guard);
+        $container->instance(AuthFactory::class, $auth);
+
+        $expectedResponse = new Response('ok');
+
+        $response = (new Pipeline($container))
+            ->send(Request::create('/', 'GET'))
+            ->through([AuthenticateWithBasicAuth::using(field: 'username')])
+            ->then(fn () => $expectedResponse);
+
+        $this->assertSame($expectedResponse, $response);
     }
 }

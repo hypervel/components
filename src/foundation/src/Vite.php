@@ -1043,11 +1043,11 @@ class Vite implements Htmlable
         ];
 
         foreach ($this->preloadTagAttributesResolvers as $resolver) {
-            if (false === ($resolvedAttributes = $resolver('fonts', $url, [], []))) {
+            if (false === ($resolved = $resolver('fonts', $url, [], []))) {
                 return false;
             }
 
-            $attributes = array_merge($attributes, $resolvedAttributes);
+            $attributes = array_merge($attributes, $resolved);
         }
 
         return $attributes;

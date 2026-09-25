@@ -381,7 +381,6 @@ class BroadcastManagerTest extends TestCase
                 'connections' => [
                     'default' => ['driver' => 'null'],
                     'Primary' => ['driver' => 'null'],
-                    'primary' => ['driver' => 'null'],
                     '1' => ['driver' => 'null'],
                     '0' => ['driver' => 'null'],
                 ],
@@ -391,7 +390,6 @@ class BroadcastManagerTest extends TestCase
         $manager = new BroadcastManager($app);
 
         $this->assertSame($manager->connection(BroadcastUnitIdentifier::Primary), $manager->connection('Primary'));
-        $this->assertSame($manager->connection(BroadcastStringIdentifier::Primary), $manager->connection('primary'));
         $this->assertSame($manager->connection(BroadcastIntegerIdentifier::Primary), $manager->connection('1'));
         $zero = $manager->connection(BroadcastIntegerIdentifier::Zero);
         $this->assertSame($zero, $manager->connection('0'));
@@ -836,6 +834,81 @@ class BroadcastManagerTest extends TestCase
         $broadcastManager->connection('failing');
     }
 
+    public function testBroadcastManagerCanResolveBackedEnumConnection(): void
+    {
+        $app = new Container;
+        $app->singleton('config', fn () => new Repository([
+            'broadcasting' => [
+                'connections' => [
+                    'log' => ['driver' => 'log'],
+                ],
+            ],
+        ]));
+
+        $driver = m::mock(Broadcaster::class);
+        $manager = new BroadcastManager($app);
+        $manager->extend('log', static fn () => $driver);
+
+        $this->assertSame($driver, $manager->connection(BroadcastConnectionName::Log));
+        $this->assertSame($manager->connection('log'), $manager->connection(BroadcastConnectionName::Log));
+    }
+
+    public function testBroadcastManagerCanResolveBackedEnumDriver(): void
+    {
+        $app = new Container;
+        $app->singleton('config', fn () => new Repository([
+            'broadcasting' => [
+                'connections' => [
+                    'log' => ['driver' => 'log'],
+                ],
+            ],
+        ]));
+
+        $driver = m::mock(Broadcaster::class);
+        $manager = new BroadcastManager($app);
+        $manager->extend('log', static fn () => $driver);
+
+        $this->assertSame($driver, $manager->driver(BroadcastConnectionName::Log));
+        $this->assertSame($manager->driver('log'), $manager->driver(BroadcastConnectionName::Log));
+    }
+
+    public function testSetDefaultDriverAcceptsBackedEnum(): void
+    {
+        $app = new Container;
+        $app->singleton('config', fn () => new Repository([
+            'broadcasting' => [
+                'default' => 'null',
+                'connections' => [],
+            ],
+        ]));
+
+        $manager = new BroadcastManager($app);
+        $manager->setDefaultDriver(BroadcastConnectionName::Log);
+
+        $this->assertSame('log', $app->make('config')->get('broadcasting.default'));
+    }
+
+    public function testPurgeAcceptsBackedEnum(): void
+    {
+        $app = new Container;
+        $app->singleton('config', fn () => new Repository([
+            'broadcasting' => [
+                'connections' => [
+                    'log' => ['driver' => 'log'],
+                ],
+            ],
+        ]));
+
+        $manager = new BroadcastManager($app);
+        $manager->extend('log', static fn () => m::mock(Broadcaster::class));
+
+        $instance1 = $manager->connection(BroadcastConnectionName::Log);
+        $manager->purge(BroadcastConnectionName::Log);
+        $instance2 = $manager->connection(BroadcastConnectionName::Log);
+
+        $this->assertNotSame($instance1, $instance2);
+    }
+
     /**
      * Create an application with object pooling and broadcast connections.
      */
@@ -854,6 +927,11 @@ class BroadcastManagerTest extends TestCase
 
         return $app;
     }
+}
+
+enum BroadcastConnectionName: string
+{
+    case Log = 'log';
 }
 
 class TestEvent implements ShouldBroadcast
@@ -1033,11 +1111,6 @@ class ManagerCustomBroadcastCreator
 enum BroadcastUnitIdentifier
 {
     case Primary;
-}
-
-enum BroadcastStringIdentifier: string
-{
-    case Primary = 'primary';
 }
 
 enum BroadcastIntegerIdentifier: int

@@ -683,6 +683,25 @@ The `assertJsonPath` method also accepts a closure, which may be used to dynamic
 $response->assertJsonPath('team.owner.name', fn (string $name) => strlen($name) >= 3);
 ```
 
+If you need to assert multiple JSON paths at once, you may use the `assertJsonPaths` method. The expected value for each path may also be a closure:
+
+```php
+$response->assertJsonPaths([
+    'team.owner.name' => 'Darian',
+    'team.owner.email' => fn (string $email) => str($email)->is('*@hypervel.org'),
+    'team.members.0.name' => 'Sally',
+]);
+```
+
+You may use the `assertJsonMissingPaths` method to assert that multiple JSON paths are missing from the response:
+
+```php
+$response->assertJsonMissingPaths([
+    'team.owner.password',
+    'team.members.0.api_token',
+]);
+```
+
 <a name="fluent-json-testing"></a>
 ### Fluent JSON Testing
 
@@ -1191,13 +1210,13 @@ Hypervel's `Hypervel\Testing\TestResponse` class provides a variety of custom as
 [assertSimilarJson](#assert-similar-json)
 [assertSessionHas](#assert-session-has)
 [assertSessionHasInput](#assert-session-has-input)
-[assertSessionMissingInput](#assert-session-missing-input)
 [assertSessionHasAll](#assert-session-has-all)
 [assertSessionHasErrors](#assert-session-has-errors)
 [assertSessionHasErrorsIn](#assert-session-has-errors-in)
 [assertSessionHasNoErrors](#assert-session-has-no-errors)
 [assertSessionDoesntHaveErrors](#assert-session-doesnt-have-errors)
 [assertSessionMissing](#assert-session-missing)
+[assertSessionMissingInput](#assert-session-missing-input)
 [assertStatus](#assert-status)
 [assertSuccessful](#assert-successful)
 [assertSuccessfulPrecognition](#assert-successful-precognition)
@@ -1557,12 +1576,18 @@ $response->assertJsonPath('user.name', 'Steve Schoger');
 <a name="assert-json-paths"></a>
 #### assertJsonPaths
 
-Assert that the response contains the given data at each specified path:
+Assert that the response contains the given data at the specified paths:
+
+```php
+$response->assertJsonPaths(array $paths);
+```
+
+For example, you may assert multiple values within the response at once:
 
 ```php
 $response->assertJsonPaths([
     'user.name' => 'Steve Schoger',
-    'user.email' => 'steve@example.com',
+    'user.email' => fn (string $email) => str($email)->endsWith('@hypervel.org'),
 ]);
 ```
 
@@ -1615,10 +1640,10 @@ $response->assertJsonMissingPath('user.email');
 <a name="assert-json-missing-paths"></a>
 #### assertJsonMissingPaths
 
-Assert that the response does not contain any of the given paths:
+Assert that the response does not contain the given paths:
 
 ```php
-$response->assertJsonMissingPaths(['user.email', 'user.phone']);
+$response->assertJsonMissingPaths($paths);
 ```
 
 <a name="assert-json-structure"></a>
@@ -2057,17 +2082,6 @@ $response->assertSessionHasInput($key, function (string $value) {
 });
 ```
 
-<a name="assert-session-missing-input"></a>
-#### assertSessionMissingInput
-
-Assert that the session is missing one or more keys from the [flashed input array](/docs/{{version}}/responses#redirecting-with-flashed-session-data):
-
-```php
-$response->assertSessionMissingInput($key);
-
-$response->assertSessionMissingInput(['name', 'email']);
-```
-
 <a name="assert-session-has-all"></a>
 #### assertSessionHasAll
 
@@ -2151,6 +2165,17 @@ Assert that the session does not contain the given key:
 
 ```php
 $response->assertSessionMissing($key);
+```
+
+<a name="assert-session-missing-input"></a>
+#### assertSessionMissingInput
+
+Assert that the session is missing one or more keys from the [flashed input array](/docs/{{version}}/responses#redirecting-with-flashed-session-data):
+
+```php
+$response->assertSessionMissingInput($key);
+
+$response->assertSessionMissingInput(['name', 'email']);
 ```
 
 <a name="assert-status"></a>

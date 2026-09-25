@@ -124,6 +124,17 @@ class AuthManagerTest extends TestCase
         $this->assertSame('0', $manager->getDefaultDriver());
     }
 
+    public function testShouldUseWithEmptyNameUsesDefaultDriver(): void
+    {
+        $manager = new AuthManager($container = $this->getContainer());
+        $container->make('config')
+            ->set('auth.defaults.guard', 'foo');
+
+        $manager->shouldUse('');
+
+        $this->assertSame('foo', $manager->getDefaultDriver());
+    }
+
     public function testExtendDriver()
     {
         $manager = new AuthManager($container = $this->getContainer());
@@ -157,6 +168,21 @@ class AuthManagerTest extends TestCase
         });
 
         $this->assertSame($guard, $manager->guard('0'));
+    }
+
+    public function testGuardWithEmptyNameUsesDefaultDriver(): void
+    {
+        $manager = new AuthManager($container = $this->getContainer());
+        $container->make('config')
+            ->set('auth.defaults.guard', 'foo');
+        $container->make('config')
+            ->set('auth.guards.foo', ['driver' => 'bar']);
+
+        $guard = m::mock(Guard::class);
+        $manager->extend('bar', fn () => $guard);
+
+        $this->assertSame($guard, $manager->guard(''));
+        $this->assertSame($manager->guard(), $manager->guard(''));
     }
 
     public function testExtendCallbackIsBoundToManager()
@@ -210,6 +236,7 @@ class AuthManagerTest extends TestCase
         $manager->shouldUse('admin');
 
         $this->assertSame('admins', $manager->getUserProviderName());
+        $this->assertSame('admins', $manager->getUserProviderName(''));
         $this->assertSame('users', $manager->getUserProviderName('web'));
         $this->assertSame('admins', $manager->getUserProviderName(AuthManagerGuardEnum::Admin));
         $this->assertSame('admin', $manager->getDefaultDriver());
@@ -530,6 +557,9 @@ class AuthManagerTest extends TestCase
         $manager->createUserProvider('users');
     }
 
+    /**
+     * Provide invalid auth user cache TTLs.
+     */
     public static function invalidCacheTtlProvider(): iterable
     {
         yield 'zero' => [0, 'The auth user cache TTL must be a positive integer.'];
@@ -1024,6 +1054,9 @@ class AuthManagerTest extends TestCase
         $this->assertCount(1, $descriptors[AuthManagerCacheUserStub::class]);
     }
 
+    /**
+     * Create a container with the given auth configuration.
+     */
     protected function getContainer(array $authConfig = []): Container
     {
         $container = new Container;

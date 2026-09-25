@@ -51,7 +51,9 @@ class PasswordBrokerManager implements FactoryContract
             $name = (string) enum_value($name);
         }
 
-        $name ??= $this->getDefaultDriver();
+        $name = $name === null || $name === ''
+            ? $this->getDefaultDriver()
+            : $name;
 
         return $this->brokers[$name] ??= $this->resolve($name);
     }
