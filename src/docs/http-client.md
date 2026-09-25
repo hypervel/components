@@ -1205,7 +1205,7 @@ Http::assertSent(function (Request $request) {
 });
 ```
 
-The `Hypervel\Http\Client\Request` instance provides a variety of methods that may be used to inspect the request, including `method`, `url`, `headers`, `body`, `data`, `query`, `hasFile`, `isJson`, `isForm`, and `isMultipart`.
+The `Hypervel\Http\Client\Request` instance provides a variety of methods that may be used to inspect the request, including `method`, `url`, `uri`, `headers`, `body`, `data`, `query`, `hasFile`, `isJson`, `isForm`, and `isMultipart`.
 
 If needed, you may assert that a specific request was not sent using the `assertNotSent` method:
 

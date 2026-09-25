@@ -400,11 +400,13 @@ class SupportNumberTest extends TestCase
         $this->assertSame([[0, 2.0], [2.5, 4.5], [5.0, 7.0], [7.5, 9.5]], Number::pairs(10, 2.5, 0, 0.5));
         $this->assertSame([[0.5, 3.0], [3.0, 5.5], [5.5, 8.0], [8.0, 10]], Number::pairs(10, 2.5, 0.5, 0));
         $this->assertSame([[0.5, 2.5], [3.0, 5.0], [5.5, 7.5], [8.0, 10.0]], Number::pairs(10, 2.5, 0.5, 0.5));
+        $this->assertSame([[0, 9], [10, 19], [20, 25]], Number::pairs(25, 10));
     }
 
     public function testPairsThrowsWhenByIsZero(): void
     {
         $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The $by argument must not be zero.');
 
         Number::pairs(100, 0);
     }

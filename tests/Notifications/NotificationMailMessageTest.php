@@ -344,6 +344,23 @@ class NotificationMailMessageTest extends TestCase
         ));
 
         $message = new MailMessage;
+        $message->attachFromStorage('invoices/1.pdf', 'invoice.pdf');
+
+        $this->assertCount(1, $message->rawAttachments);
+        $this->assertSame('invoice.pdf', $message->rawAttachments[0]['name']);
+        $this->assertSame('pdf content', $message->rawAttachments[0]['data']);
+    }
+
+    public function testItAttachesFilesFromStorageUsingTheirFileName(): void
+    {
+        $this->bootstrapFilesystem();
+
+        $this->assertNotFalse(file_put_contents(
+            $this->filesystemRoot . '/invoices/1.pdf',
+            'pdf content'
+        ));
+
+        $message = new MailMessage;
         $message->attachFromStorage('invoices/1.pdf');
 
         $this->assertCount(1, $message->rawAttachments);

@@ -211,7 +211,7 @@ class MailMessage extends SimpleMessage implements Renderable
             return $file->attachTo($this);
         }
 
-        $this->attachments[] = compact('file', 'options');
+        $this->attachments[] = ['file' => $file, 'options' => $options];
 
         return $this;
     }
@@ -239,7 +239,7 @@ class MailMessage extends SimpleMessage implements Renderable
      */
     public function attachData(string $data, string $name, array $options = []): static
     {
-        $this->rawAttachments[] = compact('data', 'name', 'options');
+        $this->rawAttachments[] = ['data' => $data, 'name' => $name, 'options' => $options];
 
         return $this;
     }

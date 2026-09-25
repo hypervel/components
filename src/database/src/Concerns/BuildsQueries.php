@@ -555,13 +555,9 @@ trait BuildsQueries
      */
     protected function paginator(Collection $items, int $total, int $perPage, int $currentPage, array $options): LengthAwarePaginator
     {
-        return Container::getInstance()->makeWith(LengthAwarePaginator::class, compact(
-            'items',
-            'total',
-            'perPage',
-            'currentPage',
-            'options'
-        ));
+        return Container::getInstance()->makeWith(LengthAwarePaginator::class, [
+            'items' => $items, 'total' => $total, 'perPage' => $perPage, 'currentPage' => $currentPage, 'options' => $options,
+        ]);
     }
 
     /**
@@ -569,12 +565,9 @@ trait BuildsQueries
      */
     protected function simplePaginator(Collection $items, int $perPage, int $currentPage, array $options): Paginator
     {
-        return Container::getInstance()->makeWith(Paginator::class, compact(
-            'items',
-            'perPage',
-            'currentPage',
-            'options'
-        ));
+        return Container::getInstance()->makeWith(Paginator::class, [
+            'items' => $items, 'perPage' => $perPage, 'currentPage' => $currentPage, 'options' => $options,
+        ]);
     }
 
     /**
@@ -582,12 +575,9 @@ trait BuildsQueries
      */
     protected function cursorPaginator(Collection $items, int $perPage, ?Cursor $cursor, array $options): CursorPaginator
     {
-        return Container::getInstance()->makeWith(CursorPaginator::class, compact(
-            'items',
-            'perPage',
-            'cursor',
-            'options'
-        ));
+        return Container::getInstance()->makeWith(CursorPaginator::class, [
+            'items' => $items, 'perPage' => $perPage, 'cursor' => $cursor, 'options' => $options,
+        ]);
     }
 
     /**

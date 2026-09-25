@@ -907,6 +907,35 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertSame($callbackEvent, $this->dispatched[0]->task);
     }
 
+    public function testPauseAndInterruptChecksDoNotReadTheCacheWhenPollingIsDisabled(): void
+    {
+        Schedule::withoutInterruptionPolling();
+
+        $runCount = 0;
+
+        $eventMutex = m::mock(EventMutex::class);
+        $eventMutex->shouldReceive('create')->andReturn(true);
+        $eventMutex->shouldReceive('forget');
+
+        $callbackEvent = new CallbackEvent($eventMutex, function () use (&$runCount): int {
+            ++$runCount;
+
+            return 0;
+        });
+
+        $cache = m::mock(Cache::class);
+        $cache->shouldReceive('get')->never();
+
+        $command = $this->makeCommand($cache);
+        $this->invokeRunEvents($command, [$callbackEvent]);
+
+        // A stale last check makes shouldStop() read the interrupt signal unless polling is disabled.
+        (new ReflectionProperty($command, 'lastChecked'))->setValue($command, CarbonImmutable::now()->subSeconds(5));
+
+        $this->assertSame(1, $runCount);
+        $this->assertFalse((new ReflectionMethod($command, 'shouldStop'))->invoke($command));
+    }
+
     public function testNonRepeatableEventOnlyRunsOncePerMinute(): void
     {
         $runCount = 0;

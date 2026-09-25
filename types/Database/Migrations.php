@@ -49,3 +49,8 @@ function testMigrationCallbackTypes(MigrationCreator $creator, Connection $conne
         return $connection;
     });
 }
+
+function testUsingConnectionPreservesCallbackReturn(Migrator $migrator): void
+{
+    assertType("'foo'", $migrator->usingConnection('mysql', fn () => 'foo'));
+}

@@ -9,7 +9,6 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\Number;
 use Hypervel\Tests\TestCase;
-use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use RuntimeException;
 
@@ -119,10 +118,6 @@ class NumberTest extends TestCase
         $this->assertSame('1 KB', Number::fileSize(1024));
         $this->assertSame('1 MB', Number::fileSize(1024 * 1024));
         $this->assertSame('1 GB', Number::fileSize(1024 * 1024 * 1024));
-        $this->assertSame('-2 KB', Number::fileSize(-2048));
-        $this->assertSame('∞ B', Number::fileSize(INF));
-        $this->assertSame('-∞ B', Number::fileSize(-INF));
-        $this->assertSame('NaN B', Number::fileSize(NAN));
     }
 
     public function testFileSizeWithPrecision(): void
@@ -147,9 +142,6 @@ class NumberTest extends TestCase
         $this->assertSame('1 million', Number::forHumans(1000000));
         $this->assertSame('1 billion', Number::forHumans(1000000000));
         $this->assertSame('1 million', Number::forHumans(999500));
-        $this->assertSame('∞', Number::forHumans(INF));
-        $this->assertSame('-∞', Number::forHumans(-INF));
-        $this->assertSame('NaN', Number::forHumans(NAN));
     }
 
     public function testClamp(): void
@@ -158,31 +150,6 @@ class NumberTest extends TestCase
         $this->assertSame(1, Number::clamp(0, 1, 10));
         $this->assertSame(10, Number::clamp(15, 1, 10));
         $this->assertSame(5.5, Number::clamp(5.5, 1.0, 10.0));
-    }
-
-    public function testPairs(): void
-    {
-        $this->assertSame([[0, 9], [10, 19], [20, 25]], Number::pairs(25, 10));
-        $this->assertSame([[0, 10], [10, 20], [20, 25]], Number::pairs(25, 10, 0, 0));
-        $this->assertSame(Number::pairs(25, 10), Number::pairs(25, -10));
-    }
-
-    public function testPairsRejectsZeroStep(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The $by argument must not be zero.');
-
-        Number::pairs(25, 0);
-    }
-
-    public function testTrim(): void
-    {
-        $this->assertSame(1, Number::trim(1.0));
-        $this->assertSame(1.5, Number::trim(1.50));
-        $this->assertSame(1.23, Number::trim(1.230));
-        $this->assertSame(INF, Number::trim(INF));
-        $this->assertSame(-INF, Number::trim(-INF));
-        $this->assertNan(Number::trim(NAN));
     }
 
     // ==========================================================================

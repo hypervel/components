@@ -367,7 +367,7 @@ class Migrator
         return $this->rollbackMigrations(
             $migrations,
             $paths,
-            compact('pretend')
+            ['pretend' => $pretend]
         );
     }
 

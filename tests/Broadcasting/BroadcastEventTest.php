@@ -176,6 +176,24 @@ class BroadcastEventTest extends TestCase
         $this->assertSame(['foo', 'bar'], $job->middleware());
     }
 
+    public function testDeletesWhenMissingModelsByDefault(): void
+    {
+        $job = new BroadcastEvent(new TestBroadcastEvent);
+
+        $this->assertTrue($job->deleteWhenMissingModels);
+    }
+
+    public function testDeletingWhenMissingModelsCanBeDisabled(): void
+    {
+        $event = new class {
+            public bool $deleteWhenMissingModels = false;
+        };
+
+        $job = new BroadcastEvent($event);
+
+        $this->assertFalse($job->deleteWhenMissingModels);
+    }
+
     public function testMiddlewareProxiesFailedHandlerFromUnderlyingEvent(): void
     {
         $event = new class {
@@ -194,26 +212,6 @@ class BroadcastEventTest extends TestCase
         $exception->expects('validateCall');
 
         $job->failed($exception);
-    }
-
-    public function testDeleteWhenMissingModelsDefaultsToTrue(): void
-    {
-        $event = new TestBroadcastEvent;
-
-        $job = new BroadcastEvent($event);
-
-        $this->assertTrue($job->deleteWhenMissingModels);
-    }
-
-    public function testDeletingWhenMissingModelsCanBeDisabled(): void
-    {
-        $event = new class {
-            public bool $deleteWhenMissingModels = false;
-        };
-
-        $job = new BroadcastEvent($event);
-
-        $this->assertFalse($job->deleteWhenMissingModels);
     }
 
     public function testArrayBackoffIsReadFromTheUnderlyingEvent(): void

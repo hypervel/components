@@ -710,7 +710,7 @@ class Mailable implements MailableContract, Renderable
         if (is_array($recipient)) {
             if (array_values($recipient) === $recipient) {
                 return (object) array_map(function ($email) {
-                    return compact('email');
+                    return ['email' => $email];
                 }, $recipient);
             }
 
@@ -870,7 +870,7 @@ class Mailable implements MailableContract, Renderable
         }
 
         $this->attachments = (new Collection($this->attachments))
-            ->push(compact('file', 'options'))
+            ->push(['file' => $file, 'options' => $options])
             ->unique('file')
             ->all();
 
@@ -997,7 +997,7 @@ class Mailable implements MailableContract, Renderable
     public function attachData(string $data, string $name, array $options = []): static
     {
         $this->rawAttachments = (new Collection($this->rawAttachments))
-            ->push(compact('data', 'name', 'options'))
+            ->push(['data' => $data, 'name' => $name, 'options' => $options])
             ->unique(fn ($file) => $file['name'] . $file['data'])
             ->all();
 

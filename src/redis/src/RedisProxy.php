@@ -586,6 +586,11 @@ class RedisProxy implements ConnectionContract
      *
      * This is needed for rate limiter counters which must be stored as raw
      * integers — phpredis serialization (e.g., igbinary) would corrupt them.
+     *
+     * @template TReturn
+     *
+     * @param callable(): TReturn $callback
+     * @return TReturn
      */
     public function withoutSerializationOrCompression(callable $callback): mixed
     {

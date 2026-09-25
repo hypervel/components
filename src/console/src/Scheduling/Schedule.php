@@ -98,12 +98,12 @@ class Schedule
     protected array $groupStack = [];
 
     /**
-     * Indicates if the scheduler can be paused.
+     * Indicates if the schedule should check for the paused signal in the cache.
      */
     public static bool $pausable = true;
 
     /**
-     * Indicates if the scheduler can be interrupted.
+     * Indicates if the schedule should check for the interrupt signal in the cache.
      */
     public static bool $interruptible = true;
 
@@ -448,18 +448,6 @@ class Schedule
     }
 
     /**
-     * Disable pause and interrupt polling for the scheduler.
-     *
-     * Boot-only. Mutates process-global scheduler flags; runtime use changes
-     * pause and interrupt behavior for every concurrent scheduler run.
-     */
-    public static function withoutInterruptionPolling(): void
-    {
-        static::$pausable = false;
-        static::$interruptible = false;
-    }
-
-    /**
      * Get the job dispatcher, if available.
      *
      * @throws RuntimeException
@@ -479,6 +467,20 @@ class Schedule
         }
 
         return $this->dispatcher;
+    }
+
+    /**
+     * Indicate that the scheduler should not poll for pause or interrupt signals.
+     *
+     * This prevents the scheduler from hitting the application cache to determine if it needs to pause or interrupt.
+     *
+     * Boot-only. Mutates process-global scheduler flags; runtime use changes
+     * pause and interrupt behavior for every concurrent scheduler run.
+     */
+    public static function withoutInterruptionPolling(): void
+    {
+        static::$pausable = false;
+        static::$interruptible = false;
     }
 
     /**

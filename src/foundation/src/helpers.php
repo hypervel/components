@@ -22,7 +22,6 @@ use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Contracts\Support\Responsable;
-use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Contracts\Validation\Factory as ValidatorFactoryContract;
 use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Contracts\View\Factory as ViewFactory;
@@ -48,6 +47,7 @@ use Hypervel\Support\Facades\Route;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Str;
 use Hypervel\Support\Uri;
+use Hypervel\Translation\Translator;
 use League\Uri\Contracts\UriInterface;
 use Psr\Log\LoggerInterface;
 use Swoole\Coroutine\CanceledException;
@@ -943,9 +943,9 @@ if (! function_exists('trans')) {
     /**
      * Translate the given message.
      *
-     * @return ($key is null ? TranslatorContract : array|string)
+     * @return ($key is null ? Translator : array|string)
      */
-    function trans(?string $key = null, array $replace = [], ?string $locale = null): array|string|TranslatorContract
+    function trans(?string $key = null, array $replace = [], ?string $locale = null): array|string|Translator
     {
         if (is_null($key)) {
             return Container::getInstance()

@@ -488,7 +488,7 @@ class DeserializerTest extends TestCase
         ], $type->toArray());
     }
 
-    public function testReferenceSiblingAnnotationsOverrideTargetAnnotations(): void
+    public function testItMergesSiblingKeysOverARef(): void
     {
         $type = JsonSchema::fromArray([
             'type' => 'object',
@@ -858,7 +858,7 @@ class DeserializerTest extends TestCase
     public function testReferenceFollowsConsumeTheTotalExpansionBudget(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('JSON Schema reconstruction exceeded the maximum expansion of 1 schema fragments.');
+        $this->expectExceptionMessage('The JSON Schema is too large to deserialize; it expands beyond [1] fragments.');
 
         JsonSchemaNodeLimitedDeserializer::deserialize([
             '$ref' => '#/$defs/value',
@@ -1393,7 +1393,6 @@ class DeserializerTest extends TestCase
     public static function conflictingNullableCompositionSiblingProvider(): array
     {
         return [
-            'type in anyOf' => ['anyOf', ['type' => 'string'], ['type' => 'integer'], 'type', 'an anyOf branch'],
             'scalar constraint in oneOf' => [
                 'oneOf',
                 ['type' => 'string', 'minLength' => 1],
@@ -2073,6 +2072,19 @@ class DeserializerTest extends TestCase
             'items' => [
                 ['type' => 'string'],
                 ['type' => 'integer'],
+            ],
+        ]);
+    }
+
+    public function testItThrowsWhenAUnionBranchConflictsWithSiblingKeys(): void
+    {
+        $this->expectExceptionObject(new InvalidArgumentException('Conflicting [type] between an anyOf branch and its sibling keys.'));
+
+        JsonSchema::fromArray([
+            'type' => 'integer',
+            'anyOf' => [
+                ['type' => 'string', 'minLength' => 3],
+                ['type' => 'null'],
             ],
         ]);
     }

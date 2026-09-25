@@ -137,9 +137,9 @@ class CompiledRouteCollectionTest extends RoutingTestCase
         $this->assertInstanceOf(ArrayIterator::class, $routes->getIterator());
     }
 
-    public function testRouteCollectionCanGetIteratorWhenRoutesAreAdded()
+    public function testRouteCollectionCanGetIteratorWhenRoutesAreAdded(): void
     {
-        $this->routeCollection->add($routeIndex = $this->newRoute('GET', 'foo/index', [
+        $this->routeCollection->add($this->newRoute('GET', 'foo/index', [
             'uses' => 'FooController@index',
             'as' => 'foo_index',
         ]));
@@ -148,7 +148,7 @@ class CompiledRouteCollectionTest extends RoutingTestCase
 
         $this->assertCount(1, $routes);
 
-        $this->routeCollection->add($routeShow = $this->newRoute('GET', 'bar/show', [
+        $this->routeCollection->add($this->newRoute('GET', 'bar/show', [
             'uses' => 'BarController@show',
             'as' => 'bar_show',
         ]));

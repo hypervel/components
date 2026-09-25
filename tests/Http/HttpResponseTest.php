@@ -38,6 +38,17 @@ class HttpResponseTest extends TestCase
         $this->assertSame('1.0', $response->getProtocolVersion());
         $this->assertSame('{"name":"Taylor"}', $response->getContent());
         $this->assertSame(['name' => 'Taylor'], $response->getOriginalContent());
+
+        $headers = new ResponseHeaderBag(['X-Test' => 'bag']);
+        $headers->setCookie($cookie = new Cookie('name', 'value'));
+
+        $response = new Response('content', 202, $headers);
+
+        $this->assertSame($headers, $response->headers);
+        $this->assertSame([$cookie], $response->headers->getCookies());
+        $this->assertSame(202, $response->getStatusCode());
+        $this->assertSame('bag', $response->headers->get('X-Test'));
+        $this->assertSame('content', $response->getContent());
     }
 
     public function testJsonResponsesAreConvertedAndHeadersAreSet(): void

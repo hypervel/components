@@ -43,17 +43,20 @@ class ValidationImageFileRuleTest extends TestCase
         );
     }
 
-    public function testDimensionsWithCustomImageSizeMethod()
+    public function testDimensionsWithCustomImageSizeMethod(): void
     {
+        $stream = tmpfile(); // To prevent PHP from deleting the temp file early.
+        $path = stream_get_meta_data($stream)['uri'];
+
         $this->fails(
             File::image()->dimensions(Rule::dimensions()->width(100)->height(100)),
-            new UploadedFileWithCustomImageSizeMethod(stream_get_meta_data($tmpFile = tmpfile())['uri'], 'foo.png'),
+            new UploadedFileWithCustomImageSizeMethod($path, 'foo.png'),
             ['validation.dimensions'],
         );
 
         $this->passes(
             File::image()->dimensions(Rule::dimensions()->width(200)->height(200)),
-            new UploadedFileWithCustomImageSizeMethod(stream_get_meta_data($tmpFile = tmpfile())['uri'], 'foo.png'),
+            new UploadedFileWithCustomImageSizeMethod($path, 'foo.png'),
         );
     }
 

@@ -60,7 +60,7 @@ assertType('Hypervel\Session\SessionManager', session());
 assertType('mixed', session('foo'));
 assertType('null', session(['foo' => 'bar']));
 
-assertType('Hypervel\Contracts\Translation\Translator', trans());
+assertType('Hypervel\Translation\Translator', trans());
 assertType('array|string', trans('foo'));
 
 assertType('Hypervel\Contracts\Validation\Factory', validator());

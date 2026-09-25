@@ -3495,6 +3495,15 @@ $delayed = $queue->delayedJobs('emails');
 $reserved = $queue->reservedJobs('emails');
 ```
 
+These methods return a collection of `Hypervel\Queue\Jobs\InspectedJob` instances, which provide the job's `uuid`, `queue`, `name`, `attempts`, and `createdAt` values, as well as its decoded `payload` array:
+
+```php
+foreach ($pending as $job) {
+    $job->name;
+    $job->payload['data'];
+}
+```
+
 You may inspect jobs across every queue on the connection using the corresponding `allPendingJobs`, `allDelayedJobs`, and `allReservedJobs` methods:
 
 ```php

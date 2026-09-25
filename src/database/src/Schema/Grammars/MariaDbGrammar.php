@@ -56,8 +56,9 @@ class MariaDbGrammar extends MySqlGrammar
     public function compileVectorIndex(Blueprint $blueprint, Fluent $command): string
     {
         return sprintf(
-            'alter table %s add vector index %s(%s) %s%s',
+            'alter table %s add %s %s(%s) %s%s',
             $this->wrapTable($blueprint),
+            'vector index',
             $this->wrap($command->index),
             $this->columnize($command->columns),
             $command->operatorClass ?? '',

@@ -100,7 +100,7 @@ trait BuildsWhereDateClauses
         $value = CarbonImmutable::now();
 
         foreach (Arr::wrap($columns) as $column) {
-            $this->wheres[] = compact('type', 'column', 'boolean', 'operator', 'value');
+            $this->wheres[] = ['type' => $type, 'column' => $column, 'boolean' => $boolean, 'operator' => $operator, 'value' => $value];
 
             $this->addBinding($value);
         }

@@ -126,6 +126,8 @@ trait ResponseTrait
 
     /**
      * Add multiple cookies to the response.
+     *
+     * @return $this
      */
     public function withCookies(array $cookies): static
     {

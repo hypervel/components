@@ -3259,72 +3259,6 @@ class RedisConnectionTest extends TestCase
         $connection->release();
     }
 
-    #[DataProvider('hostFormattingProvider')]
-    public function testFormatHost(
-        array $config,
-        ?string $expected,
-        ?string $exceptionMessage,
-    ): void {
-        $connection = new class extends PhpRedisConnectionStub {
-            /**
-             * Expose host formatting for testing.
-             */
-            public function formatHostForTest(array $config): string
-            {
-                return $this->formatHost($config);
-            }
-        };
-
-        if ($exceptionMessage !== null) {
-            $this->expectExceptionObject(new InvalidArgumentException($exceptionMessage));
-
-            $connection->formatHostForTest($config);
-
-            return;
-        }
-
-        $this->assertSame($expected, $connection->formatHostForTest($config));
-    }
-
-    /**
-     * Provide host formatting cases.
-     */
-    public static function hostFormattingProvider(): array
-    {
-        return [
-            'empty host' => [
-                ['host' => ''],
-                null,
-                'Redis host must be a non-empty string.',
-            ],
-            'missing host' => [
-                ['scheme' => 'tls'],
-                null,
-                'Redis host must be a non-empty string.',
-            ],
-            'null host' => [
-                ['host' => null, 'scheme' => 'tls'],
-                null,
-                'Redis host must be a non-empty string.',
-            ],
-            'host without scheme' => [
-                ['host' => '127.0.0.1', 'scheme' => 'tls'],
-                'tls://127.0.0.1',
-                null,
-            ],
-            'matching scheme' => [
-                ['host' => 'tls://redis.test', 'scheme' => 'TLS'],
-                'tls://redis.test',
-                null,
-            ],
-            'mismatched scheme' => [
-                ['host' => 'tls://redis.test', 'scheme' => 'tcp'],
-                null,
-                'The scheme configured in the Redis host option must match the scheme option.',
-            ],
-        ];
-    }
-
     public function testReconnectSetsSerializerOption(): void
     {
         $pool = $this->getMockedPool();
@@ -3574,6 +3508,82 @@ class RedisConnectionTest extends TestCase
                 return $this->fakeRedis;
             }
         };
+    }
+
+    public function testFormatHostPrefixesConfiguredSchemeWhenHostHasNoScheme(): void
+    {
+        $connection = new ClassInvoker(new PhpRedisConnectionStub);
+
+        $this->assertSame('tls://127.0.0.1', $connection->formatHost([
+            'host' => '127.0.0.1',
+            'scheme' => 'tls',
+        ]));
+    }
+
+    public function testFormatHostDoesNotDuplicateMatchingScheme(): void
+    {
+        $connection = new ClassInvoker(new PhpRedisConnectionStub);
+
+        $this->assertSame('tls://127.0.0.1', $connection->formatHost([
+            'host' => 'tls://127.0.0.1',
+            'scheme' => 'tls',
+        ]));
+    }
+
+    public function testFormatHostThrowsOnConflictingScheme(): void
+    {
+        $connection = new ClassInvoker(new PhpRedisConnectionStub);
+
+        $this->expectExceptionObject(new InvalidArgumentException('The scheme configured in the Redis host option must match the scheme option.'));
+
+        $connection->formatHost([
+            'host' => 'tcp://127.0.0.1',
+            'scheme' => 'tls',
+        ]);
+    }
+
+    public function testFormatHostAllowsCaseInsensitiveMatchingScheme(): void
+    {
+        $connection = new ClassInvoker(new PhpRedisConnectionStub);
+
+        $this->assertSame('TLS://127.0.0.1', $connection->formatHost([
+            'host' => 'TLS://127.0.0.1',
+            'scheme' => 'tls',
+        ]));
+    }
+
+    public function testFormatHostThrowsWhenHostIsMissing(): void
+    {
+        $connection = new ClassInvoker(new PhpRedisConnectionStub);
+
+        $this->expectExceptionObject(new InvalidArgumentException('Redis host must be a non-empty string.'));
+
+        $connection->formatHost([
+            'scheme' => 'tls',
+        ]);
+    }
+
+    public function testFormatHostThrowsWhenHostIsNull(): void
+    {
+        $connection = new ClassInvoker(new PhpRedisConnectionStub);
+
+        $this->expectExceptionObject(new InvalidArgumentException('Redis host must be a non-empty string.'));
+
+        $connection->formatHost([
+            'host' => null,
+            'scheme' => 'tls',
+        ]);
+    }
+
+    public function testFormatHostThrowsWhenHostIsEmpty(): void
+    {
+        $connection = new ClassInvoker(new PhpRedisConnectionStub);
+
+        $this->expectExceptionObject(new InvalidArgumentException('Redis host must be a non-empty string.'));
+
+        $connection->formatHost([
+            'host' => '',
+        ]);
     }
 
     public function testReconnectThrowsOnUnknownOption(): void

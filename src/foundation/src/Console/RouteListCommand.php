@@ -16,6 +16,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use ReflectionClass;
+use ReflectionException;
 use ReflectionFunction;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Terminal;
@@ -217,6 +218,8 @@ class RouteListCommand extends Command
 
     /**
      * Get the file path and line number for a closure-based route.
+     *
+     * @throws ReflectionException
      */
     protected function getClosurePath(Route $route): ?string
     {
