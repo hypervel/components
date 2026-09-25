@@ -32,7 +32,7 @@ class ContainerResolveNonInstantiableTest extends TestCase
         $container = new Container;
         $parent = $container->make(VariadicPrimitive::class);
 
-        $this->assertSame($parent->params, []);
+        $this->assertSame([], $parent->params);
     }
 
     public function testTraitResolutionGivesNotInstantiableError(): void

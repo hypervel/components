@@ -87,7 +87,7 @@ class CursorPaginatorTest extends TestCase
             $options = ['path' => 'http://website.com/test', 'parameters' => ['id']]
         );
 
-        $this->assertSame($p->path(), 'http://website.com/test');
+        $this->assertSame('http://website.com/test', $p->path());
     }
 
     public function testCanTransformPaginatorItems(): void
