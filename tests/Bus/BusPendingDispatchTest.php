@@ -213,6 +213,19 @@ class BusPendingDispatchTest extends TestCase
         $this->assertSame('', $job->debounceOwner);
     }
 
+    public function testPrepareForDispatchCanAbortDispatchBeforeUniqueLockCacheIsResolved(): void
+    {
+        Container::setInstance($container = new Container);
+
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('dispatch')->never();
+        $dispatcher->shouldReceive('dispatchAfterResponse')->never();
+        $container->instance(Dispatcher::class, $dispatcher);
+
+        $pendingDispatch = new PendingDispatch(new PreparingUniquePendingDispatchJob(false));
+        unset($pendingDispatch);
+    }
+
     public function testPrepareForDispatchAllowsDispatch(): void
     {
         Container::setInstance($container = new Container);
@@ -295,6 +308,10 @@ class PreparingPendingDispatchJob implements PreparesForDispatch
 class PreparingDebouncedPendingDispatchJob extends PreparingPendingDispatchJob
 {
     use Queueable;
+}
+
+class PreparingUniquePendingDispatchJob extends PreparingPendingDispatchJob implements ShouldBeUnique
+{
 }
 
 class UniquePendingDispatchJob implements ShouldBeUnique
