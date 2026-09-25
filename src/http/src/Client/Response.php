@@ -37,9 +37,9 @@ class Response implements ArrayAccess, Stringable
     protected mixed $decoded = null;
 
     /**
-     * Whether the response body has been decoded.
+     * Indicates if the JSON response has been decoded.
      */
-    protected bool $hasDecoded = false;
+    protected bool $decodedJson = false;
 
     /**
      * The flags that were used when decoding the JSON response.
@@ -154,10 +154,10 @@ class Response implements ArrayAccess, Stringable
             ? 0
             : ($flags ?? self::$defaultJsonDecodingFlags);
 
-        if (! $this->hasDecoded || $this->decodingFlags !== $flags) {
+        if (! $this->decodedJson || $this->decodingFlags !== $flags) {
             $this->decoded = $this->decode($this->body(), flags: $flags);
             $this->decodingFlags = $flags;
-            $this->hasDecoded = true;
+            $this->decodedJson = true;
         }
 
         if (is_null($key)) {
@@ -202,7 +202,7 @@ class Response implements ArrayAccess, Stringable
     {
         $this->decodeUsing = $callback;
         $this->decoded = null;
-        $this->hasDecoded = false;
+        $this->decodedJson = false;
         $this->decodingFlags = 0;
 
         return $this;

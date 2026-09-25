@@ -62,7 +62,7 @@ class Response extends HttpResponse
         $saloonResponse->cookies = $response->cookies;
         $saloonResponse->transferStats = $response->transferStats;
         $saloonResponse->decoded = $response->decoded;
-        $saloonResponse->hasDecoded = $response->hasDecoded;
+        $saloonResponse->decodedJson = $response->decodedJson;
         $saloonResponse->decodingFlags = $response->decodingFlags;
         $saloonResponse->decodeUsing = $response->decodeUsing;
         $saloonResponse->truncateExceptionsAt = $response->truncateExceptionsAt;
@@ -88,7 +88,7 @@ class Response extends HttpResponse
         $buffer->seek(0, SEEK_END);
         $this->response = $this->response->withBody($buffer);
         $this->decoded = null;
-        $this->hasDecoded = false;
+        $this->decodedJson = false;
         $this->decodingFlags = 0;
 
         return $body;

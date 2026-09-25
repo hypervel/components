@@ -472,34 +472,6 @@ class HttpClientTest extends TestCase
         $this->assertSame(['foo' => 'bar'], $response['result']);
     }
 
-    public function testJsonCachesEmptyArray(): void
-    {
-        $this->factory->fake([
-            '*' => '[]',
-        ]);
-
-        $response = $this->factory->get('http://foo.com/api');
-
-        $this->assertSame([], $response->json());
-        $this->assertSame([], $response->json());
-    }
-
-    public function testJsonCachesScalarValues(): void
-    {
-        $this->factory->fake([
-            'foo.com/zero' => '0',
-            'foo.com/false' => 'false',
-        ]);
-
-        $response = $this->factory->get('http://foo.com/zero');
-        $this->assertSame(0, $response->json());
-        $this->assertSame(0, $response->json());
-
-        $response = $this->factory->get('http://foo.com/false');
-        $this->assertSame(false, $response->json());
-        $this->assertSame(false, $response->json());
-    }
-
     public function testJsonCachesNullForInvalidJson(): void
     {
         $this->factory->fake([
@@ -510,6 +482,60 @@ class HttpClientTest extends TestCase
 
         $this->assertNull($response->json());
         $this->assertNull($response->json());
+    }
+
+    public function testRespectsDefaultFlags(): void
+    {
+        Response::$defaultJsonDecodingFlags = JSON_BIGINT_AS_STRING;
+
+        // Create a response with a big integer that exceeds PHP_INT_MAX
+        $bigInt = '9223372036854775808';
+        $body = '{"value":' . $bigInt . '}';
+
+        $response = new Response(Factory::psr7Response($body));
+
+        // With JSON_BIGINT_AS_STRING, it should be the exact string
+        $this->assertSame($bigInt, $response->json('value'));
+        $this->assertSame($bigInt, $response->object()->value);
+        $this->assertSame($bigInt, $response->collect('value')->first());
+        $this->assertSame($bigInt, $response->fluent()->get('value'));
+
+        // Default json_decode behavior (flags=0), big integers become floats (losing precision)
+        $this->assertIsFloat($response->json('value', null, 0));
+        $this->assertIsFloat($response->object(0)->value);
+        $this->assertIsFloat($response->collect('value', 0)->first());
+        $this->assertIsFloat($response->fluent(flags: 0)->get('value'));
+    }
+
+    public function testJsonDecodingIsCachedWhenFlagsMatch(): void
+    {
+        Response::$defaultJsonDecodingFlags = JSON_BIGINT_AS_STRING;
+
+        $response = new BodyTrackingResponse(Factory::psr7Response('{"foo":"bar"}'));
+
+        // First call decodes with default (JSON_BIGINT_AS_STRING)
+        $response->json();
+        $this->assertSame(1, $response->bodyCallCount);
+
+        // Second call with same (null) flags uses cache
+        $response->json();
+        $this->assertSame(1, $response->bodyCallCount);
+
+        // Explicit flags matching default still uses cache
+        $response->json(flags: JSON_BIGINT_AS_STRING);
+        $this->assertSame(1, $response->bodyCallCount);
+
+        // Different flags triggers re-decode
+        $response->json(flags: 0);
+        $this->assertSame(2, $response->bodyCallCount);
+
+        // Same explicit flags uses cache
+        $response->json(flags: 0);
+        $this->assertSame(2, $response->bodyCallCount);
+
+        // Null flags means "use default", cached flags differ, so re-decode
+        $response->json();
+        $this->assertSame(3, $response->bodyCallCount);
     }
 
     public function testJsonDecodingIsCachedForFalsyPayloads(): void
@@ -525,12 +551,15 @@ class HttpClientTest extends TestCase
         foreach ($payloads as [$body, $expected]) {
             $response = new BodyTrackingResponse(Factory::psr7Response($body));
 
+            // First call decodes and caches
             $this->assertSame($expected, $response->json());
             $this->assertSame(1, $response->bodyCallCount, "Failed for body: {$body}");
 
+            // Subsequent calls use cache (body() not called again)
             $this->assertSame($expected, $response->json());
             $this->assertSame(1, $response->bodyCallCount, "body() called again for falsy payload: {$body}");
 
+            // Third call to be sure
             $this->assertSame($expected, $response->json());
             $this->assertSame(1, $response->bodyCallCount, "body() called again for falsy payload: {$body}");
         }
@@ -540,12 +569,15 @@ class HttpClientTest extends TestCase
     {
         $response = new BodyTrackingResponse(Factory::psr7Response('0'));
 
+        // First call decodes with default flags
         $this->assertSame(0, $response->json());
         $this->assertSame(1, $response->bodyCallCount);
 
+        // Different flags triggers re-decode
         $response->json(flags: JSON_BIGINT_AS_STRING);
         $this->assertSame(2, $response->bodyCallCount);
 
+        // Same flags uses cache
         $response->json(flags: JSON_BIGINT_AS_STRING);
         $this->assertSame(2, $response->bodyCallCount);
     }
@@ -554,9 +586,11 @@ class HttpClientTest extends TestCase
     {
         $response = new BodyTrackingResponse(Factory::psr7Response('[]'));
 
+        // Accessing a key on an empty array returns default
         $this->assertNull($response->json('missing'));
         $this->assertSame('fallback', $response->json('missing', 'fallback'));
 
+        // body() should only be called once
         $response->json();
         $this->assertSame(1, $response->bodyCallCount);
     }
@@ -744,51 +778,6 @@ class HttpClientTest extends TestCase
             'runtime' => '175 min',
             'director' => 'Francis Ford Coppola',
         ], $response->movieFields());
-    }
-
-    public function testRespectsDefaultFlags(): void
-    {
-        Response::$defaultJsonDecodingFlags = JSON_BIGINT_AS_STRING;
-
-        $bigInt = '9223372036854775808';
-        $body = '{"value":' . $bigInt . '}';
-
-        $response = new Response(Factory::psr7Response($body));
-
-        $this->assertSame($bigInt, $response->json('value'));
-        $this->assertSame($bigInt, $response->object()->value);
-        $this->assertSame($bigInt, $response->collect('value')->first());
-        $this->assertSame($bigInt, $response->fluent()->get('value'));
-
-        $this->assertIsFloat($response->json('value', null, 0));
-        $this->assertIsFloat($response->object(0)->value);
-        $this->assertIsFloat($response->collect('value', 0)->first());
-        $this->assertIsFloat($response->fluent(flags: 0)->get('value'));
-    }
-
-    public function testJsonDecodingIsCachedWhenFlagsMatch(): void
-    {
-        Response::$defaultJsonDecodingFlags = JSON_BIGINT_AS_STRING;
-
-        $response = new BodyTrackingResponse(Factory::psr7Response('{"foo":"bar"}'));
-
-        $response->json();
-        $this->assertSame(1, $response->bodyCallCount);
-
-        $response->json();
-        $this->assertSame(1, $response->bodyCallCount);
-
-        $response->json(flags: JSON_BIGINT_AS_STRING);
-        $this->assertSame(1, $response->bodyCallCount);
-
-        $response->json(flags: 0);
-        $this->assertSame(2, $response->bodyCallCount);
-
-        $response->json(flags: 0);
-        $this->assertSame(2, $response->bodyCallCount);
-
-        $response->json();
-        $this->assertSame(3, $response->bodyCallCount);
     }
 
     public function testResponseObjectAsArray(): void
