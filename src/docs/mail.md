@@ -1156,6 +1156,20 @@ Mail::to($request->user())
 
 The `queue()`, `later()`, `onQueue()`, `queueOn()`, and `laterOn()` methods accept queue names as strings or PHP enum cases.
 
+Alternatively, you may specify the connection and queue using the `Connection` and `Queue` attributes on the mailable class:
+
+```php
+use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\Queue;
+
+#[Connection('sqs')]
+#[Queue('emails')]
+class OrderShipped extends Mailable
+{
+    // ...
+}
+```
+
 <a name="queueing-by-default"></a>
 #### Queueing by Default
 
