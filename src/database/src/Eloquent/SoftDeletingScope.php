@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent;
 
+/**
+ * @template TModel of Model
+ *
+ * @implements Scope<TModel>
+ */
 class SoftDeletingScope implements Scope
 {
     /**
@@ -15,8 +20,6 @@ class SoftDeletingScope implements Scope
 
     /**
      * Apply the scope to a given Eloquent query builder.
-     *
-     * @template TModel of Model
      *
      * @param Builder<TModel> $builder
      * @param TModel $model
