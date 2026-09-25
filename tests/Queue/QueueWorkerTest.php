@@ -623,15 +623,13 @@ class QueueWorkerTest extends TestCase
         $worker->startMonitorForTest($options);
         $worker->currentTime = 105;
 
-        Worker::$timeoutExceededExitCode = 17;
+        Worker::$timedOutExitCode = 17;
 
         try {
             $timer->fire(1);
             $this->fail('Expected the timeout monitor to terminate the worker.');
         } catch (WorkerKilledException $exception) {
             $this->assertSame(17, $exception->status);
-        } finally {
-            Worker::$timeoutExceededExitCode = null;
         }
     }
 
@@ -1527,13 +1525,13 @@ class QueueWorkerTest extends TestCase
         Worker::popUsing('myworker', null);
     }
 
-    public function testFlushStateResetsWorkerStaticState()
+    public function testFlushStateResetsWorkerStaticState(): void
     {
         Worker::popUsing('myworker', function ($pop) {
             return $pop('custom');
         });
         Worker::$memoryExceededExitCode = 99;
-        Worker::$timeoutExceededExitCode = 98;
+        Worker::$timedOutExitCode = 98;
         Worker::$reportJobExceptions = false;
         Worker::$stopOnLostConnection = false;
         Worker::$restartable = false;
@@ -1542,7 +1540,7 @@ class QueueWorkerTest extends TestCase
         Worker::flushState();
 
         $this->assertNull(Worker::$memoryExceededExitCode);
-        $this->assertNull(Worker::$timeoutExceededExitCode);
+        $this->assertNull(Worker::$timedOutExitCode);
         $this->assertTrue(Worker::$reportJobExceptions);
         $this->assertTrue(Worker::$stopOnLostConnection);
         $this->assertTrue(Worker::$restartable);
