@@ -11,11 +11,15 @@ class ProhibitedUnless implements Stringable
 {
     /**
      * The condition that validates the attribute.
+     *
+     * @var bool|(Closure(): bool)
      */
     public bool|Closure $condition;
 
     /**
      * Create a new prohibited validation rule based on a condition.
+     *
+     * @param bool|(Closure(): bool) $condition
      */
     public function __construct(bool|Closure $condition)
     {
