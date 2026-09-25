@@ -332,6 +332,11 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
 
     /**
      * Get a validated input container for the validated input.
+     *
+     * @param null|array<int, string> $keys
+     * @return ($keys is array ? array<string, mixed> : ValidatedInput)
+     *
+     * @throws ValidationException
      */
     public function safe(?array $keys = null): array|ValidatedInput
     {
