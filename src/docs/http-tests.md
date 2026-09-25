@@ -1210,13 +1210,13 @@ Hypervel's `Hypervel\Testing\TestResponse` class provides a variety of custom as
 [assertSimilarJson](#assert-similar-json)
 [assertSessionHas](#assert-session-has)
 [assertSessionHasInput](#assert-session-has-input)
-[assertSessionMissingInput](#assert-session-missing-input)
 [assertSessionHasAll](#assert-session-has-all)
 [assertSessionHasErrors](#assert-session-has-errors)
 [assertSessionHasErrorsIn](#assert-session-has-errors-in)
 [assertSessionHasNoErrors](#assert-session-has-no-errors)
 [assertSessionDoesntHaveErrors](#assert-session-doesnt-have-errors)
 [assertSessionMissing](#assert-session-missing)
+[assertSessionMissingInput](#assert-session-missing-input)
 [assertStatus](#assert-status)
 [assertSuccessful](#assert-successful)
 [assertSuccessfulPrecognition](#assert-successful-precognition)
@@ -2082,17 +2082,6 @@ $response->assertSessionHasInput($key, function (string $value) {
 });
 ```
 
-<a name="assert-session-missing-input"></a>
-#### assertSessionMissingInput
-
-Assert that the session is missing one or more keys from the [flashed input array](/docs/{{version}}/responses#redirecting-with-flashed-session-data):
-
-```php
-$response->assertSessionMissingInput($key);
-
-$response->assertSessionMissingInput(['name', 'email']);
-```
-
 <a name="assert-session-has-all"></a>
 #### assertSessionHasAll
 
@@ -2176,6 +2165,17 @@ Assert that the session does not contain the given key:
 
 ```php
 $response->assertSessionMissing($key);
+```
+
+<a name="assert-session-missing-input"></a>
+#### assertSessionMissingInput
+
+Assert that the session is missing one or more keys from the [flashed input array](/docs/{{version}}/responses#redirecting-with-flashed-session-data):
+
+```php
+$response->assertSessionMissingInput($key);
+
+$response->assertSessionMissingInput(['name', 'email']);
 ```
 
 <a name="assert-status"></a>
