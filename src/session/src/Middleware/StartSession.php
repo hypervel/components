@@ -273,13 +273,11 @@ class StartSession
     }
 
     /**
-     * Get the cookie lifetime in seconds.
+     * Get the cookie expiration date.
      */
     protected function getCookieExpirationDate(): DateTimeInterface|int
     {
-        $expiresOnClose = $this->manager->getSessionConfig()['expire_on_close'];
-
-        return $expiresOnClose
+        return $this->manager->getSessionConfig()['expire_on_close']
             ? 0
             : CarbonImmutable::now()->addSeconds($this->getSessionLifetimeInSeconds());
     }

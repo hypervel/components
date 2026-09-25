@@ -148,7 +148,7 @@ $user = $users->find(1);
 <a name="method-find-or-fail"></a>
 #### `findOrFail($key)` {.collection-method}
 
-The `findOrFail` method returns the model that has a primary key matching the given key or throws an `Hypervel\Database\Eloquent\ModelNotFoundException` exception if no matching model can be found in the collection:
+The `findOrFail` method returns the model that has a primary key matching the given key or throws a `Hypervel\Database\Eloquent\ModelNotFoundException` exception if no matching model can be found in the collection:
 
 ```php
 $users = User::all();
@@ -396,6 +396,6 @@ class User extends Model
 }
 ```
 
-Once you have defined a `newCollection` method or added the `CollectedBy` attribute to your model, you will receive an instance of your custom collection anytime Eloquent would normally return an `Hypervel\Database\Eloquent\Collection` instance.
+Once you have defined a `newCollection` method or added the `CollectedBy` attribute to your model, you will receive an instance of your custom collection anytime Eloquent would normally return a `Hypervel\Database\Eloquent\Collection` instance.
 
 If you would like to use a custom collection for every model in your application, you should define the `newCollection` method on a base model class that is extended by all of your application's models.

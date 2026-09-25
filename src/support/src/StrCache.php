@@ -74,11 +74,7 @@ class StrCache
      */
     public static function camel(string $value): string
     {
-        if (isset(static::$camelCache[$value])) {
-            return static::$camelCache[$value];
-        }
-
-        return static::$camelCache[$value] = Str::camel($value);
+        return static::$camelCache[$value] ?? static::$camelCache[$value] = Str::camel($value);
     }
 
     /**

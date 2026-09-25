@@ -365,7 +365,7 @@ class RouteListCommand extends Command
 
         $maxMethod = mb_strlen($routes->max('method'));
 
-        $terminalWidth = $this->getTerminalWidth();
+        $terminalWidth = static::getTerminalWidth();
 
         $routeCount = $this->determineRouteCountOutput($routes, $terminalWidth);
 

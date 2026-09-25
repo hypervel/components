@@ -287,6 +287,8 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Create a streamed response for a given file.
+     *
+     * @throws UnableToRetrieveMetadata
      */
     public function response(
         string $path,
@@ -305,6 +307,8 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Create a streamed response for serving a given file.
+     *
+     * @throws UnableToRetrieveMetadata
      */
     public function serve(Request $request, string $path, ?string $name = null, array $headers = []): Response
     {
@@ -315,6 +319,8 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Create a streamed download response for a given file.
+     *
+     * @throws UnableToRetrieveMetadata
      */
     public function download(string $path, ?string $name = null, array $headers = []): StreamedResponse
     {
@@ -601,6 +607,8 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Get the mime-type of a given file.
+     *
+     * @throws UnableToRetrieveMetadata
      */
     public function mimeType(string $path): false|string
     {

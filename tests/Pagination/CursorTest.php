@@ -23,6 +23,48 @@ class CursorTest extends TestCase
         $this->assertEquals($cursor, Cursor::fromEncoded($cursor->encode()));
     }
 
+    public function testFromEncodedReturnsNullForNonStringInput(): void
+    {
+        $this->assertNull(Cursor::fromEncoded(null));
+        $this->assertNull(Cursor::fromEncoded(123));
+        $this->assertNull(Cursor::fromEncoded(['cursor']));
+    }
+
+    public function testFromEncodedReturnsNullForInvalidJson(): void
+    {
+        $this->assertNull(Cursor::fromEncoded(base64_encode('not-json')));
+    }
+
+    public function testFromEncodedReturnsNullForInvalidString(): void
+    {
+        $this->assertNull(Cursor::fromEncoded('not-valid-json!@#'));
+    }
+
+    public function testFromEncodedReturnsNullWhenDecodedPayloadIsNotAnArray(): void
+    {
+        $this->assertNull(Cursor::fromEncoded(base64_encode(json_encode('scalar', JSON_THROW_ON_ERROR))));
+        $this->assertNull(Cursor::fromEncoded(base64_encode(json_encode(null, JSON_THROW_ON_ERROR))));
+    }
+
+    public function testFromEncodedReturnsNullWhenPointsToNextItemsKeyIsMissing(): void
+    {
+        $payload = base64_encode(json_encode(['id' => 422], JSON_THROW_ON_ERROR));
+
+        $this->assertNull(Cursor::fromEncoded($payload));
+    }
+
+    public function testFromEncodedReturnsNullWhenPointsToNextItemsIsNotBoolean(): void
+    {
+        foreach ([null, 0, 1, '0', '1', []] as $direction) {
+            $payload = base64_encode(json_encode([
+                'id' => 422,
+                '_pointsToNextItems' => $direction,
+            ], JSON_THROW_ON_ERROR));
+
+            $this->assertNull(Cursor::fromEncoded($payload));
+        }
+    }
+
     public function testCanGetParams(): void
     {
         $cursor = new Cursor([
@@ -97,48 +139,6 @@ class CursorTest extends TestCase
             'id' => 10,
             '_pointsToNextItems' => false,
         ], $cursor->toArray());
-    }
-
-    public function testFromEncodedReturnsNullForNonStringInput(): void
-    {
-        $this->assertNull(Cursor::fromEncoded(null));
-        $this->assertNull(Cursor::fromEncoded(123));
-        $this->assertNull(Cursor::fromEncoded(['cursor']));
-    }
-
-    public function testFromEncodedReturnsNullForInvalidJson(): void
-    {
-        $this->assertNull(Cursor::fromEncoded(base64_encode('not-json')));
-    }
-
-    public function testFromEncodedReturnsNullForInvalidString(): void
-    {
-        $this->assertNull(Cursor::fromEncoded('not-valid-json!@#'));
-    }
-
-    public function testFromEncodedReturnsNullWhenDecodedPayloadIsNotAnArray(): void
-    {
-        $this->assertNull(Cursor::fromEncoded(base64_encode(json_encode('scalar', JSON_THROW_ON_ERROR))));
-        $this->assertNull(Cursor::fromEncoded(base64_encode(json_encode(null, JSON_THROW_ON_ERROR))));
-    }
-
-    public function testFromEncodedReturnsNullWhenPointsToNextItemsKeyIsMissing(): void
-    {
-        $payload = base64_encode(json_encode(['id' => 422], JSON_THROW_ON_ERROR));
-
-        $this->assertNull(Cursor::fromEncoded($payload));
-    }
-
-    public function testFromEncodedReturnsNullWhenPointsToNextItemsIsNotBoolean(): void
-    {
-        foreach ([null, 0, 1, '0', '1', []] as $direction) {
-            $payload = base64_encode(json_encode([
-                'id' => 422,
-                '_pointsToNextItems' => $direction,
-            ], JSON_THROW_ON_ERROR));
-
-            $this->assertNull(Cursor::fromEncoded($payload));
-        }
     }
 
     public function testFromEncodedReturnsNullForStructuredParameters(): void

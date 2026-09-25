@@ -1165,7 +1165,7 @@ When using a third-party engine, this callback is invoked after the relevant mod
 <a name="pagination"></a>
 ### Pagination
 
-In addition to retrieving a collection of models, you may paginate your search results using the `paginate` method. This method will return an `Hypervel\Pagination\LengthAwarePaginator` instance just as if you had [paginated a traditional Eloquent query](/docs/{{version}}/pagination):
+In addition to retrieving a collection of models, you may paginate your search results using the `paginate` method. This method will return a `Hypervel\Pagination\LengthAwarePaginator` instance just as if you had [paginated a traditional Eloquent query](/docs/{{version}}/pagination):
 
 ```php
 use App\Models\Order;

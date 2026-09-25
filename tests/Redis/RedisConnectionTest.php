@@ -1008,19 +1008,65 @@ class RedisConnectionTest extends TestCase
         $this->assertSame($config, $connection->getConfigForTest());
     }
 
-    public function testNormalizeContextAcceptsEverySupportedShape(): void
+    public function testNormalizeContextWrapsFlatArrayInStream(): void
     {
-        $connection = new class extends PhpRedisConnectionStub {
-            public function normalizeContextForTest(array $context): array
-            {
-                return $this->normalizeContext($context);
-            }
-        };
-        $options = ['verify_peer' => false, 'cafile' => '/tmp/ca.pem'];
+        $result = $this->callNormalizeContext([
+            'verify_peer' => false,
+            'verify_peer_name' => false,
+        ]);
 
-        $this->assertSame(['stream' => $options], $connection->normalizeContextForTest($options));
-        $this->assertSame(['stream' => $options], $connection->normalizeContextForTest(['ssl' => $options]));
-        $this->assertSame(['stream' => $options], $connection->normalizeContextForTest(['stream' => $options]));
+        $this->assertSame([
+            'stream' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+            ],
+        ], $result);
+    }
+
+    public function testNormalizeContextConvertsSslKeyToStream(): void
+    {
+        $result = $this->callNormalizeContext([
+            'ssl' => [
+                'verify_peer' => false,
+                'cafile' => '/path/to/ca.pem',
+            ],
+        ]);
+
+        $this->assertSame([
+            'stream' => [
+                'verify_peer' => false,
+                'cafile' => '/path/to/ca.pem',
+            ],
+        ], $result);
+    }
+
+    public function testNormalizeContextPassesThroughStreamKey(): void
+    {
+        $context = [
+            'stream' => [
+                'verify_peer' => false,
+            ],
+        ];
+
+        $result = $this->callNormalizeContext($context);
+
+        $this->assertSame($context, $result);
+    }
+
+    public function testNormalizeContextSslKeyTakesPrecedenceOverFlatKeys(): void
+    {
+        $result = $this->callNormalizeContext([
+            'verify_peer' => true,
+            'ssl' => [
+                'verify_peer' => false,
+            ],
+        ]);
+
+        $this->assertSame([
+            'stream' => [
+                'verify_peer' => false,
+            ],
+        ], $result);
     }
 
     public function testEmptyContextKeepsStandaloneConnectionPlaintext(): void
@@ -3993,5 +4039,13 @@ class RedisConnectionTest extends TestCase
         }
 
         return $container;
+    }
+
+    /**
+     * Normalize an SSL context for a standalone connection.
+     */
+    protected function callNormalizeContext(array $context): array
+    {
+        return (new ClassInvoker(new PhpRedisConnectionStub))->normalizeContext($context);
     }
 }

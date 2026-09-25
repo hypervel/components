@@ -385,7 +385,7 @@ php artisan make:mail OrderShipped
 
 Once you have generated a mailable class, open it up so we can explore its contents. Mailable class configuration is done in several methods, including the `envelope`, `content`, and `attachments` methods.
 
-The `envelope` method returns an `Hypervel\Mail\Mailables\Envelope` object that defines the subject and, sometimes, the recipients of the message. The `content` method returns an `Hypervel\Mail\Mailables\Content` object that defines the [Blade template](/docs/{{version}}/blade) that will be used to generate the message content.
+The `envelope` method returns a `Hypervel\Mail\Mailables\Envelope` object that defines the subject and, sometimes, the recipients of the message. The `content` method returns a `Hypervel\Mail\Mailables\Content` object that defines the [Blade template](/docs/{{version}}/blade) that will be used to generate the message content.
 
 <a name="configuring-the-sender"></a>
 ### Configuring the Sender
@@ -742,7 +742,7 @@ If you already have a raw image data string you wish to embed into an email temp
 
 While attaching files to messages via simple string paths is often sufficient, in many cases the attachable entities within your application are represented by classes. For example, if your application is attaching a photo to a message, your application may also have a `Photo` model that represents that photo. When that is the case, wouldn't it be convenient to simply pass the `Photo` model to the `attach` method? Attachable objects allow you to do just that.
 
-To get started, implement the `Hypervel\Contracts\Mail\Attachable` interface on the object that will be attachable to messages. This interface dictates that your class defines a `toMailAttachment` method that returns an `Hypervel\Mail\Attachment` instance:
+To get started, implement the `Hypervel\Contracts\Mail\Attachable` interface on the object that will be attachable to messages. This interface dictates that your class defines a `toMailAttachment` method that returns a `Hypervel\Mail\Attachment` instance:
 
 ```php
 <?php
@@ -808,7 +808,7 @@ return Attachment::fromPath('/path/to/file')
 
 Sometimes you may need to attach additional headers to the outgoing message. For instance, you may need to set a custom `Message-Id` or other arbitrary text headers.
 
-To accomplish this, define a `headers` method on your mailable. The `headers` method should return an `Hypervel\Mail\Mailables\Headers` instance. This class accepts `messageId`, `references`, and `text` parameters. Of course, you may provide only the parameters you need for your particular message:
+To accomplish this, define a `headers` method on your mailable. The `headers` method should return a `Hypervel\Mail\Mailables\Headers` instance. This class accepts `messageId`, `references`, and `text` parameters. Of course, you may provide only the parameters you need for your particular message:
 
 ```php
 use Hypervel\Mail\Mailables\Headers;
@@ -1122,6 +1122,20 @@ Mail::to($request->user())
     ->cc($moreUsers)
     ->bcc($evenMoreUsers)
     ->later(now()->plus(minutes: 10), new OrderShipped($order));
+```
+
+You may also configure a queued mailable's default delay in seconds using the `Delay` attribute:
+
+```php
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Mail\Mailable;
+use Hypervel\Queue\Attributes\Delay;
+
+#[Delay(30)]
+class OrderShipped extends Mailable implements ShouldQueue
+{
+    // ...
+}
 ```
 
 <a name="pushing-to-specific-queues"></a>

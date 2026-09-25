@@ -11,6 +11,7 @@ use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Redis\Exceptions\InvalidRedisOptionException;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\PhpRedisClusterConnection;
+use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\Redis\Fixtures\FakeRedisClusterClient;
 use Hypervel\Tests\Redis\Fixtures\PhpRedisClusterConnectionStub;
 use Hypervel\Tests\Redis\Fixtures\RespServer;
@@ -672,19 +673,58 @@ class PhpRedisClusterConnectionTest extends TestCase
         $this->assertSame(['0', '0'], $connection->formatClusterPasswordForTest());
     }
 
-    public function testNormalizeClusterContextAcceptsEverySupportedShape(): void
+    public function testNormalizeClusterContextUnwrapsSslKey(): void
     {
-        $connection = new class extends PhpRedisClusterConnectionStub {
-            public function normalizeClusterContextForTest(array $context): array
-            {
-                return $this->normalizeClusterContext($context);
-            }
-        };
-        $options = ['verify_peer' => false, 'cafile' => '/tmp/ca.pem'];
+        $result = $this->callNormalizeClusterContext([
+            'ssl' => [
+                'verify_peer' => false,
+                'peer_name' => 'example.com',
+            ],
+        ]);
 
-        $this->assertSame($options, $connection->normalizeClusterContextForTest($options));
-        $this->assertSame($options, $connection->normalizeClusterContextForTest(['ssl' => $options]));
-        $this->assertSame($options, $connection->normalizeClusterContextForTest(['stream' => $options]));
+        $this->assertSame([
+            'verify_peer' => false,
+            'peer_name' => 'example.com',
+        ], $result);
+    }
+
+    public function testNormalizeClusterContextUnwrapsStreamKey(): void
+    {
+        $result = $this->callNormalizeClusterContext([
+            'stream' => [
+                'verify_peer' => false,
+            ],
+        ]);
+
+        $this->assertSame([
+            'verify_peer' => false,
+        ], $result);
+    }
+
+    public function testNormalizeClusterContextPassesThroughFlatArray(): void
+    {
+        $context = [
+            'verify_peer' => false,
+            'verify_peer_name' => false,
+        ];
+
+        $result = $this->callNormalizeClusterContext($context);
+
+        $this->assertSame($context, $result);
+    }
+
+    public function testNormalizeClusterContextSslKeyTakesPrecedenceOverFlatKeys(): void
+    {
+        $result = $this->callNormalizeClusterContext([
+            'verify_peer' => true,
+            'ssl' => [
+                'verify_peer' => false,
+            ],
+        ]);
+
+        $this->assertSame([
+            'verify_peer' => false,
+        ], $result);
     }
 
     #[DataProvider('clusterTransports')]
@@ -1103,5 +1143,13 @@ class PhpRedisClusterConnectionTest extends TestCase
         $container->shouldReceive('bound')->with('events')->andReturn(false);
 
         return $container;
+    }
+
+    /**
+     * Normalize an SSL context for a Redis Cluster connection.
+     */
+    private function callNormalizeClusterContext(array $context): array
+    {
+        return (new ClassInvoker(new PhpRedisClusterConnectionStub))->normalizeClusterContext($context);
     }
 }

@@ -14,10 +14,10 @@ class HasMiddlewareTest extends RoutingTestCase
     public function testHasMiddlewareIsRespected()
     {
         $route = Route::get('/', [HasMiddlewareTestController::class, 'index']);
-        $this->assertEquals($route->controllerMiddleware(), ['all', 'only-index']);
+        $this->assertEquals(['all', 'only-index'], $route->controllerMiddleware());
 
         $route = Route::get('/', [HasMiddlewareTestController::class, 'show']);
-        $this->assertEquals($route->controllerMiddleware(), ['all', 'except-index']);
+        $this->assertEquals(['all', 'except-index'], $route->controllerMiddleware());
     }
 }
 

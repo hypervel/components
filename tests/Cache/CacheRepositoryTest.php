@@ -53,7 +53,7 @@ class CacheRepositoryTest extends TestCase
     {
         parent::setUp();
 
-        CarbonImmutable::setTestNow(CarbonImmutable::parse($this->getTestDate()));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse(self::getTestDate()));
     }
 
     public function testGetReturnsValueFromCache()
@@ -942,7 +942,7 @@ class CacheRepositoryTest extends TestCase
     {
         $repo = $this->getRepository();
         $repo->getStore()->expects('put')->with('foo', 'bar', 1);
-        $repo->put('foo', 'bar', CarbonImmutable::parse($this->getTestDate())->addMilliseconds(400));
+        $repo->put('foo', 'bar', CarbonImmutable::parse(self::getTestDate())->addMilliseconds(400));
     }
 
     public function testRegisterMacroWithNonStaticCall()

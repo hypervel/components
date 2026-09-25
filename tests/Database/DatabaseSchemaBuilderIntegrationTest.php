@@ -29,14 +29,14 @@ class DatabaseSchemaBuilderIntegrationTest extends TestCase
 
     public function testHasColumnWithTablePrefix()
     {
-        $this->db->connection()->setTablePrefix('test_');
+        $this->db::connection()->setTablePrefix('test_');
 
-        $this->db->connection()->getSchemaBuilder()->create('table1', function (Blueprint $table) {
+        $this->db::connection()->getSchemaBuilder()->create('table1', function (Blueprint $table) {
             $table->integer('id');
             $table->string('name');
         });
 
-        $this->assertTrue($this->db->connection()->getSchemaBuilder()->hasColumn('table1', 'name'));
+        $this->assertTrue($this->db::connection()->getSchemaBuilder()->hasColumn('table1', 'name'));
     }
 
     public function testHasColumnAndIndexWithPrefixIndexDisabled()
@@ -177,7 +177,7 @@ class DatabaseSchemaBuilderIntegrationTest extends TestCase
 
     public function testDropColumnWithTablePrefix()
     {
-        $this->db->connection()->setTablePrefix('test_');
+        $this->db::connection()->setTablePrefix('test_');
 
         $this->schemaBuilder()->create('pandemic_table', function (Blueprint $table) {
             $table->integer('id');
@@ -200,7 +200,7 @@ class DatabaseSchemaBuilderIntegrationTest extends TestCase
 
     private function schemaBuilder(): Builder
     {
-        return $this->db->connection()->getSchemaBuilder();
+        return $this->db::connection()->getSchemaBuilder();
     }
 }
 

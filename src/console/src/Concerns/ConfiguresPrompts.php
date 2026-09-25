@@ -189,7 +189,7 @@ trait ConfiguresPrompts
 
             // Keep this empty set synchronized with Prompt::isInvalidWhenRequired().
             if ($required !== false && ($result === '' || $result === [] || $result === false || $result === null)) {
-                $this->components->error(is_string($required) && strlen($required) > 0 ? $required : 'Required.');
+                $this->components->error(is_string($required) && $required !== '' ? $required : 'Required.');
 
                 if ($this->hypervel->runningUnitTests()) {
                     throw new PromptValidationException;
@@ -199,7 +199,7 @@ trait ConfiguresPrompts
 
             $error = is_callable($validate) ? $validate($result) : $this->validatePrompt($result, $validate);
 
-            if (is_string($error) && strlen($error) > 0) {
+            if (is_string($error) && $error !== '') {
                 $this->components->error($error);
 
                 if ($this->hypervel->runningUnitTests()) {

@@ -644,7 +644,7 @@ If a debounced job is superseded by a newer dispatch, Hypervel will dispatch the
 > If your application dispatches debounced jobs from multiple web servers or containers, you should ensure that all of your servers are communicating with the same central cache server.
 
 > [!WARNING]
-> Debouncing is a best-effort way to coalesce work, not a guarantee that only one matching job will run. Concurrent dispatch and cleanup across multiple servers may allow more than one matching job to run, and dispatch during middleware may extend an active `maxWait` window. Debounced jobs should be idempotent.
+> Debouncing is a best-effort way to coalesce work, not a guarantee that only one matching job will run. Concurrent dispatch and cleanup, including cleanup after a failed or rolled-back dispatch, may allow more than one matching job to run. Dispatch during middleware and failed-dispatch cleanup may also extend an active `maxWait` window. Debounced jobs should be idempotent.
 
 <a name="encrypted-jobs"></a>
 ### Encrypted Jobs
@@ -837,7 +837,7 @@ The `RateLimited` middleware supports every configured rate limiter store.
 <a name="preventing-job-overlaps"></a>
 ### Preventing Job Overlaps
 
-Hypervel includes an `Hypervel\Queue\Middleware\WithoutOverlapping` middleware that allows you to prevent job overlaps based on an arbitrary key. This can be helpful when a queued job is modifying a resource that should only be modified by one job at a time.
+Hypervel includes a `Hypervel\Queue\Middleware\WithoutOverlapping` middleware that allows you to prevent job overlaps based on an arbitrary key. This can be helpful when a queued job is modifying a resource that should only be modified by one job at a time.
 
 For example, let's imagine you have a queued job that updates a user's credit score and you want to prevent credit score update job overlaps for the same user ID. To accomplish this, you can return the `WithoutOverlapping` middleware from your job's `middleware` method:
 
@@ -2339,7 +2339,7 @@ class ImportCsv implements ShouldQueue
 <a name="dispatching-batches"></a>
 ### Dispatching Batches
 
-To dispatch a batch of jobs, you should use the `batch` method of the `Bus` facade. Of course, batching is primarily useful when combined with completion callbacks. So, you may use the `then`, `catch`, and `finally` methods to define completion callbacks for the batch. Each of these callbacks will receive an `Hypervel\Bus\Batch` instance when they are invoked.
+To dispatch a batch of jobs, you should use the `batch` method of the `Bus` facade. Of course, batching is primarily useful when combined with completion callbacks. So, you may use the `then`, `catch`, and `finally` methods to define completion callbacks for the batch. Each of these callbacks will receive a `Hypervel\Bus\Batch` instance when they are invoked.
 
 When running multiple queue workers, the jobs in the batch will be processed in parallel. Therefore, the order in which the jobs complete may not be the same as the order in which they were added to the batch. Consult our documentation on [job chains and batches](#chains-and-batches) for information on how to run a series of jobs in sequence.
 
@@ -3492,7 +3492,7 @@ To return the queue sizes as JSON, pass the `--json` option:
 php artisan queue:monitor redis:default,redis:deployments --max=100 --json
 ```
 
-Scheduling this command alone is not enough to trigger a notification alerting you of the queue's overwhelmed status. When the command encounters a queue that has a job count exceeding your threshold, an `Hypervel\Queue\Events\QueueBusy` event will be dispatched. You may listen for this event within your application's `AppServiceProvider` in order to send a notification to you or your development team:
+Scheduling this command alone is not enough to trigger a notification alerting you of the queue's overwhelmed status. When the command encounters a queue that has a job count exceeding your threshold, a `Hypervel\Queue\Events\QueueBusy` event will be dispatched. You may listen for this event within your application's `AppServiceProvider` in order to send a notification to you or your development team:
 
 ```php
 use App\Notifications\QueueHasLongWaitTime;

@@ -694,7 +694,6 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertCount(6, Post::all());
         $this->assertCount(3, User::latest()->first()->posts);
         $this->assertEquals(
-            Post::orderBy('title')->pluck('title')->all(),
             [
                 'Abigail Otwell Post 1',
                 'Abigail Otwell Post 2',
@@ -702,7 +701,8 @@ class DatabaseEloquentFactoryTest extends TestCase
                 'Taylor Otwell Post 1',
                 'Taylor Otwell Post 2',
                 'Taylor Otwell Post 3',
-            ]
+            ],
+            Post::orderBy('title')->pluck('title')->all()
         );
     }
 
@@ -1067,7 +1067,7 @@ class DatabaseEloquentFactoryTest extends TestCase
 
         $this->assertInstanceOf(UseFactoryAttributeFactory::class, $factory);
         $this->assertSame(UseFactoryAttribute::class, $factory->modelName());
-        $this->assertEquals(GuessModel::factory()->modelName(), GuessModel::class);
+        $this->assertEquals(GuessModel::class, GuessModel::factory()->modelName());
     }
 
     public function testUseFactoryAttributeWorksWithCount(): void
@@ -1150,11 +1150,11 @@ class DatabaseEloquentFactoryTest extends TestCase
             return __NAMESPACE__ . '\\' . Str::replaceLast('Factory', '', class_basename($factory::class));
         });
 
-        $this->assertEquals(GuessModel::factory()->modelName(), GuessModel::class);
-        $this->assertEquals(UseFactoryAttribute::factory()->modelName(), UseFactoryAttribute::class);
+        $this->assertEquals(GuessModel::class, GuessModel::factory()->modelName());
+        $this->assertEquals(UseFactoryAttribute::class, UseFactoryAttribute::factory()->modelName());
 
-        $this->assertEquals(UseFactoryAttributeFactory::new()->modelName(), UseFactoryAttribute::class);
-        $this->assertEquals(GuessModelFactory::new()->modelName(), GuessModel::class);
+        $this->assertEquals(UseFactoryAttribute::class, UseFactoryAttributeFactory::new()->modelName());
+        $this->assertEquals(GuessModel::class, GuessModelFactory::new()->modelName());
     }
 
     public function testPerClassModelNameResolverIsolation(): void

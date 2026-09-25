@@ -2,47 +2,35 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Support;
+namespace Hypervel\Tests\Integration\Support;
 
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Support\Manager;
-use Hypervel\Tests\TestCase;
+use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Integration\Support\Fixtures\NullableManager;
 use InvalidArgumentException;
 use stdClass;
 
 class ManagerTest extends TestCase
 {
-    protected Container $container;
-
-    /**
-     * Set up the test environment.
-     */
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->container = new Container;
-        $this->container->instance('config', new Repository);
-    }
-
     public function testDefaultDriverCannotBeNull(): void
     {
         $this->expectException(InvalidArgumentException::class);
 
-        (new NullableManager($this->container))->driver();
+        (new NullableManager($this->app))->driver();
     }
 
     public function testCustomDriverClosureBoundObjectIsManager(): void
     {
-        $manager = new NullableManager($this->container);
+        $manager = new NullableManager($this->app);
         $manager->extend(__CLASS__, fn (): object => $this);
         $this->assertSame($manager, $manager->driver(__CLASS__));
     }
 
     public function testCustomDriverStaticClosure(): void
     {
-        $manager = new NullableManager($this->container);
+        $manager = new NullableManager($this->app);
         $driver = new stdClass;
 
         $manager->extend(__CLASS__, static fn (): stdClass => $driver);
@@ -51,9 +39,9 @@ class ManagerTest extends TestCase
 
     public function testInvokableObjectDriverClosure(): void
     {
-        $manager = new NullableManager($this->container);
+        $manager = new NullableManager($this->app);
         $driver = new stdClass;
-        $creator = new CustomManagerDriver($driver);
+        $creator = new CustomDriver($driver);
 
         $manager->extend(__CLASS__, $creator(...));
         $this->assertSame($driver, $manager->driver(__CLASS__));
@@ -61,7 +49,7 @@ class ManagerTest extends TestCase
 
     public function testEnumDriverCanBeResolved(): void
     {
-        $manager = new NullableManager($this->container);
+        $manager = new NullableManager($this->app);
         $driver = new stdClass;
 
         $manager->extend('my_driver', static fn (): stdClass => $driver);
@@ -70,7 +58,7 @@ class ManagerTest extends TestCase
 
     public function testEnumDriverIsCached(): void
     {
-        $manager = new NullableManager($this->container);
+        $manager = new NullableManager($this->app);
 
         $manager->extend('my_driver', static fn (): stdClass => new stdClass);
 
@@ -82,7 +70,7 @@ class ManagerTest extends TestCase
 
     public function testEnumDriverMatchesStringDriver(): void
     {
-        $manager = new NullableManager($this->container);
+        $manager = new NullableManager($this->app);
 
         $manager->extend('my_driver', static fn (): stdClass => new stdClass);
 
@@ -94,7 +82,7 @@ class ManagerTest extends TestCase
 
     public function testUnitEnumDriverCanBeResolved(): void
     {
-        $manager = new NullableManager($this->container);
+        $manager = new NullableManager($this->app);
         $driver = new stdClass;
 
         $manager->extend('MyDriver', static fn (): stdClass => $driver);
@@ -146,22 +134,11 @@ class ManagerTest extends TestCase
      */
     protected function createManager(): EnumIdentifierManager
     {
-        return new EnumIdentifierManager($this->container);
+        return new EnumIdentifierManager($this->app);
     }
 }
 
-class NullableManager extends Manager
-{
-    /**
-     * Get the default driver name.
-     */
-    public function getDefaultDriver(): ?string
-    {
-        return null;
-    }
-}
-
-class CustomManagerDriver
+class CustomDriver
 {
     /**
      * Create a custom driver factory.

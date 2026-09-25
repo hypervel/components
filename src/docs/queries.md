@@ -78,7 +78,7 @@ class UserController extends Controller
 }
 ```
 
-The `get` method returns an `Hypervel\Support\Collection` instance containing the results of the query where each result is an instance of the PHP `stdClass` object. You may access each column's value by accessing the column as a property of the object:
+The `get` method returns a `Hypervel\Support\Collection` instance containing the results of the query where each result is an instance of the PHP `stdClass` object. You may access each column's value by accessing the column as a property of the object:
 
 ```php
 use Hypervel\Support\Facades\DB;
@@ -104,7 +104,7 @@ $user = DB::table('users')->where('name', 'John')->first();
 return $user->email;
 ```
 
-If you would like to retrieve a single row from a database table, but throw an `Hypervel\Database\RecordNotFoundException` if no matching row is found, you may use the `firstOrFail` method. If the `RecordNotFoundException` is not caught, a 404 HTTP response is automatically sent back to the client:
+If you would like to retrieve a single row from a database table, but throw a `Hypervel\Database\RecordNotFoundException` if no matching row is found, you may use the `firstOrFail` method. If the `RecordNotFoundException` is not caught, a 404 HTTP response is automatically sent back to the client:
 
 ```php
 $user = DB::table('users')->where('name', 'John')->firstOrFail();
@@ -139,7 +139,7 @@ $user = DB::table('users')->findOr(3, fn () => (object) ['name' => 'Guest']);
 <a name="retrieving-a-list-of-column-values"></a>
 #### Retrieving a List of Column Values
 
-If you would like to retrieve an `Hypervel\Support\Collection` instance containing the values of a single column, you may use the `pluck` method. In this example, we'll retrieve a collection of user titles:
+If you would like to retrieve a `Hypervel\Support\Collection` instance containing the values of a single column, you may use the `pluck` method. In this example, we'll retrieve a collection of user titles:
 
 ```php
 use Hypervel\Support\Facades\DB;

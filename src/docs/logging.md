@@ -410,7 +410,7 @@ To get started, define a `tap` array on the channel's configuration. The `tap` a
 ],
 ```
 
-Once you have configured the `tap` option on your channel, you're ready to define the class that will customize your Monolog instance. This class only needs a single method: `__invoke`, which receives an `Hypervel\Log\Logger` instance. The `Hypervel\Log\Logger` instance proxies all method calls to the underlying Monolog instance:
+Once you have configured the `tap` option on your channel, you're ready to define the class that will customize your Monolog instance. This class only needs a single method: `__invoke`, which receives a `Hypervel\Log\Logger` instance. The `Hypervel\Log\Logger` instance proxies all method calls to the underlying Monolog instance:
 
 ```php
 <?php

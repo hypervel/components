@@ -769,7 +769,7 @@ Hypervel also provides a global `old` helper. If you are displaying old input wi
 <a name="retrieving-cookies-from-requests"></a>
 #### Retrieving Cookies From Requests
 
-Cookies created by the Hypervel framework on routes that use the `web` middleware group are encrypted and signed with an authentication code, meaning they will be considered invalid if they have been changed by the client. To retrieve a cookie value from the request, use the `cookie` method on an `Hypervel\Http\Request` instance:
+Cookies created by the Hypervel framework on routes that use the `web` middleware group are encrypted and signed with an authentication code, meaning they will be considered invalid if they have been changed by the client. To retrieve a cookie value from the request, use the `cookie` method on a `Hypervel\Http\Request` instance:
 
 ```php
 $value = $request->cookie('name');

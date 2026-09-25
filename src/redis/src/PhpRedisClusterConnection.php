@@ -399,6 +399,8 @@ class PhpRedisClusterConnection extends PhpRedisConnection
     /**
      * Normalize the SSL context for a Redis Cluster connection.
      *
+     * RedisCluster::__construct() expects a flat context ['verify_peer' => false, ...].
+     *
      * @param array<string, mixed> $context
      * @return array<string, mixed>
      */

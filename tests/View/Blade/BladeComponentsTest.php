@@ -44,14 +44,14 @@ class BladeComponentsTest extends AbstractBladeTestCase
 
     public function testEndComponentsAreCompiled(): void
     {
-        $this->compiler->newComponentHash('foo');
+        $this->compiler::newComponentHash('foo');
 
         $this->assertSame('<?php echo $__env->renderComponent(); ?>', $this->compiler->compileString('@endcomponent'));
     }
 
     public function testEndComponentClassesAreCompiled(): void
     {
-        $this->compiler->newComponentHash('foo');
+        $this->compiler::newComponentHash('foo');
 
         $this->assertSame($this->expectedEndComponentClass(), $this->compiler->compileString('@endcomponentClass'));
     }
@@ -74,7 +74,7 @@ class BladeComponentsTest extends AbstractBladeTestCase
         $this->assertSame($failure, $caught);
         $this->assertSame([], CoroutineContext::get($contextKey, []));
 
-        $this->compiler->newComponentHash('foo');
+        $this->compiler::newComponentHash('foo');
 
         $this->assertSame($this->expectedEndComponentClass(), $this->compiler->compileString('@endcomponentClass'));
     }

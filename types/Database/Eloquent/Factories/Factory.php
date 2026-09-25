@@ -167,10 +167,10 @@ Factory::guessModelNamesUsing(function (Factory $factory) {
     };
 });
 
-$factory->useNamespace('string');
+$factory::useNamespace('string');
 
 assertType('Hypervel\Database\Eloquent\Factories\Factory<User>', $factory::factoryForModel(User::class));
-assertType('class-string<Hypervel\Database\Eloquent\Factories\Factory<User>>', $factory->resolveFactoryName(User::class));
+assertType('class-string<Hypervel\Database\Eloquent\Factories\Factory<User>>', $factory::resolveFactoryName(User::class));
 
 Factory::guessFactoryNamesUsing(function (string $modelName) {
     return match ($modelName) {

@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 use Hypervel\Contracts\Container\Container as ContainerContract;
-use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\Filesystem\FilesystemAdapter;
+use Hypervel\Filesystem\LocalFilesystemAdapter;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -109,10 +108,8 @@ class Storage extends Facade
      *
      * Tests only. Swaps a cached filesystem disk on the shared filesystem
      * manager for the worker lifetime.
-     *
-     * @return FilesystemContract
      */
-    public static function fake(UnitEnum|string|null $disk = null, array $config = [])
+    public static function fake(UnitEnum|string|null $disk = null, array $config = []): LocalFilesystemAdapter
     {
         if ($disk instanceof UnitEnum) {
             $disk = (string) enum_value($disk);
@@ -135,7 +132,7 @@ class Storage extends Facade
             self::buildDiskConfiguration($disk, $config, root: $root)
         ));
 
-        /** @var FilesystemAdapter $fake */
+        /** @var LocalFilesystemAdapter $fake */
         return tap($fake, function ($fake) {
             $fake->buildTemporaryUrlsUsing(function ($path, $expiration) {
                 return URL::to($path . '?expiration=' . $expiration->getTimestamp());
@@ -152,10 +149,8 @@ class Storage extends Facade
      *
      * Tests only. Swaps a cached filesystem disk on the shared filesystem
      * manager for the worker lifetime.
-     *
-     * @return FilesystemContract
      */
-    public static function persistentFake(UnitEnum|string|null $disk = null, array $config = [])
+    public static function persistentFake(UnitEnum|string|null $disk = null, array $config = []): LocalFilesystemAdapter
     {
         if ($disk instanceof UnitEnum) {
             $disk = (string) enum_value($disk);
@@ -171,6 +166,7 @@ class Storage extends Facade
             self::buildDiskConfiguration($disk, $config, root: self::getRootPath($disk))
         ));
 
+        /** @var LocalFilesystemAdapter $fake */
         return $fake;
     }
 

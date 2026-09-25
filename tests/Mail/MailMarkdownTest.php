@@ -109,10 +109,7 @@ class MailMarkdownTest extends TestCase
 
     public function testParseReturnsParsedMarkdown(): void
     {
-        $viewFactory = m::mock(ViewFactory::class);
-        $markdown = new Markdown($viewFactory);
-
-        $result = $markdown->parse('# Something')->toHtml();
+        $result = Markdown::parse('# Something')->toHtml();
 
         $this->assertSame("<h1>Something</h1>\n", $result);
     }

@@ -33,6 +33,6 @@ abstract class AbstractHasher
      */
     protected function hasHash(?string $hashedValue): bool
     {
-        return ! is_null($hashedValue) && strlen($hashedValue) > 0;
+        return ! is_null($hashedValue) && $hashedValue !== '';
     }
 }

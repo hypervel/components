@@ -390,12 +390,20 @@ class BroadcastingInstallCommand extends Command
 
         if (file_exists($this->hypervel->basePath('pnpm-lock.yaml'))) {
             $commands = [
-                'pnpm add --save-dev --ignore-scripts laravel-echo pusher-js',
+                'pnpm add --save-dev laravel-echo pusher-js --ignore-scripts',
                 'pnpm run build',
             ];
         } elseif (file_exists($this->hypervel->basePath('yarn.lock'))) {
+            $yarnMajorVersion = (int) Process::path($this->hypervel->basePath())->run('yarn --version')->throw()->output();
+
+            // Yarn 2+ rejects --ignore-scripts on add. Yarn 2 also lacks --mode=skip-build, and its
+            // enableScripts setting still runs scripts the application has explicitly enabled.
             $commands = [
-                'yarn add --dev --ignore-scripts laravel-echo pusher-js',
+                match ($yarnMajorVersion) {
+                    1 => 'yarn add --dev laravel-echo pusher-js --ignore-scripts',
+                    2 => 'YARN_ENABLE_SCRIPTS=false yarn add --dev laravel-echo pusher-js',
+                    default => 'yarn add --dev laravel-echo pusher-js --mode=skip-build',
+                },
                 'yarn run build',
             ];
         } elseif (file_exists($this->hypervel->basePath('bun.lock')) || file_exists($this->hypervel->basePath('bun.lockb'))) {
@@ -405,7 +413,7 @@ class BroadcastingInstallCommand extends Command
             ];
         } else {
             $commands = [
-                'npm install --save-dev --ignore-scripts laravel-echo pusher-js',
+                'npm install --save-dev laravel-echo pusher-js --ignore-scripts',
                 'npm run build',
             ];
         }

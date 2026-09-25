@@ -1294,7 +1294,7 @@ class Str
     /**
      * Convert the given string to upper-case.
      *
-     * @return ($value is '' ? '' : non-empty-string&uppercase-string)
+     * @phpstan-return ($value is '' ? '' : non-empty-string&uppercase-string)
      */
     public static function upper(string $value): string
     {

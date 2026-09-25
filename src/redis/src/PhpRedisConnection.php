@@ -189,6 +189,8 @@ class PhpRedisConnection extends RedisConnection
     /**
      * Normalize the SSL context for a standalone Redis connection.
      *
+     * Redis::connect() expects the context as ['stream' => ['verify_peer' => false, ...]].
+     *
      * @param array<string, mixed> $context
      * @return array<string, mixed>
      */

@@ -1737,7 +1737,7 @@ public function broadcastOn(string $event): array
 <a name="customizing-model-broadcasting-event-creation"></a>
 #### Customizing Model Broadcasting Event Creation
 
-Occasionally, you may wish to customize how Hypervel creates the underlying model broadcasting event. You may accomplish this by defining a `newBroadcastableEvent` method on your Eloquent model. This method should return an `Hypervel\Database\Eloquent\BroadcastableModelEventOccurred` instance:
+Occasionally, you may wish to customize how Hypervel creates the underlying model broadcasting event. You may accomplish this by defining a `newBroadcastableEvent` method on your Eloquent model. This method should return a `Hypervel\Database\Eloquent\BroadcastableModelEventOccurred` instance:
 
 ```php
 use Hypervel\Database\Eloquent\BroadcastableModelEventOccurred;
@@ -1761,7 +1761,7 @@ protected function newBroadcastableEvent(string $event): BroadcastableModelEvent
 
 As you may have noticed, the `broadcastOn` method in the model example above did not return `Channel` instances. Instead, Eloquent models were returned directly. If an Eloquent model instance is returned by your model's `broadcastOn` method (or is contained in an array returned by the method), Hypervel will automatically instantiate a private channel instance for the model using the model's class name and primary key identifier as the channel name.
 
-So, an `App\Models\User` model with an `id` of `1` would be converted into an `Hypervel\Broadcasting\PrivateChannel` instance with a name of `App.Models.User.1`. Of course, in addition to returning Eloquent model instances from your model's `broadcastOn` method, you may return complete `Channel` instances in order to have full control over the model's channel names:
+So, an `App\Models\User` model with an `id` of `1` would be converted into a `Hypervel\Broadcasting\PrivateChannel` instance with a name of `App.Models.User.1`. Of course, in addition to returning Eloquent model instances from your model's `broadcastOn` method, you may return complete `Channel` instances in order to have full control over the model's channel names:
 
 ```php
 use Hypervel\Broadcasting\PrivateChannel;

@@ -142,7 +142,7 @@ if (Gate::none(['update-post', 'delete-post'], $post)) {
 <a name="authorizing-or-throwing-exceptions"></a>
 #### Authorizing or Throwing Exceptions
 
-If you would like to attempt to authorize an action and automatically throw an `Hypervel\Auth\Access\AuthorizationException` if the user is not allowed to perform the given action, you may use the `Gate` facade's `authorize` method. Instances of `AuthorizationException` are automatically converted to a 403 HTTP response by Hypervel:
+If you would like to attempt to authorize an action and automatically throw a `Hypervel\Auth\Access\AuthorizationException` if the user is not allowed to perform the given action, you may use the `Gate` facade's `authorize` method. Instances of `AuthorizationException` are automatically converted to a 403 HTTP response by Hypervel:
 
 ```php
 Gate::authorize('update-post', $post);
@@ -178,7 +178,7 @@ if (Gate::check('create-post', [$category, $pinned])) {
 <a name="gate-responses"></a>
 ### Gate Responses
 
-So far, we have only examined gates that return simple boolean values. However, sometimes you may wish to return a more detailed response, including an error message. To do so, you may return an `Hypervel\Auth\Access\Response` from your gate:
+So far, we have only examined gates that return simple boolean values. However, sometimes you may wish to return a more detailed response, including an error message. To do so, you may return a `Hypervel\Auth\Access\Response` from your gate:
 
 ```php
 use App\Models\User;
@@ -333,7 +333,7 @@ Gate::allowIf(fn (User $user) => $user->isAdministrator());
 Gate::denyIf(fn (User $user) => $user->banned());
 ```
 
-If the action is not authorized or if no user is currently authenticated, Hypervel will automatically throw an `Hypervel\Auth\Access\AuthorizationException` exception. Instances of `AuthorizationException` are automatically converted to a 403 HTTP response by Hypervel's exception handler.
+If the action is not authorized or if no user is currently authenticated, Hypervel will automatically throw a `Hypervel\Auth\Access\AuthorizationException` exception. Instances of `AuthorizationException` are automatically converted to a 403 HTTP response by Hypervel's exception handler.
 
 <a name="creating-policies"></a>
 ## Creating Policies
@@ -452,7 +452,7 @@ If you used the `--model` option when generating your policy via the Artisan con
 <a name="policy-responses"></a>
 ### Policy Responses
 
-So far, we have only examined policy methods that return simple boolean values. However, sometimes you may wish to return a more detailed response, including an error message. To do so, you may return an `Hypervel\Auth\Access\Response` instance from your policy method:
+So far, we have only examined policy methods that return simple boolean values. However, sometimes you may wish to return a more detailed response, including an error message. To do so, you may return a `Hypervel\Auth\Access\Response` instance from your policy method:
 
 ```php
 use App\Models\Post;
@@ -869,6 +869,12 @@ class PostController extends Controller
 
 If a [policy is registered](#registering-policies) for the given model, the `can` method will automatically call the appropriate policy and return the boolean result. If no policy is registered for the model, the `can` method will attempt to call the closure-based Gate matching the given action name.
 
+If you would like to throw a `Hypervel\Auth\Access\AuthorizationException` when the user is not allowed to perform the action, you may use the user's `authorize` method instead. Instances of `AuthorizationException` are automatically converted to a 403 HTTP response by Hypervel:
+
+```php
+$request->user()->authorize('update', $post);
+```
+
 <a name="user-model-actions-that-dont-require-models"></a>
 #### Actions That Don't Require Models
 
@@ -906,7 +912,7 @@ class PostController extends Controller
 
 In addition to helpful methods provided to the `App\Models\User` model, you can always authorize actions via the `Gate` facade's `authorize` method.
 
-Like the `can` method, this method accepts the name of the action you wish to authorize and the relevant model. If the action is not authorized, the `authorize` method will throw an `Hypervel\Auth\Access\AuthorizationException` exception which the Hypervel exception handler will automatically convert to an HTTP response with a 403 status code:
+Like the `can` method, this method accepts the name of the action you wish to authorize and the relevant model. If the action is not authorized, the `authorize` method will throw a `Hypervel\Auth\Access\AuthorizationException` exception which the Hypervel exception handler will automatically convert to an HTTP response with a 403 status code:
 
 ```php
 <?php

@@ -12,6 +12,8 @@ class InspectedJob
 {
     /**
      * Create a new inspected job instance.
+     *
+     * @param null|string $name the display name of the job
      */
     public function __construct(
         public readonly ?string $uuid,
@@ -26,6 +28,8 @@ class InspectedJob
 
     /**
      * Create a new instance from a raw job payload.
+     *
+     * @param string $payload the raw JSON job payload
      */
     public static function fromPayload(
         string $payload,

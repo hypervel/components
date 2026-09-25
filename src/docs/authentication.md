@@ -146,7 +146,7 @@ $user = Auth::user();
 $id = Auth::id();
 ```
 
-Alternatively, once a user is authenticated, you may access the authenticated user via an `Hypervel\Http\Request` instance. Remember, type-hinted classes will automatically be injected into your controller methods. By type-hinting the `Hypervel\Http\Request` object, you may gain convenient access to the authenticated user from any controller method in your application via the request's `user` method:
+Alternatively, once a user is authenticated, you may access the authenticated user via a `Hypervel\Http\Request` instance. Remember, type-hinted classes will automatically be injected into your controller methods. By type-hinting the `Hypervel\Http\Request` object, you may gain convenient access to the authenticated user from any controller method in your application via the request's `user` method:
 
 ```php
 <?php
@@ -462,7 +462,7 @@ Redirect paths may be strings or request-aware callbacks. Passing `null` through
 
 Configure these redirects from `bootstrap/app.php` with the middleware configurator, or from a service provider / package with the `Auth` facade. Both high-level APIs configure the same global redirect callbacks, so an application should generally choose one style for each redirect. If both high-level APIs are called for the same redirect, the most recent registration wins.
 
-Under the hood, the `auth` middleware throws an `Hypervel\Auth\AuthenticationException` when a user is unauthenticated. This exception is converted into a redirect (or a 401 JSON response for API requests) by your application's exception handler. If you need lower-level control beyond the high-level APIs, you may override the `unauthenticated` method in your exception handler or configure the low-level redirect callbacks directly on the relevant middleware or exception classes.
+Under the hood, the `auth` middleware throws a `Hypervel\Auth\AuthenticationException` when a user is unauthenticated. This exception is converted into a redirect (or a 401 JSON response for API requests) by your application's exception handler. If you need lower-level control beyond the high-level APIs, you may override the `unauthenticated` method in your exception handler or configure the low-level redirect callbacks directly on the relevant middleware or exception classes.
 
 <a name="redirecting-authenticated-users"></a>
 #### Redirecting Authenticated Users
@@ -1069,7 +1069,7 @@ Finally, you may reference this provider in your `guards` configuration:
 <a name="the-user-provider-contract"></a>
 ### The User Provider Contract
 
-`Hypervel\Contracts\Auth\UserProvider` implementations are responsible for fetching an `Hypervel\Contracts\Auth\Authenticatable` implementation out of a persistent storage system, such as MySQL, LDAP, or an external identity service. These two interfaces allow the Hypervel authentication mechanisms to continue functioning regardless of how the user data is stored or what type of class is used to represent the authenticated user:
+`Hypervel\Contracts\Auth\UserProvider` implementations are responsible for fetching a `Hypervel\Contracts\Auth\Authenticatable` implementation out of a persistent storage system, such as MySQL, LDAP, or an external identity service. These two interfaces allow the Hypervel authentication mechanisms to continue functioning regardless of how the user data is stored or what type of class is used to represent the authenticated user:
 
 Let's take a look at the `Hypervel\Contracts\Auth\UserProvider` contract:
 

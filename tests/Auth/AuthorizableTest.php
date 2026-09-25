@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth;
 
+use Hypervel\Auth\Access\Response;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Tests\Auth\Fixtures\AuthorizableStub;
@@ -13,6 +14,18 @@ use Mockery\MockInterface;
 
 class AuthorizableTest extends TestCase
 {
+    public function testAuthorize(): void
+    {
+        $user = new AuthorizableStub;
+        $gate = $this->mockGate();
+        $response = Response::allow();
+
+        $gate->shouldReceive('forUser')->with($user)->once()->andReturnSelf();
+        $gate->shouldReceive('authorize')->with('foo', ['bar'])->once()->andReturn($response);
+
+        $this->assertSame($response, $user->authorize('foo', ['bar']));
+    }
+
     public function testCan(): void
     {
         $user = new AuthorizableStub;

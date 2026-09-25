@@ -387,7 +387,7 @@ class ValidationPasswordRuleTest extends TestCase
             ->letters()
             ->symbols();
 
-        $this->assertSame($password->appliedRules(), [
+        $this->assertSame([
             'min' => 2,
             'max' => 4,
             'mixedCase' => true,
@@ -397,11 +397,11 @@ class ValidationPasswordRuleTest extends TestCase
             'uncompromised' => false,
             'compromisedThreshold' => 0,
             'customRules' => [],
-        ]);
+        ], $password->appliedRules());
 
         $password = Password::min(2);
 
-        $this->assertSame($password->appliedRules(), [
+        $this->assertSame([
             'min' => 2,
             'max' => null,
             'mixedCase' => false,
@@ -411,7 +411,7 @@ class ValidationPasswordRuleTest extends TestCase
             'uncompromised' => false,
             'compromisedThreshold' => 0,
             'customRules' => [],
-        ]);
+        ], $password->appliedRules());
     }
 
     public function testRequired()
