@@ -15,11 +15,9 @@ jobs:
   split:
     name: Split on branch ${{ github.ref }}
     runs-on: ubuntu-latest
-    env:
-      SSH_PRIVATE_KEY: ${{ secrets.SPLIT_PRIVATE_KEY }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           # The split script reads the public origin anonymously and pushes split repositories over SSH.
