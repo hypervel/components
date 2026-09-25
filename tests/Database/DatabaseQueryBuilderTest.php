@@ -37,6 +37,7 @@ use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use Hypervel\Tests\Database\Fixtures\Enums\Bar;
 use Hypervel\Tests\Database\Fixtures\Enums\IntegerStatus;
 use Hypervel\Tests\Database\Fixtures\Enums\NonBackedStatus;
@@ -49,6 +50,7 @@ use ReflectionMethod;
 use RuntimeException;
 use SortDirection;
 use stdClass;
+use Stringable as BaseStringable;
 use TypeError;
 
 class DatabaseQueryBuilderTest extends TestCase
@@ -664,7 +666,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals([0 => '10:00', 1 => '22:00'], $builder->getBindings());
     }
 
-    public function testWhereDatePostgres()
+    public function testWhereDatePostgres(): void
     {
         $builder = $this->getPostgresBuilder();
         $builder->select('*')->from('users')->whereDate('created_at', '=', '2015-12-21');
@@ -682,6 +684,10 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder = $this->getPostgresBuilder();
         $builder->select('*')->from('users')->whereDate(new Raw('COALESCE(created_at, updated_at)'), new Raw('NOW()'));
         $this->assertSame('select * from "users" where COALESCE(created_at, updated_at)::date = NOW()', $builder->toSql());
+
+        $builder = $this->getPostgresBuilder();
+        $builder->select('*')->from('users')->whereDate(Str::of('result->created_at'), new Raw('NOW()'));
+        $this->assertSame('select * from "users" where ("result"->>\'created_at\')::date = NOW()', $builder->toSql());
     }
 
     public function testWhereDayPostgres()
@@ -708,7 +714,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals([0 => 2014], $builder->getBindings());
     }
 
-    public function testWhereTimePostgres()
+    public function testWhereTimePostgres(): void
     {
         $builder = $this->getPostgresBuilder();
         $builder->select('*')->from('users')->whereTime('created_at', '>=', '22:00');
@@ -724,6 +730,65 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder->select('*')->from('users')->whereTime(new Raw('COALESCE(created_at, updated_at)'), '>=', '22:00');
         $this->assertSame('select * from "users" where COALESCE(created_at, updated_at)::time >= ?', $builder->toSql());
         $this->assertSame(['22:00'], $builder->getBindings());
+
+        $builder = $this->getPostgresBuilder();
+        $builder->select('*')->from('users')->whereTime(Str::of('result->created_at'), '>=', '22:00');
+        $this->assertSame('select * from "users" where ("result"->>\'created_at\')::time >= ?', $builder->toSql());
+        $this->assertSame(['22:00'], $builder->getBindings());
+    }
+
+    public function testDateBasedWheresAcceptStringableColumns(): void
+    {
+        $column = new class implements BaseStringable {
+            /**
+             * Get the column name.
+             */
+            public function __toString(): string
+            {
+                return 'created_at';
+            }
+        };
+
+        $builder = $this->getPostgresBuilder();
+        $builder->select('*')->from('users');
+
+        // Eloquent forwards these calls from a strict-typed file, so even non-strict callers pass the object through unconverted.
+        (new EloquentBuilder($builder))
+            ->whereDay($column, 1)
+            ->orWhereMonth($column, 5)
+            ->orWhereYear($column, 2014);
+
+        $this->assertSame(
+            'select * from "users" where extract(day from "created_at") = ? or extract(month from "created_at") = ? or extract(year from "created_at") = ?',
+            $builder->toSql()
+        );
+        $this->assertSame(['01', '05', 2014], $builder->getBindings());
+    }
+
+    public function testDateBasedWhereKeepsExpressionsThatAreAlsoStringable(): void
+    {
+        $column = new class implements ExpressionContract, BaseStringable {
+            /**
+             * Get the value of the expression.
+             */
+            public function getValue(BaseGrammar $grammar): string
+            {
+                return 'COALESCE(created_at, updated_at)';
+            }
+
+            /**
+             * Get the string form the query must not use.
+             */
+            public function __toString(): string
+            {
+                return 'created_at';
+            }
+        };
+
+        $builder = $this->getPostgresBuilder();
+        $builder->select('*')->from('users')->whereDate($column, new Raw('NOW()'));
+
+        $this->assertSame('select * from "users" where COALESCE(created_at, updated_at)::date = NOW()', $builder->toSql());
     }
 
     public function testWherePast()
