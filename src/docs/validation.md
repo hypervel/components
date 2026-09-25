@@ -526,6 +526,8 @@ An `array` field without child rules accepts its contents, including when declar
 
 Confirmation fields are accepted when the base field uses the `confirmed` rule, including custom `confirmed:...` field names.
 
+Only the request's form or JSON input is checked. Query string parameters, such as pagination values or a signed URL's `signature`, are always allowed.
+
 Rejecting unknown fields can provide additional protection against mass-assignment style issues by preventing unexpected input keys from flowing deeper into your application. However, you should still configure your model's `$fillable` / `$guarded` properties and only persist trusted, validated input.
 
 <a name="customizing-the-redirect-location"></a>
