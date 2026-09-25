@@ -588,7 +588,7 @@ By default, the interrupt signal expires after one minute. You may use the `--mi
 php artisan schedule:interrupt --minutes=5
 ```
 
-If you do not want the scheduler to poll for pause or interrupt signals, call `Schedule::withoutInterruptionPolling()` during boot.
+If you do not want the scheduler to poll for pause or interrupt signals, call `Schedule::withoutInterruptionPolling()` during boot. The `schedule:pause` command will then fail instead of pausing the scheduler.
 
 <a name="running-the-scheduler-locally"></a>
 ### Running the Scheduler Locally

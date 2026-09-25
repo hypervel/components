@@ -33,13 +33,13 @@ class SchedulePauseCommandTest extends TestCase
 
     public function testFailsWhenPausingIsDisabled(): void
     {
-        Schedule::withoutInterruptionPolling();
-
         $cache = m::mock(Cache::class);
         $cache->shouldNotReceive('forever');
 
         $this->app->instance(Cache::class, $cache);
         Event::fake();
+
+        Schedule::$pausable = false;
 
         $this->artisan('schedule:pause')
             ->assertFailed();
