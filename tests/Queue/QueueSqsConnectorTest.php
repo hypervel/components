@@ -161,22 +161,25 @@ class QueueSqsConnectorTest extends TestCase
         $this->assertSame('shared-key', $second->getAccessKeyId());
     }
 
-    public function testCredentialResolutionCachesCredentialsWithoutAnExpiration(): void
+    public function testCredentialResolutionDoesNotCacheCredentialsWithoutAnExpiration(): void
     {
         $repository = new Repository(new ArrayStore);
+        $repository->forever('credentials', new Credentials('stale-key', 'stale-secret'));
         $cache = new AwsCredentialCache(fn () => $repository);
         $calls = 0;
-        $provider = function () use (&$calls) {
+        $provider = function () use (&$calls): PromiseInterface {
             ++$calls;
 
             return Create::promiseFor(new Credentials('constant-key', 'constant-secret'));
         };
 
-        $cache->resolve('credentials', $provider)->wait();
-        $credentials = $cache->resolve('credentials', $provider)->wait();
+        $first = $cache->resolve('credentials', $provider)->wait();
+        $second = $cache->resolve('credentials', $provider)->wait();
 
-        $this->assertSame(1, $calls);
-        $this->assertSame('constant-key', $credentials->getAccessKeyId());
+        $this->assertSame(2, $calls);
+        $this->assertSame('constant-key', $first->getAccessKeyId());
+        $this->assertSame('constant-key', $second->getAccessKeyId());
+        $this->assertFalse($repository->has('credentials'));
     }
 
     public function testCredentialResolutionFallsBackToADirectFetchWhenTheCacheStoreIsUnavailable(): void
@@ -391,6 +394,10 @@ class QueueSqsConnectorTest extends TestCase
             [CredentialProvider::ENV_PROFILE => 'other-profile'],
             fn () => $key(['provider' => 'instance', 'profile' => 'role-a']),
         ));
+        $this->assertNotSame(
+            $this->withEnvironment([InstanceProfileProvider::ENV_DISABLE => null], fn () => $key(['provider' => 'instance', 'profile' => 'role-a'])),
+            $this->withEnvironment([InstanceProfileProvider::ENV_DISABLE => 'true'], fn () => $key(['provider' => 'instance', 'profile' => 'role-a'])),
+        );
 
         $container = $key('ecs');
 
@@ -412,6 +419,10 @@ class QueueSqsConnectorTest extends TestCase
         $this->assertNotSame($default, $this->withEnvironment([CredentialProvider::ENV_ARN => 'arn:aws:iam::1:role/other'], $key));
         $this->assertNotSame($default, $this->withEnvironment([CredentialProvider::ENV_SHARED_CREDENTIALS_FILE => '/other/credentials'], $key));
         $this->assertNotSame($default, $key(config: ['disableAssumeRole' => true]));
+        $this->assertNotSame(
+            $this->withEnvironment([InstanceProfileProvider::ENV_DISABLE => null], $key),
+            $this->withEnvironment([InstanceProfileProvider::ENV_DISABLE => 'true'], $key),
+        );
     }
 
     public function testCredentialsCacheKeyUsesServerContainerUrisOnlyWhenTheEnvironmentHasNone(): void

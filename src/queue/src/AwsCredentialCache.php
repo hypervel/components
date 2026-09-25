@@ -117,8 +117,8 @@ class AwsCredentialCache
                 $credentials = $repository()->get($key);
 
                 if ($credentials instanceof CredentialsInterface
-                    && (is_null($credentials->getExpiration())
-                        || $credentials->getExpiration() - time() > static::REFRESH_WINDOW)) {
+                    && ! is_null($credentials->getExpiration())
+                    && $credentials->getExpiration() - time() > static::REFRESH_WINDOW) {
                     return $credentials;
                 }
             } catch (CanceledException $e) {
@@ -147,9 +147,10 @@ class AwsCredentialCache
                 try {
                     $expiration = $credentials->getExpiration();
 
-                    if (is_null($expiration)) {
-                        $this->put($key, $credentials);
-                    } elseif (($ttl = $expiration - time() - static::REFRESH_WINDOW) > 0) {
+                    // Credentials without an expiration have no safe lifetime in a shared,
+                    // persistent store, where keys rotated in place would never be picked up.
+                    if (! is_null($expiration)
+                        && ($ttl = $expiration - time() - static::REFRESH_WINDOW) > 0) {
                         $this->put($key, $credentials, $ttl);
                     } else {
                         $this->forget($key);
@@ -178,13 +179,11 @@ class AwsCredentialCache
     /**
      * Store the credentials, silently ignoring unavailable cache stores.
      */
-    protected function put(string $key, CredentialsInterface $credentials, int $ttl = 0): void
+    protected function put(string $key, CredentialsInterface $credentials, int $ttl): void
     {
         foreach ($this->repositories() as $repository) {
             try {
-                $ttl > 0
-                    ? $repository()->put($key, $credentials, $ttl)
-                    : $repository()->forever($key, $credentials);
+                $repository()->put($key, $credentials, $ttl);
             } catch (CanceledException $e) {
                 throw $e;
             } catch (Throwable) {

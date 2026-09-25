@@ -221,6 +221,8 @@ class SqsConnector implements ConnectorInterface
                 ]),
                 'endpoint' => ConfigurationResolver::env(InstanceProfileProvider::CFG_EC2_METADATA_SERVICE_ENDPOINT),
                 'endpoint_mode' => ConfigurationResolver::env(InstanceProfileProvider::CFG_EC2_METADATA_SERVICE_ENDPOINT_MODE),
+                // Matches the SDK's check before each metadata request.
+                'disabled' => strcasecmp((string) getenv(InstanceProfileProvider::ENV_DISABLE), 'true') === 0,
             ];
 
             $identity['shared_config'] = [
