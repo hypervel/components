@@ -2610,6 +2610,18 @@ class HttpClientTest extends TestCase
         });
     }
 
+    public function testRequestUriMethod(): void
+    {
+        $this->factory->fake();
+
+        $this->factory->get('http://foo.com/get?foo=bar&page=1');
+
+        $this->factory->assertSent(function (Request $request): bool {
+            return $request->uri() instanceof Uri
+                && (string) $request->uri() === 'http://foo.com/get?foo=bar&page=1';
+        });
+    }
+
     public function testGetWithQuery(): void
     {
         $this->factory->fake();
@@ -2646,18 +2658,6 @@ class HttpClientTest extends TestCase
             return $request->url() === 'http://foo.com/head?foo=bar&page=1'
                 && $request['foo'] === 'bar'
                 && $request['page'] === '1';
-        });
-    }
-
-    public function testRequestUriMethod(): void
-    {
-        $this->factory->fake();
-
-        $this->factory->get('http://foo.com/get?foo=bar&page=1');
-
-        $this->factory->assertSent(function (Request $request) {
-            return $request->uri() instanceof Uri
-                && (string) $request->uri() === 'http://foo.com/get?foo=bar&page=1';
         });
     }
 
