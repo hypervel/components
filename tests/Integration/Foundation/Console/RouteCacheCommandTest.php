@@ -86,15 +86,39 @@ class RouteCacheCommandTest extends TestCase
 
     public function testRouteCacheFailsWithNoRoutes(): void
     {
-        $cachePath = $this->app->getCachedRoutesPath();
-        $previousContents = "<?php return ['previous' => true];\n";
-        $this->files->put($cachePath, $previousContents);
+        // The shipped local disk registers file-serving routes, so the fresh
+        // application that route:cache boots needs serving disabled to have none.
+        $configPath = $this->app->basePath('config/filesystems.php');
+        $this->assertFileDoesNotExist($configPath);
+        $this->files->put($configPath, <<<'PHP'
+            <?php
 
-        $this->artisan('route:cache')
-            ->expectsOutputToContain("doesn't have any routes")
-            ->assertExitCode(1);
+            declare(strict_types=1);
 
-        $this->assertSame($previousContents, $this->files->get($cachePath));
+            return [
+                'disks' => [
+                    'local' => [
+                        'driver' => 'local',
+                        'root' => storage_path('app/private'),
+                        'serve' => false,
+                    ],
+                ],
+            ];
+            PHP);
+
+        try {
+            $cachePath = $this->app->getCachedRoutesPath();
+            $previousContents = "<?php return ['previous' => true];\n";
+            $this->files->put($cachePath, $previousContents);
+
+            $this->artisan('route:cache')
+                ->expectsOutputToContain("doesn't have any routes")
+                ->assertExitCode(1);
+
+            $this->assertSame($previousContents, $this->files->get($cachePath));
+        } finally {
+            $this->files->delete($configPath);
+        }
     }
 
     public function testCachedRoutesAreLoadable(): void

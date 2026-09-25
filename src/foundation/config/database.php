@@ -63,7 +63,7 @@ return [
         'mysql' => [
             'driver' => 'mysql',
             'url' => env('DB_URL'),
-            'host' => env('DB_HOST', 'localhost'),
+            'host' => env('DB_HOST', '127.0.0.1'),
             'port' => (int) env('DB_PORT', 3306),
             'database' => env('DB_DATABASE', 'hypervel'),
             'username' => env('DB_USERNAME', 'root'),
@@ -95,7 +95,7 @@ return [
         'mariadb' => [
             'driver' => 'mariadb',
             'url' => env('DB_URL'),
-            'host' => env('DB_HOST', 'localhost'),
+            'host' => env('DB_HOST', '127.0.0.1'),
             'port' => (int) env('DB_PORT', 3306),
             'database' => env('DB_DATABASE', 'hypervel'),
             'username' => env('DB_USERNAME', 'root'),
@@ -127,7 +127,7 @@ return [
         'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DB_URL'),
-            'host' => env('DB_HOST', 'localhost'),
+            'host' => env('DB_HOST', '127.0.0.1'),
             'port' => (int) env('DB_PORT', 5432),
             'database' => env('DB_DATABASE', 'hypervel'),
             'username' => env('DB_USERNAME', 'root'),
@@ -157,7 +157,7 @@ return [
         'pgsql-pooled' => [
             'driver' => 'pgsql',
             'url' => env('DB_POOLED_URL', env('DB_URL')),
-            'host' => env('DB_POOLED_HOST', env('DB_HOST', 'localhost')),
+            'host' => env('DB_POOLED_HOST', env('DB_HOST', '127.0.0.1')),
             'port' => (int) env('DB_POOLED_PORT', 6432),
             'database' => env('DB_POOLED_DATABASE', env('DB_DATABASE', 'hypervel')),
             'username' => env('DB_POOLED_USERNAME', env('DB_USERNAME', 'root')),
@@ -225,7 +225,7 @@ return [
 
         'default' => [
             'url' => env('REDIS_URL'),
-            'host' => env('REDIS_HOST', 'localhost'),
+            'host' => env('REDIS_HOST', '127.0.0.1'),
             'username' => env('REDIS_USERNAME'),
             'password' => env('REDIS_PASSWORD'),
             'port' => (int) env('REDIS_PORT', 6379),
@@ -249,7 +249,7 @@ return [
 
         'cache' => [
             'url' => env('REDIS_CACHE_URL', env('REDIS_URL')),
-            'host' => env('REDIS_CACHE_HOST', env('REDIS_HOST', 'localhost')),
+            'host' => env('REDIS_CACHE_HOST', env('REDIS_HOST', '127.0.0.1')),
             'username' => env('REDIS_CACHE_USERNAME', env('REDIS_USERNAME')),
             'password' => env('REDIS_CACHE_PASSWORD', env('REDIS_PASSWORD')),
             'port' => (int) env('REDIS_CACHE_PORT', env('REDIS_PORT', 6379)),
@@ -273,7 +273,7 @@ return [
 
         'session' => [
             'url' => env('REDIS_SESSION_URL', env('REDIS_URL')),
-            'host' => env('REDIS_SESSION_HOST', env('REDIS_HOST', 'localhost')),
+            'host' => env('REDIS_SESSION_HOST', env('REDIS_HOST', '127.0.0.1')),
             'username' => env('REDIS_SESSION_USERNAME', env('REDIS_USERNAME')),
             'password' => env('REDIS_SESSION_PASSWORD', env('REDIS_PASSWORD')),
             'port' => (int) env('REDIS_SESSION_PORT', env('REDIS_PORT', 6379)),
@@ -297,7 +297,7 @@ return [
 
         'queue' => [
             'url' => env('REDIS_QUEUE_URL', env('REDIS_URL')),
-            'host' => env('REDIS_QUEUE_HOST', env('REDIS_HOST', 'localhost')),
+            'host' => env('REDIS_QUEUE_HOST', env('REDIS_HOST', '127.0.0.1')),
             'username' => env('REDIS_QUEUE_USERNAME', env('REDIS_USERNAME')),
             'password' => env('REDIS_QUEUE_PASSWORD', env('REDIS_PASSWORD')),
             'port' => (int) env('REDIS_QUEUE_PORT', env('REDIS_PORT', 6379)),
@@ -321,7 +321,7 @@ return [
 
         'reverb' => [
             'url' => env('REDIS_REVERB_URL', env('REDIS_URL')),
-            'host' => env('REDIS_REVERB_HOST', env('REDIS_HOST', 'localhost')),
+            'host' => env('REDIS_REVERB_HOST', env('REDIS_HOST', '127.0.0.1')),
             'username' => env('REDIS_REVERB_USERNAME', env('REDIS_USERNAME')),
             'password' => env('REDIS_REVERB_PASSWORD', env('REDIS_PASSWORD')),
             'port' => (int) env('REDIS_REVERB_PORT', env('REDIS_PORT', 6379)),

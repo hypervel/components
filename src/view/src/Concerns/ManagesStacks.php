@@ -156,6 +156,7 @@ trait ManagesStacks
         $pushes = CoroutineContext::get(static::PUSHES_CONTEXT_KEY, []);
         $prepends = CoroutineContext::get(static::PREPENDS_CONTEXT_KEY, []);
 
+        // Check the stacks already read here; isStackEmpty() would read both from the context again.
         if (! isset($pushes[$section]) && ! isset($prepends[$section])) {
             return $default;
         }

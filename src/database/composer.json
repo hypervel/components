@@ -1,8 +1,8 @@
 {
     "name": "hypervel/database",
-    "type": "library",
     "description": "The Hypervel Database package.",
     "license": "MIT",
+    "type": "library",
     "keywords": [
         "php",
         "database",
@@ -24,23 +24,12 @@
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
     },
-    "autoload": {
-        "psr-4": {
-            "Hypervel\\Database\\": "src/"
-        }
-    },
     "require": {
         "php": "^8.4",
         "ext-filter": "*",
         "ext-pdo": "*",
         "ext-swoole": "^6.2.2",
         "brick/math": "^0.17",
-        "nesbot/carbon": "^3.13.1",
-        "psr/log": "^3.0",
-        "symfony/console": "^8.1",
-        "symfony/finder": "^8.1",
-        "symfony/polyfill-php86": "^1.36",
-        "symfony/process": "^8.1",
         "hypervel/broadcasting": "^0.4",
         "hypervel/collections": "^0.4",
         "hypervel/conditionable": "^0.4",
@@ -50,17 +39,23 @@
         "hypervel/context": "^0.4",
         "hypervel/contracts": "^0.4",
         "hypervel/coordinator": "^0.4",
+        "hypervel/core": "^0.4",
         "hypervel/coroutine": "^0.4",
         "hypervel/engine": "^0.4",
         "hypervel/events": "^0.4",
         "hypervel/filesystem": "^0.4",
-        "hypervel/core": "^0.4",
         "hypervel/http": "^0.4",
         "hypervel/macroable": "^0.4",
         "hypervel/pagination": "^0.4",
         "hypervel/prompts": "^0.4",
         "hypervel/queue": "^0.4",
-        "hypervel/support": "^0.4"
+        "hypervel/support": "^0.4",
+        "nesbot/carbon": "^3.13.1",
+        "psr/log": "^3.0",
+        "symfony/console": "^8.1",
+        "symfony/finder": "^8.1",
+        "symfony/polyfill-php86": "^1.36",
+        "symfony/process": "^8.1"
     },
     "require-dev": {
         "fakerphp/faker": "^1.24",
@@ -69,10 +64,18 @@
     "suggest": {
         "fakerphp/faker": "Required to use Eloquent model factories (^1.24)."
     },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Database\\": "src/"
+        }
+    },
     "config": {
         "sort-packages": true
     },
     "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        },
         "hypervel": {
             "providers": [
                 "Hypervel\\Database\\DatabaseServiceProvider"
@@ -82,9 +85,6 @@
             "includes": [
                 "extension.neon"
             ]
-        },
-        "branch-alias": {
-            "dev-main": "0.4-dev"
         }
     }
 }

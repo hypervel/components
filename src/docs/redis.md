@@ -55,7 +55,7 @@ You may configure your application's Redis settings via the `config/database.php
 
     'default' => [
         'url' => env('REDIS_URL'),
-        'host' => env('REDIS_HOST', 'localhost'),
+        'host' => env('REDIS_HOST', '127.0.0.1'),
         'username' => env('REDIS_USERNAME'),
         'password' => env('REDIS_PASSWORD'),
         'port' => (int) env('REDIS_PORT', 6379),

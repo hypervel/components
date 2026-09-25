@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
+use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
 use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
 
@@ -20,9 +21,7 @@ trait DatabaseMigrations
         $this->ensureParallelDatabaseExists();
 
         $this->beforeRefreshingDatabase();
-
-        $this->command('migrate:fresh', $this->migrateFreshUsing());
-
+        $this->refreshTestDatabase();
         $this->afterRefreshingDatabase();
 
         $this->beforeApplicationDestroyed(function () {
@@ -30,6 +29,16 @@ trait DatabaseMigrations
 
             RefreshDatabaseState::$migrated = false;
         });
+    }
+
+    /**
+     * Refresh a conventional test database.
+     */
+    protected function refreshTestDatabase(): void
+    {
+        $this->artisan('migrate:fresh', $this->migrateFreshUsing());
+
+        $this->app->make(Kernel::class)->setArtisan(null);
     }
 
     /**

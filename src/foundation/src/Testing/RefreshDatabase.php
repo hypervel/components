@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
+use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection as DatabaseConnection;
 use Hypervel\Database\PdoConnection;
@@ -126,9 +127,11 @@ trait RefreshDatabase
             ) {
                 RefreshDatabaseState::$migrated = false;
 
-                $this->command('migrate:fresh', $this->migrateFreshUsing());
+                $this->migrateDatabases();
 
-                $this->cacheInMemoryDatabasesForRefresh();
+                $this->app->make(Kernel::class)->setArtisan(null);
+
+                $this->updateLocalCacheOfInMemoryDatabases();
 
                 if ($migrateRefresh) {
                     $this->migrateRefresh = false;
@@ -170,9 +173,9 @@ trait RefreshDatabase
     }
 
     /**
-     * Cache the transacting in-memory databases after migration.
+     * Update locally cached in-memory PDO connections after migration.
      */
-    protected function cacheInMemoryDatabasesForRefresh(): void
+    protected function updateLocalCacheOfInMemoryDatabases(): void
     {
         $database = null;
 
@@ -191,6 +194,14 @@ trait RefreshDatabase
 
             RefreshDatabaseState::$inMemoryConnections[$connectionName] = $connection->getPdo();
         }
+    }
+
+    /**
+     * Migrate the database.
+     */
+    protected function migrateDatabases(): void
+    {
+        $this->artisan('migrate:fresh', $this->migrateFreshUsing());
     }
 
     /**

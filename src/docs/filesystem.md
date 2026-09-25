@@ -531,18 +531,19 @@ $url = Storage::temporaryUrl(
 <a name="serving-files-from-configured-disks"></a>
 #### Serving Files From Configured Disks
 
-To enable Hypervel's signed download and upload routes for a disk, add the `serve` option to the disk's configuration array within the `config/filesystems.php` configuration file. This option is most commonly used to generate temporary URLs for files stored using the `local` driver:
+Hypervel's signed download and upload routes allow you to generate temporary URLs for disks that cannot create them on their own, such as disks using the `local` driver. The default `local` disk enables these routes using the `serve` option in your application's `config/filesystems.php` configuration file:
 
 ```php
 'local' => [
     'driver' => 'local',
     'root' => storage_path('app/private'),
-    'serve' => true, // [tl! add]
+    'serve' => true,
+    'visibility' => 'private',
     'throw' => false,
 ],
 ```
 
-Any configured disk may enable these routes. Custom filesystem drivers that enable the `serve` option must provide the filesystem response methods used to serve and receive files.
+Any other configured disk may enable these routes by adding the `serve` option to its configuration array. Each served disk registers its routes at its `url` path, or at `/storage` when it has no `url`, so every served disk must use a different path. Custom filesystem drivers that enable the `serve` option must provide the filesystem response methods used to serve and receive files.
 
 A named scoped disk uses its own route when it enables `serve`. Otherwise, it uses the nearest named parent disk with serving enabled and includes each intervening scope in the signed path. Anonymous scoped disks cannot register routes, but they may use a named served parent.
 

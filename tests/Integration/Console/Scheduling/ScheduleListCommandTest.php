@@ -89,6 +89,7 @@ class ScheduleListCommandTest extends TestCase
         $this->schedule->job(new FooParamJob('test'))->name('foo-named-param-job')->everyMinute();
         $this->schedule->command('inspire')->cron('0 9,17 * * *');
         $this->schedule->call(fn () => '')->everyMinute();
+        $this->schedule->exec('echo hello')->everyMinute();
 
         $this->withoutMockingConsoleOutput()->artisan(ScheduleListCommand::class, ['--json' => true]);
         $output = Artisan::output();
@@ -99,11 +100,11 @@ class ScheduleListCommandTest extends TestCase
         $data = json_decode($output, true);
 
         $this->assertIsArray($data);
-        $this->assertCount(9, $data);
+        $this->assertCount(10, $data);
 
         $this->assertSame('0 0 1 1-12/3 *', $data[0]['expression']);
         $this->assertNull($data[0]['repeat_seconds']);
-        $this->assertSame('foo:command', $data[0]['command']);
+        $this->assertSame('php artisan foo:command', $data[0]['command']);
         $this->assertSame('This is the description of the command.', $data[0]['description']);
         $this->assertStringContainsString('2023-04-01 00:00:00', $data[0]['next_due_date']);
         $this->assertSame('3 months from now', $data[0]['next_due_date_human']);
@@ -112,7 +113,7 @@ class ScheduleListCommandTest extends TestCase
         $this->assertEmpty($data[0]['environments']);
 
         $this->assertSame('* * * * *', $data[2]['expression']);
-        $this->assertSame('foobar a=' . ProcessUtils::escapeArgument('b'), $data[2]['command']);
+        $this->assertSame('php artisan foobar a=' . ProcessUtils::escapeArgument('b'), $data[2]['command']);
         $this->assertNull($data[2]['description']);
         $this->assertSame('1 minute from now', $data[2]['next_due_date_human']);
 
@@ -122,6 +123,8 @@ class ScheduleListCommandTest extends TestCase
 
         $this->assertStringContainsString('Closure at:', $data[8]['command']);
         $this->assertStringContainsString('ScheduleListCommandTest.php', $data[8]['command']);
+
+        $this->assertSame('echo hello', $data[9]['command']);
     }
 
     public function testDisplayScheduleAsJsonWithEnvironmentData(): void
@@ -162,15 +165,15 @@ class ScheduleListCommandTest extends TestCase
 
         $this->assertSame('* * * * *', $data[0]['expression']);
         $this->assertSame('1 minute from now', $data[0]['next_due_date_human']);
-        $this->assertSame('foobar a=' . ProcessUtils::escapeArgument('b'), $data[0]['command']);
+        $this->assertSame('php artisan foobar a=' . ProcessUtils::escapeArgument('b'), $data[0]['command']);
 
         $this->assertSame('0 14,18 * * *', $data[1]['expression']);
         $this->assertSame('14 hours from now', $data[1]['next_due_date_human']);
-        $this->assertSame('inspire', $data[1]['command']);
+        $this->assertSame('php artisan inspire', $data[1]['command']);
 
         $this->assertSame('0 0 1 1-12/3 *', $data[2]['expression']);
         $this->assertSame('3 months from now', $data[2]['next_due_date_human']);
-        $this->assertSame('foo:command', $data[2]['command']);
+        $this->assertSame('php artisan foo:command', $data[2]['command']);
     }
 
     public function testDisplayScheduleAsJsonWithTimezone()
@@ -191,7 +194,7 @@ class ScheduleListCommandTest extends TestCase
         $this->assertSame('America/Chicago', $data[0]['timezone']);
         $this->assertSame('UTC', $data[0]['expression_timezone']);
         $this->assertStringContainsString('-06:00', $data[0]['next_due_date']);
-        $this->assertSame('inspire', $data[0]['command']);
+        $this->assertSame('php artisan inspire', $data[0]['command']);
     }
 
     public function testDisplayScheduleFallsBackToApplicationTimezoneWhenScheduleHasNone(): void
@@ -257,7 +260,7 @@ class ScheduleListCommandTest extends TestCase
         $this->assertCount(2, $data);
 
         $this->assertSame('* * * * *', $data[0]['expression']);
-        $this->assertSame('foo:command', $data[0]['command']);
+        $this->assertSame('php artisan foo:command', $data[0]['command']);
         $this->assertSame(['production'], $data[0]['environments']);
 
         $this->assertSame('*/5 * * * *', $data[1]['expression']);
@@ -284,11 +287,11 @@ class ScheduleListCommandTest extends TestCase
         $this->assertCount(3, $data);
 
         $this->assertSame('*/2 * * * *', $data[0]['expression']);
-        $this->assertSame('foobar a=' . ProcessUtils::escapeArgument('b'), $data[0]['command']);
+        $this->assertSame('php artisan foobar a=' . ProcessUtils::escapeArgument('b'), $data[0]['command']);
         $this->assertSame(['staging', 'local'], $data[0]['environments']);
 
         $this->assertSame('*/5 * * * *', $data[1]['expression']);
-        $this->assertSame('inspire', $data[1]['command']);
+        $this->assertSame('php artisan inspire', $data[1]['command']);
         $this->assertSame(['local'], $data[1]['environments']);
 
         $this->assertSame('*/10 * * * *', $data[2]['expression']);
@@ -315,11 +318,11 @@ class ScheduleListCommandTest extends TestCase
         $this->assertCount(3, $data);
 
         $this->assertSame('0 0 1 1-12/3 *', $data[0]['expression']);
-        $this->assertSame('foo:command', $data[0]['command']);
+        $this->assertSame('php artisan foo:command', $data[0]['command']);
         $this->assertSame('This is the description of the command.', $data[0]['description']);
 
         $this->assertSame('* * * * *', $data[1]['expression']);
-        $this->assertSame('inspire', $data[1]['command']);
+        $this->assertSame('php artisan inspire', $data[1]['command']);
 
         $this->assertStringContainsString('Closure at:', $data[2]['command']);
         $this->assertStringContainsString('ScheduleListCommandTest.php', $data[2]['command']);

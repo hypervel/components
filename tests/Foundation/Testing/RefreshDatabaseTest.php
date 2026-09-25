@@ -81,6 +81,7 @@ class RefreshDatabaseTest extends TestCase
                 '--drop-types' => false,
                 '--seed' => false,
             ])->andReturn(0);
+        $kernel->expects('setArtisan')->with(null);
 
         $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository([
@@ -108,6 +109,7 @@ class RefreshDatabaseTest extends TestCase
                 '--drop-types' => false,
                 '--seed' => false,
             ])->andReturn(0);
+        $kernel->expects('setArtisan')->with(null);
         $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository([
             'database' => [
@@ -134,6 +136,7 @@ class RefreshDatabaseTest extends TestCase
                 '--drop-types' => true,
                 '--seed' => false,
             ])->andReturn(0);
+        $kernel->expects('setArtisan')->with(null);
         $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository([
             'database' => [
@@ -160,6 +163,7 @@ class RefreshDatabaseTest extends TestCase
                 '--drop-types' => false,
                 '--seed' => true,
             ])->andReturn(0);
+        $kernel->expects('setArtisan')->with(null);
         $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository([
             'database' => [
@@ -186,6 +190,7 @@ class RefreshDatabaseTest extends TestCase
                 '--drop-types' => false,
                 '--seeder' => 'seeder',
             ])->andReturn(0);
+        $kernel->expects('setArtisan')->with(null);
         $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository([
             'database' => [
@@ -240,6 +245,7 @@ class RefreshDatabaseTest extends TestCase
         $kernel->expects('call')
             ->with('migrate:fresh', m::type('array'))
             ->andReturn(0);
+        $kernel->expects('setArtisan')->with(null);
 
         $pdo = m::mock(PDO::class);
         $eventDispatcher = m::mock(Dispatcher::class);
@@ -302,6 +308,7 @@ class RefreshDatabaseTest extends TestCase
         $kernel->expects('call')
             ->with('migrate:fresh', m::type('array'))
             ->andReturn(0);
+        $kernel->expects('setArtisan')->with(null);
 
         $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository([
@@ -403,6 +410,7 @@ class RefreshDatabaseTest extends TestCase
         $kernel->expects('call')
             ->with('migrate:fresh', m::type('array'))
             ->andReturn(0);
+        $kernel->expects('setArtisan')->with(null);
 
         $this->connectionsToTransact = ['file', 'memory'];
         $this->app = new Application;
@@ -447,6 +455,7 @@ class RefreshDatabaseTest extends TestCase
         $kernel->expects('call')
             ->with('migrate:fresh', m::type('array'))
             ->andReturn(0);
+        $kernel->expects('setArtisan')->with(null);
 
         $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository([
@@ -509,6 +518,7 @@ class RefreshDatabaseTest extends TestCase
         $kernel->expects('call')
             ->with('migrate:fresh', m::type('array'))
             ->andReturn(0);
+        $kernel->expects('setArtisan')->with(null);
 
         $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository([
@@ -572,6 +582,7 @@ class RefreshDatabaseTest extends TestCase
         $kernel->expects('call')
             ->with('migrate:fresh', m::type('array'))
             ->andReturn(0);
+        $kernel->expects('setArtisan')->with(null);
 
         $this->app = new Application;
         $this->app->singleton('config', fn () => new Repository([

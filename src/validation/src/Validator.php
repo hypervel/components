@@ -321,6 +321,20 @@ class Validator implements ValidatorContract
     protected static bool $fakeDnsLookups = false;
 
     /**
+     * The lowercase names of the encodings supported by mbstring.
+     *
+     * @var null|array<string, true>
+     */
+    protected static ?array $encodingNames = null;
+
+    /**
+     * The identifiers of every timezone.
+     *
+     * @var null|array<string, true>
+     */
+    protected static ?array $timezoneIdentifiers = null;
+
+    /**
      * The exception to throw upon failure.
      *
      * @var class-string<ValidationException>|ValidationException
@@ -2072,6 +2086,8 @@ class Validator implements ValidatorContract
     public static function flushState(): void
     {
         static::$fakeDnsLookups = false;
+        static::$encodingNames = null;
+        static::$timezoneIdentifiers = null;
     }
 
     /**

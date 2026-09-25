@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
+use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
 use Hypervel\Foundation\Application;
+use Hypervel\Foundation\Configuration\ApplicationBuilder;
+use Hypervel\Foundation\Configuration\Exceptions;
+use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
+use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Foundation\Http\Kernel as HttpKernel;
 use Hypervel\Http\Middleware\PrefersJsonResponses;
 use Hypervel\Tests\TestCase;
@@ -109,6 +115,59 @@ class FoundationApplicationBuilderTest extends TestCase
         $this->assertSame(__DIR__ . '/custom-storage', $app->storagePath());
     }
 
+    public function testKernelContractResolvesToSameInstanceAsConcrete(): void
+    {
+        $app = Application::configure()->create();
+
+        $this->assertSame($app->make(HttpKernelContract::class), $app->make(HttpKernel::class));
+        $this->assertSame($app->make(ConsoleKernelContract::class), $app->make(ConsoleKernel::class));
+    }
+
+    public function testKernelAbstractCanBeBoundToCustomConcrete(): void
+    {
+        $app = Application::configure()->create();
+
+        $app->singleton(HttpKernelContract::class, CustomHttpKernelStub::class);
+
+        $this->assertInstanceOf(CustomHttpKernelStub::class, $app->make(HttpKernelContract::class));
+    }
+
+    public function testKernelContractResolvesToSameInstanceThroughOtherBindings(): void
+    {
+        $app = Application::configure()->create();
+
+        $app->singleton('kernel.consumer', HttpKernelContract::class);
+
+        $this->assertSame($app->make(HttpKernelContract::class), $app->make('kernel.consumer'));
+        $this->assertSame($app->make(HttpKernelContract::class), $app->makeTransient(HttpKernelContract::class));
+    }
+
+    public function testExceptionHandlerContractAndConcreteShareTheConfiguredInstance(): void
+    {
+        $configured = [];
+
+        $app = Application::configure()
+            ->withExceptions(function (Exceptions $exceptions) use (&$configured): void {
+                $configured[] = $exceptions->handler;
+            })
+            ->create();
+
+        $handler = $app->make(ExceptionHandler::class);
+
+        $this->assertSame($handler, $app->make(Handler::class));
+        $this->assertSame([$handler], $configured);
+
+        $app->singleton('handler.consumer', ExceptionHandler::class);
+
+        $this->assertSame($handler, $app->make('handler.consumer'));
+    }
+
+    public function testConfigureUsesTheApplicationBuilderDeclaredBySubclass(): void
+    {
+        $this->assertInstanceOf(CustomApplicationBuilderStub::class, CustomApplicationStub::configure());
+        $this->assertNotInstanceOf(CustomApplicationBuilderStub::class, Application::configure());
+    }
+
     public function testPrefersJsonResponsesIsFluent(): void
     {
         $builder = Application::configure();
@@ -162,4 +221,17 @@ class FoundationApplicationBuilderTest extends TestCase
 
         return $app->make(HttpKernelContract::class);
     }
+}
+
+class CustomHttpKernelStub extends HttpKernel
+{
+}
+
+class CustomApplicationBuilderStub extends ApplicationBuilder
+{
+}
+
+class CustomApplicationStub extends Application
+{
+    protected static string $applicationBuilder = CustomApplicationBuilderStub::class;
 }

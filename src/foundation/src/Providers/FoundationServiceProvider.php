@@ -240,12 +240,55 @@ class FoundationServiceProvider extends ServiceProvider
 
     /**
      * Register the console schedule implementation.
+     *
+     * Boot-only. The schedule binding is shared for the worker lifetime, and
+     * calling this again replaces the schedule used by later resolutions.
      */
-    protected function registerConsoleSchedule(): void
+    public function registerConsoleSchedule(): void
     {
         $this->app->singleton(Schedule::class, function ($app) {
             return $app->make(ConsoleKernelContract::class)->resolveConsoleSchedule();
         });
+    }
+
+    /**
+     * Register a var dumper (with source) to debug variables.
+     *
+     * Boot-only. The dumper handler and casters are process-global and apply to
+     * every later dump in the worker.
+     */
+    public function registerDumper(): void
+    {
+        AbstractCloner::$defaultCasters[ConnectionInterface::class] ??= [StubCaster::class, 'cutInternals'];
+        AbstractCloner::$defaultCasters[Container::class] ??= [StubCaster::class, 'cutInternals'];
+        AbstractCloner::$defaultCasters[Dispatcher::class] ??= [StubCaster::class, 'cutInternals'];
+        AbstractCloner::$defaultCasters[Grammar::class] ??= [StubCaster::class, 'cutInternals'];
+
+        $basePath = $this->app->basePath();
+
+        $compiledViewPath = $this->config->string('view.compiled');
+
+        $formatExists = array_key_exists('VAR_DUMPER_FORMAT', $_SERVER);
+        $format = $_SERVER['VAR_DUMPER_FORMAT'] ?? null;
+
+        // Symfony refuses to replace its handler while this variable is set.
+        unset($_SERVER['VAR_DUMPER_FORMAT']);
+
+        try {
+            match (true) {
+                $format === 'html' => HtmlDumper::register($basePath, $compiledViewPath),
+                $format === 'cli' => CliDumper::register($basePath, $compiledViewPath),
+                $format === 'server' => null,
+                $format && parse_url($format, PHP_URL_SCHEME) === 'tcp' => null,
+                default => in_array(PHP_SAPI, ['cli', 'phpdbg'], true)
+                    ? CliDumper::register($basePath, $compiledViewPath)
+                    : HtmlDumper::register($basePath, $compiledViewPath),
+            };
+        } finally {
+            if ($formatExists) {
+                $_SERVER['VAR_DUMPER_FORMAT'] = $format;
+            }
+        }
     }
 
     /**
@@ -273,9 +316,12 @@ class FoundationServiceProvider extends ServiceProvider
     /**
      * Register the "validate" macro on the request.
      *
+     * Boot-only. Request macros are static and shared by every request in the
+     * worker.
+     *
      * @throws ValidationException
      */
-    protected function registerRequestValidation(): void
+    public function registerRequestValidation(): void
     {
         Request::macro('validate', function (array $rules, ...$params) {
             return tap(validator($this->all(), $rules, ...$params), function ($validator) {
@@ -301,8 +347,11 @@ class FoundationServiceProvider extends ServiceProvider
 
     /**
      * Register the "hasValidSignature" macro on the request.
+     *
+     * Boot-only. Request macros are static and shared by every request in the
+     * worker.
      */
-    protected function registerRequestSignatureValidation(): void
+    public function registerRequestSignatureValidation(): void
     {
         Request::macro('hasValidSignature', function ($absolute = true) {
             return URL::hasValidSignature($this, $absolute);
@@ -323,8 +372,11 @@ class FoundationServiceProvider extends ServiceProvider
 
     /**
      * Register the maintenance mode manager and its caching decorator.
+     *
+     * Boot-only. The maintenance mode binding is shared for the worker lifetime,
+     * and calling this again replaces the instance used by later resolutions.
      */
-    protected function registerMaintenanceModeManager(): void
+    public function registerMaintenanceModeManager(): void
     {
         $this->app->singleton(
             MaintenanceModeContract::class,
@@ -398,47 +450,19 @@ class FoundationServiceProvider extends ServiceProvider
         );
     }
 
+    /**
+     * Set the default timezone from the application configuration.
+     */
     protected function setDefaultTimezone(): void
     {
         date_default_timezone_set($this->config->string('app.timezone'));
     }
 
+    /**
+     * Set the internal character encoding.
+     */
     protected function setInternalEncoding(): void
     {
         mb_internal_encoding('UTF-8');
-    }
-
-    protected function registerDumper(): void
-    {
-        AbstractCloner::$defaultCasters[ConnectionInterface::class] ??= [StubCaster::class, 'cutInternals'];
-        AbstractCloner::$defaultCasters[Container::class] ??= [StubCaster::class, 'cutInternals'];
-        AbstractCloner::$defaultCasters[Dispatcher::class] ??= [StubCaster::class, 'cutInternals'];
-        AbstractCloner::$defaultCasters[Grammar::class] ??= [StubCaster::class, 'cutInternals'];
-
-        $basePath = $this->app->basePath();
-
-        $compiledViewPath = $this->config->string('view.compiled');
-
-        $formatExists = array_key_exists('VAR_DUMPER_FORMAT', $_SERVER);
-        $format = $_SERVER['VAR_DUMPER_FORMAT'] ?? null;
-
-        // Symfony refuses to replace its handler while this variable is set.
-        unset($_SERVER['VAR_DUMPER_FORMAT']);
-
-        try {
-            match (true) {
-                $format === 'html' => HtmlDumper::register($basePath, $compiledViewPath),
-                $format === 'cli' => CliDumper::register($basePath, $compiledViewPath),
-                $format === 'server' => null,
-                $format && parse_url($format, PHP_URL_SCHEME) === 'tcp' => null,
-                default => in_array(PHP_SAPI, ['cli', 'phpdbg'], true)
-                    ? CliDumper::register($basePath, $compiledViewPath)
-                    : HtmlDumper::register($basePath, $compiledViewPath),
-            };
-        } finally {
-            if ($formatExists) {
-                $_SERVER['VAR_DUMPER_FORMAT'] = $format;
-            }
-        }
     }
 }

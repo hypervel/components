@@ -930,22 +930,7 @@ class FoundationApplicationTest extends TestCase
         $this->assertTrue($freshApp->configurationIsCached());
     }
 
-    public function testRoutesAreCachedReturnsFalseWhenNoCacheFile(): void
-    {
-        $app = $this->makeCacheApplication();
-
-        $this->assertFalse($app->routesAreCached());
-    }
-
-    public function testRoutesAreCachedReturnsTrueWhenCacheFileExists(): void
-    {
-        $app = $this->makeCacheApplication();
-        file_put_contents($this->cacheApplicationPath . '/bootstrap/cache/routes-v7.php', '<?php return [];');
-
-        $this->assertTrue($app->routesAreCached());
-    }
-
-    public function testRoutesAreCachedUsesBoundState(): void
+    public function testRoutesAreCached(): void
     {
         $app = $this->makeCacheApplication();
         $app->instance('routes.cached', true);
@@ -956,6 +941,21 @@ class FoundationApplicationTest extends TestCase
         $app->instance('routes.cached', false);
 
         $this->assertFalse($app->routesAreCached());
+    }
+
+    public function testRoutesAreNotCachedByInstanceFallsBackToFile(): void
+    {
+        $app = $this->makeCacheApplication();
+
+        $this->assertFalse($app->routesAreCached());
+    }
+
+    public function testRoutesAreCachedReturnsTrueWhenCacheFileExists(): void
+    {
+        $app = $this->makeCacheApplication();
+        file_put_contents($app->getCachedRoutesPath(), '<?php return [];');
+
+        $this->assertTrue($app->routesAreCached());
     }
 
     public function testRoutesAreCachedMemoizesFilesystemResult(): void
@@ -1060,7 +1060,12 @@ class FoundationApplicationTest extends TestCase
         $files->deleteDirectory($this->cacheApplicationPath);
         $files->makeDirectory($this->cacheApplicationPath . '/bootstrap/cache', 0755, true);
 
-        return new Application($this->cacheApplicationPath);
+        $app = new Application($this->cacheApplicationPath);
+
+        // Testbench keeps a worker-specific route cache path for the rest of a ParaTest worker.
+        $files->ensureDirectoryExists(dirname($app->getCachedRoutesPath()));
+
+        return $app;
     }
 
     /**

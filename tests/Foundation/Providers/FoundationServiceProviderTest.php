@@ -169,8 +169,7 @@ class FoundationServiceProviderTest extends TestCase
         $_SERVER['VAR_DUMPER_FORMAT'] = $format;
 
         try {
-            $provider = new FoundationServiceProvider($this->app);
-            (new ReflectionClass($provider))->getMethod('registerDumper')->invoke($provider);
+            (new FoundationServiceProvider($this->app))->registerDumper();
 
             $this->assertSame($format, $_SERVER['VAR_DUMPER_FORMAT']);
             $handler = $handlerProperty->getValue();

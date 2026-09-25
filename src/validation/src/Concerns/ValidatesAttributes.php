@@ -987,7 +987,7 @@ trait ValidatesAttributes
     }
 
     /**
-     * Validate that a value has a specific character encoding.
+     * Validate the encoding of an attribute.
      *
      * @param array<int, int|string> $parameters
      *
@@ -997,11 +997,17 @@ trait ValidatesAttributes
     {
         $this->requireParameterCount(1, $parameters, 'encoding');
 
-        if (! in_array(mb_strtolower($parameters[0]), array_map(mb_strtolower(...), mb_list_encodings()))) {
+        static::$encodingNames ??= array_fill_keys(array_map(mb_strtolower(...), mb_list_encodings()), true);
+
+        if (! isset(static::$encodingNames[mb_strtolower($parameters[0])])) {
             throw new InvalidArgumentException("Validation rule encoding parameter [{$parameters[0]}] is not a valid encoding.");
         }
 
-        return mb_check_encoding($value instanceof File ? $value->getContent() : $value, $parameters[0]);
+        if ($value instanceof File) {
+            $value = $value->getContent();
+        }
+
+        return (is_string($value) || is_array($value)) && mb_check_encoding($value, $parameters[0]);
     }
 
     /**
@@ -2512,10 +2518,17 @@ trait ValidatesAttributes
     /**
      * Validate that an attribute is a valid timezone.
      *
-     * @param array<string, null|string> $parameters
+     * @param array<int, string> $parameters
      */
     public function validateTimezone(string $attribute, mixed $value, array $parameters = []): bool
     {
+        // Only the complete list is reused, so rule parameters cannot grow the cached state.
+        if (! isset($parameters[1]) && Str::upper($parameters[0] ?? 'ALL') === 'ALL') {
+            static::$timezoneIdentifiers ??= array_fill_keys(timezone_identifiers_list(), true);
+
+            return is_string($value) && isset(static::$timezoneIdentifiers[$value]);
+        }
+
         return in_array($value, timezone_identifiers_list(
             constant(DateTimeZone::class . '::' . Str::upper($parameters[0] ?? 'ALL')),
             isset($parameters[1]) ? Str::upper($parameters[1]) : null,

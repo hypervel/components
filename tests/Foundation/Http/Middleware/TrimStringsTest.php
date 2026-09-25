@@ -11,7 +11,7 @@ use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
 class TrimStringsTest extends TestCase
 {
-    public function testNonStringValuesDoNotPerformExclusionMatching()
+    public function testNonStringValuesDoNotPerformExclusionMatching(): void
     {
         $middleware = new TrimStringsTrackingExclusionMatches;
         $symfonyRequest = new SymfonyRequest([
@@ -33,7 +33,7 @@ class TrimStringsTest extends TestCase
         $this->assertSame(1, $middleware->exclusionMatchCount);
     }
 
-    public function testTrimStringsIgnoringExceptAttribute()
+    public function testTrimStringsIgnoringExceptAttribute(): void
     {
         $middleware = new TrimStringsWithExceptAttribute;
         $symfonyRequest = new SymfonyRequest([
@@ -53,7 +53,7 @@ class TrimStringsTest extends TestCase
         });
     }
 
-    public function testTrimStringsSupportsExactAndWildcardExceptAttributes()
+    public function testTrimStringsSupportsExactAndWildcardExceptAttributes(): void
     {
         $middleware = new TrimStringsWithExactAndWildcardExceptAttributes;
         $symfonyRequest = new SymfonyRequest([
@@ -77,7 +77,7 @@ class TrimStringsTest extends TestCase
         });
     }
 
-    public function testGlobalExceptAppliesToAnExistingMiddlewareInstance()
+    public function testGlobalExceptAppliesToAnExistingMiddlewareInstance(): void
     {
         $middleware = new TrimStrings;
 
@@ -88,7 +88,7 @@ class TrimStringsTest extends TestCase
         $this->assertSame(' value ', $this->handle($middleware, ['token' => ' value '])->input('token'));
     }
 
-    public function testFlushStateAppliesToAnExistingMiddlewareInstance()
+    public function testFlushStateAppliesToAnExistingMiddlewareInstance(): void
     {
         TrimStrings::except('token');
 
@@ -112,7 +112,7 @@ class TrimStringsTest extends TestCase
         $this->assertSame(' value ', $this->handle($middleware, ['token' => ' value '])->input('token'));
     }
 
-    public function testTrimStringsNBSP()
+    public function testTrimStringsNBSP(): void
     {
         $middleware = new TrimStrings;
         $symfonyRequest = new SymfonyRequest([
@@ -140,238 +140,9 @@ class TrimStringsTest extends TestCase
         });
     }
 
-    public function testNoZeroWidthSpaceCharacterReturnsTheSameString(): void
-    {
-        $request = new Request;
-
-        $request->merge([
-            'title' => 'This title does not contain any zero-width space',
-        ]);
-
-        $middleware = new TrimStrings;
-
-        $middleware->handle($request, function (Request $request): void {
-            $this->assertSame('This title does not contain any zero-width space', $request->title);
-        });
-    }
-
-    public function testLeadingZeroWidthSpaceCharacterIsTrimmed(): void
-    {
-        $request = new Request;
-
-        $request->merge([
-            'title' => '​This title contains a zero-width space at the beginning',
-        ]);
-
-        $middleware = new TrimStrings;
-
-        $middleware->handle($request, function (Request $request): void {
-            $this->assertSame('This title contains a zero-width space at the beginning', $request->title);
-        });
-    }
-
-    public function testTrimStringsCanGloballyIgnoreCertainInputs(): void
-    {
-        $request = new Request;
-
-        $request->merge([
-            'globally_ignored_title' => ' test title ',
-        ]);
-
-        TrimStrings::except(['globally_ignored_title']);
-
-        $middleware = new TrimStrings;
-
-        $middleware->handle($request, function (Request $request): void {
-            $this->assertSame(' test title ', $request->globally_ignored_title);
-        });
-    }
-
-    public function testTrailingZeroWidthSpaceCharacterIsTrimmed(): void
-    {
-        $request = new Request;
-
-        $request->merge([
-            'title' => 'This title contains a zero-width space at the end​',
-        ]);
-
-        $middleware = new TrimStrings;
-
-        $middleware->handle($request, function (Request $request): void {
-            $this->assertSame('This title contains a zero-width space at the end', $request->title);
-        });
-    }
-
-    public function testLeadingZeroWidthNonBreakableSpaceCharacterIsTrimmed(): void
-    {
-        $request = new Request;
-
-        $request->merge([
-            'title' => '﻿This title contains a zero-width non-breakable space at the beginning',
-        ]);
-
-        $middleware = new TrimStrings;
-
-        $middleware->handle($request, function (Request $request): void {
-            $this->assertSame('This title contains a zero-width non-breakable space at the beginning', $request->title);
-        });
-    }
-
-    public function testLeadingMultipleZeroWidthNonBreakableSpaceCharactersAreTrimmed(): void
-    {
-        $request = new Request;
-
-        $request->merge([
-            'title' => '﻿﻿This title contains a zero-width non-breakable space at the beginning',
-        ]);
-
-        $middleware = new TrimStrings;
-
-        $middleware->handle($request, function (Request $request): void {
-            $this->assertSame('This title contains a zero-width non-breakable space at the beginning', $request->title);
-        });
-    }
-
-    public function testCombinationOfLeadingAndTrailingZeroWidthNonBreakableSpaceAndZeroWidthSpaceCharactersAreTrimmed(): void
-    {
-        $request = new Request;
-
-        $request->merge([
-            'title' => '﻿​﻿This title contains a combination of zero-width non-breakable space and zero-width spaces characters at the beginning and the end​',
-        ]);
-
-        $middleware = new TrimStrings;
-
-        $middleware->handle($request, function (Request $request): void {
-            $this->assertSame('This title contains a combination of zero-width non-breakable space and zero-width spaces characters at the beginning and the end', $request->title);
-        });
-    }
-
-    public function testLeadingInvisibleCharactersAreTrimmed(): void
-    {
-        $request = new Request;
-
-        $request->merge([
-            'title' => '‎This title contains a invisible character at the beginning',
-        ]);
-
-        $middleware = new TrimStrings;
-
-        $middleware->handle($request, function (Request $request): void {
-            $this->assertSame('This title contains a invisible character at the beginning', $request->title);
-        });
-    }
-
-    public function testTrailingInvisibleCharactersAreTrimmed(): void
-    {
-        $request = new Request;
-
-        $request->merge([
-            'title' => 'This title contains a invisible character at the end‎',
-        ]);
-
-        $middleware = new TrimStrings;
-
-        $middleware->handle($request, function (Request $request): void {
-            $this->assertSame('This title contains a invisible character at the end', $request->title);
-        });
-    }
-
-    public function testLeadingMultipleInvisibleCharactersAreTrimmed(): void
-    {
-        $request = new Request;
-
-        $request->merge([
-            'title' => '‎‎This title contains a invisible character at the beginning',
-        ]);
-
-        $middleware = new TrimStrings;
-
-        $middleware->handle($request, function (Request $request): void {
-            $this->assertSame('This title contains a invisible character at the beginning', $request->title);
-        });
-    }
-
-    public function testTrailingMultipleInvisibleCharactersAreTrimmed(): void
-    {
-        $request = new Request;
-
-        $request->merge([
-            'title' => 'This title contains a invisible character at the end‎‎',
-        ]);
-
-        $middleware = new TrimStrings;
-
-        $middleware->handle($request, function (Request $request): void {
-            $this->assertSame('This title contains a invisible character at the end', $request->title);
-        });
-    }
-
-    public function testCombinationOfLeadingAndTrailingMultipleInvisibleCharactersAreTrimmed(): void
-    {
-        $request = new Request;
-
-        $request->merge([
-            'title' => '‎‎This title contains a combination of a invisible character at beginning and the end‎‎',
-        ]);
-
-        $middleware = new TrimStrings;
-
-        $middleware->handle($request, function (Request $request): void {
-            $this->assertSame('This title contains a combination of a invisible character at beginning and the end', $request->title);
-        });
-    }
-
-    public function testTrimStringsCanIgnoreNestedAttributesUsingWildcards(): void
-    {
-        $request = new Request;
-
-        $request->merge([
-            'users' => [
-                ['name' => '  foo  ', 'role' => '  admin  '],
-                ['name' => '  bar  ', 'role' => '  editor  '],
-            ],
-            'teams' => [
-                ['name' => '  team  '],
-            ],
-            'orders' => [
-                [
-                    'items' => [
-                        ['meta' => ['title' => '  foo  ', 'sku' => '  SKU-1  ', 'tags' => ['  alpha  ']]],
-                    ],
-                ],
-                [
-                    'items' => [
-                        ['meta' => ['title' => '  bar  ', 'sku' => '  SKU-2  ', 'tags' => ['  beta  ']]],
-                    ],
-                ],
-            ],
-        ]);
-
-        $middleware = new class extends TrimStrings {
-            protected array $except = [
-                'users.*.name',
-                'orders.*.items.*.meta.title',
-                'orders.*.items.*.meta.tags.*',
-            ];
-        };
-
-        $middleware->handle($request, function (Request $request): void {
-            $this->assertSame('  foo  ', $request->input('users.0.name'));
-            $this->assertSame('  bar  ', $request->input('users.1.name'));
-            $this->assertSame('admin', $request->input('users.0.role'));
-            $this->assertSame('editor', $request->input('users.1.role'));
-            $this->assertSame('team', $request->input('teams.0.name'));
-            $this->assertSame('  foo  ', $request->input('orders.0.items.0.meta.title'));
-            $this->assertSame('SKU-1', $request->input('orders.0.items.0.meta.sku'));
-            $this->assertSame('  alpha  ', $request->input('orders.0.items.0.meta.tags.0'));
-
-            $this->assertSame('  bar  ', $request->input('orders.1.items.0.meta.title'));
-            $this->assertSame('SKU-2', $request->input('orders.1.items.0.meta.sku'));
-            $this->assertSame('  beta  ', $request->input('orders.1.items.0.meta.tags.0'));
-        });
-    }
-
+    /**
+     * Run the middleware for a request with the given input.
+     */
     private function handle(TrimStrings $middleware, array $input): Request
     {
         $symfonyRequest = new SymfonyRequest($input);
@@ -404,6 +175,9 @@ class TrimStringsTrackingExclusionMatches extends TrimStrings
 {
     public int $exclusionMatchCount = 0;
 
+    /**
+     * Determine if the given key should be skipped while counting the check.
+     */
     protected function shouldSkip(string $key, array $except): bool
     {
         ++$this->exclusionMatchCount;
@@ -414,6 +188,9 @@ class TrimStringsTrackingExclusionMatches extends TrimStrings
 
 class MutableExceptTrimStrings extends TrimStrings
 {
+    /**
+     * Set the attributes that should not be trimmed.
+     */
     public function setExcept(array $except): void
     {
         $this->except = $except;

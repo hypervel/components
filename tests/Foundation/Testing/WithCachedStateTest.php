@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Foundation\Testing\WithCachedStateTest;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\LoadConfiguration;
 use Hypervel\Foundation\Support\Providers\RouteServiceProvider;
 use Hypervel\Foundation\Testing\CachedState;
@@ -123,6 +124,36 @@ PHP);
             $this->assertSame(1, CachedFoundationStateFixture::$routeLoads);
         } finally {
             $second->runTearDown();
+        }
+    }
+
+    public function testRoutesLoadedFromTheRouteCacheFileAreCached(): void
+    {
+        $cachePath = (new Application($this->appBasePath))->getCachedRoutesPath();
+
+        $this->filesystem->ensureDirectoryExists(dirname($cachePath));
+        $this->filesystem->put($cachePath, <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+$router = app('router');
+
+$router->get('/cached-state', static fn (): string => 'cached')->name('cached-state');
+
+$router->setCompiledRoutes($router->getRoutes()->compile());
+PHP);
+
+        $test = new CachedFoundationTestCase('testPlaceholder');
+
+        try {
+            $test->runSetUp();
+
+            $this->assertInstanceOf(CompiledRouteCollection::class, $test->routeCollection());
+            $this->assertArrayHasKey('cached-state', CachedState::$cachedRoutes['attributes']);
+            $this->assertSame(0, CachedFoundationStateFixture::$routeLoads);
+        } finally {
+            $test->runTearDown();
         }
     }
 

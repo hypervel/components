@@ -25,6 +25,7 @@ return [
     | by every worker.
     |
     */
+
     'concurrency' => (int) env('QUEUE_CONCURRENCY', 1),
 
     /*

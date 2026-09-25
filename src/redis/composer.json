@@ -1,8 +1,8 @@
 {
     "name": "hypervel/redis",
-    "type": "library",
     "description": "The Hypervel Redis package.",
     "license": "MIT",
+    "type": "library",
     "keywords": [
         "php",
         "redis",
@@ -17,25 +17,16 @@
         {
             "name": "Raj Siva-Rajah",
             "homepage": "https://github.com/binaryfire"
-        }        
+        }
     ],
     "support": {
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
     },
-    "autoload": {
-        "psr-4": {
-            "Hypervel\\Redis\\": "src/"
-        }
-    },
-    "suggest": {
-        "ext-redis": "Required to use the phpredis connector (^6.1)."
-    },
     "require": {
         "php": "^8.4",
         "ext-filter": "*",
         "ext-swoole": "^6.2.2",
-        "psr/log": "^3.0",
         "hypervel/collections": "^0.4",
         "hypervel/config": "^0.4",
         "hypervel/connection-pool": "^0.4",
@@ -47,19 +38,28 @@
         "hypervel/coroutine": "^0.4",
         "hypervel/engine": "^0.4",
         "hypervel/macroable": "^0.4",
-        "hypervel/support": "^0.4"
+        "hypervel/support": "^0.4",
+        "psr/log": "^3.0"
+    },
+    "suggest": {
+        "ext-redis": "Required to use the phpredis connector (^6.1)."
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Redis\\": "src/"
+        }
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        },
         "hypervel": {
             "providers": [
                 "Hypervel\\Redis\\RedisServiceProvider"
             ]
-        },
-        "branch-alias": {
-            "dev-main": "0.4-dev"
         }
     }
 }

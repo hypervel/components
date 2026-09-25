@@ -82,14 +82,6 @@ class ScheduleListCommand extends Command
     }
 
     /**
-     * Render the scheduled tasks information.
-     */
-    protected function display(Collection $events, DateTimeZone $timezone): void
-    {
-        $this->option('json') ? $this->displayJson($events, $timezone) : $this->displayForCli($events, $timezone);
-    }
-
-    /**
      * Render the scheduled tasks information as JSON.
      */
     protected function displayJson(Collection $events, DateTimeZone $timezone): void
@@ -109,6 +101,8 @@ class ScheduleListCommand extends Command
                 if (in_array($command, ['Closure', 'Callback'])) {
                     $command = 'Closure at: ' . $this->getClosureLocation($event);
                 }
+            } elseif (! $event->isSystem) {
+                $command = 'php artisan ' . $command;
             }
 
             return [
@@ -250,6 +244,14 @@ class ScheduleListCommand extends Command
         return $this->option('next')
             ? $events->sortBy(fn ($event) => $this->getNextDueDateForEvent($event, $timezone))
             : $events;
+    }
+
+    /**
+     * Render the scheduled tasks information.
+     */
+    protected function display(Collection $events, DateTimeZone $timezone): void
+    {
+        $this->option('json') ? $this->displayJson($events, $timezone) : $this->displayForCli($events, $timezone);
     }
 
     /**

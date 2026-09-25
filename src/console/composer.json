@@ -1,8 +1,8 @@
 {
     "name": "hypervel/console",
-    "type": "library",
     "description": "The Hypervel Console package.",
     "license": "MIT",
+    "type": "library",
     "keywords": [
         "php",
         "console",
@@ -23,27 +23,15 @@
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
     },
-    "autoload": {
-        "psr-4": {
-            "Hypervel\\Console\\": "src/"
-        }
-    },
     "require": {
         "php": "^8.4",
-        "dragonmantank/cron-expression": "^3.4",
         "ext-filter": "*",
         "ext-mbstring": "*",
         "ext-pcntl": "*",
         "ext-posix": "*",
         "ext-swoole": "^6.2.2",
+        "dragonmantank/cron-expression": "^3.4",
         "guzzlehttp/guzzle": "^7.15.1 || ^8.2",
-        "nesbot/carbon": "^3.13.1",
-        "nunomaduro/termwind": "^2.0",
-        "psr/http-client": "^1.0",
-        "symfony/console": "^8.1",
-        "symfony/event-dispatcher": "^8.1",
-        "symfony/finder": "^8.1",
-        "symfony/process": "^8.1",
         "hypervel/bus": "^0.4",
         "hypervel/cache": "^0.4",
         "hypervel/collections": "^0.4",
@@ -58,19 +46,31 @@
         "hypervel/prompts": "^0.4",
         "hypervel/queue": "^0.4",
         "hypervel/reflection": "^0.4",
-        "hypervel/support": "^0.4"
+        "hypervel/support": "^0.4",
+        "nesbot/carbon": "^3.13.1",
+        "nunomaduro/termwind": "^2.0",
+        "psr/http-client": "^1.0",
+        "symfony/console": "^8.1",
+        "symfony/event-dispatcher": "^8.1",
+        "symfony/finder": "^8.1",
+        "symfony/process": "^8.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Console\\": "src/"
+        }
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        },
         "hypervel": {
             "providers": [
                 "Hypervel\\Console\\ConsoleServiceProvider"
             ]
-        },
-        "branch-alias": {
-            "dev-main": "0.4-dev"
         }
     }
 }

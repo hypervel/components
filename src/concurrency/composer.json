@@ -1,8 +1,8 @@
 {
     "name": "hypervel/concurrency",
-    "type": "library",
     "description": "The Hypervel Concurrency package.",
     "license": "MIT",
+    "type": "library",
     "keywords": [
         "php",
         "concurrency",
@@ -24,14 +24,8 @@
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
     },
-    "autoload": {
-        "psr-4": {
-            "Hypervel\\Concurrency\\": "src/"
-        }
-    },
     "require": {
         "php": "^8.4",
-        "laravel/serializable-closure": "^2.0.11",
         "hypervel/console": "^0.4",
         "hypervel/container": "^0.4",
         "hypervel/context": "^0.4",
@@ -40,20 +34,26 @@
         "hypervel/log": "^0.4",
         "hypervel/process": "^0.4",
         "hypervel/support": "^0.4",
+        "laravel/serializable-closure": "^2.0.11",
         "nesbot/carbon": "^3.13.1",
         "symfony/console": "^8.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Concurrency\\": "src/"
+        }
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        },
         "hypervel": {
             "providers": [
                 "Hypervel\\Concurrency\\ConcurrencyServiceProvider"
             ]
-        },
-        "branch-alias": {
-            "dev-main": "0.4-dev"
         }
     }
 }

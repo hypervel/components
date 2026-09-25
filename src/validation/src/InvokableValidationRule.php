@@ -28,7 +28,7 @@ class InvokableValidationRule implements Rule, ValidatorAwareRule
     /**
      * The current validator.
      */
-    protected ?Validator $validator;
+    protected ?Validator $validator = null;
 
     /**
      * The data under validation.

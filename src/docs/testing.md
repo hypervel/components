@@ -17,7 +17,7 @@
     - [Parallel Testing and Redis](#parallel-testing-and-redis)
     - [Reporting Test Coverage](#reporting-test-coverage)
     - [Profiling Tests](#profiling-tests)
-- [Configuration and Route Caching](#configuration-and-route-caching)
+- [Configuration Caching](#configuration-caching)
 
 <a name="introduction"></a>
 ## Introduction
@@ -514,8 +514,8 @@ Packages that run ParaTest directly may use the profiler included with the `hype
 ./vendor/bin/hypervel-test-profile --processes=4 tests/Feature
 ```
 
-<a name="configuration-and-route-caching"></a>
-## Configuration and Route Caching
+<a name="configuration-caching"></a>
+## Configuration Caching
 
 When running tests, Hypervel boots the application for each individual test method. Without a cached configuration file, each configuration file in your application must be loaded at the start of a test. To build the configuration once and re-use it for all tests in a single run, you may use the `Hypervel\Foundation\Testing\WithCachedConfig` trait:
 
@@ -530,24 +530,6 @@ use Tests\TestCase;
 class ConfigTest extends TestCase
 {
     use WithCachedConfig;
-
-    // ...
-}
-```
-
-If your application has many route files, you may use the `Hypervel\Foundation\Testing\WithCachedRoutes` trait to build your routes once and re-use the compiled routes for all tests in a single run:
-
-```php
-<?php
-
-namespace Tests\Feature;
-
-use Hypervel\Foundation\Testing\WithCachedRoutes;
-use Tests\TestCase;
-
-class RouteTest extends TestCase
-{
-    use WithCachedRoutes;
 
     // ...
 }

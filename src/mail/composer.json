@@ -1,8 +1,8 @@
 {
     "name": "hypervel/mail",
-    "type": "library",
     "description": "The Hypervel Mail package.",
     "license": "MIT",
+    "type": "library",
     "keywords": [
         "php",
         "mail",
@@ -23,19 +23,8 @@
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
     },
-    "autoload": {
-        "psr-4": {
-            "Hypervel\\Mail\\": "src/"
-        }
-    },
     "require": {
         "php": "^8.4",
-        "league/commonmark": "^2.10",
-        "psr/log": "^3.0",
-        "symfony/http-foundation": "^8.1",
-        "symfony/mailer": "^8.1",
-        "symfony/mime": "^8.1",
-        "tijsverkoyen/css-to-inline-styles": "^2.2.5",
         "hypervel/bus": "^0.4",
         "hypervel/collections": "^0.4",
         "hypervel/conditionable": "^0.4",
@@ -47,20 +36,13 @@
         "hypervel/object-pool": "^0.4",
         "hypervel/queue": "^0.4",
         "hypervel/support": "^0.4",
-        "hypervel/view": "^0.4"
-    },
-    "config": {
-        "sort-packages": true
-    },
-    "extra": {
-        "hypervel": {
-            "providers": [
-                "Hypervel\\Mail\\MailServiceProvider"
-            ]
-        },
-        "branch-alias": {
-            "dev-main": "0.4-dev"
-        }
+        "hypervel/view": "^0.4",
+        "league/commonmark": "^2.10",
+        "psr/log": "^3.0",
+        "symfony/http-foundation": "^8.1",
+        "symfony/mailer": "^8.1",
+        "symfony/mime": "^8.1",
+        "tijsverkoyen/css-to-inline-styles": "^2.2.5"
     },
     "suggest": {
         "aws/aws-sdk-php": "Required to use the SES mail driver (^3.235.5).",
@@ -72,5 +54,23 @@
         "symfony/http-client": "Required to use the Symfony API mail transports (^8.1).",
         "symfony/mailgun-mailer": "Required to enable support for the Mailgun mail transport (^8.1).",
         "symfony/postmark-mailer": "Required to enable support for the Postmark mail transport (^8.1)."
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Mail\\": "src/"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        },
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Mail\\MailServiceProvider"
+            ]
+        }
     }
 }

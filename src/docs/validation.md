@@ -3470,8 +3470,6 @@ class Uppercase implements ValidationRule, ValidatorAwareRule
 {
     /**
      * The validator instance.
-     *
-     * @var \Hypervel\Validation\Validator|null
      */
     protected ?Validator $validator = null;
 
@@ -3519,7 +3517,7 @@ By default, when an attribute being validated is not present or contains an empt
 ```php
 use Hypervel\Support\Facades\Validator;
 
-$rules = ['name' => 'unique:users,name'];
+$rules = ['name' => ['unique:users,name']];
 
 $input = ['name' => ''];
 

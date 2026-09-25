@@ -40,11 +40,11 @@ class RegisterProviders
     {
         if (static::$bootstrapProviderPath
             && file_exists(static::$bootstrapProviderPath)) {
-            $bootstrapProviders = require static::$bootstrapProviderPath;
+            $packageProviders = require static::$bootstrapProviderPath;
 
-            foreach ($bootstrapProviders as $index => $provider) {
+            foreach ($packageProviders as $index => $provider) {
                 if (! class_exists($provider)) {
-                    unset($bootstrapProviders[$index]);
+                    unset($packageProviders[$index]);
                 }
             }
         }
@@ -54,7 +54,7 @@ class RegisterProviders
             array_merge(
                 $app->make('config')->array('app.providers'),
                 static::$merge,
-                array_values($bootstrapProviders ?? []),
+                array_values($packageProviders ?? []),
             ),
         );
     }

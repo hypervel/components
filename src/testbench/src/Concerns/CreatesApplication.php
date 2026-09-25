@@ -640,6 +640,8 @@ trait CreatesApplication
             $failure = $throwable;
         }
 
+        FoundationHandleExceptions::release($app);
+
         try {
             $app->flush();
         } catch (Throwable $throwable) {

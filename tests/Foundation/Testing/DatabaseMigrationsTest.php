@@ -55,6 +55,7 @@ class DatabaseMigrationsTest extends TestCase
                 '--drop-types' => false,
                 '--seed' => false,
             ])->andReturn(0);
+        $kernel->expects('setArtisan')->with(null);
         $kernel->expects('call')
             ->with('migrate:rollback', [])
             ->andReturn(0);
@@ -76,6 +77,7 @@ class DatabaseMigrationsTest extends TestCase
                 '--drop-types' => false,
                 '--seed' => false,
             ])->andReturn(0);
+        $kernel->expects('setArtisan')->with(null);
         $kernel->expects('call')
             ->with('migrate:rollback', [])
             ->andReturn(0);
@@ -97,6 +99,7 @@ class DatabaseMigrationsTest extends TestCase
                 '--drop-types' => true,
                 '--seed' => false,
             ])->andReturn(0);
+        $kernel->expects('setArtisan')->with(null);
         $kernel->expects('call')
             ->with('migrate:rollback', [])
             ->andReturn(0);
@@ -118,6 +121,7 @@ class DatabaseMigrationsTest extends TestCase
                 '--drop-types' => false,
                 '--seed' => true,
             ])->andReturn(0);
+        $kernel->expects('setArtisan')->with(null);
         $kernel->expects('call')
             ->with('migrate:rollback', [])
             ->andReturn(0);
@@ -139,6 +143,7 @@ class DatabaseMigrationsTest extends TestCase
                 '--drop-types' => false,
                 '--seeder' => 'seeder',
             ])->andReturn(0);
+        $kernel->expects('setArtisan')->with(null);
         $kernel->expects('call')
             ->with('migrate:rollback', [])
             ->andReturn(0);
