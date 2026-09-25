@@ -513,6 +513,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
      * affects every subsequent missing-key lookup in the worker.
      *
      * @param null|callable(string, array, ?string, bool): ?string $callback
+     * @return $this
      */
     public function handleMissingKeysUsing(?callable $callback): static
     {
