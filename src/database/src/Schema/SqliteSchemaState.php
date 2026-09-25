@@ -42,7 +42,7 @@ class SqliteSchemaState extends SchemaState
         )->mustRun(null, array_merge($this->baseVariables($this->connection->getConfig()), []));
 
         $migrations = (new Collection(preg_split("/\r\n|\n|\r/", $process->getOutput())))
-            ->filter(fn ($line) => preg_match('/^\s*(--|INSERT\s)/iu', $line) === 1 && strlen($line) > 0)
+            ->filter(fn ($line) => preg_match('/^\s*(--|INSERT\s)/iu', $line) === 1)
             ->all();
 
         $this->files->append($path, implode(PHP_EOL, $migrations) . PHP_EOL);

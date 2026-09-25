@@ -301,7 +301,7 @@ class PromptsAssertionTest extends TestCase
 
                     $name = search(
                         label: 'What is your name?',
-                        options: fn (string $value) => strlen($value) > 0
+                        options: fn (string $value) => $value !== ''
                             ? $options->filter(fn ($title) => str_contains($title, $value))->values()->toArray()
                             : []
                     );
@@ -329,7 +329,7 @@ class PromptsAssertionTest extends TestCase
 
                     $names = multisearch(
                         label: 'Which names do you like?',
-                        options: fn (string $value) => strlen($value) > 0
+                        options: fn (string $value) => $value !== ''
                             ? $options->filter(fn ($title) => str_contains($title, $value))->values()->toArray()
                             : []
                     );
@@ -370,7 +370,7 @@ class PromptsAssertionTest extends TestCase
                     $titles = collect(['Mr', 'Mrs', 'Ms', 'Dr']);
                     $title = multisearch(
                         label: 'What is your title?',
-                        options: fn (string $value) => strlen($value) > 0
+                        options: fn (string $value) => $value !== ''
                             ? $titles->filter(fn ($title) => str_contains($title, $value))->values()->toArray()
                             : []
                     );
