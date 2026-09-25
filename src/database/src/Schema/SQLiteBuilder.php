@@ -165,7 +165,7 @@ class SQLiteBuilder extends Builder
      * Get the columns and stored table definition used to reconstruct SQLite schema state.
      *
      * @internal
-     * @return array{columns: list<array{name: string, type: string, type_name: string, collation: null|string, nullable: bool, default: mixed, auto_increment: bool, comment: null|string, generation: null|array{type: string, expression: null|string}}>, sql: string}
+     * @return array{columns: list<array{name: string, type: string, type_name: string, collation: null|string, nullable: bool, default: mixed, auto_increment: bool, comment: null|string, generation: null|array{type: null|string, expression: null|string}}>, sql: string}
      */
     public function getColumnsForSchemaState(string $table): array
     {
