@@ -136,6 +136,19 @@ class QueueSqsConnectorTest extends TestCase
         ];
     }
 
+    public function testNamedCredentialProviderCanBeGivenAsString(): void
+    {
+        $credentials = (new QueueSqsConnectorStub)->resolveCredentials([
+            'credentials' => 'ecs',
+        ]);
+
+        $this->assertInstanceOf(Closure::class, $credentials);
+        $this->assertInstanceOf(
+            EcsCredentialProvider::class,
+            (new ReflectionFunction($credentials))->getClosureUsedVariables()['provider'],
+        );
+    }
+
     public function testInvalidNamedCredentialProviderFailsDescriptively(): void
     {
         $this->expectException(InvalidArgumentException::class);
