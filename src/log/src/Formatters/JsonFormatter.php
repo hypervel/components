@@ -12,6 +12,9 @@ use Throwable;
 
 class JsonFormatter extends MonologJsonFormatter
 {
+    /**
+     * Normalize the given exception, including its context.
+     */
     #[Override]
     protected function normalizeException(Throwable $e, int $depth = 0): array
     {
@@ -26,9 +29,9 @@ class JsonFormatter extends MonologJsonFormatter
         // Active reports already carry this context at record level; rebuilding it can re-enter user callbacks.
         if (! method_exists($handler, 'isReporting') || ! $handler->isReporting($e)) {
             if (method_exists($handler, 'buildContextForException')
-                && is_array($context = $this->normalize($handler->buildContextForException($e), $depth + 1))
+                && is_array($normalizedHandlerExceptionContext = $this->normalize($handler->buildContextForException($e), $depth + 1))
             ) {
-                $response = array_replace($context, $response);
+                $response = array_replace($normalizedHandlerExceptionContext, $response);
             } elseif (method_exists($e, 'context')) {
                 $response = array_replace($this->getExceptionContext($e, $depth), $response);
             }
@@ -49,11 +52,11 @@ class JsonFormatter extends MonologJsonFormatter
         }
 
         try {
-            $context = $this->normalize($e->context(), $depth + 1);
+            $exceptionContext = $this->normalize($e->context(), $depth + 1);
         } catch (Throwable) {
             return [];
         }
 
-        return is_array($context) ? $context : [];
+        return is_array($exceptionContext) ? $exceptionContext : [];
     }
 }
