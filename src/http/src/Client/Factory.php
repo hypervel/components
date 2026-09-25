@@ -381,6 +381,8 @@ class Factory
      *
      * Tests only. The stub persists on the factory for the worker lifetime
      * and affects every subsequently created pending request.
+     *
+     * @throws InvalidArgumentException
      */
     public function stubUrl(string $url, array|callable|int|PromiseInterface|Response|string $callback): static
     {
