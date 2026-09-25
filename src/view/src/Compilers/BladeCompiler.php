@@ -297,8 +297,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
             // If there are any footer lines that need to get added to a template we will
             // add them here at the end of the template. This gets used mainly for the
             // template inheritance via the extends keyword that should be appended.
-            $footers = CoroutineContext::get(static::FOOTER_CONTEXT_KEY, []);
-            if (count($footers) > 0) {
+            if (CoroutineContext::get(static::FOOTER_CONTEXT_KEY, []) !== []) {
                 $result = $this->addFooters($result);
             }
 
