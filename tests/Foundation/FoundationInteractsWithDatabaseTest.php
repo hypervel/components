@@ -231,6 +231,22 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         ]);
     }
 
+    public function testAssertSoftDeletedSupportsModelWithArrays(): void
+    {
+        $builder = m::mock(Builder::class);
+        $builder->expects('where')->with(['title' => 'Spark', 'id' => 1])->andReturnSelf();
+        $builder->expects('where')->with(['name' => 'Hypervel', 'id' => 1])->andReturnSelf();
+        $builder->expects('whereNotNull')->with('trashed_at')->twice()->andReturnSelf();
+        $builder->expects('exists')->twice()->andReturnTrue();
+
+        $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
+
+        $this->assertSoftDeleted(new CustomProductStub(['id' => 1]), [
+            ['title' => 'Spark'],
+            ['name' => 'Hypervel'],
+        ]);
+    }
+
     public function testAssertNotSoftDeletedSupportsArrays(): void
     {
         $builder = m::mock(Builder::class);
@@ -244,6 +260,22 @@ class FoundationInteractsWithDatabaseTest extends TestCase
         $this->assertNotSoftDeleted($this->table, [
             ['title' => 'Spark', 'name' => 'Hypervel'],
             ['title' => 'Forge', 'name' => 'Hypervel'],
+        ]);
+    }
+
+    public function testAssertNotSoftDeletedSupportsModelWithArrays(): void
+    {
+        $builder = m::mock(Builder::class);
+        $builder->expects('where')->with(['title' => 'Spark', 'id' => 1])->andReturnSelf();
+        $builder->expects('where')->with(['name' => 'Hypervel', 'id' => 1])->andReturnSelf();
+        $builder->expects('whereNull')->with('trashed_at')->twice()->andReturnSelf();
+        $builder->expects('exists')->twice()->andReturnTrue();
+
+        $this->connection->shouldReceive('table')->with($this->table)->andReturn($builder);
+
+        $this->assertNotSoftDeleted(new CustomProductStub(['id' => 1]), [
+            ['title' => 'Spark'],
+            ['name' => 'Hypervel'],
         ]);
     }
 
