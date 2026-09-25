@@ -505,22 +505,6 @@ class HandleExceptionsTest extends TestCase
         }
     }
 
-    public function testDeprecationErrorsAreIgnoredWhenAppIsNull(): void
-    {
-        HandleExceptions::flushState($this);
-
-        $handleExceptions = new HandleExceptions;
-        $method = new ReflectionMethod($handleExceptions, 'shouldIgnoreDeprecationErrors');
-
-        $this->assertTrue($method->invoke($handleExceptions));
-
-        $handleExceptions->handleDeprecationError(
-            'Deprecated behavior',
-            __FILE__,
-            __LINE__,
-        );
-    }
-
     public function testIgnoresDeprecationsUntilConfigurationIsBound(): void
     {
         $this->app = m::mock(Application::class);
@@ -645,6 +629,23 @@ class HandleExceptionsTest extends TestCase
 
         $this->assertNotSame($this->app, $appResolver());
         $this->assertSame($newApp, $appResolver());
+    }
+
+    public function testDeprecationErrorsAreIgnoredWhenAppIsNull(): void
+    {
+        $instance = $this->handleExceptions();
+
+        HandleExceptions::flushState($this);
+
+        $this->assertTrue((new ReflectionMethod($instance, 'shouldIgnoreDeprecationErrors'))->invoke($instance));
+
+        // Should not throw when static::$app is null.
+        $instance->handleError(
+            E_USER_DEPRECATED,
+            'Directly setting property "request" of "Hypervel\Http\Request" is deprecated',
+            '/vendor/symfony/http-foundation/Request.php',
+            100
+        );
     }
 
     public function testReleaseRestoresThePreviousOwnerAndDisarmsTheReleasedBootstrapper(): void
