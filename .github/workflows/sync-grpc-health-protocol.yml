@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   synchronize:
+    if: github.repository == 'hypervel/components'
     runs-on: ubuntu-latest
     timeout-minutes: 15
 

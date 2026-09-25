@@ -11,7 +11,9 @@ permissions:
 
 jobs:
   synchronize:
+    if: github.repository == 'hypervel/components'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     container:
       image: ghcr.io/hypervel/components-ci:php8.4-swoole6.2.2
