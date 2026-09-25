@@ -52,11 +52,17 @@ use Throwable;
 
 class ServerTest extends TestCase
 {
+    /**
+     * Mark the worker as started inside the test coroutine.
+     */
     protected function setUpInCoroutine(): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
     }
 
+    /**
+     * Clear the worker coordinators before the test coroutine exits.
+     */
     protected function tearDownInCoroutine(): void
     {
         CoordinatorManager::clear(Constants::WORKER_START);
@@ -543,6 +549,9 @@ class ServerTest extends TestCase
 
 readonly class ServerEnvironment
 {
+    /**
+     * Create a new server environment instance.
+     */
     public function __construct(
         public Server $server,
         public GrpcRouter $router,
@@ -584,6 +593,9 @@ class RecordingServerGrpcOperationObserver implements GrpcOperationObserver
     /** @var list<array{GrpcOperation, mixed, GrpcOperationResult}> */
     public array $finished = [];
 
+    /**
+     * Start observing a logical gRPC operation.
+     */
     public function starting(GrpcOperation $operation): int
     {
         $this->started[] = $operation;
@@ -591,6 +603,9 @@ class RecordingServerGrpcOperationObserver implements GrpcOperationObserver
         return count($this->started);
     }
 
+    /**
+     * Finish observing a logical gRPC operation.
+     */
     public function finished(
         GrpcOperation $operation,
         mixed $token,
@@ -602,6 +617,9 @@ class RecordingServerGrpcOperationObserver implements GrpcOperationObserver
 
 class MutatesGrpcResponse
 {
+    /**
+     * Handle an incoming request.
+     */
     public function handle(Request $request, Closure $next): mixed
     {
         $response = $next($request);
@@ -619,25 +637,56 @@ class RecordingExceptionHandler implements ExceptionHandler
     /** @var list<Throwable> */
     public array $reported = [];
 
+    /**
+     * Report or log an exception.
+     */
     public function report(Throwable $e): void
     {
         $this->reported[] = $e;
     }
 
+    /**
+     * Determine if the exception should be reported.
+     */
     public function shouldReport(Throwable $e): bool
     {
         return true;
     }
 
+    /**
+     * Render an exception into an HTTP response.
+     */
     public function render(Request $request, Throwable $e): SymfonyResponse
     {
         return new SymfonyResponse('', 500);
     }
 
+    /**
+     * Render an exception to the console.
+     */
     public function renderForConsole(OutputInterface $output, Throwable $e): void
     {
     }
 
+    /**
+     * Determine if a given exception is being reported.
+     */
+    public function isReporting(Throwable $e): bool
+    {
+        return false;
+    }
+
+    /**
+     * Create the context for an exception.
+     */
+    public function buildContextForException(Throwable $e): array
+    {
+        return [];
+    }
+
+    /**
+     * Register a callback to be called after an HTTP error response is rendered.
+     */
     public function afterResponse(callable $callback): void
     {
     }

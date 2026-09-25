@@ -2481,28 +2481,62 @@ class BrokenQueueConnection implements Queue
 
 class ShouldntRetryExceptionHandler implements ExceptionHandlerContract
 {
+    /**
+     * Report or log an exception.
+     */
     public function report(Throwable $e): void
     {
     }
 
+    /**
+     * Determine if the exception should be reported.
+     */
     public function shouldReport(Throwable $e): bool
     {
         return true;
     }
 
+    /**
+     * Render an exception into an HTTP response.
+     */
     public function render(Request $request, Throwable $e): Response
     {
         return new Response;
     }
 
+    /**
+     * Render an exception to the console.
+     */
     public function renderForConsole(OutputInterface $output, Throwable $e): void
     {
     }
 
+    /**
+     * Determine if a given exception is being reported.
+     */
+    public function isReporting(Throwable $e): bool
+    {
+        return true;
+    }
+
+    /**
+     * Create the context for an exception.
+     */
+    public function buildContextForException(Throwable $e): array
+    {
+        return [];
+    }
+
+    /**
+     * Register a callback to be called after an HTTP error response is rendered.
+     */
     public function afterResponse(callable $callback): void
     {
     }
 
+    /**
+     * Determine if jobs should stop retrying for the given exception.
+     */
     public function shouldStopRetries(Throwable $e): bool
     {
         return true;
