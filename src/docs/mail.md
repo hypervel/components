@@ -1124,6 +1124,20 @@ Mail::to($request->user())
     ->later(now()->plus(minutes: 10), new OrderShipped($order));
 ```
 
+You may also configure a queued mailable's default delay in seconds using the `Delay` attribute:
+
+```php
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Mail\Mailable;
+use Hypervel\Queue\Attributes\Delay;
+
+#[Delay(30)]
+class OrderShipped extends Mailable implements ShouldQueue
+{
+    // ...
+}
+```
+
 <a name="pushing-to-specific-queues"></a>
 #### Pushing to Specific Queues
 
