@@ -651,13 +651,16 @@ class HandleExceptionsTest extends TestCase
         $previousErrorHandler = get_error_handler();
         $previousExceptionHandler = get_exception_handler();
         $errorReporting = error_reporting();
+        $displayErrors = ini_get('display_errors');
 
         $first = new RecordingHandleExceptions;
         $second = new RecordingHandleExceptions;
         $firstApp = $this->bootstrappableApplication();
-        $secondApp = $this->bootstrappableApplication();
+        $secondApp = $this->bootstrappableApplication(testing: false);
 
         try {
+            ini_set('display_errors', 'stderr');
+
             $first->bootstrap($firstApp);
             $second->bootstrap($secondApp);
 
@@ -670,9 +673,11 @@ class HandleExceptionsTest extends TestCase
 
             $this->assertSame($errorHandler, get_error_handler());
             $this->assertSame($exceptionHandler, get_exception_handler());
+            $this->assertSame('Off', ini_get('display_errors'));
 
             HandleExceptions::release($secondApp);
 
+            $this->assertSame('stderr', ini_get('display_errors'));
             $this->assertSame($this->installedHandler($first, 'errorHandler'), get_error_handler());
             $this->assertSame($this->installedHandler($first, 'exceptionHandler'), get_exception_handler());
 
@@ -700,44 +705,51 @@ class HandleExceptionsTest extends TestCase
         } finally {
             $this->restoreHandlers($previousErrorHandler, $previousExceptionHandler);
             error_reporting($errorReporting);
+            ini_set('display_errors', $displayErrors);
         }
     }
 
-    public function testReleaseLeavesHandlersInstalledAfterTheApplication(): void
+    public function testReleaseLeavesHandlersAndSettingsChangedAfterTheApplication(): void
     {
         $previousErrorHandler = get_error_handler();
         $previousExceptionHandler = get_exception_handler();
         $errorReporting = error_reporting();
+        $displayErrors = ini_get('display_errors');
 
         $bootstrapper = new RecordingHandleExceptions;
-        $app = $this->bootstrappableApplication();
+        $app = $this->bootstrappableApplication(testing: false);
         $laterErrorHandler = static fn (): bool => true;
 
         try {
+            ini_set('display_errors', 'stderr');
+
             $bootstrapper->bootstrap($app);
 
             $errorHandler = get_error_handler();
 
             set_error_handler($laterErrorHandler);
+            ini_set('display_errors', '1');
 
             HandleExceptions::release($app);
 
             $this->assertSame($laterErrorHandler, get_error_handler());
             $this->assertSame($previousExceptionHandler, get_exception_handler());
+            $this->assertSame('1', ini_get('display_errors'));
             $this->assertFalse($errorHandler(E_USER_WARNING, 'Released handler.', __FILE__, __LINE__));
         } finally {
             $this->restoreHandlers($previousErrorHandler, $previousExceptionHandler);
             error_reporting($errorReporting);
+            ini_set('display_errors', $displayErrors);
         }
     }
 
     /**
      * Create an application mock that the bootstrapper can install its handlers for.
      */
-    protected function bootstrappableApplication(): Application
+    protected function bootstrappableApplication(bool $testing = true): Application
     {
-        return tap(m::mock(Application::class), function (Application $app): void {
-            $app->allows('environment')->with('testing')->andReturnTrue();
+        return tap(m::mock(Application::class), function (Application $app) use ($testing): void {
+            $app->allows('environment')->with('testing')->andReturn($testing);
         });
     }
 

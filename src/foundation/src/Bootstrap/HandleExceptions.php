@@ -63,6 +63,11 @@ class HandleExceptions
     protected ?Closure $exceptionHandler = null;
 
     /**
+     * The display_errors setting this bootstrapper replaced when it installed its handlers.
+     */
+    protected ?string $displayErrors = null;
+
+    /**
      * Bootstrap the given application.
      */
     public function bootstrap(Application $app): void
@@ -70,9 +75,12 @@ class HandleExceptions
         static::$reservedMemory = str_repeat('x', 32768);
 
         // Bootstrapping an application again, as env:encrypt does, keeps the handlers it already installed.
-        if (static::$owner === null || static::$app !== $app) {
+        $installsHandlers = static::$owner === null || static::$app !== $app;
+
+        if ($installsHandlers) {
             $this->previous = static::$owner;
             $this->application = WeakReference::create($app);
+            $this->displayErrors = null;
 
             static::$owner = $this;
             static::$app = $app;
@@ -87,6 +95,10 @@ class HandleExceptions
         error_reporting(-1);
 
         if (! $app->environment('testing')) {
+            if ($installsHandlers) {
+                $this->displayErrors = ini_get('display_errors');
+            }
+
             ini_set('display_errors', 'Off');
         }
     }
@@ -313,9 +325,10 @@ class HandleExceptions
     /**
      * Release the handlers installed for an application that is being discarded.
      *
-     * Boot or tests only. Restores the handlers and application that were active
-     * before the application was bootstrapped, so later errors are not handled
-     * through its flushed container. Handlers installed by other code stay in place.
+     * Boot or tests only. Restores the handlers, display_errors setting and
+     * application that were active before the application was bootstrapped, so
+     * later errors are reported without its flushed container. Handlers and
+     * settings changed by other code stay in place.
      */
     public static function release(Application $app): void
     {
@@ -331,6 +344,10 @@ class HandleExceptions
 
         if (get_error_handler() === $owner->errorHandler) {
             restore_error_handler();
+        }
+
+        if ($owner->displayErrors !== null && ini_get('display_errors') === 'Off') {
+            ini_set('display_errors', $owner->displayErrors);
         }
 
         static::$owner = $owner->previous;

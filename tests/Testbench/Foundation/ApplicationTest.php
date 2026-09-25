@@ -19,6 +19,7 @@ use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Testbench\Fixtures\BootstrapFileApplication;
 use Hypervel\Tests\Testbench\Fixtures\Providers\FailingBootServiceProvider;
 use Override;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 use Symfony\Component\Process\Process;
@@ -228,19 +229,38 @@ class ApplicationTest extends TestCase
         }
     }
 
+    /**
+     * @param list<string> $iniSettings
+     */
     #[Test]
-    public function itReportsAnUncaughtBootFailureWithoutTheFlushedApplication(): void
+    #[DataProvider('errorReportingSettings')]
+    public function itReportsAnUncaughtBootFailureWithoutTheFlushedApplication(array $iniSettings): void
     {
         $process = new Process(
-            [php_binary(), package_path('tests/Testbench/Fixtures/failing-standalone-boot.php')],
+            [php_binary(), ...$iniSettings, package_path('tests/Testbench/Fixtures/failing-standalone-boot.php')],
             cwd: package_path(),
         );
 
         $process->run();
 
+        $output = $process->getOutput() . $process->getErrorOutput();
+
         $this->assertSame(255, $process->getExitCode());
-        $this->assertStringContainsString('The failing boot fixture failed.', $process->getErrorOutput());
-        $this->assertStringNotContainsString('BindingResolutionException', $process->getErrorOutput() . $process->getOutput());
+        $this->assertSame(1, substr_count($output, 'The failing boot fixture failed.'));
+        $this->assertStringNotContainsString('BindingResolutionException', $output);
+    }
+
+    /**
+     * Get PHP settings that report errors through the log or the display.
+     *
+     * @return array<string, array{list<string>}>
+     */
+    public static function errorReportingSettings(): array
+    {
+        return [
+            'logged' => [['-d', 'log_errors=1', '-d', 'error_log=', '-d', 'display_errors=0']],
+            'displayed' => [['-d', 'log_errors=0', '-d', 'display_errors=stderr']],
+        ];
     }
 
     #[Test]
