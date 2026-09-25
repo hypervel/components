@@ -107,11 +107,7 @@ class HandleCors
      */
     protected function getPathsByHost(string $host, array $paths): array
     {
-        if (isset($paths[$host])) {
-            return $paths[$host];
-        }
-
-        return array_filter($paths, function ($path) {
+        return $paths[$host] ?? array_filter($paths, function ($path) {
             return is_string($path);
         });
     }
