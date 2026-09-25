@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 15
 
     container:
-      image: phpswoole/swoole:6.2.0-php8.4
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.2.2
 
     steps:
       - name: Install system dependencies
@@ -31,9 +31,6 @@ jobs:
 
       - name: Trust checkout directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      - name: Setup PHP extensions
-        uses: ./.github/actions/setup-php
 
       - name: Install protoc
         run: bin/grpc-health-protoc.sh install /usr/local/bin/protoc
