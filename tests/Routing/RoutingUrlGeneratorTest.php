@@ -182,6 +182,9 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         $this->assertSame('/foo', $url->route('foo', [], false));
     }
 
+    /**
+     * Provide request base URLs containing special characters.
+     */
     public static function requestBaseUrlWithSpecialCharactersProvider(): array
     {
         return [
@@ -635,6 +638,9 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         $this->assertSame('http://www.foo.com:8080/foo?test=123', $url->route('foo', $parameters));
     }
 
+    /**
+     * Provide route parameters with and without empty optional values.
+     */
     public static function providerRouteParameters()
     {
         return [
@@ -1277,11 +1283,19 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
     public function testSignedUrlWithArraySignatureReturnsFalseWithoutWarning(): void
     {
         $url = new UrlGenerator(
-            new RouteCollection,
+            $routes = new RouteCollection,
             Request::create('http://www.foo.com/')
         );
-        $url->setKeyResolver(fn () => 'secret');
+        $url->setKeyResolver(function () {
+            return 'secret';
+        });
 
+        $route = new Route(['GET'], 'foo', ['as' => 'foo', function () {
+        }]);
+        $routes->add($route);
+
+        // ?signature[]=foo&signature[]=bar previously raised an
+        // "Array to string conversion" warning.
         $request = Request::create('http://www.foo.com/foo?signature[]=foo&signature[]=bar');
 
         set_error_handler(static function (int $errorNumber, string $errorMessage) {
@@ -2826,21 +2840,33 @@ class RoutableInterfaceStub implements UrlRoutable
 
     public string $slug = 'test-slug';
 
+    /**
+     * Get the value of the model's route key.
+     */
     public function getRouteKey(): mixed
     {
         return $this->{$this->getRouteKeyName()};
     }
 
+    /**
+     * Get the route key for the model.
+     */
     public function getRouteKeyName(): string
     {
         return 'key';
     }
 
+    /**
+     * Retrieve the model for a bound value.
+     */
     public function resolveRouteBinding(mixed $value, ?string $field = null): ?Model
     {
         return null;
     }
 
+    /**
+     * Retrieve the child model for a bound value.
+     */
     public function resolveChildRouteBinding(string $childType, mixed $value, ?string $field = null): ?Model
     {
         return null;
@@ -2849,6 +2875,9 @@ class RoutableInterfaceStub implements UrlRoutable
 
 class InvokableActionStub
 {
+    /**
+     * Invoke the action.
+     */
     public function __invoke(): string
     {
         return 'hello';
