@@ -1928,6 +1928,11 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
      * Temporarily disables phpredis serialization and compression on the raw
      * connection for operations that require raw integer values (e.g., rate
      * limiter counters), then restores the original settings.
+     *
+     * @template TReturn
+     *
+     * @param callable(): TReturn $callback
+     * @return TReturn
      */
     public function withoutSerializationOrCompression(callable $callback): mixed
     {
