@@ -571,7 +571,7 @@ class NotificationSenderTest extends TestCase
         $sender->sendNow($notifiable, new DummyNotificationWithViaMutation);
     }
 
-    public function testOnQueueOverridesQueueAttribute(): void
+    public function testItQueueOverridesQueueAttribute(): void
     {
         $notification = new #[Queue('attribute-queue')] class extends Notification implements ShouldQueue {
             use Queueable;
@@ -603,7 +603,7 @@ class NotificationSenderTest extends TestCase
         $sender->send($notifiable, $notification);
     }
 
-    public function testQueueAttributeIsUsedWhenOnQueueIsNotCalled(): void
+    public function testItQueueAttributeIsUsedWhenOnQueueIsNotCalled(): void
     {
         $notification = new #[Queue('attribute-queue')] class extends Notification implements ShouldQueue {
             use Queueable;
@@ -633,7 +633,7 @@ class NotificationSenderTest extends TestCase
         $sender->send($notifiable, $notification);
     }
 
-    public function testConstructorQueueOverrideTakesPrecedenceOverQueueAttribute(): void
+    public function testItConstructorOverrideTakesPrecedenceOverQueueAttribute(): void
     {
         $notification = new #[Queue('attribute-queue')] class extends Notification implements ShouldQueue {
             use Queueable;
