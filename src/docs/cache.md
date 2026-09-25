@@ -177,7 +177,7 @@ php artisan cache:redis-doctor
 <a name="storage"></a>
 #### Storage
 
-The `storage` cache driver allows you to store cached values on any configured [filesystem disk](/docs/{{version}}/filesystem). This can be useful when you want to use an existing disk, such as an S3 disk, as a key / value cache store:
+The `storage` cache driver allows you to store cached values on any of your application's configured [filesystem disks](/docs/{{version}}/filesystem). This can be useful when you want to use an existing disk, such as an S3 disk, as a key / value cache store:
 
 ```php
 'storage' => [

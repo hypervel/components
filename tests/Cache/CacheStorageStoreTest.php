@@ -258,18 +258,7 @@ class CacheStorageStoreTest extends TestCase
         $this->assertSame('bar', $store->get('foo'));
     }
 
-    public function testForgetRemovesFlexibleCreatedKeyWhenParentIsMissing(): void
-    {
-        $disk = new ArrayFilesystem;
-        $store = new StorageStore($disk, 'cache');
-
-        $store->put(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'foo', true, 60);
-
-        $this->assertTrue($store->forget('foo'));
-        $this->assertFalse($disk->exists($store->path(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'foo')));
-    }
-
-    public function testForgetPreservesFlexibleCreatedKeyWhenParentDeletionFails(): void
+    public function testForgetRemovesFlexibleCreatedKeyOnlyWhenParentIsForgotten(): void
     {
         $disk = new ArrayFilesystem;
         $store = new StorageStore($disk, 'cache');
@@ -281,6 +270,23 @@ class CacheStorageStoreTest extends TestCase
         $this->assertFalse($store->forget('foo'));
         $this->assertTrue($disk->exists($store->path('foo')));
         $this->assertTrue($disk->exists($store->path(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'foo')));
+
+        $disk->deleteResult = true;
+
+        $this->assertTrue($store->forget('foo'));
+        $this->assertFalse($disk->exists($store->path('foo')));
+        $this->assertFalse($disk->exists($store->path(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'foo')));
+    }
+
+    public function testForgetRemovesFlexibleCreatedKeyWhenParentIsMissing(): void
+    {
+        $disk = new ArrayFilesystem;
+        $store = new StorageStore($disk, 'cache');
+
+        $store->put(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'foo', true, 60);
+
+        $this->assertTrue($store->forget('foo'));
+        $this->assertFalse($disk->exists($store->path(Repository::FLEXIBLE_CREATED_KEY_PREFIX . 'foo')));
     }
 
     public function testFlushRemovesScopedDirectory(): void
