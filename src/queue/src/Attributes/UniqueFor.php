@@ -11,6 +11,8 @@ readonly class UniqueFor
 {
     /**
      * Create a new attribute instance.
+     *
+     * @param int $uniqueFor seconds to consider the queueable unique for
      */
     public function __construct(
         public int $uniqueFor,
