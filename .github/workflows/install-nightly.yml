@@ -1,0 +1,46 @@
+name: install-nightly
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    if: github.repository == 'hypervel/components'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    container:
+      image: ghcr.io/hypervel/components-ci:php8.4-swoole6.2.2
+
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch }}
+
+      # Composer infers the component packages' 0.4.x-dev version from the checked-out branch.
+      - name: Trust checkout directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Create a Hypervel application
+        run: composer create-project hypervel/hypervel app 0.4.x-dev --no-install --no-scripts --no-interaction
+
+      - name: Use the checked-out components
+        working-directory: app
+        run: |
+          composer config repositories.components '{"type": "path", "url": "../src/*", "options": {"symlink": false}}'
+          composer require hypervel/framework:0.4.x-dev --no-update --no-interaction
+
+      - name: Install dependencies
+        working-directory: app
+        run: composer update --with-all-dependencies --no-interaction --no-progress
+
+      - name: Boot the application
+        working-directory: app
+        run: php artisan about
