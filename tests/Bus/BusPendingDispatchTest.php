@@ -60,41 +60,6 @@ class BusPendingDispatchTest extends TestCase
         $this->pendingDispatch->onQueue('test-queue');
     }
 
-    public function testConditionableCanConfigurePendingDispatch(): void
-    {
-        $this->job->expects('onQueue')->with('conditional-queue');
-
-        $this->pendingDispatch->when(true, fn (PendingDispatch $pendingDispatch): PendingDispatch => $pendingDispatch->onQueue('conditional-queue'));
-    }
-
-    public function testWhenMethodOfConditionableTraitWithTrue(): void
-    {
-        $this->job->expects('delay')->with(300);
-
-        $this->pendingDispatch->when(true, fn (PendingDispatch $pendingDispatch): PendingDispatch => $pendingDispatch->delay(300));
-    }
-
-    public function testWhenMethodOfConditionableTraitWithFalse(): void
-    {
-        $this->job->shouldReceive('delay')->never();
-
-        $this->pendingDispatch->when(false, fn (PendingDispatch $pendingDispatch): PendingDispatch => $pendingDispatch->delay(300));
-    }
-
-    public function testUnlessMethodOfConditionableTraitWithTrue(): void
-    {
-        $this->job->shouldReceive('delay')->never();
-
-        $this->pendingDispatch->unless(true, fn (PendingDispatch $pendingDispatch): PendingDispatch => $pendingDispatch->delay(300));
-    }
-
-    public function testUnlessMethodOfConditionableTraitWithFalse(): void
-    {
-        $this->job->expects('delay')->with(300);
-
-        $this->pendingDispatch->unless(false, fn (PendingDispatch $pendingDispatch): PendingDispatch => $pendingDispatch->delay(300));
-    }
-
     public function testOnGroup(): void
     {
         $this->job->expects('onGroup')->with('test-group');
@@ -282,6 +247,34 @@ class BusPendingDispatchTest extends TestCase
         $newJob = m::mock(stdClass::class);
         $this->job->expects('appendToChain')->with($newJob);
         $this->pendingDispatch->appendToChain($newJob);
+    }
+
+    public function testWhenMethodOfConditionableTraitWithTrue(): void
+    {
+        $this->job->expects('delay')->with(300);
+
+        $this->pendingDispatch->when(true, fn (PendingDispatch $pendingDispatch): PendingDispatch => $pendingDispatch->delay(300));
+    }
+
+    public function testWhenMethodOfConditionableTraitWithFalse(): void
+    {
+        $this->job->shouldReceive('delay')->never();
+
+        $this->pendingDispatch->when(false, fn (PendingDispatch $pendingDispatch): PendingDispatch => $pendingDispatch->delay(300));
+    }
+
+    public function testUnlessMethodOfConditionableTraitWithTrue(): void
+    {
+        $this->job->shouldReceive('delay')->never();
+
+        $this->pendingDispatch->unless(true, fn (PendingDispatch $pendingDispatch): PendingDispatch => $pendingDispatch->delay(300));
+    }
+
+    public function testUnlessMethodOfConditionableTraitWithFalse(): void
+    {
+        $this->job->expects('delay')->with(300);
+
+        $this->pendingDispatch->unless(false, fn (PendingDispatch $pendingDispatch): PendingDispatch => $pendingDispatch->delay(300));
     }
 }
 
