@@ -217,6 +217,29 @@ class AuthPasswordBrokerManagerTest extends TestCase
     }
 
     #[DataProvider('backedBrokerNames')]
+    public function testBrokerCanResolveBackedEnum(BackedEnum $name, string $expected): void
+    {
+        $broker = m::mock(PasswordBrokerContract::class);
+        $manager = new AuthPasswordBrokerManagerStub(new Container);
+        $manager->resolvedBroker = $broker;
+
+        $this->assertSame($broker, $manager->broker($name));
+        $this->assertSame($broker, $manager->broker($expected));
+        $this->assertSame([$expected], $manager->resolvedNames);
+    }
+
+    /**
+     * Provide backed enum broker names.
+     */
+    public static function backedBrokerNames(): array
+    {
+        return [
+            'string backed' => [AuthPasswordBrokerStringEnum::Users, 'users'],
+            'integer backed zero' => [AuthPasswordBrokerIntEnum::Zero, '0'],
+        ];
+    }
+
+    #[DataProvider('backedBrokerNames')]
     public function testSetDefaultDriverAcceptsBackedEnum(BackedEnum $name, string $expected): void
     {
         $manager = new PasswordBrokerManager(new Container);
@@ -475,29 +498,6 @@ class AuthPasswordBrokerManagerTest extends TestCase
         $this->expectExceptionMessage('Password resetter driver [unknown] is not defined.');
 
         (new PasswordBrokerManager($container))->broker('users');
-    }
-
-    #[DataProvider('backedBrokerNames')]
-    public function testBrokerNormalizesEnumsBeforeCaching(BackedEnum $name, string $expected): void
-    {
-        $broker = m::mock(PasswordBrokerContract::class);
-        $manager = new AuthPasswordBrokerManagerStub(new Container);
-        $manager->resolvedBroker = $broker;
-
-        $this->assertSame($broker, $manager->broker($name));
-        $this->assertSame($broker, $manager->broker($expected));
-        $this->assertSame([$expected], $manager->resolvedNames);
-    }
-
-    /**
-     * Provide backed enum broker names.
-     */
-    public static function backedBrokerNames(): array
-    {
-        return [
-            'string backed' => [AuthPasswordBrokerStringEnum::Users, 'users'],
-            'integer backed zero' => [AuthPasswordBrokerIntEnum::Zero, '0'],
-        ];
     }
 
     public function testRefreshingDispatcherUpdatesOnlyConcreteResolvedBrokers(): void
