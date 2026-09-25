@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Bootstrap;
 
 use Closure;
 use ErrorException;
+use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Log\LogManager;
@@ -141,10 +142,12 @@ class HandleExceptions
             return;
         }
 
-        // Invalid configuration must remain visible even when reporting failures are ignored.
-        $this->ensureDeprecationLoggerIsConfigured();
+        $config = static::$app->make('config');
 
-        $trace = static::$app->make('config')->boolean('logging.deprecations.trace', false);
+        // Invalid configuration must remain visible even when reporting failures are ignored.
+        $this->ensureDeprecationLoggerIsConfigured($config);
+
+        $trace = $config->boolean('logging.deprecations.trace', false);
 
         try {
             with($logger->channel('deprecations'), function (LoggerInterface $log) use ($message, $file, $line, $level, $trace): void {
@@ -182,17 +185,15 @@ class HandleExceptions
     /**
      * Ensure the "deprecations" logger is configured.
      */
-    protected function ensureDeprecationLoggerIsConfigured(): void
+    protected function ensureDeprecationLoggerIsConfigured(ConfigRepository $config): void
     {
-        $config = static::$app->make('config');
-
         if ($config->get('logging.channels.deprecations')) {
             return;
         }
 
         $options = $config->array('logging.deprecations');
 
-        $this->ensureNullLogDriverIsConfigured();
+        $this->ensureNullLogDriverIsConfigured($config);
 
         // A declared null channel deliberately selects the null logger.
         $driver = $options['channel'] ?? 'null';
@@ -203,10 +204,8 @@ class HandleExceptions
     /**
      * Ensure the "null" log driver is configured.
      */
-    protected function ensureNullLogDriverIsConfigured(): void
+    protected function ensureNullLogDriverIsConfigured(ConfigRepository $config): void
     {
-        $config = static::$app->make('config');
-
         if ($config->get('logging.channels.null')) {
             return;
         }

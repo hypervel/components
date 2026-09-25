@@ -47,7 +47,7 @@ class DeprecatedExceptionTest extends TestCase
         ]);
 
         (new ReflectionMethod(HandleExceptions::class, 'ensureDeprecationLoggerIsConfigured'))
-            ->invoke(new HandleExceptions);
+            ->invoke(new HandleExceptions, $this->app->make('config'));
 
         $this->assertSame(config()->array('logging.channels.null'), config()->array('logging.channels.deprecations'));
         $this->assertSame('deprecations', config()->string('logging.deprecations.channel'));
@@ -66,7 +66,7 @@ class DeprecatedExceptionTest extends TestCase
         ]);
 
         (new ReflectionMethod(HandleExceptions::class, 'ensureDeprecationLoggerIsConfigured'))
-            ->invoke(new HandleExceptions);
+            ->invoke(new HandleExceptions, $this->app->make('config'));
 
         $this->assertSame(config()->array('logging.channels.null'), config()->array('logging.channels.deprecations'));
         $this->assertSame('deprecations', config()->string('logging.deprecations.channel'));

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Bootstrap;
 
+use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Log\LogManager;
 use Hypervel\Testbench\Exceptions\DeprecatedException;
 use Hypervel\Testbench\Foundation\Env;
@@ -37,10 +38,8 @@ final class HandleExceptions extends \Hypervel\Foundation\Bootstrap\HandleExcept
     }
 
     #[Override]
-    protected function ensureDeprecationLoggerIsConfigured(): void
+    protected function ensureDeprecationLoggerIsConfigured(ConfigRepository $config): void
     {
-        $config = self::$app->make('config');
-
         if ($config->get('logging.channels.deprecations')) {
             return;
         }
