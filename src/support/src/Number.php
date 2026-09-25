@@ -113,6 +113,18 @@ class Number
     }
 
     /**
+     * Convert the given number to ordinal form.
+     */
+    public static function ordinal(float|int $number, ?string $locale = null): false|string
+    {
+        static::ensureIntlExtensionIsInstalled();
+
+        $formatter = new NumberFormatter($locale ?? static::defaultLocale(), NumberFormatter::ORDINAL);
+
+        return $formatter->format($number);
+    }
+
+    /**
      * Spell out the given number in the given locale in ordinal form.
      */
     public static function spellOrdinal(float|int $number, ?string $locale = null): false|string
@@ -122,18 +134,6 @@ class Number
         $formatter = new NumberFormatter($locale ?? static::defaultLocale(), NumberFormatter::SPELLOUT);
 
         $formatter->setTextAttribute(NumberFormatter::DEFAULT_RULESET, '%spellout-ordinal');
-
-        return $formatter->format($number);
-    }
-
-    /**
-     * Convert the given number to ordinal form.
-     */
-    public static function ordinal(float|int $number, ?string $locale = null): false|string
-    {
-        static::ensureIntlExtensionIsInstalled();
-
-        $formatter = new NumberFormatter($locale ?? static::defaultLocale(), NumberFormatter::ORDINAL);
 
         return $formatter->format($number);
     }
