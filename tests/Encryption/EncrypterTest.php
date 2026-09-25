@@ -65,7 +65,7 @@ class EncrypterTest extends TestCase
         $this->assertSame('foo', $new->decryptString($encrypted));
     }
 
-    public function testItValidatesEveryMacBeforeDecryptingWithTheFirstValidKey(): void
+    public function testItDecryptsUsingTheFirstMacValidatedKey(): void
     {
         $currentKey = str_repeat('a', 16);
         $validPreviousKey = str_repeat('b', 16);
