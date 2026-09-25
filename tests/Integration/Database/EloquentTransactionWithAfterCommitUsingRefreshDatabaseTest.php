@@ -13,6 +13,9 @@ class EloquentTransactionWithAfterCommitUsingRefreshDatabaseTest extends TestCas
     use EloquentTransactionWithAfterCommitTests;
     use RefreshDatabase;
 
+    /**
+     * The current database driver.
+     */
     protected string $driver;
 
     protected function afterRefreshingDatabase(): void
