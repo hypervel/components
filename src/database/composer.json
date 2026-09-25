@@ -29,7 +29,7 @@
         "ext-filter": "*",
         "ext-pdo": "*",
         "ext-swoole": "^6.2.2",
-        "brick/math": "^0.17",
+        "brick/math": "^0.17 || ^0.18 || ^0.19",
         "hypervel/broadcasting": "^0.4",
         "hypervel/collections": "^0.4",
         "hypervel/conditionable": "^0.4",
