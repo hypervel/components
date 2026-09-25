@@ -757,9 +757,9 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     /**
      * Delete all of the jobs from the queue.
      */
-    public function clear(UnitEnum|string|null $queue): int
+    public function clear(UnitEnum|string|null $queue = null): int
     {
-        return tap($this->size($queue), function () use ($queue) {
+        return tap($this->size($queue), function () use ($queue): void {
             $this->sqs->purgeQueue([
                 'QueueUrl' => $this->getQueue($queue),
             ]);

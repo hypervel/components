@@ -194,6 +194,20 @@ class QueuePoolProxyTest extends TestCase
         $this->assertSame(1, $pool->getIdleCount());
     }
 
+    public function testClearWithoutQueueClearsTheDefaultQueue(): void
+    {
+        $queue = new QueuePoolProxyTestClearableQueue;
+        $queue->lastClearedQueue = 'previous';
+        [$proxy] = $this->proxy(
+            fn (): QueuePoolProxyTestClearableQueue => $queue,
+            proxyClass: ClearableQueuePoolProxy::class,
+        );
+
+        /** @var ClearableQueuePoolProxy $proxy */
+        $this->assertSame(3, $proxy->clear());
+        $this->assertNull($queue->lastClearedQueue);
+    }
+
     public function testNullPopReleasesImmediately(): void
     {
         [$proxy, $pools] = $this->proxy(fn () => new QueuePoolProxyTestQueue);
@@ -699,7 +713,10 @@ class QueuePoolProxyTestClearableQueue extends QueuePoolProxyTestQueue implement
 {
     public UnitEnum|string|null $lastClearedQueue = null;
 
-    public function clear(UnitEnum|string|null $queue): int
+    /**
+     * Record the cleared queue and return a fixed job count.
+     */
+    public function clear(UnitEnum|string|null $queue = null): int
     {
         $this->lastClearedQueue = $queue;
 
