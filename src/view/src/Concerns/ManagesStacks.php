@@ -164,11 +164,11 @@ trait ManagesStacks
         $output = '';
 
         if (isset($prepends[$section])) {
-            $output .= implode(array_reverse($prepends[$section]));
+            $output .= implode('', array_reverse($prepends[$section]));
         }
 
         if (isset($pushes[$section])) {
-            $output .= implode($pushes[$section]);
+            $output .= implode('', $pushes[$section]);
         }
 
         return $output;

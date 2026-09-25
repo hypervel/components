@@ -1276,7 +1276,7 @@ class Str
      */
     public static function reverse(string $value): string
     {
-        return implode(array_reverse(mb_str_split($value)));
+        return implode('', array_reverse(mb_str_split($value)));
     }
 
     /**
@@ -1575,7 +1575,7 @@ class Str
 
         $studlyWords = array_map(fn ($word) => static::ucfirst($word), $words);
 
-        return implode($studlyWords);
+        return implode('', $studlyWords);
     }
 
     /**
