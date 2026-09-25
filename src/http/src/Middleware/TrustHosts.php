@@ -109,7 +109,7 @@ class TrustHosts
      */
     public static function at(array|callable $hosts, bool $subdomains = true): void
     {
-        static::$alwaysTrust = is_array($hosts) ? $hosts : $hosts(...);
+        static::$alwaysTrust = is_callable($hosts) ? $hosts(...) : $hosts;
         static::$subdomains = $subdomains;
     }
 

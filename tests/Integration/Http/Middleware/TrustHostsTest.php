@@ -65,6 +65,15 @@ class TrustHostsTest extends TestCase
             ->assertContent('example.com');
     }
 
+    public function testMiddlewareConfigurationAcceptsArrayTrustedHostCallbacks(): void
+    {
+        (new Middleware)->trustHosts(at: [new TrustedHostsResolver, 'apiHosts'], subdomains: false);
+
+        $this->call('GET', 'http://api.example.com/host')
+            ->assertOk()
+            ->assertContent('api.example.com');
+    }
+
     public function testRequestAwareResolverUsesVerifiedHostPatterns(): void
     {
         $verifiedHosts = [
@@ -171,5 +180,15 @@ class TrustedHostsResolver
     public function __invoke(): array
     {
         return ['^example\.com$'];
+    }
+
+    /**
+     * Get the trusted API host patterns.
+     *
+     * @return array<int, string>
+     */
+    public function apiHosts(): array
+    {
+        return ['^api\.example\.com$'];
     }
 }
