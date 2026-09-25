@@ -10,6 +10,7 @@ use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\DatabaseQueue;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
+use Hypervel\Queue\Queue;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
@@ -236,6 +237,19 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
         CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestampUTC('1002.000000'));
 
         $this->assertNotNull($queue->pop('fractional'));
+    }
+
+    public function testCustomPayloadIsExposedOnInspectedJob(): void
+    {
+        Queue::createPayloadUsing(function (string $connection, ?string $queue, array $payload): array {
+            return ['context' => ['tenant' => 'acme']];
+        });
+
+        $this->queue->push('MyJob', []);
+
+        $job = $this->queue->pendingJobs()->first();
+
+        $this->assertSame(['tenant' => 'acme'], $job->payload['context']);
     }
 
     public function testJobPayloadIsAvailableOnEvents(): void
