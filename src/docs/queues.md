@@ -2860,6 +2860,23 @@ php artisan queue:work --force
 
 Daemon queue workers do not "reboot" the framework before processing each job. Therefore, you should release any heavy resources after each job completes. For example, if you are doing image manipulation with the [GD library](https://www.php.net/manual/en/book.image.php), you should free the memory with `imagedestroy` when you are done processing the image.
 
+<a name="lost-database-connections"></a>
+#### Lost Database Connections
+
+When a queue worker detects a lost database connection while fetching or processing a job, it stops so that your process manager can start a fresh worker. If your jobs use several database connections, such as read replicas, you may prefer to keep the worker running when one of them briefly drops. To do so, set the static `$stopOnLostConnection` property on the `Hypervel\Queue\Worker` class to `false` in the `boot` method of your `AppServiceProvider`:
+
+```php
+use Hypervel\Queue\Worker;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    Worker::$stopOnLostConnection = false;
+}
+```
+
 <a name="queue-priorities"></a>
 ### Queue Priorities
 

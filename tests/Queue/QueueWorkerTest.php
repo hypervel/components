@@ -1664,17 +1664,15 @@ class QueueWorkerTest extends TestCase
 
         Worker::$stopOnLostConnection = false;
 
-        try {
-            $status = $worker->daemon('default', 'queue', $workerOptions);
-        } finally {
-            Worker::$stopOnLostConnection = true;
-        }
+        $status = $worker->daemon('default', 'queue', $workerOptions);
 
         $this->assertSame(Worker::EXIT_SUCCESS, $status);
         $this->assertTrue($job->fired);
         $this->assertFalse($worker->lostConnection);
         $this->events->shouldHaveReceived('dispatch')->with(m::on(
             static fn (object $event): bool => $event instanceof WorkerStopping
+                && $event->status === Worker::EXIT_SUCCESS
+                && $event->workerOptions === $workerOptions
                 && $event->reason === WorkerStopReason::QueueEmpty
         ))->once();
     }
