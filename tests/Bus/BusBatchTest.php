@@ -286,7 +286,7 @@ class BusBatchTest extends TestCase
         $batch->recordSuccessfulJob('test-id');
     }
 
-    public function testBatchStartedEventIsDispatchedOnceWhenTheFirstJobSucceeds(): void
+    public function testBatchStartedEventIsDispatched(): void
     {
         $events = m::mock(EventDispatcher::class);
         $this->app->instance(EventDispatcher::class, $events);
@@ -294,7 +294,7 @@ class BusBatchTest extends TestCase
         $queue = m::mock(Factory::class);
         $batch = $this->createTestBatch($queue);
 
-        $firstJob = new class {
+        $job = new class {
             use Batchable;
         };
 
@@ -309,20 +309,25 @@ class BusBatchTest extends TestCase
 
         $connection->expects('bulk');
 
-        $batch = $batch->add([$firstJob, $secondJob]);
+        $batch = $batch->add([$job, $secondJob]);
 
         $events->expects('hasListeners')->with(BatchStarted::class)->andReturnTrue();
+
         $events->expects('dispatch')->with(m::on(function (object $event) use ($batch): bool {
             return $event instanceof BatchStarted && $event->batch === $batch;
         }));
+
         $events->expects('hasListeners')->with(BatchFinished::class)->andReturnTrue();
-        $events->expects('dispatch')->with(m::type(BatchFinished::class));
+
+        $events->expects('dispatch')->with(m::on(function (object $event): bool {
+            return $event instanceof BatchFinished;
+        }));
 
         $batch->recordSuccessfulJob('test-id-1');
         $batch->recordSuccessfulJob('test-id-2');
     }
 
-    public function testBatchStartedEventIsDispatchedOnceWhenTheFirstJobFails(): void
+    public function testBatchStartedEventIsDispatchedWhenFirstJobFails(): void
     {
         $events = m::mock(EventDispatcher::class);
         $this->app->instance(EventDispatcher::class, $events);
@@ -330,7 +335,7 @@ class BusBatchTest extends TestCase
         $queue = m::mock(Factory::class);
         $batch = $this->createTestBatch($queue, $allowFailures = true);
 
-        $firstJob = new class {
+        $job = new class {
             use Batchable;
         };
 
@@ -345,9 +350,10 @@ class BusBatchTest extends TestCase
 
         $connection->expects('bulk');
 
-        $batch = $batch->add([$firstJob, $secondJob]);
+        $batch = $batch->add([$job, $secondJob]);
 
         $events->expects('hasListeners')->with(BatchStarted::class)->andReturnTrue();
+
         $events->expects('dispatch')->with(m::on(function (object $event) use ($batch): bool {
             return $event instanceof BatchStarted && $event->batch === $batch;
         }));
