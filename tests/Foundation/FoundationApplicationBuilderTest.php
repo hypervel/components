@@ -19,6 +19,9 @@ use ReflectionClass;
 
 class FoundationApplicationBuilderTest extends TestCase
 {
+    /**
+     * Clean up the test environment.
+     */
     protected function tearDown(): void
     {
         unset($_ENV['HYPERVEL_STORAGE_PATH'], $_SERVER['HYPERVEL_STORAGE_PATH']);
@@ -211,8 +214,11 @@ class FoundationApplicationBuilderTest extends TestCase
     {
         $app->singleton(HttpKernelContract::class, HttpKernel::class);
 
-        // The builder registers its wiring inside booted callbacks. Invoking them
-        // directly keeps this unit test from booting the full provider chain.
+        // The builder registers its wiring inside $app->booted() callbacks.
+        // We can't call $app->boot() from a unit test — it runs the full
+        // provider chain which expects a real application — so invoke the
+        // booted callbacks directly. Real boot behavior is covered by the
+        // PrefersJson integration tests.
         $property = (new ReflectionClass(Application::class))->getProperty('bootedCallbacks');
 
         foreach ($property->getValue($app) as $callback) {

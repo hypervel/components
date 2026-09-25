@@ -67,6 +67,11 @@ class RequirePassword
         $guard = $this->auth->getDefaultDriver();
         $confirmedAt = Date::now()->unix() - $request->session()->get(PasswordConfirmation::sessionKey($guard), 0);
 
+        // using() writes a null timeout as an empty middleware parameter.
+        if ($passwordTimeoutSeconds === '') {
+            $passwordTimeoutSeconds = null;
+        }
+
         return $confirmedAt > PasswordConfirmation::timeout($this->config, $guard, $passwordTimeoutSeconds);
     }
 }
