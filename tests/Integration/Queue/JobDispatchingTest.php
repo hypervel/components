@@ -12,6 +12,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Log\Context\Repository as ContextRepository;
+use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Queue\InteractsWithQueue;
@@ -366,6 +367,56 @@ class JobDispatchingTest extends QueueTestCase
         $this->assertTrue(Job::$ran);
     }
 
+    public function testQueueAttributeWithEnumNormalizesToStringInJobQueuedEvent(): void
+    {
+        Config::set('queue.default', 'database');
+        $events = [];
+        $dispatcher = $this->app->make('events');
+
+        $dispatcher->listen(function (JobQueueing $e) use (&$events): void {
+            $events[] = $e;
+        });
+        $dispatcher->listen(function (JobQueued $e) use (&$events): void {
+            $events[] = $e;
+        });
+
+        JobWithEnumQueueAttribute::dispatch();
+
+        $this->assertCount(2, $events);
+        $this->assertInstanceOf(JobQueueing::class, $events[0]);
+        $this->assertSame('default', $events[0]->queue);
+        $this->assertInstanceOf(JobQueued::class, $events[1]);
+        $this->assertSame('default', $events[1]->queue);
+    }
+
+    public function testQueueAttributeOnTraitIsResolved(): void
+    {
+        Config::set('queue.default', 'database');
+        $events = [];
+        $this->app->make('events')->listen(function (JobQueued $e) use (&$events): void {
+            $events[] = $e;
+        });
+
+        JobWithTraitQueueAttribute::dispatch();
+
+        $this->assertCount(1, $events);
+        $this->assertSame('notifications', $events[0]->queue);
+    }
+
+    public function testClassQueueAttributeTakesPrecedenceOverTrait(): void
+    {
+        Config::set('queue.default', 'database');
+        $events = [];
+        $this->app->make('events')->listen(function (JobQueued $e) use (&$events): void {
+            $events[] = $e;
+        });
+
+        JobWithClassQueueAttributeOverridingTrait::dispatch();
+
+        $this->assertCount(1, $events);
+        $this->assertSame('high', $events[0]->queue);
+    }
+
     /**
      * Helpers.
      */
@@ -435,4 +486,33 @@ class UniqueJob extends Job implements ShouldBeUnique
 class MyTestDispatchableJob implements ShouldQueue
 {
     use Dispatchable;
+}
+
+enum JobDispatchingTestQueueEnum: string
+{
+    case Default = 'default';
+}
+
+#[QueueAttribute(JobDispatchingTestQueueEnum::Default)]
+class JobWithEnumQueueAttribute implements ShouldQueue
+{
+    use Dispatchable;
+}
+
+#[QueueAttribute('notifications')]
+trait JobDispatchingTestQueueTrait
+{
+}
+
+class JobWithTraitQueueAttribute implements ShouldQueue
+{
+    use Dispatchable;
+    use JobDispatchingTestQueueTrait;
+}
+
+#[QueueAttribute('high')]
+class JobWithClassQueueAttributeOverridingTrait implements ShouldQueue
+{
+    use Dispatchable;
+    use JobDispatchingTestQueueTrait;
 }
