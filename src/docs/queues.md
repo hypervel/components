@@ -165,6 +165,18 @@ Hypervel uses a complete `key` and `secret` pair when both are configured, inclu
 
 The optional `credentials` setting takes precedence and may contain an AWS credential value or a supported `ecs` or `instance` provider. If you supply callable or object credentials, set `pool.fingerprint` because these values cannot form an automatic pool identity. The optional `version` setting defaults to `latest`. Within the optional `http` array, `timeout` and `connect_timeout` each default to 60 seconds, and additional AWS SDK HTTP options are preserved.
 
+When credentials come from the `ecs` or `instance` provider or from the AWS SDK's default credential chain, you may enable the optional `credential_cache` setting so that the processes and pooled connections on the same host or container share the credentials they fetch, instead of each fetching its own copy:
+
+```php
+'credential_cache' => [
+    'enabled' => true,
+    'store' => null,
+    'fallback_store' => 'file',
+],
+```
+
+A `null` store uses your default cache store, and the optional `fallback_store` is tried when the primary store is unavailable. Credentials are only shared between processes that use the same cache store, so a store local to one process, such as `array`, shares nothing. When the store supports [atomic locks](/docs/{{version}}/cache#atomic-locks), one process refreshes expiring credentials while the others wait for the result, although a lock timeout or an expired lock can still lead to an extra fetch. Cache failures never prevent a connection from fetching its credentials directly. Static `key` and `secret` values and custom credential values, such as arrays, objects, and callables, are never cached.
+
 `min_retained_objects` is an idle-trimming floor and does not eagerly connect. `max_objects` should be at least the maximum number of jobs a worker may process concurrently: a popped SQS or Beanstalkd job keeps its connection leased until `delete()`, `release()`, or `bury()` finishes. Backend failures discard the leased connection so a potentially desynchronized client is never returned to the pool.
 
 Automatic identities are sufficient for scalar and array connector configuration. Use `pool.name` for an explicit readable identity and `pool.fingerprint` when custom connector input contains an object, closure, or resource. Reusing an explicit name with a different driver, fingerprint, or normalized options fails immediately.

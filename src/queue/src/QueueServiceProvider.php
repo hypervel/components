@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
+use Aws\Credentials\Credentials;
+use Hypervel\Cache\CacheManager;
+use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Database\ModelIdentifier;
 use Hypervel\Contracts\Debug\ExceptionHandler;
@@ -74,6 +77,25 @@ class QueueServiceProvider extends ServiceProvider
         ]);
 
         $this->registerLaravelInteropAliases();
+    }
+
+    /**
+     * Bootstrap the service provider.
+     */
+    public function boot(CacheManager $cache, ConfigRepository $config): void
+    {
+        // Cached SQS credentials are stored as AWS SDK credential objects.
+        $cache->allowSerializableClassesUsing(function () use ($config): array {
+            foreach ($config->array('queue.connections') as $connection) {
+                // Matches SqsConnector's normalization of the setting.
+                if (($connection['driver'] ?? null) === 'sqs'
+                    && (bool) ($connection['credential_cache']['enabled'] ?? false)) {
+                    return [Credentials::class];
+                }
+            }
+
+            return [];
+        });
     }
 
     /**
