@@ -651,7 +651,7 @@ foreach (Flight::where('destination', 'Zurich')->cursor() as $flight) {
 }
 ```
 
-The `cursor` returns an `Hypervel\Support\LazyCollection` instance. [Lazy collections](/docs/{{version}}/collections#lazy-collections) allow you to use many of the collection methods available on typical Hypervel collections while only loading a single model into memory at a time:
+The `cursor` returns a `Hypervel\Support\LazyCollection` instance. [Lazy collections](/docs/{{version}}/collections#lazy-collections) allow you to use many of the collection methods available on typical Hypervel collections while only loading a single model into memory at a time:
 
 ```php
 use App\Models\User;
@@ -735,7 +735,7 @@ $flight = Flight::where('legs', '>', 3)->firstOr(function () {
 <a name="not-found-exceptions"></a>
 #### Not Found Exceptions
 
-Sometimes you may wish to throw an exception if a model is not found. This is particularly useful in routes or controllers. The `findOrFail` and `firstOrFail` methods will retrieve the first result of the query; however, if no result is found, an `Hypervel\Database\Eloquent\ModelNotFoundException` will be thrown:
+Sometimes you may wish to throw an exception if a model is not found. This is particularly useful in routes or controllers. The `findOrFail` and `firstOrFail` methods will retrieve the first result of the query; however, if no result is found, a `Hypervel\Database\Eloquent\ModelNotFoundException` will be thrown:
 
 ```php
 $flight = Flight::findOrFail(1);

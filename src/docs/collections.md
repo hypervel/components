@@ -1149,7 +1149,7 @@ collect([1, 2, 3, 4])->first();
 <a name="method-first-or-fail"></a>
 #### `firstOrFail()` {.collection-method}
 
-The `firstOrFail` method is identical to the `first` method; however, if no result is found, an `Hypervel\Support\ItemNotFoundException` exception will be thrown:
+The `firstOrFail` method is identical to the `first` method; however, if no result is found, a `Hypervel\Support\ItemNotFoundException` exception will be thrown:
 
 ```php
 collect([1, 2, 3, 4])->firstOrFail(function (int $value, int $key) {
@@ -1159,7 +1159,7 @@ collect([1, 2, 3, 4])->firstOrFail(function (int $value, int $key) {
 // Throws ItemNotFoundException...
 ```
 
-You may also call the `firstOrFail` method with no arguments to get the first element in the collection. If the collection is empty, an `Hypervel\Support\ItemNotFoundException` exception will be thrown:
+You may also call the `firstOrFail` method with no arguments to get the first element in the collection. If the collection is empty, a `Hypervel\Support\ItemNotFoundException` exception will be thrown:
 
 ```php
 collect([])->firstOrFail();
@@ -3099,7 +3099,7 @@ $collection->sole();
 // ['product' => 'Desk', 'price' => 200]
 ```
 
-If there are no elements in the collection that should be returned by the `sole` method, an `\Hypervel\Support\ItemNotFoundException` exception will be thrown. If there is more than one element that should be returned, an `\Hypervel\Support\MultipleItemsFoundException` will be thrown.
+If there are no elements in the collection that should be returned by the `sole` method, a `\Hypervel\Support\ItemNotFoundException` exception will be thrown. If there is more than one element that should be returned, a `\Hypervel\Support\MultipleItemsFoundException` will be thrown.
 
 <a name="method-some"></a>
 #### `some()` {.collection-method}

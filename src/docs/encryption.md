@@ -77,7 +77,7 @@ class DigitalOceanTokenController extends Controller
 <a name="decrypting-a-value"></a>
 #### Decrypting a Value
 
-You may decrypt values using the `decryptString` method provided by the `Crypt` facade. If the value cannot be properly decrypted, such as when the encrypted payload cannot be authenticated, an `Hypervel\Contracts\Encryption\DecryptException` will be thrown:
+You may decrypt values using the `decryptString` method provided by the `Crypt` facade. If the value cannot be properly decrypted, such as when the encrypted payload cannot be authenticated, a `Hypervel\Contracts\Encryption\DecryptException` will be thrown:
 
 ```php
 use Hypervel\Contracts\Encryption\DecryptException;

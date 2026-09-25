@@ -695,7 +695,7 @@ Schedule::command('emails:send')
     });
 ```
 
-If output is available from your command, you may access it in your `after`, `onSuccess` or `onFailure` hooks by type-hinting an `Hypervel\Support\Stringable` instance as the `$output` argument of your hook's closure definition:
+If output is available from your command, you may access it in your `after`, `onSuccess` or `onFailure` hooks by type-hinting a `Hypervel\Support\Stringable` instance as the `$output` argument of your hook's closure definition:
 
 ```php
 use Hypervel\Support\Stringable;

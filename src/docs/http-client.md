@@ -1091,7 +1091,7 @@ Http::fake([
 <a name="faking-connection-exceptions"></a>
 #### Faking Exceptions
 
-Sometimes you may need to test your application's behavior if the HTTP client encounters an `Hypervel\Http\Client\ConnectionException` when attempting to make a request. You can instruct the HTTP client to throw a connection exception using the `failedConnection` method:
+Sometimes you may need to test your application's behavior if the HTTP client encounters a `Hypervel\Http\Client\ConnectionException` when attempting to make a request. You can instruct the HTTP client to throw a connection exception using the `failedConnection` method:
 
 ```php
 Http::fake([
@@ -1182,7 +1182,7 @@ When faking responses, you may occasionally wish to inspect the requests the cli
 
 If a test makes real requests, call `Http::record()` before sending them to enable the same request assertions without faking their responses.
 
-The `assertSent` method accepts a closure which will receive an `Hypervel\Http\Client\Request` instance and should return a boolean value indicating if the request matches your expectations. In order for the test to pass, at least one request must have been issued matching the given expectations:
+The `assertSent` method accepts a closure which will receive a `Hypervel\Http\Client\Request` instance and should return a boolean value indicating if the request matches your expectations. In order for the test to pass, at least one request must have been issued matching the given expectations:
 
 ```php
 use Hypervel\Http\Client\Request;

@@ -1169,7 +1169,7 @@ $array = Arr::shuffle([1, 2, 3, 4, 5]);
 <a name="method-array-sole"></a>
 #### `Arr::sole()` {.collection-method}
 
-The `Arr::sole` method retrieves a single value from an array using the given closure. If more than one value within the array matches the given truth test, an `Hypervel\Support\MultipleItemsFoundException` exception will be thrown. If no values match the truth test, an `Hypervel\Support\ItemNotFoundException` exception will be thrown:
+The `Arr::sole` method retrieves a single value from an array using the given closure. If more than one value within the array matches the given truth test, a `Hypervel\Support\MultipleItemsFoundException` exception will be thrown. If no values match the truth test, a `Hypervel\Support\ItemNotFoundException` exception will be thrown:
 
 ```php
 use Hypervel\Support\Arr;
@@ -2354,7 +2354,7 @@ $url = url('user/profile');
 $url = url('user/profile', [1]);
 ```
 
-If no path is provided, an `Hypervel\Routing\UrlGenerator` instance is returned:
+If no path is provided, a `Hypervel\Routing\UrlGenerator` instance is returned:
 
 ```php
 $current = url()->current();
