@@ -1004,7 +1004,7 @@ class Deserializer
     {
         if (++$this->nodes > static::MAX_NODES) {
             throw new InvalidArgumentException(
-                'JSON Schema reconstruction exceeded the maximum expansion of ' . static::MAX_NODES . ' schema fragments.'
+                'The JSON Schema is too large to deserialize; it expands beyond [' . static::MAX_NODES . '] fragments.'
             );
         }
     }

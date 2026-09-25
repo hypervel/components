@@ -858,7 +858,7 @@ class DeserializerTest extends TestCase
     public function testReferenceFollowsConsumeTheTotalExpansionBudget(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('JSON Schema reconstruction exceeded the maximum expansion of 1 schema fragments.');
+        $this->expectExceptionMessage('The JSON Schema is too large to deserialize; it expands beyond [1] fragments.');
 
         JsonSchemaNodeLimitedDeserializer::deserialize([
             '$ref' => '#/$defs/value',
