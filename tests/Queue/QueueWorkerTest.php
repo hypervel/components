@@ -288,12 +288,8 @@ class QueueWorkerTest extends TestCase
 
         Worker::$reportJobExceptions = false;
 
-        try {
-            $worker = $this->getWorker('default', ['queue' => [$job]]);
-            $worker->runNextJob('default', 'queue', new WorkerOptions);
-        } finally {
-            Worker::$reportJobExceptions = true;
-        }
+        $worker = $this->getWorker('default', ['queue' => [$job]]);
+        $worker->runNextJob('default', 'queue', new WorkerOptions);
 
         $this->exceptionHandler->shouldNotHaveReceived('report');
         $this->assertTrue($job->hasFailed());
@@ -1260,12 +1256,8 @@ class QueueWorkerTest extends TestCase
 
         Worker::$reportJobExceptions = false;
 
-        try {
-            $worker = $this->getWorker('default', ['queue' => [$job]]);
-            $worker->runNextJob('default', 'queue', $this->workerOptions(['backoff' => 10]));
-        } finally {
-            Worker::$reportJobExceptions = true;
-        }
+        $worker = $this->getWorker('default', ['queue' => [$job]]);
+        $worker->runNextJob('default', 'queue', $this->workerOptions(['backoff' => 10]));
 
         $this->exceptionHandler->shouldNotHaveReceived('report');
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobExceptionOccurred::class))->once();
