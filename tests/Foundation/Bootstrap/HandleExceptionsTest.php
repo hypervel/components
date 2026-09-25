@@ -25,6 +25,7 @@ use ReflectionMethod;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Output\StreamOutput;
+use Throwable;
 
 class HandleExceptionsTest extends TestCase
 {
@@ -657,6 +658,7 @@ class HandleExceptionsTest extends TestCase
         $second = new RecordingHandleExceptions;
         $firstApp = $this->bootstrappableApplication();
         $secondApp = $this->bootstrappableApplication(testing: false);
+        $laterErrorHandler = static fn (): bool => true;
 
         try {
             ini_set('display_errors', 'stderr');
@@ -675,22 +677,27 @@ class HandleExceptionsTest extends TestCase
             $this->assertSame($exceptionHandler, get_exception_handler());
             $this->assertSame('Off', ini_get('display_errors'));
 
+            set_error_handler($laterErrorHandler);
+
             HandleExceptions::release($secondApp);
 
             $this->assertSame('stderr', ini_get('display_errors'));
-            $this->assertSame($this->installedHandler($first, 'errorHandler'), get_error_handler());
+            $this->assertSame($laterErrorHandler, get_error_handler());
             $this->assertSame($this->installedHandler($first, 'exceptionHandler'), get_exception_handler());
 
-            $exception = new RuntimeException('Released handler.');
+            // Removing the later handler exposes the released error handler, which defers to the restored owner.
+            restore_error_handler();
 
-            try {
-                $exceptionHandler($exception);
-                $this->fail('Expected the released exception handler to rethrow the exception.');
-            } catch (RuntimeException $caught) {
-                $this->assertSame($exception, $caught);
-            }
+            $this->assertSame($errorHandler, get_error_handler());
 
-            $this->assertFalse($errorHandler(E_USER_WARNING, 'Released handler.', __FILE__, __LINE__));
+            get_error_handler()(E_USER_WARNING, 'Retained handler.', __FILE__, __LINE__);
+
+            $this->assertSame(['Retained handler.'], $first->errors);
+            $this->assertSame([], $second->errors);
+
+            restore_error_handler();
+
+            $this->assertSame($this->installedHandler($first, 'errorHandler'), get_error_handler());
 
             $this->shutdownForwarder($second)();
             $this->shutdownForwarder($first)();
@@ -702,6 +709,19 @@ class HandleExceptionsTest extends TestCase
 
             $this->assertSame($previousErrorHandler, get_error_handler());
             $this->assertSame($previousExceptionHandler, get_exception_handler());
+
+            // Without an owner, released handlers leave errors and exceptions to PHP.
+            $exception = new RuntimeException('Released handler.');
+
+            try {
+                $exceptionHandler($exception);
+                $this->fail('Expected the released exception handler to rethrow the exception.');
+            } catch (RuntimeException $caught) {
+                $this->assertSame($exception, $caught);
+            }
+
+            $this->assertFalse($errorHandler(E_USER_WARNING, 'Released handler.', __FILE__, __LINE__));
+            $this->assertSame([], $first->exceptions);
         } finally {
             $this->restoreHandlers($previousErrorHandler, $previousExceptionHandler);
             error_reporting($errorReporting);
@@ -716,26 +736,42 @@ class HandleExceptionsTest extends TestCase
         $errorReporting = error_reporting();
         $displayErrors = ini_get('display_errors');
 
-        $bootstrapper = new RecordingHandleExceptions;
-        $app = $this->bootstrappableApplication(testing: false);
-        $laterErrorHandler = static fn (): bool => true;
+        $owner = new RecordingHandleExceptions;
+        $released = new RecordingHandleExceptions;
+        $ownerApp = $this->bootstrappableApplication();
+        $releasedApp = $this->bootstrappableApplication(testing: false);
+        $laterExceptionHandler = static function (Throwable $exception): void {};
 
         try {
             ini_set('display_errors', 'stderr');
 
-            $bootstrapper->bootstrap($app);
+            $owner->bootstrap($ownerApp);
+            $released->bootstrap($releasedApp);
 
-            $errorHandler = get_error_handler();
+            $exceptionHandler = get_exception_handler();
 
-            set_error_handler($laterErrorHandler);
+            set_exception_handler($laterExceptionHandler);
             ini_set('display_errors', '1');
 
-            HandleExceptions::release($app);
+            HandleExceptions::release($releasedApp);
 
-            $this->assertSame($laterErrorHandler, get_error_handler());
-            $this->assertSame($previousExceptionHandler, get_exception_handler());
+            $this->assertSame($laterExceptionHandler, get_exception_handler());
+            $this->assertSame($this->installedHandler($owner, 'errorHandler'), get_error_handler());
             $this->assertSame('1', ini_get('display_errors'));
-            $this->assertFalse($errorHandler(E_USER_WARNING, 'Released handler.', __FILE__, __LINE__));
+
+            // Removing the later handler exposes the released exception handler, which defers to the restored owner.
+            restore_exception_handler();
+
+            $this->assertSame($exceptionHandler, get_exception_handler());
+
+            $exception = new RuntimeException('Retained handler.');
+
+            get_exception_handler()($exception);
+
+            $this->assertSame([$exception], $owner->exceptions);
+            $this->assertSame([], $released->exceptions);
+
+            HandleExceptions::release($ownerApp);
         } finally {
             $this->restoreHandlers($previousErrorHandler, $previousExceptionHandler);
             error_reporting($errorReporting);
@@ -791,9 +827,39 @@ class CustomNullHandler extends NullHandler
 class RecordingHandleExceptions extends HandleExceptions
 {
     /**
+     * The error messages this bootstrapper handled.
+     *
+     * @var list<string>
+     */
+    public array $errors = [];
+
+    /**
+     * The exceptions this bootstrapper handled.
+     *
+     * @var list<Throwable>
+     */
+    public array $exceptions = [];
+
+    /**
      * The number of shutdowns this bootstrapper handled.
      */
     public int $shutdowns = 0;
+
+    /**
+     * Record a PHP error.
+     */
+    public function handleError(int $level, string $message, string $file = '', int $line = 0): void
+    {
+        $this->errors[] = $message;
+    }
+
+    /**
+     * Record an uncaught exception.
+     */
+    public function handleException(Throwable $e): void
+    {
+        $this->exceptions[] = $e;
+    }
 
     /**
      * Record the PHP shutdown event.

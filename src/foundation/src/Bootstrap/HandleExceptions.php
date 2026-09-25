@@ -280,13 +280,20 @@ class HandleExceptions
     }
 
     /**
-     * Forward a method call to the given method while this bootstrapper owns the handlers.
+     * Forward a method call to the bootstrapper that currently owns the handlers.
+     *
+     * A released error or exception handler can return to the top of PHP's stack
+     * when a handler installed after it is removed, so it forwards to the current
+     * owner. Shutdown callbacks only run for their own owner, since the owner's
+     * callback is registered too. Without an owner, errors fall back to PHP.
      */
     protected function forwardsTo(string $method): Closure
     {
         return function (mixed ...$arguments) use ($method): mixed {
-            if (static::$owner === $this && static::$app !== null) {
-                return $this->{$method}(...$arguments);
+            $owner = static::$owner;
+
+            if ($owner !== null && static::$app !== null && ($owner === $this || $method !== 'handleShutdown')) {
+                return $owner->{$method}(...$arguments);
             }
 
             // An exception handler that returns false marks the exception handled and hides it.
