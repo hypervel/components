@@ -1316,8 +1316,12 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
             new RouteCollection,
             Request::create('http://www.foo.com/')
         );
-        $url->setKeyResolver(fn () => 'secret');
+        $url->setKeyResolver(function () {
+            return 'secret';
+        });
 
+        // ?expires[]=99999999999 is truthy but comparing timestamp > array is always
+        // false in PHP, so without the guard the URL would never appear expired.
         $query = 'expires[]=99999999999';
         $signature = hash_hmac('sha256', 'http://www.foo.com/foo?' . $query, 'secret');
         $request = Request::create('http://www.foo.com/foo?' . $query . '&signature=' . $signature);
