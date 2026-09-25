@@ -1284,6 +1284,8 @@ class QueueWorkerTest extends TestCase
 
     public function testJobIsNotReleasedIfItHasExpired(): void
     {
+        CarbonImmutable::setTestNow($now = CarbonImmutable::create(2026, 1, 1, 0, 0, 0));
+
         $e = new RuntimeException;
 
         $job = new WorkerFakeJob(function ($job) use ($e) {
@@ -1293,13 +1295,11 @@ class QueueWorkerTest extends TestCase
             throw $e;
         });
 
-        $job->retryUntil = now()->addSeconds(1)->getTimestamp();
+        $job->retryUntil = $now->addSecond()->getTimestamp();
 
         $job->attempts = 0;
 
-        CarbonImmutable::setTestNow(
-            CarbonImmutable::now()->addSeconds(1)
-        );
+        CarbonImmutable::setTestNow($now->addSecond());
 
         $worker = $this->getWorker('default', ['queue' => [$job]]);
         $worker->runNextJob('default', 'queue', $this->workerOptions());
