@@ -41,6 +41,13 @@ jobs:
         working-directory: app
         run: composer update --with-all-dependencies --no-interaction --no-progress
 
+      # create-project skipped these hooks so they run against the checked-out components.
+      - name: Initialize the application
+        working-directory: app
+        run: |
+          composer run-script post-root-package-install --no-interaction
+          composer run-script post-create-project-cmd --no-interaction
+
       - name: Boot the application
         working-directory: app
         run: php artisan about
