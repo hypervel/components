@@ -1005,6 +1005,21 @@ class QueueWorkerTest extends TestCase
         $this->assertFalse($worker->daemonShouldRunForTest($options, 'default', 'queue'));
     }
 
+    public function testForcedWorkerDoesNotCheckMaintenanceMode(): void
+    {
+        $events = m::mock(EventDispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(Looping::class)->andReturn(false);
+
+        $worker = new LoopAwareWorker(
+            new WorkerFakeManager('default', new WorkerFakeConnection('default', [])),
+            $events,
+            $this->exceptionHandler,
+            fn (): never => $this->fail('A forced worker should not check maintenance mode.'),
+        );
+
+        $this->assertTrue($worker->daemonShouldRunForTest(new WorkerOptions(force: true), 'default', 'queue'));
+    }
+
     public function testQueuePauseEventsTrackOnlyTheCurrentSelection(): void
     {
         $paused = ['emails'];

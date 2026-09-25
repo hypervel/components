@@ -605,7 +605,7 @@ class Worker
      */
     protected function daemonShouldRun(WorkerOptions $options, string $connectionName, string $queue): bool
     {
-        return ! ((($this->isDownForMaintenance)() && ! $options->force)
+        return ! ((! $options->force && ($this->isDownForMaintenance)())
             || $this->paused
             || ($this->events->hasListeners(Looping::class)
                 && $this->events->until(new Looping($connectionName, $queue, $options)) === false));
