@@ -19,9 +19,11 @@ final class Kernel extends ConsoleKernel
     /**
      * Report the exception to the exception handler.
      *
+     * @param array<array-key, mixed> $context
+     *
      * @throws Throwable
      */
-    protected function reportException(Throwable $e): void
+    protected function reportException(Throwable $e, array $context = []): void
     {
         throw $e;
     }

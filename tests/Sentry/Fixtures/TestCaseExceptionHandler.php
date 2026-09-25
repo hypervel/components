@@ -27,9 +27,11 @@ class TestCaseExceptionHandler implements ExceptionHandler
     /**
      * Report or log an exception.
      *
+     * @param array<array-key, mixed> $context
+     *
      * @throws Throwable
      */
-    public function report(Throwable $e): void
+    public function report(Throwable $e, array $context = []): void
     {
         Integration::captureUnhandledException($e);
 

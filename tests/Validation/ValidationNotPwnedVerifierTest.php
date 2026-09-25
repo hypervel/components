@@ -146,7 +146,7 @@ class ValidationNotPwnedVerifierTest extends TestCase
         $exception = new ConnectionException;
 
         $exceptionHandler = m::mock(ExceptionHandler::class);
-        $exceptionHandler->expects('report')->with($exception);
+        $exceptionHandler->expects('report')->with($exception, []);
         $this->app->singleton(ExceptionHandler::class, function () use ($exceptionHandler): ExceptionHandler {
             return $exceptionHandler;
         });

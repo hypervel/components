@@ -17,9 +17,11 @@ interface ExceptionHandler
     /**
      * Report or log an exception.
      *
+     * @param array<array-key, mixed> $context
+     *
      * @throws Throwable
      */
-    public function report(Throwable $e): void;
+    public function report(Throwable $e, array $context = []): void;
 
     /**
      * Determine if the exception should be reported.

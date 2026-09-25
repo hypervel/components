@@ -223,6 +223,9 @@ class Handler implements ExceptionHandlerContract
     /**
      * Register a reportable callback.
      *
+     * The callback receives exceptions matching its first parameter type, along with
+     * the exception's log context. Returning false stops further reporting.
+     *
      * Boot-only. The callback persists on the shared handler and affects exception
      * reporting for every subsequent request and job in the worker.
      */
@@ -455,9 +458,11 @@ class Handler implements ExceptionHandlerContract
     /**
      * Report or log an exception.
      *
+     * @param array<array-key, mixed> $context
+     *
      * @throws Throwable
      */
-    public function report(Throwable $e): void
+    public function report(Throwable $e, array $context = []): void
     {
         // Cancellation must not reach user-defined exception mappers.
         if ($e instanceof CanceledException) {
@@ -470,15 +475,17 @@ class Handler implements ExceptionHandlerContract
             return;
         }
 
-        $this->reportThrowable($e);
+        $this->reportThrowable($e, $context);
     }
 
     /**
      * Report error based on report method on exception or to logger.
      *
+     * @param array<array-key, mixed> $context
+     *
      * @throws Throwable
      */
-    protected function reportThrowable(Throwable $e): void
+    protected function reportThrowable(Throwable $e, array $context = []): void
     {
         if ($this->withoutDuplicates) {
             $this->reportedException($e);
@@ -490,8 +497,12 @@ class Handler implements ExceptionHandlerContract
             return;
         }
 
+        $context = $this->whileReporting($e, fn (): array => $this->buildExceptionContext($e, $context));
+
+        // Reportable callbacks run outside the reporting marker, so exceptions they log themselves
+        // still receive JsonFormatter enrichment and are not suppressed by OpenTelemetry's handler.
         foreach ($this->reportCallbacks as $reportCallback) {
-            if ($reportCallback->handles($e) && $reportCallback($e) === false) {
+            if ($reportCallback->handles($e) && $reportCallback($e, $context) === false) {
                 return;
             }
         }
@@ -506,6 +517,23 @@ class Handler implements ExceptionHandlerContract
 
         $level = $this->mapLogLevel($e);
 
+        $this->whileReporting($e, function () use ($logger, $level, $e, $context): void {
+            method_exists($logger, $level)
+                ? $logger->{$level}($e->getMessage(), $context)
+                : $logger->log($level, $e->getMessage(), $context);
+        });
+    }
+
+    /**
+     * Run the callback while the given exception is marked as being reported by this coroutine.
+     *
+     * @template TReturn
+     *
+     * @param Closure(): TReturn $callback
+     * @return TReturn
+     */
+    protected function whileReporting(Throwable $e, Closure $callback): mixed
+    {
         $hadPrevious = CoroutineContext::has(self::CURRENTLY_REPORTING_CONTEXT_KEY);
         $previous = CoroutineContext::get(self::CURRENTLY_REPORTING_CONTEXT_KEY);
 
@@ -515,11 +543,7 @@ class Handler implements ExceptionHandlerContract
         ]);
 
         try {
-            $context = $this->buildExceptionContext($e);
-
-            method_exists($logger, $level)
-                ? $logger->{$level}($e->getMessage(), $context)
-                : $logger->log($level, $e->getMessage(), $context);
+            return $callback();
         } finally {
             $hadPrevious
                 ? CoroutineContext::set(self::CURRENTLY_REPORTING_CONTEXT_KEY, $previous)
@@ -689,12 +713,15 @@ class Handler implements ExceptionHandlerContract
 
     /**
      * Create the context array for logging the given exception.
+     *
+     * @param array<array-key, mixed> $context
      */
-    protected function buildExceptionContext(Throwable $e): array
+    protected function buildExceptionContext(Throwable $e, array $context = []): array
     {
         return array_replace(
             $this->buildContextForException($e),
             $this->context(),
+            $context,
             ['exception' => $e]
         );
     }
@@ -748,6 +775,8 @@ class Handler implements ExceptionHandlerContract
      *
      * Boot-only. The closure persists on the shared handler and runs for every
      * subsequently logged exception in the worker.
+     *
+     * @param Closure(Throwable, array): array $contextCallback
      */
     public function buildContextUsing(Closure $contextCallback): static
     {

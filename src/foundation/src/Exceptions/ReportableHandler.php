@@ -33,10 +33,12 @@ class ReportableHandler
 
     /**
      * Invoke the handler.
+     *
+     * @param array<array-key, mixed> $context
      */
-    public function __invoke(Throwable $e): bool
+    public function __invoke(Throwable $e, array $context = []): bool
     {
-        $result = call_user_func($this->callback, $e);
+        $result = call_user_func($this->callback, $e, $context);
 
         if ($result === false) {
             return false;

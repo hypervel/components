@@ -157,7 +157,7 @@ class ImplicitRouteBindingTest extends RoutingTestCase
         $mock = m::mock(ExceptionHandler::class);
 
         if ($shouldReport) {
-            $mock->shouldReceive('report')->once()->with(m::type(InvalidValueException::class));
+            $mock->shouldReceive('report')->once()->with(m::type(InvalidValueException::class), []);
         } else {
             $mock->shouldReceive('report')->never();
         }
@@ -207,7 +207,7 @@ class ImplicitRouteBindingTest extends RoutingTestCase
     public function testItConvertsInvalidValueExceptionsFromNonModelBindings(): void
     {
         $mock = m::mock(ExceptionHandler::class);
-        $mock->shouldReceive('report')->once()->with(m::type(InvalidValueException::class));
+        $mock->shouldReceive('report')->once()->with(m::type(InvalidValueException::class), []);
 
         $container = Container::getInstance();
         $container->instance(ExceptionHandler::class, $mock);

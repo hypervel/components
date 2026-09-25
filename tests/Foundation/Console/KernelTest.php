@@ -73,7 +73,7 @@ class KernelTest extends TestCase
         $reportingFailure = new RuntimeException('Reporting failed');
 
         $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')->once()->with($original)->andThrow($reportingFailure);
+        $handler->shouldReceive('report')->once()->with($original, [])->andThrow($reportingFailure);
         $handler->shouldNotReceive('renderForConsole');
         $this->app->instance(ExceptionHandlerContract::class, $handler);
 
@@ -323,7 +323,7 @@ PHP);
         $exception = new RuntimeException('Test exception');
 
         $handler = m::mock(ExceptionHandlerContract::class);
-        $handler->shouldReceive('report')->once()->with($exception);
+        $handler->shouldReceive('report')->once()->with($exception, []);
         $this->app->instance(ExceptionHandlerContract::class, $handler);
 
         $kernel = new Kernel($this->app, $this->app->make('events'));
