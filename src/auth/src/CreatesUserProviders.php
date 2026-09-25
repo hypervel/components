@@ -55,7 +55,9 @@ trait CreatesUserProviders
             $guard = (string) enum_value($guard);
         }
 
-        $guard ??= $this->getDefaultDriver();
+        $guard = $guard === null || $guard === ''
+            ? $this->getDefaultDriver()
+            : $guard;
         $provider = $this->app->make('config')->get("auth.guards.{$guard}.provider");
 
         return is_string($provider) && $provider !== ''

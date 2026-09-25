@@ -365,6 +365,17 @@ class AuthPasswordBrokerManagerTest extends TestCase
         $this->assertInstanceOf(PasswordBrokerContract::class, (new PasswordBrokerManager($container))->broker('0'));
     }
 
+    public function testBrokerWithEmptyNameUsesDefaultDriver(): void
+    {
+        $broker = m::mock(PasswordBrokerContract::class);
+        $manager = new AuthPasswordBrokerManagerStub(new Container);
+        $manager->resolvedBroker = $broker;
+        $manager->setDefaultDriver('users');
+
+        $this->assertSame($broker, $manager->broker(''));
+        $this->assertSame(['users'], $manager->resolvedNames);
+    }
+
     public function testShippedDatabaseBrokerUsesDefaultConnection(): void
     {
         $container = $this->makeContainer([
