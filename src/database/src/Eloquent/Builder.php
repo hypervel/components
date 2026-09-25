@@ -508,7 +508,7 @@ class Builder implements BuilderContract
             $values = [$values];
         }
 
-        $this->model->unguarded(function () use (&$values) {
+        $this->model::unguarded(function () use (&$values) {
             foreach ($values as $key => $rowValues) {
                 $model = $this->newModelInstance($rowValues);
                 $model->setUniqueIds();
@@ -1183,7 +1183,7 @@ class Builder implements BuilderContract
      */
     public function forceCreate(array $attributes): Model
     {
-        return $this->model->unguarded(function () use ($attributes) {
+        return $this->model::unguarded(function () use ($attributes) {
             return $this->newModelInstance()->create($attributes);
         });
     }

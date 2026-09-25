@@ -71,7 +71,7 @@ trait InteractsWithContentTypes
 
                 $type = strtolower($type);
 
-                if ($this->matchesType($accept, $type) || $accept === strtok($type, '/') . '/*') {
+                if (static::matchesType($accept, $type) || $accept === strtok($type, '/') . '/*') {
                     return true;
                 }
             }
@@ -109,7 +109,7 @@ trait InteractsWithContentTypes
 
                 $type = strtolower($type);
 
-                if ($this->matchesType($type, $accept) || $accept === strtok($type, '/') . '/*') {
+                if (static::matchesType($type, $accept) || $accept === strtok($type, '/') . '/*') {
                     return $contentType;
                 }
             }

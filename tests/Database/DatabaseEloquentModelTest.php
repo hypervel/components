@@ -1395,7 +1395,7 @@ class DatabaseEloquentModelTest extends TestCase
         $model->expects($this->once())->method('newModelQuery')->willReturn($query);
         $model->expects($this->once())->method('updateTimestamps');
 
-        $model->setEventDispatcher($events = m::mock(Dispatcher::class));
+        $model::setEventDispatcher($events = m::mock(Dispatcher::class));
         $events->expects('until')->with('eloquent.saving: ' . get_class($model), $model)->andReturn(true);
         $events->expects('until')->with('eloquent.creating: ' . get_class($model), $model)->andReturn(true);
 

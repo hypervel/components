@@ -95,6 +95,7 @@ trait SoftDeletes
 
         $count = 0;
 
+        // Forward through the existing instance; a static call would construct another model first.
         foreach ($instance->withTrashed()->whereIn($key, $ids)->get() as $model) {
             if ($model->forceDelete()) {
                 ++$count;
