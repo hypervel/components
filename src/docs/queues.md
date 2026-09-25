@@ -291,7 +291,7 @@ The following dependencies are needed for the listed queue drivers. These depend
 <a name="laravel-job-interoperability"></a>
 ### Laravel Job Interoperability
 
-Hypervel queue workers can process compatible jobs that were dispatched by a Laravel application sharing the same queue backend. Hypervel uses Laravel-compatible queue payload handler names and selected cache key prefixes so that restart signals, unique job locks, overlapping locks, and throttled exception buckets can be shared safely.
+Hypervel queue workers can process compatible jobs that were dispatched by a Laravel application sharing the same queue backend. Hypervel uses Laravel-compatible queue payload handler names and selected cache key prefixes so that restart signals, unique job locks, and overlapping locks can be shared safely.
 
 For this to work, the Laravel job class and any classes referenced by the serialized payload must be autoloadable and compatible in your Hypervel application. Encrypted jobs require compatible encryption configuration, and jobs containing serialized models require compatible model classes and database records.
 
