@@ -751,10 +751,13 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
     #[DataProvider('packageManagerCommands')]
     public function testNodePackageManagersUseSafeInstallFlags(
         ?string $lockFile,
-        string $expectedInstallCommand,
-        bool $expectsIgnoreScripts,
+        ?string $yarnVersion,
+        string $expectedCommand,
     ): void {
-        Process::fake();
+        Process::fake([
+            'yarn --version' => Process::result($yarnVersion . PHP_EOL),
+            '*' => Process::result(),
+        ]);
 
         $channelsPath = $this->app->basePath('routes/channels.php');
         $echoPath = $this->app->resourcePath('js/echo.js');
@@ -771,54 +774,137 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsConfirmation('Would you like to install and build the Node dependencies required for broadcasting?', 'yes')
             ->assertSuccessful();
 
-        Process::assertRan(function (PendingProcess $process) use ($expectedInstallCommand, $expectsIgnoreScripts): bool {
-            $command = (string) $process->command;
+        Process::assertRan(fn (PendingProcess $process): bool => $process->command === $expectedCommand);
 
-            return str_contains($command, $expectedInstallCommand)
-                && str_contains($command, '--ignore-scripts') === $expectsIgnoreScripts;
-        });
+        if ($yarnVersion === null) {
+            Process::assertDidntRun('yarn --version');
+        } else {
+            Process::assertRan(fn (PendingProcess $process): bool => $process->command === 'yarn --version'
+                && $process->path === $this->app->basePath());
+        }
     }
 
+    /**
+     * Provide package manager installation commands.
+     */
     public static function packageManagerCommands(): iterable
     {
         yield 'pnpm' => [
             'pnpm-lock.yaml',
-            'pnpm add --save-dev --ignore-scripts laravel-echo pusher-js',
-            true,
+            null,
+            'pnpm add --save-dev laravel-echo pusher-js --ignore-scripts && pnpm run build',
         ];
 
-        yield 'yarn' => [
+        yield 'yarn 1' => [
             'yarn.lock',
-            'yarn add --dev --ignore-scripts laravel-echo pusher-js',
-            true,
+            '1.22.22',
+            'yarn add --dev laravel-echo pusher-js --ignore-scripts && yarn run build',
+        ];
+
+        yield 'yarn 2' => [
+            'yarn.lock',
+            '2.4.2',
+            'YARN_ENABLE_SCRIPTS=false yarn add --dev laravel-echo pusher-js && yarn run build',
+        ];
+
+        yield 'yarn 4' => [
+            'yarn.lock',
+            '4.18.1',
+            'yarn add --dev laravel-echo pusher-js --mode=skip-build && yarn run build',
         ];
 
         yield 'bun' => [
             'bun.lock',
-            'bun add --dev laravel-echo pusher-js',
-            false,
+            null,
+            'bun add --dev laravel-echo pusher-js && bun run build',
         ];
 
         yield 'npm' => [
             null,
-            'npm install --save-dev --ignore-scripts laravel-echo pusher-js',
-            true,
+            null,
+            'npm install --save-dev laravel-echo pusher-js --ignore-scripts && npm run build',
         ];
     }
 
-    public function testNodeFailurePrintsCompleteManualRecoveryCommands(): void
+    public function testFailedYarnVersionCheckDoesNotInstallNodeDependencies(): void
     {
-        Process::fake(static fn () => Process::result(exitCode: 1));
+        Process::fake([
+            'yarn --version' => Process::result(errorOutput: 'yarn: command not found', exitCode: 127),
+            '*' => Process::result(),
+        ]);
+
+        $channelsPath = $this->app->basePath('routes/channels.php');
+        $echoPath = $this->app->resourcePath('js/echo.js');
+        $lockPath = $this->app->basePath('yarn.lock');
+        $this->createdFiles[] = $channelsPath;
+        $this->createdFiles[] = $echoPath;
+        $this->createdFiles[] = $lockPath;
+        file_put_contents($lockPath, '');
+        $tester = $this->commandTester(new TestableBroadcastingInstallCommand);
+        $tester->setInputs(['yes']);
+
+        try {
+            $tester->execute(['--reverb' => true, '--without-reverb' => true]);
+            $this->fail('Expected the Yarn version check to fail.');
+        } catch (ProcessFailedException $exception) {
+            $this->assertSame('yarn --version', $exception->result->command());
+            $this->assertSame(127, $exception->result->exitCode());
+        }
+
+        Process::assertRan('yarn --version');
+        Process::assertDidntRun(fn (PendingProcess $process): bool => $process->command !== 'yarn --version');
+    }
+
+    #[DataProvider('manualRecoveryCommands')]
+    public function testNodeFailurePrintsCompleteManualRecoveryCommands(
+        ?string $lockFile,
+        ?string $yarnVersion,
+        string $expectedCommand,
+    ): void {
+        Process::fake([
+            'yarn --version' => Process::result($yarnVersion . PHP_EOL),
+            '*' => Process::result(exitCode: 1),
+        ]);
 
         $channelsPath = $this->app->basePath('routes/channels.php');
         $echoPath = $this->app->resourcePath('js/echo.js');
         $this->createdFiles[] = $channelsPath;
         $this->createdFiles[] = $echoPath;
 
+        if ($lockFile !== null) {
+            $lockPath = $this->app->basePath($lockFile);
+            file_put_contents($lockPath, '');
+            $this->createdFiles[] = $lockPath;
+        }
+
         $this->artisan('install:broadcasting', ['--reverb' => true, '--without-reverb' => true])
             ->expectsConfirmation('Would you like to install and build the Node dependencies required for broadcasting?', 'yes')
-            ->expectsOutputToContain('npm install --save-dev --ignore-scripts laravel-echo pusher-js && npm run build')
+            ->expectsOutputToContain($expectedCommand)
             ->assertSuccessful();
+    }
+
+    /**
+     * Provide manual recovery commands.
+     */
+    public static function manualRecoveryCommands(): iterable
+    {
+        yield 'npm' => [
+            null,
+            null,
+            'npm install --save-dev laravel-echo pusher-js --ignore-scripts && npm run build',
+        ];
+
+        yield 'yarn 2' => [
+            'yarn.lock',
+            '2.4.2',
+            'YARN_ENABLE_SCRIPTS=false yarn add --dev laravel-echo pusher-js && yarn run build',
+        ];
+
+        yield 'yarn 4' => [
+            'yarn.lock',
+            '4.18.1',
+            'yarn add --dev laravel-echo pusher-js --mode=skip-build && yarn run build',
+        ];
     }
 
     /**
