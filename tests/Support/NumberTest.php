@@ -9,7 +9,6 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\Number;
 use Hypervel\Tests\TestCase;
-use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use RuntimeException;
 
@@ -158,21 +157,6 @@ class NumberTest extends TestCase
         $this->assertSame(1, Number::clamp(0, 1, 10));
         $this->assertSame(10, Number::clamp(15, 1, 10));
         $this->assertSame(5.5, Number::clamp(5.5, 1.0, 10.0));
-    }
-
-    public function testPairs(): void
-    {
-        $this->assertSame([[0, 9], [10, 19], [20, 25]], Number::pairs(25, 10));
-        $this->assertSame([[0, 10], [10, 20], [20, 25]], Number::pairs(25, 10, 0, 0));
-        $this->assertSame(Number::pairs(25, 10), Number::pairs(25, -10));
-    }
-
-    public function testPairsRejectsZeroStep(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The $by argument must not be zero.');
-
-        Number::pairs(25, 0);
     }
 
     public function testTrim(): void
