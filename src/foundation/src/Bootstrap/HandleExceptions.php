@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Bootstrap;
 
+use Closure;
 use ErrorException;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application;
@@ -17,6 +18,7 @@ use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\ErrorHandler\Error\FatalError;
 use Throwable;
+use WeakReference;
 
 class HandleExceptions
 {
@@ -31,21 +33,58 @@ class HandleExceptions
     protected static ?Application $app = null;
 
     /**
+     * The bootstrapper whose handlers are currently installed.
+     */
+    protected static ?self $owner = null;
+
+    /**
+     * The bootstrapper that owned the handlers before this one installed its own.
+     */
+    protected ?self $previous = null;
+
+    /**
+     * The application this bootstrapper installed its handlers for.
+     *
+     * Registered shutdown callbacks keep their bootstrapper for the process
+     * lifetime, so the application is only referenced weakly.
+     *
+     * @var null|WeakReference<Application>
+     */
+    protected ?WeakReference $application = null;
+
+    /**
+     * The error handler installed by this bootstrapper.
+     */
+    protected ?Closure $errorHandler = null;
+
+    /**
+     * The exception handler installed by this bootstrapper.
+     */
+    protected ?Closure $exceptionHandler = null;
+
+    /**
      * Bootstrap the given application.
      */
     public function bootstrap(Application $app): void
     {
         static::$reservedMemory = str_repeat('x', 32768);
 
-        static::$app = $app;
+        // Bootstrapping an application again, as env:encrypt does, keeps the handlers it already installed.
+        if (static::$owner === null || static::$app !== $app) {
+            $this->previous = static::$owner;
+            $this->application = WeakReference::create($app);
+
+            static::$owner = $this;
+            static::$app = $app;
+
+            set_error_handler($this->errorHandler = $this->forwardsTo('handleError'));
+
+            set_exception_handler($this->exceptionHandler = $this->forwardsTo('handleException'));
+
+            register_shutdown_function($this->forwardsTo('handleShutdown'));
+        }
 
         error_reporting(-1);
-
-        set_error_handler($this->forwardsTo('handleError'));
-
-        set_exception_handler($this->forwardsTo('handleException'));
-
-        register_shutdown_function($this->forwardsTo('handleShutdown'));
 
         if (! $app->environment('testing')) {
             ini_set('display_errors', 'Off');
@@ -229,13 +268,22 @@ class HandleExceptions
     }
 
     /**
-     * Forward a method call to the given method if an application instance exists.
+     * Forward a method call to the given method while this bootstrapper owns the handlers.
      */
-    protected function forwardsTo(string $method): callable
+    protected function forwardsTo(string $method): Closure
     {
-        return fn (...$arguments) => static::$app
-            ? $this->{$method}(...$arguments)
-            : false;
+        return function (mixed ...$arguments) use ($method): mixed {
+            if (static::$owner === $this && static::$app !== null) {
+                return $this->{$method}(...$arguments);
+            }
+
+            // An exception handler that returns false marks the exception handled and hides it.
+            if ($method === 'handleException') {
+                throw $arguments[0];
+            }
+
+            return false;
+        };
     }
 
     /**
@@ -262,6 +310,33 @@ class HandleExceptions
         return static::$app->make(ExceptionHandler::class);
     }
 
+    /**
+     * Release the handlers installed for an application that is being discarded.
+     *
+     * Boot or tests only. Restores the handlers and application that were active
+     * before the application was bootstrapped, so later errors are not handled
+     * through its flushed container. Handlers installed by other code stay in place.
+     */
+    public static function release(Application $app): void
+    {
+        $owner = static::$owner;
+
+        if ($owner === null || static::$app !== $app) {
+            return;
+        }
+
+        if (get_exception_handler() === $owner->exceptionHandler) {
+            restore_exception_handler();
+        }
+
+        if (get_error_handler() === $owner->errorHandler) {
+            restore_error_handler();
+        }
+
+        static::$owner = $owner->previous;
+        static::$app = $owner->previous?->application?->get();
+    }
+
     // Laravel's deprecated forgetApp() is omitted; use flushState() for test cleanup.
 
     /**
@@ -269,6 +344,8 @@ class HandleExceptions
      */
     public static function flushState(?TestCase $testCase = null): void
     {
+        static::$owner = null;
+
         // AfterEachTestSubscriber resets framework static state after each test.
         // This reset remains caller-driven because restoring PHPUnit's error
         // handler requires the active test case.

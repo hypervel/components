@@ -11,6 +11,7 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application as HypervelApplication;
+use Hypervel\Foundation\Bootstrap\HandleExceptions;
 use Hypervel\Testbench\Foundation\Application as Testbench;
 use Hypervel\Testbench\Foundation\Bootstrap\LoadMigrationsFromArray;
 use Hypervel\Testbench\Foundation\Config;
@@ -203,6 +204,8 @@ class Commander
         } catch (Throwable $throwable) {
             $failure = $throwable;
         }
+
+        HandleExceptions::release($app);
 
         try {
             $app->flush();

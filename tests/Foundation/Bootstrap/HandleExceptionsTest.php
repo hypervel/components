@@ -645,8 +645,149 @@ class HandleExceptionsTest extends TestCase
         $this->assertNotSame($this->app, $appResolver());
         $this->assertSame($newApp, $appResolver());
     }
+
+    public function testReleaseRestoresThePreviousOwnerAndDisarmsTheReleasedBootstrapper(): void
+    {
+        $previousErrorHandler = get_error_handler();
+        $previousExceptionHandler = get_exception_handler();
+        $errorReporting = error_reporting();
+
+        $first = new RecordingHandleExceptions;
+        $second = new RecordingHandleExceptions;
+        $firstApp = $this->bootstrappableApplication();
+        $secondApp = $this->bootstrappableApplication();
+
+        try {
+            $first->bootstrap($firstApp);
+            $second->bootstrap($secondApp);
+
+            $errorHandler = get_error_handler();
+            $exceptionHandler = get_exception_handler();
+
+            // Bootstrapping the owning application again, as env:encrypt does, keeps its handlers.
+            $second->bootstrap($secondApp);
+            (new RecordingHandleExceptions)->bootstrap($secondApp);
+
+            $this->assertSame($errorHandler, get_error_handler());
+            $this->assertSame($exceptionHandler, get_exception_handler());
+
+            HandleExceptions::release($secondApp);
+
+            $this->assertSame($this->installedHandler($first, 'errorHandler'), get_error_handler());
+            $this->assertSame($this->installedHandler($first, 'exceptionHandler'), get_exception_handler());
+
+            $exception = new RuntimeException('Released handler.');
+
+            try {
+                $exceptionHandler($exception);
+                $this->fail('Expected the released exception handler to rethrow the exception.');
+            } catch (RuntimeException $caught) {
+                $this->assertSame($exception, $caught);
+            }
+
+            $this->assertFalse($errorHandler(E_USER_WARNING, 'Released handler.', __FILE__, __LINE__));
+
+            $this->shutdownForwarder($second)();
+            $this->shutdownForwarder($first)();
+
+            $this->assertSame(0, $second->shutdowns);
+            $this->assertSame(1, $first->shutdowns);
+
+            HandleExceptions::release($firstApp);
+
+            $this->assertSame($previousErrorHandler, get_error_handler());
+            $this->assertSame($previousExceptionHandler, get_exception_handler());
+        } finally {
+            $this->restoreHandlers($previousErrorHandler, $previousExceptionHandler);
+            error_reporting($errorReporting);
+        }
+    }
+
+    public function testReleaseLeavesHandlersInstalledAfterTheApplication(): void
+    {
+        $previousErrorHandler = get_error_handler();
+        $previousExceptionHandler = get_exception_handler();
+        $errorReporting = error_reporting();
+
+        $bootstrapper = new RecordingHandleExceptions;
+        $app = $this->bootstrappableApplication();
+        $laterErrorHandler = static fn (): bool => true;
+
+        try {
+            $bootstrapper->bootstrap($app);
+
+            $errorHandler = get_error_handler();
+
+            set_error_handler($laterErrorHandler);
+
+            HandleExceptions::release($app);
+
+            $this->assertSame($laterErrorHandler, get_error_handler());
+            $this->assertSame($previousExceptionHandler, get_exception_handler());
+            $this->assertFalse($errorHandler(E_USER_WARNING, 'Released handler.', __FILE__, __LINE__));
+        } finally {
+            $this->restoreHandlers($previousErrorHandler, $previousExceptionHandler);
+            error_reporting($errorReporting);
+        }
+    }
+
+    /**
+     * Create an application mock that the bootstrapper can install its handlers for.
+     */
+    protected function bootstrappableApplication(): Application
+    {
+        return tap(m::mock(Application::class), function (Application $app): void {
+            $app->allows('environment')->with('testing')->andReturnTrue();
+        });
+    }
+
+    /**
+     * Get a handler installed by the given bootstrapper.
+     */
+    protected function installedHandler(HandleExceptions $bootstrapper, string $property): mixed
+    {
+        return (new ReflectionClass($bootstrapper))->getProperty($property)->getValue($bootstrapper);
+    }
+
+    /**
+     * Get a shutdown forwarder equivalent to the one the bootstrapper registers.
+     */
+    protected function shutdownForwarder(HandleExceptions $bootstrapper): callable
+    {
+        return (new ReflectionMethod($bootstrapper, 'forwardsTo'))->invoke($bootstrapper, 'handleShutdown');
+    }
+
+    /**
+     * Restore the handlers that were active before the test installed its own.
+     */
+    protected function restoreHandlers(?callable $errorHandler, ?callable $exceptionHandler): void
+    {
+        while (get_exception_handler() !== $exceptionHandler && get_exception_handler() !== null) {
+            restore_exception_handler();
+        }
+
+        while (get_error_handler() !== $errorHandler && get_error_handler() !== null) {
+            restore_error_handler();
+        }
+    }
 }
 
 class CustomNullHandler extends NullHandler
 {
+}
+
+class RecordingHandleExceptions extends HandleExceptions
+{
+    /**
+     * The number of shutdowns this bootstrapper handled.
+     */
+    public int $shutdowns = 0;
+
+    /**
+     * Record the PHP shutdown event.
+     */
+    public function handleShutdown(): void
+    {
+        ++$this->shutdowns;
+    }
 }

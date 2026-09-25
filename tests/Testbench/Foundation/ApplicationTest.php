@@ -17,12 +17,16 @@ use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\PHPUnit\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Testbench\Fixtures\BootstrapFileApplication;
+use Hypervel\Tests\Testbench\Fixtures\Providers\FailingBootServiceProvider;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
+use Symfony\Component\Process\Process;
 use Throwable;
 
+use function Hypervel\Support\php_binary;
 use function Hypervel\Testbench\default_skeleton_path;
+use function Hypervel\Testbench\package_path;
 
 class ApplicationTest extends TestCase
 {
@@ -191,6 +195,52 @@ class ApplicationTest extends TestCase
         } finally {
             date_default_timezone_set($originalTimezone);
         }
+    }
+
+    #[Test]
+    public function itRestoresExistingHandlersWhenBootFails(): void
+    {
+        $failure = new RuntimeException('boot failed');
+        $errorHandler = static fn (): bool => false;
+        $exceptionHandler = static function (Throwable $exception): void {};
+
+        FailingBootServiceProvider::$exception = $failure;
+        set_error_handler($errorHandler);
+        set_exception_handler($exceptionHandler);
+
+        try {
+            try {
+                TestbenchApplication::create(
+                    (string) default_skeleton_path(),
+                    options: ['extra' => ['providers' => [FailingBootServiceProvider::class]]],
+                );
+                $this->fail('Expected the application to fail while booting.');
+            } catch (RuntimeException $exception) {
+                $this->assertSame($failure, $exception);
+            }
+
+            $this->assertSame($errorHandler, get_error_handler());
+            $this->assertSame($exceptionHandler, get_exception_handler());
+        } finally {
+            FailingBootServiceProvider::$exception = null;
+            restore_exception_handler();
+            restore_error_handler();
+        }
+    }
+
+    #[Test]
+    public function itReportsAnUncaughtBootFailureWithoutTheFlushedApplication(): void
+    {
+        $process = new Process(
+            [php_binary(), package_path('tests/Testbench/Fixtures/failing-standalone-boot.php')],
+            cwd: package_path(),
+        );
+
+        $process->run();
+
+        $this->assertSame(255, $process->getExitCode());
+        $this->assertStringContainsString('The failing boot fixture failed.', $process->getErrorOutput());
+        $this->assertStringNotContainsString('BindingResolutionException', $process->getErrorOutput() . $process->getOutput());
     }
 
     #[Test]
