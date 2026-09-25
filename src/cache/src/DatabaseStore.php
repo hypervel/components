@@ -205,7 +205,7 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
         $value = $this->serialize($value);
         $expiration = $this->availableAt($seconds);
 
-        return $this->table()->insertOrIgnore(compact('key', 'value', 'expiration')) > 0;
+        return $this->table()->insertOrIgnore(['key' => $key, 'value' => $value, 'expiration' => $expiration]) > 0;
     }
 
     /**

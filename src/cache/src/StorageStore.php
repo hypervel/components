@@ -220,7 +220,7 @@ class StorageStore implements Store
         // Keep Laravel's remaining duration for subclasses; internal rewrites use the exact deadline.
         $time = $expiresAt - $currentTime;
 
-        return compact('data', 'time', 'expiresAt');
+        return ['data' => $data, 'time' => $time, 'expiresAt' => $expiresAt];
     }
 
     /**

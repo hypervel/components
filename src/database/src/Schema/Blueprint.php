@@ -336,7 +336,7 @@ class Blueprint
     {
         foreach ($this->columns as $column) {
             foreach ($this->grammar->getFluentCommands() as $commandName) {
-                $this->addCommand($commandName, compact('column'));
+                $this->addCommand($commandName, ['column' => $column]);
             }
         }
     }
@@ -459,7 +459,7 @@ class Blueprint
     {
         $columns = is_array($columns) ? $columns : func_get_args();
 
-        return $this->addCommand('dropColumn', compact('columns'));
+        return $this->addCommand('dropColumn', ['columns' => $columns]);
     }
 
     /**
@@ -467,7 +467,7 @@ class Blueprint
      */
     public function renameColumn(string $from, string $to): Fluent
     {
-        return $this->addCommand('renameColumn', compact('from', 'to'));
+        return $this->addCommand('renameColumn', ['from' => $from, 'to' => $to]);
     }
 
     /**
@@ -573,7 +573,7 @@ class Blueprint
      */
     public function renameIndex(string $from, string $to): Fluent
     {
-        return $this->addCommand('renameIndex', compact('from', 'to'));
+        return $this->addCommand('renameIndex', ['from' => $from, 'to' => $to]);
     }
 
     /**
@@ -635,7 +635,7 @@ class Blueprint
      */
     public function rename(string $to): Fluent
     {
-        return $this->addCommand('rename', compact('to'));
+        return $this->addCommand('rename', ['to' => $to]);
     }
 
     /**
@@ -793,7 +793,7 @@ class Blueprint
     {
         $length = ! is_null($length) ? $length : Builder::$defaultStringLength;
 
-        return $this->addColumn('char', $column, compact('length'));
+        return $this->addColumn('char', $column, ['length' => $length]);
     }
 
     /**
@@ -805,7 +805,7 @@ class Blueprint
     {
         $length = $length ?: Builder::$defaultStringLength;
 
-        return $this->addColumn('string', $column, compact('length'));
+        return $this->addColumn('string', $column, ['length' => $length]);
     }
 
     /**
@@ -856,7 +856,7 @@ class Blueprint
      */
     public function integer(string $column, bool $autoIncrement = false, bool $unsigned = false): ColumnDefinition
     {
-        return $this->addColumn('integer', $column, compact('autoIncrement', 'unsigned'));
+        return $this->addColumn('integer', $column, ['autoIncrement' => $autoIncrement, 'unsigned' => $unsigned]);
     }
 
     /**
@@ -867,7 +867,7 @@ class Blueprint
      */
     public function tinyInteger(string $column, bool $autoIncrement = false, bool $unsigned = false): ColumnDefinition
     {
-        return $this->addColumn('tinyInteger', $column, compact('autoIncrement', 'unsigned'));
+        return $this->addColumn('tinyInteger', $column, ['autoIncrement' => $autoIncrement, 'unsigned' => $unsigned]);
     }
 
     /**
@@ -878,7 +878,7 @@ class Blueprint
      */
     public function smallInteger(string $column, bool $autoIncrement = false, bool $unsigned = false): ColumnDefinition
     {
-        return $this->addColumn('smallInteger', $column, compact('autoIncrement', 'unsigned'));
+        return $this->addColumn('smallInteger', $column, ['autoIncrement' => $autoIncrement, 'unsigned' => $unsigned]);
     }
 
     /**
@@ -889,7 +889,7 @@ class Blueprint
      */
     public function mediumInteger(string $column, bool $autoIncrement = false, bool $unsigned = false): ColumnDefinition
     {
-        return $this->addColumn('mediumInteger', $column, compact('autoIncrement', 'unsigned'));
+        return $this->addColumn('mediumInteger', $column, ['autoIncrement' => $autoIncrement, 'unsigned' => $unsigned]);
     }
 
     /**
@@ -900,7 +900,7 @@ class Blueprint
      */
     public function bigInteger(string $column, bool $autoIncrement = false, bool $unsigned = false): ColumnDefinition
     {
-        return $this->addColumn('bigInteger', $column, compact('autoIncrement', 'unsigned'));
+        return $this->addColumn('bigInteger', $column, ['autoIncrement' => $autoIncrement, 'unsigned' => $unsigned]);
     }
 
     /**
@@ -1029,7 +1029,7 @@ class Blueprint
      */
     public function float(string $column, int $precision = 53): ColumnDefinition
     {
-        return $this->addColumn('float', $column, compact('precision'));
+        return $this->addColumn('float', $column, ['precision' => $precision]);
     }
 
     /**
@@ -1049,7 +1049,7 @@ class Blueprint
      */
     public function decimal(string $column, int $total = 8, int $places = 2): ColumnDefinition
     {
-        return $this->addColumn('decimal', $column, compact('total', 'places'));
+        return $this->addColumn('decimal', $column, ['total' => $total, 'places' => $places]);
     }
 
     /**
@@ -1071,7 +1071,7 @@ class Blueprint
     {
         $allowed = array_map(fn ($value) => enum_value($value), $allowed);
 
-        return $this->addColumn('enum', $column, compact('allowed'));
+        return $this->addColumn('enum', $column, ['allowed' => $allowed]);
     }
 
     /**
@@ -1081,7 +1081,7 @@ class Blueprint
      */
     public function set(string $column, array $allowed): ColumnDefinition
     {
-        return $this->addColumn('set', $column, compact('allowed'));
+        return $this->addColumn('set', $column, ['allowed' => $allowed]);
     }
 
     /**
@@ -1123,7 +1123,7 @@ class Blueprint
     {
         $precision ??= $this->defaultTimePrecision();
 
-        return $this->addColumn('dateTime', $column, compact('precision'));
+        return $this->addColumn('dateTime', $column, ['precision' => $precision]);
     }
 
     /**
@@ -1135,7 +1135,7 @@ class Blueprint
     {
         $precision ??= $this->defaultTimePrecision();
 
-        return $this->addColumn('dateTimeTz', $column, compact('precision'));
+        return $this->addColumn('dateTimeTz', $column, ['precision' => $precision]);
     }
 
     /**
@@ -1147,7 +1147,7 @@ class Blueprint
     {
         $precision ??= $this->defaultTimePrecision();
 
-        return $this->addColumn('time', $column, compact('precision'));
+        return $this->addColumn('time', $column, ['precision' => $precision]);
     }
 
     /**
@@ -1159,7 +1159,7 @@ class Blueprint
     {
         $precision ??= $this->defaultTimePrecision();
 
-        return $this->addColumn('timeTz', $column, compact('precision'));
+        return $this->addColumn('timeTz', $column, ['precision' => $precision]);
     }
 
     /**
@@ -1171,7 +1171,7 @@ class Blueprint
     {
         $precision ??= $this->defaultTimePrecision();
 
-        return $this->addColumn('timestamp', $column, compact('precision'));
+        return $this->addColumn('timestamp', $column, ['precision' => $precision]);
     }
 
     /**
@@ -1183,7 +1183,7 @@ class Blueprint
     {
         $precision ??= $this->defaultTimePrecision();
 
-        return $this->addColumn('timestampTz', $column, compact('precision'));
+        return $this->addColumn('timestampTz', $column, ['precision' => $precision]);
     }
 
     /**
@@ -1296,7 +1296,7 @@ class Blueprint
      */
     public function binary(string $column, ?int $length = null, bool $fixed = false): ColumnDefinition
     {
-        return $this->addColumn('binary', $column, compact('length', 'fixed'));
+        return $this->addColumn('binary', $column, ['length' => $length, 'fixed' => $fixed]);
     }
 
     /**
@@ -1369,7 +1369,7 @@ class Blueprint
      */
     public function geometry(string $column, ?string $subtype = null, int $srid = 0): ColumnDefinition
     {
-        return $this->addColumn('geometry', $column, compact('subtype', 'srid'));
+        return $this->addColumn('geometry', $column, ['subtype' => $subtype, 'srid' => $srid]);
     }
 
     /**
@@ -1379,7 +1379,7 @@ class Blueprint
      */
     public function geography(string $column, ?string $subtype = null, int $srid = 4326): ColumnDefinition
     {
-        return $this->addColumn('geography', $column, compact('subtype', 'srid'));
+        return $this->addColumn('geography', $column, ['subtype' => $subtype, 'srid' => $srid]);
     }
 
     // REMOVED: SQL Server-only computed(); use virtualAs() or storedAs() on a typed column.
@@ -1391,7 +1391,7 @@ class Blueprint
      */
     public function vector(string $column, ?int $dimensions = null): ColumnDefinition
     {
-        $options = $dimensions ? compact('dimensions') : [];
+        $options = $dimensions ? ['dimensions' => $dimensions] : [];
 
         return $this->addColumn('vector', $column, $options);
     }
@@ -1541,7 +1541,7 @@ class Blueprint
      */
     public function rawColumn(string $column, string $definition): ColumnDefinition
     {
-        return $this->addColumn('raw', $column, compact('definition'));
+        return $this->addColumn('raw', $column, ['definition' => $definition]);
     }
 
     /**
@@ -1549,7 +1549,7 @@ class Blueprint
      */
     public function comment(string $comment): Fluent
     {
-        return $this->addCommand('tableComment', compact('comment'));
+        return $this->addCommand('tableComment', ['comment' => $comment]);
     }
 
     /**
@@ -1566,10 +1566,9 @@ class Blueprint
             ? $this->createIndexName($type, $columns)
             : $index;
 
-        return $this->addCommandDefinition(new IndexDefinition(array_merge(
-            ['name' => $type],
-            compact('index', 'columns', 'algorithm', 'operatorClass'),
-        )));
+        return $this->addCommandDefinition(new IndexDefinition([
+            'name' => $type, 'index' => $index, 'columns' => $columns, 'algorithm' => $algorithm, 'operatorClass' => $operatorClass,
+        ]));
     }
 
     /**
@@ -1615,7 +1614,7 @@ class Blueprint
     public function addColumn(string $type, string $name, array $parameters = []): ColumnDefinition
     {
         return $this->addColumnDefinition($this->newColumnDefinition(
-            array_merge(compact('type', 'name'), $parameters)
+            array_merge(['type' => $type, 'name' => $name], $parameters)
         ));
     }
 
@@ -1715,7 +1714,7 @@ class Blueprint
      */
     protected function createCommand(string $name, array $parameters = []): Fluent
     {
-        return new Fluent(array_merge(compact('name'), $parameters));
+        return new Fluent(array_merge(['name' => $name], $parameters));
     }
 
     /**
