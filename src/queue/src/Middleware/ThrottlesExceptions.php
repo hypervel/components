@@ -28,6 +28,8 @@ class ThrottlesExceptions
 
     /**
      * The number of minutes to wait before retrying the job after an exception.
+     *
+     * @var (Closure(Throwable): int)|int
      */
     protected Closure|int $retryAfterMinutes = 0;
 
@@ -225,6 +227,8 @@ class ThrottlesExceptions
 
     /**
      * Specify the number of minutes a job should be delayed when it is released (before it has reached its max exceptions).
+     *
+     * @param (Closure(Throwable): int)|int $backoff
      */
     public function backoff(Closure|int $backoff): static
     {

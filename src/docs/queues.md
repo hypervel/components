@@ -1013,14 +1013,26 @@ public function middleware(): array
 }
 ```
 
-The `backoff` method also accepts a closure, allowing the delay to be determined from the exception:
+The `backoff` method also accepts a closure that receives the thrown exception, allowing the delay to be determined dynamically:
 
 ```php
+use App\Exceptions\RateLimitedException;
+use Hypervel\Queue\Middleware\ThrottlesExceptions;
 use Throwable;
 
-return [(new ThrottlesExceptions(10, 5 * 60))->backoff(
-    fn (Throwable $exception) => $exception->getCode() === 429 ? 5 : 1
-)];
+/**
+ * Get the middleware the job should pass through.
+ *
+ * @return array<int, object>
+ */
+public function middleware(): array
+{
+    return [(new ThrottlesExceptions(10, 5 * 60))->backoff(
+        fn (Throwable $throwable) => $throwable instanceof RateLimitedException
+            ? $throwable->retryAfterMinutes()
+            : 5
+    )];
+}
 ```
 
 The middleware's `backoff` method controls the ordinary queue retry delay after an individual exception. It is separate from the rate limiter's [exponential backoff policy](/docs/{{version}}/rate-limiting#exponential-backoff).
