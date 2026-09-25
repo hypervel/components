@@ -807,9 +807,9 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
             'YARN_ENABLE_SCRIPTS=false yarn add --dev laravel-echo pusher-js && yarn run build',
         ];
 
-        yield 'yarn 4' => [
+        yield 'yarn 3' => [
             'yarn.lock',
-            '4.18.1',
+            '3.8.7',
             'yarn add --dev laravel-echo pusher-js --mode=skip-build && yarn run build',
         ];
 
