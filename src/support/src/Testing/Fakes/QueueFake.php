@@ -453,6 +453,8 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Get the pending jobs for the given queue.
+     *
+     * @return Collection<int, InspectedJob>
      */
     public function pendingJobs(UnitEnum|string|null $queue = null): Collection
     {
@@ -463,6 +465,8 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Get the delayed jobs for the given queue.
+     *
+     * @return Collection<int, InspectedJob>
      */
     public function delayedJobs(UnitEnum|string|null $queue = null): Collection
     {
@@ -473,6 +477,8 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Get the reserved jobs for the given queue.
+     *
+     * @return Collection<int, InspectedJob>
      */
     public function reservedJobs(UnitEnum|string|null $queue = null): Collection
     {
@@ -483,6 +489,8 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Get all pending jobs across every queue.
+     *
+     * @return Collection<int, InspectedJob>
      */
     public function allPendingJobs(): Collection
     {
@@ -491,6 +499,8 @@ class QueueFake extends QueueManager implements Fake, Queue
 
     /**
      * Get all delayed jobs across every queue.
+     *
+     * @return Collection<int, InspectedJob>
      */
     public function allDelayedJobs(): Collection
     {
@@ -498,15 +508,9 @@ class QueueFake extends QueueManager implements Fake, Queue
     }
 
     /**
-     * Get all reserved jobs across every queue.
-     */
-    public function allReservedJobs(): Collection
-    {
-        return $this->inspectJobs($this->reserved);
-    }
-
-    /**
      * Map an array of jobs to a collection of inspected jobs.
+     *
+     * @return Collection<int, InspectedJob>
      */
     protected function inspectJobs(array $jobs): Collection
     {
@@ -522,6 +526,16 @@ class QueueFake extends QueueManager implements Fake, Queue
                 payload: [],
                 createdAt: CarbonImmutable::createFromTimestamp($data['createdAt']),
             ));
+    }
+
+    /**
+     * Get all reserved jobs across every queue.
+     *
+     * @return Collection<int, InspectedJob>
+     */
+    public function allReservedJobs(): Collection
+    {
+        return $this->inspectJobs($this->reserved);
     }
 
     /**
