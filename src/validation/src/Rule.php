@@ -185,7 +185,7 @@ class Rule
     }
 
     /**
-     * Get a exclude_if rule builder instance.
+     * Get an exclude_if rule builder instance.
      */
     public static function excludeIf(bool|Closure $callback): ExcludeIf
     {
@@ -193,7 +193,7 @@ class Rule
     }
 
     /**
-     * Get a exclude_unless rule builder instance.
+     * Get an exclude_unless rule builder instance.
      */
     public static function excludeUnless(bool|Closure $callback): ExcludeUnless
     {
