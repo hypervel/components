@@ -869,6 +869,12 @@ class PostController extends Controller
 
 If a [policy is registered](#registering-policies) for the given model, the `can` method will automatically call the appropriate policy and return the boolean result. If no policy is registered for the model, the `can` method will attempt to call the closure-based Gate matching the given action name.
 
+If you would like to throw a `Hypervel\Auth\Access\AuthorizationException` when the user is not allowed to perform the action, you may use the user's `authorize` method instead. Instances of `AuthorizationException` are automatically converted to a 403 HTTP response by Hypervel:
+
+```php
+$request->user()->authorize('update', $post);
+```
+
 <a name="user-model-actions-that-dont-require-models"></a>
 #### Actions That Don't Require Models
 
