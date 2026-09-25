@@ -81,7 +81,7 @@ class Processor
      * Process the results of a views query.
      *
      * @param list<array<string, mixed>> $results
-     * @return list<array{name: string, schema: string, schema_qualified_name: string, definition: string}>
+     * @return list<array{name: string, schema: null|string, schema_qualified_name: string, definition: string}>
      */
     public function processViews(array $results): array
     {
