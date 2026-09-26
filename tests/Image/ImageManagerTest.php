@@ -112,6 +112,85 @@ class ImageManagerTest extends TestCase
         $manager->driver('custom');
     }
 
+    public function testCustomDriverRequirementsAreCheckedBeforeRegistrationAndCaching(): void
+    {
+        $requirementsException = new ImageException('The custom image dependency is missing.');
+        $driver = new class($requirementsException) implements Driver {
+            public array $handlers = [];
+
+            /**
+             * Create a driver with an unavailable dependency.
+             */
+            public function __construct(private ImageException $exception)
+            {
+            }
+
+            /**
+             * Check the driver dependencies.
+             */
+            public function ensureRequirementsAreMet(): never
+            {
+                throw $this->exception;
+            }
+
+            /**
+             * Process the image contents.
+             */
+            public function process(string $contents, ImagePipeline $pipeline): string
+            {
+                return $contents;
+            }
+
+            /**
+             * Get the image dimensions.
+             */
+            public function dimensions(string $contents): array
+            {
+                return [0, 0];
+            }
+
+            /**
+             * Get the dominant image color.
+             */
+            public function dominantColor(string $contents): string
+            {
+                return '#000000';
+            }
+
+            /**
+             * Register a custom transformation handler.
+             */
+            public function transformUsing(string $transformation, callable $callback): static
+            {
+                $this->handlers[$transformation] = $callback;
+
+                return $this;
+            }
+        };
+        $attempts = 0;
+        $manager = new ImageManager($this->makeApp([]));
+        $manager->extend('custom', static function () use ($driver, &$attempts): Driver {
+            ++$attempts;
+
+            return $driver;
+        });
+        $transformation = new readonly class implements Transformation {
+        };
+        $manager->transformUsing('custom', $transformation::class, static fn (): null => null);
+
+        for ($attempt = 0; $attempt < 2; ++$attempt) {
+            try {
+                $manager->driver('custom');
+                $this->fail('ImageException was not thrown.');
+            } catch (ImageException $exception) {
+                $this->assertSame($requirementsException, $exception);
+            }
+        }
+
+        $this->assertSame(2, $attempts);
+        $this->assertSame([], $driver->handlers);
+    }
+
     public function testFromBytesReturnsImageWithContents(): void
     {
         $app = $this->makeApp([]);

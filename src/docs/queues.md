@@ -851,6 +851,8 @@ The `RateLimited` middleware supports every configured rate limiter store.
 
 Hypervel includes a `Hypervel\Queue\Middleware\WithoutOverlapping` middleware that allows you to prevent job overlaps based on an arbitrary key. This can be helpful when a queued job is modifying a resource that should only be modified by one job at a time.
 
+Keys may be strings, integers, or enums. Backed enums use their value, while unit enums use their case name.
+
 For example, let's imagine you have a queued job that updates a user's credit score and you want to prevent credit score update job overlaps for the same user ID. To accomplish this, you can return the `WithoutOverlapping` middleware from your job's `middleware` method:
 
 ```php
@@ -2858,7 +2860,7 @@ php artisan queue:work --force
 <a name="resource-considerations"></a>
 #### Resource Considerations
 
-Daemon queue workers do not "reboot" the framework before processing each job. Therefore, you should release any heavy resources after each job completes. For example, if you are doing image manipulation with the [GD library](https://www.php.net/manual/en/book.image.php), you should free the memory with `imagedestroy` when you are done processing the image.
+Daemon queue workers do not "reboot" the framework before processing each job. Therefore, you should release any heavy resources after each job completes. For example, after [image manipulation](/docs/{{version}}/images), release references to image objects when you no longer need them. Do not retain them in static properties or singleton services between jobs.
 
 <a name="lost-database-connections"></a>
 #### Lost Database Connections

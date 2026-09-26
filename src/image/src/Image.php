@@ -608,7 +608,7 @@ class Image implements Responsable, Stringable
      */
     public function using(string $driver): static
     {
-        $clone = clone $this;
+        $clone = $this->newClone();
 
         $clone->driver = $driver;
 
@@ -666,6 +666,14 @@ class Image implements Responsable, Stringable
     }
 
     /**
+     * Create an immutable clone with copied options.
+     */
+    protected function newClone(): static
+    {
+        return clone $this;
+    }
+
+    /**
      * Create an immutable clone with updated output options.
      */
     protected function withOutput(Closure $callback): static
@@ -678,7 +686,7 @@ class Image implements Responsable, Stringable
      */
     protected function withClone(Closure $callback): static
     {
-        $clone = clone $this;
+        $clone = $this->newClone();
 
         $callback($clone);
 

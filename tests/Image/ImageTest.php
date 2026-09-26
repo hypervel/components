@@ -198,6 +198,28 @@ class ImageTest extends TestCase
         $this->assertEquals($originalOptions, $this->getOptions($image));
     }
 
+    public function testImmutableOperationsUseTheCloneExtensionPoint(): void
+    {
+        $image = new class('source image') extends Image {
+            public int $generation = 0;
+
+            /**
+             * Record each generation of image variants.
+             */
+            protected function newClone(): static
+            {
+                $clone = parent::newClone();
+                ++$clone->generation;
+
+                return $clone;
+            }
+        };
+
+        $this->assertSame(1, $image->usingGd()->generation);
+        $this->assertSame(1, $image->quality(80)->generation);
+        $this->assertSame(0, $image->generation);
+    }
+
     public function testChainedOperationsAccumulate(): void
     {
         $image = $this->makeImage();
@@ -812,9 +834,10 @@ class ImageTest extends TestCase
 
     public function testDriverExceptionIsWrappedInImageException(): void
     {
+        $this->registerDrivers([]);
         $image = new Image($this->fakeImageContents());
 
-        $this->expectExceptionObject(new ImageException('Failed to process image:'));
+        $this->expectExceptionObject(new ImageException('Failed to process image: Image driver [nonexistent] is not supported.'));
 
         // Trigger a driver error by using a non-existent driver
         $image->using('nonexistent')->cover(100, 100)->toBytes();
@@ -822,12 +845,14 @@ class ImageTest extends TestCase
 
     public function testWrappedExceptionPreservesOriginal(): void
     {
+        $this->registerDrivers([]);
         $image = new Image($this->fakeImageContents());
 
         try {
             $image->using('nonexistent')->cover(100, 100)->toBytes();
         } catch (ImageException $exception) {
-            $this->assertNotNull($exception->getPrevious());
+            $this->assertInstanceOf(InvalidArgumentException::class, $exception->getPrevious());
+            $this->assertSame('Image driver [nonexistent] is not supported.', $exception->getPrevious()->getMessage());
 
             return;
         }
