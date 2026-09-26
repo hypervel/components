@@ -15,6 +15,7 @@ use Hypervel\Routing\RouteCollection;
 use Hypervel\Routing\UrlGenerator;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Routing\Fixtures\CategoryBackedEnum;
+use Hypervel\Tests\Routing\Fixtures\CategoryEnum;
 use Hypervel\Tests\Routing\Fixtures\RouteDomainEnum;
 use Hypervel\Tests\Routing\Fixtures\RouteNameEnum;
 use Hypervel\Tests\Routing\RoutingTestCase;
@@ -1076,6 +1077,58 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         $this->assertTrue($url->hasValidSignature($request, ignoreQuery: fn ($parameter) => $parameter === 'tampered'));
     }
 
+    public function testSignedUrlDoesNotTrustForwardedPrefixToChangeThePathBeingVerified(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('http://www.foo.com/')
+        );
+        $url->setKeyResolver(fn (): string => 'secret');
+
+        $routes->add(new Route(['GET'], 'document/{document}', ['as' => 'document.show', function (): void {
+        }]));
+
+        $signedUrl = $url->signedRoute('document.show', ['document' => 1]);
+
+        $request = Request::create(
+            'http://www.foo.com/admin/42?' . parse_url($signedUrl, PHP_URL_QUERY),
+            'GET',
+            [],
+            [],
+            [],
+            [
+                'REMOTE_ADDR' => '127.0.0.1',
+                'HTTP_X_FORWARDED_PREFIX' => '/document/1?',
+            ]
+        );
+        RequestContext::set($request);
+        $request::setTrustedProxies(['127.0.0.1'], Request::HEADER_X_FORWARDED_PREFIX);
+
+        $this->assertFalse($url->hasValidSignature($request));
+    }
+
+    public function testSignedUrlWithTrustedProxyMountPrefix(): void
+    {
+        $url = new UrlGenerator($routes = new RouteCollection, Request::create('https://example.test/'));
+        $routes->add(new Route(['GET'], 'document/{document}', ['as' => 'document.show']));
+        $url->setKeyResolver(static fn (): string => 'secret');
+        $url->useOrigin('https://example.test/application');
+
+        $signed = $url->signedRoute('document.show', ['document' => 1]);
+        $request = Request::create('https://example.test/document/1?' . parse_url($signed, PHP_URL_QUERY), server: [
+            'REMOTE_ADDR' => '127.0.0.1',
+            'HTTP_X_FORWARDED_PREFIX' => '/application',
+        ]);
+        RequestContext::set($request);
+        Request::setTrustedProxies(['127.0.0.1'], Request::HEADER_X_FORWARDED_PREFIX);
+
+        $this->assertTrue($url->hasValidSignature($request));
+
+        $request->query->set('signature', 'invalid');
+
+        $this->assertFalse($url->hasValidSignature($request));
+    }
+
     public function testSignedUrlImplicitModelBinding()
     {
         $url = new UrlGenerator(
@@ -1186,6 +1239,35 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         $this->assertSame(
             'http://www.foo.com/foo?filter%5B0%5D=people&filter%5B1%5D=fruits',
             $url->route('foo', ['filter' => [CategoryBackedEnum::People, CategoryBackedEnum::Fruits]]),
+        );
+    }
+
+    public function testRouteGenerationWithUnitEnums(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('http://www.foo.com/')
+        );
+
+        $namedRoute = new Route(['GET'], '/foo/{bar}', ['as' => 'foo.bar']);
+        $routes->add($namedRoute);
+
+        $this->assertSame('http://www.foo.com/foo/Fruits', $url->route('foo.bar', CategoryEnum::Fruits));
+    }
+
+    public function testRouteGenerationWithNestedUnitEnums(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('http://www.foo.com/')
+        );
+
+        $namedRoute = new Route(['GET'], '/foo', ['as' => 'foo']);
+        $routes->add($namedRoute);
+
+        $this->assertSame(
+            'http://www.foo.com/foo?filter%5B0%5D=People&filter%5B1%5D=Fruits',
+            $url->route('foo', ['filter' => [CategoryEnum::People, CategoryEnum::Fruits]]),
         );
     }
 
