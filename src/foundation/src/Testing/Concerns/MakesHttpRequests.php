@@ -20,6 +20,7 @@ use Hypervel\Session\Store as SessionStore;
 use Hypervel\Support\Collection;
 use Hypervel\Testing\LoggedExceptionCollection;
 use Hypervel\Testing\TestResponse;
+use SensitiveParameter;
 use Stringable;
 use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
@@ -114,7 +115,7 @@ trait MakesHttpRequests
     /**
      * Add an authorization token for the request.
      */
-    public function withToken(string $token, string $type = 'Bearer'): static
+    public function withToken(#[SensitiveParameter] string $token, string $type = 'Bearer'): static
     {
         return $this->withHeader('Authorization', $type . ' ' . $token);
     }
@@ -122,7 +123,7 @@ trait MakesHttpRequests
     /**
      * Add a basic authentication header to the request with the given credentials.
      */
-    public function withBasicAuth(string $username, string $password): static
+    public function withBasicAuth(string $username, #[SensitiveParameter] string $password): static
     {
         return $this->withToken(base64_encode("{$username}:{$password}"), 'Basic');
     }
