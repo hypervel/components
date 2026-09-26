@@ -4,15 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
+use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
-use Hypervel\Contracts\Validation\UncompromisedVerifier;
+use Hypervel\Http\Client\Request;
+use Hypervel\Support\Facades\Http;
+use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rules\Password;
 use Hypervel\Validation\Validator;
 use InvalidArgumentException;
-use Mockery as m;
 
 class ValidationPasswordRuleTest extends TestCase
 {
@@ -20,7 +22,9 @@ class ValidationPasswordRuleTest extends TestCase
     {
         parent::setUp();
 
-        $this->app->singleton('translator', function () {
+        Http::preventStrayRequests();
+
+        $this->app->singleton('translator', function (): Translator {
             return new Translator(
                 new ArrayLoader,
                 'en'
@@ -130,13 +134,18 @@ class ValidationPasswordRuleTest extends TestCase
         $this->passes(Password::min(2)->symbols(), ['n^d', 'd^!', 'âè$', '金廿土弓竹中；']);
     }
 
-    public function testUncompromised()
+    public function testUncompromised(): void
     {
-        $uncompromisedVerifier = m::mock(UncompromisedVerifier::class);
-        $uncompromisedVerifier->shouldReceive('verify')
-            ->times(7)
-            ->andReturn(false);
-        $this->app->instance(UncompromisedVerifier::class, $uncompromisedVerifier);
+        // These counts reject common passwords while allowing the raised threshold below.
+        $this->fakePwnedPasswordsApi([
+            '123456' => 25000000,
+            'password' => 10000000,
+            'welcome' => 500000,
+            'abc123' => 300000,
+            '123456789' => 20000000,
+            '12345678' => 15000000,
+            'nuno' => 5000000,
+        ]);
 
         $this->fails(Password::min(2)->uncompromised(), [
             '123456',
@@ -149,12 +158,6 @@ class ValidationPasswordRuleTest extends TestCase
         ], [
             'validation.password.uncompromised',
         ]);
-
-        $uncompromisedVerifier = m::mock(UncompromisedVerifier::class);
-        $uncompromisedVerifier->shouldReceive('verify')
-            ->times(8)
-            ->andReturn(true);
-        $this->app->instance(UncompromisedVerifier::class, $uncompromisedVerifier);
 
         $this->passes(Password::min(2)->uncompromised(9999999), [
             'nuno',
@@ -171,9 +174,34 @@ class ValidationPasswordRuleTest extends TestCase
         ]);
     }
 
-    public function testMessagesOrder()
+    /**
+     * Fake the "Have I Been Pwned" range API with deterministic responses, so the
+     * uncompromised password rule never depends on a real, flaky network call.
+     *
+     * @param array<array-key, int> $breachCountsByPassword
+     */
+    protected function fakePwnedPasswordsApi(array $breachCountsByPassword): void
     {
-        $makeRules = function () {
+        Http::fake(function (Request $request) use ($breachCountsByPassword): PromiseInterface {
+            $prefix = Str::after($request->url(), '/range/');
+
+            foreach ($breachCountsByPassword as $password => $count) {
+                $hash = strtoupper(sha1((string) $password));
+
+                if (str_starts_with($hash, $prefix)) {
+                    return Http::response(substr($hash, 5) . ':' . $count);
+                }
+            }
+
+            return Http::response('');
+        });
+    }
+
+    public function testMessagesOrder(): void
+    {
+        $this->fakePwnedPasswordsApi(['abcabcabc!' => 1]);
+
+        $makeRules = function (): array {
             return ['required', Password::min(8)->mixedCase()->numbers()];
         };
 
