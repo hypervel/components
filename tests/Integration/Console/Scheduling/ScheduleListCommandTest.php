@@ -216,7 +216,7 @@ class ScheduleListCommandTest extends TestCase
     public function testDisplayScheduleKeepsTheRawExpressionInItsEvaluationTimezone(): void
     {
         // REMOVED: Laravel's display-only cron timezone converter cannot preserve
-        // ranges, special syntax, month boundaries, or daylight-saving changes.
+        // every combination of cron syntax, month boundaries and daylight-saving changes.
         $this->schedule->command('inspire')->cron('0 1-23/2 * * *')->timezone('UTC');
 
         $this->withoutMockingConsoleOutput()->artisan(ScheduleListCommand::class, [
