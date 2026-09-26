@@ -17,6 +17,8 @@ class NotificationTableCommand extends MigrationGeneratorCommand
 
     /**
      * The console command name aliases.
+     *
+     * @var string[]
      */
     protected array $aliases = ['notifications:table'];
 
