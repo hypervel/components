@@ -320,7 +320,7 @@ class Rule
         $wrappedData = Arr::wrap($data);
 
         $cached = CoroutineContext::get(self::UNDOTTED_DATA_CONTEXT_KEY);
-        if ($cached !== null && $cached['input'] === $wrappedData) {
+        if ($cached !== null && ($cached['input'] === $wrappedData || $cached['dotted'] === $wrappedData)) {
             $undotted = $cached['result'];
         } else {
             $undotted = Arr::undot($wrappedData);
