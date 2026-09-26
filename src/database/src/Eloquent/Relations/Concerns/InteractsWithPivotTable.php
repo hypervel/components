@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Relations\Concerns;
 
-use BackedEnum;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -12,6 +11,8 @@ use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Support\Collection as BaseCollection;
 use Throwable;
+
+use function Hypervel\Support\enum_value;
 
 trait InteractsWithPivotTable
 {
@@ -194,14 +195,12 @@ trait InteractsWithPivotTable
      */
     protected function formatRecordsList(array $records): array
     {
-        return (new BaseCollection($records))->mapWithKeys(function ($attributes, $id) {
+        return (new BaseCollection($records))->mapWithKeys(function (mixed $attributes, int|string $id): array {
             if (! is_array($attributes)) {
                 [$id, $attributes] = [$attributes, []];
             }
 
-            if ($id instanceof BackedEnum) {
-                $id = $id->value;
-            }
+            $id = enum_value($id);
 
             return [$id => $attributes];
         })->all();

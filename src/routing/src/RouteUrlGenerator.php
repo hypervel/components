@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Routing;
 
-use BackedEnum;
 use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Routing\Exceptions\UrlGenerationException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+
+use function Hypervel\Support\enum_value;
 
 class RouteUrlGenerator
 {
@@ -300,10 +301,8 @@ class RouteUrlGenerator
                     : $value;
         })->all();
 
-        array_walk_recursive($parameters, function (&$item) {
-            if ($item instanceof BackedEnum) {
-                $item = $item->value;
-            }
+        array_walk_recursive($parameters, function (mixed &$item): void {
+            $item = enum_value($item);
         });
 
         return $this->url->formatParameters($parameters);
