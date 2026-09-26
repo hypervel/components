@@ -15,6 +15,7 @@ use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class EloquentBelongsToManyTest extends DatabaseTestCase
 {
@@ -477,7 +478,9 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         }
     }
 
-    public function testFindOrFailMethod(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testFindOrFailMethod(bool $model): void
     {
         $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Integration\Database\EloquentBelongsToManyTest\Tag] 10'));
 
@@ -487,7 +490,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
 
         $post->tags()->attach(Tag::all());
 
-        $post->tags()->findOrFail(10);
+        $post->tags()->findOrFail($model ? (new Tag)->forceFill(['id' => 10]) : 10);
     }
 
     public function testFindOrFailMethodWithMany(): void
@@ -516,7 +519,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $post->tags()->findOrFail(new Collection([10, 11]));
     }
 
-    public function testFindOrNewMethod()
+    public function testFindOrNewMethod(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
@@ -525,9 +528,11 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $post->tags()->attach(Tag::all());
 
         $this->assertEquals($tag->id, $post->tags()->findOrNew($tag->id)->id);
+        $this->assertSame($tag->id, $post->tags()->findOrNew($tag)->id);
 
         $this->assertNull($post->tags()->findOrNew(666)->id);
         $this->assertInstanceOf(Tag::class, $post->tags()->findOrNew(666));
+        $this->assertNull($post->tags()->findOrNew((new Tag)->forceFill(['id' => 666]))->id);
     }
 
     public function testFindOrMethod()
@@ -1306,12 +1311,31 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         }
     }
 
-    public function testCustomRelatedKey()
+    public function testCustomRelatedKey(): void
     {
         $post = Post::create(['title' => Str::random()]);
 
         $tag = $post->tagsWithCustomRelatedKey()->create(['name' => Str::random()]);
         $this->assertEquals($tag->name, $post->tagsWithCustomRelatedKey()->first()->pivot->tag_name);
+
+        $other = $post->tagsWithCustomRelatedKey()->create(['name' => Str::random()]);
+        $tag->setAttribute('other_id', $other->id);
+
+        $this->assertSame($tag->id, $post->tagsWithCustomRelatedKey()->find($tag)->id);
+        $this->assertSame($tag->id, $post->tagsWithCustomRelatedKey()->findSole($tag)->id);
+        $this->assertSame($tag->id, $post->tagsWithCustomRelatedKey()->findOrFail($tag)->id);
+        $this->assertSame($tag->id, $post->tagsWithCustomRelatedKey()->findOr($tag, fn (): string => 'missing')->id);
+
+        foreach ([[$tag], new Collection([$tag]), collect([$tag])] as $models) {
+            $this->assertSame([$tag->id], $post->tagsWithCustomRelatedKey()->findMany($models)->modelKeys());
+            $this->assertSame([$tag->id], $post->tagsWithCustomRelatedKey()->findOrFail($models)->modelKeys());
+            $this->assertSame([$tag->id], $post->tagsWithCustomRelatedKey()->findOr($models, fn (): string => 'missing')->modelKeys());
+        }
+
+        $missing = (new Tag)->forceFill(['id' => 1000]);
+        $this->assertSame('missing', $post->tagsWithCustomRelatedKey()->findOr($missing, fn (): string => 'missing'));
+
+        $post->tagsWithCustomRelatedKey()->detach($other);
 
         $post->tagsWithCustomRelatedKey()->detach($tag);
 

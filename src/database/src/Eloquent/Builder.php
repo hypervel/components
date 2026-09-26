@@ -535,11 +535,11 @@ class Builder implements BuilderContract
     /**
      * Find a model by its primary key.
      *
-     * @return ($id is (array<mixed>|Arrayable<array-key, mixed>) ? Collection<int, TModel> : null|TModel)
+     * @return ($id is Model ? null|TModel : ($id is (array<mixed>|Arrayable<array<array-key, mixed>>) ? Collection<int, TModel> : null|TModel))
      */
     public function find(mixed $id, array|string $columns = ['*']): Model|Collection|null
     {
-        if (is_array($id) || $id instanceof Arrayable) {
+        if (! $id instanceof Model && (is_array($id) || $id instanceof Arrayable)) {
             return $this->findMany($id, $columns);
         }
 
@@ -578,12 +578,16 @@ class Builder implements BuilderContract
     /**
      * Find a model by its primary key or throw an exception.
      *
-     * @return ($id is (array<mixed>|Arrayable<array-key, mixed>) ? Collection<int, TModel> : TModel)
+     * @return ($id is Model ? TModel : ($id is (array<mixed>|Arrayable<array<array-key, mixed>>) ? Collection<int, TModel> : TModel))
      *
      * @throws ModelNotFoundException<TModel>
      */
     public function findOrFail(mixed $id, array|string $columns = ['*']): Model|Collection
     {
+        if ($id instanceof Model) {
+            $id = $id->getKey();
+        }
+
         $result = $this->find($id, $columns);
 
         $id = $id instanceof Arrayable ? $id->toArray() : $id;
@@ -612,7 +616,7 @@ class Builder implements BuilderContract
     /**
      * Find a model by its primary key or return fresh model instance.
      *
-     * @return ($id is (array<mixed>|Arrayable<array-key, mixed>) ? Collection<int, TModel> : TModel)
+     * @return ($id is Model ? TModel : ($id is (array<mixed>|Arrayable<array<array-key, mixed>>) ? Collection<int, TModel> : TModel))
      */
     public function findOrNew(mixed $id, array|string $columns = ['*']): Model|Collection
     {
@@ -631,9 +635,11 @@ class Builder implements BuilderContract
      * @param (Closure(): TValue)|list<string>|string $columns
      * @param null|(Closure(): TValue) $callback
      * @return (
-     *     $id is (Arrayable<array-key, mixed>|array<mixed>)
-     *     ? Collection<int, TModel>
-     *     : TModel|TValue
+     *     $id is Model ? TModel|TValue : (
+     *         $id is (Arrayable<array<array-key, mixed>>|array<mixed>)
+     *         ? Collection<int, TModel>
+     *         : TModel|TValue
+     *     )
      * )
      */
     public function findOr(mixed $id, Closure|array|string $columns = ['*'], ?Closure $callback = null): mixed

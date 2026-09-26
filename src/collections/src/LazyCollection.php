@@ -53,7 +53,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
     /**
      * Create a new lazy collection instance.
      *
-     * @param null|array<TKey, TValue>|Arrayable<TKey, TValue>|(Closure(): iterable<TKey, TValue>)|iterable<TKey, TValue>|self<TKey, TValue> $source
+     * @param null|array<TKey, TValue>|Arrayable<array<TKey, TValue>>|(Closure(): iterable<TKey, TValue>)|iterable<TKey, TValue>|self<TKey, TValue> $source
      *
      * @throws InvalidArgumentException
      */
@@ -78,7 +78,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
      * @template TNewKey of array-key = int
      * @template TNewValue = mixed
      *
-     * @param null|array<TNewKey, TNewValue>|Arrayable<TNewKey, TNewValue>|(Closure(): iterable<TNewKey, TNewValue>)|iterable<TNewKey, TNewValue>|self<TNewKey, TNewValue> $items
+     * @param null|array<TNewKey, TNewValue>|Arrayable<array<TNewKey, TNewValue>>|(Closure(): iterable<TNewKey, TNewValue>)|iterable<TNewKey, TNewValue>|self<TNewKey, TNewValue> $items
      * @return static<TNewKey, TNewValue>
      */
     protected function newInstance(mixed $items = []): static
@@ -92,8 +92,8 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
      * @template TMakeKey of array-key = int
      * @template TMakeValue = mixed
      *
-     * @param null|array<TMakeKey, TMakeValue>|Arrayable<TMakeKey, TMakeValue>|(Closure(): iterable<TMakeKey, TMakeValue>)|iterable<TMakeKey, TMakeValue>|self<TMakeKey, TMakeValue> $items
-     * @return static<TMakeKey, TMakeValue>
+     * @param null|array<TMakeKey, TMakeValue>|Arrayable<array<array-key, mixed>>|(Closure(): iterable<TMakeKey, TMakeValue>)|iterable<TMakeKey, TMakeValue>|self<TMakeKey, TMakeValue> $items
+     * @return ($items is Arrayable<array<TMakeKey, TMakeValue>> ? static<TMakeKey, TMakeValue> : static<TMakeKey, TMakeValue>)
      */
     public static function make(mixed $items = [], mixed ...$args): static
     {
@@ -890,7 +890,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
      *
      * @template TCombineValue = mixed
      *
-     * @param Arrayable<array-key, TCombineValue>|(callable(): iterable<array-key, TCombineValue>)|iterable<array-key, TCombineValue> $values
+     * @param Arrayable<array<array-key, TCombineValue>>|(callable(): iterable<array-key, TCombineValue>)|iterable<array-key, TCombineValue> $values
      * @return static<TValue, TCombineValue>
      * @phpstan-ignore generics.notSubtype (TValue becomes key - only valid when TValue is array-key, but can't express this constraint)
      */
@@ -1079,7 +1079,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
     /**
      * Replace the collection items with the given items.
      *
-     * @param Arrayable<TKey, TValue>|iterable<TKey, TValue> $items
+     * @param Arrayable<array<TKey, TValue>>|iterable<TKey, TValue> $items
      */
     public function replace(mixed $items): static
     {
@@ -1784,7 +1784,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
      *
      * @template TZipValue
      *
-     * @param Arrayable<array-key, TZipValue>|iterable<array-key, TZipValue> ...$items
+     * @param Arrayable<array<array-key, TZipValue>>|iterable<array-key, TZipValue> ...$items
      * @return static<int, static<int, TValue|TZipValue>>
      */
     public function zip(Arrayable|iterable ...$items): static

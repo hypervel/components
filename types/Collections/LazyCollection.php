@@ -12,7 +12,7 @@ use Traversable;
 
 use function PHPStan\Testing\assertType;
 
-/** @implements Arrayable<int, User> */
+/** @implements Arrayable<array<int, User>> */
 class LazyUsers implements Arrayable
 {
     /**

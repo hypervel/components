@@ -14,7 +14,7 @@ use LogicException;
 /**
  * @template TModel of Model = Model
  *
- * @implements Arrayable<string, mixed>
+ * @implements Arrayable<array<string, mixed>>
  *
  * @internal
  */

@@ -12,7 +12,7 @@ use JsonException;
 use Psr\Http\Message\StreamInterface;
 
 /**
- * @implements Arrayable<array-key, mixed>
+ * @implements Arrayable<array<array-key, mixed>>
  */
 class ApiResponse extends HttpClientResponse implements Arrayable
 {

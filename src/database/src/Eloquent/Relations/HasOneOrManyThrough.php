@@ -320,18 +320,18 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Find a related model by its primary key.
      *
-     * @return ($id is (array<mixed>|Arrayable<array-key, mixed>) ? EloquentCollection<int, TRelatedModel> : null|TRelatedModel)
+     * @return ($id is Model ? null|TRelatedModel : ($id is (array<mixed>|Arrayable<array<array-key, mixed>>) ? EloquentCollection<int, TRelatedModel> : null|TRelatedModel))
      */
     public function find(mixed $id, array $columns = ['*']): EloquentCollection|Model|null
     {
-        if (is_array($id) || $id instanceof Arrayable) {
+        if (! $id instanceof Model && (is_array($id) || $id instanceof Arrayable)) {
             return $this->findMany($id, $columns);
         }
 
         return $this->where(
             $this->getRelated()->getQualifiedKeyName(),
             '=',
-            $id
+            $id instanceof Model ? $id->getKey() : $id
         )->first($columns);
     }
 
@@ -348,14 +348,14 @@ abstract class HasOneOrManyThrough extends Relation
         return $this->where(
             $this->getRelated()->getQualifiedKeyName(),
             '=',
-            $id
+            $id instanceof Model ? $id->getKey() : $id
         )->sole($columns);
     }
 
     /**
      * Find multiple related models by their primary keys.
      *
-     * @param array<mixed>|Arrayable<array-key, mixed> $ids
+     * @param array<mixed>|Arrayable<array<array-key, mixed>> $ids
      * @return EloquentCollection<int, TRelatedModel>
      */
     public function findMany(Arrayable|array $ids, array $columns = ['*']): EloquentCollection
@@ -375,12 +375,16 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Find a related model by its primary key or throw an exception.
      *
-     * @return ($id is (array<mixed>|Arrayable<array-key, mixed>) ? EloquentCollection<int, TRelatedModel> : TRelatedModel)
+     * @return ($id is Model ? TRelatedModel : ($id is (array<mixed>|Arrayable<array<array-key, mixed>>) ? EloquentCollection<int, TRelatedModel> : TRelatedModel))
      *
      * @throws ModelNotFoundException<TRelatedModel>
      */
     public function findOrFail(mixed $id, array $columns = ['*']): EloquentCollection|Model
     {
+        if ($id instanceof Model) {
+            $id = $id->getKey();
+        }
+
         $result = $this->find($id, $columns);
 
         $id = $id instanceof Arrayable ? $id->toArray() : $id;
@@ -404,9 +408,11 @@ abstract class HasOneOrManyThrough extends Relation
      * @param (Closure(): TValue)|list<string>|string $columns
      * @param null|(Closure(): TValue) $callback
      * @return (
-     *     $id is (Arrayable<array-key, mixed>|array<mixed>)
-     *     ? EloquentCollection<int, TRelatedModel>|TValue
-     *     : TRelatedModel|TValue
+     *     $id is Model ? TRelatedModel|TValue : (
+     *         $id is (Arrayable<array<array-key, mixed>>|array<mixed>)
+     *         ? EloquentCollection<int, TRelatedModel>|TValue
+     *         : TRelatedModel|TValue
+     *     )
      * )
      */
     public function findOr(mixed $id, Closure|array|string $columns = ['*'], ?Closure $callback = null): mixed
@@ -415,6 +421,10 @@ abstract class HasOneOrManyThrough extends Relation
             $callback = $columns;
 
             $columns = ['*'];
+        }
+
+        if ($id instanceof Model) {
+            $id = $id->getKey();
         }
 
         $result = $this->find($id, $columns);

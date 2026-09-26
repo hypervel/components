@@ -23,7 +23,7 @@ use JsonSerializable;
  *
  * @extends AbstractPaginator<TKey, TValue>
  *
- * @implements Arrayable<TKey, TValue>
+ * @implements Arrayable<array<string, mixed>>
  * @implements ArrayAccess<TKey, TValue>
  * @implements IteratorAggregate<TKey, TValue>
  * @implements LengthAwarePaginatorContract<TKey, TValue>
@@ -43,7 +43,7 @@ class LengthAwarePaginator extends AbstractPaginator implements Arrayable, Array
     /**
      * Create a new paginator instance.
      *
-     * @param null|Arrayable<TKey, TValue>|Collection<TKey, TValue>|iterable<TKey, TValue> $items
+     * @param null|Arrayable<array<TKey, TValue>>|Collection<TKey, TValue>|iterable<TKey, TValue> $items
      * @param array<string, mixed> $options (path, query, fragment, pageName)
      */
     public function __construct(mixed $items, int $total, int $perPage, ?int $currentPage = null, array $options = [])

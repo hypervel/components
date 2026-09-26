@@ -56,7 +56,7 @@ class ResponseFactory
      * included with every response, making it ideal for user authentication
      * state, flash messages, etc.
      *
-     * @param array<array-key, mixed>|Arrayable<array-key, mixed>|ProvidesInertiaProperties|string $key
+     * @param array<array-key, mixed>|Arrayable<array<array-key, mixed>>|ProvidesInertiaProperties|string $key
      */
     public function share(mixed $key, mixed $value = null): void
     {
@@ -290,7 +290,7 @@ class ResponseFactory
      * Create an Inertia response.
      *
      * @param BackedEnum|string|UnitEnum $component
-     * @param array<array-key, mixed>|Arrayable<array-key, mixed>|ProvidesInertiaProperties $props
+     * @param array<array-key, mixed>|Arrayable<array<array-key, mixed>>|ProvidesInertiaProperties $props
      */
     public function render(mixed $component, mixed $props = []): Response
     {

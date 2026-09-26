@@ -12,7 +12,7 @@ use Hypervel\Pagination\Paginator;
 use InvalidArgumentException;
 
 /**
- * @implements Arrayable<string, mixed>
+ * @implements Arrayable<array<string, mixed>>
  */
 class ScrollMetadata implements Arrayable, ProvidesScrollMetadata
 {
