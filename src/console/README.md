@@ -13,6 +13,6 @@ Laravel's deprecated `GeneratorCommand::possibleModels()` alias is not ported. G
 
 Scheduled tasks do not support `user()`. Run the scheduler as the required OS user, or use `exec()` with an explicit command to run an individual task as another user.
 
-`schedule:list --timezone` converts next-due timestamps but leaves cron expressions in their real evaluation timezone. A static expression conversion cannot preserve every combination of cron syntax, month boundaries and daylight-saving transitions. JSON output includes `expression_timezone`, and CLI output labels it when it differs from the requested display timezone.
+`schedule:list --timezone` converts next-due timestamps but leaves cron expressions in their evaluation timezone because a single converted expression cannot stay correct across daylight-saving changes and month boundaries. See the [timezone documentation](https://hypervel.org/docs/scheduling#timezones).
 
 Ported from: https://github.com/laravel/framework/tree/13.x/src/Illuminate/Console
