@@ -35,6 +35,7 @@
         "hypervel/http": "^0.4",
         "hypervel/object-pool": "^0.4",
         "hypervel/queue": "^0.4",
+        "hypervel/reflection": "^0.4",
         "hypervel/routing": "^0.4",
         "hypervel/support": "^0.4",
         "psr/log": "^3.0",

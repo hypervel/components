@@ -45,6 +45,7 @@
         "hypervel/pipeline": "^0.4",
         "hypervel/rate-limiter": "^0.4",
         "hypervel/redis": "^0.4",
+        "hypervel/reflection": "^0.4",
         "hypervel/support": "^0.4",
         "laravel/serializable-closure": "^2.0.11",
         "nesbot/carbon": "^3.13.1",
