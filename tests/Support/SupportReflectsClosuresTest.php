@@ -96,6 +96,14 @@ class SupportReflectsClosuresTest extends TestCase
         });
     }
 
+    public function testItThrowsWhenFirstParameterHasNoTypeHintEvenIfLaterParameterDoes(): void
+    {
+        $this->expectExceptionObject(new RuntimeException('The first parameter of the given Closure is missing a type hint.'));
+
+        ReflectsClosuresClass::reflectFirstAll(function ($a, ExampleParameter $b): void {
+        });
+    }
+
     public function testClosureReturnTypesReturnsClassReturnType(): void
     {
         $this->assertSame(
@@ -150,14 +158,15 @@ class SupportReflectsClosuresTest extends TestCase
         ReflectsClosuresClass::reflectFirstAll($closure);
     }
 
+    /**
+     * Supply first parameters without a usable class type.
+     */
     public static function invalidFirstParameterProvider(): array
     {
         return [
-            'untyped' => [function ($first, ExampleParameter $second) {
+            'builtin' => [function (string $first, ExampleParameter $second): void {
             }],
-            'builtin' => [function (string $first, ExampleParameter $second) {
-            }],
-            'variadic' => [function (ExampleParameter ...$first) {
+            'variadic' => [function (ExampleParameter ...$first): void {
             }],
         ];
     }
