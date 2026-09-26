@@ -132,7 +132,7 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
     }
 
     /**
-     * Ensure that the email address has a valid MX record.
+     * Check the email domain's MX records, with A or AAAA records as a fallback.
      *
      * Requires the PHP intl extension.
      */
