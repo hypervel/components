@@ -114,7 +114,7 @@
         "web-auth/webauthn-lib": "^5.3"
     },
     "require-dev": {
-        "ably/ably-php": "^1.0",
+        "ably/ably-php": "^1.1.10",
         "algolia/algoliasearch-client-php": "^4.49.0",
         "brianium/paratest": "^7.24",
         "composer/composer": "^2.10.3",
