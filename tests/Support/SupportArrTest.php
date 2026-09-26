@@ -822,14 +822,12 @@ class SupportArrTest extends TestCase
         $test_array = ['string' => 'foo bar', 'boolean' => true];
 
         // Test boolean values are returned as booleans
-        $this->assertSame(
-            true,
+        $this->assertTrue(
             Arr::boolean($test_array, 'boolean')
         );
 
         // Test that default boolean values are returned for missing keys
-        $this->assertSame(
-            true,
+        $this->assertTrue(
             Arr::boolean($test_array, 'missing_key', true)
         );
 

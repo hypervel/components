@@ -15,6 +15,7 @@ use Hypervel\Process\FakeProcessDescription;
 use Hypervel\Process\InvokedProcess;
 use Hypervel\Process\InvokedProcessPool;
 use Hypervel\Process\PendingProcess;
+use Hypervel\Process\Pool;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use OutOfBoundsException;
@@ -26,7 +27,7 @@ use Throwable;
 
 class ProcessTest extends TestCase
 {
-    public function testSuccessfulProcess()
+    public function testSuccessfulProcess(): void
     {
         $factory = new Factory;
         $result = $factory->path(__DIR__)->run($this->ls());
@@ -35,18 +36,18 @@ class ProcessTest extends TestCase
         $this->assertTrue($result->successful());
         $this->assertFalse($result->failed());
         $this->assertEquals(0, $result->exitCode());
-        $this->assertTrue(str_contains($result->output(), 'ProcessTest.php'));
+        $this->assertStringContainsString('ProcessTest.php', $result->output());
         $this->assertSame('', $result->errorOutput());
 
         $result->throw();
         $result->throwIf(true);
     }
 
-    public function testProcessPool()
+    public function testProcessPool(): void
     {
         $factory = new Factory;
 
-        $pool = $factory->pool(function ($pool) {
+        $pool = $factory->pool(function (Pool $pool): array {
             return [
                 $pool->path(__DIR__)->command($this->ls()),
                 $pool->path(__DIR__)->command($this->ls()),
@@ -58,8 +59,8 @@ class ProcessTest extends TestCase
         $this->assertTrue($results[0]->successful());
         $this->assertTrue($results[1]->successful());
 
-        $this->assertTrue(str_contains($results[0]->output(), 'ProcessTest.php'));
-        $this->assertTrue(str_contains($results[1]->output(), 'ProcessTest.php'));
+        $this->assertStringContainsString('ProcessTest.php', $results[0]->output());
+        $this->assertStringContainsString('ProcessTest.php', $results[1]->output());
 
         $this->assertTrue($results->successful());
     }
@@ -285,12 +286,12 @@ class ProcessTest extends TestCase
 
         $output = [];
 
-        $pool = $factory->pool(function ($pool) {
+        $pool = $factory->pool(function (Pool $pool): array {
             return [
                 $pool->path(__DIR__)->command($this->ls()),
                 $pool->path(__DIR__)->command($this->ls()),
             ];
-        })->start(function ($type, $buffer, $key) use (&$output) {
+        })->start(function (string $type, string $buffer, int|string $key) use (&$output): void {
             $output[$key][$type][] = $buffer;
         });
 
@@ -300,15 +301,15 @@ class ProcessTest extends TestCase
         $this->assertTrue($output[1]['out'] !== []);
         $this->assertInstanceOf(ProcessResult::class, $poolResults[0]);
         $this->assertInstanceOf(ProcessResult::class, $poolResults[1]);
-        $this->assertTrue(str_contains($poolResults[0]->output(), 'ProcessTest.php'));
-        $this->assertTrue(str_contains($poolResults[1]->output(), 'ProcessTest.php'));
+        $this->assertStringContainsString('ProcessTest.php', $poolResults[0]->output());
+        $this->assertStringContainsString('ProcessTest.php', $poolResults[1]->output());
     }
 
-    public function testProcessPoolResultsCanBeEvaluatedByName()
+    public function testProcessPoolResultsCanBeEvaluatedByName(): void
     {
         $factory = new Factory;
 
-        $pool = $factory->pool(function ($pool) {
+        $pool = $factory->pool(function (Pool $pool): array {
             return [
                 $pool->as('first')->path(__DIR__)->command($this->ls()),
                 $pool->as('second')->path(__DIR__)->command($this->ls()),
@@ -318,26 +319,26 @@ class ProcessTest extends TestCase
         $this->assertTrue($pool['first']->successful());
         $this->assertTrue($pool['second']->successful());
 
-        $this->assertTrue(str_contains($pool['first']->output(), 'ProcessTest.php'));
-        $this->assertTrue(str_contains($pool['second']->output(), 'ProcessTest.php'));
+        $this->assertStringContainsString('ProcessTest.php', $pool['first']->output());
+        $this->assertStringContainsString('ProcessTest.php', $pool['second']->output());
     }
 
-    public function testOutputCanBeRetrievedViaStartCallback()
+    public function testOutputCanBeRetrievedViaStartCallback(): void
     {
         $factory = new Factory;
 
         $output = [];
 
-        $process = $factory->path(__DIR__)->start($this->ls(), function ($type, $buffer) use (&$output) {
+        $process = $factory->path(__DIR__)->start($this->ls(), function (string $type, string $buffer) use (&$output): void {
             $output[] = $buffer;
         });
 
         $process->wait();
 
-        $this->assertTrue(str_contains(implode('', $output), 'ProcessTest.php'));
+        $this->assertStringContainsString('ProcessTest.php', implode('', $output));
     }
 
-    public function testOutputCanBeRetrievedViaWaitCallback()
+    public function testOutputCanBeRetrievedViaWaitCallback(): void
     {
         $factory = new Factory;
 
@@ -345,11 +346,11 @@ class ProcessTest extends TestCase
 
         $process = $factory->path(__DIR__)->start($this->ls());
 
-        $process->wait(function ($type, $buffer) use (&$output) {
+        $process->wait(function (string $type, string $buffer) use (&$output): void {
             $output[] = $buffer;
         });
 
-        $this->assertTrue(str_contains(implode('', $output), 'ProcessTest.php'));
+        $this->assertStringContainsString('ProcessTest.php', implode('', $output));
     }
 
     #[RequiresOperatingSystem('Linux|Darwin')]
@@ -778,7 +779,7 @@ class ProcessTest extends TestCase
         $result = $factory->run(['cat composer.json']);
     }
 
-    public function testStrayProcessesActuallyRunByDefault()
+    public function testStrayProcessesActuallyRunByDefault(): void
     {
         $factory = new Factory;
 
@@ -787,7 +788,7 @@ class ProcessTest extends TestCase
         ]);
 
         $result = $factory->path(__DIR__)->run($this->ls());
-        $this->assertTrue(str_contains($result->output(), 'ProcessTest.php'));
+        $this->assertStringContainsString('ProcessTest.php', $result->output());
     }
 
     public function testProcessFakeThrowShorthand(): void
@@ -1526,7 +1527,7 @@ class ProcessTest extends TestCase
         $this->assertEmpty($waitUntilCallbacks);
     }
 
-    public function testBasicFakeAssertions()
+    public function testBasicFakeAssertions(): void
     {
         $factory = new Factory;
 
@@ -1534,16 +1535,16 @@ class ProcessTest extends TestCase
 
         $result = $factory->run('ls -la');
 
-        $factory->assertRan(function ($process, $result) {
-            return $process->command == 'ls -la';
+        $factory->assertRan(function (PendingProcess $process, ProcessResult $result): bool {
+            return $process->command === 'ls -la';
         });
 
-        $factory->assertRanTimes(function ($process, $result) {
-            return $process->command == 'ls -la';
+        $factory->assertRanTimes(function (PendingProcess $process, ProcessResult $result): bool {
+            return $process->command === 'ls -la';
         }, 1);
 
-        $factory->assertNotRan(function ($process, $result) {
-            return $process->command == 'cat foo';
+        $factory->assertNotRan(function (PendingProcess $process, ProcessResult $result): bool {
+            return $process->command === 'cat foo';
         });
     }
 

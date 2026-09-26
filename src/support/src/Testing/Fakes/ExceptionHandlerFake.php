@@ -70,8 +70,9 @@ class ExceptionHandlerFake implements ExceptionHandler, Fake
         );
 
         if (is_string($exception)) {
-            PHPUnit::assertTrue(
-                in_array($exception, array_map(get_class(...), $this->reported), true),
+            PHPUnit::assertContains(
+                $exception,
+                array_map(get_class(...), $this->reported),
                 $message,
             );
 
