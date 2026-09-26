@@ -392,14 +392,14 @@ class SchemaBuilderTest extends DatabaseTestCase
         ));
     }
 
-    public function testGetColumnsOnView()
+    public function testGetColumnsOnView(): void
     {
         DB::statement('create view foo (bar) as select 1');
 
         $columns = Schema::getColumns('foo');
 
         $this->assertCount(1, $columns);
-        $this->assertTrue($columns[0]['name'] === 'bar');
+        $this->assertSame('bar', $columns[0]['name']);
     }
 
     public function testGetIndexes()
