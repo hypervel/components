@@ -68,7 +68,7 @@ class PendingCommand
     /**
      * Specify an expected question that will be asked when the command runs.
      */
-    public function expectsQuestion(string $question, array|bool|string $answer): static
+    public function expectsQuestion(string $question, mixed $answer): static
     {
         $this->test->expectedQuestions[] = [$question, $answer];
 
