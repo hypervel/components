@@ -1310,7 +1310,7 @@ class Blueprint
     }
 
     /**
-     * Create a new UUID column on the table with a foreign key constraint.
+     * Create a new UUID foreign ID column on the table.
      */
     public function foreignUuid(string $column): ForeignIdColumnDefinition
     {
@@ -1331,7 +1331,7 @@ class Blueprint
     }
 
     /**
-     * Create a new ULID column on the table with a foreign key constraint.
+     * Create a new ULID foreign ID column on the table.
      */
     public function foreignUlid(string $column, ?int $length = 26): ForeignIdColumnDefinition
     {

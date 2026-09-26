@@ -18,7 +18,7 @@ use Hypervel\Support\Testing\Fakes\EventFake;
  * @method static void forgetPushed()
  * @method static array getListeners(string $eventName)
  * @method static array getObservers(string $eventName)
- * @method static array getRawListeners()
+ * @method static array<array-key, array<int, null|array|callable|string>> getRawListeners()
  * @method static bool hasListeners(string $eventName)
  * @method static bool hasMacro(string $name)
  * @method static bool hasWildcardListeners(string $eventName)

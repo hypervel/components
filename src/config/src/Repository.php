@@ -228,6 +228,8 @@ class Repository implements ArrayAccess, ConfigContract
 
     /**
      * Get all of the configuration items for the application.
+     *
+     * @return array<array-key, mixed>
      */
     public function all(): array
     {

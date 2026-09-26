@@ -235,6 +235,7 @@ trait HasTimestamps
         /** @var list<class-string> $ignoreTimestampsOn */
         $ignoreTimestampsOn = CoroutineContext::get(static::IGNORE_TIMESTAMPS_CONTEXT_KEY, []);
 
+        // Keep this loop to avoid an extra callback per class.
         foreach ($ignoreTimestampsOn as $ignoredClass) {
             if ($class === $ignoredClass || is_subclass_of($class, $ignoredClass)) {
                 return true;

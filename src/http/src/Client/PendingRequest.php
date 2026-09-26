@@ -1958,6 +1958,7 @@ class PendingRequest implements Transient
             return true;
         }
 
+        // Keep this loop to avoid an extra callback per pattern.
         foreach ($this->allowedStrayRequestUrls as $pattern) {
             if (Str::is($pattern, $url)) {
                 return true;

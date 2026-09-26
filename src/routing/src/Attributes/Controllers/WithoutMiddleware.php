@@ -10,6 +10,8 @@ use Attribute;
 class WithoutMiddleware
 {
     /**
+     * Create a new middleware exclusion attribute.
+     *
      * @param null|array<string> $only
      * @param null|array<string> $except
      */

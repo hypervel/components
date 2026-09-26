@@ -88,7 +88,7 @@ class Dispatcher implements DispatcherContract
     /**
      * The registered event listeners.
      *
-     * @var array<string, array<int, null|array|callable|string>>
+     * @var array<array-key, array<int, null|array|callable|string>>
      */
     protected array $listeners = [];
 
@@ -306,6 +306,7 @@ class Dispatcher implements DispatcherContract
      */
     public function hasWildcardListeners(string $eventName): bool
     {
+        // Keep this loop to avoid an extra callback per wildcard.
         foreach ($this->wildcards as $key => $listeners) {
             if ($key === '*' || preg_match($this->compiledWildcardPatterns[$key], $eventName) === 1) {
                 return true;
@@ -1227,6 +1228,8 @@ class Dispatcher implements DispatcherContract
 
     /**
      * Get the raw, unprepared listeners.
+     *
+     * @return array<array-key, array<int, null|array|callable|string>>
      */
     public function getRawListeners(): array
     {

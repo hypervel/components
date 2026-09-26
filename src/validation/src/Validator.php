@@ -980,6 +980,7 @@ class Validator implements ValidatorContract
                     && $this->hasAttributeAncestorInSet($attribute, $this->activeExclusions));
         }
 
+        // Keep the subclass fallback as a loop to avoid an extra callback per exclusion.
         foreach ($this->excludeAttributes as $excludeAttribute) {
             if ($attribute === $excludeAttribute
                 || Str::startsWith($attribute, $excludeAttribute . '.')
