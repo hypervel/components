@@ -37,13 +37,11 @@ class ChannelListCommand extends Command
         // @phpstan-ignore method.notFound (channel listing is an optional concrete broadcaster capability)
         $channels = $broadcaster->getChannels();
 
-        if (! $channels->count()) {
+        if ($channels->isEmpty()) {
             $this->components->error("Your application doesn't have any private broadcasting channels.");
-
-            return;
+        } else {
+            $this->displayChannels($channels);
         }
-
-        $this->displayChannels($channels);
     }
 
     /**

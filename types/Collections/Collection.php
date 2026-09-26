@@ -713,6 +713,14 @@ assertType('Hypervel\Support\Collection<int, string>', $collection::make(['strin
 
 assertType('Hypervel\Support\Collection<int, User>', $collection->forPage(1, 2));
 
+/** @var Collection<int, array{name: string}> $selectable */
+$selectable = collect([['name' => 'Taylor']]);
+$selectable->select(['name']);
+$selectable->select(new Collection(['field' => 'name']));
+/** @var Collection<string, array<int, string>> $numericFields */
+$numericFields = collect(['row' => ['value']]);
+$numericFields->select([0]);
+
 assertType('Hypervel\Support\Collection<int<0, 1>, Hypervel\Support\Collection<int, User>>', $collection->partition(function ($user, $int) {
     assertType('User', $user);
     assertType('int', $int);
