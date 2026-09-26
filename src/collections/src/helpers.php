@@ -13,8 +13,8 @@ if (! function_exists('collect')) {
      * @template TKey of array-key
      * @template TValue
      *
-     * @param null|Arrayable<TKey, TValue>|iterable<TKey, TValue> $value
-     * @return Collection<TKey, TValue>
+     * @param null|Arrayable<array<array-key, mixed>>|iterable<TKey, TValue> $value
+     * @return ($value is Arrayable<array<TKey, TValue>> ? Collection<TKey, TValue> : Collection<TKey, TValue>)
      */
     function collect($value = []): Collection
     {

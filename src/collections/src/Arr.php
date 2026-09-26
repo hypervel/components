@@ -438,7 +438,7 @@ class Arr
      * @template TKey of array-key = array-key
      * @template TValue = mixed
      *
-     * @param array<TKey, TValue>|Arrayable<TKey, TValue>|Enumerable<TKey, TValue>|Jsonable|JsonSerializable|object|Traversable<TKey, TValue>|WeakMap<object, TValue> $items
+     * @param array<TKey, TValue>|Arrayable<array<TKey, TValue>>|Enumerable<TKey, TValue>|Jsonable|JsonSerializable|object|Traversable<TKey, TValue>|WeakMap<object, TValue> $items
      * @return ($items is WeakMap ? list<TValue> : array<TKey, TValue>)
      *
      * @throws InvalidArgumentException

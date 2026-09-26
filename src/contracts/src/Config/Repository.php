@@ -62,6 +62,8 @@ interface Repository
 
     /**
      * Get all of the configuration items for the application.
+     *
+     * @return array<array-key, mixed>
      */
     public function all(): array;
 

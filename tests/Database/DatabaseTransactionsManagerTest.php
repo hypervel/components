@@ -362,7 +362,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertEquals(['default', 1], $callbacks[0]);
     }
 
-    public function testPartialRollbackDetachesOnlyTheCurrentBranchAndItsCommittedDescendants(): void
+    public function testPartialRollbackExecutesCallbacksForCommittedDescendantSavepoints(): void
     {
         $manager = new InspectableDatabaseTransactionsManager;
         $callbacks = [];
@@ -438,7 +438,7 @@ class DatabaseTransactionsManagerTest extends TestCase
         $this->assertCount(0, $manager->getCommittedTransactions());
     }
 
-    public function testRollbackCallbacksExhaustDeepestFirstAndPreserveTheEarliestFailure(): void
+    public function testRollbackExecutesCallbacksForCommittedSavepointsWhenOuterRollsBack(): void
     {
         $manager = new DatabaseTransactionsManager;
         $callbacks = [];
@@ -520,6 +520,33 @@ class DatabaseTransactionsManagerTest extends TestCase
             'deepest final',
             'outer',
         ], $callbacks);
+    }
+
+    public function testRollbackExecutesCallbacksInDeepestFirstOrderAcrossCommittedAndOpenBranches(): void
+    {
+        $callbacks = [];
+        $manager = new DatabaseTransactionsManager;
+
+        $manager->begin('default', 1);
+        $manager->addCallbackForRollback(function () use (&$callbacks): void {
+            $callbacks[] = ['default', 1];
+        });
+
+        $manager->begin('default', 2);
+        $manager->addCallbackForRollback(function () use (&$callbacks): void {
+            $callbacks[] = ['committed', 2];
+        });
+        $manager->commit('default', 2, 1);
+
+        $manager->begin('default', 2);
+        $manager->begin('default', 3);
+        $manager->addCallbackForRollback(function () use (&$callbacks): void {
+            $callbacks[] = ['open', 3];
+        });
+
+        $manager->rollback('default', 0);
+
+        $this->assertSame([['open', 3], ['committed', 2], ['default', 1]], $callbacks);
     }
 
     public function testRollbackExecutesCallbacksInDeepestFirstOrderAcrossCommittedBranches(): void
@@ -739,6 +766,9 @@ class DatabaseTransactionsManagerTest extends TestCase
 
 class InspectableDatabaseTransactionsManager extends DatabaseTransactionsManager
 {
+    /**
+     * Get the current transaction for a connection.
+     */
     public function currentTransaction(string $connection): ?DatabaseTransactionRecord
     {
         return $this->getCurrentTransactionForConnection($connection);

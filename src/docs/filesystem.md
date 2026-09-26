@@ -865,6 +865,15 @@ $name = $file->hashName(); // Generate a unique, random name...
 $extension = $file->extension(); // Determine the file's extension based on the file's MIME type...
 ```
 
+If you need to resize, crop, or convert an uploaded image before storing it, you may use Hypervel's [image manipulation features](/docs/{{version}}/images):
+
+```php
+$path = $request->image('avatar')
+    ->cover(400, 400)
+    ->toWebp()
+    ->storePublicly('avatars', 'public');
+```
+
 <a name="file-visibility"></a>
 ### File Visibility
 

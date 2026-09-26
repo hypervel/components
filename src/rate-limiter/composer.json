@@ -38,6 +38,7 @@
         "hypervel/coordinator": "^0.4",
         "hypervel/core": "^0.4",
         "hypervel/database": "^0.4",
+        "hypervel/macroable": "^0.4",
         "hypervel/redis": "^0.4",
         "hypervel/support": "^0.4",
         "psr/log": "^3.0",

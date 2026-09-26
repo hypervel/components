@@ -14,6 +14,7 @@ use Hypervel\Database\Schema\Builder;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 
 class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
@@ -139,7 +140,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->assertEquals(['A title'], $country->first()->posts->pluck('title')->unique()->toArray());
     }
 
-    public function testFindMethod()
+    public function testFindMethod(): void
     {
         Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
@@ -156,6 +157,12 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
 
         $this->assertCount(2, $country->posts()->find([1, 2]));
         $this->assertCount(2, $country->posts()->find(new Collection([1, 2])));
+
+        $post->setAttribute('other_id', 2);
+        $this->assertSame(1, $country->posts()->find($post)->id);
+        $this->assertSame(1, $country->posts()->findSole($post)->id);
+        $this->assertSame(1, $country->posts()->findOrFail($post)->id);
+        $this->assertSame(1, $country->posts()->findOr($post, fn (): string => 'missing')->id);
     }
 
     public function testFindManyMethod()
@@ -183,14 +190,16 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         Country::first()->posts()->firstOrFail();
     }
 
-    public function testFindOrFailThrowsAnException(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testFindOrFailThrowsAnException(bool $model): void
     {
         $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Database\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1'));
 
         Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us']);
 
-        Country::first()->posts()->findOrFail(1);
+        Country::first()->posts()->findOrFail($model ? (new Post)->forceFill(['id' => 1]) : 1);
     }
 
     public function testFindOrFailWithManyThrowsAnException(): void
@@ -215,24 +224,29 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         Country::first()->posts()->findOrFail(new Collection([1, 2]));
     }
 
-    public function testFindOrMethod()
+    public function testFindOrMethod(): void
     {
         Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
             ->posts()->create(['id' => 1, 'title' => 'A title', 'body' => 'A body', 'email' => 'taylorotwell@gmail.com']);
 
-        $result = Country::first()->posts()->findOr(1, fn () => 'callback result');
+        $result = Country::first()->posts()->findOr(1, fn (): string => 'callback result');
         $this->assertInstanceOf(Post::class, $result);
         $this->assertSame(1, $result->id);
         $this->assertSame('A title', $result->title);
 
-        $result = Country::first()->posts()->findOr(1, ['posts.id'], fn () => 'callback result');
+        $result = Country::first()->posts()->findOr(1, ['posts.id'], fn (): string => 'callback result');
         $this->assertInstanceOf(Post::class, $result);
         $this->assertSame(1, $result->id);
         $this->assertNull($result->title);
 
-        $result = Country::first()->posts()->findOr(2, fn () => 'callback result');
+        $result = Country::first()->posts()->findOr(2, fn (): string => 'callback result');
         $this->assertSame('callback result', $result);
+
+        $this->assertSame('callback result', Country::first()->posts()->findOr(
+            (new Post)->forceFill(['id' => 2]),
+            fn (): string => 'callback result'
+        ));
     }
 
     public function testFindOrMethodWithMany()

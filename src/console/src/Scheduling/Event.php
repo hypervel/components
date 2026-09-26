@@ -414,6 +414,7 @@ class Event
     {
         $this->lastChecked = Date::now();
 
+        // Keep these loops to avoid an extra callback per filter.
         foreach ($this->filters as $callback) {
             if (! $this->callEventCallback($app, $callback)) {
                 return false;

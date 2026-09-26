@@ -373,7 +373,6 @@ class ValidatedInputTest extends TestCase
         ]);
 
         $this->assertInstanceOf(Stringable::class, $input->str('int'));
-        $this->assertInstanceOf(Stringable::class, $input->str('int'));
         $this->assertInstanceOf(Stringable::class, $input->str('unknown_key'));
         $this->assertSame('123', $input->str('int')->value());
         $this->assertSame('456', $input->str('int_str')->value());
@@ -400,7 +399,6 @@ class ValidatedInputTest extends TestCase
             'null' => null,
         ]);
 
-        $this->assertInstanceOf(Stringable::class, $input->string('int'));
         $this->assertInstanceOf(Stringable::class, $input->string('int'));
         $this->assertInstanceOf(Stringable::class, $input->string('unknown_key'));
         $this->assertSame('123', $input->string('int')->value());

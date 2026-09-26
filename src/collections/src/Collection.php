@@ -49,7 +49,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Create a new collection.
      *
-     * @param null|Arrayable<TKey, TValue>|iterable<TKey, TValue> $items
+     * @param null|Arrayable<array<TKey, TValue>>|iterable<TKey, TValue> $items
      */
     public function __construct($items = [])
     {
@@ -62,7 +62,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @template TNewKey of array-key
      * @template TNewValue
      *
-     * @param null|Arrayable<TNewKey, TNewValue>|iterable<TNewKey, TNewValue> $items
+     * @param null|Arrayable<array<TNewKey, TNewValue>>|iterable<TNewKey, TNewValue> $items
      * @return static<TNewKey, TNewValue>
      */
     protected function newInstance(mixed $items = []): static
@@ -251,10 +251,9 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Cross join with the given lists, returning all possible permutations.
      *
-     * @template TCrossJoinKey of array-key
      * @template TCrossJoinValue
      *
-     * @param Arrayable<TCrossJoinKey, TCrossJoinValue>|iterable<TCrossJoinKey, TCrossJoinValue> ...$lists
+     * @param Arrayable<array<array-key, TCrossJoinValue>>|iterable<array-key, TCrossJoinValue> ...$lists
      * @return static<int, array<int, TCrossJoinValue|TValue>>
      */
     public function crossJoin(mixed ...$lists): static
@@ -268,7 +267,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Get the items in the collection that are not present in the given items.
      *
-     * @param Arrayable<array-key, TValue>|iterable<array-key, TValue> $items
+     * @param Arrayable<array<array-key, TValue>>|iterable<array-key, TValue> $items
      */
     public function diff(mixed $items): static
     {
@@ -278,7 +277,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Get the items in the collection that are not present in the given items, using the callback.
      *
-     * @param Arrayable<array-key, TValue>|iterable<array-key, TValue> $items
+     * @param Arrayable<array<array-key, TValue>>|iterable<array-key, TValue> $items
      * @param callable(TValue, TValue): int $callback
      */
     public function diffUsing(mixed $items, callable $callback): static
@@ -289,7 +288,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Get the items in the collection whose keys and values are not present in the given items.
      *
-     * @param Arrayable<TKey, TValue>|iterable<TKey, TValue> $items
+     * @param Arrayable<array<TKey, TValue>>|iterable<TKey, TValue> $items
      */
     public function diffAssoc(mixed $items): static
     {
@@ -299,7 +298,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Get the items in the collection whose keys and values are not present in the given items, using the callback.
      *
-     * @param Arrayable<TKey, TValue>|iterable<TKey, TValue> $items
+     * @param Arrayable<array<TKey, TValue>>|iterable<TKey, TValue> $items
      * @param callable(TKey, TKey): int $callback
      */
     public function diffAssocUsing(mixed $items, callable $callback): static
@@ -310,7 +309,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Get the items in the collection whose keys are not present in the given items.
      *
-     * @param Arrayable<TKey, mixed>|iterable<TKey, mixed> $items
+     * @param Arrayable<array<TKey, mixed>>|iterable<TKey, mixed> $items
      */
     public function diffKeys(mixed $items): static
     {
@@ -320,7 +319,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Get the items in the collection whose keys are not present in the given items, using the callback.
      *
-     * @param Arrayable<TKey, mixed>|iterable<TKey, mixed> $items
+     * @param Arrayable<array<TKey, mixed>>|iterable<TKey, mixed> $items
      * @param callable(TKey, TKey): int $callback
      */
     public function diffKeysUsing(mixed $items, callable $callback): static
@@ -454,7 +453,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Remove an item from the collection by key.
      *
-     * @param Arrayable<array-key, TValue>|iterable<array-key, TKey>|TKey $keys
+     * @param Arrayable<array<array-key, TKey>>|iterable<array-key, TKey>|TKey $keys
      * @return $this
      */
     public function forget(mixed $keys): static
@@ -646,7 +645,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Intersect the collection with the given items.
      *
-     * @param Arrayable<TKey, TValue>|iterable<TKey, TValue> $items
+     * @param Arrayable<array<TKey, TValue>>|iterable<TKey, TValue> $items
      */
     public function intersect(mixed $items): static
     {
@@ -656,7 +655,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Intersect the collection with the given items, using the callback.
      *
-     * @param Arrayable<array-key, TValue>|iterable<array-key, TValue> $items
+     * @param Arrayable<array<array-key, TValue>>|iterable<array-key, TValue> $items
      * @param callable(TValue, TValue): int $callback
      */
     public function intersectUsing(mixed $items, callable $callback): static
@@ -667,7 +666,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Intersect the collection with the given items with additional index check.
      *
-     * @param Arrayable<TKey, TValue>|iterable<TKey, TValue> $items
+     * @param Arrayable<array<TKey, TValue>>|iterable<TKey, TValue> $items
      */
     public function intersectAssoc(mixed $items): static
     {
@@ -677,7 +676,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Intersect the collection with the given items with additional index check, using the callback.
      *
-     * @param Arrayable<array-key, TValue>|iterable<array-key, TValue> $items
+     * @param Arrayable<array<array-key, TValue>>|iterable<array-key, TValue> $items
      * @param callable(TValue, TValue): int $callback
      */
     public function intersectAssocUsing(mixed $items, callable $callback): static
@@ -688,7 +687,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Intersect the collection with the given items by key.
      *
-     * @param Arrayable<TKey, mixed>|iterable<TKey, mixed> $items
+     * @param Arrayable<array<TKey, mixed>>|iterable<TKey, mixed> $items
      */
     public function intersectByKeys(mixed $items): static
     {
@@ -842,7 +841,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      *
      * @template TMergeValue
      *
-     * @param Arrayable<TKey, TMergeValue>|iterable<TKey, TMergeValue> $items
+     * @param Arrayable<array<TKey, TMergeValue>>|iterable<TKey, TMergeValue> $items
      * @return static<TKey, TMergeValue|TValue>
      */
     public function merge(mixed $items): static
@@ -855,7 +854,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      *
      * @template TMergeRecursiveValue
      *
-     * @param Arrayable<TKey, TMergeRecursiveValue>|iterable<TKey, TMergeRecursiveValue> $items
+     * @param Arrayable<array<TKey, TMergeRecursiveValue>>|iterable<TKey, TMergeRecursiveValue> $items
      * @return static<TKey, (TKey is int ? TMergeRecursiveValue|TValue : array<array-key, mixed>|TMergeRecursiveValue|TValue)>
      */
     public function mergeRecursive(mixed $items): static
@@ -882,7 +881,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      *
      * @template TCombineValue
      *
-     * @param Arrayable<array-key, TCombineValue>|iterable<array-key, TCombineValue> $values
+     * @param Arrayable<array<array-key, TCombineValue>>|iterable<array-key, TCombineValue> $values
      * @return static<TValue, TCombineValue>
      * @phpstan-ignore generics.notSubtype (TValue becomes key - only valid when TValue is array-key, but can't express this constraint)
      */
@@ -894,7 +893,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Union the collection with the given items.
      *
-     * @param Arrayable<TKey, TValue>|iterable<TKey, TValue> $items
+     * @param Arrayable<array<TKey, TValue>>|iterable<TKey, TValue> $items
      */
     public function union(mixed $items): static
     {
@@ -1113,7 +1112,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Replace the collection items with the given items.
      *
-     * @param Arrayable<TKey, TValue>|iterable<TKey, TValue> $items
+     * @param Arrayable<array<TKey, TValue>>|iterable<TKey, TValue> $items
      */
     public function replace(mixed $items): static
     {
@@ -1123,7 +1122,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Recursively replace the collection items with the given items.
      *
-     * @param Arrayable<TKey, TValue>|iterable<TKey, TValue> $items
+     * @param Arrayable<array<TKey, TValue>>|iterable<TKey, TValue> $items
      */
     public function replaceRecursive(mixed $items): static
     {
@@ -1791,7 +1790,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      *
      * @template TZipValue
      *
-     * @param Arrayable<array-key, TZipValue>|iterable<array-key, TZipValue> ...$items
+     * @param Arrayable<array<array-key, TZipValue>>|iterable<array-key, TZipValue> ...$items
      * @return static<int, static<int, TValue|TZipValue>>
      */
     public function zip(Arrayable|iterable ...$items): Collection

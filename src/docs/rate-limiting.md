@@ -481,6 +481,8 @@ RateLimiter::for('api', function ($request) {
 
 You should register named limiters during application boot because their definitions are shared for the lifetime of the worker. Named limiters may be used by routing and queue middleware. The routing documentation covers [attaching named limiters to routes](/docs/{{version}}/routing#attaching-rate-limiters-to-routes), response callbacks, global rate limits, and stacked rate limits.
 
+You may add custom methods using `RateLimiter::macro('name', $callback)`. Macro closures can use `$this` to access the rate limiter manager, including its `for` and `store` methods. Register macros during application boot; they are shared by all requests in the worker.
+
 <a name="scoping-named-rate-limits"></a>
 ### Scoping Named Rate Limits
 

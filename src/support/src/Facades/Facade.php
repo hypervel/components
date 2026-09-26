@@ -300,6 +300,7 @@ abstract class Facade
             'Gate' => Gate::class,
             'Hash' => Hash::class,
             'Http' => Http::class,
+            'Image' => Image::class,
             'Js' => Js::class,
             'Jwt' => Jwt::class,
             'Lang' => Lang::class,

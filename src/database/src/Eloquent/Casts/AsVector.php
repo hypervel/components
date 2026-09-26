@@ -21,7 +21,7 @@ class AsVector implements Castable
     /**
      * Get the caster class to use when casting from / to this cast target.
      *
-     * @return CastsAttributes<array<int, float>, array<int, float>|Arrayable<int, float>>
+     * @return CastsAttributes<array<int, float>, array<int, float>|Arrayable<array<int, float>>>
      */
     public static function castUsing(array $arguments): CastsAttributes
     {

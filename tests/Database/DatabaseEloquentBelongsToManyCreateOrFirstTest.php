@@ -18,6 +18,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 {
@@ -694,13 +695,16 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
         $this->assertSame('baz', $result->val);
     }
 
-    public function testPivotMembershipCheckIncludesEveryConfiguredPivotConstraint(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testPivotMembershipCheckIncludesEveryConfiguredPivotConstraint(bool $customRelatedKey): void
     {
         $source = new SourceModel;
         $source->id = 123;
         $source->exists = true;
         $related = new RelatedModel;
         $related->id = 456;
+        $related->code = 'related-code';
         $this->mockConnectionForModels([$source, $related], 'SQLite');
 
         $relation = (new InspectableBelongsToMany(
@@ -710,7 +714,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
             'source_id',
             'related_id',
             'id',
-            'id',
+            $customRelatedKey ? 'code' : 'id',
         ))
             ->wherePivot('status', 'active')
             ->wherePivotIn('kind', ['primary', 'secondary'])
@@ -719,7 +723,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 
         $source->getConnection()->expects('select')->with(
             'select exists(select * from "pivot_table" where ("status" = ? and "kind" in (?, ?) and "expired_at" is null and "score" between ? and ?) and "pivot_table"."source_id" = ? and "pivot_table"."related_id" in (?)) as "exists"',
-            ['active', 'primary', 'secondary', 10, 20, 123, 456],
+            ['active', 'primary', 'secondary', 10, 20, 123, $customRelatedKey ? 'related-code' : 456],
             false,
         )->andReturn([['exists' => 1]]);
 

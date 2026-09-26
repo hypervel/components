@@ -12,7 +12,7 @@ use Traversable;
 
 use function PHPStan\Testing\assertType;
 
-/** @implements Arrayable<int, User> */
+/** @implements Arrayable<array<int, User>> */
 class Users implements Arrayable
 {
     /**
@@ -1043,6 +1043,7 @@ assertType("'string'|User", $collection->getOrPut(0, fn () => 'string'));
 
 assertType('Hypervel\Support\Collection<int, User>', $collection->forget(1));
 assertType('Hypervel\Support\Collection<int, User>', $collection->forget([1, 2]));
+assertType('Hypervel\Support\Collection<int, User>', $collection->forget(collect([1, 2])));
 
 assertType('User|null', $collection->pop());
 assertType('Hypervel\Support\Collection<int, User>', $collection->pop(2));

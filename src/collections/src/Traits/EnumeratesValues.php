@@ -121,8 +121,8 @@ trait EnumeratesValues
      * @template TMakeKey of array-key
      * @template TMakeValue
      *
-     * @param null|Arrayable<TMakeKey, TMakeValue>|iterable<TMakeKey, TMakeValue> $items
-     * @return static<TMakeKey, TMakeValue>
+     * @param null|Arrayable<array<array-key, mixed>>|iterable<TMakeKey, TMakeValue> $items
+     * @return ($items is Arrayable<array<TMakeKey, TMakeValue>> ? static<TMakeKey, TMakeValue> : static<TMakeKey, TMakeValue>)
      */
     public static function make(mixed $items = [], mixed ...$args): static
     {

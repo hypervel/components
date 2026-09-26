@@ -205,7 +205,7 @@ abstract class HasOneOrMany extends Relation
     /**
      * Find a model by its primary key or return a new instance of the related model.
      *
-     * @return ($id is (array<mixed>|Arrayable<array-key, mixed>) ? EloquentCollection<int, TRelatedModel> : TRelatedModel)
+     * @return ($id is Model ? TRelatedModel : ($id is (array<mixed>|Arrayable<array<array-key, mixed>>) ? EloquentCollection<int, TRelatedModel> : TRelatedModel))
      */
     public function findOrNew(mixed $id, array $columns = ['*']): EloquentCollection|Model
     {

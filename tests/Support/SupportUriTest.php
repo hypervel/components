@@ -161,8 +161,17 @@ class SupportUriTest extends TestCase
         $this->assertEquals($expected, (string) $uri);
         $this->assertEquals($expected, $uri->value());
         $this->assertEquals($expected, $uri->toString());
-        $this->assertInstanceOf(HypervelStringable::class, $uri->toStringable());
-        $this->assertSame($expected, $uri->toStringable()->toString());
+    }
+
+    public function testToStringable(): void
+    {
+        $uri = Uri::of('https://taylor:password@hypervel.org:80/docs/installation?version=1#hello');
+
+        $stringable = $uri->toStringable();
+
+        $this->assertInstanceOf(HypervelStringable::class, $stringable);
+        $this->assertSame('https://taylor:password@hypervel.org:80/docs/installation?version=1#hello', (string) $stringable);
+        $this->assertSame($uri->value(), (string) $stringable);
     }
 
     public function testComplicatedQueryStringManipulation(): void

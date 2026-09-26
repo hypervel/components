@@ -628,6 +628,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         /** @var array<int, class-string<self>> $ignoreOnTouch */
         $ignoreOnTouch = CoroutineContext::get(self::IGNORE_ON_TOUCH_CONTEXT_KEY, []);
 
+        // Keep this loop to avoid an extra callback per class.
         foreach ($ignoreOnTouch as $ignoredClass) {
             if ($class === $ignoredClass || is_subclass_of($class, $ignoredClass)) {
                 return true;

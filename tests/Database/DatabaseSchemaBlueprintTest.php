@@ -279,19 +279,19 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertSame('prefix_geo_coordinates_spatialindex', $commands[0]->index);
     }
 
-    public function testDefaultCurrentDate()
+    public function testDefaultCurrentDate(): void
     {
-        $getSql = function ($grammar, $mysql57 = false) {
-            if ($grammar == 'MySql') {
+        $getSql = function (string $grammar, bool $mysql57 = false): array {
+            if ($grammar === 'MySql') {
                 $connection = $this->getConnection($grammar);
                 $mysql57 ? $connection->shouldReceive('getServerVersion')->andReturn('5.7') : $connection->shouldReceive('getServerVersion')->andReturn('8.0.13');
                 $connection->shouldReceive('isMaria')->andReturn(false);
 
-                return (new Blueprint($connection, 'users', function ($table) {
+                return (new Blueprint($connection, 'users', function (Blueprint $table): void {
                     $table->date('created')->useCurrent();
                 }))->toSql();
             } else {
-                return $this->getBlueprint($grammar, 'users', function ($table) {
+                return $this->getBlueprint($grammar, 'users', function (Blueprint $table): void {
                     $table->date('created')->useCurrent();
                 })->toSql();
             }
@@ -329,19 +329,19 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table "users" add column "created" datetime not null default CURRENT_TIMESTAMP'], $getSql('SQLite'));
     }
 
-    public function testDefaultCurrentYear()
+    public function testDefaultCurrentYear(): void
     {
-        $getSql = function ($grammar, $mysql57 = false) {
-            if ($grammar == 'MySql') {
+        $getSql = function (string $grammar, bool $mysql57 = false): array {
+            if ($grammar === 'MySql') {
                 $connection = $this->getConnection($grammar);
                 $mysql57 ? $connection->shouldReceive('getServerVersion')->andReturn('5.7') : $connection->shouldReceive('getServerVersion')->andReturn('8.0.13');
                 $connection->shouldReceive('isMaria')->andReturn(false);
 
-                return (new Blueprint($connection, 'users', function ($table) {
+                return (new Blueprint($connection, 'users', function (Blueprint $table): void {
                     $table->year('birth_year')->useCurrent();
                 }))->toSql();
             } else {
-                return $this->getBlueprint($grammar, 'users', function ($table) {
+                return $this->getBlueprint($grammar, 'users', function (Blueprint $table): void {
                     $table->year('birth_year')->useCurrent();
                 })->toSql();
             }

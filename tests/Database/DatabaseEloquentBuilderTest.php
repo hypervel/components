@@ -32,6 +32,7 @@ use InvalidArgumentException;
 use Mockery as m;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use stdClass;
 use Stringable;
 
@@ -49,6 +50,38 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         $result = $builder->find('bar', ['column']);
         $this->assertSame($expectedModel, $result);
+    }
+
+    #[TestWith(['find'])]
+    #[TestWith(['findOrFail'])]
+    #[TestWith(['findOrNew'])]
+    #[TestWith(['findOr'])]
+    public function testFindMethodsUseModelPrimaryKey(string $method): void
+    {
+        $builder = m::mock(Builder::class . '[first]', [$this->getMockQueryBuilder()]);
+        $model = $this->getMockModel();
+        $model->expects('getKeyType')->andReturn('int');
+        $builder->setModel($model);
+
+        $target = (new Stub)->forceFill(['id' => 1, 'other_id' => 2]);
+        $builder->getQuery()->expects('where')->with('foo_table.foo', '=', 1);
+        $builder->expects('first')->with(['column'])->andReturn($target);
+
+        $this->assertSame($target, $builder->{$method}($target, ['column']));
+    }
+
+    public function testFindOrFailThrowsForMissingModelArgument(): void
+    {
+        $builder = m::mock(Builder::class . '[first]', [$this->getMockQueryBuilder()]);
+        $model = $this->getMockModel();
+        $model->expects('getKeyType')->andReturn('int');
+        $builder->setModel($model);
+        $builder->getQuery()->expects('where')->with('foo_table.foo', '=', 1);
+        $builder->expects('first')->with(['column'])->andReturn(null);
+
+        $this->expectExceptionObject((new ModelNotFoundException)->setModel(get_class($model), 1));
+
+        $builder->findOrFail((new Stub)->forceFill(['id' => 1, 'other_id' => 2]), ['column']);
     }
 
     public function testFindSoleMethod(): void

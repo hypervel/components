@@ -706,6 +706,7 @@ class CacheEventsTest extends TestCase
                 return false;
             }
 
+            // Keep this loop to avoid an extra callback per property comparison.
             foreach ($properties as $name => $value) {
                 if ($value !== $event->{$name}) {
                     return false;

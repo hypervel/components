@@ -15,6 +15,9 @@ assertType("'string'|User", $collection->find(1, 'string'));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->find([1]));
 assertType('User', $collection->findOrFail(1));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->findOrFail([1]));
+assertType('User|null', $collection->find(new User));
+assertType('User', $collection->findOrFail(new User));
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->findOrFail(collect([1])));
 
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->load('string'));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->load(['string']));

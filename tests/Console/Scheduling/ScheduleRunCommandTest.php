@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Console\Scheduling;
 
 use Carbon\CarbonInterface;
+use Closure;
 use Hypervel\Console\Commands\ScheduleRunCommand;
 use Hypervel\Console\Events\ScheduledBackgroundTaskFinished;
 use Hypervel\Console\Events\ScheduledTaskFailed;
@@ -26,6 +27,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Concurrent;
 use Hypervel\Coroutine\Coroutine as HypervelCoroutine;
 use Hypervel\Coroutine\Exceptions\ChildCancellationException;
+use Hypervel\Coroutine\SignalRegistry;
 use Hypervel\Engine\Channel;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Support\Carbon;
@@ -53,8 +55,6 @@ use function Hypervel\Support\defer;
 
 class ScheduleRunCommandTest extends TestCase
 {
-    // REMOVED: ScheduleWorkCommandTest; schedule:run owns the loop without a subprocess wrapper.
-
     protected array $dispatched;
 
     protected Dispatcher $dispatcher;
@@ -1147,7 +1147,201 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertContains('bravo:failure', $results);
     }
 
-    public function testTerminationSignalReleasesMutexesBeforeTerminating(): void
+    public function testStopSignalMarksTheWorkerToQuit(): void
+    {
+        $signal = null;
+        $this->captureTerminationSignal($signal);
+        $command = $this->makeCommand();
+        (new ReflectionMethod($command, 'listenForSignals'))->invoke($command);
+
+        $this->assertFalse((new ReflectionProperty($command, 'shouldQuit'))->getValue($command));
+
+        $signal(SIGTERM);
+
+        $this->assertTrue((new ReflectionProperty($command, 'shouldQuit'))->getValue($command));
+    }
+
+    public function testInFlightExecutionsFinishBeforeTheWorkerQuits(): void
+    {
+        Schedule::withoutInterruptionPolling();
+        $signal = null;
+        $this->captureTerminationSignal($signal);
+        $entered = new Channel(1);
+        $release = new Channel(1);
+        $finished = false;
+        $returned = false;
+        $mutex = new ScheduleRunTestEventMutex;
+        $this->app->make(Kernel::class)->command('test:shutdown-drain', function () use ($entered, $release, &$finished): void {
+            $entered->push(true, 5.0);
+            if ($release->pop(5.0) !== true) {
+                throw new RuntimeException('The draining task was not released.');
+            }
+            $finished = true;
+        });
+        $event = (new Event($mutex, 'test:shutdown-drain'))->withoutOverlapping()->runInBackground();
+        $schedule = m::mock(Schedule::class);
+        $schedule->expects('dueEventsAt')->andReturn(new Collection([$event]));
+        $cache = m::mock(Cache::class);
+        $cache->expects('forget')->with('hypervel:schedule:interrupt');
+        $cache->shouldNotReceive('get');
+        $command = $this->makeCommand($cache);
+        $command->setInput(new ArrayInput([], $command->getDefinition()));
+        $this->captureOutput($command);
+
+        parallel([
+            function () use ($command, $schedule, $cache, &$returned): void {
+                $command->handle($schedule, $this->dispatcher, $cache, $this->handler);
+                $returned = true;
+            },
+            function () use (&$signal, $entered, $release, $mutex, $event, &$returned): void {
+                try {
+                    $this->assertTrue($entered->pop(5.0));
+                    $signal(SIGTERM);
+                    usleep(150000);
+                    $this->assertFalse($returned);
+                    $this->assertTrue($mutex->exists($event));
+                } finally {
+                    $release->push(true, 5.0);
+                }
+            },
+        ]);
+
+        $this->assertTrue($returned);
+        $this->assertTrue($finished);
+        $this->assertFalse($mutex->exists($event));
+    }
+
+    #[DataProvider('shutdownAdmissionPhases')]
+    public function testNoNewExecutionsAreStartedAfterAStopSignal(string $phase): void
+    {
+        $signal = null;
+        $this->captureTerminationSignal($signal);
+        $command = $this->makeCommand();
+        (new ReflectionMethod($command, 'listenForSignals'))->invoke($command);
+        $calls = [];
+        $event = new CallbackEvent(m::mock(EventMutex::class), function () use (&$calls, $phase, $signal): void {
+            $calls[] = 'first';
+            if ($phase === 'foreground task') {
+                $signal(SIGTERM);
+            }
+        });
+        $event->name('first')->onOneServer()->when(function () use ($phase, $signal): bool {
+            if ($phase === 'filter') {
+                $signal(SIGTERM);
+            }
+
+            return true;
+        });
+        $schedule = m::mock(Schedule::class);
+        $schedule->shouldReceive('serverShouldRun')->times($phase === 'filter' ? 0 : 1)->andReturnUsing(function () use ($phase, $signal): bool {
+            if ($phase === 'server claim') {
+                $signal(SIGTERM);
+            }
+
+            return true;
+        });
+        (new ReflectionProperty($command, 'schedule'))->setValue($command, $schedule);
+        $next = new CallbackEvent(m::mock(EventMutex::class), function () use (&$calls): void {
+            $calls[] = 'second';
+        });
+        $next->when(function () use (&$calls): bool {
+            $calls[] = 'second filter';
+
+            return true;
+        });
+
+        $this->invokeRunEvents($command, [$event, $next]);
+
+        $this->assertSame($phase === 'filter' ? [] : ['first'], $calls);
+        $this->assertCount($phase === 'filter' ? 0 : 2, $this->dispatched);
+    }
+
+    /**
+     * Provide task admission points at which shutdown can arrive.
+     */
+    public static function shutdownAdmissionPhases(): array
+    {
+        return [
+            'filter' => ['filter'],
+            'server claim' => ['server claim'],
+            'foreground task' => ['foreground task'],
+        ];
+    }
+
+    public function testBackgroundTaskWaitingForCapacityDoesNotStartAfterShutdown(): void
+    {
+        $signal = null;
+        $this->captureTerminationSignal($signal);
+        $command = $this->makeCommand();
+        (new ReflectionMethod($command, 'listenForSignals'))->invoke($command);
+        $concurrent = new Concurrent(1);
+        (new ReflectionProperty($command, 'concurrent'))->setValue($command, $concurrent);
+        $release = new Channel(1);
+        $waiting = new Channel(1);
+        $this->app->make(Kernel::class)->command('test:occupy-slot', function () use ($release): void {
+            if ($release->pop(5.0) !== true) {
+                throw new RuntimeException('The running task was not released.');
+            }
+        });
+        $first = (new Event(m::mock(EventMutex::class), 'test:occupy-slot'))->runInBackground();
+        $second = (new Event(m::mock(EventMutex::class), 'test:must-not-run'))->runInBackground()->onOneServer();
+        $second->when(function () use ($waiting): bool {
+            $waiting->push(true, 5.0);
+
+            return true;
+        });
+        $schedule = m::mock(Schedule::class);
+        $schedule->shouldNotReceive('serverShouldRun');
+        (new ReflectionProperty($command, 'schedule'))->setValue($command, $schedule);
+
+        try {
+            parallel([
+                function () use ($command, $first, $second): void {
+                    $this->invokeRunEvents($command, [$first, $second]);
+                },
+                function () use ($waiting, $release, $signal): void {
+                    try {
+                        $this->assertTrue($waiting->pop(5.0));
+                        usleep(5000);
+                        $signal(SIGTERM);
+                    } finally {
+                        $release->push(true, 5.0);
+                    }
+                },
+            ]);
+        } finally {
+            $this->waitForConcurrent($concurrent);
+        }
+
+        $this->assertCount(3, $this->dispatched);
+        $this->assertSame($first, $this->dispatched[0]->task);
+    }
+
+    public function testRunOnceResetsThePreviousShutdownRequest(): void
+    {
+        $signal = null;
+        $this->captureTerminationSignal($signal);
+        $command = $this->makeCommand();
+        (new ReflectionMethod($command, 'listenForSignals'))->invoke($command);
+        $signal(SIGTERM);
+        $ran = false;
+        $event = new CallbackEvent(m::mock(EventMutex::class), function () use (&$ran): void {
+            $ran = true;
+        });
+        $schedule = m::mock(Schedule::class);
+        $schedule->expects('dueEventsAt')->andReturn(new Collection([$event]));
+        $cache = m::mock(Cache::class);
+        $cache->shouldReceive('get')->with('hypervel:schedule:paused', false)->andReturnFalse();
+        $cache->shouldNotReceive('get')->with('hypervel:schedule:interrupt', false);
+        $command->setInput(new ArrayInput(['--once' => true], $command->getDefinition()));
+        $this->captureOutput($command);
+
+        $command->handle($schedule, $this->dispatcher, $cache, $this->handler);
+
+        $this->assertTrue($ran);
+    }
+
+    public function testSecondTerminationSignalReleasesMutexesBeforeTerminating(): void
     {
         $process = new Process([PHP_BINARY, '-r', <<<'PHP'
             require $argv[1];
@@ -1162,6 +1356,9 @@ class ScheduleRunCommandTest extends TestCase
                 (new ReflectionMethod($command, 'listenForSignals'))->invoke($command);
                 posix_kill(posix_getpid(), SIGTERM);
                 usleep(50000);
+                echo 'draining';
+                posix_kill(posix_getpid(), SIGTERM);
+                usleep(50000);
                 exit(1);
             });
             PHP, dirname(__DIR__, 3) . '/vendor/autoload.php']);
@@ -1172,7 +1369,7 @@ class ScheduleRunCommandTest extends TestCase
             $this->fail('Expected the scheduler to terminate the process with SIGTERM.');
         } catch (ProcessSignaledException) {
             $this->assertSame(SIGTERM, $process->getTermSignal());
-            $this->assertSame('released', $process->getOutput());
+            $this->assertSame('drainingreleased', $process->getOutput());
         } finally {
             $process->stop(0);
         }
@@ -1283,6 +1480,18 @@ class ScheduleRunCommandTest extends TestCase
         $runningEvents = (new ReflectionProperty($command, 'runningEvents'))->getValue($command);
 
         $this->assertSame([], $runningEvents);
+    }
+
+    /**
+     * Capture the scheduler's termination callback without sending process signals.
+     */
+    protected function captureTerminationSignal(?Closure &$callback): void
+    {
+        $registry = m::mock(SignalRegistry::class);
+        $registry->expects('register')
+            ->with(m::type(ScheduleRunCommand::class), [SIGTERM, SIGINT, SIGQUIT], m::capture($callback));
+        $registry->shouldReceive('unregister');
+        $this->app->instance(SignalRegistry::class, $registry);
     }
 
     /**

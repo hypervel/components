@@ -466,7 +466,7 @@ class ContainerTest extends TestCase
         $this->assertSame('taylor', $instance->default);
     }
 
-    public function testResolutionOfClassWithDefaultParameters()
+    public function testResolutionOfClassWithDefaultParameters(): void
     {
         $container = new Container;
 
@@ -476,9 +476,9 @@ class ContainerTest extends TestCase
 
         $instance = $container->make(ContainerClassWithDefaultValueStub::class);
         $this->assertInstanceOf(ContainerConcreteStub::class, $instance->noDefault);
-        $this->assertSame(null, $instance->default);
+        $this->assertNull($instance->default);
 
-        $container->bind(ContainerConcreteStub::class, fn () => new ContainerConcreteStub);
+        $container->bind(ContainerConcreteStub::class, fn (): ContainerConcreteStub => new ContainerConcreteStub);
         $instance = $container->make(ContainerClassWithDefaultValueStub::class);
         $this->assertInstanceOf(ContainerConcreteStub::class, $instance->default);
     }
@@ -1386,6 +1386,23 @@ class ContainerTest extends TestCase
         $instance = $container->make(WildcardOnlyInterface::class);
 
         $this->assertInstanceOf(WildcardConcrete::class, $instance);
+    }
+
+    public function testBindAttributeIsRecheckedAfterEnvironmentResolverIsSet(): void
+    {
+        $container = new Container;
+
+        try {
+            $container->make(WildcardOnlyInterface::class);
+
+            $this->fail('Expected binding resolution to fail without an environment resolver.');
+        } catch (BindingResolutionException) {
+            // Continue after the expected first resolution failure.
+        }
+
+        $container->resolveEnvironmentUsing(fn (): bool => true);
+
+        $this->assertInstanceOf(WildcardConcrete::class, $container->make(WildcardOnlyInterface::class));
     }
 
     public function testChecksForMoreSpecificEnvironmentBeforeFallingBackToDefault(): void

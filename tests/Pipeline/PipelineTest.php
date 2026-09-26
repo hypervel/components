@@ -495,7 +495,7 @@ class PipelineTest extends TestCase
 
     public function testPipelineFinally(): void
     {
-        $pipeTwo = function ($piped, $next) {
+        $pipeTwo = function (string $piped, Closure $next): void {
             $_SERVER['__test.pipe.two'] = $piped;
 
             $next($piped);
@@ -504,14 +504,14 @@ class PipelineTest extends TestCase
         $result = (new Pipeline(new Container))
             ->send('foo')
             ->through([PipelineTestPipeOne::class, $pipeTwo])
-            ->finally(function ($piped) {
+            ->finally(function (string $piped): void {
                 $_SERVER['__test.pipe.finally'] = $piped;
             })
-            ->then(function ($piped) {
+            ->then(function (string $piped): string {
                 return $piped;
             });
 
-        $this->assertSame(null, $result);
+        $this->assertNull($result);
         $this->assertSame('foo', $_SERVER['__test.pipe.one']);
         $this->assertSame('foo', $_SERVER['__test.pipe.two']);
         $this->assertSame('foo', $_SERVER['__test.pipe.finally']);
@@ -521,21 +521,21 @@ class PipelineTest extends TestCase
 
     public function testPipelineFinallyMethodWhenChainIsStopped(): void
     {
-        $pipeTwo = function ($piped) {
+        $pipeTwo = function (string $piped): void {
             $_SERVER['__test.pipe.two'] = $piped;
         };
 
         $result = (new Pipeline(new Container))
             ->send('foo')
             ->through([PipelineTestPipeOne::class, $pipeTwo])
-            ->finally(function ($piped) {
+            ->finally(function (string $piped): void {
                 $_SERVER['__test.pipe.finally'] = $piped;
             })
-            ->then(function ($piped) {
+            ->then(function (string $piped): string {
                 return $piped;
             });
 
-        $this->assertSame(null, $result);
+        $this->assertNull($result);
         $this->assertSame('foo', $_SERVER['__test.pipe.one']);
         $this->assertSame('foo', $_SERVER['__test.pipe.two']);
         $this->assertSame('foo', $_SERVER['__test.pipe.finally']);

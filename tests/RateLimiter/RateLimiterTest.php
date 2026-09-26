@@ -42,6 +42,31 @@ class RateLimiterTest extends TestCase
         );
     }
 
+    public function testMacroable(): void
+    {
+        RateLimiter::macro('foo', fn (): string => 'bar');
+
+        $rateLimiter = $this->app->make(RateLimiter::class);
+
+        $this->assertSame('bar', $rateLimiter->foo());
+    }
+
+    public function testMacrosUseTheManagerAndPreserveStoreForwarding(): void
+    {
+        RateLimiterFacade::macro('forApi', function (): static {
+            return $this->for('api', fn (): Limit => Limit::perMinute(1)->by('user'));
+        });
+
+        $manager = $this->app->make(RateLimiter::class);
+
+        $this->assertSame($manager, RateLimiterFacade::forApi());
+
+        $policy = $manager->limiter('api')();
+
+        $this->assertTrue($manager->consume($policy, 'api')->allowed());
+        $this->assertTrue($manager->consume($policy, 'api')->denied());
+    }
+
     public function testManagerResolvesAndCachesWrappedStores(): void
     {
         $manager = $this->app->make(RateLimiter::class);

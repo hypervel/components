@@ -4992,12 +4992,18 @@ class ModelStub extends Model
         return $this->decrementEach($columns, $extra);
     }
 
-    public function publicIncrementEachQuietly(array $columns, array $extra = [])
+    /**
+     * Expose quiet multi-column increments for testing.
+     */
+    public function publicIncrementEachQuietly(array $columns, array $extra = []): int|false
     {
         return $this->incrementEachQuietly($columns, $extra);
     }
 
-    public function publicDecrementEachQuietly(array $columns, array $extra = [])
+    /**
+     * Expose quiet multi-column decrements for testing.
+     */
+    public function publicDecrementEachQuietly(array $columns, array $extra = []): int|false
     {
         return $this->decrementEachQuietly($columns, $extra);
     }
@@ -5945,6 +5951,9 @@ class DynamicIncrementEachStub extends Model
 {
     protected array $guarded = [];
 
+    /**
+     * Create a model with the query used by dynamic update calls.
+     */
     public function __construct(
         public Builder $queryStub,
         array $attributes = [],
@@ -5952,11 +5961,17 @@ class DynamicIncrementEachStub extends Model
         parent::__construct($attributes);
     }
 
+    /**
+     * Get the unscoped query for the model.
+     */
     public function newQueryWithoutScopes(): Builder
     {
         return $this->queryStub;
     }
 
+    /**
+     * Get the query for the model.
+     */
     public function newQuery(): Builder
     {
         return $this->queryStub;

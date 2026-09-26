@@ -23,6 +23,7 @@ use Hypervel\Pagination\Cursor;
 use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
+use Hypervel\Support\Enumerable;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\StrCache;
 use InvalidArgumentException;
@@ -567,9 +568,11 @@ class BelongsToMany extends Relation
      * Find a related model by its primary key or return a new instance of the related model.
      *
      * @return (
-     *     $id is (Arrayable<array-key, mixed>|array<mixed>)
-     *     ? EloquentCollection<int, TRelatedModel&object{pivot: TPivotModel}>
-     *     : TRelatedModel
+     *     $id is Model ? TRelatedModel : (
+     *         $id is (Arrayable<array<array-key, mixed>>|array<mixed>)
+     *         ? EloquentCollection<int, TRelatedModel&object{pivot: TPivotModel}>
+     *         : TRelatedModel
+     *     )
      * )
      */
     public function findOrNew(mixed $id, array $columns = ['*']): EloquentCollection|Model
@@ -659,7 +662,7 @@ class BelongsToMany extends Relation
      */
     protected function hasAttachedPivot(Model $instance): bool
     {
-        return $this->newPivotStatementForId($instance->getKey())
+        return $this->newPivotStatementForId($instance)
             ->useWritePdo()
             ->exists();
     }
@@ -685,9 +688,11 @@ class BelongsToMany extends Relation
      * Find a related model by its primary key.
      *
      * @return (
-     *     $id is (Arrayable<array-key, mixed>|array<mixed>)
-     *     ? EloquentCollection<int, TRelatedModel&object{pivot: TPivotModel}>
-     *     : (TRelatedModel&object{pivot: TPivotModel})|null
+     *     $id is Model ? (TRelatedModel&object{pivot: TPivotModel})|null : (
+     *         $id is (Arrayable<array<array-key, mixed>>|array<mixed>)
+     *         ? EloquentCollection<int, TRelatedModel&object{pivot: TPivotModel}>
+     *         : (TRelatedModel&object{pivot: TPivotModel})|null
+     *     )
      * )
      */
     public function find(mixed $id, array $columns = ['*']): EloquentCollection|Model|null
@@ -699,7 +704,7 @@ class BelongsToMany extends Relation
         return $this->where(
             $this->getRelated()->getQualifiedKeyName(),
             '=',
-            $this->parseId($id)
+            $id instanceof Model ? $id->getKey() : $id
         )->first($columns);
     }
 
@@ -716,45 +721,45 @@ class BelongsToMany extends Relation
         return $this->where(
             $this->getRelated()->getQualifiedKeyName(),
             '=',
-            $this->parseId($id)
+            $id instanceof Model ? $id->getKey() : $id
         )->sole($columns);
     }
 
     /**
      * Find multiple related models by their primary keys.
      *
-     * @param array<mixed>|Arrayable<array-key, mixed> $ids
+     * @param array<mixed>|Arrayable<array<array-key, mixed>> $ids
      * @return EloquentCollection<int, object{pivot: TPivotModel}&TRelatedModel>
      */
     public function findMany(Arrayable|array $ids, array $columns = ['*']): EloquentCollection
     {
-        $ids = $ids instanceof Arrayable ? $ids->toArray() : $ids;
+        $ids = $this->parseFindIds($ids);
 
         if (empty($ids)) {
             return $this->getRelated()->newCollection();
         }
 
-        return $this->whereKey(
-            $this->parseIds($ids)
-        )->get($columns);
+        return $this->whereKey($ids)->get($columns);
     }
 
     /**
      * Find a related model by its primary key or throw an exception.
      *
      * @return (
-     *     $id is (Arrayable<array-key, mixed>|array<mixed>)
-     *     ? EloquentCollection<int, TRelatedModel&object{pivot: TPivotModel}>
-     *     : TRelatedModel&object{pivot: TPivotModel}
+     *     $id is Model ? TRelatedModel&object{pivot: TPivotModel} : (
+     *         $id is (Arrayable<array<array-key, mixed>>|array<mixed>)
+     *         ? EloquentCollection<int, TRelatedModel&object{pivot: TPivotModel}>
+     *         : TRelatedModel&object{pivot: TPivotModel}
+     *     )
      * )
      *
      * @throws ModelNotFoundException<TRelatedModel>
      */
     public function findOrFail(mixed $id, array $columns = ['*']): EloquentCollection|Model
     {
-        $result = $this->find($id, $columns);
+        $id = $this->parseFindIds($id);
 
-        $id = $id instanceof Arrayable ? $id->toArray() : $id;
+        $result = $this->find($id, $columns);
 
         if (is_array($id)) {
             if (count($result) === count(array_unique($id))) {
@@ -775,9 +780,11 @@ class BelongsToMany extends Relation
      * @param (Closure(): TValue)|list<string>|string $columns
      * @param null|(Closure(): TValue) $callback
      * @return (
-     *     $id is (Arrayable<array-key, mixed>|array<mixed>)
-     *     ? EloquentCollection<int, TRelatedModel&object{pivot: TPivotModel}>|TValue
-     *     : (TRelatedModel&object{pivot: TPivotModel})|TValue
+     *     $id is Model ? (TRelatedModel&object{pivot: TPivotModel})|TValue : (
+     *         $id is (Arrayable<array<array-key, mixed>>|array<mixed>)
+     *         ? EloquentCollection<int, TRelatedModel&object{pivot: TPivotModel}>|TValue
+     *         : (TRelatedModel&object{pivot: TPivotModel})|TValue
+     *     )
      * )
      */
     public function findOr(mixed $id, Closure|array|string $columns = ['*'], ?Closure $callback = null): mixed
@@ -788,9 +795,9 @@ class BelongsToMany extends Relation
             $columns = ['*'];
         }
 
-        $result = $this->find($id, $columns);
+        $id = $this->parseFindIds($id);
 
-        $id = $id instanceof Arrayable ? $id->toArray() : $id;
+        $result = $this->find($id, $columns);
 
         if (is_array($id)) {
             if (count($result) === count(array_unique($id))) {
@@ -801,6 +808,25 @@ class BelongsToMany extends Relation
         }
 
         return $callback();
+    }
+
+    /**
+     * Normalize primary keys for related-model lookups.
+     */
+    protected function parseFindIds(mixed $ids): mixed
+    {
+        if ($ids instanceof Model) {
+            return $ids->getKey();
+        }
+
+        if ($ids instanceof Arrayable) {
+            // Preserve model objects instead of converting their attributes into candidate IDs.
+            $ids = $ids instanceof Enumerable ? $ids->all() : $ids->toArray();
+        }
+
+        return is_array($ids)
+            ? array_map(fn (mixed $id): mixed => $id instanceof Model ? $id->getKey() : $id, $ids)
+            : $ids;
     }
 
     /**
@@ -1537,6 +1563,8 @@ class BelongsToMany extends Relation
 
     /**
      * Get the pivot columns for this relationship.
+     *
+     * @return array<Expression|string>
      */
     public function getPivotColumns(): array
     {

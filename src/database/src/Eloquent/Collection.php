@@ -31,7 +31,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @template TFindDefault
      *
      * @param TFindDefault $default
-     * @return ($key is (array<mixed>|Arrayable<array-key, mixed>) ? static : TFindDefault|TModel)
+     * @return ($key is Model ? TFindDefault|TModel : ($key is (array<mixed>|Arrayable<array<array-key, mixed>>) ? static : TFindDefault|TModel))
      */
     public function find(mixed $key, mixed $default = null): mixed
     {
@@ -70,12 +70,18 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Find a model in the collection by key or throw an exception.
      *
-     * @return ($key is (array<mixed>|Arrayable<array-key, mixed>) ? static : TModel)
+     * @return ($key is Model ? TModel : ($key is (array<mixed>|Arrayable<array<array-key, mixed>>) ? static : TModel))
      *
      * @throws ModelNotFoundException
      */
     public function findOrFail(mixed $key): Model|static
     {
+        if ($key instanceof Model) {
+            $key = $key->getKey();
+        } elseif ($key instanceof Arrayable) {
+            $key = $key->toArray();
+        }
+
         $result = $this->find($key);
 
         if (is_array($key) && count($result) === count(array_unique($key))) {

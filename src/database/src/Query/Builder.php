@@ -473,7 +473,7 @@ class Builder implements BuilderContract
     /**
      * Add a vector-similarity selection to the query.
      *
-     * @param array<int, float>|Arrayable<int, float>|Collection<int, float>|string $vector
+     * @param array<int, float>|Arrayable<array<int, float>>|Collection<int, float>|string $vector
      *
      * @throws JsonException
      */
@@ -1061,7 +1061,7 @@ class Builder implements BuilderContract
     /**
      * Add a vector similarity clause to the query, filtering by minimum similarity and ordering by similarity.
      *
-     * @param array<int, float>|Arrayable<int, float>|Collection<int, float>|string $vector
+     * @param array<int, float>|Arrayable<array<int, float>>|Collection<int, float>|string $vector
      * @param float $minSimilarity A value between 0.0 and 1.0, where 1.0 is identical.
      *
      * @throws JsonException
@@ -1086,7 +1086,7 @@ class Builder implements BuilderContract
     /**
      * Add a vector distance "where" clause to the query.
      *
-     * @param array<int, float>|Arrayable<int, float>|Collection<int, float>|string $vector
+     * @param array<int, float>|Arrayable<array<int, float>>|Collection<int, float>|string $vector
      *
      * @throws JsonException
      */
@@ -1116,7 +1116,7 @@ class Builder implements BuilderContract
     /**
      * Add a vector distance "or where" clause to the query.
      *
-     * @param array<int, float>|Arrayable<int, float>|Collection<int, float>|string $vector
+     * @param array<int, float>|Arrayable<array<int, float>>|Collection<int, float>|string $vector
      *
      * @throws JsonException
      */
@@ -2597,7 +2597,7 @@ class Builder implements BuilderContract
     /**
      * Add a vector-distance "order by" clause to the query.
      *
-     * @param array<int, float>|Arrayable<int, float>|Collection<int, float>|string $vector
+     * @param array<int, float>|Arrayable<array<int, float>>|Collection<int, float>|string $vector
      *
      * @throws JsonException
      */

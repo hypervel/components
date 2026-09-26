@@ -43,12 +43,12 @@ class WithoutOverlapping
     /**
      * Create a new middleware instance.
      *
-     * @param string $key the job's unique key used for preventing overlaps
+     * @param int|string|UnitEnum $key the job's unique key used for preventing overlaps
      * @param null|DateTimeInterface|int $releaseAfter the number of seconds before a job should be available again if no lock was acquired
      * @param DateTimeInterface|int $expiresAfter the number of seconds before the lock should expire
      */
     public function __construct(
-        UnitEnum|string $key = '',
+        UnitEnum|int|string $key = '',
         public DateTimeInterface|int|null $releaseAfter = 0,
         DateTimeInterface|int $expiresAfter = 0
     ) {

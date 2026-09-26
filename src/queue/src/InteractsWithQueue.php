@@ -100,8 +100,8 @@ trait InteractsWithQueue
     {
         $this->ensureQueueInteractionsHaveBeenFaked();
 
-        PHPUnit::assertTrue(
-            ! $this->job->isDeleted(),
+        PHPUnit::assertFalse(
+            $this->job->isDeleted(),
             'Job was unexpectedly deleted.'
         );
 
@@ -172,8 +172,8 @@ trait InteractsWithQueue
     {
         $this->ensureQueueInteractionsHaveBeenFaked();
 
-        PHPUnit::assertTrue(
-            ! $this->job->hasFailed(),
+        PHPUnit::assertFalse(
+            $this->job->hasFailed(),
             'Job was unexpectedly failed manually.'
         );
 
@@ -212,8 +212,8 @@ trait InteractsWithQueue
     {
         $this->ensureQueueInteractionsHaveBeenFaked();
 
-        PHPUnit::assertTrue(
-            ! $this->job->isReleased(),
+        PHPUnit::assertFalse(
+            $this->job->isReleased(),
             'Job was unexpectedly released.'
         );
 

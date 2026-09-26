@@ -95,6 +95,11 @@ class ScheduleRunCommand extends Command
     protected bool $shouldStop = false;
 
     /**
+     * Whether a termination signal has requested shutdown.
+     */
+    protected bool $shouldQuit = false;
+
+    /**
      * Last time the stopped state was checked.
      */
     protected ?CarbonInterface $lastChecked = null;
@@ -142,6 +147,8 @@ class ScheduleRunCommand extends Command
         Cache $cache,
         ExceptionHandler $handler,
     ): void {
+        $this->shouldQuit = false;
+
         $this->schedule = $schedule;
         $this->dispatcher = $dispatcher;
         $this->cache = $cache;
@@ -164,7 +171,7 @@ class ScheduleRunCommand extends Command
             $this->clearShouldStop();
 
             $noEventsAlerted = false;
-            while (! $this->shouldStop()) {
+            while (! $this->shouldQuit && ! $this->shouldStop()) {
                 $startedAt = Date::now();
 
                 $this->runEvents(
@@ -293,6 +300,10 @@ class ScheduleRunCommand extends Command
         $paused = $this->isPaused();
 
         foreach ($events as $event) {
+            if ($this->shouldQuit) {
+                break;
+            }
+
             if ($event->isRepeatable() && $event->lastChecked && ! $event->shouldRepeatNow()) {
                 continue;
             }
@@ -385,9 +396,18 @@ class ScheduleRunCommand extends Command
      */
     protected function runScheduledEvent(Event $event, CarbonInterface $startedAt): void
     {
-        $runEvent = fn () => $event->onOneServer
-            ? $this->runSingleServerEvent($event, $startedAt)
-            : $this->runEvent($event);
+        $runEvent = function () use ($event, $startedAt): void {
+            // Shutdown may be requested while filters run or a background slot is unavailable.
+            // Check before the single-server claim: abandoning a successful claim
+            // would prevent every server from running this occurrence.
+            if ($this->shouldQuit) {
+                return;
+            }
+
+            $event->onOneServer
+                ? $this->runSingleServerEvent($event, $startedAt)
+                : $this->runEvent($event);
+        };
 
         if ($event->runInBackground) {
             $this->concurrent->fork(
@@ -594,11 +614,17 @@ class ScheduleRunCommand extends Command
     }
 
     /**
-     * Release owned event mutexes and terminate on shutdown signals.
+     * Drain running tasks on shutdown, or force termination on a second signal.
      */
     protected function listenForSignals(): void
     {
         $this->trap([SIGTERM, SIGINT, SIGQUIT], function (int $signal): void {
+            if (! $this->shouldQuit) {
+                $this->shouldQuit = true;
+
+                return;
+            }
+
             try {
                 $this->releaseRunningEventMutexes();
             } finally {

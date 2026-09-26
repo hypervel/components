@@ -18,6 +18,7 @@ use Hypervel\Tests\TestCase;
 use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use stdClass;
 
 class DatabaseEloquentCollectionTest extends TestCase
@@ -292,25 +293,48 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertSame($mockModel, $c->findOrFail(1));
     }
 
-    public function testFindOrFailFindsManyModelsById(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testFindOrFailFindsManyModelsById(bool $arrayable): void
     {
+        $ids = fn (array $keys): array|BaseCollection => $arrayable ? collect($keys) : $keys;
         $model1 = (new CollectionModel)->forceFill(['id' => 1]);
         $model2 = (new CollectionModel)->forceFill(['id' => 2]);
 
         $c = new Collection;
-        $this->assertInstanceOf(Collection::class, $c->findOrFail([]));
-        $this->assertCount(0, $c->findOrFail([]));
+        $this->assertInstanceOf(Collection::class, $c->findOrFail($ids([])));
+        $this->assertCount(0, $c->findOrFail($ids([])));
 
         $c->push($model1);
-        $this->assertCount(1, $c->findOrFail([1]));
-        $this->assertEquals(1, $c->findOrFail([1])->first()->id);
+        $this->assertCount(1, $c->findOrFail($ids([1])));
+        $this->assertEquals(1, $c->findOrFail($ids([1]))->first()->id);
 
         $c->push($model2);
-        $this->assertCount(2, $c->findOrFail([1, 2]));
+        $this->assertCount(2, $c->findOrFail($ids([1, 2])));
+        $this->assertSame([$model1, $model2], $c->findOrFail($ids([1, 1, 2]))->all());
 
         $this->expectExceptionObject(new ModelNotFoundException('No query results for model [Hypervel\Tests\Database\DatabaseEloquentCollectionTest\CollectionModel] 3'));
 
-        $c->findOrFail([1, 2, 3]);
+        $c->findOrFail($ids([1, 2, 3]));
+    }
+
+    public function testFindOrFailUsesModelKey(): void
+    {
+        $model = (new CollectionModel)->forceFill(['id' => 1, 'other_id' => 2]);
+        $collection = new Collection([$model]);
+
+        $this->assertSame($model, $collection->findOrFail($model));
+
+        $this->expectExceptionObject((new ModelNotFoundException)->setModel(CollectionModel::class, 2));
+
+        $collection->findOrFail((new CollectionModel)->forceFill(['id' => 2]));
+    }
+
+    public function testFindOrFailRejectsMissingArrayableIdsFromEmptyCollection(): void
+    {
+        $this->expectException(ModelNotFoundException::class);
+
+        (new Collection)->findOrFail(collect([1]));
     }
 
     public function testFindOrFailThrowsExceptionWithMessageWhenOtherModelsArePresent(): void
