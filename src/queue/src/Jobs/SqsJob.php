@@ -42,16 +42,24 @@ class SqsJob extends Job
         parent::release($delay);
 
         try {
-            $this->getSqs()->changeMessageVisibility([
-                'QueueUrl' => $this->queue,
-                'ReceiptHandle' => $this->job['ReceiptHandle'],
-                'VisibilityTimeout' => $delay,
-            ]);
+            $this->changeMessageVisibilityInSqs($delay);
         } catch (Throwable $exception) {
             $this->discardPoolLeaseAfterFailure($exception);
         }
 
         $this->releasePoolLease();
+    }
+
+    /**
+     * Reset the SQS message's visibility timeout so it becomes available again.
+     */
+    protected function changeMessageVisibilityInSqs(int $delay): void
+    {
+        $this->getSqs()->changeMessageVisibility([
+            'QueueUrl' => $this->queue,
+            'ReceiptHandle' => $this->job['ReceiptHandle'],
+            'VisibilityTimeout' => $delay,
+        ]);
     }
 
     /**
