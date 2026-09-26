@@ -9,6 +9,7 @@ use Hypervel\Routing\Events\RouteMatched;
 use Hypervel\Routing\Route;
 use Hypervel\Sentry\Integration;
 use Mockery as m;
+use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Sentry\Event;
 use Sentry\State\Scope;
@@ -118,8 +119,11 @@ class IntegrationTest extends SentryTestCase
     public function testExceptionReportedUsingReportHelperIsNotMarkedAsUnhandled(): void
     {
         $testException = new RuntimeException('This was handled');
+        $logger = m::mock(LoggerInterface::class);
+        $logger->expects('error')->with('This was handled', m::subset(['order_id' => 42]));
+        $this->app->instance(LoggerInterface::class, $logger);
 
-        report($testException);
+        report($testException, ['order_id' => 42]);
 
         $this->assertSentryEventCount(1);
 

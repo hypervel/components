@@ -35,7 +35,7 @@ class TestCaseExceptionHandler implements ExceptionHandler
     {
         Integration::captureUnhandledException($e);
 
-        $this->handler->report($e);
+        $this->handler->report($e, $context);
     }
 
     /**
