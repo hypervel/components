@@ -689,6 +689,80 @@ class ContextTest extends TestCase
         Context::rememberHidden('foo', $closure);
         $this->assertSame(1, $closureRunCount);
     }
+
+    public function testReportHelperAddsContextToExceptionContext(): void
+    {
+        $path = $this->logPath;
+        file_put_contents($path, '');
+
+        report(new Exception('Whoops!'), ['foo' => 'bar', 'baz' => 123]);
+
+        $log = Str::after(file_get_contents($path), '] ');
+
+        $this->assertStringContainsString('"foo":"bar"', $log);
+        $this->assertStringContainsString('"baz":123', $log);
+    }
+
+    public function testReportContextIsSeparateFromGlobalContext(): void
+    {
+        $path = $this->logPath;
+        file_put_contents($path, '');
+
+        Context::add('global_key', 'global_value');
+
+        report(new Exception('Whoops!'), ['report_key' => 'report_value']);
+
+        $log = Str::after(file_get_contents($path), '] ');
+
+        // Report context is in exception context (before the global context extra)
+        $this->assertStringContainsString('"report_key":"report_value"', $log);
+        // Global context is in extra (at the end of the log line)
+        $this->assertStringEndsWith(' {"global_key":"global_value"}', trim($log));
+    }
+
+    public function testReportHelperWithoutContextDoesNotAddContext(): void
+    {
+        $path = $this->logPath;
+        file_put_contents($path, '');
+
+        report(new Exception('Whoops!'));
+
+        $log = Str::after(file_get_contents($path), '] ');
+
+        $this->assertStringNotContainsString('"foo"', $log);
+        $this->assertStringNotContainsString('"bar"', $log);
+    }
+
+    public function testReportIfHelperAddsContextWhenConditionIsTrue(): void
+    {
+        $path = $this->logPath;
+        file_put_contents($path, '');
+
+        report_if(true, new Exception('Whoops!'), ['foo' => 'bar']);
+
+        $log = Str::after(file_get_contents($path), '] ');
+
+        $this->assertStringContainsString('"foo":"bar"', $log);
+    }
+
+    public function testReportUnlessHelperAddsContextWhenConditionIsFalse(): void
+    {
+        $path = $this->logPath;
+        file_put_contents($path, '');
+
+        report_unless(false, new Exception('Whoops!'), ['foo' => 'bar']);
+
+        $log = Str::after(file_get_contents($path), '] ');
+
+        $this->assertStringContainsString('"foo":"bar"', $log);
+    }
+
+    public function testReportContextDoesNotLeakToGlobalContext(): void
+    {
+        report(new Exception('Whoops!'), ['leaked' => 'value']);
+
+        $this->assertNull(Context::get('leaked'));
+    }
 }
 
 enum Suit

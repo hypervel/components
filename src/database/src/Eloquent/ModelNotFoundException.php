@@ -33,9 +33,9 @@ class ModelNotFoundException extends RecordsNotFoundException
      * Set the affected Eloquent model and instance ids.
      *
      * @param class-string<TModel> $model
-     * @param array<int, int|string|UnitEnum>|int|string|UnitEnum $ids
+     * @param null|array<int, int|string|UnitEnum>|int|string|UnitEnum $ids
      */
-    public function setModel(string $model, array|int|string|UnitEnum $ids = []): static
+    public function setModel(string $model, array|int|string|UnitEnum|null $ids = []): static
     {
         $this->model = $model;
         $this->ids = array_map(enum_value(...), Arr::wrap($ids));

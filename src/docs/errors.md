@@ -127,6 +127,12 @@ public function isValid(string $value): bool
 }
 ```
 
+You may pass an array of contextual data as the second argument to the `report` function. This data is included in the exception's log entry, taking precedence over the global and exception log context, except for the reserved `exception` key. Your exception reporting callbacks receive the complete log context, including this data, as their second argument. The `report_if` and `report_unless` functions accept the same array as their third argument:
+
+```php
+report($e, ['order_id' => $order->id]);
+```
+
 <a name="deduplicating-reported-exceptions"></a>
 #### Deduplicating Reported Exceptions
 

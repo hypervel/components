@@ -398,7 +398,7 @@ class KernelTest extends TestCase
         $request = Request::create('/');
         $replacement = new Response('replacement', 500);
         $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($failure);
+        $handler->shouldReceive('report')->once()->with($failure, []);
         $handler->shouldReceive('render')->once()->with($request, $failure)->andReturn($replacement);
         $app->instance(ExceptionHandler::class, $handler);
         $router = m::mock(Router::class);
@@ -417,7 +417,7 @@ class KernelTest extends TestCase
         $original = new RuntimeException('router failed');
         $reportingFailure = new RuntimeException('reporting failed');
         $handler = m::mock(ExceptionHandler::class);
-        $handler->expects('report')->with($original)->andThrow($reportingFailure);
+        $handler->expects('report')->with($original, [])->andThrow($reportingFailure);
         $handler->shouldNotReceive('render');
         $app->instance(ExceptionHandler::class, $handler);
         $router = m::mock(Router::class);

@@ -27,7 +27,7 @@ use Throwable;
  * @method static \Symfony\Component\HttpFoundation\Response render(\Hypervel\Http\Request $request, Throwable $e)
  * @method static \Hypervel\Foundation\Exceptions\Handler renderable(callable $renderUsing)
  * @method static void renderForConsole(\Symfony\Component\Console\Output\OutputInterface $output, Throwable $e)
- * @method static void report(Throwable $e)
+ * @method static void report(Throwable $e, array<array-key, mixed> $context = [])
  * @method static \Hypervel\Foundation\Exceptions\ReportableHandler reportable(callable $reportUsing)
  * @method static \Hypervel\Foundation\Exceptions\Handler respondUsing(callable $callback)
  * @method static \Hypervel\Foundation\Exceptions\Handler shouldRenderJsonWhen(callable $callback)

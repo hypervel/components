@@ -246,6 +246,86 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->handler->report(new ContextProvidingException('Exception message'));
     }
 
+    public function testHandlerMergesInlineContextIntoLogContext(): void
+    {
+        $logger = m::mock(LoggerInterface::class);
+        $this->container->instance(LoggerInterface::class, $logger);
+        $logger->expects('error')->withArgs(['Exception message', m::subset(['from' => 'user@example.com', 'subject' => 'Hello'])]);
+
+        $this->handler->report(new RuntimeException('Exception message'), [
+            'from' => 'user@example.com',
+            'subject' => 'Hello',
+        ]);
+    }
+
+    public function testHandlerInlineContextOverridesExceptionContext(): void
+    {
+        $logger = m::mock(LoggerInterface::class);
+        $this->container->instance(LoggerInterface::class, $logger);
+        $logger->expects('error')->withArgs(['Exception message', m::subset(['foo' => 'overridden'])]);
+
+        $this->handler->report(new ContextProvidingException('Exception message'), [
+            'foo' => 'overridden',
+        ]);
+    }
+
+    public function testReportableCallbackReceivesInlineContext(): void
+    {
+        $receivedContext = null;
+        $reportingDuringCallback = null;
+
+        $this->handler->reportable(function (Throwable $e, array $context) use (&$receivedContext, &$reportingDuringCallback): bool {
+            $receivedContext = $context;
+            $reportingDuringCallback = $this->handler->isReporting($e);
+
+            return false;
+        });
+
+        $this->handler->report(new RuntimeException('Exception message'), [
+            'from' => 'user@example.com',
+        ]);
+
+        $this->assertIsArray($receivedContext);
+        $this->assertSame('user@example.com', $receivedContext['from']);
+        $this->assertArrayHasKey('exception', $receivedContext);
+        $this->assertFalse($reportingDuringCallback);
+    }
+
+    public function testReportingMarkerIsRestoredAfterNestedReportsAndContextFailures(): void
+    {
+        $logger = m::mock(LoggerInterface::class);
+        $this->container->instance(LoggerInterface::class, $logger);
+        $logger->expects('error')->withArgs(['Inner exception', m::hasKey('exception')]);
+
+        $outer = new RuntimeException('Outer exception');
+        $inner = new RuntimeException('Inner exception');
+        $failure = new RuntimeException('Context failed');
+        $states = [];
+
+        $this->handler->buildContextUsing(function (Throwable $e) use ($outer, $inner, $failure, &$states): array {
+            if ($e === $inner) {
+                $states['inner'] = [$this->handler->isReporting($inner), $this->handler->isReporting($outer)];
+
+                return [];
+            }
+
+            $this->handler->report($inner);
+            $states['outer after nested report'] = $this->handler->isReporting($outer);
+
+            throw $failure;
+        });
+
+        try {
+            $this->handler->report($outer);
+        } catch (RuntimeException $exception) {
+        }
+
+        $this->assertSame($failure, $exception ?? null);
+        $this->assertSame([true, false], $states['inner']);
+        $this->assertTrue($states['outer after nested report']);
+        $this->assertFalse($this->handler->isReporting($outer));
+    }
+
     public function testHandlerReportsExceptionWhenUnReportable(): void
     {
         $logger = m::mock(LoggerInterface::class);
@@ -847,7 +927,7 @@ class FoundationExceptionsHandlerTest extends TestCase
                 return $this->renderHttpException($exception);
             }
 
-            public function report(Throwable $e): void
+            public function report(Throwable $e, array $context = []): void
             {
                 $this->reported = true;
             }

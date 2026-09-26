@@ -127,7 +127,7 @@ class SearchableDispatchTest extends ScoutTestCase
     {
         $exception = new RuntimeException('indexing failed');
         $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($exception);
+        $handler->shouldReceive('report')->once()->with($exception, []);
         $this->app->instance(ExceptionHandler::class, $handler);
         $events = [];
 

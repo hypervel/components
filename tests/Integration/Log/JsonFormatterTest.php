@@ -65,13 +65,14 @@ final class JsonFormatterTest extends TestCase
     {
         $exception = new ContextProvidingException('Something went wrong');
 
-        $this->app->make(ExceptionHandlerContract::class)->report($exception);
+        $this->app->make(ExceptionHandlerContract::class)->report($exception, [123 => 'inline', 456 => 'added']);
 
         $formatted = $this->getFormattedJson();
 
-        // Context should be at the top level (from the handler)
+        // Context should be at the top level (from the handler), with inline numeric keys preserved
         $this->assertSame('bar', $formatted['context']['foo']);
-        $this->assertSame('numeric', $formatted['context'][123] ?? null);
+        $this->assertSame('inline', $formatted['context'][123] ?? null);
+        $this->assertSame('added', $formatted['context'][456] ?? null);
 
         // But NOT enriched inside the normalized exception (formatter should skip)
         $exceptionData = $formatted['context']['exception'];
@@ -200,6 +201,26 @@ final class JsonFormatterTest extends TestCase
         $this->assertSame('callback_value', $exceptionData['callback_key']);
         $this->assertSame('updated', $exceptionData[123] ?? null);
         $this->assertSame('added', $exceptionData[456] ?? null);
+    }
+
+    public function testContextCallbacksLoggingTheReportedExceptionRunOncePerReport(): void
+    {
+        $calls = 0;
+
+        $this->app->make(ExceptionHandlerContract::class)->buildContextUsing(function (Throwable $e) use (&$calls): array {
+            // Stop runaway re-entry so a regression fails the count instead of recursing indefinitely.
+            if (++$calls > 3) {
+                return [];
+            }
+
+            Log::error('context callback', ['exception' => $e]);
+
+            return ['callback_key' => 'callback_value'];
+        });
+
+        $this->app->make(ExceptionHandlerContract::class)->report(new ContextProvidingException('Logged while building context'));
+
+        $this->assertSame(1, $calls);
     }
 
     public function testNonScalarContextValuesAreNormalized(): void

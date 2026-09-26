@@ -170,6 +170,8 @@ class Rule
 
     /**
      * Get a required_if rule builder instance.
+     *
+     * @param null|bool|(Closure(): bool) $callback
      */
     public static function requiredIf(bool|Closure|null $callback): RequiredIf
     {
@@ -178,6 +180,8 @@ class Rule
 
     /**
      * Get a required_unless rule builder instance.
+     *
+     * @param null|bool|(Closure(): bool) $callback
      */
     public static function requiredUnless(bool|Closure|null $callback): RequiredUnless
     {
@@ -186,6 +190,8 @@ class Rule
 
     /**
      * Get an exclude_if rule builder instance.
+     *
+     * @param bool|(Closure(): bool) $callback
      */
     public static function excludeIf(bool|Closure $callback): ExcludeIf
     {
@@ -194,6 +200,8 @@ class Rule
 
     /**
      * Get an exclude_unless rule builder instance.
+     *
+     * @param bool|(Closure(): bool) $callback
      */
     public static function excludeUnless(bool|Closure $callback): ExcludeUnless
     {
@@ -202,6 +210,8 @@ class Rule
 
     /**
      * Get a prohibited_if rule builder instance.
+     *
+     * @param bool|(Closure(): bool) $callback
      */
     public static function prohibitedIf(bool|Closure $callback): ProhibitedIf
     {
@@ -210,6 +220,8 @@ class Rule
 
     /**
      * Get a prohibited_unless rule builder instance.
+     *
+     * @param bool|(Closure(): bool) $callback
      */
     public static function prohibitedUnless(bool|Closure $callback): ProhibitedUnless
     {

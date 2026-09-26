@@ -698,25 +698,29 @@ if (! function_exists('redirect')) {
 if (! function_exists('report')) {
     /**
      * Report an exception.
+     *
+     * @param array<array-key, mixed> $context
      */
-    function report(string|Throwable $exception): void
+    function report(string|Throwable $exception, array $context = []): void
     {
         if (is_string($exception)) {
             $exception = new Exception($exception);
         }
 
-        app(ExceptionHandlerContract::class)->report($exception);
+        app(ExceptionHandlerContract::class)->report($exception, $context);
     }
 }
 
 if (! function_exists('report_if')) {
     /**
      * Report an exception if the given condition is true.
+     *
+     * @param array<array-key, mixed> $context
      */
-    function report_if(bool $boolean, string|Throwable $exception): void
+    function report_if(bool $boolean, string|Throwable $exception, array $context = []): void
     {
         if ($boolean) {
-            report($exception);
+            report($exception, $context);
         }
     }
 }
@@ -724,11 +728,13 @@ if (! function_exists('report_if')) {
 if (! function_exists('report_unless')) {
     /**
      * Report an exception unless the given condition is true.
+     *
+     * @param array<array-key, mixed> $context
      */
-    function report_unless(bool $boolean, string|Throwable $exception): void
+    function report_unless(bool $boolean, string|Throwable $exception, array $context = []): void
     {
         if (! $boolean) {
-            report($exception);
+            report($exception, $context);
         }
     }
 }

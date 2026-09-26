@@ -693,10 +693,12 @@ class Kernel implements KernelContract
 
     /**
      * Report the exception to the exception handler.
+     *
+     * @param array<array-key, mixed> $context
      */
-    protected function reportException(Throwable $e): void
+    protected function reportException(Throwable $e, array $context = []): void
     {
-        $this->app->make(ExceptionHandler::class)->report($e);
+        $this->app->make(ExceptionHandler::class)->report($e, $context);
     }
 
     /**
