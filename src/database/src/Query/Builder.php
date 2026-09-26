@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Query;
 
-use BackedEnum;
 use BadMethodCallException;
 use Closure;
 use DatePeriod;
@@ -1332,7 +1331,7 @@ class Builder implements BuilderContract
         $values = Arr::whereNotNull(Arr::flatten($values));
 
         foreach ($values as &$value) {
-            $value = (int) ($value instanceof BackedEnum ? $value->value : $value);
+            $value = (int) enum_value($value);
         }
 
         $this->wheres[] = ['type' => $type, 'column' => $column, 'values' => $values, 'boolean' => $boolean];

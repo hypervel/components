@@ -82,67 +82,90 @@ class QueuePauseResumeTest extends TestCase
 
     public function testPauseQueueWithConnection(): void
     {
-        $this->manager->pause('redis', 'default');
+        $this->manager->pause('default', 'redis');
 
-        $this->assertTrue($this->manager->isPaused('redis', 'default'));
+        $this->assertTrue($this->manager->isPaused('default', 'redis'));
+    }
+
+    public function testConnectionDefaultsToTheDefaultConnection(): void
+    {
+        $this->manager->pause('emails');
+
+        $this->assertTrue($this->manager->isPaused('emails', 'redis'));
+        $this->assertFalse($this->manager->isPaused('emails', 'database'));
+        $this->assertTrue($this->manager->isPaused('emails'));
+        $this->assertSame(['emails'], $this->manager->getPausedQueues(['default', 'emails']));
+
+        $this->manager->resume('emails');
+
+        $this->assertFalse($this->manager->isPaused('emails', 'redis'));
+
+        $this->manager->pauseFor('emails', 30);
+
+        $this->assertTrue($this->manager->isPaused('emails', 'redis'));
+        $this->assertFalse($this->manager->isPaused('emails', 'database'));
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinute());
+
+        $this->assertFalse($this->manager->isPaused('emails', 'redis'));
     }
 
     public function testPauseQueueWithTTL(): void
     {
-        $this->manager->pauseFor('redis', 'default', 30);
+        $this->manager->pauseFor('default', 30, 'redis');
 
-        $this->assertTrue($this->manager->isPaused('redis', 'default'));
+        $this->assertTrue($this->manager->isPaused('default', 'redis'));
 
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinute());
-        $this->assertFalse($this->manager->isPaused('redis', 'default'));
+        $this->assertFalse($this->manager->isPaused('default', 'redis'));
     }
 
     public function testPauseQueueIndefinitely(): void
     {
-        $this->manager->pause('redis', 'default');
+        $this->manager->pause('default', 'redis');
 
-        $this->assertTrue($this->manager->isPaused('redis', 'default'));
+        $this->assertTrue($this->manager->isPaused('default', 'redis'));
 
         CarbonImmutable::setTestNow(CarbonImmutable::now()->addYear());
-        $this->assertTrue($this->manager->isPaused('redis', 'default'));
+        $this->assertTrue($this->manager->isPaused('default', 'redis'));
     }
 
     public function testResumeQueue(): void
     {
-        $this->manager->pause('redis', 'default');
-        $this->assertTrue($this->manager->isPaused('redis', 'default'));
+        $this->manager->pause('default', 'redis');
+        $this->assertTrue($this->manager->isPaused('default', 'redis'));
 
-        $this->manager->resume('redis', 'default');
-        $this->assertFalse($this->manager->isPaused('redis', 'default'));
+        $this->manager->resume('default', 'redis');
+        $this->assertFalse($this->manager->isPaused('default', 'redis'));
     }
 
     public function testPausingQueueOnOneConnectionDoesNotAffectAnother(): void
     {
-        $this->manager->pause('redis', 'default');
+        $this->manager->pause('default', 'redis');
 
-        $this->assertTrue($this->manager->isPaused('redis', 'default'));
-        $this->assertFalse($this->manager->isPaused('database', 'default'));
+        $this->assertTrue($this->manager->isPaused('default', 'redis'));
+        $this->assertFalse($this->manager->isPaused('default', 'database'));
     }
 
     public function testPausingDifferentQueuesOnSameConnection(): void
     {
-        $this->manager->pause('redis', 'emails');
-        $this->manager->pause('redis', 'notifications');
+        $this->manager->pause('emails', 'redis');
+        $this->manager->pause('notifications', 'redis');
 
-        $this->assertTrue($this->manager->isPaused('redis', 'emails'));
-        $this->assertTrue($this->manager->isPaused('redis', 'notifications'));
-        $this->assertFalse($this->manager->isPaused('redis', 'default'));
+        $this->assertTrue($this->manager->isPaused('emails', 'redis'));
+        $this->assertTrue($this->manager->isPaused('notifications', 'redis'));
+        $this->assertFalse($this->manager->isPaused('default', 'redis'));
     }
 
     public function testResumingOnlyAffectsSpecificQueue(): void
     {
-        $this->manager->pause('redis', 'emails');
-        $this->manager->pause('redis', 'notifications');
+        $this->manager->pause('emails', 'redis');
+        $this->manager->pause('notifications', 'redis');
 
-        $this->manager->resume('redis', 'emails');
+        $this->manager->resume('emails', 'redis');
 
-        $this->assertFalse($this->manager->isPaused('redis', 'emails'));
-        $this->assertTrue($this->manager->isPaused('redis', 'notifications'));
+        $this->assertFalse($this->manager->isPaused('emails', 'redis'));
+        $this->assertTrue($this->manager->isPaused('notifications', 'redis'));
     }
 
     public function testPauseDispatchesQueuePausedEvent(): void
@@ -153,7 +176,7 @@ class QueuePauseResumeTest extends TestCase
             $dispatchedEvent = $event;
         });
 
-        $this->manager->pause('redis', 'default');
+        $this->manager->pause('default', 'redis');
 
         $this->assertInstanceOf(QueuePaused::class, $dispatchedEvent);
         $this->assertSame('redis', $dispatchedEvent->connection);
@@ -169,7 +192,7 @@ class QueuePauseResumeTest extends TestCase
             $dispatchedEvent = $event;
         });
 
-        $this->manager->pauseFor('redis', 'emails', 60);
+        $this->manager->pauseFor('emails', 60, 'redis');
 
         $this->assertInstanceOf(QueuePaused::class, $dispatchedEvent);
         $this->assertSame('redis', $dispatchedEvent->connection);
@@ -185,7 +208,7 @@ class QueuePauseResumeTest extends TestCase
             $dispatchedEvent = $event;
         });
 
-        $this->manager->resume('database', 'notifications');
+        $this->manager->resume('notifications', 'database');
 
         $this->assertInstanceOf(QueueResumed::class, $dispatchedEvent);
         $this->assertSame('database', $dispatchedEvent->connection);
@@ -202,9 +225,9 @@ class QueuePauseResumeTest extends TestCase
             },
         );
 
-        $this->manager->pause('redis', 'default');
-        $this->manager->pauseFor('redis', 'emails', 60);
-        $this->manager->resume('redis', 'default');
+        $this->manager->pause('default', 'redis');
+        $this->manager->pauseFor('emails', 60, 'redis');
+        $this->manager->resume('default', 'redis');
 
         $this->manager->pauseAll();
         $this->manager->resumeAll();
@@ -214,14 +237,14 @@ class QueuePauseResumeTest extends TestCase
 
     public function testGetPausedQueues(): void
     {
-        $this->assertSame([], $this->manager->getPausedQueues('redis', ['default', 'emails']));
+        $this->assertSame([], $this->manager->getPausedQueues(['default', 'emails'], 'redis'));
 
-        $this->manager->pause('redis', 'emails');
-        $this->manager->pause('redis', 'notifications');
+        $this->manager->pause('emails', 'redis');
+        $this->manager->pause('notifications', 'redis');
 
         $this->assertSame(
             ['emails', 'notifications'],
-            $this->manager->getPausedQueues('redis', ['default', 'emails', 'notifications']),
+            $this->manager->getPausedQueues(['default', 'emails', 'notifications'], 'redis'),
         );
     }
 
@@ -229,28 +252,28 @@ class QueuePauseResumeTest extends TestCase
     {
         $this->manager->pauseAll();
 
-        $this->assertTrue($this->manager->isPaused('redis', 'default'));
-        $this->assertTrue($this->manager->isPaused('database', 'emails'));
+        $this->assertTrue($this->manager->isPaused('default', 'redis'));
+        $this->assertTrue($this->manager->isPaused('emails', 'database'));
         $this->assertSame(
             ['default', 'emails'],
-            $this->manager->getPausedQueues('redis', ['default', 'emails'])
+            $this->manager->getPausedQueues(['default', 'emails'], 'redis')
         );
 
         $this->manager->resumeAll();
 
-        $this->assertFalse($this->manager->isPaused('redis', 'default'));
-        $this->assertSame([], $this->manager->getPausedQueues('redis', ['default', 'emails']));
+        $this->assertFalse($this->manager->isPaused('default', 'redis'));
+        $this->assertSame([], $this->manager->getPausedQueues(['default', 'emails'], 'redis'));
     }
 
     public function testResumeAllPreservesIndividuallyPausedQueues(): void
     {
-        $this->manager->pause('redis', 'emails');
+        $this->manager->pause('emails', 'redis');
         $this->manager->pauseAll();
         $this->manager->resumeAll();
 
-        $this->assertTrue($this->manager->isPaused('redis', 'emails'));
-        $this->assertFalse($this->manager->isPaused('database', 'emails'));
-        $this->assertSame(['emails'], $this->manager->getPausedQueues('redis', ['default', 'emails']));
+        $this->assertTrue($this->manager->isPaused('emails', 'redis'));
+        $this->assertFalse($this->manager->isPaused('emails', 'database'));
+        $this->assertSame(['emails'], $this->manager->getPausedQueues(['default', 'emails'], 'redis'));
     }
 
     public function testPauseChecksDoNotBatchTheGlobalKeyWithQueueKeys(): void
@@ -271,13 +294,13 @@ class QueuePauseResumeTest extends TestCase
 
         $manager = $this->createManager(new CacheRepository($store));
 
-        $this->assertFalse($manager->isPaused('redis', 'default'));
-        $this->assertSame([], $manager->getPausedQueues('redis', ['default']));
+        $this->assertFalse($manager->isPaused('default', 'redis'));
+        $this->assertSame([], $manager->getPausedQueues(['default'], 'redis'));
 
         $manager->pauseAll();
 
-        $this->assertTrue($manager->isPaused('redis', 'default'));
-        $this->assertSame(['default'], $manager->getPausedQueues('redis', ['default']));
+        $this->assertTrue($manager->isPaused('default', 'redis'));
+        $this->assertSame(['default'], $manager->getPausedQueues(['default'], 'redis'));
     }
 
     public function testPauseAllDispatchesQueuesPausedEvent(): void

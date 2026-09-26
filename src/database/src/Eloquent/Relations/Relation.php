@@ -63,6 +63,11 @@ abstract class Relation implements BuilderContract
     protected const string CONSTRAINTS_CONTEXT_KEY = '__database.relation.constraints';
 
     /**
+     * The context key for enabling constraints on nested relation attributes.
+     */
+    protected const string NESTED_CONSTRAINTS_CONTEXT_KEY = '__database.relation.nested_constraints';
+
+    /**
      * An array to map morph names to their class names in the database.
      *
      * @var array<int|string, class-string<Model>>
@@ -104,9 +109,37 @@ abstract class Relation implements BuilderContract
      */
     public static function noConstraints(Closure $callback): mixed
     {
+        return static::withoutConstraints($callback, false);
+    }
+
+    /**
+     * Run a callback without constraints while preserving them for nested relation attributes.
+     *
+     * @template TReturn of mixed
+     *
+     * @param Closure(): TReturn $callback
+     * @return TReturn
+     */
+    public static function noConstraintsForRelation(Closure $callback): mixed
+    {
+        return static::withoutConstraints($callback, true);
+    }
+
+    /**
+     * Run a callback with the configured relation constraints.
+     *
+     * @template TReturn of mixed
+     *
+     * @param Closure(): TReturn $callback
+     * @return TReturn
+     */
+    protected static function withoutConstraints(Closure $callback, bool $constraintsForNestedRelations): mixed
+    {
         $previous = CoroutineContext::get(static::CONSTRAINTS_CONTEXT_KEY, true);
+        $previousConstraintsForNestedRelations = CoroutineContext::get(static::NESTED_CONSTRAINTS_CONTEXT_KEY, false);
 
         CoroutineContext::set(static::CONSTRAINTS_CONTEXT_KEY, false);
+        CoroutineContext::set(static::NESTED_CONSTRAINTS_CONTEXT_KEY, $constraintsForNestedRelations);
 
         // When resetting the relation where clause, we want to shift the first element
         // off of the bindings, leaving only the constraints that the developers put
@@ -115,7 +148,44 @@ abstract class Relation implements BuilderContract
             return $callback();
         } finally {
             CoroutineContext::set(static::CONSTRAINTS_CONTEXT_KEY, $previous);
+            CoroutineContext::set(static::NESTED_CONSTRAINTS_CONTEXT_KEY, $previousConstraintsForNestedRelations);
         }
+    }
+
+    /**
+     * Run a callback with constraints enabled on the relation.
+     *
+     * @template TReturn of mixed
+     *
+     * @param Closure(): TReturn $callback
+     * @return TReturn
+     */
+    public static function withConstraints(Closure $callback): mixed
+    {
+        $previous = CoroutineContext::get(static::CONSTRAINTS_CONTEXT_KEY, true);
+
+        CoroutineContext::set(static::CONSTRAINTS_CONTEXT_KEY, true);
+
+        try {
+            return $callback();
+        } finally {
+            CoroutineContext::set(static::CONSTRAINTS_CONTEXT_KEY, $previous);
+        }
+    }
+
+    /**
+     * Run a callback with constraints when resolving a nested relation attribute.
+     *
+     * @template TReturn of mixed
+     *
+     * @param Closure(): TReturn $callback
+     * @return TReturn
+     */
+    public static function withConstraintsForNestedRelation(Closure $callback): mixed
+    {
+        return CoroutineContext::get(static::NESTED_CONSTRAINTS_CONTEXT_KEY, false)
+            ? static::withConstraints($callback)
+            : $callback();
     }
 
     /**

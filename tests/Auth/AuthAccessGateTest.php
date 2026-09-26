@@ -683,6 +683,29 @@ class AuthAccessGateTest extends TestCase
         $this->assertSame(3, $counter);
     }
 
+    public function testForUserMethodPreservesGuestStringCallbacks(): void
+    {
+        $gate = new Gate(new Container, fn (): null => null);
+        $gate->define('guest', AccessGateTestGuestCallback::class . '@__invoke');
+
+        $this->assertTrue($gate->allows('guest'));
+        $this->assertTrue($gate->forUser(null)->allows('guest'));
+    }
+
+    public function testForUserMethodPreservesDefaultDenialResponse(): void
+    {
+        $gate = $this->getBasicGate();
+
+        $gate->define('view-secret', fn (): bool => false);
+        $gate->defaultDenialResponse(Response::denyAsNotFound('Not found'));
+
+        $response = $gate->forUser((object) ['id' => 2])->inspect('view-secret');
+
+        $this->assertTrue($response->denied());
+        $this->assertSame('Not found', $response->message());
+        $this->assertSame(404, $response->status());
+    }
+
     #[DataProvider('notCallableDataProvider')]
     public function testDefineSecondParameterShouldBeStringOrCallable($callback)
     {

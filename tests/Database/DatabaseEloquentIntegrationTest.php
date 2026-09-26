@@ -1111,6 +1111,64 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals([1 => 'taylorotwell@gmail.com', 2 => 'abigailotwell@gmail.com'], $keyed);
     }
 
+    public function testModelKeys(): void
+    {
+        User::insert([
+            ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
+            ['id' => 2, 'email' => 'abigailotwell@gmail.com'],
+        ]);
+
+        $this->assertSame([1, 2], User::oldest('id')->modelKeys());
+    }
+
+    public function testModelKeysWithCastPrimaryKey(): void
+    {
+        UserWithStringCastId::insert([
+            ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
+            ['id' => 2, 'email' => 'abigailotwell@gmail.com'],
+        ]);
+
+        $this->assertSame(['1', '2'], UserWithStringCastId::oldest('id')->modelKeys());
+    }
+
+    public function testModelKeysWithCustomPrimaryKey(): void
+    {
+        UniqueUserWithCustomKey::insert([
+            ['screen_name' => 'first', 'email' => 'taylorotwell@gmail.com'],
+            ['screen_name' => 'second', 'email' => 'abigailotwell@gmail.com'],
+        ]);
+
+        $this->assertSame(['first', 'second'], UniqueUserWithCustomKey::orderBy('screen_name')->modelKeys());
+    }
+
+    public function testModelKeysWithQueryConstraints(): void
+    {
+        User::insert([
+            ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
+            ['id' => 2, 'email' => 'abigailotwell@gmail.com'],
+            ['id' => 3, 'email' => 'foo@gmail.com'],
+        ]);
+
+        $this->assertSame([2, 3], User::where('id', '>', 1)->oldest('id')->modelKeys());
+        $this->assertSame([1], User::oldest('id')->take(1)->modelKeys());
+    }
+
+    public function testModelKeysWithRelationshipAndJoin(): void
+    {
+        $user1 = User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        $user2 = User::create(['id' => 2, 'email' => 'abigailotwell@gmail.com']);
+
+        $user1->posts()->create(['id' => 1, 'name' => 'First post']);
+        $user1->posts()->create(['id' => 2, 'name' => 'Second post']);
+        $user2->posts()->create(['id' => 3, 'name' => 'Third post']);
+
+        $this->assertEquals([1, 2], $user1->posts()->oldest('id')->modelKeys());
+
+        $join = User::join('posts', 'users.id', '=', 'posts.user_id')->where('users.id', 1);
+
+        $this->assertEquals([1, 1], $join->modelKeys());
+    }
+
     public function testFindOrFail()
     {
         User::insert([
@@ -2946,6 +3004,15 @@ class UniqueUser extends Eloquent
     protected array $casts = ['birthday' => 'datetime'];
 
     protected array $guarded = [];
+}
+
+class UniqueUserWithCustomKey extends UniqueUser
+{
+    public bool $incrementing = false;
+
+    protected string $primaryKey = 'screen_name';
+
+    protected string $keyType = 'string';
 }
 
 class Post extends Eloquent

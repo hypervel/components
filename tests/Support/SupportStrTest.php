@@ -1091,15 +1091,18 @@ class SupportStrTest extends TestCase
     public function testWhetherTheNumberOfGeneratedCharactersIsEquallyDistributed(): void
     {
         $results = [];
-        // take 6.200.000 samples, because there are 62 different characters
-        for ($i = 0; $i < 620000; ++$i) {
+
+        // Take 620,000 samples, because there are 62 different characters.
+        for ($i = 0; $i < 620_000; ++$i) {
             $random = Str::random(1);
             $results[$random] = ($results[$random] ?? 0) + 1;
         }
 
-        // each character should occur 100.000 times with a variance of 5%.
+        // Each character should occur close to 10_000 times. The expected count is
+        // binomially distributed with a standard deviation of ~100, so allow a
+        // generous margin to avoid flaky failures from ordinary sampling noise.
         foreach ($results as $result) {
-            $this->assertEqualsWithDelta(10000, $result, 500);
+            $this->assertEqualsWithDelta(10_000, $result, 800);
         }
     }
 

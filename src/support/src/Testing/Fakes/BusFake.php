@@ -102,9 +102,9 @@ class BusFake implements Fake, QueueingDispatcher
         }
 
         PHPUnit::assertTrue(
-            $this->dispatched($command, $callback)->count() > 0
-                || $this->dispatchedAfterResponse($command, $callback)->count() > 0
-                || $this->dispatchedSync($command, $callback)->count() > 0,
+            $this->dispatched($command, $callback)->isNotEmpty()
+                || $this->dispatchedAfterResponse($command, $callback)->isNotEmpty()
+                || $this->dispatchedSync($command, $callback)->isNotEmpty(),
             "The expected [{$command}] job was not dispatched."
         );
     }
@@ -153,9 +153,9 @@ class BusFake implements Fake, QueueingDispatcher
         }
 
         PHPUnit::assertTrue(
-            $this->dispatched($command, $callback)->count() === 0
-                && $this->dispatchedAfterResponse($command, $callback)->count() === 0
-                && $this->dispatchedSync($command, $callback)->count() === 0,
+            $this->dispatched($command, $callback)->isEmpty()
+                && $this->dispatchedAfterResponse($command, $callback)->isEmpty()
+                && $this->dispatchedSync($command, $callback)->isEmpty(),
             "The unexpected [{$command}] job was dispatched."
         );
     }
@@ -187,7 +187,7 @@ class BusFake implements Fake, QueueingDispatcher
         }
 
         PHPUnit::assertTrue(
-            $this->dispatchedSync($command, $callback)->count() > 0,
+            $this->dispatchedSync($command, $callback)->isNotEmpty(),
             "The expected [{$command}] job was not dispatched synchronously."
         );
     }
@@ -247,7 +247,7 @@ class BusFake implements Fake, QueueingDispatcher
         }
 
         PHPUnit::assertTrue(
-            $this->dispatchedAfterResponse($command, $callback)->count() > 0,
+            $this->dispatchedAfterResponse($command, $callback)->isNotEmpty(),
             "The expected [{$command}] job was not dispatched after sending the response."
         );
     }
@@ -439,7 +439,7 @@ class BusFake implements Fake, QueueingDispatcher
         $callback = is_array($callback) ? fn (PendingBatchFake $batch) => $batch->hasJobs($callback) : $callback;
 
         PHPUnit::assertTrue(
-            $this->batched($callback)->count() > 0,
+            $this->batched($callback)->isNotEmpty(),
             'The expected batch was not dispatched.'
         );
     }

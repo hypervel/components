@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cookie;
 
+use Closure;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Cookie\QueueingFactory as JarContract;
@@ -115,18 +116,25 @@ class CookieJar implements JarContract
     /**
      * Get a queued cookie instance.
      *
-     * @phpstan-return ($default is null ? Cookie|null : mixed)
+     * @template TQueuedDefault
+     *
+     * @param (Closure(): TQueuedDefault)|TQueuedDefault $default
+     * @return ($default is null ? null|Cookie : Cookie|TQueuedDefault)
      */
     public function queued(UnitEnum|string $key, mixed $default = null, ?string $path = null): mixed
     {
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
-        $queued = Arr::get($this->getQueuedCookiesRaw(), $key, []);
+        $queued = $this->getQueuedCookiesRaw()[$key] ?? null;
 
-        if ($path === null) {
-            return $queued === [] ? $default : Arr::last($queued, null, $default);
+        if ($queued === null) {
+            return value($default);
         }
 
-        return Arr::get($queued, $path, $default);
+        if ($path === null) {
+            return Arr::last($queued, null, $default);
+        }
+
+        return $queued[$path] ?? value($default);
     }
 
     /**
@@ -228,6 +236,8 @@ class CookieJar implements JarContract
 
     /**
      * Get the raw queued cookies array (keyed by name and path).
+     *
+     * @return array<array-key, array<string, Cookie>>
      */
     protected function getQueuedCookiesRaw(): array
     {
@@ -236,6 +246,8 @@ class CookieJar implements JarContract
 
     /**
      * Set the queued cookies in the coroutine context.
+     *
+     * @param array<array-key, array<string, Cookie>> $cookies
      */
     protected function setQueuedCookies(array $cookies): void
     {

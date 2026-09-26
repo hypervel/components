@@ -65,11 +65,11 @@ class QueuePauseCommandTest extends TestCase
     public function testContinueAliasResumesAllQueues(): void
     {
         Queue::pauseAll();
-        $this->assertTrue(Queue::isPaused('redis', 'default'));
+        $this->assertTrue(Queue::isPaused('default', 'redis'));
 
         $this->artisan('queue:continue --all')->assertSuccessful();
 
-        $this->assertFalse(Queue::isPaused('redis', 'default'));
+        $this->assertFalse(Queue::isPaused('default', 'redis'));
     }
 
     #[DataProvider('commandsWithoutQueue')]
@@ -77,14 +77,14 @@ class QueuePauseCommandTest extends TestCase
     {
         Event::fake();
         $connection = Queue::getDefaultDriver();
-        Queue::pause($connection, 'emails');
+        Queue::pause('emails', $connection);
 
         $this->artisan($command, $arguments)
             ->expectsOutputToContain('A queue name is required unless the --all option is used.')
             ->assertFailed();
 
-        $this->assertTrue(Queue::isPaused($connection, 'emails'));
-        $this->assertFalse(Queue::isPaused($connection, 'default'));
+        $this->assertTrue(Queue::isPaused('emails', $connection));
+        $this->assertFalse(Queue::isPaused('default', $connection));
         Event::assertNotDispatched(QueuesPaused::class);
         Event::assertNotDispatched(QueuesResumed::class);
     }
@@ -111,7 +111,7 @@ class QueuePauseCommandTest extends TestCase
             ->expectsOutputToContain('Queue pausing is currently disabled.')
             ->assertFailed();
 
-        $this->assertFalse(Queue::isPaused('redis', 'default'));
+        $this->assertFalse(Queue::isPaused('default', 'redis'));
         Event::assertNotDispatched(QueuesPaused::class);
     }
 
@@ -121,11 +121,11 @@ class QueuePauseCommandTest extends TestCase
 
         $this->artisan('queue:pause', ['queue' => '0'])->assertSuccessful();
 
-        $this->assertTrue(Queue::isPaused($connection, '0'));
-        $this->assertFalse(Queue::isPaused($connection, 'default'));
+        $this->assertTrue(Queue::isPaused('0', $connection));
+        $this->assertFalse(Queue::isPaused('default', $connection));
 
         $this->artisan('queue:resume', ['queue' => '0'])->assertSuccessful();
 
-        $this->assertFalse(Queue::isPaused($connection, '0'));
+        $this->assertFalse(Queue::isPaused('0', $connection));
     }
 }

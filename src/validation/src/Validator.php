@@ -1027,7 +1027,9 @@ class Validator implements ValidatorContract
      */
     public function validate(): array
     {
-        throw_if($this->fails(), $this->exception, $this);
+        if ($this->fails()) {
+            throw is_string($this->exception) ? new $this->exception($this) : $this->exception;
+        }
 
         return $this->validated();
     }
@@ -1074,13 +1076,17 @@ class Validator implements ValidatorContract
             $this->passes();
         }
 
-        throw_if($this->messages->isNotEmpty(), $this->exception, $this);
+        if ($this->messages->isNotEmpty()) {
+            throw is_string($this->exception) ? new $this->exception($this) : $this->exception;
+        }
 
         $results = [];
 
         $missingValue = new stdClass;
 
         foreach ($this->getRules() as $key => $rules) {
+            $key = (string) $key;
+
             $value = data_get($this->getData(), $key, $missingValue);
 
             if (
@@ -1736,6 +1742,8 @@ class Validator implements ValidatorContract
             $this->implicitAttributes = array_merge($response->implicitAttributes, $this->implicitAttributes);
 
             foreach ($response->rules as $ruleKey => $ruleValue) {
+                $ruleKey = (string) $ruleKey;
+
                 if ($callback($payload, $this->dataForSometimesIteration($ruleKey, ! str_ends_with($key, '.*')))) {
                     $this->addRules([static::encodeAttributeWithPlaceholder($ruleKey) => $ruleValue]);
                 }

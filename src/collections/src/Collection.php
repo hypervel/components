@@ -136,7 +136,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      */
     public function mode(string|array|null $key = null): ?array
     {
-        if ($this->count() === 0) {
+        if ($this->isEmpty()) {
             return null;
         }
 
@@ -951,7 +951,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Select specific values from the items within the collection.
      *
-     * @param null|array<array-key, TKey>|Enumerable<array-key, TKey>|string $keys
+     * @param null|array<array-key, array-key>|Enumerable<array-key, array-key>|int|string $keys
      */
     public function select(mixed $keys): static
     {

@@ -17,6 +17,8 @@ class CacheTableCommand extends MigrationGeneratorCommand
 
     /**
      * The console command name aliases.
+     *
+     * @var string[]
      */
     protected array $aliases = ['cache:table'];
 

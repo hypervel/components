@@ -48,8 +48,8 @@ class LoadConfiguration
         // we will need to spin through every configuration file and load them all.
         $loadedFromCache = false;
 
-        if (self::$alwaysUseConfig !== null) {
-            $items = $app->call(self::$alwaysUseConfig);
+        if (static::$alwaysUseConfig !== null) {
+            $items = $app->call(static::$alwaysUseConfig);
 
             $loadedFromCache = true;
         } elseif (file_exists($cached = $app->getCachedConfigPath())) {

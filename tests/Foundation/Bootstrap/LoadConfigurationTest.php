@@ -156,6 +156,25 @@ class LoadConfigurationTest extends TestCase
         (new LoadConfiguration)->bootstrap(new Application);
     }
 
+    public function testSubclassConfigurationResolverIsUsed(): void
+    {
+        $loader = new class extends LoadConfiguration {
+            protected static ?Closure $alwaysUseConfig = null;
+        };
+
+        $loader::alwaysUse(static fn (): array => [
+            'app' => ['env' => 'custom', 'timezone' => 'UTC'],
+        ]);
+
+        try {
+            $loader->bootstrap($app = new Application);
+
+            $this->assertSame('custom', $app->environment());
+        } finally {
+            $loader::flushState();
+        }
+    }
+
     public function testAppConfigOverridesBaseConfigValues(): void
     {
         $app = new Application(__DIR__ . '/../Fixtures');
