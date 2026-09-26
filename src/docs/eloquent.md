@@ -506,6 +506,12 @@ The `whereKey` and `whereKeyNot` methods constrain a query using the model's pri
 $flights = Flight::where('active', 1)->orWhereKey([1, 2])->get();
 ```
 
+To retrieve only the primary keys as an array, call `modelKeys` on the query. Primary key casts are applied to the returned values:
+
+```php
+$flightIds = Flight::where('active', 1)->modelKeys();
+```
+
 <a name="refreshing-models"></a>
 #### Refreshing Models
 
