@@ -398,6 +398,8 @@ class ScheduleRunCommand extends Command
     {
         $runEvent = function () use ($event, $startedAt): void {
             // Shutdown may be requested while filters run or a background slot is unavailable.
+            // Check before the single-server claim: abandoning a successful claim
+            // would prevent every server from running this occurrence.
             if ($this->shouldQuit) {
                 return;
             }

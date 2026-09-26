@@ -1212,26 +1212,34 @@ class ScheduleRunCommandTest extends TestCase
     }
 
     #[DataProvider('shutdownAdmissionPhases')]
-    public function testNoNewExecutionsAreStartedAfterAStopSignal(bool $duringFilter): void
+    public function testNoNewExecutionsAreStartedAfterAStopSignal(string $phase): void
     {
         $signal = null;
         $this->captureTerminationSignal($signal);
         $command = $this->makeCommand();
         (new ReflectionMethod($command, 'listenForSignals'))->invoke($command);
         $calls = [];
-        $event = new CallbackEvent(m::mock(EventMutex::class), function () use (&$calls, $signal): void {
+        $event = new CallbackEvent(m::mock(EventMutex::class), function () use (&$calls, $phase, $signal): void {
             $calls[] = 'first';
-            $signal(SIGTERM);
+            if ($phase === 'foreground task') {
+                $signal(SIGTERM);
+            }
         });
-        $event->name('first')->onOneServer()->when(function () use ($duringFilter, $signal): bool {
-            if ($duringFilter) {
+        $event->name('first')->onOneServer()->when(function () use ($phase, $signal): bool {
+            if ($phase === 'filter') {
                 $signal(SIGTERM);
             }
 
             return true;
         });
         $schedule = m::mock(Schedule::class);
-        $schedule->shouldReceive('serverShouldRun')->times($duringFilter ? 0 : 1)->andReturnTrue();
+        $schedule->shouldReceive('serverShouldRun')->times($phase === 'filter' ? 0 : 1)->andReturnUsing(function () use ($phase, $signal): bool {
+            if ($phase === 'server claim') {
+                $signal(SIGTERM);
+            }
+
+            return true;
+        });
         (new ReflectionProperty($command, 'schedule'))->setValue($command, $schedule);
         $next = new CallbackEvent(m::mock(EventMutex::class), function () use (&$calls): void {
             $calls[] = 'second';
@@ -1244,8 +1252,8 @@ class ScheduleRunCommandTest extends TestCase
 
         $this->invokeRunEvents($command, [$event, $next]);
 
-        $this->assertSame($duringFilter ? [] : ['first'], $calls);
-        $this->assertCount($duringFilter ? 0 : 2, $this->dispatched);
+        $this->assertSame($phase === 'filter' ? [] : ['first'], $calls);
+        $this->assertCount($phase === 'filter' ? 0 : 2, $this->dispatched);
     }
 
     /**
@@ -1253,7 +1261,11 @@ class ScheduleRunCommandTest extends TestCase
      */
     public static function shutdownAdmissionPhases(): array
     {
-        return ['filter' => [true], 'foreground task' => [false]];
+        return [
+            'filter' => ['filter'],
+            'server claim' => ['server claim'],
+            'foreground task' => ['foreground task'],
+        ];
     }
 
     public function testBackgroundTaskWaitingForCapacityDoesNotStartAfterShutdown(): void
