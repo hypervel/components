@@ -10,6 +10,7 @@ use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\RateLimiter\Contracts\Store;
 use Hypervel\RateLimiter\Swoole\TableManager;
 use Hypervel\Support\MultipleInstanceManager;
+use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use UnitEnum;
@@ -21,6 +22,10 @@ use function Hypervel\Support\enum_value;
  */
 class RateLimiter extends MultipleInstanceManager
 {
+    use Macroable {
+        __call as macroCall;
+    }
+
     /**
      * The configured named limiter callbacks.
      *
@@ -273,5 +278,25 @@ class RateLimiter extends MultipleInstanceManager
         return $name instanceof UnitEnum
             ? (string) enum_value($name)
             : $name;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
+
+    /**
+     * Dynamically call a macro or the default limiter.
+     */
+    public function __call(string $method, array $parameters): mixed
+    {
+        if (static::hasMacro($method)) {
+            return $this->macroCall($method, $parameters);
+        }
+
+        return parent::__call($method, $parameters);
     }
 }
