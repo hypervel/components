@@ -9,10 +9,12 @@ use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Prunable;
+use Hypervel\Database\Eloquent\Relations\MorphPivot;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class DatabaseEloquentPivotTest extends TestCase
 {
@@ -158,6 +160,24 @@ class DatabaseEloquentPivotTest extends TestCase
         $pivot = new Pivot;
 
         $this->assertSame('pivot', $pivot->getTable());
+    }
+
+    #[TestWith([Pivot::class, 1])]
+    #[TestWith([Pivot::class, [1, 2]])]
+    #[TestWith([Pivot::class, 'first'])]
+    #[TestWith([Pivot::class, ['first', 'second']])]
+    #[TestWith([MorphPivot::class, 1])]
+    #[TestWith([MorphPivot::class, [1, 2]])]
+    #[TestWith([MorphPivot::class, 'first'])]
+    #[TestWith([MorphPivot::class, ['first', 'second']])]
+    public function testRestorationQueriesUsePrimaryKeys(string $pivotClass, array|int|string $ids): void
+    {
+        $pivot = $this->getMockBuilder($pivotClass)->onlyMethods(['newQueryWithoutScopes'])->getMock();
+        $query = m::mock(Builder::class);
+        $query->expects('whereKey')->with($ids)->andReturnSelf();
+        $pivot->expects($this->once())->method('newQueryWithoutScopes')->willReturn($query);
+
+        $this->assertSame($query, $pivot->newQueryForRestoration($ids));
     }
 
     public function testPivotModelWithParentReturnsParentsTimestampColumns(): void

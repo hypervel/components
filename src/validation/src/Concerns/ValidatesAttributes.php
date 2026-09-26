@@ -960,7 +960,6 @@ trait ValidatesAttributes
                     is_string($validation) ? $validation : get_debug_type($validation),
                 )),
             })
-            ->values()
             ->all() ?: [new RFCValidation];
 
         $emailValidator = Container::getInstance()->make(EmailValidator::class);

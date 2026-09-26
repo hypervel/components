@@ -59,7 +59,7 @@ class ResumeCommand extends Command
 
         [$connection, $queue] = $this->parseQueue($queue);
 
-        $manager->resume($connection, $queue);
+        $manager->resume($queue, $connection);
 
         $this->components->info("Job processing on queue [{$connection}:{$queue}] has been resumed.");
 

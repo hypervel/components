@@ -128,10 +128,15 @@ class ValidationRuleParser
         }
 
         if ($rule instanceof CompilableRules && ! $rule instanceof RuleContract) {
+            $cached = CoroutineContext::get(Rule::UNDOTTED_DATA_CONTEXT_KEY);
+            $dottedData = $cached !== null && $cached['result'] === $this->data
+                ? $cached['dotted']
+                : Arr::dot($this->data);
+
             return $rule->compile(
                 $attribute,
-                $this->data[$attribute] ?? null,
-                Arr::dot($this->data),
+                Arr::get($this->data, $attribute),
+                $dottedData,
                 $this->data
             )->rules[$attribute];
         }
@@ -159,7 +164,6 @@ class ValidationRuleParser
      * Uses a direct tree walk instead of flattening the entire data array
      * with Arr::dot() and regex matching. This is O(n) in the number of
      * matching keys instead of O(n*m) where m is the total flattened key count.
-     * Port of laravel/framework PR #59287.
      */
     protected function explodeWildcardRules(array $results, string $attribute, array|object|string $rules): array
     {
@@ -198,10 +202,9 @@ class ValidationRuleParser
     }
 
     /**
-     * Explode wildcard rules using the original flatten + regex approach.
+     * Explode wildcard rules that contain compilable rules.
      *
-     * Used for CompilableRules which need the flattened data context that
-     * the tree-walk path doesn't provide.
+     * Compiled rules receive the flattened data, which the tree walk does not build.
      */
     protected function explodeWildcardRulesCompilable(array $results, string $attribute, array|object|string $rules): array
     {
@@ -213,27 +216,39 @@ class ValidationRuleParser
 
         $data = ValidationData::initializeAndGatherData($attribute, $this->data);
 
-        // Pre-compute undotted data once for all Rule::compile() calls in this
-        // loop. Stored in CoroutineContext (coroutine-local, not worker-global
-        // static) so concurrent coroutines don't interfere with each other.
-        // Save/restore for re-entrancy: nested Rule::forEach can re-enter this
-        // method via NestedRules::compile() -> Rule::compile() -> $parser->explode().
+        // Reuse both data forms across nested compilation within this coroutine.
+        // Restore the enclosing scope when a nested forEach re-enters the parser.
         $contextKey = Rule::UNDOTTED_DATA_CONTEXT_KEY;
         $hadPrevious = CoroutineContext::has($contextKey);
         $previous = $hadPrevious ? CoroutineContext::get($contextKey) : null;
 
         $wrappedData = Arr::wrap($data);
+        $undottedData = Arr::undot($wrappedData);
+        $dottedData = Arr::dot($undottedData);
+
+        // Share equal arrays so cache checks do not compare every entry for each item.
+        if ($dottedData === $wrappedData) {
+            $dottedData = $wrappedData;
+        }
+
         CoroutineContext::set($contextKey, [
             'input' => $wrappedData,
-            'result' => Arr::undot($wrappedData),
+            'result' => $undottedData,
+            'dotted' => $dottedData,
         ]);
+
+        $compiledImplicitAttributes = [];
 
         try {
             foreach ($keys as $key) {
                 foreach ((array) $rules as $rule) {
+                    if ($rule instanceof CompilableRules) {
+                        $rule = [$rule];
+                    }
+
                     // For mixed arrays like ['nullable', Rule::forEach(...)], separate
                     // CompilableRules from normal items. CompilableRules get per-key
-                    // compilation. Normal items are passed as a group to mergeRules,
+                    // compilation. Normal items are merged as a group,
                     // preserving array-form rules like ['required_array_keys', 'foo'].
                     if (is_array($rule)) {
                         $compilableItems = [];
@@ -248,44 +263,43 @@ class ValidationRuleParser
                         }
 
                         foreach ($compilableItems as $compilable) {
-                            $value = Arr::get($this->data, (string) $key);
-                            $context = Arr::get($this->data, Str::beforeLast((string) $key, '.'));
+                            $value = Arr::get($this->data, $key);
+                            $context = Arr::get($this->data, Str::beforeLast($key, '.'));
 
-                            $compiled = $compilable->compile((string) $key, $value, $data, $context);
+                            $compiled = $compilable->compile($key, $value, $data, $context);
 
-                            $this->implicitAttributes = array_merge_recursive(
-                                $compiled->implicitAttributes,
-                                $this->implicitAttributes,
-                                [$attribute => [$key]]
-                            );
+                            if ($compiled->implicitAttributes !== []) {
+                                $compiledImplicitAttributes[] = $compiled->implicitAttributes;
+                            }
 
-                            $results = $this->mergeRules($results, $compiled->rules);
+                            $this->implicitAttributes[$attribute][] = $key;
+
+                            foreach ($compiled->rules as $compiledAttribute => $compiledRules) {
+                                $compiledAttribute = (string) $compiledAttribute;
+
+                                $this->mergeRulesForAttributeInto($results, $compiledAttribute, $compiledRules);
+                            }
                         }
 
                         if ($normalItems !== []) {
                             $this->implicitAttributes[$attribute][] = $key;
 
-                            $results = $this->mergeRules($results, $key, $normalItems);
+                            $this->mergeRulesForAttributeInto($results, $key, $normalItems);
                         }
-                    } elseif ($rule instanceof CompilableRules) {
-                        $value = Arr::get($this->data, (string) $key);
-                        $context = Arr::get($this->data, Str::beforeLast((string) $key, '.'));
-
-                        $compiled = $rule->compile((string) $key, $value, $data, $context);
-
-                        $this->implicitAttributes = array_merge_recursive(
-                            $compiled->implicitAttributes,
-                            $this->implicitAttributes,
-                            [$attribute => [$key]]
-                        );
-
-                        $results = $this->mergeRules($results, $compiled->rules);
                     } else {
                         $this->implicitAttributes[$attribute][] = $key;
 
-                        $results = $this->mergeRules($results, $key, $rule);
+                        $this->mergeRulesForAttributeInto($results, $key, $rule);
                     }
                 }
+            }
+
+            if ($compiledImplicitAttributes !== []) {
+                // Later compiled patterns must retain precedence in the validator's reverse lookup.
+                $this->implicitAttributes = array_merge_recursive(
+                    array_merge_recursive(...array_reverse($compiledImplicitAttributes)),
+                    $this->implicitAttributes,
+                );
             }
         } finally {
             if ($hadPrevious) {
@@ -326,6 +340,8 @@ class ValidationRuleParser
     {
         if (is_array($attribute)) {
             foreach ((array) $attribute as $innerAttribute => $innerRules) {
+                $innerAttribute = (string) $innerAttribute;
+
                 $results = $this->mergeRulesForAttribute($results, $innerAttribute, $innerRules);
             }
 
@@ -344,14 +360,22 @@ class ValidationRuleParser
      */
     protected function mergeRulesForAttribute(array $results, string $attribute, array|object|string $rules): array
     {
+        $this->mergeRulesForAttributeInto($results, $attribute, $rules);
+
+        return $results;
+    }
+
+    /**
+     * Merge additional rules into a given attribute by reference.
+     */
+    private function mergeRulesForAttributeInto(array &$results, string $attribute, array|object|string $rules): void
+    {
         $merge = head($this->explodeRules([$rules]));
 
         $results[$attribute] = array_merge(
             isset($results[$attribute]) ? $this->explodeExplicitRule($results[$attribute], $attribute) : [],
             $merge
         );
-
-        return $results;
     }
 
     /**

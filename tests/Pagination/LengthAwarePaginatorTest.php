@@ -59,6 +59,14 @@ class LengthAwarePaginatorTest extends TestCase
         $this->assertEmpty($paginator->items());
     }
 
+    public function testLengthAwarePaginatorDoesNotDivideByZeroWhenPerPageIsZero(): void
+    {
+        $paginator = new LengthAwarePaginator(['item1', 'item2', 'item3', 'item4'], 4, 0, 1);
+
+        $this->assertSame(4, $paginator->lastPage());
+        $this->assertSame(0, $paginator->perPage());
+    }
+
     public function testLengthAwarePaginatorOnFirstAndLastPage(): void
     {
         $paginator = new LengthAwarePaginator(['1', '2', '3', '4'], 4, 2, 2);
@@ -263,14 +271,6 @@ class LengthAwarePaginatorTest extends TestCase
 
         $this->assertNull($paginator->firstItem());
         $this->assertNull($paginator->lastItem());
-    }
-
-    public function testZeroPerPageKeepsThePublicValueAndCalculatesTheLastPage(): void
-    {
-        $paginator = new LengthAwarePaginator([], 4, 0);
-
-        $this->assertSame(0, $paginator->perPage());
-        $this->assertSame(4, $paginator->lastPage());
     }
 
     public function testExplicitZeroPageDoesNotConsultTheResolver(): void

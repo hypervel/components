@@ -404,7 +404,9 @@ class UrlGenerator implements UrlGeneratorContract
             return false;
         }
 
-        $url = $absolute ? $request->url() : '/' . $request->path();
+        $url = $absolute
+            ? rtrim($request->getSchemeAndHttpHost() . $request->getBaseUrl() . $request->getPathInfo(), '/')
+            : '/' . $request->path();
 
         // REMOVED: Vapor's VAPOR_RAW_QUERY_STRING override; Swoole supplies the raw QUERY_STRING.
         // Keep this explode() to avoid an extra Stringable allocation per call.

@@ -291,8 +291,8 @@ class ScheduleListCommand extends Command
     /**
      * Get the timezone in which the raw cron expression is evaluated.
      *
-     * A static timezone conversion cannot preserve cron ranges, special syntax,
-     * month boundaries, and daylight-saving transitions, so the expression
+     * A static timezone conversion cannot preserve every combination of cron
+     * syntax, month boundaries and daylight-saving transitions, so the expression
      * remains in its real evaluation timezone.
      */
     private function getExpressionTimezone(Event $event): string

@@ -994,7 +994,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
     /**
      * Select specific values from the items within the collection.
      *
-     * @param null|array<array-key, TKey>|Enumerable<array-key, TKey>|string $keys
+     * @param null|array<array-key, array-key>|Enumerable<array-key, array-key>|int|string $keys
      */
     public function select(mixed $keys): static
     {

@@ -23,7 +23,7 @@ use function Hypervel\Support\enum_value;
  * @method static \Symfony\Component\HttpFoundation\Cookie make(UnitEnum|string $name, string|null $value, int $minutes = 0, string|null $path = null, string|null $domain = null, bool|null $secure = null, bool $httpOnly = true, bool $raw = false, string|null $sameSite = null)
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static void queue(mixed ...$parameters)
- * @method static ($default is null ? \Symfony\Component\HttpFoundation\Cookie|null : mixed) queued(UnitEnum|string $key, mixed $default = null, string|null $path = null)
+ * @method static ($default is null ? null|\Symfony\Component\HttpFoundation\Cookie : mixed) queued(UnitEnum|string $key, mixed $default = null, string|null $path = null)
  * @method static \Hypervel\Cookie\CookieJar setDefaultPathAndDomain(string $path, string|null $domain, bool|null $secure = false, string|null $sameSite = null)
  * @method static void unqueue(UnitEnum|string $name, string|null $path = null)
  *

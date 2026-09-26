@@ -158,6 +158,55 @@ class CookieJarTest extends TestCase
         $this->assertEquals($cookieTwo, $cookieJar->queued('foo'));
     }
 
+    public function testQueuedReturnsTheDefaultWhenTheCookieIsNotQueued(): void
+    {
+        $cookieJar = new CookieJar;
+        $fallback = $cookieJar->make('fallback', 'bar');
+        $cookieJar->queue($cookieJar->make('foo', 'bar', 0, '/path'));
+
+        $this->assertNull($cookieJar->queued('nonexistent'));
+        $this->assertSame($fallback, $cookieJar->queued('nonexistent', $fallback));
+        $this->assertSame('bar', $cookieJar->queued('nonexistent', 'bar'));
+        $this->assertSame('bar', $cookieJar->queued('nonexistent', fn (): string => 'bar'));
+        $this->assertSame($fallback, $cookieJar->queued('nonexistent', $fallback, '/path'));
+        $this->assertSame($fallback, $cookieJar->queued('foo', $fallback, '/wrongPath'));
+        $this->assertSame($default = new stdClass, $cookieJar->queued('missing', $default));
+    }
+
+    public function testQueuedResolvesADefaultClosureOnlyOnce(): void
+    {
+        $cookieJar = new CookieJar;
+        $invocations = 0;
+        $default = function () use (&$invocations): string {
+            ++$invocations;
+
+            return 'bar';
+        };
+
+        $this->assertSame('bar', $cookieJar->queued('nonexistent', $default, '/path'));
+        $this->assertSame(1, $invocations);
+    }
+
+    public function testQueuedDoesNotResolveCookieNamesUsingDotNotation(): void
+    {
+        $cookieJar = new CookieJar;
+        $cookieJar->queue($cookieJar->make('foo', 'bar', 0, 'path'));
+
+        $this->assertNull($cookieJar->queued('foo.path'));
+        $this->assertSame('fallback', $cookieJar->queued('foo.path', 'fallback'));
+        $this->assertFalse($cookieJar->hasQueued('foo.path'));
+    }
+
+    public function testQueuedFindsCookieNamesContainingDots(): void
+    {
+        $cookieJar = new CookieJar;
+        $cookie = $cookieJar->make('foo.path', 'bar');
+        $cookieJar->queue($cookie);
+
+        $this->assertSame($cookie, $cookieJar->queued('foo.path'));
+        $this->assertTrue($cookieJar->hasQueued('foo.path'));
+    }
+
     public function testHasQueued()
     {
         $cookieJar = new CookieJar;
@@ -343,13 +392,6 @@ class CookieJarTest extends TestCase
 
         $this->assertSame(['theme' => 'dark'], $manager->get('preferences'));
         $this->assertSame(['theme' => 'light'], $manager->get('missing', ['theme' => 'light']));
-    }
-
-    public function testQueuedReturnsMixedDefaults(): void
-    {
-        $default = new stdClass;
-
-        $this->assertSame($default, (new CookieJar)->queued('missing', $default));
     }
 
     // =========================================================================

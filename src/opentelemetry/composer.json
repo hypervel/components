@@ -62,7 +62,7 @@
         "hypervel/support": "^0.4",
         "hypervel/view": "^0.4",
         "hypervel/websocket-server": "^0.4",
-        "monolog/monolog": "^3.4",
+        "monolog/monolog": "^3.10",
         "open-telemetry/api": "^1.10",
         "open-telemetry/context": "^1.5",
         "open-telemetry/exporter-otlp": "^1.4",

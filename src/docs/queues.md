@@ -3031,6 +3031,18 @@ php artisan queue:resume --all
 
 After resuming a queue, workers will begin processing new jobs from that queue immediately. Resuming all queues does not resume queues that were paused individually. The `queue:continue` command is available as an alias for `queue:resume`. Note that pausing a queue does not stop the worker process itself - it only prevents the worker from processing new jobs from the specified queue.
 
+You may also pause and resume queues using the `Queue` facade. These methods use your default queue connection unless you specify another connection:
+
+```php
+use Hypervel\Support\Facades\Queue;
+
+Queue::pause('emails');
+Queue::pauseFor('emails', 60, 'redis');
+Queue::isPaused('emails');
+Queue::getPausedQueues(['emails', 'notifications']);
+Queue::resume('emails');
+```
+
 Queue workers report paused and resumed queues in their console output.
 
 Pausing or resuming a queue dispatches the `Hypervel\Queue\Events\QueuePaused` or `Hypervel\Queue\Events\QueueResumed` event in the process that made the change. Their `connection` and `queue` properties identify the queue, and the `QueuePaused` event's `ttl` property is `null` unless the queue was paused for a limited time. Pausing or resuming every queue with the `--all` option dispatches the `QueuesPaused` or `QueuesResumed` event instead. Running workers dispatch the `WorkerQueuePaused` and `WorkerQueueResumed` events, with `connectionName` and `queue` properties, when they detect that one of their queues has been paused or resumed.

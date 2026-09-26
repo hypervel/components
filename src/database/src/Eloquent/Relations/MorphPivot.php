@@ -141,7 +141,7 @@ class MorphPivot extends Pivot
             return $this->newQueryForCollectionRestoration($ids);
         }
 
-        if (! str_contains($ids, ':')) {
+        if (! str_contains((string) $ids, ':')) {
             return parent::newQueryForRestoration($ids);
         }
 
@@ -156,14 +156,15 @@ class MorphPivot extends Pivot
     /**
      * Get a new query to restore multiple models by their queueable IDs.
      *
+     * @param int[]|string[] $ids
      * @return Builder<static>
      */
     protected function newQueryForCollectionRestoration(array $ids): Builder
     {
         $ids = array_values($ids);
 
-        if (! str_contains($ids[0], ':')) {
-            return parent::newQueryForRestoration($ids);
+        if (! str_contains((string) $ids[0], ':')) {
+            return parent::newQueryForCollectionRestoration($ids);
         }
 
         $query = $this->newQueryWithoutScopes();

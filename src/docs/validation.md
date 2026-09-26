@@ -2029,7 +2029,7 @@ The example above will apply the `RFCValidation` and `DNSCheckValidation` valida
 
 - `rfc`: `RFCValidation` - Validate the email address according to [supported RFCs](https://github.com/egulias/EmailValidator?tab=readme-ov-file#supported-rfcs).
 - `strict`: `NoRFCWarningsValidation` - Validate the email according to [supported RFCs](https://github.com/egulias/EmailValidator?tab=readme-ov-file#supported-rfcs), failing when warnings are found (e.g. trailing periods and multiple consecutive periods).
-- `dns`: `DNSCheckValidation` - Ensure the email address's domain has a valid MX record.
+- `dns`: `DNSCheckValidation` - Check the email address's domain for MX, A, or AAAA records.
 - `spoof`: `SpoofCheckValidation` - Ensure the email address does not contain homograph or deceptive Unicode characters.
 - `filter`: `FilterEmailValidation` - Ensure the email address is valid according to PHP's `filter_var` function.
 - `filter_unicode`: `FilterEmailValidation::unicode()` - Ensure the email address is valid according to PHP's `filter_var` function, allowing some Unicode characters.
@@ -2052,6 +2052,22 @@ $request->validate([
             ->preventSpoofing()
     ],
 ]);
+```
+
+The `dns` validator performs a real DNS lookup for the address's domain. A or AAAA records can satisfy this check even when no MX record exists. It does not determine whether an individual mailbox exists.
+
+Since your tests should not rely on live DNS lookups, you may use the `Validator::fakeDnsLookups` method to [fake DNS lookups](#rule-active-url) while any other requested validations, such as `rfc`, continue to run:
+
+```php
+use Hypervel\Support\Facades\Validator;
+
+Validator::fakeDnsLookups();
+```
+
+This allows your application to keep using its existing validation rules while testing:
+
+```php
+'email' => ['required', 'email:rfc,dns'],
 ```
 
 > [!WARNING]

@@ -122,21 +122,29 @@ interface Filesystem
 
     /**
      * Get an array of all files in a directory.
+     *
+     * @return array<string>
      */
     public function files(?string $directory = null, bool $recursive = false): array;
 
     /**
      * Get all of the files from the given directory (recursive).
+     *
+     * @return array<string>
      */
     public function allFiles(?string $directory = null): array;
 
     /**
      * Get all of the directories within a given directory.
+     *
+     * @return array<string>
      */
     public function directories(?string $directory = null, bool $recursive = false): array;
 
     /**
      * Get all (recursive) of the directories within a given directory.
+     *
+     * @return array<string>
      */
     public function allDirectories(?string $directory = null): array;
 

@@ -590,6 +590,14 @@ assertType('Hypervel\Support\LazyCollection<int, string>', $collection::make(['s
 
 assertType('Hypervel\Support\LazyCollection<int, User>', $collection->forPage(1, 2));
 
+/** @var LazyCollection<int, array{name: string}> $selectable */
+$selectable = new LazyCollection([['name' => 'Taylor']]);
+$selectable->select(['name']);
+$selectable->select(new Collection(['field' => 'name']));
+/** @var LazyCollection<string, array<int, string>> $numericFields */
+$numericFields = new LazyCollection(['row' => ['value']]);
+$numericFields->select([0]);
+
 assertType('Hypervel\Support\LazyCollection<int<0, 1>, Hypervel\Support\LazyCollection<int, User>>', $collection->partition(function ($user, $int) {
     assertType('User', $user);
     assertType('int', $int);

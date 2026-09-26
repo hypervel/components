@@ -24,6 +24,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Fluent;
 use Hypervel\Support\Json;
 use Hypervel\Support\Stringable;
 use Hypervel\Tests\TestCase;
@@ -7429,6 +7430,10 @@ class ValidationValidatorTest extends TestCase
 
     public function testItemAwareSometimesAddingRules(): void
     {
+        $v = new Validator($this->getArrayTranslator(), [['name' => 'Taylor'], ['name' => 'Abigail']], []);
+        $v->sometimes('*', 'array', static fn (Fluent $input, Fluent $item): bool => $item->name === 'Taylor');
+        $this->assertSame([0 => ['array']], $v->getRules());
+
         // ['users'] -> if users is not empty it must be validated as array
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['users' => [['name' => 'Taylor'], ['name' => 'Abigail']]], ['users.*.name' => 'required|string']);
@@ -10453,8 +10458,16 @@ class ValidationValidatorTest extends TestCase
         $this->assertSame(['profile_id' => ['validation.required_if']], $validator->getMessageBag()->getMessages());
     }
 
-    public function testExcludingArrays()
+    public function testExcludingArrays(): void
     {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            [['name' => 'Mohamed', 'location' => 'cairo']],
+            ['*' => 'array', '*.name' => 'string']
+        );
+        $validator->excludeUnvalidatedArrayKeys = true;
+        $this->assertSame([['name' => 'Mohamed']], $validator->validated());
+
         $validator = new Validator(
             $this->getArrayTranslator(),
             ['users' => [['name' => 'Mohamed', 'location' => 'cairo']]],

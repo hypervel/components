@@ -618,7 +618,7 @@ trait HasAttributes
      */
     protected function getRelationshipFromMethod(string $method): mixed
     {
-        $relation = $this->{$method}();
+        $relation = Relation::withConstraintsForNestedRelation(fn (): mixed => $this->{$method}());
 
         if (! $relation instanceof Relation) {
             if (is_null($relation)) {

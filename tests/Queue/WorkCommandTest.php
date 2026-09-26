@@ -91,7 +91,7 @@ class WorkCommandTest extends TestCase
         $this->travelTo(CarbonImmutable::create(2023, 1, 18, 10, 10, 11));
         $arguments = ['--once' => true, '--sleep' => 0, '--json' => $json];
 
-        Queue::pause('sync', 'default');
+        Queue::pause('default', 'sync');
         $firstOutput = new BufferedOutput;
         $this->assertSame(0, Artisan::call('queue:work', $arguments, $firstOutput));
 
@@ -106,7 +106,7 @@ class WorkCommandTest extends TestCase
             $this->assertSame("  2023-01-18 10:10:11 Queue default PAUSED\n", $firstOutput->fetch());
         }
 
-        Queue::resume('sync', 'default');
+        Queue::resume('default', 'sync');
         $secondOutput = new BufferedOutput;
         $this->assertSame(0, Artisan::call('queue:work', $arguments, $secondOutput));
 
@@ -141,10 +141,10 @@ class WorkCommandTest extends TestCase
         $output = new BufferedOutput;
         $arguments = ['--once' => true, '--sleep' => 0, '--json' => true, $option => true];
 
-        Queue::pause('sync', 'default');
+        Queue::pause('default', 'sync');
         $this->assertSame(0, Artisan::call('queue:work', $arguments, $output));
 
-        Queue::resume('sync', 'default');
+        Queue::resume('default', 'sync');
         $this->assertSame(0, Artisan::call('queue:work', $arguments, $output));
 
         $this->assertSame('', $output->fetch());

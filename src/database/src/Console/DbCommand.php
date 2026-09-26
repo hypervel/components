@@ -66,7 +66,9 @@ class DbCommand extends Command
                 $this->output->write($buffer);
             });
         } catch (ProcessFailedException $e) {
-            throw_unless($e->getProcess()->getExitCode() === 127, $e);
+            if ($e->getProcess()->getExitCode() !== 127) {
+                throw $e;
+            }
 
             $this->error("{$configuration->command} not found in path.");
 

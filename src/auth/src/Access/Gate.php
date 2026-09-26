@@ -814,13 +814,16 @@ class Gate implements GateContract
     {
         $gate = new static(
             $this->container,
-            fn () => $user,
+            fn (): mixed => $user,
             $this->abilities,
             $this->policies,
             $this->beforeCallbacks,
             $this->afterCallbacks,
             $this->guessPolicyNamesUsingCallback,
         );
+
+        $gate->defaultDenialResponse = $this->defaultDenialResponse;
+        $gate->stringCallbacks = $this->stringCallbacks;
 
         // The new gate has the same policy configuration, so it shares resolved policies.
         $gate->policyClassCache = $this->policyClassCache ??= new ArrayObject;

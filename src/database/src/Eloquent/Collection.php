@@ -293,11 +293,11 @@ class Collection extends BaseCollection implements QueueableCollection
     {
         [$relation, $class] = array_shift($tuples);
 
-        $this->filter(function ($model) use ($relation, $class) {
+        $this->filter(function (mixed $model) use ($relation, $class): bool {
             // The collection may contain nulls at runtime.
             return ! is_null($model)
-                && ! $model->relationLoaded($relation)
-                && $model::class === $class;
+                && $model::class === $class
+                && ! $model->relationLoaded($relation);
         })->load($relation);
 
         if (empty($tuples)) {

@@ -84,11 +84,11 @@ class SupportMessageBagTest extends TestCase
         $this->assertSame(['email: Taken', 'name: Required'], $container->all(':key: :message'));
     }
 
-    public function testMessageBagsCanConvertToArrays()
+    public function testMessageBagsCanConvertToArrays(): void
     {
         $container = new MessageBag([
-            Collection::make(['foo', 'bar']),
-            Collection::make(['baz', 'qux']),
+            new Collection(['foo', 'bar']),
+            new Collection(['baz', 'qux']),
         ]);
         $this->assertSame([['foo', 'bar'], ['baz', 'qux']], $container->getMessages());
     }

@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Validation;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Support\Fluent;
 use Hypervel\Tests\TestCase;
+use Hypervel\Validation\NestedRules;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\ValidationRuleParser;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -232,7 +233,7 @@ class ValidationRuleParserTest extends TestCase
         ]));
 
         $results = $parser->explode([
-            'name' => Rule::forEach(function ($value, $attribute, $data, $context) {
+            'name' => Rule::forEach(function (string $value, string $attribute, array $data, array $context): string {
                 $this->assertSame('Taylor Otwell', $value);
                 $this->assertSame('name', $attribute);
                 $this->assertEquals(['name' => 'Taylor Otwell', 'email' => 'taylor@laravel.com'], $data);
@@ -243,6 +244,21 @@ class ValidationRuleParserTest extends TestCase
         ]);
 
         $this->assertEquals(['name' => ['required']], $results->rules);
+        $this->assertSame([], $results->implicitAttributes);
+
+        $parser = new ValidationRuleParser(['user' => ['tags' => ['a', 'b']]]);
+        $results = $parser->explode([
+            'user.tags' => Rule::forEach(function (mixed $value, string $attribute, array $data, array $context): string {
+                $this->assertSame(['a', 'b'], $value);
+                $this->assertSame('user.tags', $attribute);
+                $this->assertSame(['user.tags.0' => 'a', 'user.tags.1' => 'b'], $data);
+                $this->assertSame(['user' => ['tags' => ['a', 'b']]], $context);
+
+                return 'array';
+            }),
+        ]);
+
+        $this->assertSame(['user.tags' => ['array']], $results->rules);
         $this->assertSame([], $results->implicitAttributes);
     }
 
@@ -313,18 +329,18 @@ class ValidationRuleParserTest extends TestCase
         ]));
 
         $results = $parser->explode([
-            'users.*.name' => Rule::forEach(function ($value, $attribute, $data) {
+            'users.*.name' => Rule::forEach(function (string $value, string $attribute, array $data): NestedRules {
                 $this->assertSame('Taylor Otwell', $value);
                 $this->assertSame('users.0.name', $attribute);
                 $this->assertEquals(['users.0.name' => 'Taylor Otwell'], $data);
 
-                return Rule::forEach(function ($value, $attribute, $data) {
-                    $this->assertNull($value);
+                return Rule::forEach(function (mixed $value, string $attribute, array $data): NestedRules {
+                    $this->assertSame('Taylor Otwell', $value);
                     $this->assertSame('users.0.name', $attribute);
                     $this->assertEquals(['users.0.name' => 'Taylor Otwell'], $data);
 
-                    return Rule::forEach(function ($value, $attribute, $data) {
-                        $this->assertNull($value);
+                    return Rule::forEach(function (mixed $value, string $attribute, array $data): array {
+                        $this->assertSame('Taylor Otwell', $value);
                         $this->assertSame('users.0.name', $attribute);
                         $this->assertEquals(['users.0.name' => 'Taylor Otwell'], $data);
 
@@ -336,6 +352,25 @@ class ValidationRuleParserTest extends TestCase
 
         $this->assertEquals(['users.0.name' => ['required']], $results->rules);
         $this->assertEquals(['users.*.name' => ['users.0.name']], $results->implicitAttributes);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCompiledRulesAcceptNumericAttributes(bool $mixed): void
+    {
+        $parser = new ValidationRuleParser([['name' => 'Taylor'], ['name' => 'Abigail']]);
+        $rule = Rule::forEach(static fn (): array => ['array']);
+
+        $results = $parser->explode(['*' => $mixed ? ['nullable', $rule] : $rule]);
+
+        $expectedRules = $mixed ? ['array', 'nullable'] : ['array'];
+
+        $this->assertSame([$expectedRules, $expectedRules], $results->rules);
+        $this->assertSame(['*' => $mixed ? ['0', '0', '1', '1'] : ['0', '1']], $results->implicitAttributes);
+        $this->assertSame(
+            [array_merge($expectedRules, ['required']), $expectedRules],
+            $parser->mergeRules($results->rules, [0 => ['required']]),
+        );
     }
 
     public function testExplodeHandlesSegmentingNestedRules(): void
@@ -362,7 +397,7 @@ class ValidationRuleParserTest extends TestCase
             'items.1.discounts.1.id' => ['distinct'],
         ], $results->rules);
 
-        $this->assertEquals([
+        $this->assertSame([
             'items.1.discounts.*.id' => [
                 'items.1.discounts.0.id',
                 'items.1.discounts.1.id',

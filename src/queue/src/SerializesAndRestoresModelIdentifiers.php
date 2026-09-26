@@ -92,9 +92,9 @@ trait SerializesAndRestoresModelIdentifiers
         )->useWritePdo()->get();
 
         if (is_a($class, Pivot::class, true)
-            || in_array(AsPivot::class, class_uses($class))
+            || isset(class_uses_recursive($class)[AsPivot::class])
         ) {
-            return $collection;
+            return $collection->loadMissing($value->relations ?? []);
         }
 
         $collection = $collection->keyBy->getKey();
@@ -105,7 +105,7 @@ trait SerializesAndRestoresModelIdentifiers
         /** @var EloquentCollection<int, Model> $restoredCollection */
         $restoredCollection = new $collectionClass(
             (new SupportCollection($value->id))
-                ->map(fn ($id) => $collection[$id] ?? null)
+                ->map(fn (mixed $id): ?Model => $collection[$id] ?? null)
                 ->filter()
         );
 

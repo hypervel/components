@@ -7,7 +7,9 @@ namespace Hypervel\Tests\Integration\Database\EloquentPivotSerializationTest;
 use Hypervel\Database\Eloquent\Collection as DatabaseCollection;
 use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
 use Hypervel\Database\Eloquent\Relations\MorphPivot;
 use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Database\Eloquent\Relations\Pivot;
@@ -16,6 +18,7 @@ use Hypervel\Queue\SerializesModels;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class EloquentPivotSerializationTest extends DatabaseTestCase
 {
@@ -86,7 +89,9 @@ class EloquentPivotSerializationTest extends DatabaseTestCase
         $class->pivot->save();
     }
 
-    public function testCollectionOfPivotsCanBeSerializedAndRestored()
+    #[TestWith([PivotSerializationTestCollaborator::class])]
+    #[TestWith([PivotSerializationTestInheritedCollaborator::class])]
+    public function testCollectionOfPivotsCanBeSerializedAndRestored(string $pivotClass): void
     {
         $user = PivotSerializationTestUser::forceCreate(['email' => 'taylor@laravel.com']);
         $user2 = PivotSerializationTestUser::forceCreate(['email' => 'mohamed@laravel.com']);
@@ -97,14 +102,28 @@ class EloquentPivotSerializationTest extends DatabaseTestCase
 
         $project = $project->fresh();
 
-        $class = new PivotSerializationTestCollectionClass(DatabaseCollection::make($project->collaborators->map->pivot));
+        $project->setRelation('collaborators', $project->collaborators()->using($pivotClass)->get());
+
+        $pivots = (new DatabaseCollection($project->collaborators->map->pivot))->load('user');
+        $class = new PivotSerializationTestCollectionClass($pivots);
         $class = unserialize(serialize($class));
 
-        $this->assertEquals($project->collaborators[0]->pivot->user_id, $class->pivots[0]->user_id);
-        $this->assertEquals($project->collaborators[1]->pivot->project_id, $class->pivots[1]->project_id);
+        $this->assertCount(2, $class->pivots);
+        $restoredPivots = $class->pivots->keyBy('user_id');
+
+        $this->assertEqualsCanonicalizing($pivots->pluck('user_id')->all(), $restoredPivots->keys()->all());
+
+        foreach ($pivots as $pivot) {
+            $this->assertSame($pivot->project_id, $restoredPivots[$pivot->user_id]->project_id);
+        }
+
+        foreach ($class->pivots as $pivot) {
+            $this->assertTrue($pivot->relationLoaded('user'));
+            $this->assertSame($pivot->user_id, $pivot->user->getKey());
+        }
     }
 
-    public function testCollectionOfMorphPivotsCanBeSerializedAndRestored()
+    public function testCollectionOfMorphPivotsCanBeSerializedAndRestored(): void
     {
         $tag = PivotSerializationTestTag::forceCreate(['name' => 'Test Tag 1']);
         $tag2 = PivotSerializationTestTag::forceCreate(['name' => 'Test Tag 2']);
@@ -115,16 +134,24 @@ class EloquentPivotSerializationTest extends DatabaseTestCase
 
         $project = $project->fresh();
 
-        $class = new PivotSerializationTestCollectionClass(DatabaseCollection::make($project->tags->map->pivot));
+        $pivots = (new DatabaseCollection($project->tags->map->pivot))->load('tag');
+        $class = new PivotSerializationTestCollectionClass($pivots);
         $class = unserialize(serialize($class));
 
-        $this->assertEquals($project->tags[0]->pivot->tag_id, $class->pivots[0]->tag_id);
-        $this->assertEquals($project->tags[0]->pivot->taggable_id, $class->pivots[0]->taggable_id);
-        $this->assertEquals($project->tags[0]->pivot->taggable_type, $class->pivots[0]->taggable_type);
+        $this->assertCount(2, $class->pivots);
+        $restoredPivots = $class->pivots->keyBy('tag_id');
 
-        $this->assertEquals($project->tags[1]->pivot->tag_id, $class->pivots[1]->tag_id);
-        $this->assertEquals($project->tags[1]->pivot->taggable_id, $class->pivots[1]->taggable_id);
-        $this->assertEquals($project->tags[1]->pivot->taggable_type, $class->pivots[1]->taggable_type);
+        $this->assertEqualsCanonicalizing($pivots->pluck('tag_id')->all(), $restoredPivots->keys()->all());
+
+        foreach ($pivots as $pivot) {
+            $this->assertSame($pivot->taggable_id, $restoredPivots[$pivot->tag_id]->taggable_id);
+            $this->assertSame($pivot->taggable_type, $restoredPivots[$pivot->tag_id]->taggable_type);
+        }
+
+        foreach ($class->pivots as $pivot) {
+            $this->assertTrue($pivot->relationLoaded('tag'));
+            $this->assertSame($pivot->tag_id, $pivot->tag->getKey());
+        }
     }
 
     #[DataProvider('morphPivotCompoundKeyColumns')]
@@ -245,6 +272,35 @@ class PivotSerializationTestCollaborator extends Pivot
     public ?string $table = 'project_users';
 
     public bool $timestamps = false;
+
+    /**
+     * Get the collaborator's user.
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(PivotSerializationTestUser::class, 'user_id');
+    }
+}
+
+class PivotSerializationTestAsPivotModel extends Model
+{
+    use AsPivot;
+
+    public ?string $table = 'project_users';
+
+    public bool $timestamps = false;
+
+    /**
+     * Get the collaborator's user.
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(PivotSerializationTestUser::class, 'user_id');
+    }
+}
+
+class PivotSerializationTestInheritedCollaborator extends PivotSerializationTestAsPivotModel
+{
 }
 
 class PivotSerializationTestTagAttachment extends MorphPivot
@@ -252,4 +308,12 @@ class PivotSerializationTestTagAttachment extends MorphPivot
     public ?string $table = 'taggables';
 
     public bool $timestamps = false;
+
+    /**
+     * Get the attached tag.
+     */
+    public function tag(): BelongsTo
+    {
+        return $this->belongsTo(PivotSerializationTestTag::class, 'tag_id');
+    }
 }

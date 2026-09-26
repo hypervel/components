@@ -8,6 +8,7 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Routing\Registrar;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests;
+use Hypervel\Foundation\Testing\Concerns\MakesHttpRequests;
 use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
@@ -24,6 +25,7 @@ use Hypervel\Testing\LoggedExceptionCollection;
 use Hypervel\Testing\TestResponse;
 use PHPUnit\Framework\AssertionFailedError;
 use ReflectionMethod;
+use SensitiveParameter;
 
 class MakesHttpRequestsTest extends TestCase
 {
@@ -99,6 +101,15 @@ class MakesHttpRequestsTest extends TestCase
 
         $this->withBasicAuth($username, $password);
         $this->assertSame('Basic ' . $callback($username, $password), $this->defaultHeaders['Authorization']);
+    }
+
+    public function testAuthenticationCredentialsAreSensitiveParameters(): void
+    {
+        $token = (new ReflectionMethod(MakesHttpRequests::class, 'withToken'))->getParameters()[0];
+        $password = (new ReflectionMethod(MakesHttpRequests::class, 'withBasicAuth'))->getParameters()[1];
+
+        $this->assertCount(1, $token->getAttributes(SensitiveParameter::class));
+        $this->assertCount(1, $password->getAttributes(SensitiveParameter::class));
     }
 
     public function testWithoutTokenRemovesAuthorizationHeader()

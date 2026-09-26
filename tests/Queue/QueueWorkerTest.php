@@ -1027,7 +1027,7 @@ class QueueWorkerTest extends TestCase
             new WorkerFakeConnection('second', ['emails' => []]),
         );
         $manager->shouldReceive('getPausedQueues')->andReturnUsing(
-            static function (string $connection, array $queues) use (&$paused): array {
+            static function (array $queues, string $connection) use (&$paused): array {
                 return $connection === 'first'
                     ? array_values(array_intersect($queues, $paused))
                     : [];
@@ -1071,7 +1071,7 @@ class QueueWorkerTest extends TestCase
         $manager->shouldReceive('connection')->with('default')->andReturn(
             new WorkerFakeConnection('default', ['queue' => []]),
         );
-        $manager->shouldReceive('getPausedQueues')->with('default', ['queue'])->andReturn(['queue'], []);
+        $manager->shouldReceive('getPausedQueues')->with(['queue'], 'default')->andReturn(['queue'], []);
         $listening = false;
         $this->events->shouldReceive('hasListeners')->andReturnUsing(
             static function (string $event) use (&$listening): bool {
@@ -1100,7 +1100,7 @@ class QueueWorkerTest extends TestCase
         $manager->shouldReceive('connection')->with('default')->andReturn(
             new WorkerFakeConnection('default', ['queue' => []]),
         );
-        $manager->shouldReceive('getPausedQueues')->with('default', ['queue'])->andReturn(['queue']);
+        $manager->shouldReceive('getPausedQueues')->with(['queue'], 'default')->andReturn(['queue']);
         $cache = m::mock(CacheContract::class);
         $cache->shouldReceive('get')->with(Worker::RESTART_SIGNAL_CACHE_KEY)->andReturn(null);
         $worker = new InsomniacWorker($manager, $this->events, $this->exceptionHandler, static fn (): bool => false);
