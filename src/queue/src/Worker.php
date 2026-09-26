@@ -762,7 +762,7 @@ class Worker
         /** @var ConcreteQueueManager $manager */
         $manager = $this->manager;
 
-        return $manager->getPausedQueues($connectionName, $queues);
+        return $manager->getPausedQueues($queues, $connectionName);
     }
 
     /**

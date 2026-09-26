@@ -198,10 +198,12 @@ class QueueManager implements FactoryContract, MonitorContract
     }
 
     /**
-     * Pause a queue by its connection and name.
+     * Pause a queue by its name and connection.
      */
-    public function pause(string $connection, string $queue): void
+    public function pause(string $queue, ?string $connection = null): void
     {
+        $connection ??= $this->getDefaultDriver();
+
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
         $this->app->make('cache')
             ->store()
@@ -216,10 +218,12 @@ class QueueManager implements FactoryContract, MonitorContract
     }
 
     /**
-     * Pause a queue by its connection and name for a given amount of time.
+     * Pause a queue by its name and connection for a given amount of time.
      */
-    public function pauseFor(string $connection, string $queue, DateInterval|DateTimeInterface|int $ttl): void
+    public function pauseFor(string $queue, DateInterval|DateTimeInterface|int $ttl, ?string $connection = null): void
     {
+        $connection ??= $this->getDefaultDriver();
+
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
         $this->app->make('cache')
             ->store()
@@ -252,10 +256,12 @@ class QueueManager implements FactoryContract, MonitorContract
     }
 
     /**
-     * Resume a paused queue by its connection and name.
+     * Resume a paused queue by its name and connection.
      */
-    public function resume(string $connection, string $queue): void
+    public function resume(string $queue, ?string $connection = null): void
     {
+        $connection ??= $this->getDefaultDriver();
+
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
         $this->app->make('cache')
             ->store()
@@ -292,8 +298,10 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Determine if a queue is paused.
      */
-    public function isPaused(string $connection, string $queue): bool
+    public function isPaused(string $queue, ?string $connection = null): bool
     {
+        $connection ??= $this->getDefaultDriver();
+
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
         $cache = $this->app->make('cache')->store();
 
@@ -304,8 +312,10 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Determine which of the given queues are currently paused.
      */
-    public function getPausedQueues(string $connection, array $queues): array
+    public function getPausedQueues(array $queues, ?string $connection = null): array
     {
+        $connection ??= $this->getDefaultDriver();
+
         $cache = $this->app->make('cache')->store();
 
         // Keep the global key separate: cluster proxies may reject cross-slot batches.
