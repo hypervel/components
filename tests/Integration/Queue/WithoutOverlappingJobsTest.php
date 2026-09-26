@@ -131,6 +131,16 @@ class WithoutOverlappingJobsTest extends QueueTestCase
         $job = new OverlappingTestJob;
 
         $this->assertSame(
+            'laravel-queue-overlap:' . OverlappingTestJob::class . ':7',
+            (new WithoutOverlapping(7))->getLockKey($job)
+        );
+
+        $this->assertSame(
+            'laravel-queue-overlap:7',
+            (new WithoutOverlapping(7))->shared()->getLockKey($job)
+        );
+
+        $this->assertSame(
             'laravel-queue-overlap:' . OverlappingTestJob::class . ':key',
             (new WithoutOverlapping('key'))->getLockKey($job)
         );
