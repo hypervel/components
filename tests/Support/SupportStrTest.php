@@ -1098,6 +1098,8 @@ class SupportStrTest extends TestCase
             $results[$random] = ($results[$random] ?? 0) + 1;
         }
 
+        $this->assertCount(62, $results);
+
         // Each character should occur close to 10_000 times. The expected count is
         // binomially distributed with a standard deviation of ~100, so allow a
         // generous margin to avoid flaky failures from ordinary sampling noise.

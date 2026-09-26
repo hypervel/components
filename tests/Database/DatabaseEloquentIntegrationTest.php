@@ -1162,11 +1162,11 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $user1->posts()->create(['id' => 2, 'name' => 'Second post']);
         $user2->posts()->create(['id' => 3, 'name' => 'Third post']);
 
-        $this->assertEquals([1, 2], $user1->posts()->oldest('id')->modelKeys());
+        $this->assertSame([1, 2], $user1->posts()->oldest('id')->modelKeys());
 
         $join = User::join('posts', 'users.id', '=', 'posts.user_id')->where('users.id', 1);
 
-        $this->assertEquals([1, 1], $join->modelKeys());
+        $this->assertSame([1, 1], $join->modelKeys());
     }
 
     public function testFindOrFail()

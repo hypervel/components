@@ -109,8 +109,13 @@ class EloquentPivotSerializationTest extends DatabaseTestCase
         $class = unserialize(serialize($class));
 
         $this->assertCount(2, $class->pivots);
-        $this->assertEquals($project->collaborators[0]->pivot->user_id, $class->pivots[0]->user_id);
-        $this->assertEquals($project->collaborators[1]->pivot->project_id, $class->pivots[1]->project_id);
+        $restoredPivots = $class->pivots->keyBy('user_id');
+
+        $this->assertEqualsCanonicalizing($pivots->pluck('user_id')->all(), $restoredPivots->keys()->all());
+
+        foreach ($pivots as $pivot) {
+            $this->assertSame($pivot->project_id, $restoredPivots[$pivot->user_id]->project_id);
+        }
 
         foreach ($class->pivots as $pivot) {
             $this->assertTrue($pivot->relationLoaded('user'));
@@ -133,13 +138,15 @@ class EloquentPivotSerializationTest extends DatabaseTestCase
         $class = new PivotSerializationTestCollectionClass($pivots);
         $class = unserialize(serialize($class));
 
-        $this->assertEquals($project->tags[0]->pivot->tag_id, $class->pivots[0]->tag_id);
-        $this->assertEquals($project->tags[0]->pivot->taggable_id, $class->pivots[0]->taggable_id);
-        $this->assertEquals($project->tags[0]->pivot->taggable_type, $class->pivots[0]->taggable_type);
+        $this->assertCount(2, $class->pivots);
+        $restoredPivots = $class->pivots->keyBy('tag_id');
 
-        $this->assertEquals($project->tags[1]->pivot->tag_id, $class->pivots[1]->tag_id);
-        $this->assertEquals($project->tags[1]->pivot->taggable_id, $class->pivots[1]->taggable_id);
-        $this->assertEquals($project->tags[1]->pivot->taggable_type, $class->pivots[1]->taggable_type);
+        $this->assertEqualsCanonicalizing($pivots->pluck('tag_id')->all(), $restoredPivots->keys()->all());
+
+        foreach ($pivots as $pivot) {
+            $this->assertSame($pivot->taggable_id, $restoredPivots[$pivot->tag_id]->taggable_id);
+            $this->assertSame($pivot->taggable_type, $restoredPivots[$pivot->tag_id]->taggable_type);
+        }
 
         foreach ($class->pivots as $pivot) {
             $this->assertTrue($pivot->relationLoaded('tag'));
