@@ -15,6 +15,8 @@ use Hypervel\Http\Resources\JsonApi\JsonApiResource;
 use Hypervel\Tests\TestCase;
 use Override;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 
 class JsonApiResourceTest extends TestCase
 {
@@ -110,6 +112,69 @@ class JsonApiResourceTest extends TestCase
             'id' => '1',
             'type' => 'posts',
         ], $resource->resolveResourceData($request));
+    }
+
+    public function testDefaultAttributesExcludeReservedAndDeclaredRelationshipNames(): void
+    {
+        $child = new class extends JsonApiResourceTestModel {
+            /**
+             * Reject serialization of a discarded relationship.
+             */
+            #[Override]
+            public function toArray(): array
+            {
+                throw new RuntimeException('The declared relationship should not be serialized as an attribute.');
+            }
+        };
+
+        $model = (new JsonApiResourceTestModel)->forceFill([
+            'id' => 1,
+            'type' => 'record',
+            'name' => 'Example',
+            'secret' => 'Hidden',
+        ])->makeHidden('secret')->setRelation('childRecords', $child);
+
+        $resource = new class($model) extends JsonApiResource {
+            protected array $relationships = ['childRecords'];
+        };
+
+        $this->assertSame(['name' => 'Example'], $resource->toAttributes(new JsonApiRequest));
+        $this->assertSame(['secret'], $model->getHidden());
+
+        $authored = new class([]) extends JsonApiResource {
+            /**
+             * Supply an explicitly authored attribute array.
+             */
+            #[Override]
+            public function toArray(Request $request): array
+            {
+                return ['id' => 'authored'];
+            }
+        };
+
+        $this->assertSame(['id' => 'authored'], $authored->toAttributes(new JsonApiRequest));
+    }
+
+    #[TestWith([['comments', 'unlisted'], ['comments']])]
+    #[TestWith([['unlisted'], []])]
+    #[TestWith([['comments.author'], ['comments']])]
+    public function testRelativeRelationshipSelectionIsRestrictedToResourceDeclarations(array $requested, array $expected): void
+    {
+        $resource = new class([]) extends JsonApiResource {
+            protected array $relationships = ['comments'];
+
+            /**
+             * Inspect declaration selection without invoking model methods.
+             */
+            public function selectedRelationships(array $requested): array
+            {
+                $this->requestedRelationships = $requested;
+
+                return $this->getResourceRelationships(new JsonApiRequest)->keys()->all();
+            }
+        };
+
+        $this->assertSame($expected, $resource->selectedRelationships($requested));
     }
 
     public function testNullRelationshipKeyCannotBecomeAnEmptyResourceIdentifier(): void

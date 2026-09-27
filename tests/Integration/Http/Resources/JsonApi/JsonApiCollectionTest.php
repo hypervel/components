@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Http\Resources\JsonApi;
 
+use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Comment;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Post;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Profile;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Team;
@@ -96,6 +97,8 @@ class JsonApiCollectionTest extends TestCase
             'user_id' => $user->getKey(),
         ]);
 
+        $this->expectsDatabaseQueryCount(5);
+
         $this->getJson('/users?' . http_build_query(['include' => 'profile,posts,teams']))
             ->assertHeader('Content-type', 'application/vnd.api+json')
             ->assertJsonPath(
@@ -174,7 +177,6 @@ class JsonApiCollectionTest extends TestCase
                         'id' => (string) $team->getKey(),
                         'type' => 'teams',
                         'attributes' => [
-                            'id' => $team->getKey(),
                             'user_id' => $team->user_id,
                             'name' => 'Hypervel Team',
                             'personal_team' => true,
@@ -191,7 +193,6 @@ class JsonApiCollectionTest extends TestCase
                         'id' => (string) $team->getKey(),
                         'type' => 'teams',
                         'attributes' => [
-                            'id' => $team->getKey(),
                             'user_id' => $team->user_id,
                             'name' => 'Hypervel Team',
                             'personal_team' => true,
@@ -206,5 +207,36 @@ class JsonApiCollectionTest extends TestCase
                     ],
                 ]
             );
+    }
+
+    public function testNestedRelationshipsAreBatchedAcrossThePageWithoutReorderingIncludedResources(): void
+    {
+        $users = User::factory()->count(5)->create();
+        $expectedIncluded = [];
+
+        foreach ($users as $user) {
+            $posts = Post::factory()->count(2)->create(['user_id' => $user->getKey()]);
+            $comments = $posts->map(fn (Post $post): Comment => Comment::factory()->create([
+                'content' => 'public',
+                'post_id' => $post->getKey(),
+                'user_id' => $user->getKey(),
+            ]));
+
+            array_push(
+                $expectedIncluded,
+                ...$posts->map(fn (Post $post): string => 'posts:' . $post->getKey())->all(),
+                ...$comments->map(fn (Comment $comment): string => 'comments:' . $comment->getKey())->all(),
+                ...['users:' . $user->getKey()],
+            );
+        }
+
+        $this->expectsDatabaseQueryCount(5);
+
+        $response = $this->getJson('/users?include=posts.comments.commenter')->assertOk();
+
+        $this->assertSame($expectedIncluded, array_map(
+            fn (array $resource): string => $resource['type'] . ':' . $resource['id'],
+            $response->json('included'),
+        ));
     }
 }

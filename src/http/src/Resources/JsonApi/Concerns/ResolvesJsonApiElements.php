@@ -43,6 +43,13 @@ trait ResolvesJsonApiElements
     protected bool $includesPreviouslyLoadedRelationships = false;
 
     /**
+     * The requested relationships for the resource.
+     *
+     * @var null|array<int, string>
+     */
+    protected ?array $requestedRelationships = null;
+
+    /**
      * Cached loaded relationships map.
      *
      * @var null|array<int, array{0: JsonApiResource, 1: string, 2: string, 3: bool}>
@@ -77,6 +84,8 @@ trait ResolvesJsonApiElements
      */
     protected function resolveResourceObject(JsonApiRequest $request): array
     {
+        static::prepareResourceRelationships(new Collection([$this]), $request);
+
         $resourceType = $this->resolveResourceType($request);
 
         return [
@@ -201,15 +210,7 @@ trait ResolvesJsonApiElements
             return;
         }
 
-        $sparseIncluded = match (true) {
-            $this->includesPreviouslyLoadedRelationships => array_keys($this->resource->getRelations()),
-            default => $request->sparseIncluded(),
-        };
-
-        $resourceRelationships = (new Collection($this->toRelationships($request)))
-            ->transform(fn ($value, $key) => is_int($key) ? new RelationResolver($value) : new RelationResolver($key, $value))
-            ->mapWithKeys(fn ($relationResolver) => [$relationResolver->relationName => $relationResolver])
-            ->only($sparseIncluded);
+        $resourceRelationships = $this->getResourceRelationships($request);
 
         $resourceRelationshipKeys = $resourceRelationships->keys();
 
@@ -220,12 +221,6 @@ trait ResolvesJsonApiElements
         $this->loadedRelationshipIdentifiers = (new LazyCollection(function () use ($request, $resourceRelationships) {
             foreach ($resourceRelationships as $relationName => $relationResolver) {
                 $relatedModels = $relationResolver->handle($this->resource);
-
-                if (! is_null($relatedModels) && $this->includesPreviouslyLoadedRelationships === false) {
-                    if (! empty($relations = $request->sparseIncluded($relationName))) {
-                        $relatedModels->loadMissing($relations);
-                    }
-                }
 
                 yield from $this->compileResourceRelationshipUsingResolver(
                     $request,
@@ -248,6 +243,7 @@ trait ResolvesJsonApiElements
     ): Generator {
         $relationName = $relationResolver->relationName;
         $resourceClass = $relationResolver->resourceClass();
+        $requestedRelationships = $this->requestedResourceRelationships($request, $relationName);
 
         // Relationship is a collection of models...
         if ($relatedModels instanceof Collection) {
@@ -263,12 +259,14 @@ trait ResolvesJsonApiElements
 
             $isUnique = ! $relationship instanceof BelongsToMany;
 
-            yield $relationName => ['data' => $relatedModels->map(function ($relatedModel) use ($request, $resourceClass, $isUnique) {
+            yield $relationName => ['data' => $relatedModels->map(function ($relatedModel) use ($request, $resourceClass, $isUnique, $requestedRelationships) {
                 $relatedResource = rescue(fn () => $relatedModel->toResource($resourceClass), new JsonApiResource($relatedModel));
 
                 if (! $relatedResource instanceof JsonApiResource) {
                     $relatedResource = new JsonApiResource($relatedResource->resource);
                 }
+
+                $relatedResource->requestedRelationships = $requestedRelationships;
 
                 return transform(
                     [$relatedResource->resolveResourceType($request), $relatedResource->resolveResourceIdentifier($request)],
@@ -307,6 +305,8 @@ trait ResolvesJsonApiElements
             $relatedResource = new JsonApiResource($relatedResource->resource);
         }
 
+        $relatedResource->requestedRelationships = $requestedRelationships;
+
         yield $relationName => ['data' => transform(
             [$relatedResource->resolveResourceType($request), $relatedResource->resolveResourceIdentifier($request)],
             function ($uniqueKey) use ($relatedResource) {
@@ -321,6 +321,105 @@ trait ResolvesJsonApiElements
     }
 
     /**
+     * Get the requested relationships for this resource or one of its relationships.
+     */
+    protected function requestedResourceRelationships(JsonApiRequest $request, ?string $relationName = null): array
+    {
+        if (is_null($this->requestedRelationships)) {
+            if ($this->includesPreviouslyLoadedRelationships) {
+                return is_null($relationName) ? array_keys($this->resource->getRelations()) : [];
+            }
+
+            return $request->sparseIncluded($relationName) ?? [];
+        }
+
+        if (is_null($relationName)) {
+            $requested = (new Collection($this->requestedRelationships))
+                ->map(fn ($relationship) => explode('.', $relationship, 2)[0]);
+
+            if ($this->includesPreviouslyLoadedRelationships) {
+                $requested->push(...array_keys($this->resource->getRelations()));
+            }
+
+            return $requested->unique()->values()->all();
+        }
+
+        return (new Collection($this->requestedRelationships))
+            ->filter(fn ($relationship) => str_starts_with($relationship, $relationName . '.'))
+            ->map(fn ($relationship) => substr($relationship, strlen($relationName) + 1))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Get the declared resolvers for the requested resource relationships.
+     *
+     * @return Collection<string, RelationResolver>
+     */
+    protected function getResourceRelationships(JsonApiRequest $request): Collection
+    {
+        return (new Collection($this->toRelationships($request)))
+            ->transform(fn ($value, $key) => is_int($key) ? new RelationResolver($value) : new RelationResolver($key, $value))
+            ->mapWithKeys(fn ($relationResolver) => [$relationResolver->relationName => $relationResolver])
+            ->only($this->requestedResourceRelationships($request));
+    }
+
+    /**
+     * Load requested relationships in batches before serializing their attributes.
+     *
+     * @internal
+     * @param Collection<array-key, JsonApiResource> $resources
+     */
+    public static function prepareResourceRelationships(Collection $resources, JsonApiRequest $request): void
+    {
+        while ($resources->isNotEmpty()) {
+            $groups = [];
+
+            foreach ($resources as $resource) {
+                if (! $resource->resource instanceof Model || $resource->loadedRelationshipsMap !== null) {
+                    continue;
+                }
+
+                $model = $resource->resource;
+
+                foreach ($resource->getResourceRelationships($request)->keys() as $relationship) {
+                    if ($model->relationLoaded($relationship)) {
+                        continue;
+                    }
+
+                    // Eager loading uses the first model's class and connection for the whole group.
+                    $key = serialize([$model::class, $model->getConnectionName(), $relationship]);
+                    $groups[$key] ??= [$model->newCollection(), $relationship];
+                    $groups[$key][0]->push($model);
+                }
+            }
+
+            foreach ($groups as [$models, $relationship]) {
+                $models->loadMissing($relationship);
+            }
+
+            $next = new Collection;
+
+            foreach ($resources as $resource) {
+                if (! $resource->resource instanceof Model) {
+                    continue;
+                }
+
+                $resource->compileResourceRelationships($request);
+
+                foreach ($resource->loadedRelationshipsMap ?? [] as [$relatedResource]) {
+                    // Only requested tails advance; already-loaded cycles belong to the emission walk.
+                    if (! empty($relatedResource->requestedRelationships)) {
+                        $next->push($relatedResource->includePreviouslyLoadedRelationships());
+                    }
+                }
+            }
+
+            $resources = $next;
+        }
+    }
+
+    /**
      * Resolve `included` for the resource.
      */
     public function resolveIncludedResourceObjects(JsonApiRequest $request): Collection
@@ -329,7 +428,7 @@ trait ResolvesJsonApiElements
             return new Collection;
         }
 
-        $this->compileResourceRelationships($request);
+        static::prepareResourceRelationships(new Collection([$this]), $request);
 
         $relations = new Collection;
         $index = 0;

@@ -6,10 +6,12 @@ namespace Hypervel\Http\Resources\JsonApi;
 
 use BadMethodCallException;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use JsonSerializable;
 use Override;
 
@@ -83,6 +85,27 @@ class JsonApiResource extends JsonResource
         }
 
         return $this->toArray($request);
+    }
+
+    /**
+     * Transform the resource into its default attributes.
+     */
+    #[Override]
+    public function toArray(Request $request): array|Arrayable|JsonSerializable
+    {
+        $relationshipNames = (new Collection($this->toRelationships($request)))
+            ->map(fn ($value, $key) => is_int($key) ? $value : $key)
+            ->all();
+        $excluded = ['id', 'type', ...$relationshipNames];
+
+        if ($this->resource instanceof Model) {
+            // Filter before traversing relations without changing the shared model's visibility.
+            return (clone $this->resource)->makeHidden($excluded)->toArray();
+        }
+
+        return (new Collection(parent::toArray($request)))
+            ->except($excluded)
+            ->all();
     }
 
     /**

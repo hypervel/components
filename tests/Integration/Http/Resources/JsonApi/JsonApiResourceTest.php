@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Http\Resources\JsonApi;
 
+use Hypervel\Http\Request;
+use Hypervel\Http\Resources\JsonApi\JsonApiRequest;
 use Hypervel\Http\Resources\JsonApi\JsonApiResource;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Comment;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Post;
@@ -11,6 +13,9 @@ use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\PostResource;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Profile;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Team;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\User;
+use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\UserResource;
+use Override;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class JsonApiResourceTest extends TestCase
 {
@@ -173,7 +178,6 @@ class JsonApiResourceTest extends TestCase
                         'id' => (string) $team->getKey(),
                         'type' => 'teams',
                         'attributes' => [
-                            'id' => $team->getKey(),
                             'user_id' => $team->user_id,
                             'name' => 'Hypervel Team',
                             'personal_team' => true,
@@ -190,7 +194,6 @@ class JsonApiResourceTest extends TestCase
                         'id' => (string) $team->getKey(),
                         'type' => 'teams',
                         'attributes' => [
-                            'id' => $team->getKey(),
                             'user_id' => $team->user_id,
                             'name' => 'Hypervel Team',
                             'personal_team' => true,
@@ -458,7 +461,13 @@ class JsonApiResourceTest extends TestCase
         ));
     }
 
-    public function testItResolvesEachRelationshipClosureOnceWhenIncludingNestedRelationships(): void
+    // Upstream testItIgnoresNestedIncludesThatAreNotResourceRelationships and
+    // testItIgnoresDeeplyNestedIncludesThatAreNotResourceRelationships are replaced by
+    // testRelativeRelationshipSelectionIsRestrictedToResourceDeclarations in the unit JsonApiResourceTest.
+
+    #[TestWith(['posts.comments', 3])]
+    #[TestWith(['posts.comments.commenter', 4])]
+    public function testItResolvesEachRelationshipClosureOnceWhenIncludingNestedRelationships(string $include, int $queryCount): void
     {
         $user = User::factory()->create();
 
@@ -476,11 +485,44 @@ class JsonApiResourceTest extends TestCase
 
         PostResource::$commentsResolutionCount = 0;
 
-        $this->getJson("/users/{$user->getKey()}?" . http_build_query(['include' => 'posts.comments']))
+        $this->expectsDatabaseQueryCount($queryCount);
+
+        $this->getJson("/users/{$user->getKey()}?" . http_build_query(['include' => $include]))
             ->assertJsonPath('data.relationships.posts.data.0.id', (string) $posts[0]->getKey());
 
         // The "comments" closure should be resolved once per included post, not multiple times...
         $this->assertSame(2, PostResource::$commentsResolutionCount);
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testRequestedRelationshipsAreAvailableToAttributeCallbacks(bool $collection): void
+    {
+        $user = User::factory()->create();
+        Post::factory()->count(2)->create(['user_id' => $user->getKey()]);
+
+        $resource = new class($user) extends UserResource {
+            /**
+             * Include the requested post count without loading it from the callback.
+             */
+            #[Override]
+            public function toAttributes(Request $request): array
+            {
+                return [
+                    ...parent::toAttributes($request),
+                    'post_count' => $this->whenLoaded('posts', fn (): int => $this->posts->count()),
+                ];
+            }
+        };
+
+        $response = ($collection ? $resource::collection([$user]) : $resource)
+            ->toResponse(JsonApiRequest::create('/?include=posts'))
+            ->getData(true);
+
+        $data = $collection ? $response['data'][0] : $response['data'];
+
+        $this->assertSame(2, $data['attributes']['post_count']);
+        $this->assertCount(2, $data['relationships']['posts']['data']);
     }
 
     public function testItCanResolveRelationshipWithRecursiveNestedRelationship(): void

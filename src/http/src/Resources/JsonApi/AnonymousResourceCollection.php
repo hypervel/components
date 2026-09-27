@@ -23,6 +23,8 @@ class AnonymousResourceCollection extends BaseAnonymousResourceCollection
     #[Override]
     public function with(Request $request): array
     {
+        JsonApiResource::prepareResourceRelationships($this->collection, $this->resolveJsonApiRequestFrom($request));
+
         return array_filter([
             'included' => $this->collection
                 ->map(fn ($resource) => $resource->resolveIncludedResourceObjects($request))
@@ -43,6 +45,8 @@ class AnonymousResourceCollection extends BaseAnonymousResourceCollection
     #[Override]
     public function toAttributes(Request $request): array|Arrayable|JsonSerializable
     {
+        JsonApiResource::prepareResourceRelationships($this->collection, $this->resolveJsonApiRequestFrom($request));
+
         return $this->collection
             ->map(fn ($resource) => $resource->resolveResourceData($request))
             ->all();

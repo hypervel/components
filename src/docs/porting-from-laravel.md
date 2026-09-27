@@ -26,6 +26,7 @@
     - [Scheduling](#scheduling)
     - [Maintenance Mode](#maintenance-mode)
     - [HTTP Client and Concurrency](#http-client-and-concurrency)
+    - [JSON:API Resources](#jsonapi-resources)
     - [CSRF Protection](#csrf-protection)
     - [Scout](#scout)
     - [JSON Schema](#json-schema)
@@ -508,6 +509,11 @@ For concurrent HTTP requests, replace Laravel's `Http::pool` and `Http::batch` p
 `withNtlmAuth()` and Saloon's NTLM authenticator are not provided. Integrations requiring NTLM must supply their own authentication implementation.
 
 Hypervel's `Concurrency` facade provides `coroutine`, `process`, and `sync` drivers. Laravel's `fork` driver is not available because coroutines are Hypervel's native lightweight execution model. Use the default `coroutine` driver for normal concurrent application work and reserve `process` for work that requires operating system process isolation. See the [concurrency documentation](/docs/{{version}}/concurrency#choosing-a-driver).
+
+<a name="jsonapi-resources"></a>
+### JSON:API Resources
+
+[Requested relationships](/docs/{{version}}/eloquent-resources#including-jsonapi-relationships) load before attribute callbacks, so a `whenLoaded()` attribute can appear when the client requests that relationship. [Default attributes](/docs/{{version}}/eloquent-resources#defining-jsonapi-attributes) omit `id`, `type`, and declared relationship names; explicit attribute definitions remain under your control.
 
 <a name="csrf-protection"></a>
 ### CSRF Protection
