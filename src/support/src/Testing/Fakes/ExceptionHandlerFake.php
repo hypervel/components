@@ -14,6 +14,7 @@ use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
 use PHPUnit\Framework\ExpectationFailedException;
+use Psr\Log\LogLevel;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
@@ -141,13 +142,14 @@ class ExceptionHandlerFake implements ExceptionHandler, Fake
      * Report or log an exception.
      *
      * @param array<array-key, mixed> $context
+     * @param null|LogLevel::* $level
      *
      * @throws Throwable
      */
-    public function report(Throwable $e, array $context = []): void
+    public function report(Throwable $e, array $context = [], ?string $level = null): void
     {
         if (! $this->isFakedException($e)) {
-            $this->handler->report($e, $context);
+            $this->handler->report($e, $context, $level);
 
             return;
         }

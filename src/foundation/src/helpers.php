@@ -50,6 +50,7 @@ use Hypervel\Support\Uri;
 use Hypervel\Translation\Translator;
 use League\Uri\Contracts\UriInterface;
 use Psr\Log\LoggerInterface;
+use Psr\Log\LogLevel;
 use Swoole\Coroutine\CanceledException;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Response;
@@ -700,14 +701,15 @@ if (! function_exists('report')) {
      * Report an exception.
      *
      * @param array<array-key, mixed> $context
+     * @param null|LogLevel::* $level
      */
-    function report(string|Throwable $exception, array $context = []): void
+    function report(string|Throwable $exception, array $context = [], ?string $level = null): void
     {
         if (is_string($exception)) {
             $exception = new Exception($exception);
         }
 
-        app(ExceptionHandlerContract::class)->report($exception, $context);
+        app(ExceptionHandlerContract::class)->report($exception, $context, $level);
     }
 }
 
@@ -716,11 +718,12 @@ if (! function_exists('report_if')) {
      * Report an exception if the given condition is true.
      *
      * @param array<array-key, mixed> $context
+     * @param null|LogLevel::* $level
      */
-    function report_if(bool $boolean, string|Throwable $exception, array $context = []): void
+    function report_if(bool $boolean, string|Throwable $exception, array $context = [], ?string $level = null): void
     {
         if ($boolean) {
-            report($exception, $context);
+            report($exception, $context, $level);
         }
     }
 }
@@ -730,11 +733,12 @@ if (! function_exists('report_unless')) {
      * Report an exception unless the given condition is true.
      *
      * @param array<array-key, mixed> $context
+     * @param null|LogLevel::* $level
      */
-    function report_unless(bool $boolean, string|Throwable $exception, array $context = []): void
+    function report_unless(bool $boolean, string|Throwable $exception, array $context = [], ?string $level = null): void
     {
         if (! $boolean) {
-            report($exception, $context);
+            report($exception, $context, $level);
         }
     }
 }

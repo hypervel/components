@@ -12,6 +12,7 @@ use Hypervel\Support\Testing\Fakes\ExceptionHandlerFake;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\ExpectationFailedException;
+use Psr\Log\LogLevel;
 use RuntimeException;
 
 class ExceptionHandlerFakeTest extends TestCase
@@ -189,6 +190,19 @@ class ExceptionHandlerFakeTest extends TestCase
         $this->expectExceptionMessage('test exception');
 
         Exceptions::report(new RuntimeException('test exception'));
+    }
+
+    public function testUnfakedReportsForwardContextAndLevel(): void
+    {
+        $exception = new InvalidArgumentException('test');
+        $handler = $this->createMock(ExceptionHandler::class);
+        $handler->expects($this->once())->method('report')->with($exception, ['id' => 1], LogLevel::WARNING);
+
+        Exceptions::fake([RuntimeException::class])->setHandler($handler);
+
+        Exceptions::report($exception, ['id' => 1], LogLevel::WARNING);
+
+        Exceptions::assertNothingReported();
     }
 
     public function testThrowFirstReported(): void

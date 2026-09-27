@@ -7,11 +7,28 @@ namespace Hypervel\Tests\Integration\Foundation;
 use Exception;
 use Faker\Provider\en_AU\Address as AustralianAddress;
 use Faker\Provider\en_US\Address as AmericanAddress;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Testbench\TestCase;
+use Psr\Log\LogLevel;
 use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class FoundationHelpersTest extends TestCase
 {
+    public function testReportHelpersForwardContextAndLevel(): void
+    {
+        $handler = new FakeHandler;
+        $this->app->instance(ExceptionHandler::class, $handler);
+
+        report($first = new Exception('First'), ['id' => 1], LogLevel::WARNING);
+        report_if(true, $second = new Exception('Second'), ['id' => 2], LogLevel::NOTICE);
+        report_unless(false, $third = new Exception('Third'), ['id' => 3], LogLevel::INFO);
+
+        $this->assertSame([$first, $second, $third], $handler->reported);
+        $this->assertSame([['id' => 1], ['id' => 2], ['id' => 3]], $handler->contexts);
+        $this->assertSame([LogLevel::WARNING, LogLevel::NOTICE, LogLevel::INFO], $handler->levels);
+    }
+
     public function testRescue(): void
     {
         $this->assertSame(
@@ -120,5 +137,27 @@ class FoundationHelpersTest extends TestCase
             'Australian Capital Territory', 'New South Wales', 'Northern Territory', 'Queensland',
             'South Australia', 'Tasmania', 'Victoria', 'Western Australia',
         ]);
+    }
+}
+
+class FakeHandler
+{
+    /** @var list<Throwable> */
+    public array $reported = [];
+
+    /** @var list<array<array-key, mixed>> */
+    public array $contexts = [];
+
+    /** @var list<null|string> */
+    public array $levels = [];
+
+    /**
+     * Record the reported exception, context and level.
+     */
+    public function report(Throwable $exception, array $context = [], ?string $level = null): void
+    {
+        $this->reported[] = $exception;
+        $this->contexts[] = $context;
+        $this->levels[] = $level;
     }
 }
