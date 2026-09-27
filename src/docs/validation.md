@@ -1863,6 +1863,8 @@ Validator::make($data, [
 ]);
 ```
 
+Comparisons are strict. String and fluent rules encode parameters as strings, so the integer `1` does not match the parameter `'1'`.
+
 <a name="rule-current-password"></a>
 #### current_password
 
@@ -2341,7 +2343,7 @@ Validator::make($input, [
 <a name="rule-in-array"></a>
 #### in_array:_anotherfield_.*
 
-The field under validation must exist in _anotherfield_'s values.
+The field under validation must exist in _anotherfield_'s values. Comparisons are strict, so both the value and its type must match.
 
 <a name="rule-in-array-keys"></a>
 #### in_array_keys:_value_.*
