@@ -7,10 +7,10 @@ namespace Hypervel\Tests\Integration\Database\MariaDb;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Schema;
-use Hypervel\Tests\Integration\Database\Fixtures\Models\IntTimestampCasts\UserWithIntTimestampsViaAttribute;
-use Hypervel\Tests\Integration\Database\Fixtures\Models\IntTimestampCasts\UserWithIntTimestampsViaCasts;
-use Hypervel\Tests\Integration\Database\Fixtures\Models\IntTimestampCasts\UserWithIntTimestampsViaMutator;
-use Hypervel\Tests\Integration\Database\Fixtures\Models\IntTimestampCasts\UserWithUpdatedAtViaMutator;
+use Hypervel\Tests\Database\Fixtures\Models\IntTimestampCasts\UserWithIntTimestampsViaAttribute;
+use Hypervel\Tests\Database\Fixtures\Models\IntTimestampCasts\UserWithIntTimestampsViaCasts;
+use Hypervel\Tests\Database\Fixtures\Models\IntTimestampCasts\UserWithIntTimestampsViaMutator;
+use Hypervel\Tests\Database\Fixtures\Models\IntTimestampCasts\UserWithUpdatedAtViaMutator;
 
 class EloquentCastTest extends MariaDbTestCase
 {

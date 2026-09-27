@@ -9,10 +9,10 @@ use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Database\Fixtures\Models\Comment;
+use Hypervel\Tests\Database\Fixtures\Models\MorphEagerLoading\User;
+use Hypervel\Tests\Database\Fixtures\Models\MorphEagerLoading\Video;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
-use Hypervel\Tests\Integration\Database\Fixtures\Models\Comment;
-use Hypervel\Tests\Integration\Database\Fixtures\Models\MorphEagerLoading\User;
-use Hypervel\Tests\Integration\Database\Fixtures\Models\MorphEagerLoading\Video;
 
 class EloquentMorphToLazyEagerLoadingTest extends DatabaseTestCase
 {

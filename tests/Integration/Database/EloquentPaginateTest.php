@@ -7,8 +7,8 @@ namespace Hypervel\Tests\Integration\Database\EloquentPaginateTest;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Database\Fixtures\Models\Guarded\Post;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
-use Hypervel\Tests\Integration\Database\Fixtures\Models\Guarded\Post;
 
 class EloquentPaginateTest extends DatabaseTestCase
 {

@@ -12,8 +12,8 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Database\Fixtures\Models\Guarded\Post;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
-use Hypervel\Tests\Integration\Database\Fixtures\Models\Guarded\Post;
 
 class EloquentEagerLoadingLimitTest extends DatabaseTestCase
 {

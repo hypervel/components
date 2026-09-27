@@ -15,9 +15,9 @@ use Hypervel\Database\Eloquent\ModelInfo;
 use Hypervel\Database\Eloquent\ModelInspector;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Schema\Blueprint;
-use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Http\Fixtures\ModelInspectorTestModelResource;
 
 class ModelInspectorTest extends DatabaseTestCase
 {
@@ -248,9 +248,5 @@ class ModelInspectorTestModelEloquentCollection extends Collection
 }
 
 class ModelInspectorTestModelBuilder extends Builder
-{
-}
-
-class ModelInspectorTestModelResource extends JsonResource
 {
 }

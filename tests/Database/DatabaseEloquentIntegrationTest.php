@@ -30,6 +30,8 @@ use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Database\Fixtures\Models\Integration\Post as IgnoringTouchPost;
+use Hypervel\Tests\Database\Fixtures\Models\Integration\User as IgnoringTouchUser;
 use UnitEnum;
 
 class DatabaseEloquentIntegrationTest extends TestCase
@@ -3266,17 +3268,4 @@ enum StringBackedRole: string
 {
     case User = 'user';
     case Admin = 'admin';
-}
-
-/**
- * Used for isIgnoringTouch() / withoutTouching() tests.
- */
-class IgnoringTouchUser extends Eloquent
-{
-    protected array $guarded = [];
-}
-
-class IgnoringTouchPost extends Eloquent
-{
-    protected array $guarded = [];
 }

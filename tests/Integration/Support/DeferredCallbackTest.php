@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Support;
 
-use Hypervel\Bus\Queueable;
-use Hypervel\Contracts\Queue\ShouldQueue;
-use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Foundation\Http\Middleware\InvokeDeferredCallbacks;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Queue\Fixtures\TestSyncJob;
 
 class DeferredCallbackTest extends TestCase
 {
@@ -24,24 +22,30 @@ class DeferredCallbackTest extends TestCase
                 $executed = true;
             });
 
-            dispatch(new DeferredCallbackTestSyncJob);
+            dispatch(new TestSyncJob);
         })->middleware(InvokeDeferredCallbacks::class);
 
         $this->get('/test');
 
         $this->assertTrue($executed);
     }
-}
 
-class DeferredCallbackTestSyncJob implements ShouldQueue
-{
-    use Dispatchable;
-    use Queueable;
-
-    /**
-     * Handle the job.
-     */
-    public function handle(): void
+    public function testCallbacksDeferredWithinADeferredCallbackAreInvoked(): void
     {
+        $result = [];
+
+        Route::get('/test', function () use (&$result): void {
+            defer(function () use (&$result): void {
+                $result[] = 'first';
+
+                defer(function () use (&$result): void {
+                    $result[] = 'second';
+                });
+            });
+        });
+
+        $this->get('/test');
+
+        $this->assertSame(['first', 'second'], $result);
     }
 }

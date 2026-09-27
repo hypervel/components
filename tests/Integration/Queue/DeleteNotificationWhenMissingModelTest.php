@@ -4,21 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Queue\DeleteNotificationWhenMissingModelTest;
 
-use DB;
-use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
-use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Notifications\Notifiable;
-use Hypervel\Notifications\Notification;
-use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
-use Hypervel\Queue\SerializesModels;
+use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Notification as NotificationFacade;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Tests\Integration\Queue\QueueTestCase;
+use Hypervel\Tests\Notifications\Fixtures\DeleteWhenMissingNotification;
 use Override;
 
 #[WithMigration]
@@ -76,29 +71,4 @@ class DeleteNotificationTestModel extends Model
     public bool $timestamps = false;
 
     protected array $guarded = [];
-}
-
-#[DeleteWhenMissingModels]
-class DeleteWhenMissingNotification extends Notification implements ShouldQueue
-{
-    use Queueable;
-    use SerializesModels;
-
-    public static bool $sent = false;
-
-    public function __construct(public DeleteNotificationTestModel $model)
-    {
-    }
-
-    public function via(mixed $notifiable): array
-    {
-        return ['mail'];
-    }
-
-    public function toMail(mixed $notifiable): MailMessage
-    {
-        static::$sent = true;
-
-        return new MailMessage;
-    }
 }
