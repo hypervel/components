@@ -695,6 +695,21 @@ class AuthGuardTest extends TestCase
         $this->assertFalse($guard->viaRemember());
     }
 
+    public function testUserReturnsNullWhenPasswordlessUserHasInvalidRememberCookieHash(): void
+    {
+        [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();
+        $guard = new SessionGuard('default', $provider, $session, $app);
+        $cookieRequest = Request::create('/', 'GET', [], [$guard->getRecallerName() => 'id|recaller|baz']);
+        $app->shouldReceive('make')->with('request')->andReturn($cookieRequest);
+        $session->expects('get')->with($guard->getName())->andReturn(null);
+        $user = m::mock(Authenticatable::class);
+        $provider->expects('retrieveByToken')->with('id', 'recaller')->andReturn($user);
+        $user->expects('getAuthPassword')->andReturn(null);
+
+        $this->assertNull($guard->user());
+        $this->assertFalse($guard->viaRemember());
+    }
+
     #[DataProvider('invalidRememberCookieHashes')]
     public function testUserRejectsRememberCookieWithInvalidPasswordHash(string $cookieHash): void
     {
