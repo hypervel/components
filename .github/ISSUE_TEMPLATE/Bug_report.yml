@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        You must read the [contribution guide](https://github.com/hypervel/components/blob/0.4/src/docs/contributions.md) in full before submitting. Incomplete or ineligible reports will be closed without a detailed review.
+        Please read the [contribution guide](https://github.com/hypervel/components/blob/0.4/src/docs/contributions.md) in full before submitting. Incomplete or ineligible reports will be closed without a detailed review.
 
         Use Discussions for support and feature proposals, and the separate form for missing upstream functionality. Submit DocBlock, PHPStan, and IDE warning corrections as pull requests. Report suspected security vulnerabilities privately to albert@hypervel.org.
   - type: checkboxes

@@ -166,7 +166,7 @@ module.exports = async function cleanup({ github, context, core, now = new Date(
             ...repository, issue_number: current.number,
             body: `Closing this issue because the reporter has not responded within 14 days of the maintainer's `
                 + `request for information. This does not mean the reported problem is fixed. `
-                + `Supply the requested information here so the issue can be reconsidered. `
+                + `Please provide the requested information here so the issue can be reconsidered. `
                 + `See the [contribution guide](${GUIDE}#bug-reports).`,
         });
         await github.rest.issues.update({

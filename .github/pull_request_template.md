@@ -1,4 +1,4 @@
-Read the [contribution guide](https://github.com/hypervel/components/blob/0.4/src/docs/contributions.md) in full before submitting. Incomplete or ineligible submissions will be closed without a detailed review.
+Please read the [contribution guide](https://github.com/hypervel/components/blob/0.4/src/docs/contributions.md) in full before submitting. Incomplete or ineligible submissions will be closed without a detailed review.
 
 The team handles Laravel and third-party upstream ports. Do not open a porting or synchronization PR. Use the [missing upstream functionality form](https://github.com/hypervel/components/issues/new?template=missing-upstream-functionality.yml) for eligible omissions. Direct bug fixes and performance improvements are welcome even when the issue also exists upstream.
 

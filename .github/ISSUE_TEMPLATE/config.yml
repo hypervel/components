@@ -2,7 +2,7 @@ blank_issues_enabled: false
 contact_links:
   - name: Contribution guide — read before submitting
     url: https://github.com/hypervel/components/blob/0.4/src/docs/contributions.md
-    about: Read the full guide and follow its eligibility, evidence, testing, and review requirements.
+    about: Please read the full guide and follow its eligibility, evidence, testing, and review requirements.
   - name: Hypervel-specific feature proposal
     url: https://github.com/hypervel/components/discussions/categories/ideas
     about: Propose the feature in a discussion and obtain explicit maintainer approval before opening a pull request.

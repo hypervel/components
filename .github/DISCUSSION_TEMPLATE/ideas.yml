@@ -3,9 +3,9 @@ body:
   - type: markdown
     attributes:
       value: |
-        You must read the [contribution guide](https://github.com/hypervel/components/blob/0.4/src/docs/contributions.md) in full before submitting. Incomplete or ineligible submissions will be closed without a detailed review.
+        Please read the [contribution guide](https://github.com/hypervel/components/blob/0.4/src/docs/contributions.md) in full before submitting. Incomplete or ineligible submissions will be closed without a detailed review.
 
-        Use this category to propose new Hypervel-specific features. Wait for explicit maintainer approval before opening a pull request; opening a discussion is not approval.
+        Use this category to propose new Hypervel-specific features. Please wait for explicit maintainer approval before opening a pull request; opening a discussion is not approval.
 
         General changes to Laravel or another upstream package belong in that upstream project first. The Hypervel team handles ports and synchronization. Report potentially [missing upstream functionality](https://github.com/hypervel/components/issues/new?template=missing-upstream-functionality.yml) through the issue form after checking the guide; use [Q&A](https://github.com/hypervel/components/discussions/categories/q-a) if the sync record is absent or null. Bug fixes and performance improvements can be submitted directly.
   - type: checkboxes

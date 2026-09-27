@@ -4,7 +4,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        You must read the [contribution guide](https://github.com/hypervel/components/blob/0.4/src/docs/contributions.md) in full before submitting. Incomplete or ineligible reports will be closed without a detailed review.
+        Please read the [contribution guide](https://github.com/hypervel/components/blob/0.4/src/docs/contributions.md) in full before submitting. Incomplete or ineligible reports will be closed without a detailed review.
 
         The Hypervel team handles ports and upstream synchronization. Do not submit a porting pull request. This form covers Laravel and third-party packages Hypervel tracks, including Saloon, Data, and Permission.
 

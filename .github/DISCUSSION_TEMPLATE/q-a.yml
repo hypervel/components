@@ -3,7 +3,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        You must read the [contribution guide](https://github.com/hypervel/components/blob/0.4/src/docs/contributions.md) in full before submitting. Provide a clear title and enough context for someone else to answer. Incomplete or ineligible submissions will be closed without a detailed review.
+        Please read the [contribution guide](https://github.com/hypervel/components/blob/0.4/src/docs/contributions.md) in full before submitting. Provide a clear title and enough context for someone else to answer. Incomplete or ineligible submissions will be closed without a detailed review.
 
         Use Q&A for support and questions about unclear upstream sync status. Use [Ideas](https://github.com/hypervel/components/discussions/categories/ideas) for new Hypervel-specific features, and issue forms for reproducible bugs or eligible missing upstream functionality. Report suspected security vulnerabilities privately to albert@hypervel.org.
   - type: checkboxes

@@ -25,7 +25,7 @@ Hypervel closely tracks Laravel's public APIs and behavior. To keep the project 
 
 - **Upstream features and API changes:** Except for bug fixes and performance improvements, new features or changes to APIs and behavior inherited from Laravel or another upstream package must come from that upstream project. Submit a pull request to the owning project first. If accepted upstream, the Hypervel team will assess it for inclusion through the upstream sync process. The team handles [ports and upstream synchronization](#missing-upstream-functionality); do not submit pull requests for this work.
 - **Bug fixes and performance improvements:** These can be submitted directly to Hypervel, even when the same issue exists in Laravel or another upstream package. You do not need to wait for upstream to accept or fix it.
-- **New Hypervel-specific features:** These must first be proposed in [GitHub Discussions](https://github.com/hypervel/components/discussions). Wait for a maintainer to approve the proposal before opening a pull request.
+- **New Hypervel-specific features:** These must first be proposed in [GitHub Discussions](https://github.com/hypervel/components/discussions). Please wait for a maintainer to approve the proposal before opening a pull request.
 
 </div>
 
@@ -60,11 +60,11 @@ Bug reports must have a clear title and description and include:
 
 Reproduce the issue yourself before submitting it. Describe a demonstrated failure in supported usage; speculation about what might fail is not sufficient. Report suspected security vulnerabilities [privately](#security-vulnerabilities), not in public issues.
 
-Search existing issues and discussions before opening a report. If the same issue has already been reported, add new reproduction details there.
+Please search existing issues and discussions before opening a report. If the same issue has already been reported, add new reproduction details there.
 
 Reports that lack the required information will be closed until a complete reproduction is provided.
 
-If a maintainer requests additional information on an existing issue and applies the `not enough info` label, respond within 14 days. Issues without a reporter response will be closed with an explanation and can be reconsidered when the information is supplied. A response stops automatic closure while the maintainer assesses it. Issues are not closed merely because they are inactive.
+If a maintainer requests additional information on an existing issue and applies the `not enough info` label, please respond within 14 days. Issues without a reporter response will be closed with an explanation and can be reconsidered when the information is supplied. A response stops automatic closure while the maintainer assesses it. Issues are not closed merely because they are inactive.
 
 Maintainers must describe the information needed before applying the label. Remove and reapply it when requesting further information after a response. The `maintainer-directed` label exempts an issue from automatic closure.
 
