@@ -3981,8 +3981,6 @@ The `Uri` class offers several methods that may be used to manipulate a URI's qu
 $uri = $uri->withQuery(['sort' => 'name']);
 ```
 
-Query keys support dot notation for nested parameters. Asterisks in keys are treated literally, not as wildcards.
-
 The `withQueryIfMissing` method may be used to merge additional query string parameters into the existing query string if the given keys do not already exist in the query string:
 
 ```php
@@ -4006,6 +4004,8 @@ The `withoutQuery` method may be used to remove parameters from the query string
 ```php
 $uri = $uri->withoutQuery(['page']);
 ```
+
+These mutation methods support dot notation for nested parameters and treat asterisks in keys literally. `$uri->query()->get()` treats asterisks as wildcards; use `$uri->query()->all()` to read a literal asterisk key.
 
 <a name="generating-responses-from-uris"></a>
 #### Generating Responses From URIs
