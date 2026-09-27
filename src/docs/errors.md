@@ -109,6 +109,8 @@ class InvalidOrderException extends Exception
 }
 ```
 
+You may use `Exceptions::contextForException($exception)` to get an exception's complete log context without reporting it. The returned array includes global context, the exception's context, and the exception itself.
+
 <a name="the-report-helper"></a>
 #### The `report` Helper
 

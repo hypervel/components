@@ -243,7 +243,11 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->container->instance(LoggerInterface::class, $logger);
         $logger->expects('error')->withArgs(['Exception message', m::subset(['foo' => 'bar'])]);
 
-        $this->handler->report(new ContextProvidingException('Exception message'));
+        $exception = new ContextProvidingException('Exception message');
+
+        $this->assertSame(['foo' => 'bar', 'exception' => $exception], $this->handler->contextForException($exception));
+
+        $this->handler->report($exception);
     }
 
     public function testHandlerMergesInlineContextIntoLogContext(): void

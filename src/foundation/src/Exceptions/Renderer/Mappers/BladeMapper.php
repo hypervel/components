@@ -84,7 +84,7 @@ class BladeMapper
     /**
      * Find the compiled view file for the given compiled path.
      */
-    protected function findCompiledView(string $compiledPath): ?string
+    public function findCompiledView(string $compiledPath): ?string
     {
         return once(fn () => $this->getKnownPaths())[$compiledPath] ?? null;
     }
@@ -135,7 +135,7 @@ class BladeMapper
     /**
      * Detect the line number in the original blade file.
      */
-    protected function detectLineNumber(string $filename, int $compiledLineNumber): int
+    public function detectLineNumber(string $filename, int $compiledLineNumber): int
     {
         $source = @file_get_contents($filename);
 
