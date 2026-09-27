@@ -1039,7 +1039,7 @@ class RoleUser extends Pivot
 <a name="automatically-hydrating-pivot-relationships"></a>
 #### Automatically Hydrating Pivot Relationships
 
-When a custom pivot model defines `belongsTo` relationships for the declaring and related models, you may invoke `chaperone` to automatically hydrate those relationships on each pivot model. This avoids additional queries when accessing the models through the pivot:
+When a custom pivot model defines `belongsTo` relationships for the declaring and related models, you may invoke `chaperone` after `using` to automatically hydrate those relationships on each pivot model. This avoids additional queries when accessing the models through the pivot:
 
 ```php
 use Hypervel\Database\Eloquent\Model;
@@ -1071,7 +1071,7 @@ class Role extends Model
 }
 ```
 
-Eloquent will attempt to infer the pivot relationship names. If your pivot model uses non-standard names, pass the declaring and related relationship names to `chaperone`:
+Eloquent infers the relationship names from the pivot keys and model names. You may also pass the declaring and related relationship names to `chaperone` explicitly:
 
 ```php
 return $this->belongsToMany(User::class)

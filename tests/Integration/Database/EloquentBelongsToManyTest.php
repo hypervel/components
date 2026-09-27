@@ -1568,6 +1568,21 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertTrue($post->is($pivot->post));
     }
 
+    public function testChaperoneOnSelfReferencingRelationGuessesFromPivotKeys(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+        $relatedPost = Post::create(['title' => Str::random()]);
+
+        $relation = $post->belongsToMany(Post::class, 'posts_tags', 'post_id', 'tag_id')
+            ->using(ChaperonePartialPivot::class)
+            ->chaperone();
+        $relation->attach($relatedPost);
+
+        $pivot = $relation->first()->pivot;
+
+        $this->assertSame($post, $pivot->post);
+    }
+
     public function testChaperoneWithEagerLoading(): void
     {
         $post1 = Post::create(['title' => Str::random()]);

@@ -92,7 +92,8 @@ trait SupportsPivotInverseRelations
     {
         $candidates = array_filter(array_unique([
             Str::camel(Str::beforeLast($foreignKey, $model->getKeyName())),
-            Str::camel(class_basename($model)),
+            // A shared model name cannot distinguish the two sides of the pivot.
+            class_basename($this->parent) !== class_basename($this->related) ? Str::camel(class_basename($model)) : null,
         ]));
 
         return Arr::first(
