@@ -6,7 +6,7 @@
     - [The Public Disk](#the-public-disk)
     - [Driver Prerequisites](#driver-prerequisites)
     - [Driver Pools](#driver-pools)
-    - [Scoped and Read-Only Filesystems](#scoped-and-read-only-filesystems)
+    - [Scoped, Read-Only, and Read-Through Filesystems](#scoped-and-read-only-filesystems)
     - [Amazon S3 Compatible Filesystems](#amazon-s3-compatible-filesystems)
 - [Obtaining Disk Instances](#obtaining-disk-instances)
     - [On-Demand Disks](#on-demand-disks)
@@ -207,7 +207,6 @@ If you need to configure a Google Cloud Storage filesystem manually, you may use
     'path_prefix' => env('GOOGLE_CLOUD_STORAGE_PATH_PREFIX', ''),
     'storage_api_uri' => env('GOOGLE_CLOUD_STORAGE_API_URI'),
     'api_endpoint' => env('GOOGLE_CLOUD_STORAGE_API_ENDPOINT'),
-    'visibility' => 'public',
     'visibility_handler' => null,
     'metadata' => ['cacheControl' => 'public,max-age=86400'],
     'throw' => false,
@@ -288,7 +287,7 @@ $result = Storage::disk('s3')->withClient(function ($client) {
 S3 and Google Cloud Storage streams are read lazily by default, which keeps memory usage bounded and makes data available before the entire file has downloaded. This applies to `readStream()` and `readStreamRange()`; methods such as `get()` retain their normal behavior. Streaming requests close their HTTP connection after the read, so applications that open many small streams may prefer connection reuse and set the disk's `stream_reads` option to `false`.
 
 <a name="scoped-and-read-only-filesystems"></a>
-### Scoped and Read-Only Filesystems
+### Scoped, Read-Only, and Read-Through Filesystems
 
 Scoped disks allow you to define a filesystem where all paths are automatically prefixed with a given path prefix.
 
@@ -359,6 +358,28 @@ Dynamic scoped filesystems fail closed when the resolved prefix is empty. Pass `
 ```
 
 Failed writes follow the scoped disk's `throw` and `report` options.
+
+Read-through disks allow you to migrate files between disks without downtime. When reading a file, Hypervel checks the primary disk first. If the file only exists on the fallback disk, Hypervel reads it from the fallback disk and copies it to the primary disk for future requests:
+
+```php
+'assets' => [
+    'driver' => 'read-through',
+    'primary' => 's3',
+    'fallback' => 'legacy-s3',
+],
+```
+
+New files and directory listings use the primary disk. URLs, file existence checks, and metadata use the disk containing the file without copying it. Deletions remove files or directories from both disks, and visibility changes apply to the disk containing the file. The `primary` and `fallback` options may also contain inline disk configurations.
+
+To scope a read-through disk per request or tenant, wrap it in `ScopedCloudFilesystemProxy`. Dynamic scoped proxies cannot be used as its primary or fallback disk.
+
+Fallback reads promote files by default. Set `copy` to `false` to read fallback files without copying them. With promotion enabled, fallback stream reads finish copying the file before returning the stream.
+
+Promoted files use the primary disk's default visibility rather than inheriting the fallback file's visibility. Fallback copy and move operations use the same default. Configure a private primary disk when migrating private files.
+
+Promotion does not lock files across the two disks. Coordinate writes and deletions to a path while it is being copied; otherwise, promotion can overwrite a concurrent write or restore a deleted file.
+
+By default, a `FilesystemException` raised while writing the promoted copy does not fail the read. Set `throw_on_promotion_failure` to `true` to treat it as a read failure; set the disk's `throw` option to `true` to receive that failure as an exception. Other errors, including pool wait timeouts, still propagate.
 
 <a name="amazon-s3-compatible-filesystems"></a>
 ### Amazon S3 Compatible Filesystems

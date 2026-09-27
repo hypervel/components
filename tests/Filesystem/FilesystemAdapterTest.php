@@ -883,15 +883,21 @@ class FilesystemAdapterTest extends TestCase
         $filesystemAdapter->putFileAs('/', $this->tempDir . '/missing.txt', 'new.txt');
     }
 
-    public function testPutFileAsClosesTheSourceWhenWritingThrows(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testPutFileAsClosesTheSourceWhenWritingThrows(bool $writerClosesStream): void
     {
         file_put_contents($filePath = $this->tempDir . '/foo.txt', 'normal file content');
 
         $stream = null;
         $filesystemAdapter = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])->makePartial();
         $filesystemAdapter->shouldReceive('put')->once()->andReturnUsing(
-            function (string $path, mixed $contents, mixed $options) use (&$stream): never {
+            function (string $path, mixed $contents, mixed $options) use (&$stream, $writerClosesStream): never {
                 $stream = $contents;
+
+                if ($writerClosesStream) {
+                    fclose($stream);
+                }
 
                 throw UnableToWriteFile::atLocation($path);
             }
@@ -903,6 +909,23 @@ class FilesystemAdapterTest extends TestCase
         } catch (UnableToWriteFile) {
             $this->assertFalse(is_resource($stream));
         }
+    }
+
+    public function testPutFileAsAllowsTheDriverToCloseTheSource(): void
+    {
+        file_put_contents($filePath = $this->tempDir . '/foo.txt', 'normal file content');
+        $filesystemAdapter = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])->makePartial();
+        $filesystemAdapter->shouldReceive('put')->once()->andReturnUsing(
+            function (string $path, mixed $contents, mixed $options): bool {
+                $this->assertSame('new.txt', $path);
+                $this->assertSame('normal file content', stream_get_contents($contents));
+                fclose($contents);
+
+                return true;
+            },
+        );
+
+        $this->assertSame('new.txt', $filesystemAdapter->putFileAs('/', $filePath, 'new.txt'));
     }
 
     public function testPutFile()

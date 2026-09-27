@@ -135,7 +135,14 @@ class AwsS3V3Adapter extends FilesystemAdapter
      */
     public function readStream(string $path): mixed
     {
-        return $this->readStreamWithOptions($path);
+        try {
+            return $this->readStreamWithOptions($path);
+        } catch (UnableToReadFile $exception) {
+            throw_if($this->throwsExceptions(), $exception);
+            $this->report($exception);
+
+            return null;
+        }
     }
 
     /**
@@ -151,15 +158,35 @@ class AwsS3V3Adapter extends FilesystemAdapter
             return $this->readStream($path);
         }
 
-        return $this->readStreamWithOptions($path, [
-            'Range' => "bytes={$start}-{$end}",
-        ]);
+        try {
+            return $this->readStreamRangeOrFail($path, $start, $end);
+        } catch (UnableToReadFile $exception) {
+            throw_if($this->throwsExceptions(), $exception);
+            $this->report($exception);
+
+            return null;
+        }
+    }
+
+    /**
+     * Open a whole-object or ranged stream without applying the disk's failure policy.
+     *
+     * @return resource
+     */
+    public function readStreamRangeOrFail(string $path, ?int $start = null, ?int $end = null): mixed
+    {
+        [$start, $end] = $this->normalizeStreamRange($start, $end);
+
+        return $this->readStreamWithOptions(
+            $path,
+            $start === null && $end === null ? [] : ['Range' => "bytes={$start}-{$end}"],
+        );
     }
 
     /**
      * Read an object while preserving configured options and operation-owned keys.
      *
-     * @return null|resource
+     * @return resource
      */
     private function readStreamWithOptions(string $path, array $operationOptions = []): mixed
     {
@@ -181,24 +208,14 @@ class AwsS3V3Adapter extends FilesystemAdapter
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $exception) {
-            $exception = UnableToReadFile::fromLocation($path, $exception->getMessage(), $exception);
-
-            throw_if($this->throwsExceptions(), $exception);
-            $this->report($exception);
-
-            return null;
+            throw UnableToReadFile::fromLocation($path, $exception->getMessage(), $exception);
         }
 
         if (! is_resource($stream)) {
-            $exception = UnableToReadFile::fromLocation(
+            throw UnableToReadFile::fromLocation(
                 $path,
                 'Downloaded object does not contain a file resource.',
             );
-
-            throw_if($this->throwsExceptions(), $exception);
-            $this->report($exception);
-
-            return null;
         }
 
         return $stream;

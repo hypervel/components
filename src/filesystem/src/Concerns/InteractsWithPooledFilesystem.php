@@ -9,13 +9,17 @@ use Closure;
 use DateTimeInterface;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
+use Hypervel\Filesystem\AwsS3V3Adapter;
 use Hypervel\Filesystem\FileResponseBuilder;
+use Hypervel\Filesystem\FilesystemOperatorAdapter;
+use Hypervel\Filesystem\GoogleCloudStorageAdapter;
 use Hypervel\Http\File;
 use Hypervel\Http\Request;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Image\Image;
 use Hypervel\Image\ImageException;
 use Hypervel\Support\Traits\Conditionable;
+use League\Flysystem\FilesystemOperator;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
@@ -524,6 +528,34 @@ trait InteractsWithPooledFilesystem
     public function withDriver(Closure $callback): mixed
     {
         return $this->withBorrowedAccessor('getDriver', $callback);
+    }
+
+    /**
+     * Get an operator that owns each operation's borrow and each stream's lease.
+     */
+    public function getOperator(): FilesystemOperator
+    {
+        return new FilesystemOperatorAdapter(
+            $this->withDriver(...),
+            fn (string $path): mixed => $this->leasedStream(static function (FilesystemContract $filesystem) use ($path): mixed {
+                if ($filesystem instanceof AwsS3V3Adapter || $filesystem instanceof GoogleCloudStorageAdapter) {
+                    return $filesystem->readStreamRangeOrFail($path);
+                }
+
+                if (! method_exists($filesystem, 'getDriver')) {
+                    throw new RuntimeException(
+                        'Pooled filesystem driver [' . $filesystem::class . '] does not support [getDriver] access.',
+                    );
+                }
+
+                return $filesystem->getDriver()->readStream($path);
+            }),
+            fn (string $path, ?int $start, ?int $end): mixed => $this->leasedStream(
+                static fn (FilesystemContract $filesystem): mixed => $filesystem instanceof AwsS3V3Adapter || $filesystem instanceof GoogleCloudStorageAdapter
+                    ? $filesystem->readStreamRangeOrFail($path, $start, $end)
+                    : null,
+            ),
+        );
     }
 
     /**

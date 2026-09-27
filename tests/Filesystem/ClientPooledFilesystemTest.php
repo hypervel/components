@@ -15,6 +15,7 @@ use Hypervel\Contracts\ObjectPool\InvalidatesPool;
 use Hypervel\Contracts\ObjectPool\ObjectPool as ObjectPoolContract;
 use Hypervel\Filesystem\ClientPooledFilesystem;
 use Hypervel\Filesystem\FilesystemAdapter;
+use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
@@ -22,6 +23,7 @@ use Hypervel\Image\ImageException;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolOptions;
+use Hypervel\Sentry\Features\Storage\SentryCloudFilesystem;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use League\Flysystem\Filesystem;
@@ -66,6 +68,75 @@ class ClientPooledFilesystemTest extends TestCase
         $filesystem->deleteDirectory(basename($this->tempDir));
 
         parent::tearDown();
+    }
+
+    public function testReadThroughDisksReleaseSharedClientBorrowsBeforeCopyingAndProcessingListings(): void
+    {
+        $definition = new PoolDefinition('filesystem:shared-read-through', 'local-client', 'shared', PoolOptions::fromArray([
+            'max_objects' => 1,
+            'wait_timeout' => 0.02,
+        ]));
+        $makeDisk = fn (string $root): ClientPooledFilesystem => new ClientPooledFilesystem(
+            $definition,
+            static fn (): object => new stdClass,
+            static function (object $client) use ($root): FilesystemAdapter {
+                $adapter = new LocalFilesystemAdapter($root);
+
+                return new FilesystemAdapter(new Filesystem($adapter), $adapter, ['root' => $root]);
+            },
+            $this->pools,
+            ['root' => $root],
+        );
+        $primary = $makeDisk($this->tempDir . '/primary');
+        $fallback = $makeDisk($this->tempDir . '/fallback');
+        $manager = new FilesystemManager($this->app);
+        $manager->set('read-primary', new SentryCloudFilesystem($primary, [], false, false));
+        $manager->set('read-fallback', new SentryCloudFilesystem($fallback, [], false, false));
+        $readThrough = $manager->build([
+            'driver' => 'read-through',
+            'primary' => 'read-primary',
+            'fallback' => 'read-fallback',
+        ]);
+        $fallback->put('source.txt', 'contents');
+
+        $this->assertTrue($readThrough->copy('source.txt', 'destination.txt'));
+        $this->assertSame('contents', $primary->get('destination.txt'));
+        $this->assertSame('contents', $fallback->get('source.txt'));
+        $this->assertSame(0, $this->pools->get($definition->identity)->getBorrowedCount());
+
+        foreach ($readThrough->getDriver()->listContents('', false) as $entry) {
+            $this->assertSame(0, $this->pools->get($definition->identity)->getBorrowedCount());
+            $this->assertSame('contents', $readThrough->get($entry->path()));
+        }
+
+        $stream = $readThrough->readStream('source.txt');
+
+        try {
+            $this->assertSame('contents', stream_get_contents($stream));
+            $this->assertSame(0, $this->pools->get($definition->identity)->getBorrowedCount());
+            $this->assertSame('contents', $primary->get('source.txt'));
+        } finally {
+            fclose($stream);
+        }
+
+        $fallback->put('unpromoted.txt', 'fallback contents');
+        $uncopied = $manager->build([
+            'driver' => 'read-through',
+            'primary' => 'read-primary',
+            'fallback' => 'read-fallback',
+            'copy' => false,
+        ]);
+        $stream = $uncopied->readStream('unpromoted.txt');
+
+        try {
+            $this->assertSame('fallback contents', stream_get_contents($stream));
+            $this->assertSame(1, $this->pools->get($definition->identity)->getBorrowedCount());
+        } finally {
+            fclose($stream);
+        }
+
+        $this->assertSame(0, $this->pools->get($definition->identity)->getBorrowedCount());
+        $this->assertFalse($primary->exists('unpromoted.txt'));
     }
 
     public function testSynchronousOperationsBuildFreshStacksAroundOnePooledClient(): void

@@ -7,6 +7,7 @@ namespace Hypervel\Filesystem;
 use Aws\S3\S3Client;
 use Closure;
 use Google\Cloud\Storage\StorageClient as GcsClient;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Filesystem\Cloud;
 use Hypervel\Contracts\Filesystem\Factory as FactoryContract;
@@ -57,6 +58,11 @@ class FilesystemManager implements FactoryContract
      * The logical name used while resolving on-demand disks.
      */
     protected const string ON_DEMAND_DISK_NAME = 'ondemand';
+
+    /**
+     * The coroutine-local construction stack prefix for each manager.
+     */
+    protected const string READ_THROUGH_CONTEXT_KEY_PREFIX = '__filesystem.read-through.construction.';
 
     /**
      * Google Cloud Storage client constructor options supported by the installed SDK.
@@ -244,7 +250,7 @@ class FilesystemManager implements FactoryContract
             return $this->createClientPooledDisk($driver, $config);
         }
 
-        $driverMethod = 'create' . ucfirst($driver) . 'Driver';
+        $driverMethod = 'create' . Str::studly($driver) . 'Driver';
 
         if (! method_exists($this, $driverMethod)) {
             throw new InvalidArgumentException("Driver [{$driver}] is not supported.");
@@ -432,6 +438,95 @@ class FilesystemManager implements FactoryContract
             $this->createS3Client($this->s3ClientConfig($config)),
             $config,
         );
+    }
+
+    /**
+     * Create an instance of the read-through driver.
+     */
+    public function createReadThroughDriver(array $config, string $name = 'read-through'): Filesystem
+    {
+        if (! isset($config['primary']) || $config['primary'] === '' || $config['primary'] === []) {
+            throw new InvalidArgumentException('Read-through disk is missing "primary" configuration option.');
+        }
+        if (! isset($config['fallback']) || $config['fallback'] === '' || $config['fallback'] === []) {
+            throw new InvalidArgumentException('Read-through disk is missing "fallback" configuration option.');
+        }
+        if ($config['primary'] === $config['fallback']) {
+            throw new InvalidArgumentException('Read-through disk requires distinct "primary" and "fallback" disks.');
+        }
+
+        // Scoped inline sides can re-enter construction without resolving a named disk.
+        $contextKey = self::READ_THROUGH_CONTEXT_KEY_PREFIX . spl_object_id($this);
+        $stack = CoroutineContext::get($contextKey, []);
+        $label = $name === self::ON_DEMAND_DISK_NAME ? '(on-demand)' : $name;
+
+        foreach ($stack as $entry) {
+            if ($entry['config'] !== $config) {
+                continue;
+            }
+
+            if (count($stack) === 1) {
+                throw new InvalidArgumentException("Read-through disk [{$label}] cannot reference itself.");
+            }
+
+            $cycle = [...array_column($stack, 'name'), $label];
+
+            throw new InvalidArgumentException('Circular read-through disk definition detected: ' . implode(' -> ', $cycle) . '.');
+        }
+
+        CoroutineContext::set($contextKey, [...$stack, ['config' => $config, 'name' => $label]]);
+
+        try {
+            $primary = is_array($config['primary'])
+                ? $this->resolveWithLogicalName(self::ON_DEMAND_DISK_NAME, $config['primary'], null)
+                : $this->disk($config['primary']);
+            $fallback = is_array($config['fallback'])
+                ? $this->resolveWithLogicalName(self::ON_DEMAND_DISK_NAME, $config['fallback'], null)
+                : $this->disk($config['fallback']);
+
+            if (! $primary instanceof Cloud || ! $fallback instanceof Cloud) {
+                throw new InvalidArgumentException('Read-through disks must implement the cloud filesystem contract.');
+            }
+
+            $adapter = new ReadThroughFilesystemAdapter(
+                $this->readThroughOperator($primary),
+                $this->readThroughOperator($fallback),
+                $config['throw_on_promotion_failure'] ?? false,
+                $config['copy'] ?? true,
+            );
+
+            return new ReadThroughFilesystem(
+                $this->createFlysystem($adapter, $config),
+                $primary instanceof FilesystemAdapter ? $primary->getAdapter() : $adapter,
+                array_replace($primary->getConfig(), $config), // @phpstan-ignore method.notFound (Pooled decorators forward adapter accessors.)
+                $primary,
+                $fallback,
+                $config['prefix'] ?? '',
+                $adapter,
+            );
+        } finally {
+            if ($stack === []) {
+                CoroutineContext::forget($contextKey);
+            } else {
+                CoroutineContext::set($contextKey, $stack);
+            }
+        }
+    }
+
+    /**
+     * Get a side operator without exposing borrowed clients or losing native cloud reads.
+     */
+    protected function readThroughOperator(Cloud $disk): FilesystemOperator
+    {
+        if ($disk instanceof AwsS3V3Adapter || $disk instanceof GoogleCloudStorageAdapter) {
+            return new FilesystemOperatorAdapter(
+                static fn (Closure $operation): mixed => $operation($disk->getDriver()),
+                $disk->readStreamRangeOrFail(...),
+                $disk->readStreamRangeOrFail(...),
+            );
+        }
+
+        return $disk instanceof FilesystemAdapter ? $disk->getDriver() : $disk->getOperator(); // @phpstan-ignore method.notFound (Pooled decorators forward the borrow-safe accessor.)
     }
 
     /**
