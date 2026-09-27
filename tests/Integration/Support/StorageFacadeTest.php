@@ -86,6 +86,43 @@ class StorageFacadeTest extends TestCase
         $this->assertNull(Storage::fake(StorageFakeStringDisk::Public)->get('nonExistentFile'));
     }
 
+    public function testCanFakeOnDemandDisk(): void
+    {
+        $fake = Storage::fake('ondemand');
+
+        Storage::build([
+            'driver' => 'ftp',
+            'host' => 'example.com',
+            'username' => 'foo',
+            'password' => 'bar',
+        ])->put('file.txt', 'contents');
+
+        $fake->assertExists('file.txt');
+    }
+
+    public function testOnDemandFakesPreserveNamedBuildsAndCanBeCleared(): void
+    {
+        $root = storage_path('on-demand');
+        $config = ['driver' => 'local', 'root' => $root];
+        $fake = Storage::persistentFake('ondemand');
+
+        $this->assertSame($fake, Storage::build($config));
+        $this->assertNotSame($fake, Storage::build($config, 'uploads'));
+
+        Storage::forgetDisk('ondemand');
+        Storage::build($config)->put('after-forget.txt', 'contents');
+        $this->assertFileExists($root . '/after-forget.txt');
+        $fake->assertMissing('after-forget.txt');
+
+        $fake = Storage::fake('ondemand');
+        $this->assertSame($fake, Storage::build($root));
+
+        Storage::purge('ondemand');
+        Storage::build($root)->put('after-purge.txt', 'contents');
+        $this->assertFileExists($root . '/after-purge.txt');
+        $fake->assertMissing('after-purge.txt');
+    }
+
     public function testFakePreservesOriginalDiskThrowConfig(): void
     {
         config(['filesystems.disks.local.throw' => true]);

@@ -1150,17 +1150,17 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         $this->assertTrue($url->hasValidSignature($request));
     }
 
-    public function testSignedRelativeUrl()
+    public function testSignedRelativeUrl(): void
     {
         $url = new UrlGenerator(
             $routes = new RouteCollection,
             $request = Request::create('http://www.foo.com/')
         );
-        $url->setKeyResolver(function () {
+        $url->setKeyResolver(function (): string {
             return 'secret';
         });
 
-        $route = new Route(['GET'], 'foo', ['as' => 'foo', function () {
+        $route = new Route(['GET'], 'foo', ['as' => 'foo', function (): void {
         }]);
         $routes->add($route);
 
@@ -1173,6 +1173,16 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         $request = Request::create($url->signedRoute('foo', [], null, false) . '?tampered=true');
 
         $this->assertFalse($url->hasValidSignature($request, false));
+
+        $routes->add(new Route(['GET'], '/', ['as' => 'home']));
+
+        $request = Request::create($url->signedRoute('home', [], null, false));
+
+        $this->assertTrue($url->hasValidRelativeSignature($request));
+
+        $request->query->set('signature', 'invalid');
+
+        $this->assertFalse($url->hasValidRelativeSignature($request));
     }
 
     public function testSignedUrlParameterCannotBeNamedSignature(): void

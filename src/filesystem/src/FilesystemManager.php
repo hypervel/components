@@ -137,6 +137,10 @@ class FilesystemManager implements FactoryContract
      */
     public function build(array|string $config, ?string $name = null): Filesystem
     {
+        if ($name === null && isset($this->disks[self::ON_DEMAND_DISK_NAME])) {
+            return $this->disks[self::ON_DEMAND_DISK_NAME];
+        }
+
         $config = is_array($config) ? $config : [
             'driver' => 'local',
             'root' => $config,
@@ -170,8 +174,8 @@ class FilesystemManager implements FactoryContract
     /**
      * Resolve the given disk while preserving its logical construction name.
      *
-     * The configured disk name "ondemand" is valid, so build() enters this
-     * method directly to carry anonymous construction as a separate value.
+     * Anonymous builds carry a null logical name through custom creators
+     * and pool identity, independently of their internal construction name.
      */
     private function resolveWithLogicalName(string $name, ?array $config, ?string $logicalName): Filesystem
     {
@@ -834,7 +838,13 @@ class FilesystemManager implements FactoryContract
      */
     protected function getConfig(string $name): array
     {
-        return $this->app->make('config')->get("filesystems.disks.{$name}") ?: [];
+        $config = $this->app->make('config')->get("filesystems.disks.{$name}") ?: [];
+
+        if ($name === self::ON_DEMAND_DISK_NAME && $config !== []) {
+            throw new InvalidArgumentException('The disk name [ondemand] is reserved for on-demand disk fakes. Rename the configured disk.');
+        }
+
+        return $config;
     }
 
     /**

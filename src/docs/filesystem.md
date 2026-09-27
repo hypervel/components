@@ -414,6 +414,8 @@ $disk = Storage::build($configuration, 'tenant-uploads');
 
 Hypervel uses this name as part of the pool identity for drivers that pool the complete filesystem instance. An on-demand disk does not register a serving route of its own. When a named on-demand disk enables `serve`, Hypervel generates signed URLs through the configured served disk with that name. Use matching storage configuration because the route resolves the configured disk, not the on-demand instance. An anonymous scoped disk may instead generate signed URLs through a named parent disk that has serving enabled. S3 and Google Cloud Storage client pools continue to use the client configuration rather than the logical disk name.
 
+The disk name `ondemand` is reserved and cannot be used in your `filesystems.disks` configuration. In tests, `Storage::fake('ondemand')` or `Storage::persistentFake('ondemand')` replaces disks returned by `Storage::build()` when no logical name is supplied. Builds with an explicit logical name continue to use their own configuration.
+
 <a name="retrieving-files"></a>
 ## Retrieving Files
 
