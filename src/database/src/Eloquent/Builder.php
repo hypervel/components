@@ -260,18 +260,26 @@ class Builder implements BuilderContract
 
     /**
      * Add a where clause on the primary key to the query.
+     *
+     * @return $this
      */
-    public function whereKey(mixed $id): static
+    public function whereKey(mixed $id, string $boolean = 'and', bool $not = false): static
     {
         if ($id instanceof Model) {
             $id = $id->getKey();
         }
 
+        if ($id instanceof Closure || $id instanceof QueryBuilder || $id instanceof self || $id instanceof Relation) {
+            $this->query->whereIn($this->model->getQualifiedKeyName(), $id, $boolean, $not);
+
+            return $this;
+        }
+
         if (is_array($id) || $id instanceof Arrayable) {
             if (in_array($this->model->getKeyType(), ['int', 'integer'], true)) {
-                $this->query->whereIntegerInRaw($this->model->getQualifiedKeyName(), $id);
+                $this->query->whereIntegerInRaw($this->model->getQualifiedKeyName(), $id, $boolean, $not);
             } else {
-                $this->query->whereIn($this->model->getQualifiedKeyName(), $id);
+                $this->query->whereIn($this->model->getQualifiedKeyName(), $id, $boolean, $not);
             }
 
             return $this;
@@ -281,33 +289,17 @@ class Builder implements BuilderContract
             $id = (string) $id;
         }
 
-        return $this->where($this->model->getQualifiedKeyName(), '=', $id);
+        return $this->where($this->model->getQualifiedKeyName(), $not ? '!=' : '=', $id, $boolean);
     }
 
     /**
      * Add a where clause on the primary key to the query.
+     *
+     * @return $this
      */
-    public function whereKeyNot(mixed $id): static
+    public function whereKeyNot(mixed $id, string $boolean = 'and'): static
     {
-        if ($id instanceof Model) {
-            $id = $id->getKey();
-        }
-
-        if (is_array($id) || $id instanceof Arrayable) {
-            if (in_array($this->model->getKeyType(), ['int', 'integer'], true)) {
-                $this->query->whereIntegerNotInRaw($this->model->getQualifiedKeyName(), $id);
-            } else {
-                $this->query->whereNotIn($this->model->getQualifiedKeyName(), $id);
-            }
-
-            return $this;
-        }
-
-        if ($id !== null && $this->model->getKeyType() === 'string' && ! $id instanceof BinaryParameter) {
-            $id = (string) $id;
-        }
-
-        return $this->where($this->model->getQualifiedKeyName(), '!=', $id);
+        return $this->whereKey($id, $boolean, true);
     }
 
     /**
@@ -317,7 +309,7 @@ class Builder implements BuilderContract
      */
     public function orWhereKey(mixed $id): static
     {
-        return $this->where(fn (self $query): self => $query->whereKey($id), null, null, 'or');
+        return $this->whereKey($id, 'or');
     }
 
     /**
@@ -327,7 +319,7 @@ class Builder implements BuilderContract
      */
     public function orWhereKeyNot(mixed $id): static
     {
-        return $this->where(fn (self $query): self => $query->whereKeyNot($id), null, null, 'or');
+        return $this->whereKeyNot($id, 'or');
     }
 
     /**
@@ -1779,7 +1771,7 @@ class Builder implements BuilderContract
      */
     protected function combineConstraints(array $constraints): Closure
     {
-        return function ($builder) use ($constraints) {
+        return static function ($builder) use ($constraints) {
             foreach ($constraints as $constraint) {
                 $builder = $constraint($builder) ?? $builder;
             }
