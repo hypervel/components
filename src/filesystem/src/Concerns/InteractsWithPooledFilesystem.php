@@ -10,12 +10,14 @@ use DateTimeInterface;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
 use Hypervel\Filesystem\FileResponseBuilder;
+use Hypervel\Filesystem\FilesystemOperatorAdapter;
 use Hypervel\Http\File;
 use Hypervel\Http\Request;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Image\Image;
 use Hypervel\Image\ImageException;
 use Hypervel\Support\Traits\Conditionable;
+use League\Flysystem\FilesystemOperator;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
@@ -524,6 +526,25 @@ trait InteractsWithPooledFilesystem
     public function withDriver(Closure $callback): mixed
     {
         return $this->withBorrowedAccessor('getDriver', $callback);
+    }
+
+    /**
+     * Get an operator that owns each operation's borrow and each stream's lease.
+     */
+    public function getOperator(): FilesystemOperator
+    {
+        return new FilesystemOperatorAdapter(
+            $this->withDriver(...),
+            fn (string $path): mixed => $this->leasedStream(static function (FilesystemContract $filesystem) use ($path): mixed {
+                if (! method_exists($filesystem, 'getDriver')) {
+                    throw new RuntimeException(
+                        'Pooled filesystem driver [' . $filesystem::class . '] does not support [getDriver] access.',
+                    );
+                }
+
+                return $filesystem->getDriver()->readStream($path);
+            }),
+        );
     }
 
     /**

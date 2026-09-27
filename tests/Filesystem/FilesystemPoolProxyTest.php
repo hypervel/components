@@ -21,6 +21,7 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
 use League\Flysystem\Filesystem;
 use League\Flysystem\Local\LocalFilesystemAdapter;
+use League\Flysystem\UnableToReadFile;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
@@ -216,6 +217,28 @@ class FilesystemPoolProxyTest extends TestCase
 
         $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedCount());
         $this->assertSame(1, $releaseCalls);
+    }
+
+    public function testOperatorReadsPropagateFailuresAndReleaseTheWholeDriver(): void
+    {
+        $proxy = $this->proxy(fn (): FilesystemAdapter => $this->filesystem());
+        $operator = $proxy->getOperator();
+        $operator->write('file.txt', 'contents');
+        $stream = $operator->readStream('file.txt');
+
+        try {
+            $this->assertSame('contents', stream_get_contents($stream));
+            $this->assertSame(1, $this->pools->get('filesystem:driver')->getBorrowedCount());
+        } finally {
+            fclose($stream);
+        }
+
+        try {
+            $operator->readStream('missing.txt');
+            $this->fail('Expected a raw read failure even though the disk does not throw.');
+        } catch (UnableToReadFile $exception) {
+            $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedCount());
+        }
     }
 
     public function testBoundedReadStreamKeepsTheWholeDriverBorrowedUntilClose(): void

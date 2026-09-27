@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Filesystem;
 
 use Aws\S3\S3Client;
 use DateTimeImmutable;
+use DateTimeInterface;
 use Google\Cloud\Storage\Bucket;
 use Google\Cloud\Storage\StorageClient as GcsClient;
 use Hypervel\Config\Repository;
@@ -20,13 +21,16 @@ use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Filesystem\FilesystemPoolProxy;
 use Hypervel\Filesystem\GoogleCloudStorageAdapter;
+use Hypervel\Filesystem\ReadThroughFilesystemAdapter;
 use Hypervel\ObjectPool\PoolFingerprint;
 use Hypervel\ObjectPool\PoolManager;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use League\Flysystem\AwsS3V3\AwsS3V3Adapter as FlysystemS3Adapter;
 use League\Flysystem\Filesystem as Flysystem;
+use League\Flysystem\FilesystemOperator;
 use League\Flysystem\GoogleCloudStorage\GoogleCloudStorageAdapter as FlysystemGcsAdapter;
 use League\Flysystem\Local\LocalFilesystemAdapter;
 use League\Flysystem\PathPrefixing\PathPrefixedAdapter;
@@ -34,10 +38,12 @@ use League\Flysystem\ReadOnly\ReadOnlyFilesystemAdapter;
 use League\Flysystem\UnableToReadFile;
 use League\Flysystem\UnableToWriteFile;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use ReflectionProperty;
 use RuntimeException;
 use stdClass;
+use Swoole\Coroutine\CanceledException;
 
 enum FilesystemTestStringBackedDisk: string
 {
@@ -598,6 +604,443 @@ class FilesystemManagerTest extends TestCase
             rmdir($this->tempDir . '/inline-scoped/path-prefix');
             rmdir($this->tempDir . '/inline-scoped');
         }
+    }
+
+    public function testCanBuildReadThroughDisks(): void
+    {
+        $filesystem = $this->readThroughFilesystemManager();
+        $primary = $filesystem->disk('primary');
+        $fallback = $filesystem->disk('fallback');
+        $readThrough = $filesystem->disk('read-through');
+
+        $fallback->put('fallback.txt', 'fallback contents');
+        $fallback->put('hidden-from-listing.txt', 'contents');
+        $primary->put('primary.txt', 'primary contents');
+        $primary->put('preferred.txt', 'primary version');
+        $fallback->put('preferred.txt', 'fallback version');
+
+        $this->assertTrue($readThrough->exists('fallback.txt'));
+        $this->assertSame(strlen('fallback contents'), $readThrough->size('fallback.txt'));
+        $this->assertTrue($primary->missing('fallback.txt'));
+        $this->assertSame(['preferred.txt', 'primary.txt'], $readThrough->files());
+
+        $this->assertSame('fallback contents', $readThrough->get('fallback.txt'));
+        $this->assertSame('fallback contents', $primary->get('fallback.txt'));
+        $this->assertSame('primary version', $readThrough->get('preferred.txt'));
+
+        $readThrough->put('written.txt', 'written contents');
+
+        $this->assertSame('written contents', $primary->get('written.txt'));
+        $this->assertTrue($fallback->missing('written.txt'));
+    }
+
+    public function testReadThroughDisksPromoteStreams(): void
+    {
+        $filesystem = $this->readThroughFilesystemManager();
+        $primary = $filesystem->disk('primary');
+        $fallback = $filesystem->disk('fallback');
+        $readThrough = $filesystem->disk('read-through');
+
+        $fallback->put('stream.txt', 'stream contents');
+        $stream = $readThrough->readStream('stream.txt');
+
+        try {
+            $this->assertSame('stream contents', stream_get_contents($stream));
+            $this->assertSame('stream contents', $primary->get('stream.txt'));
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    public function testReadThroughDisksDoNotCopyWhenDisabled(): void
+    {
+        $filesystem = $this->readThroughFilesystemManager(['copy' => false]);
+        $primary = $filesystem->disk('primary');
+        $fallback = $filesystem->disk('fallback');
+        $readThrough = $filesystem->disk('read-through');
+
+        $fallback->put('fallback.txt', 'fallback contents');
+
+        $this->assertSame('fallback contents', $readThrough->get('fallback.txt'));
+        $this->assertTrue($primary->missing('fallback.txt'));
+
+        $fallback->put('stream.txt', 'stream contents');
+        $stream = $readThrough->readStream('stream.txt');
+
+        try {
+            $this->assertSame('stream contents', stream_get_contents($stream));
+            $this->assertTrue($primary->missing('stream.txt'));
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    public function testReadThroughDisksDeleteFilesFromBothDisks(): void
+    {
+        $filesystem = $this->readThroughFilesystemManager();
+        $primary = $filesystem->disk('primary');
+        $fallback = $filesystem->disk('fallback');
+        $readThrough = $filesystem->disk('read-through');
+
+        $fallback->put('file.txt', 'contents');
+        $readThrough->get('file.txt');
+
+        $this->assertTrue($readThrough->delete('file.txt'));
+        $this->assertTrue($primary->missing('file.txt'));
+        $this->assertTrue($fallback->missing('file.txt'));
+        $this->assertTrue($readThrough->missing('file.txt'));
+    }
+
+    public function testReadThroughDisksDeleteDirectoriesFromBothDisks(): void
+    {
+        $filesystem = $this->readThroughFilesystemManager();
+        $primary = $filesystem->disk('primary');
+        $fallback = $filesystem->disk('fallback');
+        $readThrough = $filesystem->disk('read-through');
+
+        $primary->put('directory/primary.txt', 'primary contents');
+        $fallback->put('directory/fallback.txt', 'fallback contents');
+
+        $this->assertTrue($readThrough->deleteDirectory('directory'));
+        $this->assertTrue($primary->directoryMissing('directory'));
+        $this->assertTrue($fallback->directoryMissing('directory'));
+        $this->assertTrue($readThrough->directoryMissing('directory'));
+    }
+
+    public function testReadThroughDisksDoNotResurrectMovedFiles(): void
+    {
+        $filesystem = $this->readThroughFilesystemManager();
+        $primary = $filesystem->disk('primary');
+        $fallback = $filesystem->disk('fallback');
+        $readThrough = $filesystem->disk('read-through');
+
+        $fallback->put('source.txt', 'contents');
+        $readThrough->get('source.txt');
+
+        $this->assertTrue($readThrough->move('source.txt', 'destination.txt'));
+        $this->assertSame('contents', $primary->get('destination.txt'));
+        $this->assertTrue($primary->missing('source.txt'));
+        $this->assertTrue($fallback->missing('source.txt'));
+        $this->assertTrue($readThrough->missing('source.txt'));
+    }
+
+    public function testReadThroughDisksMoveFilesThatOnlyExistOnTheFallbackDisk(): void
+    {
+        $filesystem = $this->readThroughFilesystemManager();
+        $primary = $filesystem->disk('primary');
+        $fallback = $filesystem->disk('fallback');
+        $readThrough = $filesystem->disk('read-through');
+
+        $fallback->put('source.txt', 'contents');
+
+        $this->assertTrue($readThrough->move('source.txt', 'destination.txt'));
+        $this->assertSame('contents', $primary->get('destination.txt'));
+        $this->assertTrue($fallback->missing('source.txt'));
+        $this->assertTrue($readThrough->missing('source.txt'));
+    }
+
+    public function testReadThroughDisksCopyFilesThatOnlyExistOnTheFallbackDisk(): void
+    {
+        $filesystem = $this->readThroughFilesystemManager();
+        $primary = $filesystem->disk('primary');
+        $fallback = $filesystem->disk('fallback');
+        $readThrough = $filesystem->disk('read-through');
+
+        $fallback->put('source.txt', 'contents');
+
+        $this->assertTrue($readThrough->copy('source.txt', 'destination.txt'));
+        $this->assertSame('contents', $primary->get('destination.txt'));
+        $this->assertSame('contents', $fallback->get('source.txt'));
+        $this->assertSame('contents', $readThrough->get('source.txt'));
+    }
+
+    public function testReadThroughDisksCopyFromTheFallbackDiskWithoutPromotingTheSourceWhenDisabled(): void
+    {
+        $filesystem = $this->readThroughFilesystemManager(['copy' => false]);
+        $primary = $filesystem->disk('primary');
+        $fallback = $filesystem->disk('fallback');
+        $readThrough = $filesystem->disk('read-through');
+
+        $fallback->put('source.txt', 'contents');
+
+        $this->assertTrue($readThrough->copy('source.txt', 'destination.txt'));
+        $this->assertSame('contents', $primary->get('destination.txt'));
+        $this->assertTrue($primary->missing('source.txt'));
+        $this->assertSame('contents', $fallback->get('source.txt'));
+
+        $this->assertTrue($readThrough->move('source.txt', 'moved.txt'));
+        $this->assertSame('contents', $primary->get('moved.txt'));
+        $this->assertTrue($primary->missing('source.txt'));
+        $this->assertTrue($fallback->missing('source.txt'));
+    }
+
+    public function testReadThroughDisksFailToMoveOrCopyMissingFiles(): void
+    {
+        $readThrough = $this->readThroughFilesystemManager()->disk('read-through');
+
+        $this->assertFalse($readThrough->move('missing.txt', 'destination.txt'));
+        $this->assertFalse($readThrough->copy('missing.txt', 'destination.txt'));
+    }
+
+    public function testReadThroughDisksFailToMoveOrCopyWhenThePrimaryDiskIsUnwritable(): void
+    {
+        $filesystem = $this->readThroughFilesystemManager([
+            'primary' => [
+                'driver' => 'local',
+                'root' => $this->tempDir . '/read-only-primary',
+                'read-only' => true,
+            ],
+        ]);
+        $fallback = $filesystem->disk('fallback');
+        $readThrough = $filesystem->disk('read-through');
+        $fallback->put('source.txt', 'contents');
+
+        $this->assertFalse($readThrough->move('source.txt', 'destination.txt'));
+        $this->assertFalse($readThrough->copy('source.txt', 'destination.txt'));
+        $this->assertSame('contents', $fallback->get('source.txt'));
+    }
+
+    public function testReadThroughDiskPromotionFailuresAreBestEffortByDefault(): void
+    {
+        $filesystem = $this->readThroughFilesystemManager([
+            'primary' => [
+                'driver' => 'local',
+                'root' => $this->tempDir . '/read-only-primary',
+                'read-only' => true,
+            ],
+        ]);
+        $filesystem->disk('fallback')->put('fallback.txt', 'fallback contents');
+
+        $this->assertSame('fallback contents', $filesystem->disk('read-through')->get('fallback.txt'));
+
+        $stream = $filesystem->disk('read-through')->readStream('fallback.txt');
+
+        try {
+            $this->assertSame('fallback contents', stream_get_contents($stream));
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    public function testReadThroughPromotionCancellationClosesOwnedStreams(): void
+    {
+        $source = fopen('php://temp', 'w+b');
+        fwrite($source, 'contents');
+        rewind($source);
+        $temporary = null;
+        $cancellation = new CanceledException('promotion canceled');
+        $primary = m::mock(FilesystemOperator::class);
+        $primary->shouldReceive('fileExists')->twice()->with('file.txt')->andReturn(false);
+        $primary->shouldReceive('writeStream')->once()->andReturnUsing(
+            static function (string $path, mixed $stream) use (&$temporary, $cancellation): never {
+                $temporary = $stream;
+
+                throw $cancellation;
+            },
+        );
+        $fallback = m::mock(FilesystemOperator::class);
+        $fallback->shouldReceive('readStream')->once()->with('file.txt')->andReturn($source);
+        $adapter = new ReadThroughFilesystemAdapter($primary, $fallback);
+
+        try {
+            $adapter->readStream('file.txt');
+            $this->fail('Expected cancellation to escape promotion.');
+        } catch (CanceledException $exception) {
+            $this->assertSame($cancellation, $exception);
+            $this->assertFalse(is_resource($source));
+            $this->assertNotNull($temporary);
+            $this->assertFalse(is_resource($temporary));
+        } finally {
+            if (is_resource($source)) {
+                fclose($source);
+            }
+
+            if (is_resource($temporary)) {
+                fclose($temporary);
+            }
+        }
+    }
+
+    public function testReadThroughDiskCanThrowOnPromotionFailures(): void
+    {
+        $filesystem = $this->readThroughFilesystemManager([
+            'primary' => [
+                'driver' => 'local',
+                'root' => $this->tempDir . '/read-only-primary',
+                'read-only' => true,
+            ],
+            'throw' => true,
+            'throw_on_promotion_failure' => true,
+        ]);
+        $filesystem->disk('fallback')->put('fallback.txt', 'fallback contents');
+
+        $this->expectException(UnableToReadFile::class);
+
+        $filesystem->disk('read-through')->get('fallback.txt');
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testReadThroughDisksSetVisibilityOnTheDiskContainingTheFile(): void
+    {
+        $filesystem = $this->readThroughFilesystemManager();
+        $primary = $filesystem->disk('primary');
+        $fallback = $filesystem->disk('fallback');
+        $readThrough = $filesystem->disk('read-through');
+        $fallback->put('fallback.txt', 'fallback contents');
+        $primary->put('primary.txt', 'primary contents');
+
+        $this->assertTrue($readThrough->setVisibility('fallback.txt', 'private'));
+        $this->assertSame('private', $fallback->getVisibility('fallback.txt'));
+        $this->assertSame('private', $readThrough->getVisibility('fallback.txt'));
+        $this->assertTrue($primary->missing('fallback.txt'));
+        $this->assertTrue($readThrough->setVisibility('primary.txt', 'private'));
+        $this->assertSame('private', $primary->getVisibility('primary.txt'));
+    }
+
+    public function testReadThroughDisksDelegateUrlsToTheDiskContainingTheFile(): void
+    {
+        $filesystem = $this->readThroughFilesystemManager([], [
+            'url' => 'https://primary.test',
+        ], [
+            'url' => 'https://fallback.test',
+        ]);
+        $primary = $filesystem->disk('primary');
+        $fallback = $filesystem->disk('fallback');
+        $readThrough = $filesystem->disk('read-through');
+        $expiration = CarbonImmutable::create(2026, 8, 11);
+
+        $primary->put('primary.txt', 'primary contents');
+        $fallback->put('fallback.txt', 'fallback contents');
+        $primary->buildTemporaryUrlsUsing(fn (string $path, DateTimeInterface $expiration, array $options): string => 'primary/' . $path . '/' . $options['version']);
+        $fallback->buildTemporaryUrlsUsing(fn (string $path, DateTimeInterface $expiration, array $options): string => 'fallback/' . $path . '/' . $options['version']);
+        $primary->buildTemporaryUploadUrlsUsing(fn (string $path, DateTimeInterface $expiration, array $options): array => [
+            'url' => 'upload/' . $path . '/' . $options['version'],
+            'headers' => ['X-Test' => 'header'],
+        ]);
+
+        $this->assertSame('https://primary.test/primary.txt', $readThrough->url('primary.txt'));
+        $this->assertSame('https://fallback.test/fallback.txt', $readThrough->url('fallback.txt'));
+        $this->assertTrue($readThrough->providesTemporaryUrls());
+        $this->assertSame('primary/primary.txt/1', $readThrough->temporaryUrl('primary.txt', $expiration, ['version' => 1]));
+        $this->assertSame('fallback/fallback.txt/1', $readThrough->temporaryUrl('fallback.txt', $expiration, ['version' => 1]));
+        $this->assertTrue($readThrough->providesTemporaryUploadUrls());
+        $this->assertSame([
+            'url' => 'upload/file.txt/1',
+            'headers' => ['X-Test' => 'header'],
+        ], $readThrough->temporaryUploadUrl('file.txt', $expiration, ['version' => 1]));
+    }
+
+    public function testReadThroughDisksPreserveOuterAndSidePrefixes(): void
+    {
+        $filesystem = $this->readThroughFilesystemManager(['prefix' => 'outer', 'copy' => false], [
+            'prefix' => 'primary-prefix',
+            'url' => 'https://primary.test',
+        ], [
+            'prefix' => 'fallback-prefix',
+            'url' => 'https://fallback.test',
+        ]);
+        $primary = $filesystem->disk('primary');
+        $fallback = $filesystem->disk('fallback');
+        $primary->put('outer/primary.txt', 'primary contents');
+        $fallback->put('outer/fallback.txt', 'fallback contents');
+        $primary->buildTemporaryUrlsUsing(fn (string $path): string => 'primary/' . $path);
+        $fallback->buildTemporaryUrlsUsing(fn (string $path): string => 'fallback/' . $path);
+        $primary->buildTemporaryUploadUrlsUsing(fn (string $path): array => ['url' => 'upload/' . $path]);
+        $readThrough = $filesystem->disk('read-through');
+        $expiration = new DateTimeImmutable('+1 hour');
+
+        $this->assertSame('primary contents', $readThrough->get('primary.txt'));
+        $this->assertSame('fallback contents', $readThrough->get('fallback.txt'));
+        $this->assertSame('https://primary.test/primary-prefix/outer/primary.txt', $readThrough->url('primary.txt'));
+        $this->assertSame('https://fallback.test/fallback-prefix/outer/fallback.txt', $readThrough->url('fallback.txt'));
+        $this->assertSame($primary->path('outer/primary.txt'), $readThrough->path('primary.txt'));
+        $this->assertSame('primary/outer/primary.txt', $readThrough->temporaryUrl('primary.txt', $expiration));
+        $this->assertSame('fallback/outer/fallback.txt', $readThrough->temporaryUrl('fallback.txt', $expiration));
+        $this->assertSame(['url' => 'upload/outer/new.txt'], $readThrough->temporaryUploadUrl('new.txt', $expiration));
+    }
+
+    public function testReadThroughDisksUseTheirOwnUrlCallbacksBeforeRawAdapterHooks(): void
+    {
+        $filesystem = $this->readThroughFilesystemManager(['prefix' => 'outer'], ['driver' => 'custom-url']);
+        $root = $this->tempDir . '/primary';
+        $filesystem->extend('custom-url', static function () use ($root): FilesystemAdapter {
+            $adapter = new class($root) extends LocalFilesystemAdapter {
+                /**
+                 * Provide a raw adapter URL that must not override the composite callback.
+                 */
+                public function getTemporaryUrl(string $path, DateTimeInterface $expiration, array $options): string
+                {
+                    return 'raw-adapter-url';
+                }
+            };
+
+            return new FilesystemAdapter(new Flysystem($adapter), $adapter, ['root' => $root]);
+        });
+        $readThrough = $filesystem->disk('read-through');
+        $readThrough->buildTemporaryUrlsUsing(fn (string $path): string => 'composite/' . $path);
+
+        $this->assertSame('composite/file.txt', $readThrough->temporaryUrl('file.txt', new DateTimeImmutable('+1 hour')));
+    }
+
+    #[DataProvider('readThroughCycles')]
+    public function testReadThroughDisksRejectCircularConfiguration(array $disks, string $message): void
+    {
+        $disks['legacy'] = ['driver' => 'local', 'root' => $this->tempDir . '/legacy'];
+        $filesystem = new FilesystemManager($this->getContainer(['disks' => $disks]));
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($message);
+
+        $filesystem->disk('assets');
+    }
+
+    /**
+     * Provide circular read-through configurations.
+     */
+    public static function readThroughCycles(): array
+    {
+        return [
+            'self' => [[
+                'assets' => ['driver' => 'read-through', 'primary' => 'assets', 'fallback' => 'legacy'],
+            ], 'Read-through disk [assets] cannot reference itself.'],
+            'two disks' => [[
+                'assets' => ['driver' => 'read-through', 'primary' => 'other', 'fallback' => 'legacy'],
+                'other' => ['driver' => 'read-through', 'primary' => 'assets', 'fallback' => 'legacy'],
+            ], 'Circular read-through disk definition detected: assets -> other -> assets.'],
+            'inline scoped side' => [[
+                'assets' => [
+                    'driver' => 'read-through',
+                    'primary' => ['driver' => 'scoped', 'disk' => 'assets', 'prefix' => 'cache'],
+                    'fallback' => 'legacy',
+                ],
+            ], 'Circular read-through disk definition detected: assets -> (on-demand) -> (on-demand).'],
+        ];
+    }
+
+    public function testReadThroughConstructionCanRetryAfterASideFails(): void
+    {
+        $filesystem = $this->readThroughFilesystemManager([], ['driver' => 'retry']);
+        $attempts = 0;
+        $root = $this->tempDir . '/primary';
+        $filesystem->extend('retry', static function () use (&$attempts, $root): FilesystemAdapter {
+            if (++$attempts === 1) {
+                throw new RuntimeException('side unavailable');
+            }
+
+            $adapter = new LocalFilesystemAdapter($root);
+
+            return new FilesystemAdapter(new Flysystem($adapter), $adapter);
+        });
+
+        try {
+            $filesystem->disk('read-through');
+            $this->fail('Expected the first side construction to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('side unavailable', $exception->getMessage());
+        }
+
+        $this->assertTrue($filesystem->disk('read-through')->put('file.txt', 'contents'));
+        $this->assertSame('contents', $filesystem->disk('primary')->get('file.txt'));
     }
 
     public function testCustomDriverClosureBoundObjectIsFilesystemManager(): void
@@ -1720,6 +2163,33 @@ class FilesystemManagerTest extends TestCase
             'key' => $key,
             'secret' => 'test-secret',
         ];
+    }
+
+    /**
+     * Create a read-through manager with isolated local disks.
+     */
+    protected function readThroughFilesystemManager(
+        array $readThroughConfig = [],
+        array $primaryConfig = [],
+        array $fallbackConfig = [],
+    ): FilesystemManager {
+        return new FilesystemManager($this->getContainer([
+            'disks' => [
+                'primary' => array_replace([
+                    'driver' => 'local',
+                    'root' => $this->tempDir . '/primary',
+                ], $primaryConfig),
+                'fallback' => array_replace([
+                    'driver' => 'local',
+                    'root' => $this->tempDir . '/fallback',
+                ], $fallbackConfig),
+                'read-through' => array_replace([
+                    'driver' => 'read-through',
+                    'primary' => 'primary',
+                    'fallback' => 'fallback',
+                ], $readThroughConfig),
+            ],
+        ]));
     }
 
     protected function getContainer(array $config = []): Container

@@ -6,7 +6,7 @@
     - [The Public Disk](#the-public-disk)
     - [Driver Prerequisites](#driver-prerequisites)
     - [Driver Pools](#driver-pools)
-    - [Scoped and Read-Only Filesystems](#scoped-and-read-only-filesystems)
+    - [Scoped, Read-Only, and Read-Through Filesystems](#scoped-and-read-only-filesystems)
     - [Amazon S3 Compatible Filesystems](#amazon-s3-compatible-filesystems)
 - [Obtaining Disk Instances](#obtaining-disk-instances)
     - [On-Demand Disks](#on-demand-disks)
@@ -288,7 +288,7 @@ $result = Storage::disk('s3')->withClient(function ($client) {
 S3 and Google Cloud Storage streams are read lazily by default, which keeps memory usage bounded and makes data available before the entire file has downloaded. This applies to `readStream()` and `readStreamRange()`; methods such as `get()` retain their normal behavior. Streaming requests close their HTTP connection after the read, so applications that open many small streams may prefer connection reuse and set the disk's `stream_reads` option to `false`.
 
 <a name="scoped-and-read-only-filesystems"></a>
-### Scoped and Read-Only Filesystems
+### Scoped, Read-Only, and Read-Through Filesystems
 
 Scoped disks allow you to define a filesystem where all paths are automatically prefixed with a given path prefix.
 
@@ -359,6 +359,22 @@ Dynamic scoped filesystems fail closed when the resolved prefix is empty. Pass `
 ```
 
 Failed writes follow the scoped disk's `throw` and `report` options.
+
+Read-through disks allow you to migrate files between disks without downtime. When reading a file, Hypervel checks the primary disk first. If the file only exists on the fallback disk, Hypervel reads it from the fallback disk and copies it to the primary disk for future requests:
+
+```php
+'assets' => [
+    'driver' => 'read-through',
+    'primary' => 's3',
+    'fallback' => 'legacy-s3',
+],
+```
+
+New files and directory listings use the primary disk. File existence and metadata checks use either disk without copying files. Deletions remove files or directories from both disks, and visibility changes apply to the disk containing the file. The `primary` and `fallback` options may also contain inline disk configurations.
+
+Fallback reads promote files by default. Set `copy` to `false` to read fallback files without copying them. With promotion enabled, fallback stream reads finish copying the file before returning the stream.
+
+If promotion fails, the read still succeeds by default. Set `throw_on_promotion_failure` to `true` to treat promotion failures as read failures; set the disk's `throw` option to `true` to receive those failures as exceptions.
 
 <a name="amazon-s3-compatible-filesystems"></a>
 ### Amazon S3 Compatible Filesystems
