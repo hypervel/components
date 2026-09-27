@@ -1,5 +1,7 @@
 # Hypervel Components Agent Guide
 
+**External contributions:** When preparing an issue or pull request as an external contributor, read `src/docs/contributions.md` in full and follow its requirements. This does not apply to maintainer-directed work.
+
 ## Background
 
 Hypervel is a standalone Laravel-style Swoole framework. The public API should stay close to Laravel wherever possible, while the internals are adapted for long-lived Swoole workers, coroutine safety, and high performance.
