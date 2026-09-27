@@ -534,8 +534,8 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldHaveReceived('dispatch')->with(m::on(
             static fn (object $event): bool => $event instanceof WorkerStopping
                 && $event->reason === WorkerStopReason::TimedOut
-                && $event->connectionName === null
-                && $event->queue === null
+                && $event->connectionName === 'default'
+                && $event->queue === 'queue'
                 && $event->terminatesImmediately
         ))->once();
         $this->events->shouldHaveReceived('dispatch')->with(m::on(
@@ -744,7 +744,7 @@ class QueueWorkerTest extends TestCase
         $worker->registerCoroutineJobForTest(new WorkerFakeJob, new WorkerOptions);
 
         try {
-            $worker->kill(Worker::EXIT_SUCCESS, new WorkerOptions);
+            $worker->kill('default', 'queue', Worker::EXIT_SUCCESS, new WorkerOptions);
             $this->fail('Expected the process termination seam to throw.');
         } catch (WorkerKilledException $exception) {
             $this->assertSame(Worker::EXIT_SUCCESS, $exception->status);
@@ -1544,6 +1544,7 @@ class QueueWorkerTest extends TestCase
         Worker::$stopOnLostConnection = false;
         Worker::$restartable = false;
         Worker::$pausable = false;
+        Worker::killUsing(static fn (): never => throw new RuntimeException('Stale kill callback.'));
 
         Worker::flushState();
 
@@ -1564,6 +1565,33 @@ class QueueWorkerTest extends TestCase
 
         $this->assertTrue($defaultJob->fired);
         $this->assertFalse($customJob->fired);
+
+        $this->expectException(WorkerKilledException::class);
+
+        (new KillTestWorker(...$this->workerDependencies()))->kill('default', 'queue');
+    }
+
+    public function testWorkerCanBeKilledUsingCustomCallback(): void
+    {
+        Worker::killUsing(function (int $status): never {
+            throw new RuntimeException("Killed with status [{$status}].");
+        });
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Killed with status [124].');
+
+        try {
+            (new KillTestWorker(...$this->workerDependencies('default', ['queue' => []])))
+                ->kill('default', 'default', 124, new WorkerOptions, WorkerStopReason::TimedOut);
+        } finally {
+            Worker::killUsing(null);
+
+            $this->events->shouldHaveReceived('dispatch')->with(m::on(function ($event): bool {
+                return $event instanceof WorkerStopping
+                    && $event->status === 124
+                    && $event->reason === WorkerStopReason::TimedOut;
+            }))->once();
+        }
     }
 
     public function testWorkerStartingIsDispatched()
@@ -1616,14 +1644,14 @@ class QueueWorkerTest extends TestCase
 
         $this->events->shouldHaveReceived('dispatch')->with(m::on(function ($event) use ($workerOptions) {
             return $event instanceof WorkerStopping
+                && $event->connectionName === 'default'
+                && $event->queue === 'queue'
                 && $event->status === 0
                 && $event->workerOptions === $workerOptions
                 && $event->reason === WorkerStopReason::QueueEmpty
                 && $event->jobsProcessed === 2
                 && $event->lastJobProcessedAt !== null
                 && $event->memoryUsage > 0
-                && $event->connectionName === 'default'
-                && $event->queue === 'queue'
                 && ! $event->terminatesImmediately;
         }))->once();
     }
@@ -1780,7 +1808,7 @@ class QueueWorkerTest extends TestCase
         $worker->handleResumeSignalForTest('default', 'queue', $workerOptions);
         $worker->handleInterruptionSignalForTest(SIGTERM, 'default', 'queue', $workerOptions);
         $worker->drainPendingSignalsForTest();
-        $status = $worker->stop(7, $workerOptions, WorkerStopReason::QueueEmpty, 'default', 'queue');
+        $status = $worker->stop('default', 'queue', 7, $workerOptions, WorkerStopReason::QueueEmpty);
 
         $this->assertSame(7, $status);
         $this->assertFalse($worker->paused);
@@ -2039,13 +2067,13 @@ class InsomniacWorker extends Worker
     }
 
     public function stop(
+        string $connectionName,
+        string $queue,
         int $status = 0,
         ?WorkerOptions $options = null,
         ?WorkerStopReason $reason = null,
-        ?string $connectionName = null,
-        ?string $queue = null,
     ): int {
-        return parent::stop($status, $options, $reason, $connectionName, $queue);
+        return parent::stop($connectionName, $queue, $status, $options, $reason);
     }
 
     public function daemonShouldRun(WorkerOptions $options, string $connectionName, string $queue): bool
@@ -2233,8 +2261,8 @@ class MonitorFailureWorker extends InsomniacWorker
 
     public function startMonitorForTest(
         WorkerOptions $options,
-        ?string $connectionName = null,
-        ?string $queue = null,
+        string $connectionName = 'default',
+        string $queue = 'queue',
     ): void {
         $this->monitorTimeoutJobs($options, $connectionName, $queue);
     }
@@ -2256,8 +2284,8 @@ class KillTestWorker extends InsomniacWorker
 {
     public function startMonitorForTest(
         WorkerOptions $options,
-        ?string $connectionName = null,
-        ?string $queue = null,
+        string $connectionName = 'default',
+        string $queue = 'queue',
     ): void {
         $this->monitorTimeoutJobs($options, $connectionName, $queue);
     }
