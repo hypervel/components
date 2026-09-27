@@ -3981,13 +3981,15 @@ The `Uri` class offers several methods that may be used to manipulate a URI's qu
 $uri = $uri->withQuery(['sort' => 'name']);
 ```
 
+Query keys support dot notation for nested parameters. Asterisks in keys are treated literally, not as wildcards.
+
 The `withQueryIfMissing` method may be used to merge additional query string parameters into the existing query string if the given keys do not already exist in the query string:
 
 ```php
 $uri = $uri->withQueryIfMissing(['page' => 1]);
 ```
 
-The `replaceQuery` method may be used to complete replace the existing query string with a new one:
+The `replaceQuery` method may be used to completely replace the existing query string with a new one:
 
 ```php
 $uri = $uri->replaceQuery(['page' => 1]);

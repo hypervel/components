@@ -216,6 +216,47 @@ class SupportUriTest extends TestCase
         $this->assertSame('foo[bar]=zab', $uri->replaceQuery(['foo.bar' => 'zab'])->query()->decode());
     }
 
+    public function testQueryStringsWithAsterisksAreTreatedAsLiteralKeys(): void
+    {
+        $uri = Uri::of('https://hypervel.org/?role=user&tenant=10');
+
+        $this->assertEquals(['role' => 'user', 'tenant' => '10', '*' => 'admin'], $uri->withQuery(['*' => 'admin'])->query()->all());
+
+        $uri = Uri::of('https://hypervel.org/');
+
+        $this->assertEquals(['*' => 'admin'], $uri->withQuery(['*' => 'admin'])->query()->all());
+
+        $uri = Uri::of('https://hypervel.org/?filter[name]=taylor&filter[role]=user');
+
+        $this->assertEquals(['filter' => ['name' => 'taylor', 'role' => 'user', '*' => 'masked']], $uri->withQuery(['filter.*' => 'masked'])->query()->all());
+
+        $uri = Uri::of('https://hypervel.org/?role=user');
+
+        $this->assertEquals(['*' => 'admin'], $uri->withQuery(['*' => 'admin'], merge: false)->query()->all());
+    }
+
+    public function testWithQueryIfMissingTreatsAsterisksAsLiteralKeys(): void
+    {
+        $uri = Uri::of('https://hypervel.org/?role=user&tenant=10');
+
+        $this->assertEquals(['role' => 'user', 'tenant' => '10', '*' => 'admin'], $uri->withQueryIfMissing(['*' => 'admin'])->query()->all());
+    }
+
+    public function testPushOntoQueryReadsTheSameLiteralSegmentsItWrites(): void
+    {
+        $uri = Uri::of('https://hypervel.org/?page=1');
+
+        $this->assertSame(['page' => '1', '*' => ['first', 'second']], $uri->pushOntoQuery('*', 'first')->pushOntoQuery('*', 'second')->query()->all());
+
+        $uri = Uri::of('https://hypervel.org/?filter[name]=taylor');
+
+        $this->assertSame(['filter' => ['name' => 'taylor', '*' => ['first', 'second']]], $uri->pushOntoQuery('filter.*', 'first')->pushOntoQuery('filter.*', 'second')->query()->all());
+
+        $uri = Uri::of('https://hypervel.org/?filter.name=literal&filter[name]=nested');
+
+        $this->assertSame(['filter.name' => 'literal', 'filter' => ['name' => ['nested', 'next']]], $uri->pushOntoQuery('filter.name', 'next')->query()->all());
+    }
+
     public function testDecodingTheEntireUri(): void
     {
         $uri = Uri::of('https://hypervel.org/docs/11.x/installation')->withQuery(['tags' => ['first', 'second']]);
