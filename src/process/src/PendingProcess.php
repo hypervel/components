@@ -227,7 +227,7 @@ class PendingProcess
 
             return new ProcessResult(tap($process)->run($this->guardProcessOutput($process, $output))); // @phpstan-ignore method.notFound (tap proxy __call)
         } catch (SymfonyTimeoutException $e) {
-            throw new ProcessTimedOutException($e, new ProcessResult($process));
+            throw ProcessTimedOutException::make($e, new ProcessResult($process));
         }
     }
 

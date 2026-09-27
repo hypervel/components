@@ -24,14 +24,14 @@ class FakeInvokedProcess implements InvokedProcessContract
     protected ?int $remainingRunIterations = null;
 
     /**
+     * Indicates whether the process has been stopped.
+     */
+    protected bool $stopped = false;
+
+    /**
      * The general output handler callback.
      */
     protected ?Closure $outputHandler = null;
-
-    /**
-     * Indicates that the output handler has failed.
-     */
-    protected bool $outputHandlerFailed = false;
 
     /**
      * The current output's index.
@@ -85,16 +85,6 @@ class FakeInvokedProcess implements InvokedProcessContract
     }
 
     /**
-     * Stop the process if it is still running.
-     */
-    public function stop(float $timeout = 10, ?int $signal = null): ?int
-    {
-        $this->remainingRunIterations = 0;
-
-        return null;
-    }
-
-    /**
      * Determine if the process has received the given signal.
      */
     public function hasReceivedSignal(int $signal): bool
@@ -107,6 +97,10 @@ class FakeInvokedProcess implements InvokedProcessContract
      */
     public function running(): bool
     {
+        if ($this->stopped) {
+            return false;
+        }
+
         $this->invokeOutputHandlerWithNextLineOfOutput();
 
         $this->remainingRunIterations = is_null($this->remainingRunIterations)
@@ -133,7 +127,7 @@ class FakeInvokedProcess implements InvokedProcessContract
     {
         $outputHandler = $this->outputHandler;
 
-        if ($outputHandler === null || $this->outputHandlerFailed) {
+        if ($outputHandler === null || $this->stopped) {
             return false;
         }
 
@@ -171,8 +165,7 @@ class FakeInvokedProcess implements InvokedProcessContract
             $outputHandler($type, $buffer);
         } catch (Throwable $exception) {
             // Match the real process's terminal stop and suppress delivery after callback failure.
-            $this->outputHandlerFailed = true;
-            $this->remainingRunIterations = 0;
+            $this->stop();
 
             throw $exception;
         }
@@ -308,6 +301,17 @@ class FakeInvokedProcess implements InvokedProcessContract
         } finally {
             $this->outputHandler = $outputHandler;
         }
+    }
+
+    /**
+     * Stop the process if it is still running.
+     */
+    public function stop(float $timeout = 10, ?int $signal = null): ?int
+    {
+        $this->stopped = true;
+        $this->remainingRunIterations = 0;
+
+        return $this->process->exitCode;
     }
 
     /**

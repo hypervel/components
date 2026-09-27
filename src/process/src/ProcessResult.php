@@ -56,6 +56,10 @@ class ProcessResult implements ProcessResultContract
      */
     public function output(): string
     {
+        if ($this->process->isOutputDisabled()) {
+            return '';
+        }
+
         return $this->process->getOutput();
     }
 
@@ -72,6 +76,10 @@ class ProcessResult implements ProcessResultContract
      */
     public function errorOutput(): string
     {
+        if ($this->process->isOutputDisabled()) {
+            return '';
+        }
+
         return $this->process->getErrorOutput();
     }
 
