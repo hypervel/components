@@ -128,12 +128,9 @@ class RenderBladeFilesTest extends TestCase
 
     public function testBladeMapperPreservesCompiledLineWhenOriginalDisappears(): void
     {
-        $method = new ReflectionMethod(BladeMapper::class, 'detectLineNumber');
-
         $this->assertSame(
             37,
-            $method->invoke(
-                $this->app->make(BladeMapper::class),
+            $this->app->make(BladeMapper::class)->detectLineNumber(
                 ParallelTesting::tempDir('MissingBladeSource') . '/missing.blade.php',
                 37,
             ),

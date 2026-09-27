@@ -14,6 +14,7 @@
     - [Filtering Queries via Intermediate Table Columns](#filtering-queries-via-intermediate-table-columns)
     - [Ordering Queries via Intermediate Table Columns](#ordering-queries-via-intermediate-table-columns)
     - [Defining Custom Intermediate Table Models](#defining-custom-intermediate-table-models)
+        - [Automatically Hydrating Pivot Relationships](#automatically-hydrating-pivot-relationships)
 - [Polymorphic Relationships](#polymorphic-relationships)
     - [One to One](#one-to-one-polymorphic-relations)
     - [One to Many](#one-to-many-polymorphic-relations)
@@ -1033,6 +1034,49 @@ class RoleUser extends Pivot
 {
     // ...
 }
+```
+
+<a name="automatically-hydrating-pivot-relationships"></a>
+#### Automatically Hydrating Pivot Relationships
+
+When a custom pivot model defines `belongsTo` relationships for the declaring and related models, you may invoke `chaperone` after `using` to automatically hydrate those relationships on each pivot model. This avoids additional queries when accessing the models through the pivot:
+
+```php
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Relations\Pivot;
+
+class RoleUser extends Pivot
+{
+    public function role(): BelongsTo
+    {
+        return $this->belongsTo(Role::class);
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+}
+
+class Role extends Model
+{
+    public function users(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class)
+            ->using(RoleUser::class)
+            ->chaperone();
+    }
+}
+```
+
+Eloquent infers the relationship names from the pivot keys and model names. You may also pass the declaring and related relationship names to `chaperone` explicitly:
+
+```php
+return $this->belongsToMany(User::class)
+    ->using(RoleUser::class)
+    ->chaperone(declaring: 'role', related: 'user');
 ```
 
 <a name="polymorphic-relationships"></a>

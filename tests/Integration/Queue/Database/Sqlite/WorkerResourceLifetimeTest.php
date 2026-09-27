@@ -187,7 +187,7 @@ class WorkerResourceLifetimeTest extends TestCase
         $worker = new class(m::mock(QueueManager::class), $events, $this->app->make(ExceptionHandlerContract::class), static fn (): bool => false, $timer) extends Worker {
             public function startMonitorForTest(WorkerOptions $options): void
             {
-                $this->monitorTimeoutJobs($options);
+                $this->monitorTimeoutJobs($options, 'default', 'queue');
             }
 
             public function pauseForTest(WorkerOptions $options): void

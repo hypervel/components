@@ -3047,7 +3047,7 @@ The `pause`, `pauseFor`, and `resume` methods also accept enums for queue and co
 
 Queue workers report paused and resumed queues in their console output.
 
-Pausing or resuming a queue dispatches the `Hypervel\Queue\Events\QueuePaused` or `Hypervel\Queue\Events\QueueResumed` event in the process that made the change. Their `connection` and `queue` properties identify the queue, and the `QueuePaused` event's `ttl` property is `null` unless the queue was paused for a limited time. Pausing or resuming every queue with the `--all` option dispatches the `QueuesPaused` or `QueuesResumed` event instead. Running workers dispatch the `WorkerQueuePaused` and `WorkerQueueResumed` events, with `connectionName` and `queue` properties, when they detect that one of their queues has been paused or resumed.
+Pausing or resuming a queue dispatches the `Hypervel\Queue\Events\QueuePaused` or `Hypervel\Queue\Events\QueueResumed` event in the process that made the change. Their `connectionName` and `queue` properties identify the queue, and the `QueuePaused` event's `ttl` property is `null` unless the queue was paused for a limited time. Pausing or resuming every queue with the `--all` option dispatches the `QueuesPaused` or `QueuesResumed` event instead. Running workers dispatch the `WorkerQueuePaused` and `WorkerQueueResumed` events, with `connectionName` and `queue` properties, when they detect that one of their queues has been paused or resumed.
 
 A worker process may also be paused as a whole by sending it the `SIGUSR2` signal and resumed with `SIGCONT`. The worker dispatches the `WorkerPausing` and `WorkerResuming` events when it receives these signals. Both events provide the worker's `connectionName`, `queue`, and `workerOptions`.
 
@@ -4038,3 +4038,5 @@ Event::listen(function (WorkerIdle $event) {
 When an interrupting signal is delivered to running jobs, Hypervel dispatches a `Hypervel\Queue\Events\JobInterrupted` event once for each job that was notified. Its `connectionName`, `job`, and `signal` properties identify the interrupted work.
 
 Queue workers also dispatch a `WorkerStopping` event before they stop. You may register a listener using `Queue::stopping` in the `boot` method of a service provider. Its `connectionName` and `queue` properties identify the worker, while `terminatesImmediately` is `true` when the process will be terminated as soon as the listeners return. In that case, listeners should not start cleanup that must finish after the listener returns.
+
+When a job times out, the worker normally ends its own process with `SIGKILL`, so a process supervisor sees the signal rather than an exit status. If you need to control how the worker terminates, you may register a callback using `Hypervel\Queue\Worker::killUsing` in a service provider's `boot` method. The callback receives the worker's exit status after the `WorkerStopping` event is dispatched. If the callback returns, the worker is terminated as usual.

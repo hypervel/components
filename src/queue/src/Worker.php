@@ -192,6 +192,13 @@ class Worker
     public static ?int $timedOutExitCode = null;
 
     /**
+     * The callback used to kill the worker process.
+     *
+     * @var null|(callable(int): mixed)
+     */
+    protected static mixed $killCallback = null;
+
+    /**
      * Indicates if the worker should report job exceptions.
      *
      * Boot-only. Mutates process-global worker configuration; runtime use
@@ -309,7 +316,7 @@ class Worker
                         [$status, $reason] = $stop;
                         $this->waitForRunningJobs($concurrent);
 
-                        return $this->stop($status, $options, $reason, $connectionName, $queue);
+                        return $this->stop($connectionName, $queue, $status, $options, $reason);
                     }
 
                     continue;
@@ -345,7 +352,7 @@ class Worker
 
                         $this->waitForRunningJobs($concurrent);
 
-                        return $this->stop($status, $options, $reason, $connectionName, $queue);
+                        return $this->stop($connectionName, $queue, $status, $options, $reason);
                     }
 
                     continue;
@@ -410,7 +417,7 @@ class Worker
 
                     $this->waitForRunningJobs($concurrent);
 
-                    return $this->stop($status, $options, $reason, $connectionName, $queue);
+                    return $this->stop($connectionName, $queue, $status, $options, $reason);
                 }
             }
         } finally {
@@ -500,8 +507,8 @@ class Worker
      */
     protected function monitorTimeoutJobs(
         WorkerOptions $options,
-        ?string $connectionName = null,
-        ?string $queue = null,
+        string $connectionName,
+        string $queue,
     ): void {
         if ($this->monitorId !== null) {
             return;
@@ -522,11 +529,11 @@ class Worker
                     if ($this->hasTimeoutJobs()) {
                         $this->shouldQuit = true;
                         $this->kill(
+                            $connectionName,
+                            $queue,
                             static::$timedOutExitCode ?? static::EXIT_ERROR,
                             $options,
                             WorkerStopReason::TimedOut,
-                            $connectionName,
-                            $queue,
                         );
                     }
                 } finally {
@@ -1379,22 +1386,22 @@ class Worker
      * Stop listening and bail out of the script.
      */
     public function stop(
+        string $connectionName,
+        string $queue,
         int $status = 0,
         ?WorkerOptions $options = null,
         ?WorkerStopReason $reason = null,
-        ?string $connectionName = null,
-        ?string $queue = null,
     ): int {
         if ($this->events->hasListeners(WorkerStopping::class)) {
             $this->events->dispatch(new WorkerStopping(
+                $connectionName,
+                $queue,
                 $status,
                 $options,
                 $reason,
                 $this->jobsProcessed,
                 $this->lastJobProcessedAt,
                 $this->currentMemoryUsage(),
-                $connectionName,
-                $queue,
                 terminatesImmediately: false,
             ));
         }
@@ -1406,24 +1413,28 @@ class Worker
      * Kill the process.
      */
     public function kill(
+        string $connectionName,
+        string $queue,
         int $status = 0,
         ?WorkerOptions $options = null,
         ?WorkerStopReason $reason = null,
-        ?string $connectionName = null,
-        ?string $queue = null,
     ): never {
         if ($this->events->hasListeners(WorkerStopping::class)) {
             $this->events->dispatch(new WorkerStopping(
+                $connectionName,
+                $queue,
                 $status,
                 $options,
                 $reason,
                 $this->jobsProcessed,
                 $this->lastJobProcessedAt,
                 $this->currentMemoryUsage(),
-                $connectionName,
-                $queue,
                 terminatesImmediately: true,
             ));
+        }
+
+        if (static::$killCallback) {
+            call_user_func(static::$killCallback, $status);
         }
 
         $this->terminateProcess($status);
@@ -1508,6 +1519,19 @@ class Worker
     }
 
     /**
+     * Register a callback to be used to kill the worker process.
+     *
+     * Boot-only. The callback persists for the worker lifetime and runs before
+     * forced process termination. Passing null clears it.
+     *
+     * @param null|(callable(int): mixed) $callback
+     */
+    public static function killUsing(?callable $callback): void
+    {
+        static::$killCallback = $callback;
+    }
+
+    /**
      * Get the queue manager instance.
      */
     public function getManager(): QueueManager
@@ -1534,6 +1558,7 @@ class Worker
         static::$popCallbacks = [];
         static::$memoryExceededExitCode = null;
         static::$timedOutExitCode = null;
+        static::$killCallback = null;
         static::$reportJobExceptions = true;
         static::$stopOnLostConnection = true;
         static::$restartable = true;

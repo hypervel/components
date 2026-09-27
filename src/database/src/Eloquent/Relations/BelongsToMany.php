@@ -16,6 +16,7 @@ use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
 use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithDictionary;
 use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithPivotTable;
+use Hypervel\Database\Eloquent\Relations\Concerns\SupportsPivotInverseRelations;
 use Hypervel\Database\MultipleRecordsFoundException;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Grammars\MySqlGrammar;
@@ -44,6 +45,7 @@ class BelongsToMany extends Relation
 {
     use InteractsWithDictionary;
     use InteractsWithPivotTable;
+    use SupportsPivotInverseRelations;
 
     /**
      * The intermediate table for the relation.
@@ -256,9 +258,21 @@ class BelongsToMany extends Relation
             $key = $this->getDictionaryKey($model->{$this->parentKey});
 
             if ($key !== null && isset($dictionary[$key])) {
+                $items = $dictionary[$key];
+
+                // Correct $this->parent to the actual parent for each group of results...
+                if ($this->declaringInverseRelationship) {
+                    foreach ($items as $item) {
+                        $item->{$this->accessor}?->setRelation(
+                            $this->declaringInverseRelationship,
+                            $model
+                        );
+                    }
+                }
+
                 $model->setRelation(
                     $relation,
-                    $this->related->newCollection($dictionary[$key])
+                    $this->related->newCollection($items)
                 );
             }
         }
@@ -1202,9 +1216,11 @@ class BelongsToMany extends Relation
         // and create a new Pivot model, which is basically a dynamic model that we
         // will set the attributes, table, and connections on it so it will work.
         foreach ($models as $model) {
-            $model->setRelation($this->accessor, $this->newExistingPivot(
-                $this->migratePivotAttributes($model)
-            ));
+            $pivot = $this->newExistingPivot($this->migratePivotAttributes($model));
+
+            $this->applyChaperonesToPivot($pivot, $this->parent, $model);
+
+            $model->setRelation($this->accessor, $pivot);
         }
     }
 

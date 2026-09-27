@@ -13,6 +13,7 @@ use Throwable;
  * @method static void afterResponse(callable $callback)
  * @method static array<array-key, mixed> buildContextForException(Throwable $e)
  * @method static \Hypervel\Foundation\Exceptions\Handler buildContextUsing(\Closure $contextCallback)
+ * @method static array contextForException(Throwable $e)
  * @method static \Hypervel\Foundation\Exceptions\Handler dontFlash(array|string $attributes)
  * @method static \Hypervel\Foundation\Exceptions\Handler dontReport(array|string $exceptions)
  * @method static \Hypervel\Foundation\Exceptions\Handler dontReportDuplicates()
