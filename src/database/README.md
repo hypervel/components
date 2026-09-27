@@ -20,5 +20,6 @@ Documentation: https://hypervel.org/docs/database
 - Eloquent models that override `CREATED_AT` or `UPDATED_AT` must declare the compatible `?string` constant type, such as `public const ?string UPDATED_AT = null;`. Laravel's constants are untyped, but omitting the type from an override in Hypervel causes a fatal error.
 - Eloquent expression plucks use `Query\Builder::pluckWithColumn()` to retain the returned field name for casts and accessors. Custom query builders overriding `pluck()` must also override `pluckWithColumn()` to customize this path. String-based Eloquent plucks still call `pluck()`.
 - Eloquent `updateFrom()` maintains the model's `updated_at` timestamp, like `update()`. Laravel forwards this method without adding a timestamp.
+- `BelongsToMany` records pivot filters in an ordered `$pivotConstraints` list instead of Laravel's `$pivotWheres`, `$pivotWhereIns`, and `$pivotWhereNulls` properties. Relationship extensions should use the `wherePivot*` methods instead of accessing those arrays.
 
 Ported from: https://github.com/laravel/framework

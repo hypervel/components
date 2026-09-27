@@ -497,32 +497,26 @@ trait HasPermissions
                         ->setMorphType(Config::MORPH_TYPE)
                         ->setMorphClass($model->getMorphClass());
 
-                    $pivotWheres = [];
-                    $pivotWhereNulls = [];
+                    $pivotConstraints = [];
 
                     if ($context->partition) {
-                        $pivotWheres[] = [
+                        $pivotConstraints[] = ['where', [
                             $context->partition->column,
                             '=',
                             $context->partition->value,
-                        ];
+                        ]];
                     }
 
                     if ($context->teamScoped) {
                         if ($context->team === null) {
-                            $pivotWhereNulls[] = [$registrar->teamsKey];
+                            $pivotConstraints[] = ['whereNull', [$registrar->teamsKey]];
                         } else {
-                            $pivotWheres[] = [$registrar->teamsKey, '=', $context->team];
+                            $pivotConstraints[] = ['where', [$registrar->teamsKey, '=', $context->team]];
                         }
                     }
 
-                    if ($pivotWheres !== [] || $pivotWhereNulls !== []) {
-                        $morphPivot->setPivotConstraints(
-                            wheres: $pivotWheres,
-                            whereIns: [],
-                            whereNulls: $pivotWhereNulls,
-                            whereBetweens: [],
-                        );
+                    if ($pivotConstraints !== []) {
+                        $morphPivot->setPivotConstraints($pivotConstraints);
                     }
 
                     $permission->setRelation('pivot', $morphPivot);
@@ -1985,12 +1979,9 @@ trait HasPermissions
             ->setRelatedModel($permission);
 
         if ($partition) {
-            $pivot->setPivotConstraints(
-                wheres: [[$partition->column, '=', $partition->value]],
-                whereIns: [],
-                whereNulls: [],
-                whereBetweens: [],
-            );
+            $pivot->setPivotConstraints([
+                ['where', [$partition->column, '=', $partition->value]],
+            ]);
         }
 
         $permission->setRelation('pivot', $pivot);

@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Eloquent\Relations;
 
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 
 /**
  * Tests that pivot model events fire when using a custom pivot class via ->using().
@@ -148,45 +151,34 @@ class BelongsToManyPivotEventsTest extends TestCase
         $this->assertEquals([], PivotEventsTestCollaborator::$eventsCalled);
     }
 
-    public function testStockDetachKeepsPivotOrPredicatesInsideTheParentIdentity(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testDetachPreservesPivotPredicateOrderAndParentIdentity(bool $customPivot): void
     {
         $user = PivotEventsTestUser::forceCreate(['name' => 'Test User']);
         $otherUser = PivotEventsTestUser::forceCreate(['name' => 'Other User']);
         $role = PivotEventsTestRole::forceCreate(['name' => 'Admin']);
 
-        $user->rolesWithoutPivot()->attach($role->id, ['is_active' => true]);
-        $otherUser->rolesWithoutPivot()->attach($role->id, ['is_active' => false]);
+        $user->rolesWithoutPivot()->attach($role->id, ['scope_id' => 1, 'is_active' => false]);
+        $user->rolesWithoutPivot()->attach($role->id, ['scope_id' => 2, 'priority' => 5, 'is_active' => false]);
+        $user->rolesWithoutPivot()->attach($role->id, ['scope_id' => 3, 'priority' => 5, 'is_active' => true]);
+        $otherUser->rolesWithoutPivot()->attach($role->id, ['priority' => 5, 'is_active' => true]);
 
-        $deleted = $user->rolesWithBooleanScope()->detach($role->id);
+        $relation = $user->rolesWithoutPivot()
+            ->wherePivot('scope_id', 1)
+            ->orWherePivotIn('priority', [5])
+            ->wherePivot('is_active', true);
 
-        $this->assertSame(1, $deleted);
-        $this->assertDatabaseMissing('pivot_events_role_user', [
-            'user_id' => $user->id,
-            'role_id' => $role->id,
-        ]);
-        $this->assertDatabaseHas('pivot_events_role_user', [
-            'user_id' => $otherUser->id,
-            'role_id' => $role->id,
-        ]);
-    }
+        if ($customPivot) {
+            $relation->using(PivotEventsTestCollaborator::class);
+        }
 
-    public function testCustomDetachKeepsPivotOrPredicatesInsideTheParentIdentity(): void
-    {
-        $user = PivotEventsTestUser::forceCreate(['name' => 'Test User']);
-        $otherUser = PivotEventsTestUser::forceCreate(['name' => 'Other User']);
-        $role = PivotEventsTestRole::forceCreate(['name' => 'Admin']);
-
-        $user->rolesWithoutPivot()->attach($role->id, ['is_active' => true]);
-        $otherUser->rolesWithoutPivot()->attach($role->id, ['is_active' => false]);
-
-        $deleted = $user->rolesWithCustomBooleanScope()->detach($role->id);
-
-        $this->assertSame(1, $deleted);
-        $this->assertSame(['deleting', 'deleted'], PivotEventsTestCollaborator::$eventsCalled);
-        $this->assertDatabaseMissing('pivot_events_role_user', [
-            'user_id' => $user->id,
-            'role_id' => $role->id,
-        ]);
+        $this->assertSame(2, $relation->detach($role->id));
+        $this->assertSame([2], DB::table('pivot_events_role_user')->where('user_id', $user->id)->pluck('scope_id')->all());
+        $this->assertSame(
+            $customPivot ? ['deleting', 'deleted', 'deleting', 'deleted'] : [],
+            PivotEventsTestCollaborator::$eventsCalled,
+        );
         $this->assertDatabaseHas('pivot_events_role_user', [
             'user_id' => $otherUser->id,
             'role_id' => $role->id,
@@ -308,12 +300,13 @@ class BelongsToManyPivotEventsTest extends TestCase
         ]);
     }
 
-    public function testHydratedStockPivotSaveAndDeleteRetainRelationConstraints(): void
+    #[DataProvider('pivotScopeProvider')]
+    public function testHydratedStockPivotSaveAndDeleteRetainRelationConstraints(string $scope): void
     {
         $user = PivotEventsTestUser::forceCreate(['name' => 'Test User']);
         $role = PivotEventsTestRole::forceCreate(['name' => 'Admin']);
 
-        $user->rolesInScopeOne()->attach($role->id, ['is_active' => true]);
+        $user->rolesInScopeOne($scope)->attach($role->id, ['is_active' => true]);
         DB::table('pivot_events_role_user')->insert([
             'user_id' => $user->id,
             'role_id' => $role->id,
@@ -321,7 +314,7 @@ class BelongsToManyPivotEventsTest extends TestCase
             'is_active' => true,
         ]);
 
-        $pivot = $user->rolesInScopeOne()->firstOrFail()->pivot;
+        $pivot = unserialize(serialize($user->rolesInScopeOne($scope)->firstOrFail()))->pivot;
         $pivot->is_active = false;
 
         $this->assertTrue($pivot->save());
@@ -351,12 +344,13 @@ class BelongsToManyPivotEventsTest extends TestCase
         ]);
     }
 
-    public function testCustomPivotUpdateAndDetachRetainRelationConstraints(): void
+    #[DataProvider('pivotScopeProvider')]
+    public function testCustomPivotUpdateAndDetachRetainRelationConstraints(string $scope): void
     {
         $user = PivotEventsTestUser::forceCreate(['name' => 'Test User']);
         $role = PivotEventsTestRole::forceCreate(['name' => 'Admin']);
 
-        $user->rolesWithScopedPivot()->attach($role->id, ['is_active' => false]);
+        $user->rolesWithScopedPivot($scope)->attach($role->id, ['is_active' => false]);
         DB::table('pivot_events_role_user')->insert([
             'user_id' => $user->id,
             'role_id' => $role->id,
@@ -366,7 +360,7 @@ class BelongsToManyPivotEventsTest extends TestCase
 
         PivotEventsTestCollaborator::$eventsCalled = [];
 
-        $this->assertSame(1, $user->rolesWithScopedPivot()->updateExistingPivot(
+        $this->assertSame(1, $user->rolesWithScopedPivot($scope)->updateExistingPivot(
             $role->id,
             ['is_active' => true],
         ));
@@ -389,7 +383,7 @@ class BelongsToManyPivotEventsTest extends TestCase
 
         PivotEventsTestCollaborator::$eventsCalled = [];
 
-        $this->assertSame(1, $user->rolesWithScopedPivot()->detach($role->id));
+        $this->assertSame(1, $user->rolesWithScopedPivot($scope)->detach($role->id));
         $this->assertSame(['deleting', 'deleted'], PivotEventsTestCollaborator::$eventsCalled);
         $this->assertDatabaseMissing('pivot_events_role_user', [
             'user_id' => $user->id,
@@ -401,6 +395,14 @@ class BelongsToManyPivotEventsTest extends TestCase
             'role_id' => $role->id,
             'scope_id' => 2,
         ]);
+    }
+
+    /**
+     * Provide scalar, closure and subquery pivot filters.
+     */
+    public static function pivotScopeProvider(): array
+    {
+        return [['scalar'], ['closure'], ['subquery']];
     }
 
     public function testPrimaryKeyPivotKeepsNativeIdentityWhenAConstraintColumnChanges(): void
@@ -539,39 +541,29 @@ class PivotEventsTestUser extends Model
     }
 
     /**
+     * Get roles limited to the first scope.
+     *
      * @return BelongsToMany<PivotEventsTestRole, $this>
      */
-    public function rolesWithBooleanScope(): BelongsToMany
+    public function rolesInScopeOne(string $scope = 'scalar'): BelongsToMany
     {
-        return $this->rolesWithoutPivot()
-            ->wherePivot('is_active', true)
-            ->orWherePivot('is_active', false);
+        $relation = $this->rolesWithoutPivot()->withPivot('scope_id');
+
+        return match ($scope) {
+            'scalar' => $relation->withPivotValue('scope_id', 1),
+            'closure' => $relation->wherePivot(fn (Builder $query): Builder => $query->where('scope_id', 1)),
+            'subquery' => $relation->wherePivotIn('scope_id', fn (QueryBuilder $query): QueryBuilder => $query->selectRaw('?', [1])),
+        };
     }
 
     /**
+     * Get scoped roles using a custom pivot.
+     *
      * @return BelongsToMany<PivotEventsTestRole, $this, PivotEventsTestCollaborator>
      */
-    public function rolesWithCustomBooleanScope(): BelongsToMany
+    public function rolesWithScopedPivot(string $scope = 'scalar'): BelongsToMany
     {
-        return $this->rolesWithBooleanScope()->using(PivotEventsTestCollaborator::class);
-    }
-
-    /**
-     * @return BelongsToMany<PivotEventsTestRole, $this>
-     */
-    public function rolesInScopeOne(): BelongsToMany
-    {
-        return $this->rolesWithoutPivot()
-            ->withPivot('scope_id')
-            ->withPivotValue('scope_id', 1);
-    }
-
-    /**
-     * @return BelongsToMany<PivotEventsTestRole, $this, PivotEventsTestCollaborator>
-     */
-    public function rolesWithScopedPivot(): BelongsToMany
-    {
-        return $this->rolesInScopeOne()->using(PivotEventsTestCollaborator::class);
+        return $this->rolesInScopeOne($scope)->using(PivotEventsTestCollaborator::class);
     }
 
     /**

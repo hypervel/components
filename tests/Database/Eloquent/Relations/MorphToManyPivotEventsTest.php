@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Eloquent\Relations;
 
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphPivot;
 use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 
 /**
  * Tests that pivot model events fire when using a custom pivot class via ->using()
@@ -254,7 +256,9 @@ class MorphToManyPivotEventsTest extends TestCase
     // Tests for morph type constraint in delete
     // =========================================================================
 
-    public function testDetachOnlyDeletesForCorrectMorphType(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testDetachOnlyDeletesForCorrectMorphType(bool $hydrated): void
     {
         // Create a post and a video, both with the same tag
         $post = MorphPivotEventsTestPost::forceCreate(['title' => 'Test Post']);
@@ -262,12 +266,17 @@ class MorphToManyPivotEventsTest extends TestCase
         $tag = MorphPivotEventsTestTag::forceCreate(['name' => 'PHP']);
 
         $post->tagsWithPivot()->attach($tag->id);
+        $post->tagsWithPivot()->attach($tag->id, ['scope_id' => 2]);
         $video->tagsWithPivot()->attach($tag->id);
 
         MorphPivotEventsTestTaggable::$eventsCalled = [];
 
-        // Detach from post only
-        $deleted = $post->tagsWithPivot()->detach($tag->id);
+        $relation = $post->tagsWithPivot()
+            ->wherePivot(fn (Builder $query): Builder => $query->where('scope_id', 1));
+
+        $deleted = $hydrated
+            ? unserialize(serialize($relation->firstOrFail()))->pivot->delete()
+            : $relation->detach($tag->id);
 
         $this->assertSame(1, $deleted);
 
@@ -278,11 +287,19 @@ class MorphToManyPivotEventsTest extends TestCase
             'tag_id' => $tag->id,
         ]);
 
-        // Post should not have the tag
+        $this->assertDatabaseHas('pivot_events_taggables', [
+            'taggable_id' => $post->id,
+            'taggable_type' => MorphPivotEventsTestPost::class,
+            'tag_id' => $tag->id,
+            'scope_id' => 2,
+        ]);
+
+        // Only the selected post scope should lose the tag.
         $this->assertDatabaseMissing('pivot_events_taggables', [
             'taggable_id' => $post->id,
             'taggable_type' => MorphPivotEventsTestPost::class,
             'tag_id' => $tag->id,
+            'scope_id' => 1,
         ]);
     }
 }

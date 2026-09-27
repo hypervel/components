@@ -943,6 +943,19 @@ return $this->belongsToMany(Podcast::class)
     ->wherePivotNotNull('expired_at');
 ```
 
+You may pass a closure to `wherePivot` or `orWherePivot` to group conditions or call scopes on a [custom pivot model](#defining-custom-intermediate-table-models). The closure receives an Eloquent builder for the pivot model:
+
+```php
+use Hypervel\Database\Eloquent\Builder;
+
+return $this->belongsToMany(Role::class)
+    ->wherePivot(function (Builder $query) {
+        $query->where('approved', 1)->where('priority', '>', 2);
+    });
+```
+
+Qualify column names inside the closure if the related table has columns with the same names. Pivot filters also constrain `detach`, `sync`, and `updateExistingPivot` operations.
+
 The `wherePivot` adds a where clause constraint to the query, but does not add the specified value when creating new models via the defined relationship. If you need to both query and create relationships with a particular pivot value, you may use the `withPivotValue` method:
 
 ```php

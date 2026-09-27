@@ -144,12 +144,7 @@ class MorphToMany extends BelongsToMany
             ->setMorphClass($this->morphClass);
 
         if ($this->hasPivotConstraints()) {
-            $pivot->setPivotConstraints(
-                wheres: $this->pivotWheres,
-                whereIns: $this->pivotWhereIns,
-                whereNulls: $this->pivotWhereNulls,
-                whereBetweens: $this->pivotWhereBetweens,
-            );
+            $pivot->setPivotConstraints($this->pivotConstraints);
         }
 
         return $pivot;

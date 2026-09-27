@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\EloquentBelongsToManyTest;
 
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
@@ -1091,6 +1092,47 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertEquals($relationTag->getAttributes(), $tag->getAttributes());
     }
 
+    public function testWherePivotWithClosure(): void
+    {
+        $tag1 = Tag::create(['name' => Str::random()])->fresh();
+        $tag2 = Tag::create(['name' => Str::random()])->fresh();
+        $post = Post::create(['title' => Str::random()]);
+
+        DB::table('posts_tags')->insert([
+            ['post_id' => $post->id, 'tag_id' => $tag1->id, 'flag' => 'foo'],
+            ['post_id' => $post->id, 'tag_id' => $tag2->id, 'flag' => 'bar'],
+        ]);
+
+        $tags = $post->tagsWithCustomExtraPivot()->wherePivot(function (Builder $query): void {
+            $query->active();
+        })->get();
+
+        $this->assertCount(1, $tags);
+        $this->assertEquals($tag1->id, $tags->first()->id);
+    }
+
+    public function testOrWherePivotWithClosure(): void
+    {
+        $tag1 = Tag::create(['name' => Str::random()])->fresh();
+        $tag2 = Tag::create(['name' => Str::random()])->fresh();
+        $tag3 = Tag::create(['name' => Str::random()])->fresh();
+        $post = Post::create(['title' => Str::random()]);
+
+        DB::table('posts_tags')->insert([
+            ['post_id' => $post->id, 'tag_id' => $tag1->id, 'flag' => 'foo'],
+            ['post_id' => $post->id, 'tag_id' => $tag2->id, 'flag' => 'bar'],
+            ['post_id' => $post->id, 'tag_id' => $tag3->id, 'flag' => 'baz'],
+        ]);
+
+        $tags = $post->tagsWithCustomExtraPivot()->wherePivot('flag', 'bar')->orWherePivot(function (Builder $query): void {
+            $query->active();
+        })->get();
+
+        $this->assertCount(2, $tags);
+        $this->assertTrue($tags->contains('id', $tag1->id));
+        $this->assertTrue($tags->contains('id', $tag2->id));
+    }
+
     public function testFirstWhere()
     {
         $tag = Tag::create(['name' => 'foo'])->fresh();
@@ -1703,6 +1745,17 @@ class PostTagPivot extends Pivot
     public function getCreatedAtAttribute(mixed $value): string
     {
         return CarbonImmutable::parse($value)->format('U');
+    }
+
+    /**
+     * Restrict the query to active tags.
+     *
+     * @param Builder<static> $query
+     * @return Builder<static>
+     */
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('flag', 'foo');
     }
 }
 
