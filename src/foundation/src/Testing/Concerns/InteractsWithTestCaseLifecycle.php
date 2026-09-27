@@ -146,21 +146,30 @@ trait InteractsWithTestCaseLifecycle
             }
         }
 
-        try {
-            HandleExceptions::flushState($this);
-        } catch (Throwable $throwable) {
-            $exception ??= $throwable;
-        }
-
         $this->app = null;
         $this->afterApplicationCreatedCallbacks = [];
         $this->beforeApplicationDestroyedCallbacks = [];
         $this->callbackException = null;
         $this->setUpHasRun = false;
 
+        try {
+            $this->flushState();
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
         if ($exception !== null) {
             throw $exception;
         }
+    }
+
+    /**
+     * Reset static state between test executions.
+     */
+    protected function flushState(): void
+    {
+        // Other framework static state is reset by AfterEachTestSubscriber.
+        HandleExceptions::flushState($this);
     }
 
     /**

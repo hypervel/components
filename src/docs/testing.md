@@ -272,6 +272,17 @@ Do not call `AfterEachTestCleanup::forgetCallbacks()` from ordinary application 
 
 To remove a specific callback that your test registered, call `AfterEachTestCleanup::forget($name)` instead.
 
+For static state owned by a particular application base test case, you may override its protected `flushState` method. Call `parent::flushState()` in your override. This hook runs after the test application is destroyed, so it must not resolve container services. It runs only for tests that boot the application; use the shared `TestState` registration above for cleanup that must also run after `#[UnitTest]` methods:
+
+```php
+protected function flushState(): void
+{
+    parent::flushState();
+
+    InvoiceNumbers::flushState();
+}
+```
+
 <a name="macro-state"></a>
 ### Macro State
 
