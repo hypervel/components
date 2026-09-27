@@ -48,6 +48,21 @@ trait SupportsPivotInverseRelations
             $this->related
         );
 
+        // Both sides can guess the same model name, so keep it only on a side named
+        // explicitly or identified by its pivot key.
+        if ($this->declaringInverseRelationship !== null
+            && $this->declaringInverseRelationship === $this->relatedInverseRelationship) {
+            $relation = $this->declaringInverseRelationship;
+
+            if ($declaring === null && ($related !== null || $this->relationNameFromPivotKey($this->foreignPivotKey, $this->parent) !== $relation)) {
+                $this->declaringInverseRelationship = null;
+            }
+
+            if ($related === null && ($declaring !== null || $this->relationNameFromPivotKey($this->relatedPivotKey, $this->related) !== $relation)) {
+                $this->relatedInverseRelationship = null;
+            }
+        }
+
         return $this;
     }
 
@@ -91,15 +106,22 @@ trait SupportsPivotInverseRelations
     protected function guessPivotInverseRelation(Model $pivotModel, string $foreignKey, Model $model): ?string
     {
         $candidates = array_filter(array_unique([
-            Str::camel(Str::beforeLast($foreignKey, $model->getKeyName())),
-            // A shared model name cannot distinguish the two sides of the pivot.
-            class_basename($this->parent) !== class_basename($this->related) ? Str::camel(class_basename($model)) : null,
+            $this->relationNameFromPivotKey($foreignKey, $model),
+            Str::camel(class_basename($model)),
         ]));
 
         return Arr::first(
             $candidates,
             fn (string $relation): bool => $pivotModel->isRelation($relation)
         );
+    }
+
+    /**
+     * Derive the inverse relationship name from a pivot key.
+     */
+    protected function relationNameFromPivotKey(string $pivotKey, Model $model): string
+    {
+        return Str::camel(Str::beforeLast($pivotKey, $model->getKeyName()));
     }
 
     /**

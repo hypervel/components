@@ -1583,6 +1583,53 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertSame($post, $pivot->post);
     }
 
+    public function testChaperonePreservesUnambiguousSelfReferencingModelName(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+        $relatedPost = Post::create(['title' => Str::random()]);
+
+        Schema::table('posts_tags', function (Blueprint $table): void {
+            $table->renameColumn('post_id', 'owner_id');
+        });
+
+        $relation = $post->belongsToMany(Post::class, 'posts_tags', 'owner_id', 'tag_id')
+            ->using(ChaperoneNamedSelfPivot::class)
+            ->chaperone();
+        $relation->attach($relatedPost);
+        $result = $relation->first();
+
+        $this->assertSame($post, $result->pivot->post);
+        $this->assertSame($result, $result->pivot->tag);
+    }
+
+    public function testChaperoneExplicitDeclaringNameTakesPrecedenceOverKeyGuess(): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+        $relatedPost = Post::create(['title' => Str::random()]);
+
+        $relation = $post->belongsToMany(Post::class, 'posts_tags', 'tag_id', 'post_id')
+            ->using(ChaperoneReversedSelfPivot::class)
+            ->chaperone(declaring: 'post');
+        $relation->attach($relatedPost);
+        $result = $relation->first();
+
+        $this->assertSame($post, $result->pivot->post);
+    }
+
+    #[TestWith(['postsWithChaperoneExplicitRelated'])]
+    #[TestWith(['postsWithChaperoneRelatedPivotKey'])]
+    public function testChaperoneKeepsRelatedInverseWhenEagerLoading(string $relation): void
+    {
+        $post = Post::create(['title' => Str::random()]);
+        $relatedPost = Post::create(['title' => Str::random()]);
+        $post->{$relation}()->attach($relatedPost);
+
+        // Eager matching would overwrite the related inverse if a declaring guess remained.
+        $result = Post::with($relation)->find($post->id)->{$relation}->first();
+
+        $this->assertSame($result, $result->pivot->post);
+    }
+
     public function testChaperoneWithEagerLoading(): void
     {
         $post1 = Post::create(['title' => Str::random()]);
@@ -1886,6 +1933,26 @@ class Post extends Model
             ->using(ChaperonePartialPivot::class)
             ->chaperone();
     }
+
+    /**
+     * Get posts with an explicitly named related pivot inverse.
+     */
+    public function postsWithChaperoneExplicitRelated(): BelongsToMany
+    {
+        return $this->belongsToMany(Post::class, 'posts_tags', 'post_id', 'tag_id')
+            ->using(ChaperoneReversedSelfPivot::class)
+            ->chaperone(related: 'post');
+    }
+
+    /**
+     * Get posts whose related pivot key identifies the inverse.
+     */
+    public function postsWithChaperoneRelatedPivotKey(): BelongsToMany
+    {
+        return $this->belongsToMany(Post::class, 'posts_tags', 'tag_id', 'post_id')
+            ->using(ChaperonePartialPivot::class)
+            ->chaperone();
+    }
 }
 
 class Tag extends Model
@@ -2031,5 +2098,39 @@ class ChaperonePartialPivot extends Pivot
     public function post(): BelongsTo
     {
         return $this->belongsTo(Post::class);
+    }
+}
+
+class ChaperoneNamedSelfPivot extends Pivot
+{
+    protected ?string $table = 'posts_tags';
+
+    /**
+     * Get the declaring post associated with the pivot.
+     */
+    public function post(): BelongsTo
+    {
+        return $this->belongsTo(Post::class, 'owner_id');
+    }
+
+    /**
+     * Get the related post associated with the pivot.
+     */
+    public function tag(): BelongsTo
+    {
+        return $this->belongsTo(Post::class, 'tag_id');
+    }
+}
+
+class ChaperoneReversedSelfPivot extends Pivot
+{
+    protected ?string $table = 'posts_tags';
+
+    /**
+     * Get the post identified by the opposite pivot key.
+     */
+    public function post(): BelongsTo
+    {
+        return $this->belongsTo(Post::class, 'tag_id');
     }
 }
