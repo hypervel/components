@@ -14,6 +14,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Enumerable;
 use Hypervel\Support\HigherOrderCollectionProxy;
+use Hypervel\Database\Eloquent\Casts\Json;
 use JsonException;
 use JsonSerializable;
 use Stringable;
@@ -965,7 +966,7 @@ trait EnumeratesValues
      */
     public function toJson(int $options = 0): string
     {
-        return json_encode($this->jsonSerialize(), $options | JSON_THROW_ON_ERROR);
+        return Json::encode($this->jsonSerialize(), $options | JSON_THROW_ON_ERROR);
     }
 
     /**
