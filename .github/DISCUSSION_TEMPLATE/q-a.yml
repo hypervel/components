@@ -3,29 +3,36 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for your interest in Hypervel! 🚀
+        You must read the [contribution guide](https://github.com/hypervel/components/blob/0.4/src/docs/contributions.md) in full before submitting. Provide a clear title and enough context for someone else to answer. Incomplete or ineligible submissions will be closed without a detailed review.
 
-        To maintain a high-quality experience for all users, please follow these guidelines when submitting your question:
+        Use Q&A for support and questions about unclear upstream sync status. Use [Ideas](https://github.com/hypervel/components/discussions/categories/ideas) for new Hypervel-specific features, and issue forms for reproducible bugs or eligible missing upstream functionality. Report suspected security vulnerabilities privately to albert@hypervel.org.
   - type: checkboxes
     id: checks
     attributes:
-      label: Check List
-      description: Please confirm and check all the following options.
+      label: Before submitting
       options:
-        - label: Provide a clear title and detailed description of your question.
+        - label: I have read the contribution guide in full and this question belongs in Q&A.
           required: true
         - label: I have searched the existing discussions and documentation to see if my question has already been answered.
           required: true
-        - label: Include any relevant code snippets or examples to help us understand your question better.
-          required: true
-        - label: We encourage you to help others in the community by answering questions or providing feedback on existing discussions. This helps us build a strong and supportive community around Hypervel.
-          required: true
-        - label: Please be respectful and considerate in your interactions with others in the community.
-          required: true
-        - label: Any questions labeled `not enough info` will be ignored and closed after 3 days.
-          required: true
   - type: textarea
-    id: content
+    id: question
     attributes:
-      label: Content
-      description: Ask your question here. Please provide **AS MUCH DETAIL AS POSSIBLE** to help us understand your question.
+      label: Question and context
+      description: Explain what you are trying to achieve and the specific question you need answered. For upstream sync questions, link the package and its tracker entry if one exists.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Relevant versions and code
+      description: Include relevant Hypervel, PHP, Swoole, and service versions, code snippets, and error output. Remove secrets. For a conceptual question, explain why runtime details do not apply.
+    validations:
+      required: true
+  - type: textarea
+    id: investigation
+    attributes:
+      label: What you have tried and consulted
+      description: Explain what you tried and what happened. Link the documentation or existing discussions you checked and explain what remains unclear.
+    validations:
+      required: true

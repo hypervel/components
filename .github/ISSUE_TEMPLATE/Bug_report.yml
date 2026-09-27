@@ -1,39 +1,85 @@
-name: Bug Report
-description: "Report something that's broken."
+name: Bug report
+description: Report a reproducible failure in supported Hypervel behavior.
+labels: [bug]
 body:
   - type: markdown
     attributes:
-      value: "Please read [our full contribution guide](https://hypervel.org/docs/contributions#bug-reports) before submitting bug reports. If you notice improper DocBlock, PHPStan, or IDE warnings while using Hypervel, do not create a GitHub issue. Instead, please submit a pull request to fix the problem."
-  - type: input
+      value: |
+        You must read the [contribution guide](https://github.com/hypervel/components/blob/0.4/src/docs/contributions.md) in full before submitting. Incomplete or ineligible reports will be closed without a detailed review.
+
+        Use Discussions for support and feature proposals, and the separate form for missing upstream functionality. Submit DocBlock, PHPStan, and IDE warning corrections as pull requests. Report suspected security vulnerabilities privately to albert@hypervel.org.
+  - type: checkboxes
+    id: requirements
     attributes:
-      label: PHP Version
+      label: Before submitting
+      options:
+        - label: I have read the contribution guide in full and this report meets its requirements.
+          required: true
+        - label: I have searched existing issues and discussions for this problem.
+          required: true
+        - label: I have run the reproduction below and verified the reported failure.
+          required: true
+  - type: input
+    id: package-version
+    attributes:
+      label: Hypervel package and version
+      description: Give the affected package names and exact installed versions or commit SHAs, not just a branch name.
+    validations:
+      required: true
+  - type: input
+    id: php-version
+    attributes:
+      label: PHP version
       description: Provide the PHP version that you are using.
       placeholder: 8.4.3
     validations:
       required: true
   - type: input
+    id: swoole-version
     attributes:
-      label: Swoole Extension Version
-      description: Provide the Swoole extension version that you are using (You can get it by running `php --ri swoole`).
-      placeholder: 5.1.6
+      label: Swoole version
+      description: Run php --ri swoole, or explicitly state that Swoole is not installed.
     validations:
       required: true
-  - type: input
-    attributes:
-      label: Database Driver & Version
-      description: If applicable, provide the database driver and version you are using.
-      placeholder: "MySQL 8.0.31 for macOS 13.0 on arm64 (Homebrew)"
-    validations:
-      required: false
   - type: textarea
+    id: environment
+    attributes:
+      label: Relevant environment
+      description: Include your operating system and relevant database drivers, service versions, and configuration. State explicitly if no external services are involved. Remove credentials and other secrets.
+    validations:
+      required: true
+  - type: textarea
+    id: description
     attributes:
       label: Description
-      description: Provide a **DETAILED DESCRIPTION** of the issue you are facing. (Any issues labeled `not enough info` will be ignored and closed after 3 days.)
+      description: Describe the demonstrated failure in supported usage and its effect.
     validations:
       required: true
   - type: textarea
+    id: reproduction
     attributes:
-      label: Steps To Reproduce
-      description: Provide detailed steps to reproduce your issue. If necessary, please provide a GitHub repository to demonstrate your issue.
+      label: Minimal reproduction
+      description: Provide a failing test, a self-contained code example, or a public reproduction repository. Include the setup needed to run it.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Give the exact steps and commands that reproduce the failure.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: Explain the expected result and link the relevant API documentation when available.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the actual result and relevant error output or stack trace as text. State if no error is raised, and remove secrets.
     validations:
       required: true

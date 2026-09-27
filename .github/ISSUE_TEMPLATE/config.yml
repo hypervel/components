@@ -1,11 +1,17 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Feature Request
-    url: https://github.com/hypervel/components/discussions
-    about: 'For ideas or feature requests, start a new discussion.'
-  - name: Support Questions & Others
-    url: https://github.com/hypervel/components/discussions
-    about: 'This repository is only for reporting bugs. If you have a question or need help using the library, click:'
-  - name: Documentation Issues
-    url: https://github.com/hypervel/hypervel.org
-    about: For documentation issues, open a pull request at the hypervel.org repository.
+  - name: Contribution guide — read before submitting
+    url: https://github.com/hypervel/components/blob/0.4/src/docs/contributions.md
+    about: Read the full guide and follow its eligibility, evidence, testing, and review requirements.
+  - name: Hypervel-specific feature proposal
+    url: https://github.com/hypervel/components/discussions/categories/ideas
+    about: Propose the feature in a discussion and obtain explicit maintainer approval before opening a pull request.
+  - name: Support or unclear upstream sync status
+    url: https://github.com/hypervel/components/discussions/categories/q-a
+    about: Ask for help here, including when an upstream package has no recorded checked_through commit.
+  - name: Documentation correction
+    url: https://github.com/hypervel/components/blob/0.4/src/docs/contributions.md#pull-request-requirements
+    about: Submit a pull request to this repository for incorrect or missing guidance in src/docs.
+  - name: Security vulnerability
+    url: https://github.com/hypervel/components/blob/0.4/src/docs/contributions.md#security-vulnerabilities
+    about: Report vulnerabilities privately to albert@hypervel.org. Do not open a public issue.

@@ -1,0 +1,59 @@
+name: Missing upstream functionality
+description: Report existing Laravel or third-party functionality that Hypervel may have missed.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        You must read the [contribution guide](https://github.com/hypervel/components/blob/0.4/src/docs/contributions.md) in full before submitting. Incomplete or ineligible reports will be closed without a detailed review.
+
+        The Hypervel team handles ports and upstream synchronization. Do not submit a porting pull request. This form covers Laravel and third-party packages Hypervel tracks, including Saloon, Data, and Permission.
+
+        Check the affected package's README and documentation, the [sync tracker](https://github.com/hypervel/components/blob/0.4/docs/upstream-sync/sync.yaml), and [deferred work](https://github.com/hypervel/components/blob/0.4/docs/todo.md). Use the upstream branch and checked_through commit, not the last_reviewed_pr number. If the entry is absent or checked_through is null, ask in [Q&A](https://github.com/hypervel/components/discussions/categories/q-a) first. Changes newer than the recorded commit await the next sync.
+  - type: checkboxes
+    id: requirements
+    attributes:
+      label: Before submitting
+      options:
+        - label: I have read the contribution guide in full and this report meets its requirements.
+          required: true
+        - label: I have checked existing issues, documented differences, and deferred work; this is not already tracked or intentionally omitted.
+          required: true
+        - label: I have verified that the functionality exists at the recorded checked_through commit on the tracked upstream branch.
+          required: true
+        - label: I have run the example below and verified that the behavior is missing from the stated Hypervel version.
+          required: true
+  - type: input
+    id: package-version
+    attributes:
+      label: Hypervel package and version
+      description: Give the affected package and exact installed version or commit SHA.
+    validations:
+      required: true
+  - type: textarea
+    id: upstream
+    attributes:
+      label: Upstream references
+      description: Link the owning repository, implementation or introducing pull request, and relevant documentation. Include the introducing release or commit.
+    validations:
+      required: true
+  - type: textarea
+    id: sync-record
+    attributes:
+      label: Sync record and comparison
+      description: Give the tracker entry, upstream branch, and full checked_through SHA. Link the implementation at that commit or a comparison showing it already contained the functionality.
+    validations:
+      required: true
+  - type: textarea
+    id: missing-behavior
+    attributes:
+      label: Missing behavior
+      description: Describe the upstream behavior, what Hypervel currently does, and why this is not a documented intentional difference.
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Minimal example and reproduction steps
+      description: Provide runnable code or a public reproduction repository, the relevant environment, and exact setup and execution commands. Include the expected and actual results. Remove secrets.
+    validations:
+      required: true

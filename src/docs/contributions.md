@@ -3,7 +3,7 @@
 - [Accepted Contributions](#accepted-contributions)
 - [Bug Reports](#bug-reports)
 - [Support Questions](#support-questions)
-- [Porting Laravel Functionality](#porting-laravel-functionality)
+- [Missing Upstream Functionality](#missing-upstream-functionality)
 - [Pull Request Requirements](#pull-request-requirements)
 - [Automated Reviews](#automated-reviews)
 - [Which Branch?](#which-branch)
@@ -23,8 +23,8 @@ Hypervel closely tracks Laravel's public APIs and behavior. To keep the project 
 
 <div class="content-list" markdown="1">
 
-- **Laravel features and API changes:** Except for bug fixes and performance improvements, new features or changes to Laravel's APIs or behavior must come from Laravel upstream. Submit a pull request to Laravel first. If accepted upstream, the Hypervel team will assess it for inclusion through the upstream sync process. The team handles [Laravel ports and upstream synchronization](#porting-laravel-functionality); do not submit pull requests for this work.
-- **Bug fixes and performance improvements:** These can be submitted directly to Hypervel, even when the same issue exists in Laravel. You do not need to wait for Laravel to accept or fix it.
+- **Upstream features and API changes:** Except for bug fixes and performance improvements, new features or changes to APIs and behavior inherited from Laravel or another upstream package must come from that upstream project. Submit a pull request to the owning project first. If accepted upstream, the Hypervel team will assess it for inclusion through the upstream sync process. The team handles [ports and upstream synchronization](#missing-upstream-functionality); do not submit pull requests for this work.
+- **Bug fixes and performance improvements:** These can be submitted directly to Hypervel, even when the same issue exists in Laravel or another upstream package. You do not need to wait for upstream to accept or fix it.
 - **New Hypervel-specific features:** These must first be proposed in [GitHub Discussions](https://github.com/hypervel/components/discussions). Wait for a maintainer to approve the proposal before opening a pull request.
 
 </div>
@@ -64,6 +64,10 @@ Search existing issues and discussions before opening a report. If the same issu
 
 Reports that lack the required information will be closed until a complete reproduction is provided.
 
+If a maintainer requests additional information on an existing issue and applies the `not enough info` label, respond within 14 days. Issues without a reporter response will be closed with an explanation and can be reconsidered when the information is supplied. A response stops automatic closure while the maintainer assesses it. Issues are not closed merely because they are inactive.
+
+Maintainers must describe the information needed before applying the label. Remove and reapply it when requesting further information after a response. The `maintainer-directed` label exempts an issue from automatic closure.
+
 If you notice improper DocBlock, PHPStan, or IDE warnings while using Hypervel, do not create a GitHub issue. Instead, please submit a pull request to fix the problem.
 
 The Hypervel source code is managed on GitHub in the [hypervel/components](https://github.com/hypervel/components) repository.
@@ -71,18 +75,19 @@ The Hypervel source code is managed on GitHub in the [hypervel/components](https
 <a name="support-questions"></a>
 ## Support Questions
 
-Use GitHub issues for [bug reports](#bug-reports) and [potentially missed Laravel functionality](#porting-laravel-functionality). Use [GitHub Discussions](https://github.com/hypervel/components/discussions) for support questions, ideas, and Hypervel-specific feature proposals. Before proposing a feature, read the [accepted contribution rules](#accepted-contributions).
+Use GitHub issues for [bug reports](#bug-reports) and [potentially missed upstream functionality](#missing-upstream-functionality). Use [GitHub Discussions](https://github.com/hypervel/components/discussions) for support questions, ideas, and Hypervel-specific feature proposals. Before proposing a feature, read the [accepted contribution rules](#accepted-contributions).
 
 <a name="porting-laravel-functionality"></a>
-## Porting Laravel Functionality
+<a name="missing-upstream-functionality"></a>
+## Missing Upstream Functionality
 
-The Hypervel team handles Laravel ports and upstream synchronization. Do not submit pull requests to port Laravel functionality or synchronize upstream changes. This restriction does not prevent direct contributions that fix bugs or improve performance, including defects shared with Laravel.
+The Hypervel team handles ports and upstream synchronization for Laravel and third-party packages, including Saloon and Spatie's Data and Permission packages. Do not submit pull requests to port upstream functionality or synchronize upstream changes. This restriction does not prevent direct contributions that fix bugs or improve performance, including defects shared with upstream.
 
-If you believe Hypervel has missed existing Laravel functionality, first check the affected package's README under `Differences From Laravel`, the [Laravel porting guide](/docs/{{version}}/porting-from-laravel), and the [upstream sync tracker](https://github.com/hypervel/components/blob/0.4/docs/upstream-sync/sync.yaml). The tracker records the upstream branch and commit reviewed through for each package. Recent Laravel changes may be awaiting the next sync. Intentionally omitted deprecated or legacy APIs, architectural incompatibilities, and features intentionally excluded from Hypervel's direction are not missing functionality.
+If you believe Hypervel has missed existing upstream functionality, first check the affected package's README and documentation for its upstream reference and intentional differences, and the [upstream sync tracker](https://github.com/hypervel/components/blob/0.4/docs/upstream-sync/sync.yaml). For Laravel functionality, also check the [Laravel porting guide](/docs/{{version}}/porting-from-laravel). The tracker records the upstream branch and commit reviewed through for each package. Recent upstream changes may be awaiting the next sync. Intentionally omitted deprecated or legacy APIs, architectural incompatibilities, and features intentionally excluded from Hypervel's direction are not missing functionality.
 
-If no completed sync is recorded for the affected upstream package, ask in [GitHub Discussions](https://github.com/hypervel/components/discussions) before opening a missing-functionality issue. A null `checked_through` entry is not evidence that a feature was missed.
+If the upstream package has no tracker entry or its `checked_through` value is null, ask in [GitHub Discussions](https://github.com/hypervel/components/discussions/categories/q-a) before opening a missing-functionality issue. An absent record is not evidence that a feature was missed.
 
-If the functionality was already present at the recorded commit and is not an intentional omission, open an issue. Include links to the Laravel implementation and relevant documentation, describe the missing behavior, and provide a minimal example demonstrating it. Search existing issues and [tracked deferred work](https://github.com/hypervel/components/blob/0.4/docs/todo.md) first; a reviewed checkpoint does not mean every upstream change has been ported. The team will assess whether the functionality was missed and handle any required port.
+If the functionality was already present at the recorded commit and is not an intentional omission, use the [missing upstream functionality form](https://github.com/hypervel/components/issues/new?template=missing-upstream-functionality.yml). Include the affected Hypervel package and version, links to the upstream implementation and relevant documentation, the recorded branch and `checked_through` commit, and a minimal example demonstrating the missing behavior. Search existing issues and [tracked deferred work](https://github.com/hypervel/components/blob/0.4/docs/todo.md) first; a reviewed commit does not mean every upstream change has been ported. The team will assess whether the functionality was missed and handle any required port.
 
 <a name="pull-request-requirements"></a>
 ## Pull Request Requirements
@@ -103,7 +108,9 @@ Every pull request must:
 
 Keep unrelated changes in separate pull requests. Do not submit placeholders, unfinished implementations, or changes that depend on the maintainer completing the work. Complete the [required local checks](#quality-checks) before opening a code pull request.
 
-Mark the pull request ready for review only when it meets these requirements and you have addressed the [automated review findings](#automated-reviews). Draft pull requests are not reviewed. Drafts with no activity for seven days will be closed.
+Mark the pull request ready for review only when it meets these requirements and you have addressed the [automated review findings](#automated-reviews). Draft pull requests are not reviewed. External draft pull requests with no contributor activity for seven days will be closed with an explanation. Pushes, edits, and author replies count as activity; bot comments do not. The timer starts when a pull request becomes a draft or is reopened, and existing drafts receive seven days from their first cleanup notice.
+
+Maintainer-authored and bot-authored pull requests are exempt from this draft cleanup. Maintainers must apply the `maintainer-directed` label to exempt other work they are directing. Ready-for-review pull requests are not closed for inactivity or failing CI.
 
 <a name="automated-reviews"></a>
 ## Automated Reviews

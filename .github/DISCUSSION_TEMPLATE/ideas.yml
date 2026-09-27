@@ -3,15 +3,47 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for your interest in Hypervel! 🚀
+        You must read the [contribution guide](https://github.com/hypervel/components/blob/0.4/src/docs/contributions.md) in full before submitting. Incomplete or ineligible submissions will be closed without a detailed review.
 
-        If you have an idea or suggestion for a new feature, the best way to make it happen is to do it yourself! 💪
-        We encourage you to contribute to Hypervel by submitting a pull request with your proposed changes.
-        Not all the ideas will be accepted due to the considerations of the complexity and maintenance, so you may open a discussion before implementing your idea to get feedback from the community and the maintainers.
+        Use this category to propose new Hypervel-specific features. Wait for explicit maintainer approval before opening a pull request; opening a discussion is not approval.
 
-        > For developers who want to port Laravel's packages to Hypervel, you can refer to this [guideline](https://hypervel.org/docs/packages-porting).
-  - type: textarea
-    id: content
+        General changes to Laravel or another upstream package belong in that upstream project first. The Hypervel team handles ports and synchronization. Report potentially [missing upstream functionality](https://github.com/hypervel/components/issues/new?template=missing-upstream-functionality.yml) through the issue form after checking the guide; use [Q&A](https://github.com/hypervel/components/discussions/categories/q-a) if the sync record is absent or null. Bug fixes and performance improvements can be submitted directly.
+  - type: checkboxes
+    id: requirements
     attributes:
-      label: Content
-      description: Please provide a detailed description of your idea or suggestion for a new feature. Include any relevant context, use cases, or examples to help us understand your proposal better.
+      label: Before submitting
+      options:
+        - label: I have read the contribution guide in full and searched existing discussions, issues, and documentation.
+          required: true
+        - label: This proposal is specific to Hypervel, rather than a general upstream feature or a request to port existing functionality.
+          required: true
+        - label: I will not open a feature pull request unless a maintainer explicitly approves this proposal.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and use case
+      description: Describe the concrete problem, who encounters it, and a realistic example.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Explain how the feature would work from a user's perspective. Include an API or usage example.
+    validations:
+      required: true
+  - type: textarea
+    id: hypervel-specific
+    attributes:
+      label: Why this belongs in Hypervel
+      description: Explain why the feature is specific to Hypervel and cannot be addressed by a general change to an upstream project.
+    validations:
+      required: true
+  - type: textarea
+    id: existing-options
+    attributes:
+      label: Existing options and tradeoffs
+      description: Describe the existing APIs or packages you considered, why they are insufficient, and the proposed feature's maintenance or performance costs.
+    validations:
+      required: true

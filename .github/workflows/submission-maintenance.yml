@@ -1,0 +1,71 @@
+name: submission maintenance
+
+on:
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Report intended actions without changing issues or pull requests
+        type: boolean
+        default: true
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited, converted_to_draft]
+  pull_request:
+    paths:
+      - '.github/scripts/submission-cleanup*'
+      - '.github/workflows/submission-maintenance.yml'
+  push:
+    branches: ['0.4']
+    paths:
+      - '.github/scripts/submission-cleanup*'
+      - '.github/workflows/submission-maintenance.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - run: node --test .github/scripts/submission-cleanup.test.cjs
+
+  cleanup:
+    if: >-
+      github.repository == 'hypervel/components' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'pull_request_target')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: submission-cleanup-${{ github.event.pull_request.number || 'sweep' }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      # The write-enabled job only loads scripts from the trusted default branch.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          CLEANUP_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        with:
+          script: |
+            const cleanup = require('./.github/scripts/submission-cleanup.cjs');
+            await cleanup({
+              github, context, core,
+              dryRun: process.env.CLEANUP_DRY_RUN === 'true',
+            });
