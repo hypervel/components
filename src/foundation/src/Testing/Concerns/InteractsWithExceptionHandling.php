@@ -11,6 +11,7 @@ use Hypervel\Support\Testing\Fakes\ExceptionHandlerFake;
 use Hypervel\Support\Traits\ReflectsClosures;
 use Hypervel\Testing\Assert;
 use Hypervel\Validation\ValidationException;
+use Psr\Log\LogLevel;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\HttpFoundation\Response;
@@ -91,8 +92,9 @@ trait InteractsWithExceptionHandling
              * Report or log an exception.
              *
              * @param array<array-key, mixed> $context
+             * @param null|LogLevel::* $level
              */
-            public function report(Throwable $e, array $context = []): void
+            public function report(Throwable $e, array $context = [], ?string $level = null): void
             {
             }
 

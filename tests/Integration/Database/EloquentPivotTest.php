@@ -8,6 +8,7 @@ use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
@@ -87,6 +88,25 @@ class EloquentPivotTest extends DatabaseTestCase
 
         $this->assertSame('active', $user->activeSubscriptions->first()->pivot->status);
         $this->assertSame('inactive', $user->inactiveSubscriptions->first()->pivot->status);
+    }
+
+    public function testPivotValueExpressionsAllowHydratingMatchingRows(): void
+    {
+        $user = PivotTestUser::forceCreate(['email' => 'taylor@hypervel.com']);
+        $active = PivotTestProject::forceCreate(['name' => 'Active Project']);
+        $inactive = PivotTestProject::forceCreate(['name' => 'Inactive Project']);
+
+        $user->activeSubscriptions()->attach($active);
+        $user->inactiveSubscriptions()->attach($inactive);
+
+        $projects = $user->belongsToMany(PivotTestProject::class, 'subscriptions', 'user_id', 'project_id')
+            ->withPivot('status')
+            ->withPivotValue(new Expression('upper(subscriptions.status)'), 'ACTIVE')
+            ->get();
+
+        $this->assertSame([$active->id], $projects->modelKeys());
+        $this->assertSame('active', $projects->sole()->pivot->status);
+        $this->assertFalse($projects->sole()->pivot->isDirty());
     }
 
     #[DataProvider('compoundKeyColumns')]

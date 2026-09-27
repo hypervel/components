@@ -57,6 +57,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
+use Psr\Log\LogLevel;
 use ReflectionProperty;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -2488,8 +2489,9 @@ class ShouldntRetryExceptionHandler implements ExceptionHandlerContract
      * Report or log an exception.
      *
      * @param array<array-key, mixed> $context
+     * @param null|LogLevel::* $level
      */
-    public function report(Throwable $e, array $context = []): void
+    public function report(Throwable $e, array $context = [], ?string $level = null): void
     {
     }
 

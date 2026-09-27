@@ -113,9 +113,11 @@ trait RequiresHashFieldExpiration
     }
 
     /**
-     * Flush all static state.
+     * Flush the memoized hash field expiration support check.
+     *
+     * Tests only. Resets the capability result shared by tests in this class.
      */
-    public static function flushState(): void
+    public static function flushHashFieldExpirationState(): void
     {
         self::$hashFieldExpirationSupported = null;
         self::$hashFieldExpirationSkipReason = '';

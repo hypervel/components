@@ -17,6 +17,7 @@ use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
 use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithDictionary;
 use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithPivotTable;
 use Hypervel\Database\MultipleRecordsFoundException;
+use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Pagination\Cursor;
@@ -77,32 +78,21 @@ class BelongsToMany extends Relation
     /**
      * The pivot table columns to retrieve.
      *
-     * @var array<Expression|string>
+     * @var array<string>
      */
     protected array $pivotColumns = [];
 
     /**
-     * Any pivot table restrictions for where clauses.
+     * The pivot table restrictions in their original order.
+     *
+     * @var list<array{string, array<int, mixed>}>
      */
-    protected array $pivotWheres = [];
-
-    /**
-     * Any pivot table restrictions for whereIn clauses.
-     */
-    protected array $pivotWhereIns = [];
-
-    /**
-     * Any pivot table restrictions for whereNull clauses.
-     */
-    protected array $pivotWhereNulls = [];
-
-    /**
-     * Any pivot table restrictions for whereBetween clauses.
-     */
-    protected array $pivotWhereBetweens = [];
+    protected array $pivotConstraints = [];
 
     /**
      * The default values for the pivot columns.
+     *
+     * @var list<array{column: Expression|string, value: mixed}>
      */
     protected array $pivotValues = [];
 
@@ -355,36 +345,93 @@ class BelongsToMany extends Relation
     /**
      * Set a where clause for a pivot table column.
      *
-     * @param Expression|string $column
+     * @param (Closure(Builder<TPivotModel>): mixed)|Expression|string $column
      * @return $this
      */
-    public function wherePivot(mixed $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
+    public function wherePivot(Closure|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
-        $this->pivotWheres[] = func_get_args();
+        if ($column instanceof Closure) {
+            $pivotQuery = (new ($this->getPivotClass()))
+                // Reuse the relation's held connection, including its read/write alias.
+                ->setConnection($this->getPivotConnection()->getNameWithReadWriteType())
+                ->setTable($this->table)
+                ->newQueryWithoutRelationships();
 
-        return $this->where($this->qualifyPivotColumn($column), $operator, $value, $boolean);
+            $column($pivotQuery);
+
+            return $this->addCompiledPivotConstraint(
+                $this->newPivotStatement()->addNestedWhereQuery($pivotQuery->getQuery(), $boolean)
+            );
+        }
+
+        return $this->addPivotConstraint('where', [$column, $operator, $value, $boolean]);
+    }
+
+    /**
+     * Apply and record a pivot restriction for subsequent pivot writes.
+     *
+     * @param array<int, mixed> $arguments
+     * @return $this
+     */
+    protected function addPivotConstraint(string $method, array $arguments): static
+    {
+        foreach ($arguments as $argument) {
+            if ($argument instanceof Closure || $argument instanceof QueryBuilder
+                || $argument instanceof Builder || $argument instanceof Relation) {
+                $arguments[0] = $this->qualifyPivotColumn($arguments[0]);
+
+                return $this->addCompiledPivotConstraint($this->newPivotStatement()->{$method}(...$arguments));
+            }
+        }
+
+        $this->pivotConstraints[] = [$method, $arguments];
+        $arguments[0] = $this->qualifyPivotColumn($arguments[0]);
+
+        $this->query->{$method}(...$arguments);
+
+        return $this;
+    }
+
+    /**
+     * Apply and record an already-built pivot predicate.
+     *
+     * @return $this
+     */
+    protected function addCompiledPivotConstraint(QueryBuilder $query): static
+    {
+        if ($query->wheres === []) {
+            return $this;
+        }
+
+        // Share the evaluated predicate without retaining closures or connections on hydrated pivots.
+        $arguments = [
+            substr($query->getGrammar()->compileWheres($query), strlen('where ')),
+            $query->getRawBindings()['where'],
+            $query->wheres[0]['boolean'],
+        ];
+
+        $this->pivotConstraints[] = ['whereRaw', $arguments];
+        $this->query->whereRaw(...$arguments);
+
+        return $this;
     }
 
     /**
      * Set a "where between" clause for a pivot table column.
      *
-     * @param Expression|string $column
      * @return $this
      */
-    public function wherePivotBetween(mixed $column, array $values, string $boolean = 'and', bool $not = false): static
+    public function wherePivotBetween(Expression|string $column, array $values, string $boolean = 'and', bool $not = false): static
     {
-        $this->pivotWhereBetweens[] = func_get_args();
-
-        return $this->whereBetween($this->qualifyPivotColumn($column), $values, $boolean, $not);
+        return $this->addPivotConstraint('whereBetween', [$column, $values, $boolean, $not]);
     }
 
     /**
      * Set a "or where between" clause for a pivot table column.
      *
-     * @param Expression|string $column
      * @return $this
      */
-    public function orWherePivotBetween(mixed $column, array $values): static
+    public function orWherePivotBetween(Expression|string $column, array $values): static
     {
         return $this->wherePivotBetween($column, $values, 'or');
     }
@@ -392,10 +439,9 @@ class BelongsToMany extends Relation
     /**
      * Set a "where pivot not between" clause for a pivot table column.
      *
-     * @param Expression|string $column
      * @return $this
      */
-    public function wherePivotNotBetween(mixed $column, array $values, string $boolean = 'and'): static
+    public function wherePivotNotBetween(Expression|string $column, array $values, string $boolean = 'and'): static
     {
         return $this->wherePivotBetween($column, $values, $boolean, true);
     }
@@ -403,10 +449,9 @@ class BelongsToMany extends Relation
     /**
      * Set a "or where not between" clause for a pivot table column.
      *
-     * @param Expression|string $column
      * @return $this
      */
-    public function orWherePivotNotBetween(mixed $column, array $values): static
+    public function orWherePivotNotBetween(Expression|string $column, array $values): static
     {
         return $this->wherePivotBetween($column, $values, 'or', true);
     }
@@ -414,23 +459,20 @@ class BelongsToMany extends Relation
     /**
      * Set a "where in" clause for a pivot table column.
      *
-     * @param Expression|string $column
      * @return $this
      */
-    public function wherePivotIn(mixed $column, mixed $values, string $boolean = 'and', bool $not = false): static
+    public function wherePivotIn(Expression|string $column, mixed $values, string $boolean = 'and', bool $not = false): static
     {
-        $this->pivotWhereIns[] = func_get_args();
-
-        return $this->whereIn($this->qualifyPivotColumn($column), $values, $boolean, $not);
+        return $this->addPivotConstraint('whereIn', [$column, $values, $boolean, $not]);
     }
 
     /**
      * Set an "or where" clause for a pivot table column.
      *
-     * @param Expression|string $column
+     * @param (Closure(Builder<TPivotModel>): mixed)|Expression|string $column
      * @return $this
      */
-    public function orWherePivot(mixed $column, mixed $operator = null, mixed $value = null): static
+    public function orWherePivot(Closure|Expression|string $column, mixed $operator = null, mixed $value = null): static
     {
         return $this->wherePivot($column, $operator, $value, 'or');
     }
@@ -440,12 +482,12 @@ class BelongsToMany extends Relation
      *
      * In addition, new pivot records will receive this value.
      *
-     * @param array<string, string>|Expression|string $column
+     * @param array<string, mixed>|Expression|string $column
      * @return $this
      *
      * @throws InvalidArgumentException
      */
-    public function withPivotValue(mixed $column, mixed $value = null): static
+    public function withPivotValue(array|Expression|string $column, mixed $value = null): static
     {
         if (is_array($column)) {
             foreach ($column as $name => $value) {
@@ -469,7 +511,7 @@ class BelongsToMany extends Relation
      *
      * @return $this
      */
-    public function orWherePivotIn(string $column, mixed $values): static
+    public function orWherePivotIn(Expression|string $column, mixed $values): static
     {
         return $this->wherePivotIn($column, $values, 'or');
     }
@@ -477,10 +519,9 @@ class BelongsToMany extends Relation
     /**
      * Set a "where not in" clause for a pivot table column.
      *
-     * @param Expression|string $column
      * @return $this
      */
-    public function wherePivotNotIn(mixed $column, mixed $values, string $boolean = 'and'): static
+    public function wherePivotNotIn(Expression|string $column, mixed $values, string $boolean = 'and'): static
     {
         return $this->wherePivotIn($column, $values, $boolean, true);
     }
@@ -490,7 +531,7 @@ class BelongsToMany extends Relation
      *
      * @return $this
      */
-    public function orWherePivotNotIn(string $column, mixed $values): static
+    public function orWherePivotNotIn(Expression|string $column, mixed $values): static
     {
         return $this->wherePivotNotIn($column, $values, 'or');
     }
@@ -498,23 +539,19 @@ class BelongsToMany extends Relation
     /**
      * Set a "where null" clause for a pivot table column.
      *
-     * @param Expression|string $column
      * @return $this
      */
-    public function wherePivotNull(mixed $column, string $boolean = 'and', bool $not = false): static
+    public function wherePivotNull(Expression|string $column, string $boolean = 'and', bool $not = false): static
     {
-        $this->pivotWhereNulls[] = func_get_args();
-
-        return $this->whereNull($this->qualifyPivotColumn($column), $boolean, $not);
+        return $this->addPivotConstraint('whereNull', [$column, $boolean, $not]);
     }
 
     /**
      * Set a "where not null" clause for a pivot table column.
      *
-     * @param Expression|string $column
      * @return $this
      */
-    public function wherePivotNotNull(mixed $column, string $boolean = 'and'): static
+    public function wherePivotNotNull(Expression|string $column, string $boolean = 'and'): static
     {
         return $this->wherePivotNull($column, $boolean, true);
     }
@@ -522,10 +559,9 @@ class BelongsToMany extends Relation
     /**
      * Set a "or where null" clause for a pivot table column.
      *
-     * @param Expression|string $column
      * @return $this
      */
-    public function orWherePivotNull(mixed $column, bool $not = false): static
+    public function orWherePivotNull(Expression|string $column, bool $not = false): static
     {
         return $this->wherePivotNull($column, 'or', $not);
     }
@@ -533,10 +569,9 @@ class BelongsToMany extends Relation
     /**
      * Set a "or where not null" clause for a pivot table column.
      *
-     * @param Expression|string $column
      * @return $this
      */
-    public function orWherePivotNotNull(mixed $column): static
+    public function orWherePivotNotNull(Expression|string $column): static
     {
         return $this->orWherePivotNull($column, true);
     }
@@ -544,11 +579,10 @@ class BelongsToMany extends Relation
     /**
      * Add an "order by" clause for a pivot table column.
      *
-     * @param Expression|string $column
      * @param 'asc'|'desc'|SortDirection $direction
      * @return $this
      */
-    public function orderByPivot(mixed $column, SortDirection|string $direction = SortDirection::Ascending): static
+    public function orderByPivot(Expression|string $column, SortDirection|string $direction = SortDirection::Ascending): static
     {
         return $this->orderBy($this->qualifyPivotColumn($column), $direction);
     }
@@ -556,10 +590,9 @@ class BelongsToMany extends Relation
     /**
      * Add an "order by desc" clause for a pivot table column.
      *
-     * @param Expression|string $column
      * @return $this
      */
-    public function orderByPivotDesc(mixed $column): static
+    public function orderByPivotDesc(Expression|string $column): static
     {
         return $this->orderBy($this->qualifyPivotColumn($column), SortDirection::Descending);
     }
@@ -1564,7 +1597,7 @@ class BelongsToMany extends Relation
     /**
      * Get the pivot columns for this relationship.
      *
-     * @return array<Expression|string>
+     * @return array<string>
      */
     public function getPivotColumns(): array
     {
@@ -1574,10 +1607,9 @@ class BelongsToMany extends Relation
     /**
      * Qualify the given column name by the pivot table.
      *
-     * @param Expression|string $column
-     * @return Expression|string
+     * @return ($column is string ? string : Expression)
      */
-    public function qualifyPivotColumn(mixed $column): mixed
+    public function qualifyPivotColumn(Expression|string $column): Expression|string
     {
         if ($this->query->getQuery()->getGrammar()->isExpression($column)) {
             return $column;

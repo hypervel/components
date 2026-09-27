@@ -42,6 +42,7 @@ use Hypervel\Tests\TestCase;
 use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Psr\Log\LogLevel;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Http\Request as SwooleRequest;
@@ -641,8 +642,9 @@ class RecordingExceptionHandler implements ExceptionHandler
      * Report or log an exception.
      *
      * @param array<array-key, mixed> $context
+     * @param null|LogLevel::* $level
      */
-    public function report(Throwable $e, array $context = []): void
+    public function report(Throwable $e, array $context = [], ?string $level = null): void
     {
         $this->reported[] = $e;
     }

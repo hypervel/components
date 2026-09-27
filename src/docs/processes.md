@@ -146,6 +146,8 @@ The `idleTimeout` method may be used to specify the maximum number of seconds th
 $result = Process::timeout(60)->idleTimeout(30)->run('bash import.sh');
 ```
 
+An idle timeout throws `Hypervel\Process\Exceptions\ProcessIdleTimedOutException`, a subclass of `ProcessTimedOutException`. Both exceptions provide an `exceededTimeout` method that returns the configured limit in seconds, and a `result` property containing the process output collected before the timeout.
+
 <a name="environment-variables"></a>
 #### Environment Variables
 
@@ -237,6 +239,8 @@ use Hypervel\Support\Facades\Process;
 
 $result = Process::quietly()->run('bash import.sh');
 ```
+
+The result's `output` and `errorOutput` methods return empty strings. You may still call `throw` to throw an exception when the process fails.
 
 <a name="process-pipelines"></a>
 ### Pipelines
@@ -499,6 +503,14 @@ $results = $pool->wait();
 echo $results[0]->output();
 ```
 
+You may also iterate over a started pool or its results using `foreach`. Both preserve the keys assigned to the processes:
+
+```php
+foreach ($results as $key => $result) {
+    echo $result->output();
+}
+```
+
 The process pool results object also offers `successful` and `failed` methods which may be used to determine if the pool succeeded or failed. You may use the `collect` method to retrieve the results as a collection:
 
 ```php
@@ -735,6 +747,8 @@ Process::fake([
 ```
 
 Let's dig into the example above. The `id` method may be used to specify the process ID returned by the fake process. Using the `output` and `errorOutput` methods, we may specify multiple lines of output that will be returned in sequence. The `exitCode` method may be used to specify the final exit code of the fake process. Finally, the `runsFor` method may be used to specify how many times the `running` method should return `true`. The `iterations` method may also be used as an alias for `runsFor`.
+
+If your code stops a fake process, the process will no longer be running and the `stop` method will return the fake process's exit code.
 
 If your code sends a signal to an asynchronous process, you may use the `hasReceivedSignal` method to assert that the fake process received the signal:
 

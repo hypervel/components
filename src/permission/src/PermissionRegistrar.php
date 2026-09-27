@@ -2249,16 +2249,13 @@ class PermissionRegistrar
                 ->setRelatedModel($role);
 
             if ($context->partition) {
-                $pivot->setPivotConstraints(
-                    wheres: [[
+                $pivot->setPivotConstraints([
+                    ['where', [
                         $context->partition->column,
                         '=',
                         $context->partition->value,
                     ]],
-                    whereIns: [],
-                    whereNulls: [],
-                    whereBetweens: [],
-                );
+                ]);
             }
 
             $role->setRelation('pivot', $pivot);

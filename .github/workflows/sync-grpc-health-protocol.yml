@@ -2,7 +2,7 @@ name: synchronize gRPC health protocol
 
 on:
   schedule:
-    - cron: "0 1 * * 1"
+    - cron: "47 1 * * 1"
   workflow_dispatch:
 
 permissions:

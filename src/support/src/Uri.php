@@ -249,7 +249,7 @@ class Uri implements Htmlable, JsonSerializable, Responsable, BaseStringable
             $mergedQuery = $this->query()->all();
 
             foreach ($query as $key => $value) {
-                data_set($mergedQuery, $key, $value);
+                Arr::set($mergedQuery, $key, $value);
             }
 
             $newQuery = $mergedQuery;
@@ -257,7 +257,7 @@ class Uri implements Htmlable, JsonSerializable, Responsable, BaseStringable
             $newQuery = [];
 
             foreach ($query as $key => $value) {
-                data_set($newQuery, $key, $value);
+                Arr::set($newQuery, $key, $value);
             }
         }
 
@@ -285,7 +285,12 @@ class Uri implements Htmlable, JsonSerializable, Responsable, BaseStringable
      */
     public function pushOntoQuery(string $key, mixed $value): static
     {
-        $currentValue = data_get($this->query()->all(), $key);
+        $currentValue = $this->query()->all();
+
+        // Follow the same dotted path as withQuery without expanding wildcards.
+        foreach (explode('.', $key) as $segment) {
+            $currentValue = is_array($currentValue) ? ($currentValue[$segment] ?? null) : null;
+        }
 
         $values = Arr::wrap($value);
 

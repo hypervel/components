@@ -28,7 +28,6 @@ use Hypervel\Pagination\Cursor;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Support\CarbonImmutable;
-use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use UnitEnum;
@@ -2283,7 +2282,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('2017-11-14 08:23:19.000', $model->fromDateTime($model->getAttribute('created_at')));
     }
 
-    public function testTimestampsUsingOldSqlServerDateFormatFallbackToDefaultParsing()
+    public function testTimestampsUsingOldSqlServerDateFormatFallbackToDefaultParsing(): void
     {
         $model = new User;
         $model->setDateFormat('Y-m-d H:i:s.000'); // Old SQL Server date format
@@ -2296,8 +2295,8 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertSame('2017-11-14 08:23:19.000', $model->fromDateTime($date), 'the format should trims it');
         // No longer throwing exception since Laravel 7,
         // but Date::hasFormat() can be used instead to check date formatting:
-        $this->assertTrue(Date::hasFormat('2017-11-14 08:23:19.000', $model->getDateFormat()));
-        $this->assertFalse(Date::hasFormat('2017-11-14 08:23:19.734', $model->getDateFormat()));
+        $this->assertTrue(CarbonImmutable::hasFormat('2017-11-14 08:23:19.000', $model->getDateFormat()));
+        $this->assertFalse(CarbonImmutable::hasFormat('2017-11-14 08:23:19.734', $model->getDateFormat()));
     }
 
     public function testSpecialFormats(): void

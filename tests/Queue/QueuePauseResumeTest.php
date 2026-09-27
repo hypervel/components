@@ -18,7 +18,9 @@ use Hypervel\Queue\Events\QueuesResumed;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use UnitEnum;
 
 class QueuePauseResumeTest extends TestCase
 {
@@ -364,4 +366,50 @@ class QueuePauseResumeTest extends TestCase
         $this->assertSame(['database', 'notifications'], $parser->parse('database:notifications'));
         $this->assertSame(['redis', 'foo:bar'], $parser->parse('redis:foo:bar'));
     }
+
+    #[DataProvider('enumQueueProvider')]
+    public function testEnumsAreAccepted(UnitEnum $queue, UnitEnum $connection, string $queueName, string $connectionName): void
+    {
+        $this->manager->pause($queue, $connection);
+        $this->assertTrue($this->manager->isPaused($queueName, $connectionName));
+
+        $this->manager->resume($queue, $connection);
+        $this->assertFalse($this->manager->isPaused($queueName, $connectionName));
+
+        $this->manager->pauseFor($queue, 30, $connection);
+        $this->assertTrue($this->manager->isPaused($queueName, $connectionName));
+    }
+
+    /**
+     * Provide enum queue and connection identifiers.
+     */
+    public static function enumQueueProvider(): array
+    {
+        return [
+            'string backed' => [PauseQueueName::Emails, PauseQueueConnection::Redis, 'emails', 'redis'],
+            'integer zero' => [PauseQueueIntegerIdentifier::Zero, PauseQueueIntegerIdentifier::Zero, '0', '0'],
+            'unit' => [PauseQueueUnitIdentifier::Emails, PauseQueueUnitIdentifier::Redis, 'Emails', 'Redis'],
+        ];
+    }
+}
+
+enum PauseQueueConnection: string
+{
+    case Redis = 'redis';
+}
+
+enum PauseQueueName: string
+{
+    case Emails = 'emails';
+}
+
+enum PauseQueueIntegerIdentifier: int
+{
+    case Zero = 0;
+}
+
+enum PauseQueueUnitIdentifier
+{
+    case Emails;
+    case Redis;
 }

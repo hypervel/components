@@ -200,8 +200,10 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Pause a queue by its name and connection.
      */
-    public function pause(string $queue, ?string $connection = null): void
+    public function pause(UnitEnum|string $queue, UnitEnum|string|null $connection = null): void
     {
+        $queue = $queue instanceof UnitEnum ? (string) enum_value($queue) : $queue;
+        $connection = $connection instanceof UnitEnum ? (string) enum_value($connection) : $connection;
         $connection ??= $this->getDefaultDriver();
 
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
@@ -220,8 +222,10 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Pause a queue by its name and connection for a given amount of time.
      */
-    public function pauseFor(string $queue, DateInterval|DateTimeInterface|int $ttl, ?string $connection = null): void
+    public function pauseFor(UnitEnum|string $queue, DateInterval|DateTimeInterface|int $ttl, UnitEnum|string|null $connection = null): void
     {
+        $queue = $queue instanceof UnitEnum ? (string) enum_value($queue) : $queue;
+        $connection = $connection instanceof UnitEnum ? (string) enum_value($connection) : $connection;
         $connection ??= $this->getDefaultDriver();
 
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
@@ -258,8 +262,10 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Resume a paused queue by its name and connection.
      */
-    public function resume(string $queue, ?string $connection = null): void
+    public function resume(UnitEnum|string $queue, UnitEnum|string|null $connection = null): void
     {
+        $queue = $queue instanceof UnitEnum ? (string) enum_value($queue) : $queue;
+        $connection = $connection instanceof UnitEnum ? (string) enum_value($connection) : $connection;
         $connection ??= $this->getDefaultDriver();
 
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.

@@ -3987,7 +3987,7 @@ The `withQueryIfMissing` method may be used to merge additional query string par
 $uri = $uri->withQueryIfMissing(['page' => 1]);
 ```
 
-The `replaceQuery` method may be used to complete replace the existing query string with a new one:
+The `replaceQuery` method may be used to completely replace the existing query string with a new one:
 
 ```php
 $uri = $uri->replaceQuery(['page' => 1]);
@@ -4004,6 +4004,8 @@ The `withoutQuery` method may be used to remove parameters from the query string
 ```php
 $uri = $uri->withoutQuery(['page']);
 ```
+
+These mutation methods support dot notation for nested parameters and treat asterisks in keys literally. `$uri->query()->get()` treats asterisks as wildcards; use `$uri->query()->all()` to read a literal asterisk key.
 
 <a name="generating-responses-from-uris"></a>
 #### Generating Responses From URIs

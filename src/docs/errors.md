@@ -181,6 +181,14 @@ use Psr\Log\LogLevel;
 })
 ```
 
+To override the level for a single report, pass a `level` argument to `report`, `report_if`, or `report_unless`. This takes precedence over the level configured for the exception type:
+
+```php
+use Psr\Log\LogLevel;
+
+report($e, ['order_id' => $order->id], level: LogLevel::WARNING);
+```
+
 <a name="ignoring-exceptions-by-type"></a>
 ### Ignoring Exceptions by Type
 

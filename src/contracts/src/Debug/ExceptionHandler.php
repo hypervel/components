@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Contracts\Debug;
 
 use Hypervel\Http\Request;
+use Psr\Log\LogLevel;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
@@ -18,10 +19,11 @@ interface ExceptionHandler
      * Report or log an exception.
      *
      * @param array<array-key, mixed> $context
+     * @param null|LogLevel::* $level
      *
      * @throws Throwable
      */
-    public function report(Throwable $e, array $context = []): void;
+    public function report(Throwable $e, array $context = [], ?string $level = null): void;
 
     /**
      * Determine if the exception should be reported.

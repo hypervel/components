@@ -459,10 +459,11 @@ class Handler implements ExceptionHandlerContract
      * Report or log an exception.
      *
      * @param array<array-key, mixed> $context
+     * @param null|LogLevel::* $level
      *
      * @throws Throwable
      */
-    public function report(Throwable $e, array $context = []): void
+    public function report(Throwable $e, array $context = [], ?string $level = null): void
     {
         // Cancellation must not reach user-defined exception mappers.
         if ($e instanceof CanceledException) {
@@ -475,17 +476,18 @@ class Handler implements ExceptionHandlerContract
             return;
         }
 
-        $this->reportThrowable($e, $context);
+        $this->reportThrowable($e, $context, $level);
     }
 
     /**
      * Report error based on report method on exception or to logger.
      *
      * @param array<array-key, mixed> $context
+     * @param null|LogLevel::* $level
      *
      * @throws Throwable
      */
-    protected function reportThrowable(Throwable $e, array $context = []): void
+    protected function reportThrowable(Throwable $e, array $context = [], ?string $level = null): void
     {
         if ($this->withoutDuplicates) {
             $this->reportedException($e);
@@ -515,7 +517,7 @@ class Handler implements ExceptionHandlerContract
             throw $e;
         }
 
-        $level = $this->mapLogLevel($e);
+        $level ??= $this->mapLogLevel($e);
 
         $this->whileReporting($e, function () use ($logger, $level, $e, $context): void {
             method_exists($logger, $level)

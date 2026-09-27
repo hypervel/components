@@ -521,7 +521,16 @@ trait InteractsWithPivotTable
      */
     public function newPivot(array $attributes = [], bool $exists = false): Model
     {
-        $attributes = array_merge(array_column($this->pivotValues, 'value', 'column'), $attributes);
+        $defaults = [];
+
+        foreach ($this->pivotValues as $pivotValue) {
+            // Expression predicates have no attribute name to populate on the model.
+            if (is_string($pivotValue['column'])) {
+                $defaults[$pivotValue['column']] = $pivotValue['value'];
+            }
+        }
+
+        $attributes = array_merge($defaults, $attributes);
 
         /** @var Pivot $pivot */
         $pivot = $this->related->newPivot(
@@ -538,12 +547,7 @@ trait InteractsWithPivotTable
             ->setRelatedModel($this->related);
 
         if ($this->hasPivotConstraints()) {
-            $pivot->setPivotConstraints(
-                wheres: $this->pivotWheres,
-                whereIns: $this->pivotWhereIns,
-                whereNulls: $this->pivotWhereNulls,
-                whereBetweens: $this->pivotWhereBetweens,
-            );
+            $pivot->setPivotConstraints($this->pivotConstraints);
         }
 
         return $pivot;
@@ -590,20 +594,8 @@ trait InteractsWithPivotTable
 
         if ($this->hasPivotConstraints()) {
             $query->where(function (QueryBuilder $query): void {
-                foreach ($this->pivotWheres as $arguments) {
-                    $query->where(...$arguments);
-                }
-
-                foreach ($this->pivotWhereIns as $arguments) {
-                    $query->whereIn(...$arguments);
-                }
-
-                foreach ($this->pivotWhereNulls as $arguments) {
-                    $query->whereNull(...$arguments);
-                }
-
-                foreach ($this->pivotWhereBetweens as $arguments) {
-                    $query->whereBetween(...$arguments);
+                foreach ($this->pivotConstraints as [$method, $arguments]) {
+                    $query->{$method}(...$arguments);
                 }
             });
         }
@@ -616,10 +608,7 @@ trait InteractsWithPivotTable
      */
     protected function hasPivotConstraints(): bool
     {
-        return $this->pivotWheres !== []
-            || $this->pivotWhereIns !== []
-            || $this->pivotWhereNulls !== []
-            || $this->pivotWhereBetweens !== [];
+        return $this->pivotConstraints !== [];
     }
 
     /**

@@ -16,7 +16,7 @@ class RequiresHashFieldExpirationTest extends TestCase
 
         // Reset the trait's memoized static state on the subject class
         // so each test starts with a clean slate.
-        RequiresHashFieldExpirationTestSubject::flushState();
+        RequiresHashFieldExpirationTestSubject::flushHashFieldExpirationState();
     }
 
     public function testSkipsWhenPhpredisBelowMinimum(): void

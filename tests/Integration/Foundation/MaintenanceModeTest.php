@@ -411,7 +411,7 @@ class MaintenanceModeTest extends TestCase
         );
 
         $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($eventException, [])->andThrow($reportException);
+        $handler->shouldReceive('report')->once()->with($eventException, [], null)->andThrow($reportException);
         $this->app->instance(ExceptionHandler::class, $handler);
 
         $this->artisan(FailingReloadDownCommand::class)
@@ -486,7 +486,7 @@ class MaintenanceModeTest extends TestCase
         $this->app->instance(MaintenanceModeContract::class, $mode);
 
         $handler = m::mock(ExceptionHandler::class);
-        $handler->shouldReceive('report')->once()->with($exception, []);
+        $handler->shouldReceive('report')->once()->with($exception, [], null);
         $this->app->instance(ExceptionHandler::class, $handler);
 
         $this->artisan(UpCommand::class)

@@ -562,7 +562,7 @@ trait ValidatesAttributes
 
         // Keep this loop to avoid an extra callback per item.
         foreach ($parameters as $parameter) {
-            if (in_array($parameter, $value)) {
+            if (in_array($parameter, $value, true)) {
                 return false;
             }
         }
@@ -1527,7 +1527,7 @@ trait ValidatesAttributes
             return Str::is($parameters[0], $key);
         });
 
-        return in_array($value, $otherValues);
+        return in_array($value, $otherValues, true);
     }
 
     /**

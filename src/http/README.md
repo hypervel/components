@@ -15,6 +15,8 @@ Laravel's deprecated `Request::get()` method is intentionally not ported because
 
 Hypervel creates requests from Swoole's server request instead of `Request::capture()`. Responses are also emitted by Hypervel's server bridge rather than by calling `Response::sendContent()` directly.
 
+JSON:API resources load requested relationships before attribute callbacks run; default attributes exclude reserved fields and declared relationship names. See the [porting guide](https://hypervel.org/docs/porting-from-laravel#jsonapi-resources).
+
 Laravel's `Http::pool()` and `Http::batch()` APIs are intentionally not ported. They are built around Guzzle promise concurrency, while Hypervel uses Swoole coroutine-native concurrency through `parallel`, `Hypervel\Coroutine\Parallel`, and `defer`. See the [concurrent requests documentation](https://hypervel.org/docs/http-client#concurrent-requests).
 
 `TrustHosts` fails closed when no trusted host patterns resolve. If the middleware is enabled and no resolver, `at()` list, or valid `app.url` host provides a trusted pattern, Hypervel rejects all hosts using a never-matching sentinel. Laravel and Symfony leave the trusted host list empty in this case, which accepts every host. Configure a valid `app.url`, `TrustHosts::at()`, or `TrustHosts::resolveHostsUsing()` when enabling the middleware.

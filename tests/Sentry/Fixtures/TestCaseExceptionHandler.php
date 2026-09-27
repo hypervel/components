@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Sentry\Fixtures;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Http\Request;
 use Hypervel\Sentry\Integration;
+use Psr\Log\LogLevel;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
@@ -28,14 +29,15 @@ class TestCaseExceptionHandler implements ExceptionHandler
      * Report or log an exception.
      *
      * @param array<array-key, mixed> $context
+     * @param null|LogLevel::* $level
      *
      * @throws Throwable
      */
-    public function report(Throwable $e, array $context = []): void
+    public function report(Throwable $e, array $context = [], ?string $level = null): void
     {
         Integration::captureUnhandledException($e);
 
-        $this->handler->report($e, $context);
+        $this->handler->report($e, $context, $level);
     }
 
     /**

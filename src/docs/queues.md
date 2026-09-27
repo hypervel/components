@@ -3043,6 +3043,8 @@ Queue::getPausedQueues(['emails', 'notifications']);
 Queue::resume('emails');
 ```
 
+The `pause`, `pauseFor`, and `resume` methods also accept enums for queue and connection names.
+
 Queue workers report paused and resumed queues in their console output.
 
 Pausing or resuming a queue dispatches the `Hypervel\Queue\Events\QueuePaused` or `Hypervel\Queue\Events\QueueResumed` event in the process that made the change. Their `connection` and `queue` properties identify the queue, and the `QueuePaused` event's `ttl` property is `null` unless the queue was paused for a limited time. Pausing or resuming every queue with the `--all` option dispatches the `QueuesPaused` or `QueuesResumed` event instead. Running workers dispatch the `WorkerQueuePaused` and `WorkerQueueResumed` events, with `connectionName` and `queue` properties, when they detect that one of their queues has been paused or resumed.

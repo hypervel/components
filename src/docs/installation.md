@@ -21,6 +21,8 @@
 <a name="requirements"></a>
 ### Requirements
 
+Hypervel supports Linux and macOS. Windows developers should use [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install). Native Windows execution is not supported.
+
 Before creating your first Hypervel application, make sure that your local machine has [PHP](https://php.net), [Composer](https://getcomposer.org), and the Swoole PHP extension installed. In addition, you should install either [Node and NPM](https://nodejs.org) or [Bun](https://bun.sh/) so that you can compile your application's frontend assets.
 
 The Hypervel framework has a few system requirements:

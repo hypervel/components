@@ -4,12 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Process;
 
+use ArrayIterator;
 use Countable;
 use Hypervel\Contracts\Process\InvokedProcess;
 use Hypervel\Support\Collection;
+use IteratorAggregate;
 use Throwable;
+use Traversable;
 
-class InvokedProcessPool implements Countable
+/**
+ * @implements IteratorAggregate<int|string, InvokedProcess>
+ */
+class InvokedProcessPool implements Countable, IteratorAggregate
 {
     /**
      * Create a new invoked process pool.
@@ -110,5 +116,15 @@ class InvokedProcessPool implements Countable
     public function count(): int
     {
         return count($this->invokedProcesses);
+    }
+
+    /**
+     * Get an iterator for the invoked processes.
+     *
+     * @return ArrayIterator<int|string, InvokedProcess>
+     */
+    public function getIterator(): Traversable
+    {
+        return new ArrayIterator($this->invokedProcesses);
     }
 }

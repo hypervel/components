@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Validation;
 
 use Hypervel\Tests\TestCase;
+use Hypervel\Tests\Validation\Fixtures\ArrayKeys;
+use Hypervel\Tests\Validation\Fixtures\ArrayKeysBacked;
 use Hypervel\Tests\Validation\Fixtures\IntegerStatus;
-use Hypervel\Tests\Validation\Fixtures\PureEnum;
-use Hypervel\Tests\Validation\Fixtures\StringStatus;
 use Hypervel\Tests\Validation\Fixtures\Values;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
@@ -15,85 +15,54 @@ use Hypervel\Validation\Rule;
 use Hypervel\Validation\Rules\Contains;
 use Hypervel\Validation\Validator;
 
-class ValidationContainsRuleTest extends TestCase
+class ValidationRuleContainsTest extends TestCase
 {
-    public function testItCorrectlyFormatsAStringVersionOfTheRule()
+    public function testItCorrectlyFormatsAStringVersionOfTheRule(): void
     {
-        $rule = new Contains(['foo', 'bar']);
+        $rule = Rule::contains('Taylor');
+        $this->assertSame('contains:"Taylor"', (string) $rule);
 
+        $rule = Rule::contains('Taylor', 'Abigail');
+        $this->assertSame('contains:"Taylor","Abigail"', (string) $rule);
+
+        $rule = Rule::contains(['Taylor', 'Abigail']);
+        $this->assertSame('contains:"Taylor","Abigail"', (string) $rule);
+
+        $rule = Rule::contains(collect(['Taylor', 'Abigail']));
+        $this->assertSame('contains:"Taylor","Abigail"', (string) $rule);
+
+        $rule = Rule::contains([ArrayKeys::key_1, ArrayKeys::key_2]);
+        $this->assertSame('contains:"key_1","key_2"', (string) $rule);
+
+        $rule = Rule::contains([ArrayKeysBacked::Key1, ArrayKeysBacked::Key2]);
+        $this->assertSame('contains:"key_1","key_2"', (string) $rule);
+
+        $rule = Rule::contains(['Taylor', 'Taylor']);
+        $this->assertSame('contains:"Taylor","Taylor"', (string) $rule);
+
+        $rule = Rule::contains([1, 2, 3]);
+        $this->assertSame('contains:"1","2","3"', (string) $rule);
+
+        $rule = Rule::contains(['"foo"', '"bar"', '"baz"']);
+        $this->assertSame('contains:"""foo""","""bar""","""baz"""', (string) $rule);
+
+        $rule = Rule::contains(new Values);
+        $this->assertSame('contains:"1","2","3","4"', (string) $rule);
+
+        $rule = new Contains(['foo', 'bar']);
         $this->assertSame('contains:"foo","bar"', (string) $rule);
 
         $rule = new Contains(collect(['foo', 'bar']));
-
         $this->assertSame('contains:"foo","bar"', (string) $rule);
-
-        $rule = new Contains(['value with "quotes"']);
-
-        $this->assertSame('contains:"value with ""quotes"""', (string) $rule);
-
-        $rule = Rule::contains(['foo', 'bar']);
-
-        $this->assertSame('contains:"foo","bar"', (string) $rule);
-
-        $rule = Rule::contains(collect([1, 2, 3]));
-
-        $this->assertSame('contains:"1","2","3"', (string) $rule);
-
-        $rule = Rule::contains(new Values);
-
-        $this->assertSame('contains:"1","2","3","4"', (string) $rule);
-
-        $rule = Rule::contains('foo', 'bar', 'baz');
-
-        $this->assertSame('contains:"foo","bar","baz"', (string) $rule);
 
         $rule = new Contains('foo', 'bar', 'baz');
-
         $this->assertSame('contains:"foo","bar","baz"', (string) $rule);
 
-        $rule = Rule::contains([StringStatus::Done]);
-
-        $this->assertSame('contains:"done"', (string) $rule);
-
         $rule = Rule::contains([IntegerStatus::Done]);
-
         $this->assertSame('contains:"2"', (string) $rule);
-
-        $rule = Rule::contains([PureEnum::one]);
-
-        $this->assertSame('contains:"one"', (string) $rule);
     }
 
-    public function testContainsRuleValidation()
-    {
-        $trans = new Translator(new ArrayLoader, 'en');
-
-        // Array contains the required value
-        $v = new Validator($trans, ['x' => ['foo', 'bar', 'baz']], ['x' => Rule::contains('foo')]);
-        $this->assertTrue($v->passes());
-
-        // Array contains multiple required values
-        $v = new Validator($trans, ['x' => ['foo', 'bar', 'baz']], ['x' => Rule::contains('foo', 'bar')]);
-        $this->assertTrue($v->passes());
-
-        // Array missing a required value
-        $v = new Validator($trans, ['x' => ['foo', 'bar']], ['x' => Rule::contains('baz')]);
-        $this->assertFalse($v->passes());
-
-        // Array missing one of multiple required values
-        $v = new Validator($trans, ['x' => ['foo', 'bar']], ['x' => Rule::contains('foo', 'qux')]);
-        $this->assertFalse($v->passes());
-
-        // Non-array value fails
-        $v = new Validator($trans, ['x' => 'foo'], ['x' => Rule::contains('foo')]);
-        $this->assertFalse($v->passes());
-
-        // Combined with other rules
-        $v = new Validator($trans, ['x' => ['foo', 'bar']], ['x' => ['required', 'array', Rule::contains('foo')]]);
-        $this->assertTrue($v->passes());
-    }
-
-    public function testContainsValidation()
+    public function testContainsValidation(): void
     {
         $trans = new Translator(new ArrayLoader, 'en');
 
@@ -135,6 +104,10 @@ class ValidationContainsRuleTest extends TestCase
 
         // Test with nullable field
         $v = new Validator($trans, ['roles' => null], ['roles' => ['nullable', Rule::contains('admin')]]);
+        $this->assertTrue($v->passes());
+
+        // Combined with other rules
+        $v = new Validator($trans, ['roles' => ['admin', 'user']], ['roles' => ['required', 'array', Rule::contains('admin')]]);
         $this->assertTrue($v->passes());
     }
 }

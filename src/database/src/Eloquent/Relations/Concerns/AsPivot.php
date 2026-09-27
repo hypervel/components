@@ -34,12 +34,7 @@ trait AsPivot
     /**
      * The relation-owned predicates that identify this pivot row.
      *
-     * @var null|array{
-     *     wheres: array<int, array<int, mixed>>,
-     *     whereIns: array<int, array<int, mixed>>,
-     *     whereNulls: array<int, array<int, mixed>>,
-     *     whereBetweens: array<int, array<int, mixed>>
-     * }
+     * @var null|list<array{string, array<int, mixed>}>
      */
     protected ?array $pivotConstraints = null;
 
@@ -170,20 +165,8 @@ trait AsPivot
         }
 
         return $query->where(function (Builder $query): void {
-            foreach ($this->pivotConstraints['wheres'] as $arguments) {
-                $query->where(...$arguments);
-            }
-
-            foreach ($this->pivotConstraints['whereIns'] as $arguments) {
-                $query->whereIn(...$arguments);
-            }
-
-            foreach ($this->pivotConstraints['whereNulls'] as $arguments) {
-                $query->whereNull(...$arguments);
-            }
-
-            foreach ($this->pivotConstraints['whereBetweens'] as $arguments) {
-                $query->whereBetween(...$arguments);
+            foreach ($this->pivotConstraints as [$method, $arguments]) {
+                $query->{$method}(...$arguments);
             }
         });
     }
@@ -261,19 +244,12 @@ trait AsPivot
     /**
      * Set the relation-owned predicates for the pivot model.
      *
-     * @param array<int, array<int, mixed>> $wheres
-     * @param array<int, array<int, mixed>> $whereIns
-     * @param array<int, array<int, mixed>> $whereNulls
-     * @param array<int, array<int, mixed>> $whereBetweens
+     * @param list<array{string, array<int, mixed>}> $constraints
      * @return $this
      */
-    public function setPivotConstraints(
-        array $wheres,
-        array $whereIns,
-        array $whereNulls,
-        array $whereBetweens,
-    ): static {
-        $this->pivotConstraints = compact('wheres', 'whereIns', 'whereNulls', 'whereBetweens');
+    public function setPivotConstraints(array $constraints): static
+    {
+        $this->pivotConstraints = $constraints;
 
         return $this;
     }

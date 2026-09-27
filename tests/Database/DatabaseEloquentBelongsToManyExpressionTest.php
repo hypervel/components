@@ -13,6 +13,7 @@ use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class DatabaseEloquentBelongsToManyExpressionTest extends TestCase
 {
@@ -49,14 +50,20 @@ class DatabaseEloquentBelongsToManyExpressionTest extends TestCase
         $this->assertEquals(2, $tags->first()->getKey());
     }
 
-    public function testQualifiedColumnExpression(): void
+    #[TestWith(['wherePivotNotIn', ['2_t2']])]
+    #[TestWith(['orWherePivotNotIn', ['1_t1', '2_t2']])]
+    #[TestWith(['orWherePivotIn', ['3_t3']])]
+    public function testQualifiedColumnExpression(string $method, array $values): void
     {
         $this->seedData();
 
-        $tags = Post::findOrFail(2)
-            ->tags()
-            ->wherePivotNotIn(new Expression("taggables.tag_id || '_' || taggables.type"), ['2_t2'])
-            ->get();
+        $relation = Post::findOrFail(2)->tags();
+
+        if (str_starts_with($method, 'or')) {
+            $relation->wherePivot('tag_id', 0);
+        }
+
+        $tags = $relation->{$method}(new Expression("taggables.tag_id || '_' || taggables.type"), $values)->get();
 
         $this->assertCount(1, $tags);
         $this->assertEquals(3, $tags->first()->getKey());
