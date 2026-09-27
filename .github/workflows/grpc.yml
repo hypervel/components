@@ -9,9 +9,6 @@ on:
 permissions:
   contents: read
 
-env:
-  RUN_BLOCKING_TESTS: true
-
 jobs:
   grpc:
     runs-on: ubuntu-latest
