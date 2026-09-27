@@ -45,10 +45,12 @@ trait BuildsQueries
             throw new InvalidArgumentException('The chunk size should be at least 1');
         }
 
-        $this->enforceOrderBy();
+        $clone = clone $this;
 
-        $skip = $this->getOffset();
-        $remaining = $this->getLimit();
+        $clone->enforceOrderBy();
+
+        $skip = $clone->getOffset();
+        $remaining = $clone->getLimit();
 
         $page = 1;
 
@@ -61,7 +63,7 @@ trait BuildsQueries
                 break;
             }
 
-            $results = $this->offset($offset)->limit($limit)->get();
+            $results = $clone->offset($offset)->limit($limit)->get();
 
             $countResults = $results->count();
 
@@ -246,12 +248,14 @@ trait BuildsQueries
             throw new InvalidArgumentException('The chunk size should be at least 1');
         }
 
-        $this->enforceOrderBy();
-
         $skip = $this->getOffset();
         $remaining = $this->getLimit();
 
         return new LazyCollection(function () use ($chunkSize, $skip, $remaining): Generator {
+            $clone = clone $this;
+
+            $clone->enforceOrderBy();
+
             $page = 1;
 
             while (true) {
@@ -263,7 +267,7 @@ trait BuildsQueries
                     return;
                 }
 
-                $results = $this->offset($offset)->limit($limit)->get();
+                $results = $clone->offset($offset)->limit($limit)->get();
 
                 foreach ($results as $result) {
                     yield $result;

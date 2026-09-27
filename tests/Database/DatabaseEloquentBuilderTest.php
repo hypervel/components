@@ -614,6 +614,36 @@ class DatabaseEloquentBuilderTest extends TestCase
         }
     }
 
+    public function testChunkDoesNotMutateTheOriginalBuilder(): void
+    {
+        $model = new Stub;
+
+        $connection = $this->mockConnectionForModel($model, '');
+        $connection->shouldReceive('getName')->andReturn('default');
+        $connection->shouldReceive('getWritableName')->andReturn('default');
+        $connection->shouldReceive('select')->andReturn(
+            [(object) ['id' => 1], (object) ['id' => 2]],
+            [(object) ['id' => 3]],
+            [(object) ['id' => 1], (object) ['id' => 2]],
+            [(object) ['id' => 3]],
+        );
+
+        $builder = $model->newQuery();
+
+        $builder->chunk(2, fn (Collection $results): bool => true);
+
+        $this->assertNull($builder->getQuery()->offset);
+        $this->assertNull($builder->getQuery()->limit);
+        $this->assertEmpty($builder->getQuery()->orders);
+
+        $results = [];
+        $builder->chunk(2, function (Collection $chunk) use (&$results): void {
+            $results = array_merge($results, $chunk->pluck('id')->all());
+        });
+
+        $this->assertSame([1, 2, 3], $results);
+    }
+
     public function testLazyWithLastChunkComplete(): void
     {
         $builder = m::mock(Builder::class . '[getOffset,getLimit,offset,limit,get]', [$this->getMockQueryBuilder()]);
@@ -670,6 +700,31 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->expects('get')->andReturn(new Collection(['foo1', 'foo2']));
 
         $this->assertEquals(['foo1', 'foo2'], $builder->lazy(2)->take(2)->all());
+    }
+
+    public function testLazyDoesNotMutateTheOriginalBuilder(): void
+    {
+        $model = new Stub;
+
+        $connection = $this->mockConnectionForModel($model, '');
+        $connection->shouldReceive('getName')->andReturn('default');
+        $connection->shouldReceive('getWritableName')->andReturn('default');
+        $connection->shouldReceive('select')->andReturn(
+            [(object) ['id' => 1], (object) ['id' => 2]],
+            [(object) ['id' => 3]],
+            [(object) ['id' => 1], (object) ['id' => 2]],
+            [(object) ['id' => 3]],
+        );
+
+        $builder = $model->newQuery();
+
+        $builder->lazy(2)->all();
+
+        $this->assertNull($builder->getQuery()->offset);
+        $this->assertNull($builder->getQuery()->limit);
+        $this->assertEmpty($builder->getQuery()->orders);
+
+        $this->assertSame([1, 2, 3], $builder->lazy(2)->pluck('id')->all());
     }
 
     public function testLazyByIdWithLastChunkComplete(): void
