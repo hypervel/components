@@ -117,6 +117,20 @@ class FilesystemManagerTest extends TestCase
         ]));
     }
 
+    public function testConfiguredOndemandDiskNameIsReserved(): void
+    {
+        $filesystem = new FilesystemManager($this->getContainer([
+            'disks' => [
+                'ondemand' => ['driver' => 'local', 'root' => $this->tempDir],
+            ],
+        ]));
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The disk name [ondemand] is reserved for on-demand disk fakes. Rename the configured disk.');
+
+        $filesystem->disk('ondemand');
+    }
+
     public function testCanBuildReadOnlyDisks(): void
     {
         $filesystem = new FilesystemManager($this->getContainer());
@@ -1198,9 +1212,7 @@ class FilesystemManagerTest extends TestCase
             'driver' => 'custom',
             'root' => $this->tempDir . '/custom-names',
         ];
-        $container = $this->getContainer([
-            'disks' => ['ondemand' => $config],
-        ]);
+        $container = $this->getContainer();
         $received = [];
         $manager = new FilesystemManager($container);
         $manager->extend('custom', function (Container $app, array $config, ?string $name) use (&$received): FilesystemAdapter {
@@ -1212,7 +1224,7 @@ class FilesystemManagerTest extends TestCase
 
         $manager->build($config);
         $manager->build($config, 'uploads');
-        $manager->disk('ondemand');
+        $manager->build($config, 'ondemand');
 
         $this->assertSame([null, 'uploads', 'ondemand'], $received);
     }
@@ -1249,7 +1261,6 @@ class FilesystemManagerTest extends TestCase
             'disks' => [
                 'first' => $config,
                 'second' => $config,
-                'ondemand' => $config,
             ],
         ]);
         Container::setInstance($container);
@@ -1264,15 +1275,15 @@ class FilesystemManagerTest extends TestCase
         $first = $manager->disk('first');
         $second = $manager->disk('second');
         $anonymous = $manager->build($config);
-        $configuredOndemand = $manager->disk('ondemand');
+        $namedOndemand = $manager->build($config, 'ondemand');
 
         $this->assertInstanceOf(FilesystemPoolProxy::class, $first);
         $this->assertNotSame($first->getPoolName(), $second->getPoolName());
-        $this->assertNotSame($anonymous->getPoolName(), $configuredOndemand->getPoolName());
+        $this->assertNotSame($anonymous->getPoolName(), $namedOndemand->getPoolName());
         $this->assertFalse($first->exists('missing.txt'));
         $this->assertFalse($second->exists('missing.txt'));
         $this->assertFalse($anonymous->exists('missing.txt'));
-        $this->assertFalse($configuredOndemand->exists('missing.txt'));
+        $this->assertFalse($namedOndemand->exists('missing.txt'));
         $this->assertSame(['first', 'second', null, 'ondemand'], array_column($received, 1));
 
         foreach ($received as [$receivedConfig]) {
@@ -1292,20 +1303,19 @@ class FilesystemManagerTest extends TestCase
             'disks' => [
                 'first' => $config,
                 'second' => $config,
-                'ondemand' => $config,
             ],
         ]);
         $manager = (new FilesystemManager($container))->addPoolableDriver('local');
 
         $first = $manager->disk('first');
         $second = $manager->disk('second');
-        $configuredOndemand = $manager->disk('ondemand');
+        $namedOndemand = $manager->build($config, 'ondemand');
         $anonymous = $manager->build($config);
 
         $this->assertInstanceOf(FilesystemPoolProxy::class, $first);
         $this->assertInstanceOf(FilesystemPoolProxy::class, $second);
         $this->assertNotSame($first->getPoolName(), $second->getPoolName());
-        $this->assertNotSame($configuredOndemand->getPoolName(), $anonymous->getPoolName());
+        $this->assertNotSame($namedOndemand->getPoolName(), $anonymous->getPoolName());
     }
 
     public function testWholeDriverPoolsIncludeRouteOwnershipNotImpliedByEffectiveConfiguration(): void
