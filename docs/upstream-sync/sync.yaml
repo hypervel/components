@@ -1,97 +1,232 @@
 # Upstream Sync State
 #
-# Tracks the release tag each upstream package has been synced up to.
-# Updated during every sync session. See README.md in this directory for the
-# session workflow.
+# GitHub repository slugs, in processing order. Separate documentation
+# repositories have their own entries; same-repository docs share the code entry.
 #
-# Top-level keys are gh repo slugs (what `gh --repo` expects).
+# branch           — upstream branch to follow
+# checked_through  — full upstream commit SHA reviewed through, inclusive
+# last_reviewed_pr — last PR examined; informational, not a checkpoint
+# sync_date        — date (YYYY-MM-DD) the completed sync finished verification
+# notes            — optional baseline evidence, scope or adaptation pointers;
+#                    detailed package differences belong in package docs
 #
-# Fields:
-#   repo_url   — GitHub URL, for humans
-#   release    — newest release tag walked in a sync session. Bumped even if
-#                some PRs were deferred; deferred items are tracked in the
-#                session PR body and, when they remain worthwhile future work,
-#                in docs/todo.md
-#   sync_date  — date (YYYY-MM-DD) of the most recent session that touched
-#                this entry (bumped even if no releases were new)
-#   notes      — optional, omit when empty. Sync-specific operational facts
-#                needed to process this repo (e.g. Composer/repo name mismatch
-#                or per-repo workflow tweaks). Per-session notes belong in the
-#                session PR body; package differences belong in the affected
-#                package README.
-#
-# `release` and `sync_date` are null on entries that haven't been synced yet.
-
-inertiajs/inertia-laravel:
-  repo_url: https://github.com/inertiajs/inertia-laravel
-  release: v3.1.0
-  sync_date: 2026-05-11
-
-laravel/fortify:
-  repo_url: https://github.com/laravel/fortify
-  release: v1.37.2
-  sync_date: 2026-07-02
+# A null checked_through means no verified commit checkpoint is established.
+# Older release records in notes are evidence to establish one, not coverage claims.
 
 laravel/framework:
-  repo_url: https://github.com/laravel/framework
-  release: null
-  sync_date: null
-  notes: Also scan direct-to-branch commits per README step 2e.
-
-laravel/horizon:
-  repo_url: https://github.com/laravel/horizon
-  release: null
-  sync_date: null
-
-laravel/passkeys-server:
-  repo_url: https://github.com/laravel/passkeys-server
-  release: v0.2.1
-  sync_date: 2026-07-02
-  notes: Composer package is `laravel/passkeys` (different from gh slug).
+  branch: master
+  checked_through: d9ea91ac0d5f09aa56fb17711f90235af6ee2299
+  last_reviewed_pr: 61140
+  sync_date: '2026-09-27'
 
 laravel/prompts:
-  repo_url: https://github.com/laravel/prompts
-  release: null
+  branch: main
+  checked_through: null
+  last_reviewed_pr: null
   sync_date: null
 
+orchestral/testbench-core:
+  branch: 11.x
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+
+orchestral/testbench:
+  branch: 11.x
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+  notes: Composer package is orchestra/testbench; core code is tracked separately above.
+
+laravel/facade-documenter:
+  branch: main
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+
+laravel/fortify:
+  branch: 1.x
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+  notes: Previous release record was v1.37.2 on 2026-07-02.
+
+laravel/passkeys-server:
+  branch: main
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+  notes: >-
+    Composer package is laravel/passkeys. Previous release record was v0.2.1
+    on 2026-07-02.
+
 laravel/sanctum:
-  repo_url: https://github.com/laravel/sanctum
-  release: null
+  branch: 4.x
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+
+laravel/socialite:
+  branch: 5.x
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+
+laravel/horizon:
+  branch: 5.x
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+
+laravel/reverb:
+  branch: main
+  checked_through: null
+  last_reviewed_pr: null
   sync_date: null
 
 laravel/scout:
-  repo_url: https://github.com/laravel/scout
-  release: null
+  branch: 11.x
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+
+laravel/slack-notification-channel:
+  branch: 3.x
+  checked_through: null
+  last_reviewed_pr: null
   sync_date: null
 
 laravel/telescope:
-  repo_url: https://github.com/laravel/telescope
-  release: null
+  branch: 5.x
+  checked_through: null
+  last_reviewed_pr: null
   sync_date: null
 
 laravel/tinker:
-  repo_url: https://github.com/laravel/tinker
-  release: null
+  branch: 3.x
+  checked_through: null
+  last_reviewed_pr: null
   sync_date: null
 
 laravel/wayfinder:
-  repo_url: https://github.com/laravel/wayfinder
-  release: v0.1.18
-  sync_date: 2026-05-11
-
-orchestral/testbench:
-  repo_url: https://github.com/orchestral/testbench
-  release: null
+  branch: main
+  checked_through: null
+  last_reviewed_pr: null
   sync_date: null
-  notes: Composer package is `orchestra/testbench` (different from gh slug).
+  notes: Previous release record was v0.1.18 on 2026-05-11.
+
+laravel/docs:
+  branch: 13.x
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+  notes: Shared Laravel package documentation; adapt to the targeted framework and package APIs.
+
+inertiajs/inertia-laravel:
+  branch: 3.x
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+  notes: Previous release record was v3.1.0 on 2026-05-11.
+
+inertiajs/docs:
+  branch: main
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+  notes: Inertia documentation applicable to Hypervel's server adapter and supported integrations.
 
 spatie/laravel-data:
-  repo_url: https://github.com/spatie/laravel-data
-  release: 4.23.0
-  sync_date: 2026-08-30
-  notes: Initial port also reviewed main through ce296f22 and the v5 draft at ed630ee1.
+  branch: main
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+  notes: >-
+    API and validation differences are documented in src/data/README.md.
+    Previous release record was 4.23.0 on 2026-08-30; the initial port also
+    reviewed main through ce296f22 and the v5 draft at ed630ee1.
 
 spatie/laravel-permission:
-  repo_url: https://github.com/spatie/laravel-permission
-  release: null
+  branch: main
+  checked_through: null
+  last_reviewed_pr: null
   sync_date: null
+  notes: >-
+    Hypervel adds denied permissions, row partitioning and coroutine-scoped state.
+    Preserve these when adapting upstream changes; see src/permission/README.md.
+
+aimeos/laravel-nestedset:
+  branch: master
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+  notes: >-
+    Heavily adapted tree APIs and invariants; compare intended behavior rather
+    than replacing Hypervel's implementation. See src/docs/nested-set.md.
+
+PHP-Open-Source-Saver/jwt-auth:
+  branch: main
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+  notes: >-
+    Heavily adapted around array payloads with several upstream wrappers and
+    integrations omitted. Adapt applicable changes; see src/jwt/README.md.
+
+saloonphp/saloon:
+  branch: v4
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+  notes: >-
+    Built on Hypervel services with the official plugins integrated. Preserve
+    Hypervel's additional APIs and extension points when adapting upstream
+    changes. See src/saloon/README.md and src/docs/saloon.md.
+
+saloonphp/laravel-plugin:
+  branch: v4
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+  notes: Integrated into src/saloon; adapt Laravel integration to Hypervel services.
+
+saloonphp/cache-plugin:
+  branch: v3
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+  notes: Integrated into src/saloon; see src/docs/saloon.md.
+
+saloonphp/pagination-plugin:
+  branch: v2
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+  notes: Integrated into src/saloon; see src/docs/saloon.md.
+
+saloonphp/rate-limit-plugin:
+  branch: v2
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+  notes: Integrated into src/saloon; see src/docs/saloon.md.
+
+Sammyjo20/saloon-docs:
+  branch: v3
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+  notes: Saloon and plugin documentation; adapt to Hypervel's integrated APIs.
+
+getsentry/sentry-laravel:
+  branch: master
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+
+getsentry/sentry-docs:
+  branch: master
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+  notes: PHP and Laravel documentation applicable to Hypervel's Sentry integration.
