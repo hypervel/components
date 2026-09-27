@@ -15,6 +15,7 @@ use Hypervel\Filesystem\AwsS3V3Adapter;
 use Hypervel\Filesystem\ClientPooledFilesystem;
 use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemManager;
+use Hypervel\Filesystem\FilesystemPoolProxy;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolOptions;
@@ -25,6 +26,7 @@ use League\Flysystem\FilesystemOperator;
 use League\Flysystem\UnableToReadFile;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -216,7 +218,9 @@ class AwsS3V3AdapterTest extends TestCase
         $this->assertSame(12, $captured['@http']['timeout']);
     }
 
-    public function testStreamReadsPreserveConfiguredHttpSiblingsForPlainAndRangeReads(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testStreamReadsPreserveConfiguredHttpSiblingsForPlainAndRangeReads(bool $wholeDriver): void
     {
         $commands = [];
         $handler = new MockHandler([
@@ -256,8 +260,14 @@ class AwsS3V3AdapterTest extends TestCase
         fclose($plain);
         fclose($range);
         $pools = new PoolManager;
-        $pooled = new ClientPooledFilesystem(
-            new PoolDefinition('filesystem:http-options', 's3', 'test', PoolOptions::fromArray([])),
+        $definition = new PoolDefinition('filesystem:http-options', 's3', 'test', PoolOptions::fromArray([]));
+        $pooled = $wholeDriver ? new FilesystemPoolProxy(
+            $definition,
+            static fn (): AwsS3V3Adapter => $adapter,
+            $pools,
+            $adapter->getConfig(),
+        ) : new ClientPooledFilesystem(
+            $definition,
             $adapter->getClient(...),
             static fn (object $client): AwsS3V3Adapter => $adapter,
             $pools,
@@ -291,7 +301,7 @@ class AwsS3V3AdapterTest extends TestCase
     }
 
     #[DataProvider('readThroughCloudSides')]
-    public function testReadThroughRangesPreserveNativeRequestsAndTheOuterFailurePolicy(bool $primary, bool $pooled): void
+    public function testReadThroughRangesPreserveNativeRequestsAndTheOuterFailurePolicy(bool $primary, ?string $poolType): void
     {
         $command = null;
         $failure = new RuntimeException('S3 failed');
@@ -315,13 +325,23 @@ class AwsS3V3AdapterTest extends TestCase
         $emptyDriver->shouldReceive('fileExists')->andReturn(false);
         $empty = new FilesystemAdapter($emptyDriver, m::mock(FlysystemAdapter::class));
         $pools = new PoolManager;
-        $cloud = $pooled ? new ClientPooledFilesystem(
-            new PoolDefinition('filesystem:read-through-range', 's3', 'test', PoolOptions::fromArray([])),
-            $adapter->getClient(...),
-            static fn (object $client): AwsS3V3Adapter => $adapter,
-            $pools,
-            $adapter->getConfig(),
-        ) : $adapter;
+        $definition = new PoolDefinition('filesystem:read-through-range', 's3', 'test', PoolOptions::fromArray([]));
+        $cloud = match ($poolType) {
+            'client' => new ClientPooledFilesystem(
+                $definition,
+                $adapter->getClient(...),
+                static fn (object $client): AwsS3V3Adapter => $adapter,
+                $pools,
+                $adapter->getConfig(),
+            ),
+            'driver' => new FilesystemPoolProxy(
+                $definition,
+                static fn (): AwsS3V3Adapter => $adapter,
+                $pools,
+                $adapter->getConfig(),
+            ),
+            null => $adapter,
+        };
         $exceptionHandler = m::mock(ExceptionHandler::class);
         $exceptionHandler->shouldNotReceive('report');
         Container::getInstance()->instance(ExceptionHandler::class, $exceptionHandler);
@@ -344,8 +364,8 @@ class AwsS3V3AdapterTest extends TestCase
             try {
                 $this->assertSame('range', stream_get_contents($stream));
 
-                if ($pooled) {
-                    $this->assertSame(1, $pools->get($cloud->getPoolName())->getBorrowedCount());
+                if ($poolType !== null) {
+                    $this->assertSame(1, $pools->get($definition->identity)->getBorrowedCount());
                 }
             } finally {
                 fclose($stream);
@@ -362,8 +382,8 @@ class AwsS3V3AdapterTest extends TestCase
                 $this->assertSame($failure, $exception->getPrevious());
             }
 
-            if ($pooled) {
-                $this->assertSame(0, $pools->get($cloud->getPoolName())->getBorrowedCount());
+            if ($poolType !== null) {
+                $this->assertSame(0, $pools->get($definition->identity)->getBorrowedCount());
             }
         } finally {
             $pools->purgeAll();
@@ -376,9 +396,11 @@ class AwsS3V3AdapterTest extends TestCase
     public static function readThroughCloudSides(): array
     {
         return [
-            'pooled primary' => [true, true],
-            'pooled fallback without promotion' => [false, true],
-            'non-pooled primary' => [true, false],
+            'client-pooled primary' => [true, 'client'],
+            'client-pooled fallback without promotion' => [false, 'client'],
+            'driver-pooled primary' => [true, 'driver'],
+            'driver-pooled fallback without promotion' => [false, 'driver'],
+            'non-pooled primary' => [true, null],
         ];
     }
 

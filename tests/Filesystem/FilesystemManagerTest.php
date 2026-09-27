@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Filesystem;
 
+use Aws\CommandInterface;
+use Aws\MockHandler;
+use Aws\Result;
 use Aws\S3\S3Client;
 use DateTimeImmutable;
 use DateTimeInterface;
@@ -22,6 +25,7 @@ use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Filesystem\FilesystemPoolProxy;
 use Hypervel\Filesystem\GoogleCloudStorageAdapter;
 use Hypervel\Filesystem\ReadThroughFilesystemAdapter;
+use Hypervel\Foundation\Application;
 use Hypervel\ObjectPool\PoolFingerprint;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Support\CarbonImmutable;
@@ -40,6 +44,7 @@ use League\Flysystem\UnableToWriteFile;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionProperty;
 use RuntimeException;
 use stdClass;
@@ -824,6 +829,7 @@ class FilesystemManagerTest extends TestCase
 
     public function testReadThroughPromotionCancellationClosesOwnedStreams(): void
     {
+        $streamCount = count(get_resources('stream'));
         $source = fopen('php://temp', 'w+b');
         fwrite($source, 'contents');
         rewind($source);
@@ -850,6 +856,7 @@ class FilesystemManagerTest extends TestCase
             $this->assertFalse(is_resource($source));
             $this->assertNotNull($temporary);
             $this->assertFalse(is_resource($temporary));
+            $this->assertCount($streamCount, get_resources('stream'));
         } finally {
             if (is_resource($source)) {
                 fclose($source);
@@ -859,6 +866,77 @@ class FilesystemManagerTest extends TestCase
                 fclose($temporary);
             }
         }
+    }
+
+    #[DataProvider('closingPromotionResults')]
+    public function testReadThroughPromotionRetainsItsStreamWhenThePrimaryClosesItsInput(bool $fails): void
+    {
+        $filesystem = $this->readThroughFilesystemManager();
+        $fallback = $filesystem->disk('fallback');
+        $fallback->put('file.txt', 'fallback contents');
+        $primary = m::mock(FilesystemOperator::class);
+        $primary->shouldReceive('fileExists')->twice()->with('file.txt')->andReturn(false);
+        $primary->shouldReceive('writeStream')->once()->andReturnUsing(
+            function (string $path, mixed $stream) use ($fails): void {
+                $this->assertSame('file.txt', $path);
+                $this->assertSame('fallback contents', stream_get_contents($stream));
+                fclose($stream);
+
+                if ($fails) {
+                    throw UnableToWriteFile::atLocation($path);
+                }
+            },
+        );
+        $adapter = new ReadThroughFilesystemAdapter($primary, $fallback->getDriver());
+        $stream = $adapter->readStream('file.txt');
+
+        try {
+            $this->assertIsResource($stream);
+            $this->assertSame('fallback contents', stream_get_contents($stream));
+        } finally {
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+        }
+    }
+
+    /**
+     * Provide upload outcomes that close the supplied stream.
+     */
+    public static function closingPromotionResults(): array
+    {
+        return ['success' => [false], 'failure' => [true]];
+    }
+
+    #[DataProvider('fallbackTransferMethods')]
+    public function testReadThroughFallbackTransfersAllowThePrimaryToCloseItsInput(string $method): void
+    {
+        $filesystem = $this->readThroughFilesystemManager();
+        $fallback = $filesystem->disk('fallback');
+        $fallback->put('source.txt', 'contents');
+        $primary = m::mock(FilesystemOperator::class);
+        $primary->shouldReceive('fileExists')->once()->with('source.txt')->andReturn(false);
+        $primary->shouldReceive('writeStream')->once()->andReturnUsing(
+            function (string $path, mixed $stream, array $config): void {
+                $this->assertSame('destination.txt', $path);
+                $this->assertSame('contents', stream_get_contents($stream));
+                fclose($stream);
+            },
+        );
+        $adapter = new ReadThroughFilesystemAdapter($primary, $fallback->getDriver());
+        $driver = new Flysystem($adapter);
+
+        $driver->{$method}('source.txt', 'destination.txt');
+
+        $this->assertSame($method === 'copy', $fallback->exists('source.txt'));
+    }
+
+    /**
+     * Provide transfers from a fallback disk.
+     */
+    public static function fallbackTransferMethods(): array
+    {
+        return [['copy'], ['move']];
     }
 
     public function testReadThroughDiskCanThrowOnPromotionFailures(): void
@@ -1960,6 +2038,59 @@ class FilesystemManagerTest extends TestCase
         $this->assertInstanceOf(FlysystemS3Adapter::class, $default->getAdapter());
         $this->assertTrue((new ReflectionProperty(FlysystemS3Adapter::class, 'streamReads'))->getValue($default->getAdapter()));
         $this->assertFalse((new ReflectionProperty(FlysystemS3Adapter::class, 'streamReads'))->getValue($disabled->getAdapter()));
+    }
+
+    #[TestWith(['s3', null, 'private'])]
+    #[TestWith(['s3', 'public', 'public-read'])]
+    #[TestWith(['gcs', null, 'projectPrivate'])]
+    #[TestWith(['gcs', 'public', 'publicRead'])]
+    public function testShippedCloudDisksWritePrivatelyUnlessPublicVisibilityIsRequested(
+        string $driver,
+        ?string $visibility,
+        string $expectedAcl,
+    ): void {
+        // The shipped configuration resolves storage_path() through the application.
+        new Application($this->tempDir);
+        $config = (require __DIR__ . '/../../src/foundation/config/filesystems.php')['disks'][$driver];
+        $config['bucket'] = 'documents';
+
+        if ($visibility !== null) {
+            $config['visibility'] = $visibility;
+        }
+
+        $filesystem = new InspectableFilesystemManager($this->getContainer());
+
+        if ($driver === 's3') {
+            $client = new S3Client([
+                'credentials' => false,
+                'region' => 'us-east-1',
+                'version' => 'latest',
+                'handler' => new MockHandler([
+                    function (CommandInterface $command) use ($expectedAcl): Result {
+                        $this->assertSame('PutObject', $command->getName());
+                        $this->assertSame($expectedAcl, $command['ACL']);
+
+                        return new Result;
+                    },
+                ]),
+            ]);
+            $disk = $filesystem->buildS3DiskForTest($client, $config);
+        } else {
+            $bucket = m::mock(Bucket::class);
+            $bucket->shouldReceive('upload')->once()->withArgs(
+                function (string $contents, array $options) use ($expectedAcl): bool {
+                    $this->assertSame('contents', $contents);
+                    $this->assertSame($expectedAcl, $options['predefinedAcl']);
+
+                    return true;
+                },
+            );
+            $client = m::mock(GcsClient::class);
+            $client->shouldReceive('bucket')->once()->with('documents')->andReturn($bucket);
+            $disk = $filesystem->buildGcsDiskForTest($client, $config);
+        }
+
+        $this->assertTrue($disk->put('file.txt', 'contents'));
     }
 
     public function testGcsClientConfigSupportsFlatKeysAndTheFullExplicitSdkSurface(): void

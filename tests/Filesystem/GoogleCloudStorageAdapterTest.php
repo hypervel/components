@@ -4,19 +4,26 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Filesystem;
 
+use Google\Cloud\Core\AnonymousCredentials;
 use Google\Cloud\Storage\Bucket;
 use Google\Cloud\Storage\StorageClient;
 use Google\Cloud\Storage\StorageObject;
+use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\Psr7\Utils;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Filesystem\GoogleCloudStorageAdapter;
+use Hypervel\Filesystem\ReadThroughFilesystemAdapter;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use League\Flysystem\Filesystem;
 use League\Flysystem\FilesystemOperator;
 use League\Flysystem\GoogleCloudStorage\GoogleCloudStorageAdapter as FlysystemGoogleCloudAdapter;
 use League\Flysystem\UnableToReadFile;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
+use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
@@ -25,6 +32,57 @@ use function Hypervel\Coroutine\parallel;
 
 class GoogleCloudStorageAdapterTest extends TestCase
 {
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testReadThroughPromotionRetainsItsStreamAfterGoogleUploads(bool $fails): void
+    {
+        $uploads = 0;
+        $client = new StorageClient([
+            'projectId' => 'test-project',
+            'credentialsFetcher' => new AnonymousCredentials,
+            'retries' => 0,
+            'httpHandler' => function (RequestInterface $request, array $options) use (&$uploads, $fails): Response {
+                if ($request->getMethod() === 'HEAD') {
+                    throw RequestException::create($request, new Response(404));
+                }
+
+                $this->assertSame('POST', $request->getMethod());
+                $this->assertStringContainsString('fallback contents', (string) $request->getBody());
+                ++$uploads;
+
+                if ($fails) {
+                    throw RequestException::create($request, new Response(400));
+                }
+
+                return new Response(200, ['Content-Type' => 'application/json'], '{"name":"file.txt","generation":"1"}');
+            },
+        ]);
+        $primary = new Filesystem(new FlysystemGoogleCloudAdapter($client->bucket('test-bucket')));
+        $source = fopen('php://temp', 'w+b');
+        fwrite($source, 'fallback contents');
+        rewind($source);
+        $fallback = m::mock(FilesystemOperator::class);
+        $fallback->shouldReceive('readStream')->once()->with('file.txt')->andReturn($source);
+        $adapter = new ReadThroughFilesystemAdapter($primary, $fallback);
+        $stream = null;
+
+        try {
+            $stream = $adapter->readStream('file.txt');
+
+            $this->assertSame(1, $uploads);
+            $this->assertIsResource($stream);
+            $this->assertSame('fallback contents', stream_get_contents($stream));
+        } finally {
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+
+            if (is_resource($source)) {
+                fclose($source);
+            }
+        }
+    }
+
     public function testUrlUsesTheConfiguredApiUriOrBucketEndpoint(): void
     {
         $client = m::mock(StorageClient::class);

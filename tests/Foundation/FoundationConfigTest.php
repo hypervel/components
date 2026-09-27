@@ -327,17 +327,16 @@ class FoundationConfigTest extends TestCase
         ];
     }
 
-    public function testShippedFilesystemDisksDeclareVisibilityAndFailurePolicy(): void
+    public function testShippedFilesystemDisksUseSafeVisibilityDefaultsAndDeclareFailurePolicy(): void
     {
         $disks = $this->filesystemConfig()['disks'];
 
-        foreach ([
-            'local' => 'private',
-            'public' => 'public',
-            's3' => 'public',
-            'gcs' => 'public',
-        ] as $name => $visibility) {
-            $this->assertSame($visibility, $disks[$name]['visibility']);
+        $this->assertSame('private', $disks['local']['visibility']);
+        $this->assertSame('public', $disks['public']['visibility']);
+        $this->assertArrayNotHasKey('visibility', $disks['s3']);
+        $this->assertArrayNotHasKey('visibility', $disks['gcs']);
+
+        foreach (['local', 'public', 's3', 'gcs'] as $name) {
             $this->assertFalse($disks[$name]['throw']);
             $this->assertFalse($disks[$name]['report']);
         }

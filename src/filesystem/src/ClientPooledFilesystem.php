@@ -11,7 +11,6 @@ use Hypervel\Contracts\ObjectPool\InvalidatesPool;
 use Hypervel\Filesystem\Concerns\InteractsWithPooledFilesystem;
 use Hypervel\ObjectPool\Lease;
 use Hypervel\ObjectPool\PoolDefinition;
-use League\Flysystem\FilesystemOperator;
 use RuntimeException;
 use Throwable;
 
@@ -50,26 +49,6 @@ class ClientPooledFilesystem implements Cloud, InvalidatesPool
     public function getPoolName(): string
     {
         return $this->definition->identity;
-    }
-
-    /**
-     * Get an operator that preserves native cloud reads and their client leases.
-     */
-    public function getOperator(): FilesystemOperator
-    {
-        return new FilesystemOperatorAdapter(
-            $this->withDriver(...),
-            fn (string $path): mixed => $this->leasedStream(static function (FilesystemAdapter $stack) use ($path): mixed {
-                return $stack instanceof AwsS3V3Adapter || $stack instanceof GoogleCloudStorageAdapter
-                    ? $stack->readStreamRangeOrFail($path)
-                    : $stack->getDriver()->readStream($path);
-            }),
-            fn (string $path, ?int $start, ?int $end): mixed => $this->leasedStream(
-                static fn (FilesystemAdapter $stack): mixed => $stack instanceof AwsS3V3Adapter || $stack instanceof GoogleCloudStorageAdapter
-                    ? $stack->readStreamRangeOrFail($path, $start, $end)
-                    : null,
-            ),
-        );
     }
 
     /**

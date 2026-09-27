@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Filesystem;
 
+use GuzzleHttp\Psr7\StreamWrapper;
+use GuzzleHttp\Psr7\Utils;
 use League\Flysystem\Config;
 use League\Flysystem\FileAttributes;
 use League\Flysystem\FilesystemAdapter;
@@ -112,10 +114,21 @@ class ReadThroughFilesystemAdapter implements FilesystemAdapter
                 return $this->primary->readStream($path);
             }
 
+            // Upload adapters may close their input; retain our copy for the caller.
+            $upload = Utils::streamFor($temporary);
+            $uploadStream = null;
+
             try {
-                $this->primary->writeStream($path, $temporary);
+                $uploadStream = StreamWrapper::getResource($upload);
+                $this->primary->writeStream($path, $uploadStream);
             } catch (FilesystemException $exception) {
                 $this->handlePromotionFailure($path, $exception);
+            } finally {
+                if (is_resource($uploadStream)) {
+                    fclose($uploadStream);
+                }
+
+                $upload->detach();
             }
 
             rewind($temporary);
@@ -287,7 +300,9 @@ class ReadThroughFilesystemAdapter implements FilesystemAdapter
         try {
             $this->primary->writeStream($destination, $stream, $config->toArray());
         } finally {
-            fclose($stream);
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
         }
     }
 

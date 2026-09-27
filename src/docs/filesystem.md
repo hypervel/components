@@ -207,7 +207,6 @@ If you need to configure a Google Cloud Storage filesystem manually, you may use
     'path_prefix' => env('GOOGLE_CLOUD_STORAGE_PATH_PREFIX', ''),
     'storage_api_uri' => env('GOOGLE_CLOUD_STORAGE_API_URI'),
     'api_endpoint' => env('GOOGLE_CLOUD_STORAGE_API_ENDPOINT'),
-    'visibility' => 'public',
     'visibility_handler' => null,
     'metadata' => ['cacheControl' => 'public,max-age=86400'],
     'throw' => false,
@@ -370,11 +369,17 @@ Read-through disks allow you to migrate files between disks without downtime. Wh
 ],
 ```
 
-New files and directory listings use the primary disk. File existence and metadata checks use either disk without copying files. Deletions remove files or directories from both disks, and visibility changes apply to the disk containing the file. The `primary` and `fallback` options may also contain inline disk configurations.
+New files and directory listings use the primary disk. URLs, file existence checks, and metadata use the disk containing the file without copying it. Deletions remove files or directories from both disks, and visibility changes apply to the disk containing the file. The `primary` and `fallback` options may also contain inline disk configurations.
+
+To scope a read-through disk per request or tenant, wrap it in `ScopedCloudFilesystemProxy`. Dynamic scoped proxies cannot be used as its primary or fallback disk.
 
 Fallback reads promote files by default. Set `copy` to `false` to read fallback files without copying them. With promotion enabled, fallback stream reads finish copying the file before returning the stream.
 
-If promotion fails, the read still succeeds by default. Set `throw_on_promotion_failure` to `true` to treat promotion failures as read failures; set the disk's `throw` option to `true` to receive those failures as exceptions.
+Promoted files use the primary disk's default visibility rather than inheriting the fallback file's visibility. Fallback copy and move operations use the same default. Configure a private primary disk when migrating private files.
+
+Promotion does not lock files across the two disks. Coordinate writes and deletions to a path while it is being copied; otherwise, promotion can overwrite a concurrent write or restore a deleted file.
+
+By default, a `FilesystemException` raised while writing the promoted copy does not fail the read. Set `throw_on_promotion_failure` to `true` to treat it as a read failure; set the disk's `throw` option to `true` to receive that failure as an exception. Other errors, including pool wait timeouts, still propagate.
 
 <a name="amazon-s3-compatible-filesystems"></a>
 ### Amazon S3 Compatible Filesystems

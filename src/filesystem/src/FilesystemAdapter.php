@@ -451,7 +451,9 @@ class FilesystemAdapter implements CloudFilesystemContract
         try {
             $result = $this->put($path, $stream, $options);
         } finally {
-            @fclose($stream);
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
         }
 
         return $result ? $path : false;

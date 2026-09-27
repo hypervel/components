@@ -9,8 +9,10 @@ use Closure;
 use DateTimeInterface;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
+use Hypervel\Filesystem\AwsS3V3Adapter;
 use Hypervel\Filesystem\FileResponseBuilder;
 use Hypervel\Filesystem\FilesystemOperatorAdapter;
+use Hypervel\Filesystem\GoogleCloudStorageAdapter;
 use Hypervel\Http\File;
 use Hypervel\Http\Request;
 use Hypervel\Http\UploadedFile;
@@ -536,6 +538,10 @@ trait InteractsWithPooledFilesystem
         return new FilesystemOperatorAdapter(
             $this->withDriver(...),
             fn (string $path): mixed => $this->leasedStream(static function (FilesystemContract $filesystem) use ($path): mixed {
+                if ($filesystem instanceof AwsS3V3Adapter || $filesystem instanceof GoogleCloudStorageAdapter) {
+                    return $filesystem->readStreamRangeOrFail($path);
+                }
+
                 if (! method_exists($filesystem, 'getDriver')) {
                     throw new RuntimeException(
                         'Pooled filesystem driver [' . $filesystem::class . '] does not support [getDriver] access.',
@@ -544,6 +550,11 @@ trait InteractsWithPooledFilesystem
 
                 return $filesystem->getDriver()->readStream($path);
             }),
+            fn (string $path, ?int $start, ?int $end): mixed => $this->leasedStream(
+                static fn (FilesystemContract $filesystem): mixed => $filesystem instanceof AwsS3V3Adapter || $filesystem instanceof GoogleCloudStorageAdapter
+                    ? $filesystem->readStreamRangeOrFail($path, $start, $end)
+                    : null,
+            ),
         );
     }
 
