@@ -67,9 +67,9 @@ abstract class TestCase extends BaseTestCase
             return $resource;
         });
 
-        $router->get('users/{userId}/with-duplicate-instances', function ($userId) {
-            $instance1 = User::find($userId);
-            $instance2 = User::find($userId);
+        $router->get('users/{userId}/with-duplicate-instances/{includedId}', function (string $userId, string $includedId): UserWithArrayRelationshipResource {
+            $instance1 = User::find($includedId)->load('posts');
+            $instance2 = User::find($includedId)->load('profile');
 
             $resource = new UserWithArrayRelationshipResource(User::find($userId));
             $resource->loadedRelationshipsMap = [

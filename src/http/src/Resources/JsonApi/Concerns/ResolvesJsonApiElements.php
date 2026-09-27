@@ -33,7 +33,7 @@ trait ResolvesJsonApiElements
     protected const int DEFAULT_MAX_RELATIONSHIP_DEPTH = 5;
 
     /**
-     * Determine whether resources respect inclusions and fields from the request.
+     * Determine whether resources respect sparse fieldsets from the request.
      */
     protected bool $usesRequestQueryString = true;
 
@@ -481,6 +481,115 @@ trait ResolvesJsonApiElements
     }
 
     /**
+     * Resolve included resources and preserve linkage when combining duplicate identities.
+     *
+     * @internal
+     * @param Collection<array-key, JsonApiResource> $resources
+     */
+    public static function resolveIncludedResources(Collection $resources, JsonApiRequest $request): array
+    {
+        static::prepareResourceRelationships($resources, $request);
+
+        $roots = [];
+
+        foreach ($resources as $resource) {
+            if ($resource->resource instanceof Model) {
+                $roots[$resource->resolveResourceType($request)][$resource->resolveResourceIdentifier($request)] = $resource;
+            }
+        }
+
+        $included = [];
+        $positions = [];
+        $identifiers = [];
+
+        foreach ($resources as $resource) {
+            foreach ($resource->resolveIncludedResourceObjects($request) as $entry) {
+                $key = $entry['_uniqueKey'];
+                $relationships = (array) ($entry['relationships'] ?? []);
+                $root = $roots[$entry['type']][$entry['id']] ?? null;
+
+                // Pivot variants have distinct keys and must retain their own attributes.
+                if ($root !== null && $key === $entry['id'] . ':' . $entry['type']) {
+                    $identifiers[$key] ??= [];
+                    static::mergeResourceRelationships($root->loadedRelationshipIdentifiers, $relationships, $identifiers[$key]);
+                } elseif (isset($positions[$key])) {
+                    $position = $positions[$key];
+                    $identifiers[$key] ??= [];
+                    static::mergeResourceRelationships($included[$position]['relationships'], $relationships, $identifiers[$key]);
+                } else {
+                    $positions[$key] = count($included);
+                    $entry['relationships'] = $relationships;
+                    unset($entry['_uniqueKey']);
+                    $included[] = $entry;
+                }
+            }
+        }
+
+        foreach ($included as &$entry) {
+            if ($entry['relationships'] === []) {
+                unset($entry['relationships']);
+            } else {
+                $entry['relationships'] = (object) $entry['relationships'];
+            }
+        }
+        unset($entry);
+
+        return $included;
+    }
+
+    /**
+     * Merge relationship linkage without discarding descendants of duplicate resources.
+     */
+    protected static function mergeResourceRelationships(array &$relationships, array $additional, array &$identifiers): void
+    {
+        foreach ($additional as $name => $relationship) {
+            if (! array_key_exists($name, $relationships)) {
+                $relationships[$name] = $relationship;
+                continue;
+            }
+
+            if ($relationships[$name] instanceof MissingValue) {
+                continue;
+            }
+
+            if (! isset($relationships[$name]['data'])) {
+                if (isset($relationship['data'])) {
+                    $relationships[$name]['data'] = $relationship['data'];
+                }
+                continue;
+            }
+
+            $data = &$relationships[$name]['data'];
+            $incoming = $relationship['data'] ?? null;
+
+            if ($data instanceof Collection) {
+                $data = $data->all();
+            }
+
+            $incoming = $incoming instanceof Collection ? $incoming->all() : $incoming;
+
+            if ($incoming === null || ! array_is_list($data)) {
+                continue;
+            }
+
+            if (! isset($identifiers[$name])) {
+                $identifiers[$name] = [];
+
+                foreach ($data as $identifier) {
+                    $identifiers[$name][$identifier['type']][$identifier['id']] = true;
+                }
+            }
+
+            foreach ($incoming as $identifier) {
+                if (! isset($identifiers[$name][$identifier['type']][$identifier['id']])) {
+                    $identifiers[$name][$identifier['type']][$identifier['id']] = true;
+                    $data[] = $identifier;
+                }
+            }
+        }
+    }
+
+    /**
      * Resolve the links for the resource.
      *
      * @return array<string, mixed>
@@ -501,7 +610,7 @@ trait ResolvesJsonApiElements
     }
 
     /**
-     * Indicate that relationship loading should respect the request's "includes" query string.
+     * Indicate that attributes should respect the request's sparse fieldsets.
      */
     public function respectFieldsAndIncludesInQueryString(bool $value = true): static
     {
@@ -511,7 +620,7 @@ trait ResolvesJsonApiElements
     }
 
     /**
-     * Indicate that relationship loading should not rely on the request's "includes" query string.
+     * Indicate that attributes should ignore the request's sparse fieldsets.
      */
     public function ignoreFieldsAndIncludesInQueryString(): static
     {

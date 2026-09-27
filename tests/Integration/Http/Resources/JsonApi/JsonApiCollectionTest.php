@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Http\Resources\JsonApi;
 
+use Hypervel\Http\Resources\JsonApi\JsonApiRequest;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Comment;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Post;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Profile;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\Team;
 use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\User;
+use Hypervel\Tests\Integration\Http\Resources\JsonApi\Fixtures\UserResource;
+use PHPUnit\Framework\Attributes\TestWith;
 
 class JsonApiCollectionTest extends TestCase
 {
@@ -28,7 +31,7 @@ class JsonApiCollectionTest extends TestCase
                         'email' => $user->email,
                     ],
                 ])->all()
-            )->assertJsonMissing(['jsonapi', 'included']);
+            )->assertJsonMissingPath('jsonapi')->assertJsonMissingPath('included');
     }
 
     public function testItCanGenerateJsonApiResponseWithSparseFieldsets(): void
@@ -46,7 +49,7 @@ class JsonApiCollectionTest extends TestCase
                         'name' => $user->name,
                     ],
                 ])->all()
-            )->assertJsonMissing(['jsonapi', 'included']);
+            )->assertJsonMissingPath('jsonapi')->assertJsonMissingPath('included');
     }
 
     public function testItCanGenerateJsonApiResponseWithEmptyRelationshipsUsingSparseIncluded(): void
@@ -70,7 +73,7 @@ class JsonApiCollectionTest extends TestCase
                         ],
                     ],
                 ])->all()
-            )->assertJsonMissing(['jsonapi', 'included']);
+            )->assertJsonPath('included', [])->assertJsonMissingPath('jsonapi');
     }
 
     public function testItCanGenerateJsonApiResponseWithRelationshipsUsingSparseIncluded(): void
@@ -209,10 +212,13 @@ class JsonApiCollectionTest extends TestCase
             );
     }
 
-    public function testNestedRelationshipsAreBatchedAcrossThePageWithoutReorderingIncludedResources(): void
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testNestedRelationshipsAreBatchedAcrossThePageWithoutReorderingIncludedResources(bool $includeProfile): void
     {
         $users = User::factory()->count(5)->create();
         $expectedIncluded = [];
+        $profiles = [];
 
         foreach ($users as $user) {
             $posts = Post::factory()->count(2)->create(['user_id' => $user->getKey()]);
@@ -226,17 +232,37 @@ class JsonApiCollectionTest extends TestCase
                 $expectedIncluded,
                 ...$posts->map(fn (Post $post): string => 'posts:' . $post->getKey())->all(),
                 ...$comments->map(fn (Comment $comment): string => 'comments:' . $comment->getKey())->all(),
-                ...['users:' . $user->getKey()],
             );
+
+            if ($includeProfile) {
+                $profile = Profile::factory()->create(['user_id' => $user->getKey()]);
+                $profiles[] = ['id' => (string) $profile->getKey(), 'type' => 'profiles'];
+                $expectedIncluded[] = 'profiles:' . $profile->getKey();
+            }
         }
 
-        $this->expectsDatabaseQueryCount(5);
+        $this->expectsDatabaseQueryCount($includeProfile ? 6 : 5);
 
-        $response = $this->getJson('/users?include=posts.comments.commenter')->assertOk();
+        $response = $this->getJson('/users?include=posts.comments.commenter' . ($includeProfile ? '.profile' : ''))->assertOk();
 
         $this->assertSame($expectedIncluded, array_map(
             fn (array $resource): string => $resource['type'] . ':' . $resource['id'],
             $response->json('included'),
         ));
+
+        if ($includeProfile) {
+            $this->assertSame($profiles, array_map(
+                fn (array $resource): array => $resource['relationships']['profile']['data'],
+                $response->json('data'),
+            ));
+        }
+    }
+
+    public function testEmptyCollectionRetainsExplicitIncludes(): void
+    {
+        $data = UserResource::collection([])->toResponse(JsonApiRequest::create('/?include='))->getData(true);
+
+        $this->assertSame(['data' => [], 'included' => []], $data);
+        $this->assertSame(['data' => []], UserResource::collection([])->toResponse(JsonApiRequest::create('/'))->getData(true));
     }
 }

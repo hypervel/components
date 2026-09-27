@@ -10,7 +10,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Resources\Json\JsonResource;
-use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use JsonSerializable;
 use Override;
@@ -41,6 +40,11 @@ class JsonApiResource extends JsonResource
      * The resource's "meta" for JSON:API.
      */
     protected array $jsonApiMeta = [];
+
+    /**
+     * The included resources resolved for this response.
+     */
+    protected ?array $includedResources = null;
 
     /**
      * Set the JSON:API version for the request.
@@ -144,16 +148,14 @@ class JsonApiResource extends JsonResource
     {
         $jsonApiRequest = $this->resolveJsonApiRequestFrom($request);
 
-        return array_filter([
-            'included' => $this->resolveIncludedResourceObjects($jsonApiRequest)
-                ->uniqueStrict('_uniqueKey')
-                ->map(fn ($included) => Arr::except($included, ['_uniqueKey']))
-                ->values()
-                ->all(),
+        $included = $this->includedResources ??= static::resolveIncludedResources(new Collection([$this]), $jsonApiRequest);
+
+        return [
+            ...($included !== [] || $jsonApiRequest->has('include')) ? ['included' => $included] : [],
             ...($implementation = static::$jsonApiInformation)
                 ? ['jsonapi' => $implementation]
                 : [],
-        ]);
+        ];
     }
 
     /**
@@ -191,7 +193,12 @@ class JsonApiResource extends JsonResource
     #[Override]
     public function toResponse(Request $request): JsonResponse
     {
-        return parent::toResponse($this->resolveJsonApiRequestFrom($request));
+        $request = $this->resolveJsonApiRequestFrom($request);
+
+        // Merge duplicate linkage before the primary resource is serialized.
+        $this->includedResources ??= static::resolveIncludedResources(new Collection([$this]), $request);
+
+        return parent::toResponse($request);
     }
 
     /**
