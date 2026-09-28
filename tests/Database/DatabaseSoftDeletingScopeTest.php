@@ -22,6 +22,7 @@ class DatabaseSoftDeletingScopeTest extends TestCase
         $builder = m::mock(EloquentBuilder::class);
         $model = m::mock(Model::class);
         $model->expects('getQualifiedDeletedAtColumn')->andReturn('table.deleted_at');
+        $builder->expects('qualifyColumn')->with('table.deleted_at')->andReturn('table.deleted_at');
         $builder->expects('whereNull')->with('table.deleted_at');
 
         $scope->apply($builder, $model);
@@ -125,6 +126,7 @@ class DatabaseSoftDeletingScopeTest extends TestCase
         $givenBuilder->expects('getModel')->andReturn($model);
         $givenBuilder->expects('withoutGlobalScope')->with($scope)->andReturn($givenBuilder);
         $model->expects('getQualifiedDeletedAtColumn')->andReturn('table.deleted_at');
+        $givenBuilder->expects('qualifyColumn')->with('table.deleted_at')->andReturn('table.deleted_at');
         $givenBuilder->expects('whereNotNull')->with('table.deleted_at');
         $result = $callback($givenBuilder);
 
@@ -146,6 +148,7 @@ class DatabaseSoftDeletingScopeTest extends TestCase
         $givenBuilder->expects('getModel')->andReturn($model);
         $givenBuilder->expects('withoutGlobalScope')->with($scope)->andReturn($givenBuilder);
         $model->expects('getQualifiedDeletedAtColumn')->andReturn('table.deleted_at');
+        $givenBuilder->expects('qualifyColumn')->with('table.deleted_at')->andReturn('table.deleted_at');
         $givenBuilder->expects('whereNull')->with('table.deleted_at');
         $result = $callback($givenBuilder);
 

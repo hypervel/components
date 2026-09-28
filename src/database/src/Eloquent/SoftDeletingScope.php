@@ -26,7 +26,7 @@ class SoftDeletingScope implements Scope
      */
     public function apply(Builder $builder, Model $model): void
     {
-        $builder->whereNull($model->getQualifiedDeletedAtColumn());
+        $builder->whereNull($builder->qualifyColumn($model->getQualifiedDeletedAtColumn()));
     }
 
     /**
@@ -57,7 +57,7 @@ class SoftDeletingScope implements Scope
     protected function getDeletedAtColumn(Builder $builder): string
     {
         if ((array) $builder->getQuery()->joins !== []) {
-            return $builder->getModel()->getQualifiedDeletedAtColumn();
+            return $builder->qualifyColumn($builder->getModel()->getQualifiedDeletedAtColumn());
         }
 
         return $builder->getModel()->getDeletedAtColumn();
@@ -138,7 +138,7 @@ class SoftDeletingScope implements Scope
 
             // @phpstan-ignore argument.type (local macros retain their lexical $this at runtime)
             $builder->withoutGlobalScope($this)->whereNull(
-                $model->getQualifiedDeletedAtColumn()
+                $builder->qualifyColumn($model->getQualifiedDeletedAtColumn())
             );
 
             return $builder;
@@ -157,7 +157,7 @@ class SoftDeletingScope implements Scope
 
             // @phpstan-ignore argument.type (local macros retain their lexical $this at runtime)
             $builder->withoutGlobalScope($this)->whereNotNull(
-                $model->getQualifiedDeletedAtColumn()
+                $builder->qualifyColumn($model->getQualifiedDeletedAtColumn())
             );
 
             return $builder;
