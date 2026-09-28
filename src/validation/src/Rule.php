@@ -125,11 +125,7 @@ class Rule
      */
     public static function in(array|Arrayable|UnitEnum|string $values): In
     {
-        if ($values instanceof Arrayable) {
-            $values = $values->toArray();
-        }
-
-        return new In(is_array($values) ? $values : func_get_args());
+        return new In(...func_get_args());
     }
 
     /**
@@ -137,11 +133,7 @@ class Rule
      */
     public static function notIn(array|Arrayable|UnitEnum|string $values): NotIn
     {
-        if ($values instanceof Arrayable) {
-            $values = $values->toArray();
-        }
-
-        return new NotIn(is_array($values) ? $values : func_get_args());
+        return new NotIn(...func_get_args());
     }
 
     /**
@@ -149,11 +141,7 @@ class Rule
      */
     public static function contains(array|Arrayable|UnitEnum|string $values): Contains
     {
-        if ($values instanceof Arrayable) {
-            $values = $values->toArray();
-        }
-
-        return new Contains(is_array($values) ? $values : func_get_args());
+        return new Contains(...func_get_args());
     }
 
     /**
@@ -161,11 +149,7 @@ class Rule
      */
     public static function doesntContain(array|Arrayable|UnitEnum|string $values): DoesntContain
     {
-        if ($values instanceof Arrayable) {
-            $values = $values->toArray();
-        }
-
-        return new DoesntContain(is_array($values) ? $values : func_get_args());
+        return new DoesntContain(...func_get_args());
     }
 
     /**
