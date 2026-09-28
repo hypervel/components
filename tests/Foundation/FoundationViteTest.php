@@ -126,6 +126,29 @@ class FoundationViteTest extends TestCase
         );
     }
 
+    public function testItCanRetrieveTheDevServerUrl(): void
+    {
+        $this->makeViteHotFile();
+
+        $this->assertSame('http://localhost:3000', app(Vite::class)->devServerUrl());
+    }
+
+    public function testTheDevServerUrlIsNullWhenNotRunningHot(): void
+    {
+        $this->assertNull(app(Vite::class)->devServerUrl());
+    }
+
+    public function testTheDevServerUrlRespectsACustomHotFile(): void
+    {
+        $path = $this->tempDir . '/custom-hot';
+        $this->makeViteHotFile($path);
+
+        $this->assertSame(
+            'http://localhost:3000',
+            app(Vite::class)->useHotFile($path)->devServerUrl()
+        );
+    }
+
     public function testViteWithCyclicNestedImports(): void
     {
         $buildDir = Str::random();
