@@ -67,7 +67,13 @@ class MailResendTransportTest extends TestCase
         $client = m::mock(Client::class);
         $client->emails = $emails;
 
-        (new ResendTransport($client))->send($message);
+        $sentMessage = (new ResendTransport($client))->send($message);
+
+        $this->assertSame('resend-message-id', $sentMessage->getMessageId());
+        $this->assertSame(
+            'resend-message-id',
+            $sentMessage->getOriginalMessage()->getHeaders()->get('X-Resend-Email-ID')?->getBodyAsString()
+        );
     }
 
     public function testSendError(): void
