@@ -54,6 +54,31 @@ class RedisSessionHandlerTest extends TestCase
         $this->assertTrue($tracked->supportsUserSessionManagement());
     }
 
+    public function testItCreatesSessionIds(): void
+    {
+        $sessionId = $this->handler()->create_sid();
+
+        $this->assertIsString($sessionId);
+        $this->assertNotEmpty($sessionId);
+    }
+
+    #[DataProvider('sessionExistenceProvider')]
+    public function testValidateIdChecksRedis(int $exists, bool $expected): void
+    {
+        $connection = $this->expectConnection();
+        $connection->expects('exists')->with('sessions:' . self::SESSION_ID)->andReturn($exists);
+
+        $this->assertSame($expected, $this->handler()->validateId(self::SESSION_ID));
+    }
+
+    /**
+     * Provide Redis session existence results.
+     */
+    public static function sessionExistenceProvider(): array
+    {
+        return [[0, false], [1, true]];
+    }
+
     #[DataProvider('storedPayloadProvider')]
     public function testReadUnderstandsRawAndVersionedPayloads(string $stored, string $expected): void
     {
