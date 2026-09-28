@@ -766,7 +766,10 @@ class Vite implements Htmlable
      */
     protected function hotAsset(string $asset): string
     {
-        return $this->devServerUrl() . '/' . $asset;
+        $url = $this->devServerUrl()
+            ?? throw new ViteException("Unable to read the Vite hot file at [{$this->hotFile()}].");
+
+        return $url . '/' . $asset;
     }
 
     /**
