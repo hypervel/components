@@ -1915,6 +1915,14 @@ EOT,
 
         // A wildcard matches a single segment, so this must not match "barfoo.*.bar.foo"...
         $response->assertJsonMissingPath('barfoo.*.foo');
+
+        $literalKeys = TestResponse::fromBaseResponse(new JsonResponse(['users' => [['password.hash' => 'value']]]));
+        $literalKeys->assertJsonMissingPath('users.*.password');
+        $literalKeys->assertJsonMissingPath('users.*.password.hash');
+        $literalKeys->assertJsonMissingPath('users.0.password.hash');
+
+        TestResponse::fromBaseResponse(new JsonResponse(42))->assertJsonMissingPath('*');
+        TestResponse::fromBaseResponse(new JsonResponse([]))->assertJsonMissingPath('*');
     }
 
     public function testAssertJsonMissingPathWithTrailingWildcardCanFail(): void
@@ -1944,11 +1952,14 @@ EOT,
         $response->assertJsonMissingPath('barfoo.*.bar.foo');
     }
 
-    public function testAssertJsonMissingPathWithWildcardCanFailForTopLevelArray(): void
+    #[TestWith([['present'], '*'])]
+    #[TestWith([['' => ['value' => null]], '*.value'])]
+    #[TestWith([['child' => []], '*'])]
+    public function testAssertJsonMissingPathWithWildcardCanFailForMatchingNodes(array $data, string $path): void
     {
         $this->expectException(AssertionFailedError::class);
 
-        TestResponse::fromBaseResponse(new JsonResponse(['present']))->assertJsonMissingPath('*');
+        TestResponse::fromBaseResponse(new JsonResponse($data))->assertJsonMissingPath($path);
     }
 
     public function testAssertJsonMissingPaths(): void
