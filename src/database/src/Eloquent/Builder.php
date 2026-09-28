@@ -2043,17 +2043,11 @@ class Builder implements BuilderContract
     }
 
     /**
-     * Get the alias given to the query's table, if any.
+     * Get the alias or table name that qualifies the query's source columns.
      */
     protected function getTableAlias(): ?string
     {
-        if (! is_string($this->query->from)) {
-            return null;
-        }
-
-        $segments = preg_split('/\s+as\s+/i', $this->query->from);
-
-        return count($segments) > 1 ? array_last($segments) : null;
+        return $this->query->getFromAlias();
     }
 
     /**
