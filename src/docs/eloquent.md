@@ -467,7 +467,7 @@ If you would like to enable all three strictness behaviors, you may invoke the `
 Model::shouldBeStrict(! $this->app->isProduction());
 ```
 
-Hypervel also allows you to customize how lazy loading violations, discarded attributes, and missing attributes are handled using the `handleLazyLoadingViolationUsing`, `handleDiscardedAttributeViolationUsing`, and `handleMissingAttributeViolationUsing` methods.
+Hypervel also allows you to customize how lazy loading violations, discarded attributes, and missing attributes are handled using the `handleLazyLoadingViolationUsing`, `handleDiscardedAttributeViolationUsing`, and `handleMissingAttributeViolationUsing` methods. Each callback receives the corresponding violation exception as its third argument.
 
 > [!WARNING]
 > Eloquent strictness methods configure worker-wide static state in Hypervel. These methods should be called while your application is booting, such as from a service provider, and not from request-specific code.
@@ -1855,6 +1855,8 @@ class User extends Model
     // ...
 }
 ```
+
+Child models inherit the attribute unless they declare their own `UseEloquentBuilder` attribute.
 
 Your custom builder should extend Hypervel's base Eloquent builder:
 

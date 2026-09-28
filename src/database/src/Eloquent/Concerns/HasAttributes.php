@@ -522,11 +522,13 @@ trait HasAttributes
             && ! $this->wasRecentlyCreated
             && static::preventsAccessingMissingAttributes()
             && ! CoroutineContext::get(self::MISSING_ATTRIBUTE_ACCESS_SUPPRESSED_CONTEXT_KEY, false)) {
+            $exception = new MissingAttributeException($this, $key);
+
             if (isset(static::$missingAttributeViolationCallback)) {
-                return call_user_func(static::$missingAttributeViolationCallback, $this, $key);
+                return call_user_func(static::$missingAttributeViolationCallback, $this, $key, $exception);
             }
 
-            throw new MissingAttributeException($this, $key);
+            throw $exception;
         }
 
         return null;
@@ -600,15 +602,22 @@ trait HasAttributes
      */
     protected function handleLazyLoadingViolation(string $key): mixed
     {
+        $exception = new LazyLoadingViolationException($this, $key);
+
         if (isset(static::$lazyLoadingViolationCallback)) {
-            return call_user_func(static::$lazyLoadingViolationCallback, $this, $key);
+            return call_user_func(
+                static::$lazyLoadingViolationCallback,
+                $this,
+                $key,
+                $exception
+            );
         }
 
         if (! $this->exists || $this->wasRecentlyCreated) {
             return null;
         }
 
-        throw new LazyLoadingViolationException($this, $key);
+        throw $exception;
     }
 
     /**
@@ -1981,7 +1990,7 @@ trait HasAttributes
     {
         return (new static)->setRawAttributes(
             $this->original,
-            $sync = true
+            sync: true
         )->getOriginalWithoutRewindingModel($key, $default);
     }
 
