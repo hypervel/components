@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\MassPrunable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
@@ -16,6 +17,9 @@ use LogicException;
 
 class EloquentMassPrunableTest extends DatabaseTestCase
 {
+    /**
+     * Create the pruning tables.
+     */
     protected function afterRefreshingDatabase(): void
     {
         collect([
@@ -40,7 +44,7 @@ class EloquentMassPrunableTest extends DatabaseTestCase
         MassPrunableTestModelMissingPrunableMethod::create()->pruneAll();
     }
 
-    public function testPrunesRecords()
+    public function testPrunesRecords(): void
     {
         Event::fake();
 
@@ -75,7 +79,7 @@ class EloquentMassPrunableTest extends DatabaseTestCase
         $this->assertSame([], $observedEvents);
     }
 
-    public function testPrunesSoftDeletedRecords()
+    public function testPrunesSoftDeletedRecords(): void
     {
         Event::fake();
 
@@ -93,13 +97,33 @@ class EloquentMassPrunableTest extends DatabaseTestCase
 
         Event::assertDispatched(ModelsPruned::class, 3);
     }
+
+    public function testPrunesActiveAndSoftDeletedRecords(): void
+    {
+        Event::fake();
+
+        MassPrunableSoftDeleteTestModel::insert([
+            ['deleted_at' => null],
+            ['deleted_at' => now()],
+        ]);
+
+        $count = (new MassPrunableSoftDeleteTestModel)->pruneAll();
+
+        $this->assertEquals(2, $count);
+        $this->assertEquals(0, MassPrunableSoftDeleteTestModel::withTrashed()->count());
+
+        Event::assertDispatched(ModelsPruned::class, 1);
+    }
 }
 
 class MassPrunableTestModel extends Model
 {
     use MassPrunable;
 
-    public function prunable()
+    /**
+     * Get the prunable model query.
+     */
+    public function prunable(): Builder
     {
         return $this->where('id', '<=', 1500);
     }
@@ -110,7 +134,10 @@ class MassPrunableSoftDeleteTestModel extends Model
     use MassPrunable;
     use SoftDeletes;
 
-    public function prunable()
+    /**
+     * Get the prunable model query.
+     */
+    public function prunable(): Builder
     {
         return $this->where('id', '<=', 3000);
     }
