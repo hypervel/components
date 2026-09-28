@@ -8,19 +8,25 @@ use DateTimeImmutable;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\ObjectPool\Factory as PoolFactory;
 use Hypervel\Filesystem\AwsS3V3Adapter;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Filesystem\FilesystemPoolProxy;
+use Hypervel\Filesystem\ScopedFilesystemProxy;
 use Hypervel\Sentry\Features\Storage\DecoratedFilesystem;
 use Hypervel\Sentry\Features\Storage\Integration;
+use Hypervel\Sentry\Features\Storage\SentryFilesystem;
 use Hypervel\Sentry\Features\Storage\SentryFilesystemAdapter;
 use Hypervel\Sentry\Features\Storage\SentryS3V3Adapter;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\Storage;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Sentry\SentryTestCase;
+use InvalidArgumentException;
 use League\Flysystem\Filesystem as Flysystem;
 use League\Flysystem\Local\LocalFilesystemAdapter;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use ReflectionMethod;
 
@@ -90,6 +96,69 @@ class StorageIntegrationTest extends SentryTestCase
         $this->assertSame('file.assertMissing', $span->getOp());
         $this->assertSame('2 paths', $span->getDescription());
         $this->assertSame(['paths' => ['foo', 'bar'], 'disk' => 'local', 'driver' => 'local'], $span->getData());
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testCrossDiskTransfersPreserveIdentityAndTracing(bool $scoped): void
+    {
+        $root = ParallelTesting::tempDir('SentryCrossDiskTransfers');
+        $files = new Filesystem;
+        $files->deleteDirectory($root);
+        $files->ensureDirectoryExists($root);
+
+        try {
+            $this->resetApplicationWithConfig([
+                'filesystems.disks' => Integration::configureDisks([
+                    'source' => ['driver' => $scoped ? 'dynamic-scoped' : 'local', 'root' => $root . '/source'],
+                ]),
+            ]);
+            $manager = $this->app->make(FilesystemManager::class);
+            $manager->extend('dynamic-scoped', static function (Container $app, array $config): ScopedFilesystemProxy {
+                $adapter = new LocalFilesystemAdapter($config['root']);
+
+                return new ScopedFilesystemProxy(
+                    new FilesystemAdapter(new Flysystem($adapter), $adapter),
+                    static fn (): string => 'tenant',
+                );
+            });
+            $source = Storage::disk('source');
+            $this->assertInstanceOf($scoped ? SentryFilesystem::class : SentryFilesystemAdapter::class, $source);
+            $source->put('file.txt', 'contents');
+
+            try {
+                $source->moveToDisk('source', 'file.txt');
+                $this->fail('Expected a same-path move to be rejected.');
+            } catch (InvalidArgumentException $exception) {
+                $this->assertSame('Cannot copy a file to the same disk and path.', $exception->getMessage());
+            }
+
+            $this->assertSame('contents', $source->get('file.txt'));
+            $adapter = new LocalFilesystemAdapter($root . '/destination');
+            $destination = new FilesystemAdapter(new Flysystem($adapter), $adapter);
+            $transaction = $this->startTransaction();
+
+            $this->assertTrue($source->copyToDisk($destination, 'file.txt'));
+            $this->assertTrue($source->moveToDisk('source', 'file.txt', 'moved.txt'));
+            $spans = $transaction->getSpanRecorder()->getSpans();
+
+            $this->assertCount(3, $spans);
+            $this->assertSame('file.copyToDisk', $spans[1]->getOp());
+            $this->assertSame('file.moveToDisk', $spans[2]->getOp());
+            $this->assertSame([
+                'from' => 'file.txt', 'to' => 'file.txt',
+                'disk' => 'source', 'driver' => $scoped ? 'dynamic-scoped' : 'local',
+            ], $spans[1]->getData());
+            $this->assertSame([
+                'from' => 'file.txt', 'to' => 'moved.txt', 'destination_disk' => 'source',
+                'disk' => 'source', 'driver' => $scoped ? 'dynamic-scoped' : 'local',
+            ], $spans[2]->getData());
+            $this->assertSame('contents', $destination->get('file.txt'));
+            $this->assertSame('contents', $source->get('moved.txt'));
+            $this->assertFalse($source->exists('file.txt'));
+        } finally {
+            $files->deleteDirectory($root);
+        }
     }
 
     public function testDoesntCreateSpansWhenDisabled(): void

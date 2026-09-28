@@ -93,17 +93,10 @@ class PhpRedisClusterConnection extends PhpRedisConnection
     /**
      * Scan all keys based on the given options.
      *
-     * @param mixed $cursor
-     * @param mixed ...$arguments
-     *
      * @throws InvalidArgumentException
      */
-    public function scan(&$cursor, ...$arguments): mixed
+    protected function callScan(mixed &$cursor, mixed ...$arguments): mixed
     {
-        if (! $this->shouldTransform) {
-            return $this->__call('scan', array_merge([&$cursor], $arguments));
-        }
-
         $options = $this->getScanOptions($arguments);
 
         if (isset($options['node'])) {

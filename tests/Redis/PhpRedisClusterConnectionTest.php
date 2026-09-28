@@ -257,6 +257,7 @@ class PhpRedisClusterConnectionTest extends TestCase
     public function testItThrowsExceptionWithoutNodes(): void
     {
         $client = m::mock(RedisCluster::class);
+        $client->allows('getMode')->andReturn(Redis::ATOMIC);
         $client->expects('_masters')->andReturn([]);
         $client->shouldNotReceive('scan');
         $connection = new PhpRedisClusterConnectionStub;
@@ -272,6 +273,7 @@ class PhpRedisClusterConnectionTest extends TestCase
     {
         $master = ['127.0.0.1', 6379];
         $client = m::mock(RedisCluster::class);
+        $client->allows('getMode')->andReturn(Redis::ATOMIC);
         $client->expects('_masters')->andReturn([$master]);
         $client->expects('scan')->with(0, $master, '*', 10)->andReturnFalse();
         $connection = new PhpRedisClusterConnectionStub;
@@ -287,6 +289,7 @@ class PhpRedisClusterConnectionTest extends TestCase
         $masters = [['127.0.0.1', 6379], ['127.0.0.2', 6379], ['127.0.0.3', 6379]];
         $keys = ['a', 'b', 'c'];
         $client = m::mock(RedisCluster::class);
+        $client->allows('getMode')->andReturn(Redis::ATOMIC);
         $client->allows('_masters')->andReturn($masters);
 
         foreach ($masters as $index => $master) {
@@ -321,6 +324,7 @@ class PhpRedisClusterConnectionTest extends TestCase
     {
         $master = ['127.0.0.1', 6379];
         $client = m::mock(RedisCluster::class);
+        $client->allows('getMode')->andReturn(Redis::ATOMIC);
         $client->allows('_masters')->andReturn([$master]);
         $client->expects('scan')->with(null, $master, '*', 10)
             ->andReturnUsing(function (&$cursor) use ($firstPage): array {
@@ -363,6 +367,7 @@ class PhpRedisClusterConnectionTest extends TestCase
     {
         $masters = [['127.0.0.1', 6379], ['127.0.0.2', 6379]];
         $client = m::mock(RedisCluster::class);
+        $client->allows('getMode')->andReturn(Redis::ATOMIC);
         $client->allows('_masters')->andReturn($masters);
         $client->expects('scan')->with(null, $masters[0], '*', 10)
             ->andReturnUsing(function (&$cursor): array {
@@ -388,6 +393,7 @@ class PhpRedisClusterConnectionTest extends TestCase
         $master = ['127.0.0.1', 6379];
         $largeCursor = '18446744073709551615';
         $client = m::mock(RedisCluster::class);
+        $client->allows('getMode')->andReturn(Redis::ATOMIC);
         $client->allows('_masters')->andReturn([$master]);
         $client->expects('scan')->with(null, $master, '*', 10)
             ->andReturnUsing(function (&$cursor) use ($largeCursor): array {
@@ -413,6 +419,7 @@ class PhpRedisClusterConnectionTest extends TestCase
     {
         $masters = [['127.0.0.1', 6379], ['127.0.0.2', 6379]];
         $client = m::mock(RedisCluster::class);
+        $client->allows('getMode')->andReturn(Redis::ATOMIC);
         $client->expects('_masters')->twice()->andReturn($masters, array_reverse($masters));
 
         foreach ($masters as $index => $master) {
@@ -436,6 +443,7 @@ class PhpRedisClusterConnectionTest extends TestCase
     {
         $masters = [['127.0.0.1', 6379], ['127.0.0.2', 6379]];
         $client = m::mock(RedisCluster::class);
+        $client->allows('getMode')->andReturn(Redis::ATOMIC);
         $client->expects('_masters')->twice()->andReturn($masters, [$masters[1]]);
         $client->expects('scan')->with(null, $masters[0], '*', 10)
             ->andReturnUsing(function (&$cursor): array {

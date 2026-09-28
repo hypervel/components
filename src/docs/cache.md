@@ -401,6 +401,12 @@ if (Cache::has('key')) {
 }
 ```
 
+Pass an array of keys to check that every item exists and has a non-null value:
+
+```php
+Cache::has(['first', 'second']);
+```
+
 <a name="incrementing-decrementing-values"></a>
 #### Incrementing / Decrementing Values
 
@@ -567,6 +573,12 @@ You may remove items from the cache using the `forget` method:
 
 ```php
 Cache::forget('key');
+```
+
+You may pass an array of keys to remove multiple items. The method returns `true` only if every removal succeeds:
+
+```php
+Cache::forget(['first', 'second']);
 ```
 
 You may also remove items by providing a zero or negative number of expiration seconds:

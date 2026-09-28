@@ -9,6 +9,7 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
+use Hypervel\Routing\EncodedParameter;
 use Hypervel\Routing\Exceptions\UrlGenerationException;
 use Hypervel\Routing\Route;
 use Hypervel\Routing\RouteCollection;
@@ -1046,6 +1047,47 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         );
 
         $url->route('not_exists_route');
+    }
+
+    public function testRouteParametersContainingPercentSignsAreEncoded(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            $request = Request::create('http://www.foo.com/')
+        );
+
+        $routes->add(new Route(['GET'], 'foo/{bar}', ['as' => 'foo', function (): void {
+        }]));
+
+        // A raw percent sign would be decoded again when the router matches the URL,
+        // so the parameter has to survive a round trip through rawurldecode()...
+        $this->assertSame('http://www.foo.com/foo/%2566oo', $url->route('foo', ['bar' => '%66oo']));
+        $this->assertSame('http://www.foo.com/foo/100%25', $url->route('foo', ['bar' => '100%']));
+
+        $this->assertSame('%66oo', rawurldecode('%2566oo'));
+        $this->assertSame('100%', rawurldecode('100%25'));
+
+        // Values without a percent sign are unaffected...
+        $this->assertSame('http://www.foo.com/foo/bar', $url->route('foo', ['bar' => 'bar']));
+        $this->assertSame('http://www.foo.com/foo/1', $url->route('foo', ['bar' => 1]));
+    }
+
+    public function testEncodedRouteParametersAreNotEncodedAgain(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            $request = Request::create('http://www.foo.com/')
+        );
+
+        $routes->add(new Route(['GET'], 'foo/{bar}', ['as' => 'foo', function (): void {
+        }]));
+
+        // Values that are already URL encoded may be marked as such so they are used as-is...
+        $this->assertSame('http://www.foo.com/foo/foo%20bar', $url->route('foo', ['bar' => new EncodedParameter('foo%20bar')]));
+        $this->assertSame('http://www.foo.com/foo/%66oo', $url->route('foo', ['bar' => new EncodedParameter('%66oo')]));
+
+        // While plain strings continue to be encoded...
+        $this->assertSame('http://www.foo.com/foo/foo%2520bar', $url->route('foo', ['bar' => 'foo%20bar']));
     }
 
     public function testSignedUrl()

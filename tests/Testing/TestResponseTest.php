@@ -1906,6 +1906,62 @@ EOT,
         $response->assertJsonMissingPath('numeric_keys.3');
     }
 
+    public function testAssertJsonMissingPathWithWildcard(): void
+    {
+        $response = TestResponse::fromBaseResponse(new Response(new JsonSerializableMixedResourcesStub));
+
+        $response->assertJsonMissingPath('bars.*.missing');
+        $response->assertJsonMissingPath('missing.*.bar');
+
+        // A wildcard matches a single segment, so this must not match "barfoo.*.bar.foo"...
+        $response->assertJsonMissingPath('barfoo.*.foo');
+
+        $literalKeys = TestResponse::fromBaseResponse(new JsonResponse(['users' => [['password.hash' => 'value']]]));
+        $literalKeys->assertJsonMissingPath('users.*.password');
+        $literalKeys->assertJsonMissingPath('users.*.password.hash');
+        $literalKeys->assertJsonMissingPath('users.0.password.hash');
+
+        TestResponse::fromBaseResponse(new JsonResponse(42))->assertJsonMissingPath('*');
+        TestResponse::fromBaseResponse(new JsonResponse([]))->assertJsonMissingPath('*');
+    }
+
+    public function testAssertJsonMissingPathWithTrailingWildcardCanFail(): void
+    {
+        $this->expectException(AssertionFailedError::class);
+
+        $response = TestResponse::fromBaseResponse(new Response(new JsonSerializableMixedResourcesStub));
+
+        $response->assertJsonMissingPath('bars.*');
+    }
+
+    public function testAssertJsonMissingPathWithWildcardCanFail(): void
+    {
+        $this->expectException(AssertionFailedError::class);
+
+        $response = TestResponse::fromBaseResponse(new Response(new JsonSerializableMixedResourcesStub));
+
+        $response->assertJsonMissingPath('bars.*.bar');
+    }
+
+    public function testAssertJsonMissingPathWithWildcardCanFailWhenPresentOnSomeItems(): void
+    {
+        $this->expectException(AssertionFailedError::class);
+
+        $response = TestResponse::fromBaseResponse(new Response(new JsonSerializableMixedResourcesStub));
+
+        $response->assertJsonMissingPath('barfoo.*.bar.foo');
+    }
+
+    #[TestWith([['present'], '*'])]
+    #[TestWith([['' => ['value' => null]], '*.value'])]
+    #[TestWith([['child' => []], '*'])]
+    public function testAssertJsonMissingPathWithWildcardCanFailForMatchingNodes(array $data, string $path): void
+    {
+        $this->expectException(AssertionFailedError::class);
+
+        TestResponse::fromBaseResponse(new JsonResponse($data))->assertJsonMissingPath($path);
+    }
+
     public function testAssertJsonMissingPaths(): void
     {
         $response = TestResponse::fromBaseResponse(new Response(new JsonSerializableMixedResourcesStub));

@@ -218,6 +218,14 @@ npm run dev
 npm run build
 ```
 
+You may retrieve the development server's URL using `Vite::devServerUrl()`. The method respects custom hot file paths and returns `null` when the development server is not running:
+
+```php
+use Hypervel\Support\Facades\Vite;
+
+$url = Vite::devServerUrl();
+```
+
 <a name="working-with-scripts"></a>
 ## Working With JavaScript
 

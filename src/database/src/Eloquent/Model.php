@@ -36,6 +36,7 @@ use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
 use Hypervel\Database\Eloquent\Relations\HasManyThrough;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Eloquent\Relations\Relation;
+use Hypervel\Database\LazyLoadingViolationException;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Support\Arr;
@@ -228,9 +229,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * The callback that is responsible for handling lazy loading violations.
      *
-     * @var null|(callable(self, string): mixed)
+     * @var null|(callable(self, string, LazyLoadingViolationException): mixed)
      */
-    protected static $lazyLoadingViolationCallback;
+    protected static mixed $lazyLoadingViolationCallback = null;
 
     /**
      * Indicates if an exception should be thrown instead of silently discarding non-fillable attributes.
@@ -240,9 +241,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * The callback that is responsible for handling discarded attribute violations.
      *
-     * @var null|(callable(self, array): mixed)
+     * @var null|(callable(self, array, MassAssignmentException): mixed)
      */
-    protected static $discardedAttributeViolationCallback;
+    protected static mixed $discardedAttributeViolationCallback = null;
 
     /**
      * Indicates if an exception should be thrown when trying to access a missing attribute on a retrieved model.
@@ -252,9 +253,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * The callback that is responsible for handling missing attribute violations.
      *
-     * @var null|(callable(self, string): mixed)
+     * @var null|(callable(self, string, MissingAttributeException): mixed)
      */
-    protected static $missingAttributeViolationCallback;
+    protected static mixed $missingAttributeViolationCallback = null;
 
     /**
      * Indicates if invalid value exceptions during implicit route model binding should be reported.
@@ -679,7 +680,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Boot-only. The callback persists in a static property for the worker
      * lifetime and runs on every lazy-loading violation across all coroutines.
      *
-     * @param null|(callable(self, string): mixed) $callback
+     * @param null|(callable(self, string, LazyLoadingViolationException): mixed) $callback
      */
     public static function handleLazyLoadingViolationUsing(?callable $callback): void
     {
@@ -704,7 +705,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * lifetime and runs on every discarded-attribute violation across all
      * coroutines.
      *
-     * @param null|(callable(self, array): mixed) $callback
+     * @param null|(callable(self, array, MassAssignmentException): mixed) $callback
      */
     public static function handleDiscardedAttributeViolationUsing(?callable $callback): void
     {
@@ -729,7 +730,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * lifetime and runs on every missing-attribute violation across all
      * coroutines.
      *
-     * @param null|(callable(self, string): mixed) $callback
+     * @param null|(callable(self, string, MissingAttributeException): mixed) $callback
      */
     public static function handleMissingAttributeViolationUsing(?callable $callback): void
     {
@@ -796,14 +797,16 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             if ($this->isFillable($key)) {
                 $this->setAttribute($key, $value);
             } elseif ($totallyGuarded || static::preventsSilentlyDiscardingAttributes()) {
+                $exception = new MassAssignmentException(sprintf(
+                    'Add [%s] to fillable property to allow mass assignment on [%s].',
+                    $key,
+                    get_class($this)
+                ));
+
                 if (isset(static::$discardedAttributeViolationCallback)) {
-                    call_user_func(static::$discardedAttributeViolationCallback, $this, [$key]);
+                    call_user_func(static::$discardedAttributeViolationCallback, $this, [$key], $exception);
                 } else {
-                    throw new MassAssignmentException(sprintf(
-                        'Add [%s] to fillable property to allow mass assignment on [%s].',
-                        $key,
-                        get_class($this)
-                    ));
+                    throw $exception;
                 }
             }
         }
@@ -812,14 +815,16 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             && static::preventsSilentlyDiscardingAttributes()) {
             $keys = array_diff(array_keys($attributes), array_keys($fillable));
 
+            $exception = new MassAssignmentException(sprintf(
+                'Add fillable property [%s] to allow mass assignment on [%s].',
+                implode(', ', $keys),
+                get_class($this)
+            ));
+
             if (isset(static::$discardedAttributeViolationCallback)) {
-                call_user_func(static::$discardedAttributeViolationCallback, $this, $keys);
+                call_user_func(static::$discardedAttributeViolationCallback, $this, $keys, $exception);
             } else {
-                throw new MassAssignmentException(sprintf(
-                    'Add fillable property [%s] to allow mass assignment on [%s].',
-                    implode(', ', $keys),
-                    get_class($this)
-                ));
+                throw $exception;
             }
         }
 
@@ -2016,12 +2021,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     protected function resolveCustomBuilderClass(): string|false
     {
-        $attributes = (new ReflectionClass($this))
-            ->getAttributes(UseEloquentBuilder::class);
-
-        return ! empty($attributes)
-            ? $attributes[0]->newInstance()->builderClass
-            : false;
+        return static::resolveClassAttribute(UseEloquentBuilder::class, 'builderClass') ?? false;
     }
 
     /**

@@ -105,6 +105,16 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
      */
     public function has(array|UnitEnum|string $key): bool
     {
+        if (is_array($key)) {
+            $keys = [];
+
+            foreach ($key as $name => $value) {
+                $keys[] = is_string($name) ? $name : $value;
+            }
+
+            return ! in_array(null, $this->many($keys), true);
+        }
+
         return ! is_null($this->get($key));
     }
 
@@ -807,8 +817,12 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
     /**
      * Remove an item from the cache.
      */
-    public function forget(UnitEnum|string $key): bool
+    public function forget(array|UnitEnum|string $key): bool
     {
+        if (is_array($key)) {
+            return $this->deleteMultiple($key);
+        }
+
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
         if ($this->events?->hasListeners(ForgettingKey::class)) {

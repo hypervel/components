@@ -11,6 +11,7 @@ use Hypervel\Foundation\Vite as FoundationVite;
  * @method static string content(string $asset, string|null $buildDirectory = null)
  * @method static \Hypervel\Foundation\Vite createAssetPathsUsing(callable|null $resolver)
  * @method static string|null cspNonce()
+ * @method static string|null devServerUrl()
  * @method static void flush()
  * @method static void flushMacros()
  * @method static \Hypervel\Support\HtmlString fonts(null|array<int, string>|string $aliases = null)

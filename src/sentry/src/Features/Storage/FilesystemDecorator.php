@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Features\Storage;
 
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Contracts\ObjectPool\InvalidatesPool;
 use Hypervel\Http\File;
@@ -13,7 +15,9 @@ use Hypervel\Sentry\Util\Filesize;
 use Psr\Http\Message\StreamInterface;
 use Sentry\Breadcrumb;
 use Sentry\Tracing\SpanContext;
+use UnitEnum;
 
+use function Hypervel\Support\enum_value;
 use function Sentry\trace;
 
 /**
@@ -223,6 +227,44 @@ trait FilesystemDecorator
     public function move(string $from, string $to): bool
     {
         return $this->withSentry(__FUNCTION__, func_get_args(), sprintf('from "%s" to "%s"', $from, $to), compact('from', 'to'));
+    }
+
+    /**
+     * Copy a file to another disk.
+     */
+    public function copyToDisk(Filesystem|string|UnitEnum $disk, string $from, ?string $to = null): bool
+    {
+        return $this->transferToDisk(__FUNCTION__, $disk, $from, $to);
+    }
+
+    /**
+     * Move a file to another disk.
+     */
+    public function moveToDisk(Filesystem|string|UnitEnum $disk, string $from, ?string $to = null): bool
+    {
+        return $this->transferToDisk(__FUNCTION__, $disk, $from, $to);
+    }
+
+    /**
+     * Trace a transfer while preserving the wrapped disk's identity check.
+     */
+    protected function transferToDisk(string $method, Filesystem|string|UnitEnum $disk, string $from, ?string $to): bool
+    {
+        $destination = $disk instanceof Filesystem
+            ? $disk
+            : Container::getInstance()->make(FilesystemFactory::class)->disk($disk);
+        $data = ['from' => $from, 'to' => $to ?? $from];
+
+        if (! $disk instanceof Filesystem) {
+            $data['destination_disk'] = enum_value($disk);
+        }
+
+        return $this->withSentry(
+            $method,
+            [$destination === $this ? $this->filesystem : $destination, $from, $to],
+            sprintf('from "%s" to "%s"', $from, $to ?? $from),
+            $data,
+        );
     }
 
     /**

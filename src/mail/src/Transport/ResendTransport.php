@@ -132,7 +132,9 @@ class ResendTransport extends AbstractTransport
 
         $messageId = $result->id;
 
-        $email->getHeaders()->addHeader('X-Resend-Email-ID', $messageId);
+        $message->setMessageId($messageId);
+
+        $originalMessage->getHeaders()->addHeader('X-Resend-Email-ID', $messageId);
     }
 
     /**

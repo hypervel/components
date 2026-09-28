@@ -25,6 +25,7 @@ use Hypervel\Database\Eloquent\Attributes\CollectedBy;
 use Hypervel\Database\Eloquent\Attributes\ObservedBy;
 use Hypervel\Database\Eloquent\Attributes\RouteKey;
 use Hypervel\Database\Eloquent\Attributes\Table;
+use Hypervel\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Hypervel\Database\Eloquent\Attributes\UseFactory;
 use Hypervel\Database\Eloquent\Attributes\WithoutTimestamps;
 use Hypervel\Database\Eloquent\Builder;
@@ -2083,9 +2084,11 @@ class DatabaseEloquentModelTest extends TestCase
 
         $callbackModel = null;
         $callbackKeys = null;
-        Model::handleDiscardedAttributeViolationUsing(function (Model $model, array $keys) use (&$callbackModel, &$callbackKeys): void {
+        $callbackException = null;
+        Model::handleDiscardedAttributeViolationUsing(function (Model $model, array $keys, MassAssignmentException $exception) use (&$callbackModel, &$callbackKeys, &$callbackException): void {
             $callbackModel = $model;
             $callbackKeys = $keys;
+            $callbackException = $exception;
         });
 
         $model = new ModelStub;
@@ -2094,6 +2097,8 @@ class DatabaseEloquentModelTest extends TestCase
 
         $this->assertInstanceOf(ModelStub::class, $callbackModel);
         $this->assertEquals(['Foo'], $callbackKeys);
+        $this->assertInstanceOf(MassAssignmentException::class, $callbackException);
+        $this->assertSame('Add [Foo] to fillable property to allow mass assignment on [' . ModelStub::class . '].', $callbackException->getMessage());
 
         Model::preventSilentlyDiscardingAttributes(false);
         Model::handleDiscardedAttributeViolationUsing(null);
@@ -4221,9 +4226,12 @@ class DatabaseEloquentModelTest extends TestCase
         $callbackModel = null;
         $callbackKey = null;
 
-        Model::handleMissingAttributeViolationUsing(function (Model $model, string $key) use (&$callbackModel, &$callbackKey): void {
+        $callbackException = null;
+
+        Model::handleMissingAttributeViolationUsing(function (Model $model, string $key, MissingAttributeException $exception) use (&$callbackModel, &$callbackKey, &$callbackException): void {
             $callbackModel = $model;
             $callbackKey = $key;
+            $callbackException = $exception;
         });
 
         $model = new ModelStub(['id' => 1]);
@@ -4235,6 +4243,7 @@ class DatabaseEloquentModelTest extends TestCase
 
         $this->assertInstanceOf(ModelStub::class, $callbackModel);
         $this->assertSame('this_attribute_does_not_exist', $callbackKey);
+        $this->assertInstanceOf(MissingAttributeException::class, $callbackException);
 
         Model::preventAccessingMissingAttributes($originalMode);
         Model::handleMissingAttributeViolationUsing(null);
@@ -4845,7 +4854,7 @@ class DatabaseEloquentModelTest extends TestCase
         };
     }
 
-    public function testUseCustomBuilderWithUseEloquentBuilderAttribute()
+    public function testUseCustomBuilderWithUseEloquentBuilderAttribute(): void
     {
         $model = new ModelWithUseEloquentBuilderAttributeStub;
 
@@ -4855,7 +4864,25 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertInstanceOf(CustomBuilder::class, $eloquentBuilder);
     }
 
-    public function testDefaultBuilderIsUsedWhenUseEloquentBuilderAttributeIsNotPresent()
+    public function testUseEloquentBuilderAttributeIsInherited(): void
+    {
+        $model = new EloquentModelInheritingBuilderStub;
+
+        $query = $this->createStub(BaseBuilder::class);
+
+        $this->assertInstanceOf(CustomBuilder::class, $model->newEloquentBuilder($query));
+    }
+
+    public function testUseEloquentBuilderAttributeOnChildClassOverridesParentAttribute(): void
+    {
+        $model = new EloquentModelOverridingBuilderStub;
+
+        $query = $this->createStub(BaseBuilder::class);
+
+        $this->assertInstanceOf(ChildCustomBuilder::class, $model->newEloquentBuilder($query));
+    }
+
+    public function testDefaultBuilderIsUsedWhenUseEloquentBuilderAttributeIsNotPresent(): void
     {
         $model = new ModelWithoutUseEloquentBuilderAttributeStub;
 
@@ -4884,8 +4911,21 @@ class CustomBuilder extends Builder
 {
 }
 
-#[\Hypervel\Database\Eloquent\Attributes\UseEloquentBuilder(CustomBuilder::class)]
+class ChildCustomBuilder extends Builder
+{
+}
+
+#[UseEloquentBuilder(CustomBuilder::class)]
 class ModelWithUseEloquentBuilderAttributeStub extends Model
+{
+}
+
+class EloquentModelInheritingBuilderStub extends ModelWithUseEloquentBuilderAttributeStub
+{
+}
+
+#[UseEloquentBuilder(ChildCustomBuilder::class)]
+class EloquentModelOverridingBuilderStub extends ModelWithUseEloquentBuilderAttributeStub
 {
 }
 

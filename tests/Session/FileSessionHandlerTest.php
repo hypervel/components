@@ -40,6 +40,24 @@ class FileSessionHandlerTest extends TestCase
         $this->assertTrue($this->sessionHandler->close());
     }
 
+    public function testItCreatesSessionIds(): void
+    {
+        $sessionId = $this->sessionHandler->create_sid();
+
+        $this->assertIsString($sessionId);
+        $this->assertNotEmpty($sessionId);
+    }
+
+    public function testValidateIdChecksFileExists(): void
+    {
+        $sessionId = 'session_id';
+        $path = '/path/to/sessions/' . $sessionId;
+
+        $this->files->expects('isFile')->with($path)->andReturn(true);
+
+        $this->assertTrue($this->sessionHandler->validateId($sessionId));
+    }
+
     public function testReadReturnsDataWhenFileExistsAndIsValid(): void
     {
         $sessionId = 'session_id';

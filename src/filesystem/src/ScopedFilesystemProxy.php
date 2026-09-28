@@ -7,7 +7,10 @@ namespace Hypervel\Filesystem;
 use BadMethodCallException;
 use Closure;
 use DateTimeInterface;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Contracts\Filesystem\Filesystem;
+use Hypervel\Filesystem\Concerns\TransfersFiles;
 use Hypervel\Http\File;
 use Hypervel\Http\Request;
 use Hypervel\Http\UploadedFile;
@@ -19,6 +22,7 @@ use League\Flysystem\WhitespacePathNormalizer;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use UnitEnum;
 
 /**
  * Isolate every filesystem path behind a dynamically resolved prefix on a
@@ -33,6 +37,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class ScopedFilesystemProxy implements Filesystem
 {
     use Conditionable;
+    use TransfersFiles;
 
     protected PathNormalizer $normalizer;
 
@@ -464,6 +469,45 @@ class ScopedFilesystemProxy implements Filesystem
             $this->applyPrefix($prefix, $from),
             $this->applyPrefix($prefix, $to),
         ]);
+    }
+
+    /**
+     * Copy a scoped file to another disk.
+     */
+    public function copyToDisk(Filesystem|string|UnitEnum $disk, string $from, ?string $to = null): bool
+    {
+        return $this->transferToDisk($disk, $from, $to, false);
+    }
+
+    /**
+     * Move a scoped file to another disk.
+     */
+    public function moveToDisk(Filesystem|string|UnitEnum $disk, string $from, ?string $to = null): bool
+    {
+        return $this->transferToDisk($disk, $from, $to, true);
+    }
+
+    /**
+     * Transfer a file using one resolved source disk and prefix.
+     */
+    protected function transferToDisk(Filesystem|string|UnitEnum $disk, string $from, ?string $to, bool $move): bool
+    {
+        $destination = $disk instanceof Filesystem
+            ? $disk
+            : Container::getInstance()->make(FilesystemFactory::class)->disk($disk);
+        $to ??= $from;
+
+        $prefix = $this->prefix();
+        $source = $this->resolveDisk();
+        $from = $this->applyPrefix($prefix, $from);
+
+        if ($destination === $this) {
+            $destination = $source;
+            $to = $this->applyPrefix($prefix, $to);
+        }
+
+        return $this->transferFile($source, $from, $destination, $to)
+            && (! $move || $source->delete($from));
     }
 
     /**

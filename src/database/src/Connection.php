@@ -496,6 +496,7 @@ abstract class Connection implements ConnectionInterface, NonCopyableContext
     /**
      * Execute the given callback in "dry run" mode.
      *
+     * @param (Closure(): (array{query: string, bindings: array, time: null|float}[])) $callback
      * @return array{query: string, bindings: array, time: null|float}[]
      */
     protected function withFreshQueryLog(Closure $callback): array

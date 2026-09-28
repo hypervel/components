@@ -244,6 +244,7 @@ class SupportBinaryCodecTest extends TestCase
 
         // Invalid UTF-8 sequences
         $this->assertTrue(BinaryCodec::isBinary("\xFF\xFE"));
+        $this->assertTrue(BinaryCodec::isBinary("\xE3\x81"));
 
         // Binary identifier bytes can still look like text
         $this->assertFalse(BinaryCodec::isBinary(Uuid::fromString(self::UTF8_SAFE_BINARY_UUID)->toBinary()));

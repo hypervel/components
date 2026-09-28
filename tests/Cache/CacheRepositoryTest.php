@@ -41,6 +41,7 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use stdClass;
 use Swoole\Coroutine\CanceledException;
@@ -183,6 +184,20 @@ class CacheRepositoryTest extends TestCase
         $this->assertTrue($repo->has('bar'));
         $this->assertFalse($repo->has('foo'));
         $this->assertTrue($repo->has('baz'));
+    }
+
+    #[TestWith([['foo', TestCacheKey::Bar], ['foo' => 'foo', 'bar' => 'bar'], true])]
+    #[TestWith([['foo', 'baz'], ['foo' => 'foo', 'baz' => null], false])]
+    #[TestWith([['foo' => false, 5 => TestCacheKey::Bar], ['foo' => false, 'bar' => 'bar'], true])]
+    #[TestWith([[5 => 'foo', 9 => TestCacheKey::Bar], ['foo' => 'foo', 'bar' => 'bar'], true])]
+    #[TestWith([['foo' => false], ['foo' => null], false])]
+    #[TestWith([['foo' => false], ['foo' => NullSentinel::VALUE], false])]
+    public function testHasMethodWithArray(array $keys, array $values, bool $expected): void
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->expects('many')->with(array_keys($values))->andReturn($values);
+
+        $this->assertSame($expected, $repo->has($keys));
     }
 
     public function testMissingMethod()
@@ -959,6 +974,15 @@ class CacheRepositoryTest extends TestCase
         $repo = $this->getRepository();
         $repo->getStore()->expects('forget')->with('a-key')->andReturn(true);
         $repo->forget('a-key');
+    }
+
+    public function testForgettingWithArray(): void
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->expects('forget')->with('foo')->andReturn(true);
+        $repo->getStore()->expects('forget')->with('bar')->andReturn(false);
+
+        $this->assertFalse($repo->forget(['foo', TestCacheKey::Bar]));
     }
 
     public function testRemovingCacheKey(): void
@@ -1865,4 +1889,5 @@ class CacheRepositoryTest extends TestCase
 enum TestCacheKey: string
 {
     case Foo = 'foo';
+    case Bar = 'bar';
 }

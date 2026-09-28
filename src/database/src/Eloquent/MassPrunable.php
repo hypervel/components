@@ -15,16 +15,15 @@ trait MassPrunable
      */
     public function pruneAll(int $chunkSize = 1000): int
     {
-        $query = tap($this->prunable(), function ($query) use ($chunkSize) {
-            $query->when(! $query->getQuery()->limit, function ($query) use ($chunkSize) {
-                $query->limit($chunkSize);
-            });
+        $softDeletable = static::isSoftDeletable();
+
+        $query = tap($this->prunable(), function (Builder $query) use ($chunkSize, $softDeletable): void {
+            $query->when($softDeletable, fn (Builder $query): Builder => $query->withTrashed())
+                ->when(! $query->getQuery()->limit, fn (Builder $query): Builder => $query->limit($chunkSize));
         });
 
         $total = 0;
         $events = null;
-
-        $softDeletable = static::isSoftDeletable();
 
         do {
             $total += $count = $softDeletable

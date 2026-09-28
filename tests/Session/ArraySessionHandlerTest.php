@@ -20,11 +20,30 @@ class ArraySessionHandlerTest extends TestCase
         );
     }
 
+    public function testItCreatesSessionIds(): void
+    {
+        $sessionId = (new ArraySessionHandler(10))->create_sid();
+
+        $this->assertIsString($sessionId);
+        $this->assertNotEmpty($sessionId);
+    }
+
     public function testInitializeSession(): void
     {
         $handler = new ArraySessionHandler(10);
 
         $this->assertTrue($handler->open('', ''));
+    }
+
+    public function testItValidatesSessionIds(): void
+    {
+        $handler = new ArraySessionHandler(10);
+
+        $this->assertFalse($handler->validateId('foo'));
+
+        $handler->write('foo', 'bar');
+
+        $this->assertTrue($handler->validateId('foo'));
     }
 
     public function testCloseSession(): void

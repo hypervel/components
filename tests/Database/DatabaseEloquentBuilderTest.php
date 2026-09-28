@@ -366,6 +366,7 @@ class DatabaseEloquentBuilderTest extends TestCase
     {
         $builder = new Builder(m::mock(BaseBuilder::class));
         $builder->expects('from')->with('foo_table');
+        $builder->getQuery()->allows('getFromAlias')->andReturnNull();
 
         $builder->setModel(new StubStringPrimaryKey);
 
@@ -376,10 +377,37 @@ class DatabaseEloquentBuilderTest extends TestCase
     {
         $builder = new Builder(m::mock(BaseBuilder::class));
         $builder->expects('from')->with('foo_table');
+        $builder->getQuery()->allows('getFromAlias')->andReturnNull();
 
         $builder->setModel(new StubStringPrimaryKey);
 
         $this->assertEquals(['foo_table.column', 'foo_table.name'], $builder->qualifyColumns(['column', 'name']));
+    }
+
+    public function testQualifyColumnWithTableAlias(): void
+    {
+        $connection = m::mock(Connection::class, ['getTablePrefix' => '']);
+        $query = new BaseBuilder($connection, new Grammar($connection), new Processor);
+        $builder = new Builder($query);
+        $builder->setModel(new StubStringPrimaryKey);
+        $builder->from('foo_table as alias');
+
+        $this->assertSame('alias.column', $builder->qualifyColumn('column'));
+        $this->assertSame('alias.column', $builder->qualifyColumn('foo_table.column'));
+        $this->assertSame('other_table.column', $builder->qualifyColumn('other_table.column'));
+        $this->assertEquals(['alias.column', 'alias.name'], $builder->qualifyColumns(['column', 'name']));
+
+        $builder->fromSub('select * from foo_table', 'sub');
+        $this->assertSame('sub.column', $builder->qualifyColumn('foo_table.column'));
+
+        $builder->from(new Expression('foo_table'), 'expression_alias');
+        $this->assertSame('expression_alias.column', $builder->qualifyColumn('column'));
+
+        $builder->from('foo_archive');
+        $this->assertSame('foo_archive.column', $builder->qualifyColumn('foo_table.column'));
+
+        $builder->fromRaw('foo_table as opaque');
+        $this->assertSame('foo_table.column', $builder->qualifyColumn('column'));
     }
 
     public function testGetMethodLoadsModelsAndHydratesEagerRelations(): void

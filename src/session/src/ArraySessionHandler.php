@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Hypervel\Support\InteractsWithTime;
+use RuntimeException;
 use SessionHandlerInterface;
 
 class ArraySessionHandler implements SessionHandlerInterface
@@ -34,6 +35,22 @@ class ArraySessionHandler implements SessionHandlerInterface
     public function close(): bool
     {
         return true;
+    }
+
+    /**
+     * Create a new session ID.
+     */
+    public function create_sid(): string
+    {
+        return session_create_id() ?: throw new RuntimeException('Unable to create a session ID.');
+    }
+
+    /**
+     * Determine if the session ID exists.
+     */
+    public function validateId(string $id): bool
+    {
+        return isset($this->storage[$id]);
     }
 
     public function read(string $sessionId): false|string

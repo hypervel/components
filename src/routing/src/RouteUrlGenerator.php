@@ -8,6 +8,7 @@ use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Routing\Exceptions\UrlGenerationException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Stringable;
 
 use function Hypervel\Support\enum_value;
 
@@ -42,7 +43,7 @@ class RouteUrlGenerator
     public array $defaultParameters = [];
 
     /**
-     * Characters that should not be URL encoded.
+     * Characters that should not be URL-encoded.
      */
     public array $dontEncode = [
         '%2F' => '/',
@@ -372,7 +373,7 @@ class RouteUrlGenerator
 
             return (! isset($parameters[0]) && ! str_ends_with($match[0], '?}'))
                 ? $match[0]
-                : $this->escapeParameterValue(Arr::pull($parameters, 0));
+                : $this->encodeParameter(Arr::pull($parameters, 0));
         }, $path);
 
         return trim(preg_replace('/\{.*?\?\}/', '', $path), '/');
@@ -388,12 +389,12 @@ class RouteUrlGenerator
     ): string {
         return preg_replace_callback('/\{(.*?)(\?)?\}/', function ($m) use (&$parameters, $rootDefaultParameters) {
             if (isset($parameters[$m[1]]) && $parameters[$m[1]] !== '') {
-                return $this->escapeParameterValue(Arr::pull($parameters, $m[1]));
+                return $this->encodeParameter(Arr::pull($parameters, $m[1]));
             }
             if (isset($rootDefaultParameters[$m[1]])) {
                 Arr::pull($parameters, $m[1]);
 
-                return $this->escapeParameterValue($rootDefaultParameters[$m[1]]);
+                return $this->encodeParameter($rootDefaultParameters[$m[1]]);
             }
             if (isset($parameters[$m[1]])) {
                 Arr::pull($parameters, $m[1]);
@@ -404,11 +405,19 @@ class RouteUrlGenerator
     }
 
     /**
-     * Escape delimiters while the value is still known to be parameter data.
+     * Encode a parameter value that is being substituted into a route URI.
+     *
+     * Values wrapped in an EncodedParameter are already URL-encoded and are used as-is.
      */
-    protected function escapeParameterValue(mixed $value): string
+    protected function encodeParameter(mixed $value): mixed
     {
-        return strtr((string) $value, self::PARAMETER_ESCAPES);
+        if ($value instanceof EncodedParameter) {
+            return $value->value();
+        }
+
+        return is_string($value) || $value instanceof Stringable
+            ? strtr((string) $value, self::PARAMETER_ESCAPES)
+            : $value;
     }
 
     /**

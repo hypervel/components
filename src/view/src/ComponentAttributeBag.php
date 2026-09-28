@@ -305,7 +305,7 @@ class ComponentAttributeBag implements Arrayable, ArrayAccess, IteratorAggregate
 
             unset($attributes['attributes']);
 
-            $attributes = $parentBag->merge($attributes, $escape = false)->getAttributes();
+            $attributes = $parentBag->merge($attributes, escape: false)->getAttributes();
         }
 
         $this->attributes = $attributes;

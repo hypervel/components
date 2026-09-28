@@ -146,7 +146,7 @@ trait InteractsWithIO
     /**
      * Prompt the user for input with auto completion.
      *
-     * @param (callable(string): string[])|iterable $choices
+     * @param (callable(string): list<string>)|iterable $choices
      */
     public function anticipate(string $question, iterable|callable $choices, ?string $default = null): mixed
     {
@@ -156,7 +156,7 @@ trait InteractsWithIO
     /**
      * Prompt the user for input with auto completion.
      *
-     * @param (callable(string): string[])|iterable $choices
+     * @param (callable(string): list<string>)|iterable $choices
      */
     public function askWithCompletion(string $question, iterable|callable $choices, ?string $default = null): mixed
     {

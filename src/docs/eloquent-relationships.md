@@ -2427,12 +2427,16 @@ After preventing lazy loading, Eloquent will throw a `Hypervel\Database\LazyLoad
 You may customize the behavior of lazy loading violations using the `handleLazyLoadingViolationUsing` method. For example, using this method, you may instruct lazy loading violations to only be logged instead of interrupting the application's execution with exceptions:
 
 ```php
-Model::handleLazyLoadingViolationUsing(function (Model $model, string $relation) {
+use Hypervel\Database\LazyLoadingViolationException;
+
+Model::handleLazyLoadingViolationUsing(function (Model $model, string $relation, LazyLoadingViolationException $exception) {
     $class = $model::class;
 
-    info("Attempted to lazy load [{$relation}] on model [{$class}].");
+    info("Attempted to lazy load [{$relation}] on model [{$class}].", ['exception' => $exception]);
 });
 ```
+
+The callback receives the violation exception as its third argument.
 
 <a name="inserting-and-updating-related-models"></a>
 ## Inserting and Updating Related Models

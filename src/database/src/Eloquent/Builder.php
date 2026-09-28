@@ -2015,6 +2015,16 @@ class Builder implements BuilderContract
     {
         $column = $column instanceof Expression ? $column->getValue($this->getGrammar()) : $column;
 
+        if (! is_null($alias = $this->getTableAlias())) {
+            if (! str_contains($column, '.')) {
+                return $alias . '.' . $column;
+            }
+
+            if (str_starts_with($column, $table = $this->model->getTable() . '.')) {
+                return $alias . '.' . substr($column, strlen($table));
+            }
+        }
+
         return $this->model->qualifyColumn($column);
     }
 
@@ -2023,7 +2033,21 @@ class Builder implements BuilderContract
      */
     public function qualifyColumns(array $columns): array
     {
-        return $this->model->qualifyColumns($columns);
+        $qualified = [];
+
+        foreach ($columns as $key => $column) {
+            $qualified[$key] = $this->qualifyColumn($column);
+        }
+
+        return $qualified;
+    }
+
+    /**
+     * Get the alias or table name that qualifies the query's source columns.
+     */
+    protected function getTableAlias(): ?string
+    {
+        return $this->query->getFromAlias();
     }
 
     /**

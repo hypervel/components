@@ -13,6 +13,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\URL;
 use Hypervel\Support\Uri;
+use Hypervel\Testing\TestResponse;
 use Hypervel\Tests\Integration\Routing\RoutingTestCase;
 use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\Response;
@@ -75,6 +76,31 @@ class UrlSigningTest extends RoutingTestCase
             $this->assertSame('routable-slug', $response->original['slug']);
 
             $this->assertSame('routable-slug', $response->baseRequest->route('post'));
+        });
+    }
+
+    public function testSigningUrlWithPercentSignInRouteSlug(): void
+    {
+        Route::get('/foo/{post:slug}', function (Request $request, string $slug): array {
+            return ['slug' => $slug, 'valid' => $request->hasValidSignature() ? 'valid' : 'invalid'];
+        })->name('foo');
+
+        $model = new RoutableInterfaceStub;
+        $model->slug = '%66oo';
+
+        // The percent sign has to be escaped in the generated URL. Otherwise the router
+        // decodes "%66" back into an "f" when matching the URL and binds a different
+        // model than the one the URL was generated for...
+        $this->assertSame(
+            '/foo/%2566oo',
+            parse_url($url = URL::signedRoute('foo', ['post' => $model]), PHP_URL_PATH)
+        );
+
+        tap($this->get($url), function (TestResponse $response): void {
+            $this->assertSame('valid', $response->original['valid']);
+            $this->assertSame('%66oo', $response->original['slug']);
+
+            $this->assertSame('%66oo', $response->baseRequest->route('post'));
         });
     }
 

@@ -209,6 +209,14 @@ echo route('post.show', ['post' => 1, 'search' => 'rocket']);
 
 You may also pass enum cases as route or query parameters, including values in nested query arrays. Backed enums use their backing value, while unit enums use their case name.
 
+Route parameters should normally contain unencoded values. If a value is already URL-encoded, wrap it in an `EncodedParameter` to avoid encoding it again:
+
+```php
+use Hypervel\Routing\EncodedParameter;
+
+echo route('post.show', ['post' => new EncodedParameter('hello%20world')]);
+```
+
 <a name="eloquent-models"></a>
 #### Eloquent Models
 

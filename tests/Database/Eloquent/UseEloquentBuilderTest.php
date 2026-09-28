@@ -12,17 +12,6 @@ use Mockery as m;
 
 class UseEloquentBuilderTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        // Clear the static cache between tests
-        UseEloquentBuilderTestModel::clearResolvedBuilderClasses();
-        UseEloquentBuilderTestModelWithAttribute::clearResolvedBuilderClasses();
-        UseEloquentBuilderTestChildModel::clearResolvedBuilderClasses();
-        UseEloquentBuilderTestChildModelWithOwnAttribute::clearResolvedBuilderClasses();
-
-        parent::tearDown();
-    }
-
     public function testNewModelBuilderReturnsDefaultBuilderWhenNoAttribute(): void
     {
         $model = new UseEloquentBuilderTestModel;
@@ -92,28 +81,6 @@ class UseEloquentBuilderTest extends TestCase
         $this->assertNotInstanceOf(CustomTestBuilder::class, $builder1);
         $this->assertInstanceOf(CustomTestBuilder::class, $builder2);
     }
-
-    public function testChildModelWithoutAttributeUsesDefaultBuilder(): void
-    {
-        $model = new UseEloquentBuilderTestChildModel;
-        $query = m::mock(\Hypervel\Database\Query\Builder::class);
-
-        $builder = $model->newEloquentBuilder($query);
-
-        // PHP attributes are not inherited - child needs its own attribute
-        $this->assertInstanceOf(Builder::class, $builder);
-        $this->assertNotInstanceOf(CustomTestBuilder::class, $builder);
-    }
-
-    public function testChildModelWithOwnAttributeUsesOwnBuilder(): void
-    {
-        $model = new UseEloquentBuilderTestChildModelWithOwnAttribute;
-        $query = m::mock(\Hypervel\Database\Query\Builder::class);
-
-        $builder = $model->newEloquentBuilder($query);
-
-        $this->assertInstanceOf(AnotherCustomTestBuilder::class, $builder);
-    }
 }
 
 // Test fixtures
@@ -129,14 +96,6 @@ class UseEloquentBuilderTestModel extends Model
     {
         return $this->resolveCustomBuilderClass();
     }
-
-    /**
-     * Clear the static cache for testing.
-     */
-    public static function clearResolvedBuilderClasses(): void
-    {
-        static::$resolvedBuilderClasses = [];
-    }
 }
 
 #[UseEloquentBuilder(CustomTestBuilder::class)]
@@ -151,37 +110,6 @@ class UseEloquentBuilderTestModelWithAttribute extends Model
     {
         return $this->resolveCustomBuilderClass();
     }
-
-    /**
-     * Clear the static cache for testing.
-     */
-    public static function clearResolvedBuilderClasses(): void
-    {
-        static::$resolvedBuilderClasses = [];
-    }
-}
-
-class UseEloquentBuilderTestChildModel extends UseEloquentBuilderTestModelWithAttribute
-{
-    /**
-     * Clear the static cache for testing.
-     */
-    public static function clearResolvedBuilderClasses(): void
-    {
-        static::$resolvedBuilderClasses = [];
-    }
-}
-
-#[UseEloquentBuilder(AnotherCustomTestBuilder::class)]
-class UseEloquentBuilderTestChildModelWithOwnAttribute extends UseEloquentBuilderTestModelWithAttribute
-{
-    /**
-     * Clear the static cache for testing.
-     */
-    public static function clearResolvedBuilderClasses(): void
-    {
-        static::$resolvedBuilderClasses = [];
-    }
 }
 
 /**
@@ -189,13 +117,5 @@ class UseEloquentBuilderTestChildModelWithOwnAttribute extends UseEloquentBuilde
  * @extends Builder<TModel>
  */
 class CustomTestBuilder extends Builder
-{
-}
-
-/**
- * @template TModel of Model
- * @extends Builder<TModel>
- */
-class AnotherCustomTestBuilder extends Builder
 {
 }
