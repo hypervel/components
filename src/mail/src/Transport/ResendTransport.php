@@ -134,9 +134,7 @@ class ResendTransport extends AbstractTransport
 
         $message->setMessageId($messageId);
 
-        if ($message->getOriginalMessage() instanceof Message) {
-            $message->getOriginalMessage()->getHeaders()->addHeader('X-Resend-Email-ID', $messageId);
-        }
+        $originalMessage->getHeaders()->addHeader('X-Resend-Email-ID', $messageId);
     }
 
     /**
