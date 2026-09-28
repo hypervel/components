@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Redis;
 
 use BadMethodCallException;
 use Closure;
+use ErrorException;
 use Hypervel\ConnectionPool\Events\ConnectionReleasing;
 use Hypervel\ConnectionPool\Exceptions\ConnectionException;
 use Hypervel\ConnectionPool\PoolOptions;
@@ -1579,10 +1580,10 @@ class RedisConnectionTest extends TestCase
         $this->assertTrue($connection->isInvalidForTest());
     }
 
-    // REMOVED: Automatic read/write retries and configured command retries can replay committed commands.
+    // REMOVED: Automatic command retries and reopening pipelines/transactions can replay committed commands.
     #[DataProvider('connectionFailureProvider')]
     public function testConnectionRebuildsItsClientOnNextAcquisitionWithoutReplayingCommand(
-        RedisException|RedisClusterException $exception,
+        RedisException|RedisClusterException|ErrorException $exception,
         string $command,
         array $arguments,
         bool $synchronized,
@@ -1592,7 +1593,9 @@ class RedisConnectionTest extends TestCase
         $this->expectDefaultConnectionOptions($failedClient);
         $this->expectDefaultConnectionOptions($healthyClient);
         $failedClient->expects($command)->once()->with(...$arguments)->andThrow($exception);
-        $failedClient->expects('getLastError')->andReturn($synchronized ? $exception->getMessage() : null);
+        if (! $exception instanceof ErrorException) {
+            $failedClient->expects('getLastError')->andReturn($synchronized ? $exception->getMessage() : null);
+        }
         $failedClient->shouldNotReceive('isConnected');
         $healthyClient->expects('get')->once()->with('foo')->andReturn('bar');
 
@@ -1623,7 +1626,7 @@ class RedisConnectionTest extends TestCase
         try {
             $connection->__call($command, $arguments);
             $this->fail('Expected the command failure to propagate.');
-        } catch (RedisException|RedisClusterException $throwable) {
+        } catch (RedisException|RedisClusterException|ErrorException $throwable) {
             $this->assertSame($exception, $throwable);
         }
 
@@ -1644,10 +1647,34 @@ class RedisConnectionTest extends TestCase
             'read-only replica' => [new RedisException('READONLY replica is read-only'), 'set', ['foo', 'bar'], true],
             'disconnected replica' => [new RedisException('MASTERDOWN link is down'), 'get', ['foo'], true],
             'read failure' => [new RedisException('Connection lost'), 'get', ['foo'], false],
+            'warning-shaped reset' => [new ErrorException('Redis::get(): SSL: Connection reset by peer'), 'get', ['foo'], false],
+            'stream write failure' => [new ErrorException('Redis::get(): Send of 30 bytes failed with errno=32 Broken pipe'), 'get', ['foo'], false],
+            'TLS protocol failure' => [new ErrorException('Redis::get(): SSL operation failed with code 1. OpenSSL Error messages: bad length'), 'get', ['foo'], false],
+            'transaction opening' => [new RedisException('Connection lost'), 'multi', [], false],
             'non-idempotent write' => [new RedisException('Connection lost'), 'incr', ['foo'], false],
             'write with options' => [new RedisException('Connection lost'), 'set', ['foo', 'bar', ['ex' => 60]], false],
             'cluster response error' => [new RedisClusterException('Error processing response from Redis node!'), 'get', ['foo'], false],
         ];
+    }
+
+    public function testConnectionDoesNotRetryUnrelatedWarnings(): void
+    {
+        $exception = new ErrorException('Redis::get(): Undefined variable');
+        $redis = m::mock(Redis::class);
+        $redis->expects('get')->once()->with('foo')->andThrow($exception);
+        $redis->shouldNotReceive('getLastError');
+        $connection = new PhpRedisConnectionStub($this->getContainer(), $this->getMockedPool());
+        $connection->setActiveConnection($redis);
+
+        try {
+            $connection->__call('get', ['foo']);
+            $this->fail('Expected the unrelated warning to propagate.');
+        } catch (ErrorException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
+
+        $this->assertFalse($connection->isInvalidForTest());
+        $this->assertSame($redis, $connection->client());
     }
 
     #[DataProvider('synchronizedServerErrorDispositionProvider')]
@@ -2078,6 +2105,28 @@ class RedisConnectionTest extends TestCase
             'empty options' => [[[]], '*', 10],
             'null pattern' => [[null, 20], '*', 20],
         ];
+    }
+
+    public function testTransformedScanInvalidatesOnTransportFailure(): void
+    {
+        $exception = new RedisException('Connection lost');
+        $redis = m::mock(Redis::class);
+        $redis->expects('getMode')->andReturn(Redis::ATOMIC);
+        $redis->expects('scan')->once()->with(null, '*', 10)->andThrow($exception);
+        $redis->expects('getLastError')->andReturnNull();
+        $connection = new PhpRedisConnectionStub($this->getContainer(), $this->getMockedPool());
+        $connection->setActiveConnection($redis);
+        $connection->shouldTransform(true);
+        $cursor = null;
+
+        try {
+            $connection->scan($cursor);
+            $this->fail('Expected the scan failure to propagate.');
+        } catch (RedisException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
+
+        $this->assertTrue($connection->isInvalidForTest());
     }
 
     public function testScanWithOptions(): void
@@ -2950,6 +2999,27 @@ class RedisConnectionTest extends TestCase
         $this->expectExceptionMessage('Lua script execution failed: ERR Error compiling script');
 
         $connection->evalWithShaCache($script, ['mykey']);
+    }
+
+    public function testEvalWithShaCacheInvalidatesAReadOnlyReplica(): void
+    {
+        $exception = new RedisException('READONLY replica is read-only');
+        $redis = m::mock(Redis::class);
+        $redis->expects('clearLastError')->once();
+        $redis->expects('evalSha')->once()->with(sha1('return 1'), [], 0)->andThrow($exception);
+        $redis->expects('getLastError')->andReturn($exception->getMessage());
+        $redis->shouldNotReceive('eval');
+        $connection = new PhpRedisConnectionStub($this->getContainer(), $this->getMockedPool());
+        $connection->setActiveConnection($redis);
+
+        try {
+            $connection->evalWithShaCache('return 1');
+            $this->fail('Expected the replica error to propagate.');
+        } catch (RedisException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
+
+        $this->assertTrue($connection->isInvalidForTest());
     }
 
     public function testEvalWithShaCacheReturnsLegitimatelyFalseResult(): void

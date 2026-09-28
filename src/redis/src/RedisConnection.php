@@ -6,6 +6,7 @@ namespace Hypervel\Redis;
 
 use BadMethodCallException;
 use Closure;
+use ErrorException;
 use Generator;
 use Hypervel\ConnectionPool\Connection as BaseConnection;
 use Hypervel\ConnectionPool\Exceptions\ConnectionException;
@@ -393,7 +394,7 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
 
             $name = strtolower($name);
             $result = $this->executeCommand($name, $arguments);
-        } catch (RedisException|RedisClusterException $exception) {
+        } catch (RedisException|RedisClusterException|ErrorException $exception) {
             // REMOVED: Laravel's command retry loop can replay writes Redis already committed.
             if ($this->shouldInvalidateAfter($exception)) {
                 $this->markInvalid();
@@ -983,8 +984,17 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
     /**
      * Determine whether a failed command left the connection unsafe to reuse.
      */
-    protected function shouldInvalidateAfter(RedisException|RedisClusterException $exception): bool
+    protected function shouldInvalidateAfter(RedisException|RedisClusterException|ErrorException $exception): bool
     {
+        if ($exception instanceof ErrorException) {
+            // Stream transport failures may surface as warnings before phpredis throws.
+            $message = $exception->getMessage();
+
+            return str_contains($message, ' bytes failed with errno=')
+                || str_contains($message, 'SSL: ')
+                || str_contains($message, 'SSL operation failed with code ');
+        }
+
         if ($this->connection->getLastError() !== $exception->getMessage()) {
             return true;
         }
@@ -1646,17 +1656,18 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
     }
 
     /**
-     * Scans all keys based on options.
-     *
-     * @param array $arguments
-     * @param mixed $cursor
+     * Scan all keys based on options.
      */
-    public function scan(&$cursor, ...$arguments): mixed
+    public function scan(mixed &$cursor, mixed ...$arguments): mixed
     {
-        if (! $this->shouldTransform) {
-            return $this->__call('scan', array_merge([&$cursor], $arguments));
-        }
+        return $this->__call('scan', array_merge([&$cursor], $arguments));
+    }
 
+    /**
+     * Execute the transformed SCAN command.
+     */
+    protected function callScan(mixed &$cursor, mixed ...$arguments): mixed
+    {
         $options = $this->getScanOptions($arguments);
 
         $result = $this->connection->scan(
@@ -1673,18 +1684,20 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
     }
 
     /**
-     * Scans the given set for all values based on options.
+     * Scan the given set for all values based on options.
      *
      * @param string $key
-     * @param array $arguments
-     * @param mixed $cursor
      */
-    public function zscan($key, &$cursor, ...$arguments): mixed
+    public function zscan(mixed $key, mixed &$cursor, mixed ...$arguments): mixed
     {
-        if (! $this->shouldTransform) {
-            return $this->__call('zScan', array_merge([$key, &$cursor], $arguments));
-        }
+        return $this->__call('zScan', array_merge([$key, &$cursor], $arguments));
+    }
 
+    /**
+     * Execute the transformed ZSCAN command.
+     */
+    protected function callZscan(mixed $key, mixed &$cursor, mixed ...$arguments): mixed
+    {
         $options = $this->getScanOptions($arguments);
 
         $result = $this->connection->zscan(
@@ -1702,18 +1715,20 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
     }
 
     /**
-     * Scans the given hash for all values based on options.
+     * Scan the given hash for all values based on options.
      *
      * @param string $key
-     * @param array $arguments
-     * @param mixed $cursor
      */
-    public function hscan($key, &$cursor, ...$arguments): mixed
+    public function hscan(mixed $key, mixed &$cursor, mixed ...$arguments): mixed
     {
-        if (! $this->shouldTransform) {
-            return $this->__call('hScan', array_merge([$key, &$cursor], $arguments));
-        }
+        return $this->__call('hScan', array_merge([$key, &$cursor], $arguments));
+    }
 
+    /**
+     * Execute the transformed HSCAN command.
+     */
+    protected function callHscan(mixed $key, mixed &$cursor, mixed ...$arguments): mixed
+    {
         $options = $this->getScanOptions($arguments);
 
         $result = $this->connection->hscan(
@@ -1731,18 +1746,20 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
     }
 
     /**
-     * Scans the given set for all values based on options.
+     * Scan the given set for all values based on options.
      *
      * @param string $key
-     * @param array $arguments
-     * @param mixed $cursor
      */
-    public function sscan($key, &$cursor, ...$arguments): mixed
+    public function sscan(mixed $key, mixed &$cursor, mixed ...$arguments): mixed
     {
-        if (! $this->shouldTransform) {
-            return $this->__call('sScan', array_merge([$key, &$cursor], $arguments));
-        }
+        return $this->__call('sScan', array_merge([$key, &$cursor], $arguments));
+    }
 
+    /**
+     * Execute the transformed SSCAN command.
+     */
+    protected function callSscan(mixed $key, mixed &$cursor, mixed ...$arguments): mixed
+    {
         $options = $this->getScanOptions($arguments);
 
         $result = $this->connection->sscan(
@@ -2023,36 +2040,44 @@ abstract class RedisConnection extends BaseConnection implements NonCopyableCont
         // combined_args = keys first, then other args
         $combinedArgs = [...$keys, ...$args];
 
-        // Clear any stale error from previous commands to ensure getLastError()
-        // reflects this call, not a previous one
-        $this->connection->clearLastError();
+        try {
+            // Clear any stale error from previous commands to ensure getLastError()
+            // reflects this call, not a previous one
+            $this->connection->clearLastError();
 
-        // Try evalSha first - uses cached compiled script
-        $result = $this->connection->evalSha($sha, $combinedArgs, $numKeys);
+            // Try evalSha first - uses cached compiled script
+            $result = $this->connection->evalSha($sha, $combinedArgs, $numKeys);
 
-        if ($result === false) {
-            $error = $this->connection->getLastError();
+            if ($result === false) {
+                $error = $this->connection->getLastError();
 
-            // NOSCRIPT means script not cached yet - fall back to eval
-            if ($error !== null && str_contains($error, 'NOSCRIPT')) {
-                $this->connection->clearLastError();
-                $result = $this->connection->eval($script, $combinedArgs, $numKeys);
+                // NOSCRIPT means script not cached yet - fall back to eval
+                if ($error !== null && str_contains($error, 'NOSCRIPT')) {
+                    $this->connection->clearLastError();
+                    $result = $this->connection->eval($script, $combinedArgs, $numKeys);
 
-                if ($result === false) {
-                    $evalError = $this->connection->getLastError();
-                    if ($evalError !== null) {
-                        throw $this->scriptException($evalError);
+                    if ($result === false) {
+                        $evalError = $this->connection->getLastError();
+                        if ($evalError !== null) {
+                            throw $this->scriptException($evalError);
+                        }
+                        // If no error, script legitimately returned nil (which becomes false)
                     }
-                    // If no error, script legitimately returned nil (which becomes false)
+                } elseif ($error !== null) {
+                    // Some other error (syntax, OOM, WRONGTYPE, etc.)
+                    throw $this->scriptException($error);
                 }
-            } elseif ($error !== null) {
-                // Some other error (syntax, OOM, WRONGTYPE, etc.)
-                throw $this->scriptException($error);
+                // If $error is null and $result is false, the script legitimately returned false
             }
-            // If $error is null and $result is false, the script legitimately returned false
-        }
 
-        return $this->normalizeNullReplies($result);
+            return $this->normalizeNullReplies($result);
+        } catch (RedisException|RedisClusterException|ErrorException $exception) {
+            if ($this->shouldInvalidateAfter($exception)) {
+                $this->markInvalid();
+            }
+
+            throw $exception;
+        }
     }
 
     /**
