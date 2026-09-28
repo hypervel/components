@@ -1637,6 +1637,12 @@ You may assert that it does not contain the `email` property of the `user` objec
 $response->assertJsonMissingPath('user.email');
 ```
 
+You may use `*` to assert that a path is missing from every item in an array:
+
+```php
+$response->assertJsonMissingPath('users.*.password');
+```
+
 <a name="assert-json-missing-paths"></a>
 #### assertJsonMissingPaths
 
