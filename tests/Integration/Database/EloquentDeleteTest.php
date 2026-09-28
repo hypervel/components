@@ -9,8 +9,8 @@ use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Database\Fixtures\Models\Integration\Post;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
-use Hypervel\Tests\Integration\Database\Fixtures\Post;
 use Hypervel\Tests\Integration\Database\Fixtures\PostStringyKey;
 
 class EloquentDeleteTest extends DatabaseTestCase

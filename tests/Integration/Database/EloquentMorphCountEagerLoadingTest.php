@@ -10,10 +10,10 @@ use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Database\Fixtures\Models\Comment;
+use Hypervel\Tests\Database\Fixtures\Models\PostLikes\Like;
+use Hypervel\Tests\Database\Fixtures\Models\PostLikes\Post;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
-use Hypervel\Tests\Integration\Database\Fixtures\Models\Comment;
-use Hypervel\Tests\Integration\Database\Fixtures\Models\PostLikes\Like;
-use Hypervel\Tests\Integration\Database\Fixtures\Models\PostLikes\Post;
 
 class EloquentMorphCountEagerLoadingTest extends DatabaseTestCase
 {

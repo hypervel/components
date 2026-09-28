@@ -8,8 +8,8 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\HasOne;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Database\Fixtures\Models\Attachment;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
-use Hypervel\Tests\Integration\Database\Fixtures\Models\Attachment;
 
 class EloquentHasOneIsTest extends DatabaseTestCase
 {

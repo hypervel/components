@@ -15,17 +15,17 @@ use ReflectionProperty;
 
 class RouteCachingTest extends RoutingTestCase
 {
-    public function testWildcardCatchAllRoutes()
+    public function testWildcardCatchAllRoutes(): void
     {
-        $this->defineCacheRoutes(file_get_contents(__DIR__ . '/Fixtures/wildcard_catch_all_routes.php'));
+        $this->defineCacheRoutes(file_get_contents(dirname(__DIR__, 2) . '/Routing/Fixtures/wildcard_catch_all_routes.php'));
 
         $this->get('/foo')->assertSee('Regular route');
         $this->get('/bar')->assertSee('Wildcard route');
     }
 
-    public function testRedirectRoutes()
+    public function testRedirectRoutes(): void
     {
-        $this->defineCacheRoutes(file_get_contents(__DIR__ . '/Fixtures/redirect_routes.php'));
+        $this->defineCacheRoutes(file_get_contents(dirname(__DIR__, 2) . '/Routing/Fixtures/redirect_routes.php'));
 
         $this->post('/foo/1')->assertRedirect('/foo/1/bar');
         $this->get('/foo/1/bar')->assertSee('Redirect response');

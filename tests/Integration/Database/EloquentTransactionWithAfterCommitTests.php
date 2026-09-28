@@ -4,15 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database;
 
-use Hypervel\Bus\Queueable;
-use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Auth\User;
-use Hypervel\Foundation\Bus\Dispatchable;
-use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Factories\UserFactory;
+use Hypervel\Tests\Queue\Fixtures\EloquentTransactionWithAfterCommitTestsJob;
 use RuntimeException;
 
 /**
@@ -249,27 +246,6 @@ class EloquentTransactionWithAfterCommitTestsUserObserverUsingDispatchSync exten
         dispatch_sync(new EloquentTransactionWithAfterCommitTestsJob($user->email));
 
         parent::created($user);
-    }
-}
-
-class EloquentTransactionWithAfterCommitTestsJob implements ShouldQueue
-{
-    use Dispatchable;
-    use InteractsWithQueue;
-    use Queueable;
-
-    public function __construct(
-        public string $email
-    ) {
-    }
-
-    public function handle(): void
-    {
-        DB::transaction(function () {
-            DB::table('password_reset_tokens')->insert([
-                ['email' => $this->email, 'token' => sha1($this->email), 'created_at' => now()],
-            ]);
-        });
     }
 }
 

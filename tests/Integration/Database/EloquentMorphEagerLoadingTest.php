@@ -10,9 +10,9 @@ use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Database\Fixtures\Models\Comment;
+use Hypervel\Tests\Database\Fixtures\Models\MorphEagerLoading\Video;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
-use Hypervel\Tests\Integration\Database\Fixtures\Models\Comment;
-use Hypervel\Tests\Integration\Database\Fixtures\Models\MorphEagerLoading\Video;
 
 class EloquentMorphEagerLoadingTest extends DatabaseTestCase
 {

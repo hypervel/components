@@ -6,10 +6,10 @@ namespace Hypervel\Tests\Integration\Database\EloquentMorphCountLazyEagerLoading
 
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Database\Fixtures\Models\Comment;
+use Hypervel\Tests\Database\Fixtures\Models\PostLikes\Like;
+use Hypervel\Tests\Database\Fixtures\Models\PostLikes\Post;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
-use Hypervel\Tests\Integration\Database\Fixtures\Models\Comment;
-use Hypervel\Tests\Integration\Database\Fixtures\Models\PostLikes\Like;
-use Hypervel\Tests\Integration\Database\Fixtures\Models\PostLikes\Post;
 
 class EloquentMorphCountLazyEagerLoadingTest extends DatabaseTestCase
 {

@@ -8,10 +8,10 @@ use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Database\Fixtures\Models\LoadAggregate\BaseModel;
+use Hypervel\Tests\Database\Fixtures\Models\LoadAggregate\Related1;
+use Hypervel\Tests\Database\Fixtures\Models\LoadAggregate\Related2;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
-use Hypervel\Tests\Integration\Database\Fixtures\Models\LoadAggregate\BaseModel;
-use Hypervel\Tests\Integration\Database\Fixtures\Models\LoadAggregate\Related1;
-use Hypervel\Tests\Integration\Database\Fixtures\Models\LoadAggregate\Related2;
 use Mockery as m;
 
 class EloquentModelLoadSumTest extends DatabaseTestCase

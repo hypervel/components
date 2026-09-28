@@ -9,7 +9,6 @@ use Hypervel\Contracts\Translation\HasLocalePreference;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Events\LocaleUpdated;
-use Hypervel\Mail\Mailable;
 use Hypervel\Notifications\Channels\MailChannel;
 use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Notifications\Notifiable;
@@ -21,6 +20,7 @@ use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\Assert;
+use Hypervel\Tests\Mail\Fixtures\GreetingMailable;
 
 #[WithConfig('database.default', 'testing')]
 class SendingNotificationsWithLocaleTest extends TestCase
@@ -315,16 +315,5 @@ class GreetingMailNotificationWithMailable extends Notification
     {
         return (new GreetingMailable)
             ->to($notifiable->email);
-    }
-}
-
-class GreetingMailable extends Mailable
-{
-    /**
-     * Build the message.
-     */
-    public function build(): static
-    {
-        return $this->view('greeting');
     }
 }

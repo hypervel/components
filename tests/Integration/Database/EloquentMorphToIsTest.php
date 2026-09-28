@@ -6,9 +6,9 @@ namespace Hypervel\Tests\Integration\Database\EloquentMorphToIsTest;
 
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Database\Fixtures\Models\Comment;
+use Hypervel\Tests\Database\Fixtures\Models\MorphToTarget\Post;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
-use Hypervel\Tests\Integration\Database\Fixtures\Models\Comment;
-use Hypervel\Tests\Integration\Database\Fixtures\Models\MorphToTarget\Post;
 
 class EloquentMorphToIsTest extends DatabaseTestCase
 {

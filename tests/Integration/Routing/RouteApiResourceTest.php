@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Routing;
 
 use Hypervel\Support\Facades\Route;
-use Hypervel\Tests\Integration\Routing\Fixtures\ApiResourceTaskController;
-use Hypervel\Tests\Integration\Routing\Fixtures\ApiResourceTestController;
+use Hypervel\Tests\Routing\Fixtures\ApiResourceTaskController;
+use Hypervel\Tests\Routing\Fixtures\ApiResourceTestController;
 
 class RouteApiResourceTest extends RoutingTestCase
 {
-    public function testApiResource()
+    public function testApiResource(): void
     {
         Route::apiResource('tests', ApiResourceTestController::class);
 
@@ -38,7 +38,7 @@ class RouteApiResourceTest extends RoutingTestCase
         $this->assertSame('I`m destroy', $response->getContent());
     }
 
-    public function testApiResourceWithOnly()
+    public function testApiResourceWithOnly(): void
     {
         Route::apiResource('tests', ApiResourceTestController::class)->only(['index', 'store']);
 
@@ -56,7 +56,7 @@ class RouteApiResourceTest extends RoutingTestCase
         $this->assertEquals(404, $this->delete('/tests/1')->getStatusCode());
     }
 
-    public function testApiResources()
+    public function testApiResources(): void
     {
         Route::apiResources([
             'tests' => ApiResourceTestController::class,
