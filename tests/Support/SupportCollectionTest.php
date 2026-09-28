@@ -1098,6 +1098,17 @@ class SupportCollectionTest extends TestCase
     }
 
     #[DataProvider('collectionClassProvider')]
+    public function testHigherOrderSole(string $collection): void
+    {
+        $c = new $collection([
+            new TestSupportCollectionHigherOrderItem('Adam'),
+            new TestSupportCollectionHigherOrderItem('Taylor'),
+        ]);
+
+        $this->assertSame('Taylor', $c->sole->is('Taylor')->name);
+    }
+
+    #[DataProvider('collectionClassProvider')]
     public function testWhere(string $collection): void
     {
         $c = new $collection([['v' => 1], ['v' => 2], ['v' => 3], ['v' => '3'], ['v' => 4]]);
@@ -4329,8 +4340,12 @@ class SupportCollectionTest extends TestCase
     }
 
     #[DataProvider('collectionClassProvider')]
-    public function testContainsStrict($collection): void
+    public function testContainsStrict(string $collection): void
     {
+        $c = new $collection([1, null, 2]);
+        $this->assertTrue($c->containsStrict(fn (mixed $value): bool => is_null($value)));
+        $this->assertFalse($c->containsStrict(fn (mixed $value): bool => $value === 0));
+
         $c = new $collection([1, 3, 5, '02']);
 
         $this->assertTrue($c->containsStrict(1));

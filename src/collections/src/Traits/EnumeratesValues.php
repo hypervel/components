@@ -50,6 +50,7 @@ use function Hypervel\Support\enum_value;
  * @property-read HigherOrderCollectionProxy<'reject', TValue, static> $reject
  * @property-read HigherOrderCollectionProxy<'skipUntil', TValue, static> $skipUntil
  * @property-read HigherOrderCollectionProxy<'skipWhile', TValue, static> $skipWhile
+ * @property-read HigherOrderCollectionProxy<'sole', TValue, static> $sole
  * @property-read HigherOrderCollectionProxy<'some', TValue, static> $some
  * @property-read HigherOrderCollectionProxy<'sortBy', TValue, static> $sortBy
  * @property-read HigherOrderCollectionProxy<'sortByDesc', TValue, static> $sortByDesc
@@ -96,6 +97,7 @@ trait EnumeratesValues
         'reject',
         'skipUntil',
         'skipWhile',
+        'sole',
         'some',
         'sortBy',
         'sortByDesc',
