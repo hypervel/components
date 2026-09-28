@@ -106,7 +106,13 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
     public function has(array|UnitEnum|string $key): bool
     {
         if (is_array($key)) {
-            return ! in_array(null, $this->many($key), true);
+            $keys = [];
+
+            foreach ($key as $name => $value) {
+                $keys[] = is_string($name) ? $name : $value;
+            }
+
+            return ! in_array(null, $this->many($keys), true);
         }
 
         return ! is_null($this->get($key));
