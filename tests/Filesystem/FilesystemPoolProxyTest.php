@@ -196,6 +196,27 @@ class FilesystemPoolProxyTest extends TestCase
         $this->assertFalse($second->providesTemporaryUploadUrls());
     }
 
+    public function testCrossDiskTransfersReleaseTheOnlyDriverBeforeWriting(): void
+    {
+        $proxy = new FilesystemPoolProxy(
+            new PoolDefinition('filesystem:transfer', 'custom', 'transfer', PoolOptions::fromArray([
+                'max_objects' => 1,
+                'wait_timeout' => 0.02,
+            ])),
+            fn (): FilesystemAdapter => $this->filesystem(),
+            $this->pools,
+            ['driver' => 'custom'],
+        );
+        $this->driver->write('file.txt', 'contents');
+
+        $this->assertTrue($proxy->copyToDisk($proxy, 'file.txt', 'copy.txt'));
+        $this->assertSame('contents', $this->driver->read('copy.txt'));
+        $this->assertTrue($proxy->moveToDisk($proxy, 'file.txt', 'moved.txt'));
+        $this->assertSame('contents', $this->driver->read('moved.txt'));
+        $this->assertFalse($this->driver->fileExists('file.txt'));
+        $this->assertSame(0, $this->pools->get('filesystem:transfer')->getBorrowedCount());
+    }
+
     public function testReadStreamKeepsTheWholeDriverBorrowedUntilClose(): void
     {
         $this->driver->write('file.txt', 'streamed');

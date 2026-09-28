@@ -28,6 +28,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 trait InteractsWithPooledFilesystem
 {
     use Conditionable;
+    use TransfersFiles;
 
     protected ?Closure $serveCallback = null;
 

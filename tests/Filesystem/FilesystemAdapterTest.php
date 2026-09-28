@@ -9,6 +9,7 @@ use GuzzleHttp\Psr7\Stream;
 use Hypervel\Container\Container;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Filesystem\FilesystemAdapter;
@@ -520,6 +521,92 @@ class FilesystemAdapterTest extends TestCase
 
         $this->assertFileExists($this->tempDir . '/foo/foo2.txt');
         $this->assertEquals($data, file_get_contents($this->tempDir . '/foo/foo2.txt'));
+    }
+
+    public function testCopyToDisk(): void
+    {
+        $this->filesystem->write('file.txt', 'Hello World');
+
+        $backupFilesystem = new Filesystem($backupAdapter = new LocalFilesystemAdapter($this->tempDir . '/backup'));
+
+        Container::getInstance()->instance(FilesystemFactory::class, m::mock(FilesystemFactory::class, [
+            'disk' => new FilesystemAdapter($backupFilesystem, $backupAdapter),
+        ]));
+
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+        $filesystemAdapter->copyToDisk('backup', 'file.txt');
+
+        $this->assertFileExists($this->tempDir . '/file.txt');
+        $this->assertFileExists($this->tempDir . '/backup/file.txt');
+    }
+
+    public function testMoveToDisk(): void
+    {
+        $this->filesystem->write('file.txt', 'Hello World');
+
+        $backupFilesystem = new Filesystem($backupAdapter = new LocalFilesystemAdapter($this->tempDir . '/backup'));
+
+        Container::getInstance()->instance(FilesystemFactory::class, m::mock(FilesystemFactory::class, [
+            'disk' => new FilesystemAdapter($backupFilesystem, $backupAdapter),
+        ]));
+
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+        $filesystemAdapter->moveToDisk('backup', 'file.txt', 'copy.txt');
+
+        $this->assertFileDoesNotExist($this->tempDir . '/file.txt');
+        $this->assertFileExists($this->tempDir . '/backup/copy.txt');
+    }
+
+    public function testCopyToDiskRejectsSameDiskAndPath(): void
+    {
+        $this->filesystem->write('file.txt', 'Hello World');
+
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        Container::getInstance()->instance(FilesystemFactory::class, m::mock(FilesystemFactory::class, [
+            'disk' => $filesystemAdapter,
+        ]));
+
+        $this->expectException(InvalidArgumentException::class);
+
+        $filesystemAdapter->copyToDisk('local', 'file.txt');
+    }
+
+    public function testCopyToDiskWithFilesystem(): void
+    {
+        $this->filesystem->write('file.txt', 'Hello World');
+
+        $backupFilesystem = new Filesystem($backupAdapter = new LocalFilesystemAdapter($this->tempDir . '/backup'));
+
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+        $filesystemAdapter->copyToDisk(new FilesystemAdapter($backupFilesystem, $backupAdapter), 'file.txt');
+
+        $this->assertFileExists($this->tempDir . '/file.txt');
+        $this->assertFileExists($this->tempDir . '/backup/file.txt');
+    }
+
+    public function testMoveToDiskWithFilesystem(): void
+    {
+        $this->filesystem->write('file.txt', 'Hello World');
+
+        $backupFilesystem = new Filesystem($backupAdapter = new LocalFilesystemAdapter($this->tempDir . '/backup'));
+
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+        $filesystemAdapter->moveToDisk(new FilesystemAdapter($backupFilesystem, $backupAdapter), 'file.txt', 'copy.txt');
+
+        $this->assertFileDoesNotExist($this->tempDir . '/file.txt');
+        $this->assertFileExists($this->tempDir . '/backup/copy.txt');
+    }
+
+    public function testCopyToDiskWithFilesystemRejectsSameDiskAndPath(): void
+    {
+        $this->filesystem->write('file.txt', 'Hello World');
+
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        $this->expectException(InvalidArgumentException::class);
+
+        $filesystemAdapter->copyToDisk($filesystemAdapter, 'file.txt');
     }
 
     public function testStream()

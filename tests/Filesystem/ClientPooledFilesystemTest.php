@@ -10,6 +10,7 @@ use DateTimeImmutable;
 use Hypervel\Container\Container;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
 use Hypervel\Contracts\ObjectPool\Factory;
 use Hypervel\Contracts\ObjectPool\InvalidatesPool;
 use Hypervel\Contracts\ObjectPool\ObjectPool as ObjectPoolContract;
@@ -68,6 +69,50 @@ class ClientPooledFilesystemTest extends TestCase
         $filesystem->deleteDirectory(basename($this->tempDir));
 
         parent::tearDown();
+    }
+
+    public function testCrossDiskTransfersReleaseSharedClientBeforeWriting(): void
+    {
+        $definition = new PoolDefinition('filesystem:transfer', 'local-client', 'shared', PoolOptions::fromArray([
+            'max_objects' => 1,
+            'wait_timeout' => 0.02,
+        ]));
+        $makeDisk = fn (string $root): ClientPooledFilesystem => new ClientPooledFilesystem(
+            $definition,
+            static fn (): object => new stdClass,
+            static function (object $client) use ($root): FilesystemAdapter {
+                $adapter = new LocalFilesystemAdapter($root);
+
+                return new FilesystemAdapter(new Filesystem($adapter), $adapter, ['root' => $root]);
+            },
+            $this->pools,
+            ['root' => $root],
+        );
+        $source = $makeDisk($this->tempDir . '/source');
+        $destination = $makeDisk($this->tempDir . '/destination');
+        $source->put('file.txt', 'contents');
+
+        $this->assertTrue($source->copyToDisk($destination, 'file.txt'));
+        $this->assertSame('contents', $destination->get('file.txt'));
+        $this->assertTrue($source->moveToDisk($destination, 'file.txt', 'moved.txt'));
+        $this->assertSame('contents', $destination->get('moved.txt'));
+        $this->assertFalse($source->exists('file.txt'));
+
+        $source->put('file.txt', 'retained');
+        $failedDestination = m::mock(FilesystemContract::class);
+        $stream = null;
+        $failedDestination->shouldReceive('writeStream')->once()->with('file.txt', m::on(function (mixed $resource) use (&$stream): bool {
+            $stream = $resource;
+            $this->assertSame(0, $this->pools->get('filesystem:transfer')->getBorrowedCount());
+            $this->assertSame('retained', stream_get_contents($resource));
+
+            return true;
+        }))->andReturnFalse();
+
+        $this->assertFalse($source->moveToDisk($failedDestination, 'file.txt'));
+        $this->assertSame('retained', $source->get('file.txt'));
+        $this->assertFalse(is_resource($stream));
+        $this->assertSame(0, $this->pools->get('filesystem:transfer')->getBorrowedCount());
     }
 
     public function testReadThroughDisksReleaseSharedClientBorrowsBeforeCopyingAndProcessingListings(): void

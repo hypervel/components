@@ -373,7 +373,7 @@ New files and directory listings use the primary disk. URLs, file existence chec
 
 To scope a read-through disk per request or tenant, wrap it in `ScopedCloudFilesystemProxy`. Dynamic scoped proxies cannot be used as its primary or fallback disk.
 
-Fallback reads promote files by default. Set `copy` to `false` to read fallback files without copying them. With promotion enabled, fallback stream reads finish copying the file before returning the stream.
+Fallback reads promote files by default. Set `copy` to `false` to read fallback files without copying them. With promotion enabled, fallback stream reads finish copying the file before returning the stream. Stream promotion and fallback copy/move operations buffer up to 2 MB in memory, then use PHP's system temporary directory; allow enough temporary disk space for large files and concurrent operations.
 
 Promoted files use the primary disk's default visibility rather than inheriting the fallback file's visibility. Fallback copy and move operations use the same default. Configure a private primary disk when migrating private files.
 
@@ -765,6 +765,18 @@ Storage::copy('old/file.jpg', 'new/file.jpg');
 
 Storage::move('old/file.jpg', 'new/file.jpg');
 ```
+
+You may use the `copyToDisk` and `moveToDisk` methods to copy or move a file to another disk. The source file's path will be used on the destination disk unless you provide a third argument:
+
+```php
+Storage::disk('local')->copyToDisk('s3', 'reports/report.csv');
+
+Storage::disk('local')->moveToDisk(
+    's3', 'reports/report.csv', 'archive/report.csv'
+);
+```
+
+Transfers from pooled disks, including S3 and Google Cloud Storage, buffer the source before writing to the destination so the source's pool slot is available during the write. Buffering keeps up to 2 MB in memory per transfer, then uses PHP's system temporary directory; allow enough temporary disk space for large files and concurrent transfers. Local sources stream directly.
 
 <a name="automatic-streaming"></a>
 ### Automatic Streaming

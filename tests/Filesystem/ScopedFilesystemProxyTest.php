@@ -18,12 +18,14 @@ use Hypervel\Http\UploadedFile;
 use Hypervel\Image\ImageException;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
+use InvalidArgumentException;
 use League\Flysystem\CorruptedPathDetected;
 use League\Flysystem\Filesystem;
 use League\Flysystem\Local\LocalFilesystemAdapter;
 use League\Flysystem\PathTraversalDetected;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use TypeError;
@@ -53,6 +55,64 @@ class ScopedFilesystemProxyTest extends TestCase
         $filesystem->deleteDirectory(basename($this->tempDir));
 
         parent::tearDown();
+    }
+
+    #[TestWith(['copyToDisk', false, null])]
+    #[TestWith(['copyToDisk', false, 'copy.txt'])]
+    #[TestWith(['copyToDisk', true, 'copy.txt'])]
+    #[TestWith(['moveToDisk', false, null])]
+    #[TestWith(['moveToDisk', false, 'copy.txt'])]
+    #[TestWith(['moveToDisk', true, 'copy.txt'])]
+    public function testTransfersUseContractMethodsAndResolveSourceOnce(string $method, bool $sameDisk, ?string $to): void
+    {
+        $stream = fopen('php://temp', 'w+b');
+        fwrite($stream, 'contents');
+        rewind($stream);
+        $source = m::mock(FilesystemContract::class);
+        $source->shouldReceive('readStream')->once()->with('tenant/file.txt')->andReturn($stream);
+        $destination = $sameDisk ? $source : m::mock(FilesystemContract::class);
+        $destination->shouldReceive('writeStream')->once()
+            ->with(($sameDisk ? 'tenant/' : '') . ($to ?? 'file.txt'), $stream)->andReturnTrue();
+
+        if ($method === 'moveToDisk') {
+            $source->shouldReceive('delete')->once()->with('tenant/file.txt')->andReturnTrue();
+        }
+
+        $diskCalls = $prefixCalls = 0;
+        $proxy = new ScopedFilesystemProxy(
+            function () use ($source, &$diskCalls): FilesystemContract {
+                ++$diskCalls;
+
+                return $source;
+            },
+            function () use (&$prefixCalls): string {
+                ++$prefixCalls;
+
+                return 'tenant';
+            },
+        );
+
+        $this->assertTrue($proxy->{$method}($sameDisk ? $proxy : $destination, 'file.txt', $to));
+        $this->assertSame(1, $diskCalls);
+        $this->assertSame(1, $prefixCalls);
+        $this->assertFalse(is_resource($stream));
+    }
+
+    #[TestWith(['copyToDisk'])]
+    #[TestWith(['moveToDisk'])]
+    public function testTransfersRejectSameScopedDiskAndPath(string $method): void
+    {
+        $proxy = new ScopedFilesystemProxy($this->disk, static fn (): string => 'tenant');
+        $proxy->put('file.txt', 'contents');
+
+        try {
+            $proxy->{$method}($proxy, 'file.txt');
+            $this->fail('Expected a same-path transfer to be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame('Cannot copy a file to the same disk and path.', $exception->getMessage());
+        }
+
+        $this->assertSame('contents', $proxy->get('file.txt'));
     }
 
     #[DataProvider('mappedMethodProvider')]

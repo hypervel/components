@@ -14,6 +14,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Filesystem\Cloud as CloudFilesystemContract;
 use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
+use Hypervel\Filesystem\Concerns\TransfersFiles;
 use Hypervel\Http\File;
 use Hypervel\Http\Request;
 use Hypervel\Http\UploadedFile;
@@ -61,6 +62,7 @@ use Throwable;
 class FilesystemAdapter implements CloudFilesystemContract
 {
     use Conditionable;
+    use TransfersFiles;
     use Macroable {
         __call as macroCall;
     }
