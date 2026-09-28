@@ -17,7 +17,6 @@ use Hypervel\Http\UploadedFile;
 use Hypervel\Image\Image;
 use Hypervel\Image\ImageException;
 use Hypervel\Support\Traits\Conditionable;
-use InvalidArgumentException;
 use League\Flysystem\PathNormalizer;
 use League\Flysystem\WhitespacePathNormalizer;
 use RuntimeException;
@@ -497,10 +496,6 @@ class ScopedFilesystemProxy implements Filesystem
             ? $disk
             : Container::getInstance()->make(FilesystemFactory::class)->disk($disk);
         $to ??= $from;
-
-        if ($destination === $this && $to === $from) {
-            throw new InvalidArgumentException('Cannot copy a file to the same disk and path.');
-        }
 
         $prefix = $this->prefix();
         $source = $this->resolveDisk();

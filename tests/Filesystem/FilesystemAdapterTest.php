@@ -598,15 +598,23 @@ class FilesystemAdapterTest extends TestCase
         $this->assertFileExists($this->tempDir . '/backup/copy.txt');
     }
 
-    public function testCopyToDiskWithFilesystemRejectsSameDiskAndPath(): void
+    #[TestWith(['copyToDisk', null])]
+    #[TestWith(['copyToDisk', './file.txt'])]
+    #[TestWith(['moveToDisk', 'dir/../file.txt'])]
+    public function testCopyToDiskWithFilesystemRejectsSameDiskAndPath(string $method, ?string $to): void
     {
         $this->filesystem->write('file.txt', 'Hello World');
 
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
 
-        $this->expectException(InvalidArgumentException::class);
+        try {
+            $filesystemAdapter->{$method}($filesystemAdapter, 'file.txt', $to);
+            $this->fail('Expected a same-path transfer to be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            $this->assertSame('Cannot copy a file to the same disk and path.', $exception->getMessage());
+        }
 
-        $filesystemAdapter->copyToDisk($filesystemAdapter, 'file.txt');
+        $this->assertSame('Hello World', $filesystemAdapter->get('file.txt'));
     }
 
     public function testStream()

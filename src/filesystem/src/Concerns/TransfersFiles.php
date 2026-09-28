@@ -10,6 +10,7 @@ use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
 use Hypervel\Filesystem\LeasedStream;
 use InvalidArgumentException;
 use League\Flysystem\UnableToReadFile;
+use League\Flysystem\WhitespacePathNormalizer;
 use UnitEnum;
 
 trait TransfersFiles
@@ -22,10 +23,6 @@ trait TransfersFiles
         $destination = $disk instanceof FilesystemContract
             ? $disk
             : Container::getInstance()->make(FilesystemFactory::class)->disk($disk);
-
-        if ($destination === $this && ($to ?? $from) === $from) {
-            throw new InvalidArgumentException('Cannot copy a file to the same disk and path.');
-        }
 
         return $this->transferFile($this, $from, $destination, $to ?? $from);
     }
@@ -43,6 +40,14 @@ trait TransfersFiles
      */
     protected function transferFile(FilesystemContract $source, string $from, FilesystemContract $destination, string $to): bool
     {
+        if ($source === $destination) {
+            $normalizer = new WhitespacePathNormalizer;
+
+            if ($normalizer->normalizePath($from) === $normalizer->normalizePath($to)) {
+                throw new InvalidArgumentException('Cannot copy a file to the same disk and path.');
+            }
+        }
+
         $stream = $source->readStream($from);
 
         if (! is_resource($stream)) {
@@ -57,7 +62,7 @@ trait TransfersFiles
                 $temporary = fopen('php://temp', 'w+b');
 
                 if ($temporary === false || stream_copy_to_stream($stream, $temporary) === false || ! rewind($temporary)) {
-                    throw UnableToReadFile::fromLocation($from);
+                    throw UnableToReadFile::fromLocation($from, 'Unable to copy the stream to temporary storage.');
                 }
 
                 fclose($stream);

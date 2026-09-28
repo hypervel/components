@@ -98,15 +98,18 @@ class ScopedFilesystemProxyTest extends TestCase
         $this->assertFalse(is_resource($stream));
     }
 
-    #[TestWith(['copyToDisk'])]
-    #[TestWith(['moveToDisk'])]
-    public function testTransfersRejectSameScopedDiskAndPath(string $method): void
+    #[TestWith(['copyToDisk', null, false])]
+    #[TestWith(['moveToDisk', null, false])]
+    #[TestWith(['copyToDisk', './file.txt', false])]
+    #[TestWith(['moveToDisk', 'dir/../file.txt', false])]
+    #[TestWith(['moveToDisk', 'tenant/file.txt', true])]
+    public function testTransfersRejectSameScopedDiskAndPath(string $method, ?string $to, bool $innerDestination): void
     {
         $proxy = new ScopedFilesystemProxy($this->disk, static fn (): string => 'tenant');
         $proxy->put('file.txt', 'contents');
 
         try {
-            $proxy->{$method}($proxy, 'file.txt');
+            $proxy->{$method}($innerDestination ? $this->disk : $proxy, 'file.txt', $to);
             $this->fail('Expected a same-path transfer to be rejected.');
         } catch (InvalidArgumentException $exception) {
             $this->assertSame('Cannot copy a file to the same disk and path.', $exception->getMessage());
