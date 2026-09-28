@@ -180,7 +180,7 @@ interface Repository extends CacheInterface
     /**
      * Remove an item from the cache.
      */
-    public function forget(UnitEnum|string $key): bool;
+    public function forget(array|UnitEnum|string $key): bool;
 
     /**
      * Get the cache store implementation.

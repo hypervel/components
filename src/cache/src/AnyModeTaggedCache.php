@@ -126,7 +126,7 @@ abstract class AnyModeTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException always - tags are for writing and flushing only
      */
-    public function forget(UnitEnum|string $key): bool
+    public function forget(array|UnitEnum|string $key): bool
     {
         throw new BadMethodCallException(
             'Cannot forget items via tags in any mode. Tags are for writing and flushing only. '

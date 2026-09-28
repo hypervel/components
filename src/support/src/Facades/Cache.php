@@ -37,7 +37,7 @@ use Mockery\MockInterface;
  * @method static void flushMacros()
  * @method static void flushState()
  * @method static bool forever(\UnitEnum|string $key, mixed $value)
- * @method static bool forget(\UnitEnum|string $key)
+ * @method static bool forget(\UnitEnum|array|string $key)
  * @method static \Hypervel\Cache\Limiters\ConcurrencyLimiterBuilder funnel(\UnitEnum|string $name)
  * @method static mixed get(\UnitEnum|array|string $key, mixed $default = null)
  * @method static int|null getDefaultCacheTime()
