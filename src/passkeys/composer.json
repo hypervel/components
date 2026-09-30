@@ -48,7 +48,7 @@
         "symfony/http-foundation": "^8.1",
         "symfony/http-kernel": "^8.1",
         "symfony/serializer": "^8.1",
-        "web-auth/cose-lib": "^4.5",
+        "web-auth/cose-lib": "^4.8.1",
         "web-auth/webauthn-lib": "^5.3"
     },
     "autoload": {
