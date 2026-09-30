@@ -304,7 +304,8 @@ class MemoizedStore extends TaggableStore implements AuthoritativeRawReadable, C
     {
         $names = is_array($names) ? $names : func_get_args();
 
-        $key = serialize($names);
+        // Tag namespaces ignore array keys, so filtered lists must share a wrapper.
+        $key = serialize(array_values($names));
 
         if (isset($this->taggedCaches[$key])) {
             return $this->taggedCaches[$key];
@@ -363,13 +364,10 @@ class MemoizedStore extends TaggableStore implements AuthoritativeRawReadable, C
      */
     public function flush(): bool
     {
-        $this->cache = [];
+        // Forget memoized values first so a failed flush cannot leave stale ones.
+        $this->flushMemoized();
 
-        $result = $this->repository->flush();
-
-        $this->flushTagged();
-
-        return $result;
+        return $this->repository->flush();
     }
 
     /**

@@ -972,7 +972,7 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
 
         $names = is_array($names) ? $names : func_get_args();
         $names = array_map(
-            fn ($name) => $name instanceof UnitEnum ? (string) enum_value($name) : $name,
+            fn (mixed $name): string => $name instanceof UnitEnum ? (string) enum_value($name) : (string) $name,
             $names
         );
 

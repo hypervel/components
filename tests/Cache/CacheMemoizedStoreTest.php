@@ -23,6 +23,7 @@ use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 use stdClass;
 
 class CacheMemoizedStoreTest extends TestCase
@@ -241,6 +242,63 @@ class CacheMemoizedStoreTest extends TestCase
 
         $this->assertSame('Tim', $memoized->tags(['foo', 'bar'])->get('name'));
         $this->assertSame([], $store->reads);
+    }
+
+    public function testEquivalentTagListsShareMemoizedValues(): void
+    {
+        $repository = new Repository(new ArrayStore);
+        $memoized = new Repository(new MemoizedStore('array', $repository));
+        $filtered = array_filter(['users', null, 'active']);
+
+        $repository->tags(['users', '1'])->put('name', 'Tim', 60);
+        $repository->tags(['users', 'active'])->put('name', 'Tim', 60);
+        $this->assertSame('Tim', $memoized->tags(['users', 1])->get('name'));
+        $this->assertSame('Tim', $memoized->tags($filtered)->get('name'));
+
+        $memoized->tags(['users', '1'])->put('name', 'Taylor', 60);
+        $memoized->tags(['users', 'active'])->put('name', 'Taylor', 60);
+
+        $this->assertSame('Taylor', $memoized->tags(['users', 1])->get('name'));
+        $this->assertSame('Taylor', $memoized->tags($filtered)->get('name'));
+    }
+
+    public function testFailedFlushStillForgetsTaggedMemoizedValues(): void
+    {
+        $failure = new RuntimeException('Flush failed.');
+        $repository = new Repository(new class($failure) extends ArrayStore {
+            /**
+             * Create a new store that fails after flushing.
+             */
+            public function __construct(private RuntimeException $failure)
+            {
+                parent::__construct();
+            }
+
+            /**
+             * Remove all items from the cache, then fail.
+             */
+            public function flush(): bool
+            {
+                parent::flush();
+
+                throw $this->failure;
+            }
+        });
+        $memoized = new Repository(new MemoizedStore('array', $repository));
+
+        $repository->tags(['users'])->put('name', 'Tim', 60);
+        $this->assertSame('Tim', $memoized->tags(['users'])->get('name'));
+
+        $thrown = null;
+
+        try {
+            $memoized->flush();
+        } catch (RuntimeException $exception) {
+            $thrown = $exception;
+        }
+
+        $this->assertSame($failure, $thrown);
+        $this->assertNull($memoized->tags(['users'])->get('name'));
     }
 
     public function testMemoizedStoreCanWrapStackStore(): void
