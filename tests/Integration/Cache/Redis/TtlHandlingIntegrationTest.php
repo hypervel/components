@@ -289,27 +289,6 @@ class TtlHandlingIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertGreaterThan(20, $ttl);
     }
 
-    public function testAllModeTaggedTouchExtendsKeyAndTagScore(): void
-    {
-        $this->setTagMode(TagMode::All);
-
-        Cache::tags(['touch_ttl'])->put('touch_key', 'value', 30);
-
-        $namespacedKey = Cache::tags(['touch_ttl'])->taggedItemKey('touch_key');
-
-        $this->assertTrue(Cache::tags(['touch_ttl'])->touch('touch_key', 120));
-
-        $score = (int) $this->redis()->zScore($this->allModeTagKey('touch_ttl'), $namespacedKey);
-        $this->assertGreaterThan(time() + 100, $score);
-        $this->assertLessThanOrEqual(time() + 121, $score);
-
-        Cache::tags(['touch_ttl'])->flushStale();
-        $this->assertSame('value', Cache::tags(['touch_ttl'])->get('touch_key'));
-
-        Cache::tags(['touch_ttl'])->flush();
-        $this->assertNull(Cache::tags(['touch_ttl'])->get('touch_key'));
-    }
-
     public function testAllModeTaggedTouchShortensTagScore(): void
     {
         $this->setTagMode(TagMode::All);

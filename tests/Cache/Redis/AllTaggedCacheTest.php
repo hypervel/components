@@ -28,6 +28,7 @@ use Hypervel\Cache\Repository;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\CarbonImmutable;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 
@@ -397,7 +398,9 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
-    public function testTouchUpdatesKeyAndTagScores(): void
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function testTouchUpdatesKeyAndTagScores(bool $succeeded): void
     {
         $connection = $this->mockConnection();
 
@@ -412,12 +415,12 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
                 return true;
             })
-            ->andReturn(true);
+            ->andReturn($succeeded);
 
         $store = $this->createStore($connection);
         $result = $store->tags(['users'])->touch('name', 60);
 
-        $this->assertTrue($result);
+        $this->assertSame($succeeded, $result);
     }
 
     public function testTouchWithDatetimeInPastOrZeroSecondsRemovesOldItem(): void

@@ -220,6 +220,36 @@ class RedisStoreTest extends TestCase
         $this->assertCount(4, $keyCount); // Sets for people, authors, and artists + individual entry for Jennifer
     }
 
+    public function testTouchedTagEntriesAreNotConsideredStale(): void
+    {
+        Cache::store('redis')->clear();
+
+        Cache::store('redis')->tags(['people'])->put('person-1', 'Sally', 1);
+        $tagged = Cache::store('redis')->tags(['people']);
+        $this->assertTrue($tagged->touch('person-1', 5));
+
+        $store = Cache::store('redis')->getStore();
+        $score = (int) $store->connection()->zScore(
+            $store->getPrefix() . $tagged->getTags()->tagIds()[0],
+            $tagged->taggedItemKey('person-1'),
+        );
+        $this->assertGreaterThan(time() + 3, $score);
+        $this->assertLessThanOrEqual(time() + 6, $score);
+
+        sleep(2);
+
+        Cache::store('redis')->tags(['people'])->flushStale();
+
+        $this->assertSame('Sally', Cache::store('redis')->tags(['people'])->get('person-1'));
+
+        Cache::store('redis')->tags(['people'])->flush();
+
+        $this->assertNull(Cache::store('redis')->tags(['people'])->get('person-1'));
+
+        $keyCount = Cache::store('redis')->connection()->keys('*');
+        $this->assertCount(0, $keyCount);
+    }
+
     public function testMultipleItemsCanBeSetAndRetrieved(): void
     {
         $store = Cache::store('redis');
