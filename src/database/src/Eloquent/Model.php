@@ -374,6 +374,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         $this->modelClassAttributesInitialized = true;
 
+        $this->mergeDefaultAttributes();
+
         $this->syncOriginal();
 
         $this->fill($attributes);

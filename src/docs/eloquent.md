@@ -431,6 +431,25 @@ class Flight extends Model
 }
 ```
 
+If your default values need to be determined at runtime, you may define a `defaults` method on your model instead. Values returned by this method take precedence over the `$attributes` property and should also be in their raw, "storable" format. They only apply to new models; models retrieved from the database keep their stored values:
+
+```php
+/**
+ * Get the default attribute values for the model.
+ *
+ * @return array<string, mixed>
+ */
+protected function defaults(): array
+{
+    return [
+        'delayed' => false,
+        'departs_at' => now()->addDay()->toDateTimeString(),
+    ];
+}
+```
+
+Eloquent still calls the `defaults` method when it hydrates models from query results, so avoid expensive work such as database queries in this method.
+
 <a name="refreshing-attributes-after-writes"></a>
 ### Refreshing Attributes After Writes
 

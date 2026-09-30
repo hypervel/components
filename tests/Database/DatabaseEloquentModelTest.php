@@ -4907,6 +4907,56 @@ class DatabaseEloquentModelTest extends TestCase
 
         $this->assertSame('slug', $model->getRouteKeyName());
     }
+
+    public function testDefaultsMethodSetsDefaultAttributeValues(): void
+    {
+        $model = new ModelWithDefaultsMethodStub;
+
+        $this->assertSame(['status' => 'draft', 'views' => 0], $model->getAttributes());
+        $this->assertFalse($model->isDirty());
+    }
+
+    public function testDefaultsMethodTakesPrecedenceOverAttributesProperty(): void
+    {
+        $model = new ModelWithDefaultsMethodAndPropertyStub;
+
+        $this->assertSame(['title' => 'Untitled', 'status' => 'draft'], $model->getAttributes());
+    }
+
+    public function testDefaultsMethodValuesMayBeOverriddenOnInstantiation(): void
+    {
+        $model = new ModelWithDefaultsMethodStub(['status' => 'published']);
+
+        $this->assertSame(['status' => 'published', 'views' => 0], $model->getAttributes());
+    }
+
+    public function testDefaultsMethodIsNotAppliedToExistingModels(): void
+    {
+        $model = (new ModelWithDefaultsMethodStub)->newFromBuilder(['status' => 'published']);
+
+        $this->assertSame(['status' => 'published'], $model->getAttributes());
+        $this->assertFalse($model->isDirty());
+    }
+
+    public function testDefaultsMethodIsNotReappliedWhenUnserializing(): void
+    {
+        $model = new ModelWithDefaultsMethodStub(['status' => 'published']);
+
+        $model = unserialize(serialize($model));
+
+        $this->assertSame(['status' => 'published', 'views' => 0], $model->getAttributes());
+    }
+
+    public function testDefaultsMethodIsEvaluatedForEachNewModel(): void
+    {
+        ModelWithRuntimeDefaultsStub::$trialDays = 14;
+
+        $this->assertSame(['trial_days' => 14], (new ModelWithRuntimeDefaultsStub)->getAttributes());
+
+        ModelWithRuntimeDefaultsStub::$trialDays = 30;
+
+        $this->assertSame(['trial_days' => 30], (new ModelWithRuntimeDefaultsStub)->getAttributes());
+    }
 }
 
 class CustomBuilder extends Builder
@@ -4942,6 +4992,48 @@ class ModelWithRouteKeyAttributeStub extends Model
 
 class ModelInheritingRouteKeyAttributeStub extends ModelWithRouteKeyAttributeStub
 {
+}
+
+class ModelWithDefaultsMethodStub extends Model
+{
+    protected array $guarded = [];
+
+    /**
+     * Get the default attribute values for the model.
+     */
+    protected function defaults(): array
+    {
+        return ['status' => 'draft', 'views' => 0];
+    }
+}
+
+class ModelWithRuntimeDefaultsStub extends Model
+{
+    public static int $trialDays = 14;
+
+    /**
+     * Get the default attribute values for the model.
+     */
+    protected function defaults(): array
+    {
+        return ['trial_days' => static::$trialDays];
+    }
+}
+
+class ModelWithDefaultsMethodAndPropertyStub extends Model
+{
+    protected array $attributes = [
+        'title' => 'Untitled',
+        'status' => 'pending',
+    ];
+
+    /**
+     * Get the default attribute values for the model.
+     */
+    protected function defaults(): array
+    {
+        return ['status' => 'draft'];
+    }
 }
 
 class TestObserverStub
