@@ -8,6 +8,7 @@ use Hypervel\Console\Concerns\CreatesMatchingTest;
 use Hypervel\Console\GeneratorCommand;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
+use Override;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -39,6 +40,16 @@ class NotificationMakeCommand extends GeneratorCommand
     protected string $type = 'Notification';
 
     /**
+     * Configure the command's default values.
+     */
+    #[Override]
+    protected function configureDefaults(): void
+    {
+        // Default to false to distinguish "not passed" from "passed with no value"...
+        $this->getDefinition()->getOption('markdown')->setDefault(false);
+    }
+
+    /**
      * Execute the console command.
      */
     public function handle(): bool|int
@@ -47,7 +58,7 @@ class NotificationMakeCommand extends GeneratorCommand
             return static::SUCCESS;
         }
 
-        if ($this->option('markdown')) {
+        if ($this->option('markdown') !== false) {
             $this->writeMarkdownTemplate();
         }
 
@@ -66,7 +77,7 @@ class NotificationMakeCommand extends GeneratorCommand
         }
 
         $path = $this->viewPath(
-            str_replace('.', $separator, $this->option('markdown')) . '.blade.php'
+            str_replace('.', $separator, $this->getView()) . '.blade.php'
         );
 
         $this->files->ensureDirectoryExists(dirname($path));
@@ -83,8 +94,8 @@ class NotificationMakeCommand extends GeneratorCommand
     {
         $class = parent::buildClass($name);
 
-        if ($this->option('markdown')) {
-            $class = str_replace(['DummyView', '{{ view }}'], $this->option('markdown'), $class);
+        if ($this->option('markdown') !== false) {
+            $class = str_replace(['DummyView', '{{ view }}'], $this->getView(), $class);
         }
 
         return $class;
@@ -95,7 +106,7 @@ class NotificationMakeCommand extends GeneratorCommand
      */
     protected function getStub(): string
     {
-        return $this->option('markdown')
+        return $this->option('markdown') !== false
             ? $this->resolveStubPath('/stubs/markdown-notification.stub')
             : $this->resolveStubPath('/stubs/notification.stub');
     }
@@ -130,14 +141,24 @@ class NotificationMakeCommand extends GeneratorCommand
         $wantsMarkdownView = confirm('Would you like to create a markdown view?');
 
         if ($wantsMarkdownView) {
-            $defaultMarkdownView = (new Stringable($this->argument('name')))->replace('\\', '/')->explode('/')
-                ->map(fn ($path) => Str::kebab($path))
-                ->prepend('mail')
-                ->implode('.');
-
-            $markdownView = text('What should the markdown view be named?', default: $defaultMarkdownView);
+            $markdownView = text('What should the markdown view be named?', default: $this->getView());
 
             $input->setOption('markdown', $markdownView);
         }
+    }
+
+    /**
+     * Get the view name.
+     */
+    protected function getView(): string
+    {
+        if ($view = $this->option('markdown')) {
+            return $view;
+        }
+
+        return (new Stringable($this->argument('name')))->replace('\\', '/')->explode('/')
+            ->map(fn (string $path): string => Str::kebab($path))
+            ->prepend('mail')
+            ->implode('.');
     }
 }
