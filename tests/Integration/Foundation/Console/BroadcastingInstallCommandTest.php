@@ -4,16 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Foundation\Console;
 
+use Dotenv\Dotenv;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Console\BroadcastingInstallCommand;
 use Hypervel\Process\Exceptions\ProcessFailedException;
 use Hypervel\Process\PendingProcess;
+use Hypervel\Support\Facades\ParallelTesting;
 use Hypervel\Support\Facades\Process;
 use Hypervel\Tests\Testing\Fixtures\CleanupActions;
 use JsonException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use RuntimeException;
 use Symfony\Component\Console\Application as ConsoleApplication;
@@ -907,6 +910,103 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         ];
     }
 
+    #[TestWith(['https://hub.example.com/.well-known/mercure', false])]
+    #[TestWith(['http://localhost/.well-known/mercure', true])]
+    #[TestWith(['HTTP://localhost/.well-known/mercure', true])]
+    public function testInstallsMercureConfiguration(string $publicUrl, bool $plainHttp): void
+    {
+        Process::fake();
+        $this->createdFiles[] = $this->app->basePath('routes/channels.php');
+        $echoPath = $this->app->resourcePath('js/echo.js');
+        $this->createdFiles[] = $echoPath;
+        $tester = $this->commandTester(new TestableBroadcastingInstallCommand);
+        $tester->setInputs(['http://hub.internal/.well-known/mercure', $publicUrl, '', 'yes']);
+
+        $tester->execute(['--mercure' => true, '--without-node' => true]);
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $variables = Dotenv::parse(file_get_contents($this->app->basePath('.env')));
+        $this->assertSame('mercure', $variables['BROADCAST_CONNECTION']);
+        $this->assertSame('http://hub.internal/.well-known/mercure', $variables['MERCURE_URL']);
+        $this->assertSame($publicUrl, $variables['MERCURE_PUBLIC_URL']);
+        $this->assertSame($publicUrl, $variables['VITE_MERCURE_HUB_URL']);
+        $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $variables['MERCURE_JWT_SECRET']);
+        $this->assertStringStartsWith('base64:', $variables['MERCURE_ENCRYPTION_KEY']);
+        $this->assertSame(32, strlen(base64_decode(substr($variables['MERCURE_ENCRYPTION_KEY'], 7), true)));
+
+        if ($plainHttp) {
+            $this->assertSame('mercure_access_token', $variables['MERCURE_COOKIE_NAME']);
+            $this->assertStringContainsString('cookie_name mercure_access_token', $tester->getDisplay());
+        } else {
+            $this->assertArrayNotHasKey('MERCURE_COOKIE_NAME', $variables);
+        }
+
+        $this->assertStringContainsString("broadcaster: 'mercure'", file_get_contents($echoPath));
+        $this->assertStringContainsString('host: import.meta.env.VITE_MERCURE_HUB_URL', file_get_contents($echoPath));
+        Process::assertNothingRan();
+    }
+
+    public function testPretendPrintsDependencyCommandsWithoutInstalling(): void
+    {
+        Process::fake();
+        $this->createdFiles[] = $this->app->basePath('routes/channels.php');
+        $this->createdFiles[] = $this->app->resourcePath('js/echo.js');
+        $directory = ParallelTesting::tempDir('BroadcastingInstallCommandComposerPretend');
+        $files = new Filesystem;
+        $files->ensureDirectoryExists($directory);
+        $composer = $directory . '/composer.php';
+        $files->put($composer, '<?php echo json_encode(array_slice($argv, 1), JSON_UNESCAPED_SLASHES);');
+        $tester = $this->commandTester(new BroadcastingInstallCommandWithFakeConfig);
+        $tester->setInputs(['yes', 'yes']);
+
+        try {
+            $tester->execute(['--reverb' => true, '--pretend' => true, '--composer' => $composer]);
+        } finally {
+            $files->deleteDirectory($directory);
+        }
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $output = $tester->getDisplay();
+        $this->assertStringContainsString('["require","--with-all-dependencies","hypervel/reverb:^0.4","--dry-run"]', $output);
+        $this->assertStringContainsString('npm install --save-dev laravel-echo pusher-js --ignore-scripts && npm run build', $output);
+        $this->assertStringNotContainsString('Installing and building Node dependencies.', $output);
+        $this->assertStringNotContainsString('Reverb installed successfully.', $output);
+        $this->assertStringNotContainsString('Node dependencies installed successfully.', $output);
+        Process::assertNothingRan();
+    }
+
+    public function testDriverPackagesSkipInstalledPackagesAndKeepVersionConstraints(): void
+    {
+        Process::fake();
+        $this->createdFiles[] = $this->app->basePath('routes/channels.php');
+        $this->createdFiles[] = $this->app->resourcePath('js/echo.js');
+        $command = new class extends TestableBroadcastingInstallCommand {
+            /**
+             * Packages covering installed, unconstrained, and constrained dependencies.
+             *
+             * @var array<string, array<string, string>>
+             */
+            protected array $driverPackages = [
+                'mercure' => [
+                    'symfony/mercure' => '^0.8',
+                    'hypervel-test/missing' => '*',
+                    'hypervel-test/constrained' => '^1.0',
+                ],
+            ];
+        };
+        $tester = $this->commandTester($command);
+        $tester->setInputs(['https://hub.example.com/.well-known/mercure', '', str_repeat('s', 32), 'no']);
+
+        $tester->execute(['--mercure' => true, '--pretend' => true, '--without-node' => true]);
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertSame([[
+            'composer' => 'global',
+            'packages' => ['hypervel-test/missing', 'hypervel-test/constrained:^1.0'],
+            'pretend' => true,
+        ]], TestableBroadcastingInstallCommand::$composerRequireCalls);
+    }
+
     /**
      * Get a skeleton-style bootstrap/app.php fixture with only web + commands + health.
      */
@@ -1028,23 +1128,36 @@ PHP;
     }
 }
 
-/**
- * Testable BroadcastingInstallCommand that overrides requireComposerPackages to
- * record calls without actually running Composer.
- */
-class TestableBroadcastingInstallCommand extends BroadcastingInstallCommand
+class BroadcastingInstallCommandWithFakeConfig extends BroadcastingInstallCommand
 {
-    /** @var list<array{composer: string, packages: array<int, string>}> */
-    public static array $composerRequireCalls = [];
-
+    /**
+     * Skip configuration publication while exercising the real Composer integration.
+     */
     public function call(SymfonyCommand|string $command, array $arguments = []): int
     {
         return self::SUCCESS;
     }
+}
 
-    protected function requireComposerPackages(string $composer, array $packages): void
+/**
+ * Testable BroadcastingInstallCommand that overrides requireComposerPackages to
+ * record calls without actually running Composer.
+ */
+class TestableBroadcastingInstallCommand extends BroadcastingInstallCommandWithFakeConfig
+{
+    /**
+     * Composer installation requests recorded by the fixture.
+     *
+     * @var list<array{composer: string, packages: array<int, string>, pretend: bool}>
+     */
+    public static array $composerRequireCalls = [];
+
+    /**
+     * Record dependency installation without running Composer.
+     */
+    protected function requireComposerPackages(string $composer, array $packages, bool $pretend = false): void
     {
-        static::$composerRequireCalls[] = ['composer' => $composer, 'packages' => $packages];
+        static::$composerRequireCalls[] = ['composer' => $composer, 'packages' => $packages, 'pretend' => $pretend];
     }
 }
 

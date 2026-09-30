@@ -42,7 +42,7 @@ trait CreatesMercureDrivers
         $cookieName = strtolower($hub->getCookieName());
 
         if ((str_starts_with($cookieName, '__secure-') || str_starts_with($cookieName, '__host-'))
-            && parse_url((string) (($config['public_url'] ?? null) ?: $config['url']), PHP_URL_SCHEME) === 'http') {
+            && strtolower((string) parse_url((string) (($config['public_url'] ?? null) ?: $config['url']), PHP_URL_SCHEME)) === 'http') {
             throw new InvalidArgumentException(sprintf('The Mercure "%s" cookie requires an "https" hub "public_url". Use HTTPS, or configure a "cookie_name" without the "__Secure-" or "__Host-" prefix for plain-HTTP development.', $hub->getCookieName()));
         }
 

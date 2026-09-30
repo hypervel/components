@@ -15,6 +15,7 @@ use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 use function Hypervel\Prompts\confirm;
+use function Hypervel\Prompts\note;
 use function Hypervel\Prompts\password;
 use function Hypervel\Prompts\select;
 use function Hypervel\Prompts\text;
@@ -36,6 +37,8 @@ class BroadcastingInstallCommand extends Command
                     {--reverb : Install Hypervel Reverb as the default broadcaster}
                     {--pusher : Install Pusher as the default broadcaster}
                     {--ably : Install Ably as the default broadcaster}
+                    {--mercure : Install Mercure as the default broadcaster}
+                    {--pretend : Run dependency installation commands in dry-run mode}
                     {--without-node : Do not prompt to install Node dependencies}';
 
     /**
@@ -47,6 +50,17 @@ class BroadcastingInstallCommand extends Command
      * The broadcasting driver to use.
      */
     protected ?string $driver = null;
+
+    /**
+     * The Composer packages required by each broadcasting driver.
+     *
+     * @var array<string, array<string, string>>
+     */
+    protected array $driverPackages = [
+        'pusher' => ['pusher/pusher-php-server' => '*'],
+        'ably' => ['ably/ably-php' => '*'],
+        'mercure' => ['symfony/mercure' => '^0.8', 'symfony/http-client' => '^8.1', 'web-token/jwt-library' => '^4.2.3'],
+    ];
 
     /**
      * The React Echo package to install.
@@ -217,6 +231,7 @@ class BroadcastingInstallCommand extends Command
         match ($this->driver) {
             'pusher' => $this->collectPusherConfig(),
             'ably' => $this->collectAblyConfig(),
+            'mercure' => $this->collectMercureConfig(),
             default => null,
         };
     }
@@ -226,17 +241,25 @@ class BroadcastingInstallCommand extends Command
      */
     protected function installDriverPackages(): void
     {
-        $package = match ($this->driver) {
-            'pusher' => 'pusher/pusher-php-server',
-            'ably' => 'ably/ably-php',
-            default => null,
-        };
+        $packages = array_filter(
+            $this->driverPackages[$this->driver] ?? [],
+            fn (string $package): bool => ! InstalledVersions::isInstalled($package),
+            ARRAY_FILTER_USE_KEY,
+        );
 
-        if (! $package || InstalledVersions::isInstalled($package)) {
+        if ($packages === []) {
             return;
         }
 
-        $this->requireComposerPackages((string) $this->option('composer'), [$package]);
+        $this->requireComposerPackages(
+            (string) $this->option('composer'),
+            array_map(
+                fn (string $package, string $constraint): string => $constraint === '*' ? $package : $package . ':' . $constraint,
+                array_keys($packages),
+                $packages,
+            ),
+            (bool) $this->option('pretend')
+        );
     }
 
     /**
@@ -291,6 +314,54 @@ class BroadcastingInstallCommand extends Command
             'ABLY_PUBLIC_KEY' => $publicKey,
             'VITE_ABLY_PUBLIC_KEY' => '${ABLY_PUBLIC_KEY}',
         ], $this->hypervel->basePath('.env'));
+    }
+
+    /**
+     * Collect the Mercure configuration.
+     */
+    protected function collectMercureConfig(): void
+    {
+        // REMOVED: FrankenPHP's in-process hub choice; Hypervel publishes to standalone hubs.
+        $url = text(
+            'Mercure Hub URL',
+            'https://example.com/.well-known/mercure',
+            required: true,
+            hint: 'The URL your application publishes updates to.',
+        );
+
+        $publicUrl = text(
+            'Mercure Hub Public URL',
+            default: $url,
+            required: true,
+            hint: 'The URL browsers subscribe to updates from.',
+        );
+
+        $variables = [
+            'MERCURE_URL' => $url,
+            'MERCURE_PUBLIC_URL' => $publicUrl,
+            'VITE_MERCURE_HUB_URL' => '${MERCURE_PUBLIC_URL}',
+        ];
+
+        if (strtolower((string) parse_url($publicUrl, PHP_URL_SCHEME)) === 'http') {
+            $variables['MERCURE_COOKIE_NAME'] = 'mercure_access_token';
+
+            $this->components->warn('Set "cookie_name mercure_access_token" on your Mercure hub.');
+        }
+
+        $variables['MERCURE_JWT_SECRET'] = password(
+            'Mercure JWT Secret',
+            'Leave empty to generate a random secret',
+            validate: fn (string $value): ?string => $value === '' || strlen($value) >= 32
+                ? null
+                : 'The secret must be at least 32 bytes long.',
+            hint: 'Signs the tokens that let your app publish and browsers subscribe.',
+        ) ?: bin2hex(random_bytes(32));
+
+        if (confirm('Would you like to enable end-to-end encrypted channels?', default: false)) {
+            $variables['MERCURE_ENCRYPTION_KEY'] = 'base64:' . base64_encode(random_bytes(32));
+        }
+
+        Env::writeVariables($variables, $this->hypervel->basePath('.env'));
     }
 
     /**
@@ -366,7 +437,11 @@ class BroadcastingInstallCommand extends Command
 
         $this->requireComposerPackages((string) $this->option('composer'), [
             'hypervel/reverb:^0.4',
-        ]);
+        ], (bool) $this->option('pretend'));
+
+        if ($this->option('pretend')) {
+            return;
+        }
 
         Process::run([
             php_binary(),
@@ -385,8 +460,6 @@ class BroadcastingInstallCommand extends Command
         if ($this->option('without-node') || ! confirm('Would you like to install and build the Node dependencies required for broadcasting?', default: true)) {
             return;
         }
-
-        $this->components->info('Installing and building Node dependencies.');
 
         if (file_exists($this->hypervel->basePath('pnpm-lock.yaml'))) {
             $commands = [
@@ -422,6 +495,14 @@ class BroadcastingInstallCommand extends Command
             $commands[0] .= ' ' . $this->reactEchoPackage;
         }
 
+        if ($this->option('pretend')) {
+            note(implode(' && ', $commands));
+
+            return;
+        }
+
+        $this->components->info('Installing and building Node dependencies.');
+
         $command = Process::command(implode(' && ', $commands))
             ->path($this->hypervel->basePath());
 
@@ -442,23 +523,18 @@ class BroadcastingInstallCommand extends Command
      */
     protected function resolveDriver(): string
     {
-        if ($this->option('reverb')) {
-            return 'reverb';
-        }
-
-        if ($this->option('pusher')) {
-            return 'pusher';
-        }
-
-        if ($this->option('ably')) {
-            return 'ably';
-        }
-
-        return select('Which broadcasting driver would you like to use?', [
-            'reverb' => 'Hypervel Reverb',
-            'pusher' => 'Pusher',
-            'ably' => 'Ably',
-        ]);
+        return match (true) {
+            $this->option('reverb') => 'reverb',
+            $this->option('pusher') => 'pusher',
+            $this->option('ably') => 'ably',
+            $this->option('mercure') => 'mercure',
+            default => select('Which broadcasting driver would you like to use?', [
+                'reverb' => 'Hypervel Reverb',
+                'pusher' => 'Pusher',
+                'ably' => 'Ably',
+                'mercure' => 'Mercure',
+            ]),
+        };
     }
 
     /**

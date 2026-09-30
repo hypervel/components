@@ -79,6 +79,8 @@ php artisan install:broadcasting
 
 The `install:broadcasting` command will prompt you for which event broadcasting service you would like to use. In addition, it will create the `config/broadcasting.php` configuration file and the `routes/channels.php` file where you may register your application's broadcast authorization routes and callbacks.
 
+Use `--pretend` to preview dependency installation commands. Routes, environment configuration, and JavaScript scaffolding are still written.
+
 Hypervel supports several broadcast drivers out of the box: [Hypervel Reverb](/docs/{{version}}/reverb), [Pusher Channels](https://pusher.com/channels), [Ably](https://ably.com), [Mercure](https://mercure.rocks), and a `log` driver for local development and debugging. Additionally, a `null` driver is included which allows you to disable broadcasting during testing. A configuration example is included for each of these drivers in the `config/broadcasting.php` configuration file.
 
 All of your application's event broadcasting configuration is stored in the `config/broadcasting.php` configuration file. Don't worry if this file does not exist in your application; it will be created when you run the `install:broadcasting` Artisan command.
@@ -208,7 +210,13 @@ Finally, you are ready to install and configure [Laravel Echo](#client-side-inst
 <a name="mercure"></a>
 ### Mercure
 
-[Mercure](https://mercure.rocks) is a real-time protocol that uses server-sent events. Hypervel publishes to a standalone Mercure hub over HTTP. Install the server-side dependencies using Composer:
+[Mercure](https://mercure.rocks) is a real-time protocol that uses server-sent events. Hypervel publishes to a standalone Mercure hub over HTTP. To install its dependencies and configure the hub URLs and credentials, run:
+
+```shell
+php artisan install:broadcasting --mercure
+```
+
+Alternatively, install the server-side dependencies using Composer:
 
 ```shell
 composer require symfony/mercure symfony/http-client web-token/jwt-library
@@ -228,7 +236,7 @@ The `MERCURE_URL` value is the URL Hypervel uses to publish updates, while `MERC
 
 Relative hub URLs resolve against the current request's origin, or `APP_URL` outside an HTTP request. Because the request's `Host` header then determines where Hypervel sends its publisher credentials, configure [trusted hosts](/docs/{{version}}/requests#configuring-trusted-hosts) when using request-relative URLs. The default JWT audience follows the resolved public hub URL; an explicit `claims.aud` value in the connection configuration remains unchanged.
 
-For private channels and presence channels, serve the hub under the application's domain or a subdomain so the authorization cookie can reach it. Enable the hub's `subscriptions` directive for presence events and allow your application's origin with `publish_origins` for client events. Configure the hub's CORS settings when browsers connect across origins. For plain-HTTP development, set `MERCURE_COOKIE_NAME=mercureAuthorization` and configure the hub to use the same cookie name; the default cookie requires HTTPS.
+For private channels and presence channels, serve the hub under the application's domain or a subdomain so the authorization cookie can reach it. Enable the hub's `subscriptions` directive for presence events and allow your application's origin with `publish_origins` for client events. Configure the hub's CORS settings when browsers connect across origins. For plain-HTTP development, set `MERCURE_COOKIE_NAME=mercure_access_token` and configure the hub to use the same cookie name; the default cookie requires HTTPS.
 
 To use end-to-end encrypted private channels, configure a base64-encoded 32-byte `MERCURE_ENCRYPTION_KEY` environment variable. You may generate a key with:
 
@@ -543,6 +551,9 @@ npm run dev
 
 <a name="client-mercure"></a>
 ### Mercure
+
+> [!WARNING]
+> Mercure support is available on Echo's `2.x` branch but is not included in the published `2.5.0` packages. The following setup requires an Echo release containing that support, including the corresponding React, Vue, or Svelte helper if used.
 
 To use Mercure with Laravel Echo, install the `laravel-echo` package:
 

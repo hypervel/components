@@ -1034,14 +1034,15 @@ class BroadcastManagerTest extends TestCase
         $manager->connection('mercure');
     }
 
-    #[TestWith([null])]
-    #[TestWith(['__host-mercure'])]
-    public function testMercureRejectsASecurePrefixedCookieOverAPlainHttpPublicUrl(?string $cookieName): void
+    #[TestWith([null, 'http://localhost/.well-known/mercure'])]
+    #[TestWith(['__host-mercure', 'http://localhost/.well-known/mercure'])]
+    #[TestWith([null, 'HTTP://localhost/.well-known/mercure'])]
+    public function testMercureRejectsASecurePrefixedCookieOverAPlainHttpPublicUrl(?string $cookieName, string $publicUrl): void
     {
         $manager = new BroadcastManager($this->getApp([
             'broadcasting' => ['connections' => ['mercure' => $this->mercureConfig([
                 'driver' => 'mercure',
-                'public_url' => 'http://localhost/.well-known/mercure',
+                'public_url' => $publicUrl,
                 'cookie_name' => $cookieName,
             ])]],
         ]));
