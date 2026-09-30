@@ -117,6 +117,8 @@ class QueuePauseResumeTest extends TestCase
         $this->manager->pause('emails', '');
 
         $this->assertTrue($this->manager->isPaused('emails', 'redis'));
+        $this->assertTrue($this->manager->isPaused('emails', ''));
+        $this->assertSame(['emails'], $this->manager->getPausedQueues(['emails'], ''));
 
         $this->manager->resume('emails', '');
 
@@ -380,6 +382,7 @@ class QueuePauseResumeTest extends TestCase
         $this->assertSame(['redis', 'default'], $parser->parse(''));
         $this->assertSame(['redis', '0'], $parser->parse('0'));
         $this->assertSame(['redis', 'emails'], $parser->parse('emails'));
+        $this->assertSame(['redis', 'emails'], $parser->parse(':emails'));
         $this->assertSame(['database', 'notifications'], $parser->parse('database:notifications'));
         $this->assertSame(['redis', 'foo:bar'], $parser->parse('redis:foo:bar'));
     }
