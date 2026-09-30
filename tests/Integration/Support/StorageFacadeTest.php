@@ -100,6 +100,43 @@ class StorageFacadeTest extends TestCase
         $fake->assertExists('file.txt');
     }
 
+    public function testFakingOnDemandDiskDoesNotAffectScopedDisks(): void
+    {
+        config([
+            'filesystems.disks.photos' => ['driver' => 'local', 'root' => $root = storage_path('photos')],
+            'filesystems.disks.avatars' => ['driver' => 'scoped', 'disk' => 'photos', 'prefix' => 'avatars'],
+        ]);
+
+        $fake = Storage::fake('ondemand');
+
+        Storage::disk('avatars')->put('file.txt', 'contents');
+
+        $fake->assertMissing('file.txt');
+        $this->assertFileExists($root . '/avatars/file.txt');
+    }
+
+    public function testFakingOnDemandDiskDoesNotAffectReadThroughDisks(): void
+    {
+        config([
+            'filesystems.disks.assets' => [
+                'driver' => 'read-through',
+                'primary' => ['driver' => 'local', 'root' => $primaryRoot = storage_path('primary')],
+                'fallback' => ['driver' => 'local', 'root' => $fallbackRoot = storage_path('fallback')],
+            ],
+        ]);
+
+        (new Filesystem)->ensureDirectoryExists($fallbackRoot);
+        file_put_contents($fallbackRoot . '/fallback.txt', 'fallback contents');
+
+        $fake = Storage::fake('ondemand');
+
+        Storage::disk('assets')->put('file.txt', 'contents');
+
+        $this->assertSame('fallback contents', Storage::disk('assets')->get('fallback.txt'));
+        $fake->assertMissing('file.txt');
+        $this->assertFileExists($primaryRoot . '/file.txt');
+    }
+
     public function testOnDemandFakesPreserveNamedBuildsAndCanBeCleared(): void
     {
         $root = storage_path('on-demand');
