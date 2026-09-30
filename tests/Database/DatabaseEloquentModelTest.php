@@ -2923,7 +2923,7 @@ class DatabaseEloquentModelTest extends TestCase
         $model->publicIncrement('foo', 1, ['category' => 1]);
         $this->assertEquals(4, $model->foo);
         $this->assertEquals(1, $model->category);
-        $this->assertTrue($model->isDirty('category'));
+        $this->assertFalse($model->isDirty('category'));
     }
 
     public function testIncrementQuietlyOnExistingModelCallsQueryAndSetsAttributeAndIsQuiet(): void
@@ -2952,7 +2952,7 @@ class DatabaseEloquentModelTest extends TestCase
         $model->publicIncrementQuietly('foo', 1, ['category' => 1]);
         $this->assertEquals(4, $model->foo);
         $this->assertEquals(1, $model->category);
-        $this->assertTrue($model->isDirty('category'));
+        $this->assertFalse($model->isDirty('category'));
     }
 
     public function testDecrementQuietlyOnExistingModelCallsQueryAndSetsAttributeAndIsQuiet(): void
@@ -2981,7 +2981,7 @@ class DatabaseEloquentModelTest extends TestCase
         $model->publicDecrementQuietly('foo', 1, ['category' => 1]);
         $this->assertEquals(2, $model->foo);
         $this->assertEquals(1, $model->category);
-        $this->assertTrue($model->isDirty('category'));
+        $this->assertFalse($model->isDirty('category'));
     }
 
     public function testIncrementReturnsFalseWhenUpdatingEventIsCancelled(): void
@@ -3075,7 +3075,7 @@ class DatabaseEloquentModelTest extends TestCase
 
         $this->assertSame(4, $model->foo);
         $this->assertSame(1, $model->category);
-        $this->assertTrue($model->isDirty('category'));
+        $this->assertFalse($model->isDirty('category'));
     }
 
     public function testDecrementEachQuietlyOnExistingModelCallsQueryAndSetsAttributeAndIsQuiet(): void
@@ -3107,7 +3107,7 @@ class DatabaseEloquentModelTest extends TestCase
 
         $this->assertSame(6, $model->foo);
         $this->assertSame(1, $model->category);
-        $this->assertTrue($model->isDirty('category'));
+        $this->assertFalse($model->isDirty('category'));
     }
 
     public function testIncrementEachQuietlyCanBeCalledDynamicallyOnModelInstance(): void

@@ -1209,20 +1209,20 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             $amount = (clone $this)->setAttribute($column, $amount)->getAttributeFromArray($column);
         }
 
-        return tap($this->setKeysForSaveQuery($this->newQueryWithoutScopes())->{$method}($column, $amount, $extra), function () use ($column): void {
-            // Increments skip the save path's cast merge, so keep unsaved cached cast changes.
+        return tap($this->setKeysForSaveQuery($this->newQueryWithoutScopes())->{$method}($column, $amount, $extra), function () use ($column, $extra): void {
             if ($this->refreshes !== []) {
+                // Increments skip the save path's cast merge, so keep unsaved cached cast changes.
                 $this->mergeAttributesFromCachedCasts();
-            }
 
-            $this->refreshSavedAttributes();
+                // The statement applies the extra values after the increment, so they win.
+                $this->refreshSavedAttributes($extra + [$column => $this->attributes[$column]]);
+            }
 
             $this->syncChanges();
 
             $this->fireModelEvent('updated', false);
 
-            // Refreshed values came from the database, so a later save must not write them back.
-            $this->syncOriginalAttributes([$column, ...$this->refreshes]);
+            $this->syncIncrementedOriginals([$column], $extra);
         });
     }
 
@@ -1385,21 +1385,42 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         return tap(
             $this->setKeysForSaveQuery($this->newQueryWithoutScopes())
                 ->{$method}($dbColumns, $extra),
-            function () use ($columns): void {
-                // Increments skip the save path's cast merge, so keep unsaved cached cast changes.
+            function () use ($columns, $extra): void {
                 if ($this->refreshes !== []) {
+                    // Increments skip the save path's cast merge, so keep unsaved cached cast changes.
                     $this->mergeAttributesFromCachedCasts();
-                }
 
-                $this->refreshSavedAttributes();
+                    // The statement applies the extra values after the increments, so they win.
+                    $this->refreshSavedAttributes($extra + array_intersect_key($this->attributes, $columns));
+                }
 
                 $this->syncChanges();
 
                 $this->fireModelEvent('updated', false);
 
-                $this->syncOriginalAttributes([...array_keys($columns), ...$this->refreshes]);
+                $this->syncIncrementedOriginals(array_keys($columns), $extra);
             }
         );
+    }
+
+    /**
+     * Sync the original attributes with the values an increment stored.
+     *
+     * @param list<string> $columns
+     * @param array<string, mixed> $extra
+     */
+    private function syncIncrementedOriginals(array $columns, array $extra): void
+    {
+        // Refreshed values came from the database, so a later save must not write them back.
+        $this->syncOriginalAttributes([...$columns, ...$this->refreshes]);
+
+        // The row holds the supplied extra values, so they are no longer pending. A value an
+        // updating listener changed afterwards stays dirty, and database-refreshed values win.
+        foreach ($extra as $key => $value) {
+            if (! in_array($key, $this->refreshes, true)) {
+                $this->original[$key] = $value;
+            }
+        }
     }
 
     /**
@@ -1589,7 +1610,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
                 $this->prepareBinaryAttributesForDatabase($dirty)
             );
 
-            $this->refreshSavedAttributes();
+            $this->refreshSavedAttributes($dirty);
 
             // Cached setters were merged while building the statement values. Read
             // the raw array here so nondeterministic setters are not run again.
@@ -1732,7 +1753,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         $this->wasRecentlyCreated = true;
 
-        $this->refreshSavedAttributes();
+        $this->refreshSavedAttributes($this->attributes);
 
         $this->fireModelEvent('created', false);
 
@@ -1789,7 +1810,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         $this->exists = true;
         $this->wasRecentlyCreated = true;
 
-        $this->refreshSavedAttributes();
+        $this->refreshSavedAttributes($this->attributes);
 
         $this->fireModelEvent('created', false);
 
@@ -1811,15 +1832,22 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Refresh the configured attributes after the model is saved.
+     *
+     * @param array<string, mixed> $attributes the raw attribute values the write stored
      */
-    protected function refreshSavedAttributes(): void
+    protected function refreshSavedAttributes(array $attributes): void
     {
         if ($this->refreshes === []) {
             return;
         }
 
+        // Key selection reads the original values, which keep the previous identity until
+        // the save finishes. Select through a copy that holds the identity this write stored.
+        $model = clone $this;
+        $model->original = array_replace($this->original, $attributes);
+
         // Read the raw row so the refresh does not eager load relations or fire retrieved events.
-        $attributes = $this->setKeysForSelectQuery($this->newModelQuery())
+        $row = $model->setKeysForSelectQuery($model->newModelQuery())
             ->useWritePdo()
             ->toBase()
             ->first($this->refreshes)
@@ -1827,7 +1855,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         // Cached casts are already merged, so replacing the raw values drops any cache
         // built from stale values without running cast setters again.
-        $this->setRawAttributes(array_replace($this->attributes, (array) $attributes));
+        $this->setRawAttributes(array_replace($this->attributes, (array) $row));
     }
 
     /**
