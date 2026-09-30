@@ -45,7 +45,7 @@ class ValidationNotPwnedVerifierTest extends TestCase
 
         $httpFactory
             ->expects('withHeaders')
-            ->with(['Add-Padding' => true])
+            ->with(['Add-Padding' => 'true'])
             ->andReturn($httpFactory);
 
         $httpFactory
@@ -77,7 +77,7 @@ class ValidationNotPwnedVerifierTest extends TestCase
 
         $httpFactory
             ->expects('withHeaders')
-            ->with(['Add-Padding' => true])
+            ->with(['Add-Padding' => 'true'])
             ->andReturn($httpFactory);
 
         $httpFactory
@@ -115,7 +115,7 @@ class ValidationNotPwnedVerifierTest extends TestCase
 
         $httpFactory
             ->expects('withHeaders')
-            ->with(['Add-Padding' => true])
+            ->with(['Add-Padding' => 'true'])
             ->andReturn($httpFactory);
 
         $httpFactory
@@ -155,7 +155,7 @@ class ValidationNotPwnedVerifierTest extends TestCase
 
         $httpFactory
             ->expects('withHeaders')
-            ->with(['Add-Padding' => true])
+            ->with(['Add-Padding' => 'true'])
             ->andReturn($httpFactory);
 
         $httpFactory
