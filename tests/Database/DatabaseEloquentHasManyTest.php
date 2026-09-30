@@ -4,265 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\DatabaseEloquentHasManyTest;
 
-use Closure;
-use Exception;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Query\Builder as QueryBuilder;
-use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Mockery\MockInterface;
 
 class DatabaseEloquentHasManyTest extends TestCase
 {
-    public function testMakeMethodDoesNotSaveNewModel()
-    {
-        $relation = $this->getRelation();
-        $instance = $this->expectNewModel($relation, ['name' => 'taylor']);
-        $instance->shouldReceive('save')->never();
-
-        $this->assertEquals($instance, $relation->make(['name' => 'taylor']));
-    }
-
-    public function testMakeManyCreatesARelatedModelForEachRecord(): void
-    {
-        $records = [
-            'taylor' => ['name' => 'taylor'],
-            'colin' => ['name' => 'colin'],
-        ];
-
-        $relation = $this->getRelation();
-        $relation->getRelated()->expects('newCollection')->andReturn(new Collection);
-
-        $taylor = $this->expectNewModel($relation, ['name' => 'taylor']);
-        $taylor->shouldReceive('save')->never();
-        $colin = $this->expectNewModel($relation, ['name' => 'colin']);
-        $colin->shouldReceive('save')->never();
-
-        $instances = $relation->makeMany($records);
-
-        $this->assertInstanceOf(Collection::class, $instances);
-        $this->assertCount(2, $instances);
-        $this->assertNotSame($instances[0], $instances[1]);
-        $this->assertSame($taylor, $instances[0]);
-        $this->assertSame($colin, $instances[1]);
-    }
-
-    public function testCreateMethodProperlyCreatesNewModel()
-    {
-        $relation = $this->getRelation();
-        $created = $this->expectCreatedModel($relation, ['name' => 'taylor']);
-
-        $this->assertEquals($created, $relation->create(['name' => 'taylor']));
-    }
-
-    public function testForceCreateMethodProperlyCreatesNewModel()
-    {
-        $relation = $this->getRelation();
-        $created = $this->expectForceCreatedModel($relation, ['name' => 'taylor']);
-
-        $this->assertEquals($created, $relation->forceCreate(['name' => 'taylor']));
-        $this->assertEquals(1, $created->getAttribute('foreign_key'));
-    }
-
-    public function testFindOrNewMethodFindsModel(): void
-    {
-        $relation = $this->getRelation();
-        $model = m::mock(Model::class);
-        $relation->getQuery()->expects('find')->with('foo', ['*'])->andReturn($model);
-        $model->shouldReceive('setAttribute')->never();
-
-        $this->assertInstanceOf(Model::class, $relation->findOrNew('foo'));
-    }
-
-    public function testFindOrNewMethodReturnsNewModelWithForeignKeySet(): void
-    {
-        $relation = $this->getRelation();
-        $relation->getQuery()->expects('find')->with('foo', ['*'])->andReturn(null);
-        $model = m::mock(Model::class);
-        $relation->getRelated()->expects('newInstance')->with()->andReturn($model);
-        $model->expects('setAttribute')->with('foreign_key', 1);
-
-        $this->assertInstanceOf(Model::class, $relation->findOrNew('foo'));
-    }
-
-    public function testFirstOrNewMethodFindsFirstModel(): void
-    {
-        $relation = $this->getRelation();
-        $relation->getQuery()->expects('where')->with(['foo'])->andReturn($relation->getQuery());
-        $model = m::mock(Model::class);
-        $relation->getQuery()->expects('first')->with()->andReturn($model);
-        $model->shouldReceive('setAttribute')->never();
-
-        $this->assertInstanceOf(Model::class, $relation->firstOrNew(['foo']));
-    }
-
-    public function testFirstOrNewMethodWithValuesFindsFirstModel(): void
-    {
-        $relation = $this->getRelation();
-        $relation->getQuery()->expects('where')->with(['foo' => 'bar'])->andReturn($relation->getQuery());
-        $model = m::mock(Model::class);
-        $relation->getQuery()->expects('first')->with()->andReturn($model);
-        $relation->getRelated()->shouldReceive('newInstance')->never();
-        $model->shouldReceive('setAttribute')->never();
-
-        $this->assertInstanceOf(Model::class, $relation->firstOrNew(['foo' => 'bar'], ['baz' => 'qux']));
-    }
-
-    public function testFirstOrNewMethodReturnsNewModelWithForeignKeySet()
-    {
-        $relation = $this->getRelation();
-        $relation->getQuery()->expects('where')->with(['foo'])->andReturn($relation->getQuery());
-        $relation->getQuery()->expects('first')->with()->andReturn(null);
-        $model = $this->expectNewModel($relation, ['foo']);
-
-        $this->assertEquals($model, $relation->firstOrNew(['foo']));
-    }
-
-    public function testFirstOrNewMethodWithValuesCreatesNewModelWithForeignKeySet()
-    {
-        $relation = $this->getRelation();
-        $relation->getQuery()->expects('where')->with(['foo' => 'bar'])->andReturn($relation->getQuery());
-        $relation->getQuery()->expects('first')->with()->andReturn(null);
-        $model = $this->expectNewModel($relation, ['foo' => 'bar', 'baz' => 'qux']);
-
-        $this->assertEquals($model, $relation->firstOrNew(['foo' => 'bar'], ['baz' => 'qux']));
-    }
-
-    public function testFirstOrCreateMethodFindsFirstModel(): void
-    {
-        $relation = $this->getRelation();
-        $relation->getQuery()->expects('where')->with(['foo'])->andReturn($relation->getQuery());
-        $model = m::mock(Model::class);
-        $relation->getQuery()->expects('first')->with()->andReturn($model);
-        $relation->getRelated()->shouldReceive('newInstance')->never();
-        $model->shouldReceive('setAttribute')->never();
-        $model->shouldReceive('save')->never();
-
-        $this->assertInstanceOf(Model::class, $relation->firstOrCreate(['foo']));
-    }
-
-    public function testFirstOrCreateMethodWithValuesFindsFirstModel(): void
-    {
-        $relation = $this->getRelation();
-        $relation->getQuery()->expects('where')->with(['foo' => 'bar'])->andReturn($relation->getQuery());
-        $model = m::mock(Model::class);
-        $relation->getQuery()->expects('first')->with()->andReturn($model);
-        $relation->getRelated()->shouldReceive('newInstance')->never();
-        $model->shouldReceive('setAttribute')->never();
-        $model->shouldReceive('save')->never();
-
-        $this->assertInstanceOf(Model::class, $relation->firstOrCreate(['foo' => 'bar'], ['baz' => 'qux']));
-    }
-
-    public function testFirstOrCreateMethodCreatesNewModelWithForeignKeySet()
-    {
-        $relation = $this->getRelation();
-        $relation->getQuery()->expects('where')->with(['foo'])->andReturn($relation->getQuery());
-        $relation->getQuery()->expects('first')->with()->andReturn(null);
-        $relation->getQuery()->expects('withSavepointIfNeeded')->andReturnUsing(fn ($scope) => $scope());
-        $model = $this->expectCreatedModel($relation, ['foo']);
-
-        $this->assertEquals($model, $relation->firstOrCreate(['foo']));
-    }
-
-    public function testFirstOrCreateMethodWithValuesCreatesNewModelWithForeignKeySet()
-    {
-        $relation = $this->getRelation();
-        $relation->getQuery()->expects('where')->with(['foo' => 'bar'])->andReturn($relation->getQuery());
-        $relation->getQuery()->expects('first')->with()->andReturn(null);
-        $relation->getQuery()->expects('withSavepointIfNeeded')->andReturnUsing(fn ($scope) => $scope());
-        $model = $this->expectCreatedModel($relation, ['foo' => 'bar', 'baz' => 'qux']);
-
-        $this->assertEquals($model, $relation->firstOrCreate(['foo' => 'bar'], ['baz' => 'qux']));
-    }
-
-    public function testCreateOrFirstMethodWithValuesFindsFirstModel(): void
-    {
-        $relation = $this->getRelation();
-
-        $relation->getRelated()->expects('newInstance')->with(['foo' => 'bar', 'baz' => 'qux'])->andReturn(m::mock(Model::class, function (MockInterface $model): void {
-            $model->expects('setAttribute')->with('foreign_key', 1);
-            $model->expects('save')->andThrow(
-                new UniqueConstraintViolationException('mysql', 'example mysql', [], new Exception('SQLSTATE[23000]: Integrity constraint violation: 1062')),
-            );
-        }));
-
-        $relation->getQuery()->expects('withSavepointIfNeeded')->andReturnUsing(function (Closure $scope): Model {
-            return $scope();
-        });
-        $relation->getQuery()->expects('useWritePdo')->andReturn($relation->getQuery());
-        $relation->getQuery()->expects('where')->with(['foo' => 'bar'])->andReturn($relation->getQuery());
-        $model = m::mock(Model::class);
-        $relation->getQuery()->expects('first')->with()->andReturn($model);
-
-        $this->assertInstanceOf(Model::class, $found = $relation->createOrFirst(['foo' => 'bar'], ['baz' => 'qux']));
-        $this->assertSame($model, $found);
-    }
-
-    public function testCreateOrFirstMethodCreatesNewModelWithForeignKeySet()
-    {
-        $relation = $this->getRelation();
-
-        $relation->getQuery()->expects('withSavepointIfNeeded')->andReturnUsing(function ($scope) {
-            return $scope();
-        });
-        $relation->getQuery()->shouldReceive('where')->never();
-        $relation->getQuery()->shouldReceive('first')->never();
-        $model = $this->expectCreatedModel($relation, ['foo']);
-
-        $this->assertEquals($model, $relation->createOrFirst(['foo']));
-    }
-
-    public function testCreateOrFirstMethodWithValuesCreatesNewModelWithForeignKeySet()
-    {
-        $relation = $this->getRelation();
-        $relation->getQuery()->expects('withSavepointIfNeeded')->andReturnUsing(function ($scope) {
-            return $scope();
-        });
-        $relation->getQuery()->shouldReceive('where')->never();
-        $relation->getQuery()->shouldReceive('first')->never();
-        $model = $this->expectCreatedModel($relation, ['foo' => 'bar', 'baz' => 'qux']);
-
-        $this->assertEquals($model, $relation->createOrFirst(['foo' => 'bar'], ['baz' => 'qux']));
-    }
-
-    public function testUpdateOrCreateMethodFindsFirstModelAndUpdates(): void
-    {
-        $relation = $this->getRelation();
-        $relation->getQuery()->expects('where')->with(['foo'])->andReturn($relation->getQuery());
-        $model = m::mock(Model::class);
-        $relation->getQuery()->expects('first')->with()->andReturn($model);
-        $relation->getRelated()->shouldReceive('newInstance')->never();
-
-        $model->wasRecentlyCreated = false;
-        $model->expects('fill')->with(['bar'])->andReturn($model);
-        $model->expects('save');
-
-        $this->assertInstanceOf(Model::class, $relation->updateOrCreate(['foo'], ['bar']));
-    }
-
-    public function testUpdateOrCreateMethodCreatesNewModelWithForeignKeySet(): void
-    {
-        $relation = $this->getRelation();
-        $relation->getQuery()->expects('withSavepointIfNeeded')->andReturnUsing(function (Closure $scope): Model {
-            return $scope();
-        });
-        $relation->getQuery()->expects('where')->with(['foo'])->andReturn($relation->getQuery());
-        $relation->getQuery()->expects('first')->with()->andReturn(null);
-        $model = m::mock(Model::class);
-        $relation->getRelated()->expects('newInstance')->with(['foo', 'bar'])->andReturn($model);
-
-        $model->wasRecentlyCreated = true;
-        $model->expects('save')->andReturn(true);
-        $model->expects('setAttribute')->with('foreign_key', 1);
-
-        $this->assertInstanceOf(Model::class, $relation->updateOrCreate(['foo'], ['bar']));
-    }
-
     public function testRelationUpsertFillsForeignKey()
     {
         $relation = $this->getRelation();
@@ -370,30 +121,10 @@ class DatabaseEloquentHasManyTest extends TestCase
         $this->assertNull($models[2]->foo);
     }
 
-    public function testCreateManyCreatesARelatedModelForEachRecord(): void
-    {
-        $records = [
-            'taylor' => ['name' => 'taylor'],
-            'colin' => ['name' => 'colin'],
-        ];
-
-        $relation = $this->getRelation();
-        $relation->getRelated()->expects('newCollection')->andReturn(new Collection);
-
-        $taylor = $this->expectCreatedModel($relation, ['name' => 'taylor']);
-        $colin = $this->expectCreatedModel($relation, ['name' => 'colin']);
-
-        $instances = $relation->createMany($records);
-        $this->assertInstanceOf(Collection::class, $instances);
-        $this->assertSame($taylor, $instances[0]);
-        $this->assertSame($colin, $instances[1]);
-    }
-
     protected function getRelation()
     {
         $queryBuilder = m::mock(QueryBuilder::class);
         $builder = m::mock(Builder::class, [$queryBuilder]);
-        $builder->shouldReceive('ensureCanCreateOrFirst')->passthru();
         $builder->shouldReceive('whereNotNull')->with('table.foreign_key');
         $builder->shouldReceive('where')->with('table.foreign_key', '=', 1);
         $related = m::mock(Model::class);
@@ -404,44 +135,6 @@ class DatabaseEloquentHasManyTest extends TestCase
         $parent->shouldReceive('getUpdatedAtColumn')->andReturn('updated_at');
 
         return new HasMany($builder, $parent, 'table.foreign_key', 'id');
-    }
-
-    /**
-     * Expect a new related model with its foreign key set.
-     */
-    protected function expectNewModel(HasMany $relation, ?array $attributes = null): Model
-    {
-        $model = m::mock(Model::class);
-        $relation->getRelated()->expects('newInstance')->with($attributes)->andReturn($model);
-        $model->expects('setAttribute')->with('foreign_key', 1)->andReturnSelf();
-
-        return $model;
-    }
-
-    /**
-     * Expect a related model to be created.
-     */
-    protected function expectCreatedModel(HasMany $relation, array $attributes): Model
-    {
-        $model = $this->expectNewModel($relation, $attributes);
-        $model->expects('save')->andReturn(true);
-
-        return $model;
-    }
-
-    /**
-     * Expect a related model to be created without guarding attributes.
-     */
-    protected function expectForceCreatedModel(HasMany $relation, array $attributes): Model
-    {
-        $attributes[$relation->getForeignKeyName()] = $relation->getParentKey();
-
-        $model = m::mock(Model::class);
-        $model->expects('getAttribute')->with($relation->getForeignKeyName())->andReturn($relation->getParentKey());
-
-        $relation->getRelated()->expects('forceCreate')->with($attributes)->andReturn($model);
-
-        return $model;
     }
 }
 

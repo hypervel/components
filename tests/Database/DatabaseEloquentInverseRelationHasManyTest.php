@@ -151,7 +151,11 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
 
         $posts = $user->posts()->makeMany(array_fill(0, 3, []));
 
+        $this->assertCount(3, $posts);
+        $this->assertCount(3, array_unique(array_map(spl_object_id(...), $posts->all())));
+
         foreach ($posts as $post) {
+            $this->assertFalse($post->exists);
             $this->assertTrue($post->relationLoaded('user'));
             $this->assertSame($user, $post->user);
         }
@@ -163,7 +167,11 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
 
         $posts = $user->posts()->createMany(array_fill(0, 3, []));
 
+        $this->assertCount(3, $posts);
+        $this->assertCount(3, array_unique(array_map(spl_object_id(...), $posts->all())));
+
         foreach ($posts as $post) {
+            $this->assertTrue($post->exists);
             $this->assertTrue($post->relationLoaded('user'));
             $this->assertSame($user, $post->user);
         }
