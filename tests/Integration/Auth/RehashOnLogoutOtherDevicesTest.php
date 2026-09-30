@@ -13,12 +13,16 @@ use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Integration\Auth\Fixtures\AuthTestUser;
 use Override;
+use Symfony\Component\HttpFoundation\Response;
 
 #[WithMigration]
 class RehashOnLogoutOtherDevicesTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * Configure the authentication provider and password hashing.
+     */
     #[Override]
     protected function defineEnvironment(ApplicationContract $app): void
     {
@@ -29,14 +33,24 @@ class RehashOnLogoutOtherDevicesTest extends TestCase
         ]);
     }
 
+    /**
+     * Define the login and authenticated session routes.
+     */
     #[Override]
     protected function defineRoutes(Router $router): void
     {
-        $router->post('/logout-other-devices', function (Request $request) {
+        $router->post('/login', function (Request $request): Response {
+            if (! auth()->attempt($request->only('email', 'password'))) {
+                return response()->noContent(401);
+            }
+
             auth()->logoutOtherDevices($request->input('password'));
 
             return response()->noContent();
-        })->middleware(['web', 'auth']);
+        })->middleware(['web', 'auth.session'])->name('login');
+
+        $router->get('/authenticated', fn (): Response => response()->noContent())
+            ->middleware(['web', 'auth', 'auth.session']);
     }
 
     public function testLogoutOtherDevicesRehashesThePersistedPassword(): void
@@ -48,13 +62,21 @@ class RehashOnLogoutOtherDevicesTest extends TestCase
         ]);
         $originalHash = $user->password;
 
-        $this->actingAs($user)
-            ->post('/logout-other-devices', ['password' => 'password'])
+        $response = $this->post('/login', ['email' => 'auth@example.com', 'password' => 'password'])
             ->assertNoContent();
 
         $user->refresh();
 
         $this->assertNotSame($originalHash, $user->password);
         $this->assertTrue(Hash::check('password', $user->password));
+
+        $cookie = $response->getCookie($this->app->make('config')->get('session.cookie'));
+        $this->assertNotNull($cookie);
+        auth()->guard()->forgetUser();
+
+        $this->withCookie($cookie->getName(), $cookie->getValue())
+            ->get('/authenticated')
+            ->assertNoContent();
+        $this->assertAuthenticatedAs($user);
     }
 }
