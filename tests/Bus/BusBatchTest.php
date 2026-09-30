@@ -280,7 +280,10 @@ class BusBatchTest extends TestCase
         $events->expects('hasListeners')->with(BatchFinished::class)->andReturnTrue();
 
         $events->expects('dispatch')->with(m::on(function (object $event) use ($batch): bool {
-            return $event instanceof BatchFinished && $event->batch === $batch;
+            return $event instanceof BatchFinished
+                && $event->batch->id === $batch->id
+                && $event->batch->finished()
+                && $event->batch->pendingJobs === 0;
         }));
 
         $batch->recordSuccessfulJob('test-id');
@@ -550,6 +553,7 @@ class BusBatchTest extends TestCase
         $events->expects('dispatch')->with(m::on(function (object $event) use ($batch, $exception): bool {
             return $event instanceof BatchCanceled
                 && $event->batch->id === $batch->id
+                && $event->batch->cancelled()
                 && $event->exception === $exception;
         }));
 
