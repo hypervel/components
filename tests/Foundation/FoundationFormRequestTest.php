@@ -14,6 +14,8 @@ use Hypervel\Contracts\Validation\Factory as ValidationFactoryContract;
 use Hypervel\Contracts\Validation\Validator;
 use Hypervel\Foundation\Http\Attributes\ErrorBag;
 use Hypervel\Foundation\Http\Attributes\FailOnUnknownFields;
+use Hypervel\Foundation\Http\Attributes\RedirectTo;
+use Hypervel\Foundation\Http\Attributes\RedirectToRoute;
 use Hypervel\Foundation\Http\Attributes\StopOnFirstFailure;
 use Hypervel\Foundation\Http\FormRequest;
 use Hypervel\Http\RedirectResponse;
@@ -104,6 +106,54 @@ class FoundationFormRequestTest extends TestCase
         });
 
         $this->assertSame('login', $exception->errorBag);
+    }
+
+    public function testAttributesAreInheritedFromParentRequest(): void
+    {
+        $request = $this->createRequest(['unexpected' => 'value'], FoundationTestFormRequestInheritingAttributesStub::class, 'POST');
+
+        $this->mocks['generator']->shouldReceive('to')->with('/parent')->andReturn('http://localhost/parent');
+
+        $exception = $this->catchException(ValidationException::class, function () use ($request): void {
+            $request->validateResolved();
+        });
+
+        $this->assertSame('parent', $exception->errorBag);
+        $this->assertSame('http://localhost/parent', $exception->redirectTo);
+        $this->assertTrue($exception->validator->errors()->has('name'));
+        $this->assertFalse($exception->validator->errors()->has('email'));
+        $this->assertTrue($exception->validator->errors()->has('unexpected'));
+    }
+
+    public function testChildAttributesOverrideParentAttributes(): void
+    {
+        $request = $this->createRequest(['unexpected' => 'value'], FoundationTestFormRequestOverridingParentAttributesStub::class, 'POST');
+
+        $this->mocks['generator']->shouldReceive('route')->with('child.route')->andReturn('http://localhost/child');
+
+        $exception = $this->catchException(ValidationException::class, function () use ($request): void {
+            $request->validateResolved();
+        });
+
+        $this->assertSame('child', $exception->errorBag);
+        $this->assertSame('http://localhost/child', $exception->redirectTo);
+        $this->assertFalse($exception->validator->errors()->has('unexpected'));
+    }
+
+    public function testChildPropertiesOverrideParentAttributes(): void
+    {
+        $request = $this->createRequest([], FoundationTestFormRequestOverridingParentAttributesWithPropertiesStub::class, 'POST');
+
+        $this->mocks['generator']->shouldReceive('to')->with('/child')->andReturn('http://localhost/child');
+
+        $exception = $this->catchException(ValidationException::class, function () use ($request): void {
+            $request->validateResolved();
+        });
+
+        $this->assertSame('child', $exception->errorBag);
+        $this->assertSame('http://localhost/child', $exception->redirectTo);
+        $this->assertTrue($exception->validator->errors()->has('name'));
+        $this->assertTrue($exception->validator->errors()->has('email'));
     }
 
     public function testValidateMethodThrowsWhenAuthorizationFails(): void
@@ -968,6 +1018,49 @@ class FoundationTestFormRequestWithErrorBagAttribute extends FormRequest
     {
         return true;
     }
+}
+
+#[ErrorBag('parent')]
+#[RedirectTo('/parent')]
+#[StopOnFirstFailure]
+#[FailOnUnknownFields]
+abstract class FoundationTestFormRequestParentWithAttributesStub extends FormRequest
+{
+    /**
+     * Get the validation rules.
+     */
+    public function rules(): array
+    {
+        return ['name' => 'required', 'email' => 'required'];
+    }
+
+    /**
+     * Determine whether the request is authorized.
+     */
+    public function authorize(): bool
+    {
+        return true;
+    }
+}
+
+class FoundationTestFormRequestInheritingAttributesStub extends FoundationTestFormRequestParentWithAttributesStub
+{
+}
+
+#[ErrorBag('child')]
+#[RedirectToRoute('child.route')]
+#[FailOnUnknownFields(false)]
+class FoundationTestFormRequestOverridingParentAttributesStub extends FoundationTestFormRequestParentWithAttributesStub
+{
+}
+
+class FoundationTestFormRequestOverridingParentAttributesWithPropertiesStub extends FoundationTestFormRequestParentWithAttributesStub
+{
+    protected string $errorBag = 'child';
+
+    protected ?string $redirect = '/child';
+
+    protected bool $stopOnFirstFailure = false;
 }
 
 class InvokableAfterValidationRule
