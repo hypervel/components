@@ -73,6 +73,10 @@ class AsCollection implements Castable
              */
             public function set(Model $model, string $key, mixed $value, array $attributes): array
             {
+                if (is_null($value) && in_array('nullable', $this->arguments, true)) {
+                    return [$key => null];
+                }
+
                 $encoded = Json::encode($value);
 
                 if ($encoded === false) {
@@ -108,5 +112,20 @@ class AsCollection implements Castable
         }
 
         return static::class . ':' . implode(',', [$class, $map]);
+    }
+
+    /**
+     * Specify that a null value assigned to the attribute should be persisted as a native SQL NULL instead of the JSON "null" literal.
+     *
+     * @param null|class-string $class
+     * @param null|array{class-string, string}|class-string $map
+     */
+    public static function nullable(?string $class = null, array|string|null $map = null): string
+    {
+        if (is_array($map) && is_callable($map)) {
+            $map = $map[0] . '@' . $map[1];
+        }
+
+        return static::class . ':' . implode(',', [$class, $map, 'nullable']);
     }
 }
