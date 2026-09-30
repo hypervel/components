@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation;
 
 use Composer\InstalledVersions;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\File;
 use Hypervel\Support\NodePackageManager;
 use ReflectionClass;
@@ -49,6 +50,13 @@ class DevCommands
      * @var list<string>
      */
     protected static array $except = [];
+
+    /**
+     * The order in which named commands should run when running the "dev" command.
+     *
+     * @var array<int, string>
+     */
+    protected static array $order = [];
 
     /**
      * The mode in which the "dev" command should run.
@@ -193,6 +201,8 @@ class DevCommands
             $commands[] = $cmd;
         }
 
+        $commands = self::applyOrder($commands);
+
         return self::fillInEmptyColors($commands);
     }
 
@@ -304,6 +314,25 @@ class DevCommands
     public static function getStreamBufferSize(): ?int
     {
         return self::$streamBufferSize;
+    }
+
+    /**
+     * Sort the given commands.
+     *
+     * @param list<DevCommandInputArray> $commands
+     * @return list<DevCommandInputArray>
+     */
+    protected static function applyOrder(array $commands): array
+    {
+        if (empty(self::$order)) {
+            return $commands;
+        }
+
+        $positions = array_flip(self::$order);
+
+        $commands = Arr::sort($commands, fn (array $command): int => $positions[$command['name']] ?? PHP_INT_MAX);
+
+        return array_values($commands);
     }
 
     /**
@@ -462,6 +491,18 @@ class DevCommands
     }
 
     /**
+     * Set the order in which named commands should run when running the "dev" command.
+     *
+     * Boot-only. The order is shared by all development command invocations in the worker.
+     *
+     * @param array<int, string> $names
+     */
+    public static function order(array $names): void
+    {
+        self::$order = $names;
+    }
+
+    /**
      * Exclude any commands from the vendor directory.
      *
      * Boot-only. The filter is shared by all development command invocations in the worker.
@@ -499,6 +540,7 @@ class DevCommands
         self::$commands = [];
         self::$only = [];
         self::$except = [];
+        self::$order = [];
         self::$mode = self::DEFAULT_MODE;
         self::$withTimestamps = false;
         self::$autoRestart = true;
