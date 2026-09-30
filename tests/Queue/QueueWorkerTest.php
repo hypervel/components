@@ -686,6 +686,14 @@ class QueueWorkerTest extends TestCase
             $this->events->shouldHaveReceived('dispatch')->with(m::on(
                 static fn (object $event): bool => $event instanceof JobProcessed && $event->job === $second
             ))->once();
+            $this->events->shouldHaveReceived('dispatch')->with(m::on(
+                static fn (object $event): bool => $event instanceof JobAttempted && $event->job === $first
+                    && $event->exception instanceof TimeoutExceededException && ! $event->successful()
+            ))->once();
+            $this->events->shouldHaveReceived('dispatch')->with(m::on(
+                static fn (object $event): bool => $event instanceof JobAttempted && $event->job === $second
+                    && $event->successful()
+            ))->once();
             $this->exceptionHandler->shouldNotHaveReceived('report');
         } finally {
             $firstGate->close();

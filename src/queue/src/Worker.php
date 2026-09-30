@@ -929,6 +929,8 @@ class Worker
 
             // The monitor has already handled this timeout; do not report normal completion.
             if (isset($this->timeoutJobIds[$runningJobId])) {
+                $exceptionOccurred = $this->timeoutExceededException($job);
+
                 return;
             }
 
