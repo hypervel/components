@@ -24,6 +24,7 @@ use Hypervel\Database\ConnectionResolverInterface as Resolver;
 use Hypervel\Database\Eloquent\Attributes\Boot;
 use Hypervel\Database\Eloquent\Attributes\Connection as ConnectionAttribute;
 use Hypervel\Database\Eloquent\Attributes\Initialize;
+use Hypervel\Database\Eloquent\Attributes\Refreshes;
 use Hypervel\Database\Eloquent\Attributes\RouteKey;
 use Hypervel\Database\Eloquent\Attributes\Scope as LocalScope;
 use Hypervel\Database\Eloquent\Attributes\Table;
@@ -137,6 +138,13 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * @var array<int, string>
      */
     protected array $withCount = [];
+
+    /**
+     * The attributes that should be refreshed after the model is written.
+     *
+     * @var list<string>
+     */
+    protected array $refreshes = [];
 
     /**
      * Indicates whether lazy loading will be prevented on this model.
@@ -537,6 +545,10 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             $this->incrementing = false;
         } elseif ($table && $table->incrementing !== null) {
             $this->incrementing = $table->incrementing;
+        }
+
+        if ($this->refreshes === []) {
+            $this->refreshes = static::resolveClassAttribute(Refreshes::class, 'columns') ?? [];
         }
     }
 
@@ -1195,12 +1207,20 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             $amount = (clone $this)->setAttribute($column, $amount)->getAttributeFromArray($column);
         }
 
-        return tap($this->setKeysForSaveQuery($this->newQueryWithoutScopes())->{$method}($column, $amount, $extra), function () use ($column) {
+        return tap($this->setKeysForSaveQuery($this->newQueryWithoutScopes())->{$method}($column, $amount, $extra), function () use ($column): void {
+            // Increments skip the save path's cast merge, so keep unsaved cached cast changes.
+            if ($this->refreshes !== []) {
+                $this->mergeAttributesFromCachedCasts();
+            }
+
+            $this->refreshSavedAttributes();
+
             $this->syncChanges();
 
             $this->fireModelEvent('updated', false);
 
-            $this->syncOriginalAttribute($column);
+            // Refreshed values came from the database, so a later save must not write them back.
+            $this->syncOriginalAttributes([$column, ...$this->refreshes]);
         });
     }
 
@@ -1364,11 +1384,18 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             $this->setKeysForSaveQuery($this->newQueryWithoutScopes())
                 ->{$method}($dbColumns, $extra),
             function () use ($columns): void {
+                // Increments skip the save path's cast merge, so keep unsaved cached cast changes.
+                if ($this->refreshes !== []) {
+                    $this->mergeAttributesFromCachedCasts();
+                }
+
+                $this->refreshSavedAttributes();
+
                 $this->syncChanges();
 
                 $this->fireModelEvent('updated', false);
 
-                $this->syncOriginalAttributes(array_keys($columns));
+                $this->syncOriginalAttributes([...array_keys($columns), ...$this->refreshes]);
             }
         );
     }
@@ -1560,6 +1587,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
                 $this->prepareBinaryAttributesForDatabase($dirty)
             );
 
+            $this->refreshSavedAttributes();
+
             // Cached setters were merged while building the statement values. Read
             // the raw array here so nondeterministic setters are not run again.
             $this->syncChangesFrom(
@@ -1701,6 +1730,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         $this->wasRecentlyCreated = true;
 
+        $this->refreshSavedAttributes();
+
         $this->fireModelEvent('created', false);
 
         return true;
@@ -1756,6 +1787,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         $this->exists = true;
         $this->wasRecentlyCreated = true;
 
+        $this->refreshSavedAttributes();
+
         $this->fireModelEvent('created', false);
 
         return true;
@@ -1772,6 +1805,27 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         $id = $query->insertGetId($attributes, $keyName = $this->getKeyName());
 
         $this->setAttribute($keyName, $id);
+    }
+
+    /**
+     * Refresh the configured attributes after the model is saved.
+     */
+    protected function refreshSavedAttributes(): void
+    {
+        if ($this->refreshes === []) {
+            return;
+        }
+
+        // Read the raw row so the refresh does not eager load relations or fire retrieved events.
+        $attributes = $this->setKeysForSelectQuery($this->newModelQuery())
+            ->useWritePdo()
+            ->toBase()
+            ->first($this->refreshes)
+            ?? throw (new ModelNotFoundException)->setModel(static::class);
+
+        // Cached casts are already merged, so replacing the raw values drops any cache
+        // built from stale values without running cast setters again.
+        $this->setRawAttributes(array_replace($this->attributes, (array) $attributes));
     }
 
     /**
