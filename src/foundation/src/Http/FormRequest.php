@@ -173,9 +173,8 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
             if ($reflection) {
                 $redirectTo = $reflection->getAttributes(RedirectTo::class);
 
-                if ($redirectTo !== []) {
-                    $config['redirect'] = $redirectTo[0]->newInstance()->url;
-                }
+                // A null URI stops an inherited $redirect from outranking a nearer route attribute.
+                $config['redirect'] = $redirectTo !== [] ? $redirectTo[0]->newInstance()->url : null;
 
                 $redirectToRoute = $reflection->getAttributes(RedirectToRoute::class);
 
@@ -197,7 +196,7 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
             $this->errorBag = $config['errorBag'];
         }
 
-        if (isset($config['redirect'])) {
+        if (array_key_exists('redirect', $config)) {
             $this->redirect = $config['redirect'];
         }
 

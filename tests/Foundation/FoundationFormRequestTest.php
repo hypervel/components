@@ -156,6 +156,19 @@ class FoundationFormRequestTest extends TestCase
         $this->assertTrue($exception->validator->errors()->has('email'));
     }
 
+    public function testChildRouteAttributeOverridesParentRedirectProperty(): void
+    {
+        $request = $this->createRequest([], FoundationTestFormRequestOverridingParentPropertiesWithRouteAttributeStub::class, 'POST');
+
+        $this->mocks['generator']->shouldReceive('route')->with('grandchild.route')->andReturn('http://localhost/grandchild');
+
+        $exception = $this->catchException(ValidationException::class, function () use ($request): void {
+            $request->validateResolved();
+        });
+
+        $this->assertSame('http://localhost/grandchild', $exception->redirectTo);
+    }
+
     public function testValidateMethodThrowsWhenAuthorizationFails(): void
     {
         $this->expectExceptionObject(new AuthorizationException('This action is unauthorized.'));
@@ -1061,6 +1074,11 @@ class FoundationTestFormRequestOverridingParentAttributesWithPropertiesStub exte
     protected ?string $redirect = '/child';
 
     protected bool $stopOnFirstFailure = false;
+}
+
+#[RedirectToRoute('grandchild.route')]
+class FoundationTestFormRequestOverridingParentPropertiesWithRouteAttributeStub extends FoundationTestFormRequestOverridingParentAttributesWithPropertiesStub
+{
 }
 
 class InvokableAfterValidationRule
