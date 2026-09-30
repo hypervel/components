@@ -258,13 +258,13 @@ class DatabaseEloquentBuilderTest extends TestCase
         $model2 = $this->getMockModel();
         $model1->expects('getKeyType')->times(3)->andReturn('int');
         $model2->shouldReceive('getKeyType')->andReturn('int');
+        $model1->expects('newCollection')->andReturn(new Collection);
         $builder->setModel($model1);
         $builder->getQuery()->expects('whereIntegerInRaw')->with('foo_table.foo', [1, 2], 'and', false)->times(2);
         $builder->getQuery()->expects('whereIntegerInRaw')->with('foo_table.foo', [1, 2, 3], 'and', false);
         $builder->expects('get')->andReturn(new Collection([$model1, $model2]));
         $builder->expects('get')->with(['column'])->andReturn(new Collection([$model1, $model2]));
-        // Multiple IDs return a collection, so an empty result does not invoke the callback.
-        $builder->expects('get')->andReturn(new Collection);
+        $builder->expects('get')->andReturn(new Collection([$model1, $model2]));
 
         $result = $builder->findOr([1, 2], fn (): string => 'callback result');
         $this->assertInstanceOf(Collection::class, $result);
@@ -276,8 +276,10 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame($model1, $result[0]);
         $this->assertSame($model2, $result[1]);
 
-        // When no models found, still returns empty Collection (not callback result)
         $result = $builder->findOr([1, 2, 3], fn (): string => 'callback result');
+        $this->assertSame('callback result', $result);
+
+        $result = $builder->findOr([], fn (): string => 'callback result');
         $this->assertInstanceOf(Collection::class, $result);
         $this->assertCount(0, $result);
     }
@@ -294,8 +296,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->getQuery()->expects('whereIntegerInRaw')->with('foo_table.foo', [1, 2, 3], 'and', false);
         $builder->expects('get')->andReturn(new Collection([$model1, $model2]));
         $builder->expects('get')->with(['column'])->andReturn(new Collection([$model1, $model2]));
-        // Multiple IDs return a collection, so an empty result does not invoke the callback.
-        $builder->expects('get')->andReturn(new Collection);
+        $builder->expects('get')->andReturn(new Collection([$model1, $model2]));
 
         $result = $builder->findOr(new Collection([1, 2]), fn (): string => 'callback result');
         $this->assertInstanceOf(Collection::class, $result);
@@ -307,10 +308,8 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame($model1, $result[0]);
         $this->assertSame($model2, $result[1]);
 
-        // When no models found, still returns empty Collection (not callback result)
         $result = $builder->findOr(new Collection([1, 2, 3]), fn (): string => 'callback result');
-        $this->assertInstanceOf(Collection::class, $result);
-        $this->assertCount(0, $result);
+        $this->assertSame('callback result', $result);
     }
 
     public function testFirstOrFailMethodThrowsModelNotFoundException(): void

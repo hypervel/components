@@ -31,6 +31,8 @@ use Hypervel\Support\StrCache;
 use InvalidArgumentException;
 use SortDirection;
 
+use function Hypervel\Support\enum_value;
+
 /**
  * @template TRelatedModel of Model
  * @template TDeclaringModel of Model
@@ -809,6 +811,8 @@ class BelongsToMany extends Relation
         $result = $this->find($id, $columns);
 
         if (is_array($id)) {
+            $id = array_map(enum_value(...), $id);
+
             if (count($result) === count(array_unique($id))) {
                 return $result;
             }
@@ -847,6 +851,8 @@ class BelongsToMany extends Relation
         $result = $this->find($id, $columns);
 
         if (is_array($id)) {
+            $id = array_map(enum_value(...), $id);
+
             if (count($result) === count(array_unique($id))) {
                 return $result;
             }

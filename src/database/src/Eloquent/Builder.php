@@ -35,6 +35,8 @@ use ReflectionMethod;
 use SortDirection;
 use UnitEnum;
 
+use function Hypervel\Support\enum_value;
+
 /**
  * Forwarded query methods operate on this builder, so their value type is TModel.
  * Keep toBase() and getQuery() unparameterized because raw queries return stdClass rows.
@@ -585,6 +587,8 @@ class Builder implements BuilderContract
         $id = $id instanceof Arrayable ? $id->toArray() : $id;
 
         if (is_array($id)) {
+            $id = array_map(enum_value(...), $id);
+
             if (count($result) !== count(array_unique($id))) {
                 throw (new ModelNotFoundException)->setModel(
                     get_class($this->model),
@@ -629,7 +633,7 @@ class Builder implements BuilderContract
      * @return (
      *     $id is Model ? TModel|TValue : (
      *         $id is (Arrayable<array<array-key, mixed>>|array<mixed>)
-     *         ? Collection<int, TModel>
+     *         ? Collection<int, TModel>|TValue
      *         : TModel|TValue
      *     )
      * )
@@ -642,8 +646,22 @@ class Builder implements BuilderContract
             $columns = ['*'];
         }
 
-        if (! is_null($model = $this->find($id, $columns))) {
-            return $model;
+        if ($id instanceof Model) {
+            $id = $id->getKey();
+        }
+
+        $result = $this->find($id, $columns);
+
+        $id = $id instanceof Arrayable ? $id->toArray() : $id;
+
+        if (is_array($id)) {
+            $id = array_map(enum_value(...), $id);
+
+            if (count($result) === count(array_unique($id))) {
+                return $result;
+            }
+        } elseif ($result !== null) {
+            return $result;
         }
 
         return $callback();
