@@ -628,6 +628,55 @@ class QueueSqsQueueTest extends TestCase
         Str::createUuidsNormally();
     }
 
+    public function testPushProperlyPushesJobObjectWithoutMessageGroupOntoSqsFifoQueue(): void
+    {
+        Str::createUuidsUsing(fn (): Uuid => $this->createMockedUuid($this->mockedDeduplicationId));
+
+        $job = new FakeSqsJob;
+
+        $queue = $this->getMockBuilder(SqsQueue::class)->onlyMethods(['createPayload', 'getQueue'])->setConstructorArgs([$this->sqs, $this->fifoQueueName, $this->account])->getMock();
+        $container = $this->createSpyContainer();
+        $queue->setContainer($container);
+        $queue->expects($this->once())->method('createPayload')->with($job, $this->fifoQueueName, $this->mockedData)->willReturn($this->mockedPayload);
+        $queue->expects($this->once())->method('getQueue')->with($this->fifoQueueName)->willReturn($this->fifoQueueUrl);
+        $this->sqs->expects('sendMessage')->with([
+            'QueueUrl' => $this->fifoQueueUrl,
+            'MessageBody' => $this->mockedPayload,
+            'MessageGroupId' => $this->fifoQueueName,
+            'MessageDeduplicationId' => $this->mockedDeduplicationId,
+        ])->andReturn($this->mockedSendMessageResponseModel);
+        $id = $queue->push($job, $this->mockedData, $this->fifoQueueName);
+        $this->assertEquals($this->mockedMessageId, $id);
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
+
+        Str::createUuidsNormally();
+    }
+
+    public function testPushProperlyPushesJobObjectWithEmptyMessageGroupOntoSqsFifoQueue(): void
+    {
+        Str::createUuidsUsing(fn (): Uuid => $this->createMockedUuid($this->mockedDeduplicationId));
+
+        $job = $this->getMockBuilder(FakeSqsJobWithMessageGroup::class)->onlyMethods(['messageGroup'])->getMock();
+        $job->expects($this->once())->method('messageGroup')->willReturn('');
+
+        $queue = $this->getMockBuilder(SqsQueue::class)->onlyMethods(['createPayload', 'getQueue'])->setConstructorArgs([$this->sqs, $this->fifoQueueName, $this->account])->getMock();
+        $container = $this->createSpyContainer();
+        $queue->setContainer($container);
+        $queue->expects($this->once())->method('createPayload')->with($job, $this->fifoQueueName, $this->mockedData)->willReturn($this->mockedPayload);
+        $queue->expects($this->once())->method('getQueue')->with($this->fifoQueueName)->willReturn($this->fifoQueueUrl);
+        $this->sqs->expects('sendMessage')->with([
+            'QueueUrl' => $this->fifoQueueUrl,
+            'MessageBody' => $this->mockedPayload,
+            'MessageGroupId' => $this->fifoQueueName,
+            'MessageDeduplicationId' => $this->mockedDeduplicationId,
+        ])->andReturn($this->mockedSendMessageResponseModel);
+        $id = $queue->push($job, $this->mockedData, $this->fifoQueueName);
+        $this->assertEquals($this->mockedMessageId, $id);
+        $container->shouldHaveReceived('bound')->with('events')->times(3);
+
+        Str::createUuidsNormally();
+    }
+
     public function testPushProperlyPushesJobObjectOntoSqsFifoQueueWithMessageGroupMethod(): void
     {
         Str::createUuidsUsing(fn (): Uuid => $this->createMockedUuid($this->mockedDeduplicationId));
