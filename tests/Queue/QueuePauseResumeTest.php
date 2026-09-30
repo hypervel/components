@@ -282,15 +282,17 @@ class QueuePauseResumeTest extends TestCase
         $this->assertSame([], $this->manager->getPausedQueues(['default', 'emails'], 'redis'));
     }
 
-    public function testResumeAllPreservesIndividuallyPausedQueues(): void
+    public function testResumeAllDoesNotResumeQueuesPausedIndividually(): void
     {
-        $this->manager->pause('emails', 'redis');
+        $this->manager->pause('emails', 'database');
+
         $this->manager->pauseAll();
         $this->manager->resumeAll();
 
-        $this->assertTrue($this->manager->isPaused('emails', 'redis'));
-        $this->assertFalse($this->manager->isPaused('emails', 'database'));
-        $this->assertSame(['emails'], $this->manager->getPausedQueues(['default', 'emails'], 'redis'));
+        $this->assertTrue($this->manager->isPaused('emails', 'database'));
+        $this->assertFalse($this->manager->isPaused('emails', 'redis'));
+        $this->assertFalse($this->manager->isPaused('default', 'database'));
+        $this->assertSame(['emails'], $this->manager->getPausedQueues(['default', 'emails'], 'database'));
     }
 
     public function testPauseChecksDoNotBatchTheGlobalKeyWithQueueKeys(): void
