@@ -162,6 +162,11 @@ class ComponentsTest extends TestCase
         $result = $output->fetch();
         $this->assertStringContainsString('First', $result);
         $this->assertStringContainsString('Second', $result);
+
+        (new TwoColumnDetail($output))->render(42, 1.5);
+        $result = $output->fetch();
+        $this->assertStringContainsString('42', $result);
+        $this->assertStringContainsString('1.5', $result);
     }
 
     public function testTwoColumnDetailPreservesTrailingPunctuationInValue(): void

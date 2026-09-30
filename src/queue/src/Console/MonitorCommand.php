@@ -114,9 +114,9 @@ class MonitorCommand extends Command
             $status = '[' . $queue['size'] . '] ' . $queue['status'];
 
             $this->components->twoColumnDetail($name, $status);
-            $this->components->twoColumnDetail('Pending jobs', (string) $queue['pending']);
-            $this->components->twoColumnDetail('Delayed jobs', (string) $queue['delayed']);
-            $this->components->twoColumnDetail('Reserved jobs', (string) $queue['reserved']);
+            $this->components->twoColumnDetail('Pending jobs', $queue['pending']);
+            $this->components->twoColumnDetail('Delayed jobs', $queue['delayed']);
+            $this->components->twoColumnDetail('Reserved jobs', $queue['reserved']);
             $this->components->twoColumnDetail(
                 'Oldest pending job',
                 $queue['oldest_pending'] !== null
