@@ -12,6 +12,7 @@ use Hypervel\Database\Eloquent\Attributes\DateFormat;
 use Hypervel\Database\Eloquent\Attributes\Fillable;
 use Hypervel\Database\Eloquent\Attributes\Guarded;
 use Hypervel\Database\Eloquent\Attributes\Hidden;
+use Hypervel\Database\Eloquent\Attributes\Refreshes;
 use Hypervel\Database\Eloquent\Attributes\Table;
 use Hypervel\Database\Eloquent\Attributes\Touches;
 use Hypervel\Database\Eloquent\Attributes\Unguarded;
@@ -502,6 +503,27 @@ class DatabaseEloquentModelAttributesTest extends TestCase
         $this->assertSame(['post', 'author'], $model->getTouchedRelations());
     }
 
+    public function testRefreshesAttribute(): void
+    {
+        $model = new ModelWithRefreshesAttribute;
+
+        $this->assertSame(['name', 'slug'], $model->getRefreshes());
+    }
+
+    public function testRefreshesAttributeVariadic(): void
+    {
+        $model = new ModelWithRefreshesAttributeVariadic;
+
+        $this->assertSame(['name', 'slug'], $model->getRefreshes());
+    }
+
+    public function testRefreshesPropertyTakesPrecedence(): void
+    {
+        $model = new ModelWithRefreshesAttributeAndProperty;
+
+        $this->assertSame(['email'], $model->getRefreshes());
+    }
+
     public function testMergeFillableWorksWithAttribute(): void
     {
         $model = new ModelWithFillableAttribute;
@@ -647,6 +669,7 @@ class DatabaseEloquentModelAttributesTest extends TestCase
             'visible' => [ModelWithNamedVisibleAttribute::class, 'getVisible', ['id', 'name']],
             'appends' => [ModelWithNamedAppendsAttribute::class, 'getAppends', ['full_name', 'is_admin']],
             'touches' => [ModelWithNamedTouchesAttribute::class, 'getTouchedRelations', ['post', 'author']],
+            'refreshes' => [ModelWithNamedRefreshesAttribute::class, 'getRefreshes', ['name', 'email']],
         ];
     }
 
@@ -1108,6 +1131,29 @@ class ModelWithTouchesAttributeVariadic extends Model
 {
 }
 
+#[Refreshes(['name', 'slug'])]
+class ModelWithRefreshesAttribute extends Model
+{
+    /**
+     * Get the attributes refreshed after writes.
+     */
+    public function getRefreshes(): array
+    {
+        return $this->refreshes;
+    }
+}
+
+#[Refreshes('name', 'slug')]
+class ModelWithRefreshesAttributeVariadic extends ModelWithRefreshesAttribute
+{
+}
+
+#[Refreshes(['name', 'slug'])]
+class ModelWithRefreshesAttributeAndProperty extends ModelWithRefreshesAttribute
+{
+    protected array $refreshes = ['email'];
+}
+
 #[DateFormat('Y-m-d')]
 class ModelWithDedicatedDateFormatAttribute extends Model
 {
@@ -1269,6 +1315,11 @@ class ModelWithNamedAppendsAttribute extends Model
 
 #[Touches(relations: ['post', 'author'])]
 class ModelWithNamedTouchesAttribute extends Model
+{
+}
+
+#[Refreshes(columns: ['name', 'email'])]
+class ModelWithNamedRefreshesAttribute extends ModelWithRefreshesAttribute
 {
 }
 

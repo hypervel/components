@@ -12,6 +12,7 @@ use Hypervel\Database\Console\PruneCommand;
 use Hypervel\Database\Events\ModelPruningFinished;
 use Hypervel\Database\Events\ModelPruningStarting;
 use Hypervel\Database\Events\ModelsPruned;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Application;
 use Hypervel\Tests\Database\Fixtures\Pruning\Models\NonPrunableTestModel;
@@ -165,11 +166,20 @@ class PruneCommandTest extends TestCase
 
     public function testNonModelFilesAreIgnoredTest(): void
     {
-        $output = $this->artisan([
-            '--path' => 'Models',
-            // The soft-delete fixture needs a database; its dedicated tests set one up.
-            '--except' => [PrunableTestSoftDeletedModelWithPrunableRecords::class],
+        $db = new DB;
+        $db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
         ]);
+        $db->bootEloquent();
+        $db->setAsGlobal();
+        DB::connection('default')->getSchemaBuilder()->create('prunables', function (Blueprint $table): void {
+            $table->string('name')->nullable();
+            $table->string('value')->nullable();
+            $table->datetime('deleted_at')->nullable();
+        });
+
+        $output = $this->artisan(['--path' => 'Models']);
 
         $output = $output->fetch();
 

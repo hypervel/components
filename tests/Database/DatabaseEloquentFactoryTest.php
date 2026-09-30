@@ -801,12 +801,8 @@ class DatabaseEloquentFactoryTest extends TestCase
         }
     }
 
-    public function testModelHasFactory()
+    public function testModelHasFactory(): void
     {
-        Factory::guessFactoryNamesUsing(function ($model) {
-            return $model . 'Factory';
-        });
-
         $this->assertInstanceOf(UserFactory::class, User::factory());
     }
 
@@ -1192,8 +1188,6 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testFactoryModelHasManyRelationshipHasPendingAttributes(): void
     {
-        Factory::guessFactoryNamesUsing(fn (string $model): string => $model . 'Factory');
-
         User::factory()->has(new PostFactory, 'postsWithFooBarBazAsTitle')->create();
 
         $this->assertSame('foo bar baz', Post::first()->title);
@@ -1201,8 +1195,6 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testFactoryModelHasManyRelationshipHasPendingAttributesOverride(): void
     {
-        Factory::guessFactoryNamesUsing(fn (string $model): string => $model . 'Factory');
-
         User::factory()->has((new PostFactory)->state(['title' => 'other title']), 'postsWithFooBarBazAsTitle')->create();
 
         $this->assertSame('other title', Post::first()->title);
@@ -1210,8 +1202,6 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testFactoryModelHasOneRelationshipHasPendingAttributes(): void
     {
-        Factory::guessFactoryNamesUsing(fn (string $model): string => $model . 'Factory');
-
         User::factory()->has(new PostFactory, 'postWithFooBarBazAsTitle')->create();
 
         $this->assertSame('foo bar baz', Post::first()->title);
@@ -1219,8 +1209,6 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testFactoryModelHasOneRelationshipHasPendingAttributesOverride(): void
     {
-        Factory::guessFactoryNamesUsing(fn (string $model): string => $model . 'Factory');
-
         User::factory()->has((new PostFactory)->state(['title' => 'other title']), 'postWithFooBarBazAsTitle')->create();
 
         $this->assertSame('other title', Post::first()->title);
@@ -1228,8 +1216,6 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testFactoryModelBelongsToManyRelationshipHasPendingAttributes(): void
     {
-        Factory::guessFactoryNamesUsing(fn (string $model): string => $model . 'Factory');
-
         User::factory()->has(new RoleFactory, 'rolesWithFooBarBazAsName')->create();
 
         $this->assertSame('foo bar baz', Role::first()->name);
@@ -1237,8 +1223,6 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testFactoryModelBelongsToManyRelationshipHasPendingAttributesOverride(): void
     {
-        Factory::guessFactoryNamesUsing(fn (string $model): string => $model . 'Factory');
-
         User::factory()->has((new RoleFactory)->state(['name' => 'other name']), 'rolesWithFooBarBazAsName')->create();
 
         $this->assertSame('other name', Role::first()->name);
@@ -1422,6 +1406,14 @@ enum FactoryConnectionName: int
 class User extends Eloquent
 {
     use HasFactory;
+
+    /**
+     * Create a new factory instance for the model.
+     */
+    protected static function newFactory(): UserFactory
+    {
+        return UserFactory::new();
+    }
 
     protected ?string $table = 'users';
 

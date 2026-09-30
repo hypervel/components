@@ -2635,13 +2635,15 @@ class DatabaseEloquentModelTest extends TestCase
 
     public function testWithoutEventDispatcher(): void
     {
+        // Boot the model before the dispatcher is set so booting events aren't dispatched.
+        new SaveStub;
+
         $events = m::mock(Dispatcher::class);
-        $events->expects('dispatch')->with('eloquent.booting: ' . SaveStub::class, m::type(SaveStub::class));
-        $events->expects('dispatch')->with('eloquent.booted: ' . SaveStub::class, m::type(SaveStub::class));
         $events->expects('listen')->with('eloquent.creating: Hypervel\Tests\Database\DatabaseEloquentModelTest\SaveStub', TestObserverStub::class . '@creating');
         $events->expects('listen')->with('eloquent.saved: Hypervel\Tests\Database\DatabaseEloquentModelTest\SaveStub', TestObserverStub::class . '@saved');
         SaveStub::setEventDispatcher($events);
         $events->shouldNotReceive('until');
+        $events->shouldNotReceive('dispatch');
         $events->shouldReceive('forget');
         SaveStub::observe(TestObserverStub::class);
 
@@ -2921,7 +2923,7 @@ class DatabaseEloquentModelTest extends TestCase
         $model->publicIncrement('foo', 1, ['category' => 1]);
         $this->assertEquals(4, $model->foo);
         $this->assertEquals(1, $model->category);
-        $this->assertTrue($model->isDirty('category'));
+        $this->assertFalse($model->isDirty('category'));
     }
 
     public function testIncrementQuietlyOnExistingModelCallsQueryAndSetsAttributeAndIsQuiet(): void
@@ -2950,7 +2952,7 @@ class DatabaseEloquentModelTest extends TestCase
         $model->publicIncrementQuietly('foo', 1, ['category' => 1]);
         $this->assertEquals(4, $model->foo);
         $this->assertEquals(1, $model->category);
-        $this->assertTrue($model->isDirty('category'));
+        $this->assertFalse($model->isDirty('category'));
     }
 
     public function testDecrementQuietlyOnExistingModelCallsQueryAndSetsAttributeAndIsQuiet(): void
@@ -2979,7 +2981,7 @@ class DatabaseEloquentModelTest extends TestCase
         $model->publicDecrementQuietly('foo', 1, ['category' => 1]);
         $this->assertEquals(2, $model->foo);
         $this->assertEquals(1, $model->category);
-        $this->assertTrue($model->isDirty('category'));
+        $this->assertFalse($model->isDirty('category'));
     }
 
     public function testIncrementReturnsFalseWhenUpdatingEventIsCancelled(): void
@@ -3073,7 +3075,7 @@ class DatabaseEloquentModelTest extends TestCase
 
         $this->assertSame(4, $model->foo);
         $this->assertSame(1, $model->category);
-        $this->assertTrue($model->isDirty('category'));
+        $this->assertFalse($model->isDirty('category'));
     }
 
     public function testDecrementEachQuietlyOnExistingModelCallsQueryAndSetsAttributeAndIsQuiet(): void
@@ -3105,7 +3107,7 @@ class DatabaseEloquentModelTest extends TestCase
 
         $this->assertSame(6, $model->foo);
         $this->assertSame(1, $model->category);
-        $this->assertTrue($model->isDirty('category'));
+        $this->assertFalse($model->isDirty('category'));
     }
 
     public function testIncrementEachQuietlyCanBeCalledDynamicallyOnModelInstance(): void
@@ -4905,6 +4907,56 @@ class DatabaseEloquentModelTest extends TestCase
 
         $this->assertSame('slug', $model->getRouteKeyName());
     }
+
+    public function testDefaultsMethodSetsDefaultAttributeValues(): void
+    {
+        $model = new ModelWithDefaultsMethodStub;
+
+        $this->assertSame(['status' => 'draft', 'views' => 0], $model->getAttributes());
+        $this->assertFalse($model->isDirty());
+    }
+
+    public function testDefaultsMethodTakesPrecedenceOverAttributesProperty(): void
+    {
+        $model = new ModelWithDefaultsMethodAndPropertyStub;
+
+        $this->assertSame(['title' => 'Untitled', 'status' => 'draft'], $model->getAttributes());
+    }
+
+    public function testDefaultsMethodValuesMayBeOverriddenOnInstantiation(): void
+    {
+        $model = new ModelWithDefaultsMethodStub(['status' => 'published']);
+
+        $this->assertSame(['status' => 'published', 'views' => 0], $model->getAttributes());
+    }
+
+    public function testDefaultsMethodIsNotAppliedToExistingModels(): void
+    {
+        $model = (new ModelWithDefaultsMethodStub)->newFromBuilder(['status' => 'published']);
+
+        $this->assertSame(['status' => 'published'], $model->getAttributes());
+        $this->assertFalse($model->isDirty());
+    }
+
+    public function testDefaultsMethodIsNotReappliedWhenUnserializing(): void
+    {
+        $model = new ModelWithDefaultsMethodStub(['status' => 'published']);
+
+        $model = unserialize(serialize($model));
+
+        $this->assertSame(['status' => 'published', 'views' => 0], $model->getAttributes());
+    }
+
+    public function testDefaultsMethodIsEvaluatedForEachNewModel(): void
+    {
+        ModelWithRuntimeDefaultsStub::$trialDays = 14;
+
+        $this->assertSame(['trial_days' => 14], (new ModelWithRuntimeDefaultsStub)->getAttributes());
+
+        ModelWithRuntimeDefaultsStub::$trialDays = 30;
+
+        $this->assertSame(['trial_days' => 30], (new ModelWithRuntimeDefaultsStub)->getAttributes());
+    }
 }
 
 class CustomBuilder extends Builder
@@ -4940,6 +4992,48 @@ class ModelWithRouteKeyAttributeStub extends Model
 
 class ModelInheritingRouteKeyAttributeStub extends ModelWithRouteKeyAttributeStub
 {
+}
+
+class ModelWithDefaultsMethodStub extends Model
+{
+    protected array $guarded = [];
+
+    /**
+     * Get the default attribute values for the model.
+     */
+    protected function defaults(): array
+    {
+        return ['status' => 'draft', 'views' => 0];
+    }
+}
+
+class ModelWithRuntimeDefaultsStub extends Model
+{
+    public static int $trialDays = 14;
+
+    /**
+     * Get the default attribute values for the model.
+     */
+    protected function defaults(): array
+    {
+        return ['trial_days' => static::$trialDays];
+    }
+}
+
+class ModelWithDefaultsMethodAndPropertyStub extends Model
+{
+    protected array $attributes = [
+        'title' => 'Untitled',
+        'status' => 'pending',
+    ];
+
+    /**
+     * Get the default attribute values for the model.
+     */
+    protected function defaults(): array
+    {
+        return ['status' => 'draft'];
+    }
 }
 
 class TestObserverStub

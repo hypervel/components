@@ -45,7 +45,7 @@ class ValidationNotPwnedVerifierTest extends TestCase
 
         $httpFactory
             ->expects('withHeaders')
-            ->with(['Add-Padding' => true])
+            ->with(['Add-Padding' => 'true'])
             ->andReturn($httpFactory);
 
         $httpFactory
@@ -77,7 +77,7 @@ class ValidationNotPwnedVerifierTest extends TestCase
 
         $httpFactory
             ->expects('withHeaders')
-            ->with(['Add-Padding' => true])
+            ->with(['Add-Padding' => 'true'])
             ->andReturn($httpFactory);
 
         $httpFactory
@@ -115,7 +115,7 @@ class ValidationNotPwnedVerifierTest extends TestCase
 
         $httpFactory
             ->expects('withHeaders')
-            ->with(['Add-Padding' => true])
+            ->with(['Add-Padding' => 'true'])
             ->andReturn($httpFactory);
 
         $httpFactory
@@ -146,7 +146,7 @@ class ValidationNotPwnedVerifierTest extends TestCase
         $exception = new ConnectionException;
 
         $exceptionHandler = m::mock(ExceptionHandler::class);
-        $exceptionHandler->expects('report')->with($exception, [], null);
+        $exceptionHandler->expects('report')->with($exception, []);
         $this->app->singleton(ExceptionHandler::class, function () use ($exceptionHandler): ExceptionHandler {
             return $exceptionHandler;
         });
@@ -155,7 +155,7 @@ class ValidationNotPwnedVerifierTest extends TestCase
 
         $httpFactory
             ->expects('withHeaders')
-            ->with(['Add-Padding' => true])
+            ->with(['Add-Padding' => 'true'])
             ->andReturn($httpFactory);
 
         $httpFactory

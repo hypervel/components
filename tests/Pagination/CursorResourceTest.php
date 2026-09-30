@@ -9,6 +9,7 @@ use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Tests\Pagination\Fixtures\Models\CursorResourceTestModel;
 use Hypervel\Tests\TestCase;
 use LogicException;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 
 class CursorResourceTest extends TestCase
 {
@@ -34,6 +35,7 @@ class CursorResourceTest extends TestCase
         $paginator->toResourceCollection();
     }
 
+    #[RunInSeparateProcess]
     public function testItCanGuessResourceWhenNotProvided(): void
     {
         $paginator = new CursorResourceTestPaginator([

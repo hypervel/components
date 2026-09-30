@@ -86,6 +86,7 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
     assertType('Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}', $user->roles()->firstOrFail());
     assertType('Hypervel\Types\Relations\Role', $user->roles()->firstOrCreate());
     assertType('Hypervel\Types\Relations\Role', $user->roles()->create());
+    assertType('Hypervel\Types\Relations\Role', $user->roles()->createQuietly());
     assertType('Hypervel\Types\Relations\Role', $user->roles()->createOrFirst());
     assertType('Hypervel\Types\Relations\Role', $user->roles()->updateOrCreate([]));
     assertType('Hypervel\Types\Relations\Role', $user->roles()->save(new Role));
@@ -97,6 +98,7 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
     assertType('array<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->saveManyQuietly($roles->all()));
     assertType('Hypervel\Support\LazyCollection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->saveMany($roles->lazy()));
     assertType('array<int, Hypervel\Types\Relations\Role>', $user->roles()->createMany($roles));
+    assertType('array<int, Hypervel\Types\Relations\Role>', $user->roles()->createManyQuietly($roles));
     assertType('array{attached: array, detached: array, updated: array}', $user->roles()->sync($roles));
     assertType('array{attached: array, detached: array, updated: array}', $user->roles()->syncWithoutDetaching($roles));
     assertType('array{attached: array, detached: array, updated: array}', $user->roles()->syncWithPivotValues($roles, []));

@@ -15,6 +15,7 @@ use Hypervel\Tests\Database\Fixtures\Resources\EloquentResourceTestJsonResource;
 use Hypervel\Tests\Database\Fixtures\Resources\EloquentResourceTestJsonResourceCollection;
 use Hypervel\Tests\TestCase;
 use LogicException;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 
 class DatabaseEloquentResourceCollectionTest extends TestCase
 {
@@ -39,7 +40,8 @@ class DatabaseEloquentResourceCollectionTest extends TestCase
         $collection->toResourceCollection();
     }
 
-    public function testItCanGuessResourceWhenNotProvided()
+    #[RunInSeparateProcess]
+    public function testItCanGuessResourceWhenNotProvided(): void
     {
         $collection = new Collection([
             new EloquentResourceCollectionTestModel,

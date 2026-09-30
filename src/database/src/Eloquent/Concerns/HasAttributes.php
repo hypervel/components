@@ -1626,6 +1626,24 @@ trait HasAttributes
     }
 
     /**
+     * Get the default attribute values for the model.
+     *
+     * @return array<string, mixed>
+     */
+    protected function defaults(): array
+    {
+        return [];
+    }
+
+    /**
+     * Merge the default values into the model's attributes.
+     */
+    protected function mergeDefaultAttributes(): void
+    {
+        $this->attributes = array_merge($this->attributes, $this->defaults());
+    }
+
+    /**
      * Determine whether a value is Date / DateTime castable for inbound manipulation.
      */
     protected function isDateCastable(string $key): bool

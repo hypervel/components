@@ -242,6 +242,34 @@ class RouteListCommandTest extends TestCase
         $this->assertStringContainsString('RouteListCommandTest.php:', $routes[0]['path']);
     }
 
+    public function testJsonOutputIsEmptyArrayWhenNoRoutesMatch(): void
+    {
+        $this->consoleApp->call('route:list', ['--json' => true, '--path' => 'missing']);
+
+        $this->assertSame('[]', trim($this->consoleApp->output()));
+    }
+
+    public function testJsonOutputIsEmptyArrayWhenApplicationHasNoRoutes(): void
+    {
+        $hypervel = new FoundationApplication(__DIR__);
+        $router = new Router(new Dispatcher($hypervel));
+
+        $hypervel->instance(KernelContract::class, new Kernel($hypervel, $router));
+
+        $command = new RouteListCommand($router);
+        $command->setHypervel($hypervel);
+
+        $consoleApp = new Application(
+            $hypervel,
+            new Dispatcher($hypervel),
+            'testing',
+        );
+        $consoleApp->addCommands([$command]);
+        $consoleApp->call('route:list', ['--json' => true]);
+
+        $this->assertSame('[]', trim($consoleApp->output()));
+    }
+
     public function testClosureRouteShowsPathInCli(): void
     {
         RouteListCommand::resolveTerminalWidthUsing(static fn (): int => 200);

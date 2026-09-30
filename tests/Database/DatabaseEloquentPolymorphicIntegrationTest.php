@@ -165,6 +165,95 @@ class DatabaseEloquentPolymorphicIntegrationTest extends TestCase
         $this->assertEquals(2, $likes[2]->likeable->likes_count);
     }
 
+    public function testFindOrNewReturnsNewMorphModelWithMorphKeysSet(): void
+    {
+        $post = $this->createPost();
+
+        $comment = $post->comments()->findOrNew(999);
+
+        $this->assertFalse($comment->exists);
+        $this->assertSame($post->id, $comment->commentable_id);
+        $this->assertSame(Post::class, $comment->commentable_type);
+    }
+
+    public function testFindOrNewReturnsExistingMorphModel(): void
+    {
+        $post = $this->createPost();
+        $existing = $post->comments()->create(['body' => 'foo', 'user_id' => 1]);
+
+        $comment = $post->comments()->findOrNew($existing->id);
+
+        $this->assertTrue($comment->exists);
+        $this->assertSame($existing->id, $comment->id);
+    }
+
+    public function testFirstOrNewReturnsNewMorphModelWithMorphKeysSet(): void
+    {
+        $post = $this->createPost();
+
+        $comment = $post->comments()->firstOrNew(['body' => 'foo'], ['user_id' => 1]);
+
+        $this->assertFalse($comment->exists);
+        $this->assertSame('foo', $comment->body);
+        $this->assertSame(1, $comment->user_id);
+        $this->assertSame($post->id, $comment->commentable_id);
+        $this->assertSame(Post::class, $comment->commentable_type);
+        $this->assertSame(0, DB::table('comments')->count());
+    }
+
+    public function testFirstOrCreateCreatesMorphModelWithMorphKeysSet(): void
+    {
+        $post = $this->createPost();
+
+        $comment = $post->comments()->firstOrCreate(['body' => 'foo'], ['user_id' => 1]);
+
+        $this->assertTrue($comment->wasRecentlyCreated);
+        $this->assertMorphRow($post);
+
+        $found = $post->comments()->firstOrCreate(['body' => 'foo'], ['user_id' => 2]);
+
+        $this->assertFalse($found->wasRecentlyCreated);
+        $this->assertSame(1, DB::table('comments')->count());
+    }
+
+    public function testFirstOrCreateIgnoresRowsOfAnotherMorphType(): void
+    {
+        $post = $this->createPost();
+        DB::table('comments')->insert(['commentable_id' => $post->id, 'commentable_type' => 'other', 'body' => 'foo', 'user_id' => 9]);
+
+        $comment = $post->comments()->firstOrCreate(['body' => 'foo'], ['user_id' => 1]);
+
+        $this->assertTrue($comment->wasRecentlyCreated);
+        $this->assertSame(Post::class, $comment->commentable_type);
+        $this->assertSame(2, DB::table('comments')->count());
+    }
+
+    public function testCreateOrFirstCreatesMorphModelWithMorphKeysSet(): void
+    {
+        $post = $this->createPost();
+
+        $comment = $post->comments()->createOrFirst(['body' => 'foo', 'user_id' => 1]);
+
+        $this->assertTrue($comment->wasRecentlyCreated);
+        $this->assertMorphRow($post);
+    }
+
+    public function testUpdateOrCreateCreatesMorphModelWithMorphKeysSet(): void
+    {
+        $post = $this->createPost();
+
+        $comment = $post->comments()->updateOrCreate(['body' => 'foo'], ['user_id' => 1]);
+
+        $this->assertTrue($comment->wasRecentlyCreated);
+        $this->assertMorphRow($post);
+
+        $updated = $post->comments()->updateOrCreate(['body' => 'foo'], ['user_id' => 2]);
+
+        $this->assertFalse($updated->wasRecentlyCreated);
+        $this->assertSame(1, DB::table('comments')->count());
+        $this->assertSame(2, DB::table('comments')->value('user_id'));
+    }
+
     /**
      * Helpers...
      */
@@ -175,6 +264,28 @@ class DatabaseEloquentPolymorphicIntegrationTest extends TestCase
         $taylor->posts()->create(['title' => 'A title', 'body' => 'A body'])
             ->comments()->create(['body' => 'A comment body', 'user_id' => 1])
             ->likes()->create([]);
+    }
+
+    /**
+     * Create a post to own polymorphic comments.
+     */
+    protected function createPost(): Post
+    {
+        return Post::create(['user_id' => 1, 'title' => 'Title', 'body' => 'Body']);
+    }
+
+    /**
+     * Assert the single stored comment belongs to the given post.
+     */
+    protected function assertMorphRow(Post $post): void
+    {
+        $row = DB::table('comments')->first();
+
+        $this->assertSame(1, DB::table('comments')->count());
+        $this->assertSame($post->id, $row->commentable_id);
+        $this->assertSame(Post::class, $row->commentable_type);
+        $this->assertSame('foo', $row->body);
+        $this->assertSame(1, $row->user_id);
     }
 
     /**

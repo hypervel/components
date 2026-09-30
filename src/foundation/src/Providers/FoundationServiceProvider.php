@@ -180,6 +180,7 @@ class FoundationServiceProvider extends ServiceProvider
             ConsoleMakeCommand::class,
             DevCommand::class,
             DevListCommand::class,
+            // REMOVED: DocsCommand; it opens the Laravel documentation.
             DownCommand::class,
             EnvironmentCommand::class,
             EnvironmentDecryptCommand::class,

@@ -92,13 +92,21 @@ class RouteListCommand extends Command
         $this->hypervel->make(HttpKernel::class);
 
         if (! $this->router->getRoutes()->count()) {
-            $this->components->error("Your application doesn't have any routes.");
+            if ($this->option('json')) {
+                $this->output->writeln('[]');
+            } else {
+                $this->components->error("Your application doesn't have any routes.");
+            }
 
             return;
         }
 
         if (empty($routes = $this->getRoutes())) {
-            $this->components->error("Your application doesn't have any routes matching the given criteria.");
+            if ($this->option('json')) {
+                $this->output->writeln('[]');
+            } else {
+                $this->components->error("Your application doesn't have any routes matching the given criteria.");
+            }
 
             return;
         }

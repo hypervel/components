@@ -26,7 +26,7 @@ class RetryBatchCommand extends Command implements Isolatable
     /**
      * Execute the console command.
      */
-    public function handle(): void
+    public function handle(): int
     {
         $batchesFound = count($ids = $this->getBatchJobIds()) > 0;
 
@@ -34,15 +34,24 @@ class RetryBatchCommand extends Command implements Isolatable
             $this->components->info('Pushing failed batch jobs back onto the queue.');
         }
 
+        $exitCode = self::SUCCESS;
+
         foreach ($ids as $batchId) {
             $batch = $this->hypervel->make(BatchRepository::class)->find($batchId);
 
             if (! $batch) {
                 $this->components->error("Unable to find a batch with ID [{$batchId}].");
+
+                $exitCode = self::FAILURE;
+
                 continue;
             }
+
             if (empty($batch->failedJobIds)) {
-                $this->components->error('The given batch does not contain any failed jobs.');
+                $this->components->error("The batch with ID [{$batchId}] does not contain any failed jobs.");
+
+                $exitCode = self::FAILURE;
+
                 continue;
             }
 
@@ -57,6 +66,8 @@ class RetryBatchCommand extends Command implements Isolatable
 
             $this->newLine();
         }
+
+        return $exitCode;
     }
 
     /**
@@ -64,7 +75,7 @@ class RetryBatchCommand extends Command implements Isolatable
      */
     public function isolatableId(): string
     {
-        return implode(',', (array) $this->argument('id'));
+        return implode(',', $this->getBatchJobIds());
     }
 
     /**

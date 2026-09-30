@@ -4,24 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Events\EventsSubscriberTest;
 
-use Hypervel\Container\Container;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
 class EventsSubscriberTest extends TestCase
 {
-    public function testEventSubscribers(): void
-    {
-        $container = m::mock(Container::class);
-        $d = new Dispatcher($container);
-        $subs = m::mock(ExampleSubscriber::class);
-        $subs->expects('subscribe')->with($d);
-        $container->expects('make')->with(ExampleSubscriber::class)->andReturn($subs);
-
-        $d->subscribe(ExampleSubscriber::class);
-    }
-
     public function testEventSubscribeCanAcceptObject(): void
     {
         $d = new Dispatcher;

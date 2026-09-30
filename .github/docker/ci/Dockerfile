@@ -34,6 +34,7 @@ RUN set -eux; \
         libsqlite3-dev \
         libwebp-dev \
         procps \
+        sqlite3 \
         unzip; \
     rm -rf /var/lib/apt/lists/*
 

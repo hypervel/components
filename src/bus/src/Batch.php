@@ -164,7 +164,7 @@ class Batch implements Arrayable, JsonSerializable
                 $events = $container->make(Dispatcher::class);
 
                 if ($events->hasListeners(BatchFinished::class)) {
-                    $events->dispatch(new BatchFinished($this));
+                    $events->dispatch(new BatchFinished($this->fresh() ?? $this));
                 }
             }
         }
@@ -341,7 +341,7 @@ class Batch implements Arrayable, JsonSerializable
             $events = $container->make(Dispatcher::class);
 
             if ($events->hasListeners(BatchCanceled::class)) {
-                $events->dispatch(new BatchCanceled($this, $exception));
+                $events->dispatch(new BatchCanceled($this->fresh() ?? $this, $exception));
             }
         }
     }

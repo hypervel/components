@@ -33,6 +33,20 @@ class QueuePauseCommandTest extends TestCase
         Event::assertDispatched(QueuePaused::class);
     }
 
+    public function testPausesAndResumesTheGivenConnectionAndQueue(): void
+    {
+        Event::fake();
+
+        $this->artisan('queue:pause redis:emails')->assertSuccessful();
+
+        Event::assertDispatched(QueuePaused::class, fn (QueuePaused $event): bool => $event->connectionName === 'redis' && $event->queue === 'emails');
+        $this->assertTrue(Queue::isPaused('emails', 'redis'));
+
+        $this->artisan('queue:resume redis:emails')->assertSuccessful();
+
+        $this->assertFalse(Queue::isPaused('emails', 'redis'));
+    }
+
     public function testPauseAllDispatchesEvent(): void
     {
         Event::fake();

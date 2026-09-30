@@ -2903,11 +2903,11 @@ EOT,
 
     public function testAssertRedirectBack(): void
     {
-        app()->instance('url', $url = new UrlGenerator(new RouteCollection, new Request));
         app()->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
         $store->setPreviousUrl('https://url.com');
 
+        app()->instance('url', $url = new UrlGenerator(new RouteCollection, new Request));
         $url->setSessionResolver(fn () => app('session.store'));
 
         $response = TestResponse::fromBaseResponse(

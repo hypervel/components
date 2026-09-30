@@ -112,6 +112,23 @@ class QueuePauseResumeTest extends TestCase
         $this->assertFalse($this->manager->isPaused('emails', 'redis'));
     }
 
+    public function testEmptyConnectionUsesTheDefaultConnection(): void
+    {
+        $this->manager->pause('emails', '');
+
+        $this->assertTrue($this->manager->isPaused('emails', 'redis'));
+        $this->assertTrue($this->manager->isPaused('emails', ''));
+        $this->assertSame(['emails'], $this->manager->getPausedQueues(['emails'], ''));
+
+        $this->manager->resume('emails', '');
+
+        $this->assertFalse($this->manager->isPaused('emails', 'redis'));
+
+        $this->manager->pauseFor('emails', 30, '');
+
+        $this->assertTrue($this->manager->isPaused('emails', 'redis'));
+    }
+
     public function testPauseQueueWithTTL(): void
     {
         $this->manager->pauseFor('default', 30, 'redis');
@@ -267,15 +284,17 @@ class QueuePauseResumeTest extends TestCase
         $this->assertSame([], $this->manager->getPausedQueues(['default', 'emails'], 'redis'));
     }
 
-    public function testResumeAllPreservesIndividuallyPausedQueues(): void
+    public function testResumeAllDoesNotResumeQueuesPausedIndividually(): void
     {
-        $this->manager->pause('emails', 'redis');
+        $this->manager->pause('emails', 'database');
+
         $this->manager->pauseAll();
         $this->manager->resumeAll();
 
-        $this->assertTrue($this->manager->isPaused('emails', 'redis'));
-        $this->assertFalse($this->manager->isPaused('emails', 'database'));
-        $this->assertSame(['emails'], $this->manager->getPausedQueues(['default', 'emails'], 'redis'));
+        $this->assertTrue($this->manager->isPaused('emails', 'database'));
+        $this->assertFalse($this->manager->isPaused('emails', 'redis'));
+        $this->assertFalse($this->manager->isPaused('default', 'database'));
+        $this->assertSame(['emails'], $this->manager->getPausedQueues(['default', 'emails'], 'database'));
     }
 
     public function testPauseChecksDoNotBatchTheGlobalKeyWithQueueKeys(): void
@@ -363,6 +382,7 @@ class QueuePauseResumeTest extends TestCase
         $this->assertSame(['redis', 'default'], $parser->parse(''));
         $this->assertSame(['redis', '0'], $parser->parse('0'));
         $this->assertSame(['redis', 'emails'], $parser->parse('emails'));
+        $this->assertSame(['redis', 'emails'], $parser->parse(':emails'));
         $this->assertSame(['database', 'notifications'], $parser->parse('database:notifications'));
         $this->assertSame(['redis', 'foo:bar'], $parser->parse('redis:foo:bar'));
     }

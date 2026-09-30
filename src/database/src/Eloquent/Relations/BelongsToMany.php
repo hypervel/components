@@ -1417,6 +1417,26 @@ class BelongsToMany extends Relation
         return $instances;
     }
 
+    /**
+     * Create a new instance of the related model without raising any events and attach it to the parent model.
+     *
+     * @return TRelatedModel
+     */
+    public function createQuietly(array $attributes = [], array $joining = [], bool $touch = true): Model
+    {
+        return Model::withoutEvents(fn (): Model => $this->create($attributes, $joining, $touch));
+    }
+
+    /**
+     * Create an array of new instances of the related models without raising any events and attach them to the parent model.
+     *
+     * @return array<int, TRelatedModel>
+     */
+    public function createManyQuietly(iterable $records, array $joinings = []): array
+    {
+        return Model::withoutEvents(fn (): array => $this->createMany($records, $joinings));
+    }
+
     public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         if ($parentQuery->getQuery()->from == $query->getQuery()->from) {

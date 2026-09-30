@@ -40,7 +40,7 @@ class DevCommandTest extends TestCase
         $this->assertSame(
             '@laravel/multiplex --title ' . escapeshellarg('artisan dev · ' . basename(base_path()))
                 . " 'server@#93c5fd,php artisan watch' 'vite@#fcd34d,npm run dev'",
-            $this->devCommand()->buildMultiplexCommandForTesting($this->devCommands())
+            $this->command()->buildMultiplexCommandForTesting($this->devCommands())
         );
     }
 
@@ -50,13 +50,13 @@ class DevCommandTest extends TestCase
 
         $this->assertStringContainsString(
             "--title 'artisan dev · Acme'",
-            $this->devCommand()->buildMultiplexCommandForTesting($this->devCommands())
+            $this->command()->buildMultiplexCommandForTesting($this->devCommands())
         );
     }
 
     public function testMultiplexCommandKeepsColonsInLabels(): void
     {
-        $command = $this->devCommand()->buildMultiplexCommandForTesting([
+        $command = $this->command()->buildMultiplexCommandForTesting([
             ['name' => 'queue:work', 'command' => 'php artisan queue:work', 'source' => [], 'color' => '#c4b5fd'],
         ]);
 
@@ -65,23 +65,23 @@ class DevCommandTest extends TestCase
 
     public function testMultiplexCommandModeFlags(): void
     {
-        $this->assertStringContainsString('--stream', $this->devCommand(['--stream' => true])->buildMultiplexCommandForTesting($this->devCommands()));
-        $this->assertStringContainsString('--inline', $this->devCommand(['--inline' => true])->buildMultiplexCommandForTesting($this->devCommands()));
-        $this->assertStringNotContainsString('--tabs', $this->devCommand(['--tabs' => true])->buildMultiplexCommandForTesting($this->devCommands()));
+        $this->assertStringContainsString('--stream', $this->command(['--stream' => true])->buildMultiplexCommandForTesting($this->devCommands()));
+        $this->assertStringContainsString('--inline', $this->command(['--inline' => true])->buildMultiplexCommandForTesting($this->devCommands()));
+        $this->assertStringNotContainsString('--tabs', $this->command(['--tabs' => true])->buildMultiplexCommandForTesting($this->devCommands()));
     }
 
     public function testMultiplexCommandUsesConfiguredModeWhenNoFlagGiven(): void
     {
         DevCommands::stream();
 
-        $this->assertStringContainsString('--stream', $this->devCommand()->buildMultiplexCommandForTesting($this->devCommands()));
+        $this->assertStringContainsString('--stream', $this->command()->buildMultiplexCommandForTesting($this->devCommands()));
     }
 
     public function testMultiplexCommandModeFlagOverridesConfiguredMode(): void
     {
         DevCommands::stream();
 
-        $command = $this->devCommand(['--tabs' => true])->buildMultiplexCommandForTesting($this->devCommands());
+        $command = $this->command(['--tabs' => true])->buildMultiplexCommandForTesting($this->devCommands());
 
         $this->assertStringNotContainsString('--stream', $command);
         $this->assertStringNotContainsString('--inline', $command);
@@ -89,26 +89,26 @@ class DevCommandTest extends TestCase
 
     public function testMultiplexCommandTimestampsFromFlagOrConfiguration(): void
     {
-        $this->assertStringContainsString('--timestamps', $this->devCommand(['--timestamps' => true])->buildMultiplexCommandForTesting($this->devCommands()));
+        $this->assertStringContainsString('--timestamps', $this->command(['--timestamps' => true])->buildMultiplexCommandForTesting($this->devCommands()));
 
         DevCommands::withTimestamps();
 
-        $this->assertStringContainsString('--timestamps', $this->devCommand()->buildMultiplexCommandForTesting($this->devCommands()));
+        $this->assertStringContainsString('--timestamps', $this->command()->buildMultiplexCommandForTesting($this->devCommands()));
     }
 
     public function testMultiplexCommandNoRestartFromFlagOrConfiguration(): void
     {
-        $this->assertStringNotContainsString('--no-restart', $this->devCommand()->buildMultiplexCommandForTesting($this->devCommands()));
-        $this->assertStringContainsString('--no-restart', $this->devCommand(['--no-restart' => true])->buildMultiplexCommandForTesting($this->devCommands()));
+        $this->assertStringNotContainsString('--no-restart', $this->command()->buildMultiplexCommandForTesting($this->devCommands()));
+        $this->assertStringContainsString('--no-restart', $this->command(['--no-restart' => true])->buildMultiplexCommandForTesting($this->devCommands()));
 
         DevCommands::disableAutoRestart();
 
-        $this->assertStringContainsString('--no-restart', $this->devCommand()->buildMultiplexCommandForTesting($this->devCommands()));
+        $this->assertStringContainsString('--no-restart', $this->command()->buildMultiplexCommandForTesting($this->devCommands()));
     }
 
     public function testMultiplexCommandJsonFlag(): void
     {
-        $this->assertStringContainsString('--json', $this->devCommand(['--json' => true])->buildMultiplexCommandForTesting($this->devCommands()));
+        $this->assertStringContainsString('--json', $this->command(['--json' => true])->buildMultiplexCommandForTesting($this->devCommands()));
     }
 
     public function testMultiplexCommandBufferSizes(): void
@@ -116,12 +116,12 @@ class DevCommandTest extends TestCase
         DevCommands::bufferSize(1000);
         DevCommands::streamBufferSize(2000);
 
-        $command = $this->devCommand()->buildMultiplexCommandForTesting($this->devCommands());
+        $command = $this->command()->buildMultiplexCommandForTesting($this->devCommands());
 
         $this->assertStringContainsString("--buffer-size='1000'", $command);
         $this->assertStringContainsString("--stream-buffer-size='2000'", $command);
 
-        $command = $this->devCommand([
+        $command = $this->command([
             '--buffer-size' => '50',
             '--stream-buffer-size' => '60',
         ])->buildMultiplexCommandForTesting($this->devCommands());
@@ -129,7 +129,7 @@ class DevCommandTest extends TestCase
         $this->assertStringContainsString("--buffer-size='50'", $command);
         $this->assertStringContainsString("--stream-buffer-size='60'", $command);
 
-        $command = $this->devCommand([
+        $command = $this->command([
             '--buffer-size' => '0',
             '--stream-buffer-size' => '0',
         ])->buildMultiplexCommandForTesting($this->devCommands());
@@ -140,7 +140,7 @@ class DevCommandTest extends TestCase
         DevCommands::bufferSize(0);
         DevCommands::streamBufferSize(0);
 
-        $command = $this->devCommand()->buildMultiplexCommandForTesting($this->devCommands());
+        $command = $this->command()->buildMultiplexCommandForTesting($this->devCommands());
 
         $this->assertStringContainsString("--buffer-size='0'", $command);
         $this->assertStringContainsString("--stream-buffer-size='0'", $command);
@@ -290,7 +290,7 @@ class DevCommandTest extends TestCase
     /**
      * Create a command with the given options.
      */
-    protected function devCommand(array $options = []): DevCommand
+    protected function command(array $options = []): DevCommand
     {
         $command = new class extends DevCommand {
             /**
