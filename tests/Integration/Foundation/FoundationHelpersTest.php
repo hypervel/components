@@ -9,6 +9,7 @@ use Faker\Provider\en_AU\Address as AustralianAddress;
 use Faker\Provider\en_US\Address as AmericanAddress;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Testbench\TestCase;
+use Mockery\MockInterface;
 use Psr\Log\LogLevel;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
@@ -27,6 +28,19 @@ class FoundationHelpersTest extends TestCase
         $this->assertSame([$first, $second, $third], $handler->reported);
         $this->assertSame([['id' => 1], ['id' => 2], ['id' => 3]], $handler->contexts);
         $this->assertSame([LogLevel::WARNING, LogLevel::NOTICE, LogLevel::INFO], $handler->levels);
+    }
+
+    public function testReportHelpersOnlyForwardLevelWhenGiven(): void
+    {
+        $exception = new Exception('Test');
+
+        $this->mock(ExceptionHandler::class, function (MockInterface $mock) use ($exception): void {
+            $mock->expects('report')->times(3)->withArgs(fn (mixed ...$arguments): bool => $arguments === [$exception, ['id' => 1]]);
+        });
+
+        report($exception, ['id' => 1]);
+        report_if(true, $exception, ['id' => 1]);
+        report_unless(false, $exception, ['id' => 1]);
     }
 
     public function testRescue(): void

@@ -709,6 +709,12 @@ if (! function_exists('report')) {
             $exception = new Exception($exception);
         }
 
+        if (is_null($level)) {
+            app(ExceptionHandlerContract::class)->report($exception, $context);
+
+            return;
+        }
+
         app(ExceptionHandlerContract::class)->report($exception, $context, $level);
     }
 }
