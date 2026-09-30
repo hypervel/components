@@ -164,6 +164,7 @@ class AuthGuardTest extends TestCase
         $user->expects('getAuthIdentifier')->andReturn('bar');
         $user->expects('getAuthPassword')->andReturn(null);
         $mock->getSession()->expects('put')->with('foo', 'bar');
+        $mock->getSession()->expects('remove')->with('password_hash_default');
         $session->expects('regenerate');
         $mock->getProvider()->expects('retrieveByCredentials')->times(3)->with(['foo'])->andReturn($user);
         $mock->getProvider()->expects('validateCredentials')->times(2)->andReturnTrue();
@@ -242,6 +243,7 @@ class AuthGuardTest extends TestCase
         $user->expects('getAuthIdentifier')->andReturn('bar');
         $user->expects('getAuthPassword')->andReturn(null);
         $mock->getSession()->expects('put')->with('foo', 'bar');
+        $mock->getSession()->expects('remove')->with('password_hash_default');
         $session->expects('regenerate');
         $mock->login($user);
     }
@@ -290,6 +292,7 @@ class AuthGuardTest extends TestCase
         $user->expects('getAuthIdentifier')->andReturn('bar');
         $user->expects('getAuthPassword')->andReturn(null);
         $mock->getSession()->expects('put')->with('foo', 'bar');
+        $mock->getSession()->expects('remove')->with('password_hash_default');
         $session->expects('regenerate');
         $mock->login($user);
     }
@@ -576,6 +579,7 @@ class AuthGuardTest extends TestCase
         $cookie->shouldReceive('make')->once()->with($guard->getRecallerName(), 'foo|recaller|' . $expectedHash, 576000)->andReturn($foreverCookie);
         $cookie->shouldReceive('queue')->once()->with($foreverCookie);
         $guard->getSession()->shouldReceive('put')->once()->with($guard->getName(), 'foo');
+        $guard->getSession()->shouldReceive('remove')->once()->with('password_hash_default');
         $session->shouldReceive('regenerate')->once();
         $user = m::mock(Authenticatable::class);
         $user->shouldReceive('getAuthIdentifier')->andReturn('foo');
@@ -895,6 +899,7 @@ class AuthGuardTest extends TestCase
         $user->expects('getAuthIdentifier')->andReturn(42);
         $user->expects('getAuthPassword')->andReturn(null);
         $guard->getSession()->expects('put')->with($guard->getName(), 42);
+        $guard->getSession()->expects('remove')->with('password_hash_default');
         $guard->getSession()->expects('regenerate')->with(true);
         $events = $this->mockEventDispatcher();
         $events->expects('dispatch')->with(m::type(Login::class))->ordered()
@@ -929,6 +934,7 @@ class AuthGuardTest extends TestCase
         $user->expects('getAuthIdentifier')->andReturn(42);
         $user->expects('getAuthPassword')->andReturn(null);
         $session->expects('put')->with($guard->getName(), 42);
+        $session->expects('remove')->with('password_hash_default');
         $session->shouldNotReceive('get');
         $provider->shouldNotReceive('retrieveById');
         $events = $this->mockEventDispatcher();
@@ -1079,6 +1085,7 @@ class AuthGuardTest extends TestCase
         $nextUser->expects('getAuthIdentifier')->andReturn(42);
         $nextUser->expects('getAuthPassword')->andReturn(null);
         $session->expects('put')->with($mock->getName(), 42);
+        $session->expects('remove')->with('password_hash_default');
         $session->expects('regenerate')->with(true);
         $events = $this->mockEventDispatcher();
         $events->expects('dispatch')->with(m::type(Login::class))->ordered()

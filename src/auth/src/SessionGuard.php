@@ -498,6 +498,9 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
                 'password_hash_' . $this->name,
                 $this->hashPasswordForCookie($passwordHash)
             );
+        } else {
+            // A hash left by a previous user would log this passwordless user out.
+            $this->session->remove('password_hash_' . $this->name);
         }
 
         // If the user should be permanently "remembered" by the application we will
