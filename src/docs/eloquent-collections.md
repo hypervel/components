@@ -36,6 +36,8 @@ $names = User::all()->reject(function (User $user) {
 
 While most Eloquent collection methods return a new instance of an Eloquent collection, the `collapse`, `countBy`, `flatten`, `flip`, `keys`, `pad`, `partition`, `pluck`, and `zip` methods return a [base collection](/docs/{{version}}/collections) instance. Likewise, if a `map` or `mapWithKeys` operation returns a collection that does not contain any Eloquent models, it will be converted to a base collection instance.
 
+The `duplicates` and `duplicatesStrict` methods also return a base collection when given an attribute name or callback, containing the duplicate attribute or callback values. Without an argument, they return an Eloquent collection of duplicate models.
+
 <a name="available-methods"></a>
 ## Available Methods
 

@@ -543,7 +543,7 @@ trait EnumeratesValues
      * @template TReturnType
      *
      * @param null|(callable(TValue, TKey): TReturnType)|string $callback
-     * @return ($callback is callable ? float|int|TReturnType : mixed)
+     * @return ($callback is string ? mixed : ($callback is callable ? float|int|TReturnType : mixed))
      */
     public function sum(callable|int|string|null $callback = null): mixed
     {

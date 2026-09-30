@@ -221,8 +221,8 @@ assertType('Hypervel\Support\Collection<int, string>', $collection::make(['strin
 
 assertType('Hypervel\Support\Collection<string, string>', $collection::make(['string' => 'string'])
     ->duplicates());
-assertType('Hypervel\Support\Collection<int, User>', $collection->duplicates('name', true));
-assertType('Hypervel\Support\Collection<int, int|string>', $collection::make([3, 'string'])
+assertType('Hypervel\Support\Collection<int, mixed>', $collection->duplicates('name', true));
+assertType('Hypervel\Support\Collection<int, bool>', $collection::make([3, 'string'])
     ->duplicates(function ($intOrString) {
         assertType('int|string', $intOrString);
 
@@ -231,8 +231,8 @@ assertType('Hypervel\Support\Collection<int, int|string>', $collection::make([3,
 
 assertType('Hypervel\Support\Collection<string, string>', $collection::make(['string' => 'string'])
     ->duplicatesStrict());
-assertType('Hypervel\Support\Collection<int, User>', $collection->duplicatesStrict('name'));
-assertType('Hypervel\Support\Collection<int, int|string>', $collection::make([3, 'string'])
+assertType('Hypervel\Support\Collection<int, mixed>', $collection->duplicatesStrict('name'));
+assertType('Hypervel\Support\Collection<int, bool>', $collection::make([3, 'string'])
     ->duplicatesStrict(function ($intOrString) {
         assertType('int|string', $intOrString);
 
@@ -923,6 +923,7 @@ assertType('Hypervel\Support\Collection<int, int>', $collection::make([1])->sort
 assertType('Hypervel\Support\Collection<string, string>', $collection::make(['string' => 'string'])->sortKeysDesc(1));
 
 assertType('mixed', $collection::make([1])->sum('string'));
+assertType('mixed', $collection::make([['count' => 1]])->sum('count'));
 assertType('float|int', $collection::make(['string'])->sum(function ($string) {
     assertType('string', $string);
 
@@ -1046,8 +1047,17 @@ assertType("'string'|User", $collection->get(0, function () {
     return 'string';
 }));
 
-assertType("'string'|User", $collection->getOrPut(0, 'string'));
-assertType("'string'|User", $collection->getOrPut(0, fn () => 'string'));
+$getOrPutCollection = $collection::make([new User]);
+assertType("'string'|User", $getOrPutCollection->getOrPut(0, 'string'));
+assertType("Hypervel\\Support\\Collection<int, 'string'|User>", $getOrPutCollection);
+
+$getOrPutCollection = $collection::make([new User]);
+assertType("'string'|User", $getOrPutCollection->getOrPut(0, fn () => 'string'));
+assertType("Hypervel\\Support\\Collection<int, 'string'|User>", $getOrPutCollection);
+
+$getOrPutCollection = $collection::make(['first' => new User]);
+assertType("'string'|User", $getOrPutCollection->getOrPut(null, 'string'));
+assertType("Hypervel\\Support\\Collection<int|string, 'string'|User>", $getOrPutCollection);
 
 assertType('Hypervel\Support\Collection<int, User>', $collection->forget(1));
 assertType('Hypervel\Support\Collection<int, User>', $collection->forget([1, 2]));
@@ -1063,9 +1073,15 @@ assertType('Hypervel\Support\Collection<int, string>', $collection::make([
 
 assertType('Hypervel\Support\Collection<int, int>', $collection::make([1])->prepend(2));
 assertType('Hypervel\Support\Collection<int, User>', $collection->prepend(new User, 2));
+assertType('Hypervel\Support\Collection<int|string, int>', $collection::make(['foo' => 1])->prepend(2));
+assertType('Hypervel\Support\Collection<string, int>', $collection::make(['bar' => 1])->prepend(2, 'baz'));
+
+assertType('Hypervel\Support\Collection<int, int>', $collection::make([1])->unshift(2));
+assertType('Hypervel\Support\Collection<int|string, User>', $collection::make(['foo' => new User])->unshift(new User));
 
 assertType('Hypervel\Support\Collection<int, int>', $collection::make([1])->push(2));
 assertType('Hypervel\Support\Collection<int, User>', $collection->push(new User, new User));
+assertType('Hypervel\Support\Collection<int|string, User>', $collection::make(['foo' => new User])->push(new User));
 
 assertType('User|null', $collection->pull(1));
 assertType("'string'|User", $collection->pull(1, 'string'));
@@ -1077,6 +1093,14 @@ assertType('Hypervel\Support\Collection<int, User>', $collection->put(1, new Use
 assertType('Hypervel\Support\Collection<string, string>', $collection::make([
     'string-key-1' => 'string-value-1',
 ])->put('string-key-2', 'string-value-2'));
+
+$putCollection = $collection::make([new User]);
+assertType('Hypervel\Support\Collection<int, string|User>', $putCollection->put(1, 'string'));
+assertType("Hypervel\\Support\\Collection<int, 'string'|User>", $putCollection);
+
+$putCollection = $collection::make(['first' => new User]);
+assertType('Hypervel\Support\Collection<int|string, string|User>', $putCollection->put(null, 'string'));
+assertType("Hypervel\\Support\\Collection<int|string, 'string'|User>", $putCollection);
 
 assertType('User|null', $collection->shift());
 assertType('Hypervel\Support\Collection<int, string>', $collection::make([
@@ -1122,6 +1146,7 @@ assertType('Hypervel\Support\Collection<int, User>', $collection->transform(func
 }));
 
 assertType('Hypervel\Support\Collection<int, User>', $collection->add(new User));
+assertType('Hypervel\Support\Collection<int|string, User>', $collection::make(['foo' => new User])->add(new User));
 
 /**
  * @template TKey of array-key

@@ -197,8 +197,8 @@ assertType('Hypervel\Support\LazyCollection<int, string>', $collection::make(['s
 
 assertType('Hypervel\Support\LazyCollection<string, string>', $collection::make(['string' => 'string'])
     ->duplicates());
-assertType('Hypervel\Support\LazyCollection<int, User>', $collection->duplicates('name', true));
-assertType('Hypervel\Support\LazyCollection<int, int|string>', $collection::make([3, 'string'])
+assertType('Hypervel\Support\LazyCollection<int, mixed>', $collection->duplicates('name', true));
+assertType('Hypervel\Support\LazyCollection<int, bool>', $collection::make([3, 'string'])
     ->duplicates(function ($intOrString) {
         assertType('int|string', $intOrString);
 
@@ -207,8 +207,8 @@ assertType('Hypervel\Support\LazyCollection<int, int|string>', $collection::make
 
 assertType('Hypervel\Support\LazyCollection<string, string>', $collection::make(['string' => 'string'])
     ->duplicatesStrict());
-assertType('Hypervel\Support\LazyCollection<int, User>', $collection->duplicatesStrict('name'));
-assertType('Hypervel\Support\LazyCollection<int, int|string>', $collection::make([3, 'string'])
+assertType('Hypervel\Support\LazyCollection<int, mixed>', $collection->duplicatesStrict('name'));
+assertType('Hypervel\Support\LazyCollection<int, bool>', $collection::make([3, 'string'])
     ->duplicatesStrict(function ($intOrString) {
         assertType('int|string', $intOrString);
 

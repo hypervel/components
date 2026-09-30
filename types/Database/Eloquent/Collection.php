@@ -10,6 +10,11 @@ use function PHPStan\Testing\assertType;
 $collection = User::all();
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection);
 
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->duplicates());
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->duplicatesStrict());
+assertType('Hypervel\Support\Collection<(int|string), mixed>', $collection->duplicates('name'));
+assertType('Hypervel\Support\Collection<(int|string), mixed>', $collection->duplicatesStrict('name'));
+
 assertType('User|null', $collection->find(1));
 assertType("'string'|User", $collection->find(1, 'string'));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->find([1]));
