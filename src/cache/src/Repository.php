@@ -452,6 +452,11 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
     {
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
+        // A memoized value may be stale, so the underlying repository decides.
+        if ($this->store instanceof MemoizedStore) {
+            return $this->store->add($this->itemKey($key), $value, $ttl);
+        }
+
         $seconds = null;
 
         if ($ttl !== null) {
@@ -476,7 +481,8 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
         // If the value did not exist in the cache, we will put the value in the cache
         // so it exists for subsequent requests. Then, we will return true so it is
         // easy to know if the value gets added. Otherwise, we will return false.
-        if (is_null($this->get($key))) {
+        // A cached null sentinel means the key exists, as it does for native adds.
+        if (is_null($this->getRaw($key))) {
             return $this->put($key, $value, $seconds);
         }
 
@@ -966,7 +972,7 @@ class Repository implements ArrayAccess, AuthoritativeRawReadable, CacheContract
 
         $names = is_array($names) ? $names : func_get_args();
         $names = array_map(
-            fn ($name) => $name instanceof UnitEnum ? (string) enum_value($name) : $name,
+            fn (mixed $name): string => $name instanceof UnitEnum ? (string) enum_value($name) : (string) $name,
             $names
         );
 

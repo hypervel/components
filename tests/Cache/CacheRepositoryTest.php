@@ -908,6 +908,16 @@ class CacheRepositoryTest extends TestCase
         $this->assertTrue($repo->add('foo', 'bar'));
     }
 
+    public function testAddTreatsACachedNullAsPresent(): void
+    {
+        $repository = new Repository(new ArrayStore);
+        $repository->rememberNullable('foo', 60, fn (): null => null);
+
+        $this->assertFalse($repository->add('foo', 'bar', 60));
+        $this->assertFalse($repository->add('foo', 'bar'));
+        $this->assertSame(NullSentinel::VALUE, $repository->getRaw('foo'));
+    }
+
     public function testAddWithDatetimeInPastOrZeroSecondsReturnsImmediately()
     {
         $repo = $this->getRepository();
@@ -1097,6 +1107,17 @@ class CacheRepositoryTest extends TestCase
 
         $store = $repo->tags('r1', 'r2', 'r3');
         $this->assertEquals(['r1', 'r2', 'r3'], $store->getTags()->getNames());
+    }
+
+    public function testIntegerTagNamesMatchTheirStringFormsAndCanBeFlushed(): void
+    {
+        $repository = new Repository(new ArrayStore);
+
+        $repository->tags(['users', 1])->put('foo', 'bar', 60);
+
+        $this->assertSame('bar', $repository->tags(['users', '1'])->get('foo'));
+        $this->assertTrue($repository->tags(['users', 1])->flush());
+        $this->assertNull($repository->tags(['users', '1'])->get('foo'));
     }
 
     public function testEventDispatcherIsPassedToStoreFromRepository()

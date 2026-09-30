@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Cache\Redis;
 
+use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\TagMode;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Cache;
@@ -415,6 +416,16 @@ class TaggedOperationsIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertSame('replacement', $cache->get('key'));
         $cache->flush();
         $this->assertNull($cache->get('key'));
+    }
+
+    public function testAllModeAddWithoutTtlTreatsACachedNullAsPresent(): void
+    {
+        $this->setTagMode(TagMode::All);
+        $cache = Cache::tags(['posts']);
+        $cache->rememberNullable('key', 60, fn (): null => null);
+
+        $this->assertFalse($cache->add('key', 'replacement'));
+        $this->assertSame(NullSentinel::VALUE, $cache->getRaw('key'));
     }
 
     public function testAnyModeAddCreatesTagStructure(): void

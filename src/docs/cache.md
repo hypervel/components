@@ -642,6 +642,16 @@ Cache::memo()->put('name', 'Tim');    // Forgets memoized value, writes new valu
 Cache::memo()->get('name');           // Hits underlying cache again...
 ```
 
+The memoized cache also supports [cache tags](#cache-tags) when the underlying store does. In all mode, values are memoized separately for each list of tags, and flushing tags through the memoized cache forgets the memoized tagged values:
+
+```php
+$permissions = Cache::memo()->tags(['permissions', "user:{$user->id}"])->remember(
+    "permissions:{$user->id}", 3600, fn () => $user->loadPermissions()
+);
+```
+
+When the underlying store uses [any tag mode](#any-tag-mode), tagged items are read by their plain keys, so `Cache::memo()->tags(...)->remember(...)` and `Cache::memo()->get(...)` share memoized values. A tagged write through the memoized cache forgets the memoized value for its key, and a tag flush through the memoized cache forgets every memoized value for the store.
+
 Memoized values are scoped to the current request, job, or coroutine context. They are not stored on the worker for the lifetime of the process.
 
 <a name="the-cache-helper"></a>
@@ -676,7 +686,7 @@ cache()->remember('users', $seconds, function () {
 ## Cache Tags
 
 > [!WARNING]
-> Cache tags are supported by the `redis`, `array`, `failover`, `null`, and `stack` cache drivers. Stack tags require an any-mode composition; see [Tagged Cache Stacks](#tagged-cache-stacks). Cache tags are not supported by the `file`, `storage`, `database`, `swoole`, `session`, or `memo` drivers.
+> Cache tags are supported by the `redis`, `array`, `failover`, `null`, and `stack` cache drivers. Stack tags require an any-mode composition; see [Tagged Cache Stacks](#tagged-cache-stacks). Cache tags are not supported by the `file`, `storage`, `database`, `swoole`, or `session` drivers. The [memoized cache](#cache-memoization) supports tags when its underlying store does.
 
 The `flush` method returns `true` only when every tag or taggable stack layer accepts the flush. The null cache driver rejects tag identifier writes, so tagged flushes on that driver return `false` even though tagged reads continue to behave as cache misses.
 
