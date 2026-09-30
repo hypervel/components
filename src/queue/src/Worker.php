@@ -17,6 +17,7 @@ use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Database\DetectsLostConnections;
+use Hypervel\Engine\Coroutine;
 use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobInterrupted;
@@ -101,6 +102,8 @@ class Worker
 
     /**
      * The timeout job IDs.
+     *
+     * @var array<string, true>
      */
     protected array $timeoutJobIds = [];
 
@@ -190,6 +193,13 @@ class Worker
      * races across coroutines and changes every concurrent timeout exit.
      */
     public static ?int $timedOutExitCode = null;
+
+    /**
+     * Indicates if the worker should be killed when a job exceeds its timeout.
+     *
+     * Boot-only. Mutates the timeout policy shared by every job in the worker.
+     */
+    public static bool $killOnTimeout = true;
 
     /**
      * The callback used to kill the worker process.
@@ -325,7 +335,7 @@ class Worker
                 // If there are timeout jobs or the concurrency limit is hit, we should
                 // not accept new jobs. A full worker waits on capacity so completed jobs
                 // wake it immediately instead of limiting throughput to the poll interval.
-                $hasTimeoutJobs = $this->hasTimeoutJobs();
+                $hasTimeoutJobs = static::$killOnTimeout && $this->hasTimeoutJobs();
                 if ($hasTimeoutJobs || $concurrent->isFull()) {
                     $waitInterval = $options->sleep > 0 ? $options->sleep : 1;
 
@@ -526,7 +536,7 @@ class Worker
                 try {
                     $this->terminateTimeoutJobs($options);
 
-                    if ($this->hasTimeoutJobs()) {
+                    if (static::$killOnTimeout && $this->hasTimeoutJobs()) {
                         $this->shouldQuit = true;
                         $this->kill(
                             $connectionName,
@@ -544,16 +554,30 @@ class Worker
     }
 
     /**
-     * Scanning the running jobs and terminate the timeout jobs.
+     * Scan the running jobs and terminate the timeout jobs.
      */
     protected function terminateTimeoutJobs(WorkerOptions $options): void
     {
         $currentTime = $this->currentTime();
         foreach ($this->runningJobs as $jobId => $job) {
+            // Timeout handling can yield while a later job in this snapshot finishes.
+            if (! isset($this->runningJobs[$jobId])) {
+                continue;
+            }
+
             if ($job['expires_at'] !== null && $job['expires_at'] <= $currentTime) {
-                $this->timeoutJobIds[] = $jobId;
+                $this->timeoutJobIds[$jobId] = true;
                 unset($this->runningJobs[$jobId]);
-                $this->handleTimeoutJob($job['job'], $options);
+
+                try {
+                    $this->handleTimeoutJob($job['job'], $options);
+                } finally {
+                    // A completed body may still own a coroutine running deferred cleanup.
+                    if (! static::$killOnTimeout && isset($this->timeoutJobIds[$jobId])) {
+                        // @TODO: Pass TimeoutExceededException as the cancellation reason if Swoole adds cancellation reasons.
+                        Coroutine::cancelById($job['coroutine_id'], throwException: true);
+                    }
+                }
             }
         }
     }
@@ -563,7 +587,7 @@ class Worker
      */
     protected function hasTimeoutJobs(): bool
     {
-        return (bool) count($this->timeoutJobIds);
+        return $this->timeoutJobIds !== [];
     }
 
     /**
@@ -578,11 +602,14 @@ class Worker
             $e = $this->timeoutExceededException($job)
         );
 
-        $this->markJobAsFailedIfWillExceedMaxExceptions(
-            $job->getConnectionName(),
-            $job,
-            $e
-        );
+        // Non-killing timeouts are counted by the job's normal exception handler after unwind.
+        if (static::$killOnTimeout) {
+            $this->markJobAsFailedIfWillExceedMaxExceptions(
+                $job->getConnectionName(),
+                $job,
+                $e
+            );
+        }
 
         $this->markJobAsFailedIfItShouldFailOnTimeout(
             $job->getConnectionName(),
@@ -900,8 +927,8 @@ class Worker
             // proper events will be fired to let any listeners know this job has completed.
             $job->fire();
 
-            // If the job has timed out, we will raise the timeout event and mark the job as failed.
-            if (in_array($runningJobId, $this->timeoutJobIds, strict: true)) {
+            // The monitor has already handled this timeout; do not report normal completion.
+            if (isset($this->timeoutJobIds[$runningJobId])) {
                 return;
             }
 
@@ -913,11 +940,17 @@ class Worker
                     $job
                 ));
             }
-        } catch (CanceledException $exception) {
-            $canceled = true;
-
-            throw $exception;
         } catch (Throwable $e) {
+            if ($e instanceof CanceledException) {
+                if (static::$killOnTimeout || $runningJobId === null || ! isset($this->timeoutJobIds[$runningJobId])) {
+                    $canceled = true;
+
+                    throw $e;
+                }
+
+                $e = $this->timeoutExceededException($job);
+            }
+
             $exceptionOccurred = $e;
 
             try {
@@ -930,6 +963,10 @@ class Worker
         } finally {
             if ($runningJobId) {
                 unset($this->runningJobs[$runningJobId]);
+
+                if (! static::$killOnTimeout) {
+                    unset($this->timeoutJobIds[$runningJobId]);
+                }
             }
 
             if (! $canceled) {
@@ -964,6 +1001,7 @@ class Worker
     {
         $this->runningJobs[$jobId = Str::uuid()->toString()] = [
             'job' => $job,
+            'coroutine_id' => Coroutine::id(),
             'expires_at' => ($timeout = $this->timeoutForJob($job, $options)) > 0
                 ? $this->currentTime() + $timeout
                 : null,
@@ -1558,6 +1596,7 @@ class Worker
         static::$popCallbacks = [];
         static::$memoryExceededExitCode = null;
         static::$timedOutExitCode = null;
+        static::$killOnTimeout = true;
         static::$killCallback = null;
         static::$reportJobExceptions = true;
         static::$stopOnLostConnection = true;

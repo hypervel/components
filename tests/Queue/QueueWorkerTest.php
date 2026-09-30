@@ -8,6 +8,8 @@ use ArrayObject;
 use DateInterval;
 use DateTimeInterface;
 use Exception;
+use Hypervel\Cache\Repository;
+use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Repository as CacheContract;
@@ -50,6 +52,7 @@ use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\InvalidPayloadException;
 use Hypervel\Queue\MaxAttemptsExceededException;
 use Hypervel\Queue\QueueManager;
+use Hypervel\Queue\TimeoutExceededException;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
 use Hypervel\Queue\WorkerStopReason;
@@ -184,8 +187,11 @@ class QueueWorkerTest extends TestCase
         $this->assertFalse($attemptedEvent->successful());
     }
 
-    public function testCancellationDuringJobExecutionEscapesWithoutFailureOrCompletion(): void
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function testCancellationDuringJobExecutionEscapesWithoutFailureOrCompletion(bool $killOnTimeout): void
     {
+        Worker::$killOnTimeout = $killOnTimeout;
         $gate = $this->armCurrentCoroutineCancellation();
         $job = new WorkerFakeJob(static function () use ($gate): never {
             $gate->push(true);
@@ -543,6 +549,150 @@ class QueueWorkerTest extends TestCase
                 && $event->job === $job
                 && $event->timeout === $expectedTimeout
         ))->once();
+    }
+
+    #[TestWith([false])]
+    #[TestWith([true])]
+    public function testNonKillingTimeoutUnwindsAndRetriesOnlyTheExpiredJob(bool $listenerThrows): void
+    {
+        Worker::$killOnTimeout = false;
+        Worker::$pausable = false;
+        $timer = new QueueWorkerTimer;
+        $expiredGate = new Channel(1);
+        $otherGate = new Channel(1);
+        $unwound = false;
+        $cancellation = null;
+        $expired = m::mock(WorkerFakeJob::class, [static function () use ($expiredGate, &$unwound, &$cancellation): void {
+            try {
+                $expiredGate->pop(5);
+            } catch (CanceledException $exception) {
+                $cancellation = $exception;
+
+                throw $exception;
+            } finally {
+                $unwound = true;
+            }
+        }])->makePartial();
+        $expired->shouldReceive('timeout')->andReturn(5);
+        $expired->maxExceptions = 2;
+        $expired->backoff = 7;
+        $other = m::mock(WorkerFakeJob::class, [static fn (): mixed => $otherGate->pop(5)])->makePartial();
+        $other->shouldReceive('timeout')->andReturn(0);
+        $worker = new KillTestWorker(...$this->workerDependencies('default', ['queue' => [$expired, $other]], timer: $timer));
+        $worker->setCache($cache = new Repository(new WorkerArrayStore));
+        $worker->currentTime = 100;
+        $options = new WorkerOptions;
+        $worker->startMonitorForTest($options);
+        $listenerException = new RuntimeException('Timeout listener failed.');
+
+        if ($listenerThrows) {
+            $this->events->shouldReceive('dispatch')->with(m::type(JobTimedOut::class))->andThrow($listenerException);
+        }
+
+        $coroutines = [];
+
+        try {
+            $coroutines[] = Coroutine::create(static fn (): null => $worker->runNextJob('default', 'queue', $options));
+            $coroutines[] = Coroutine::create(static fn (): null => $worker->runNextJob('default', 'queue', $options));
+            $worker->currentTime = 105;
+            $monitorException = null;
+
+            try {
+                $timer->fire(1);
+            } catch (RuntimeException $exception) {
+                $monitorException = $exception;
+            }
+
+            Coroutine::join([$coroutines[0]], 5);
+            $this->assertSame($listenerThrows ? $listenerException : null, $monitorException);
+            $this->assertTrue($unwound);
+            $this->assertInstanceOf(CanceledException::class, $cancellation);
+            $this->assertTrue($expired->released);
+            $this->assertSame(7, $expired->releaseAfter);
+            $this->assertFalse($expired->failed);
+            $this->assertSame(1, $cache->get('job-exceptions:' . $expired->uuid));
+            $this->assertFalse($worker->shouldQuit);
+            $this->assertFalse($worker->hasTimeoutJobsForTest());
+            $this->assertCount(1, $worker->runningJobsForTest());
+            $this->assertTrue(EngineCoroutine::exists($coroutines[1]));
+            $otherGate->push(true);
+            Coroutine::join($coroutines, 5);
+            $this->assertSame([], $worker->runningJobsForTest());
+
+            $this->events->shouldHaveReceived('dispatch')->with(m::on(
+                static fn (object $event): bool => $event instanceof JobAttempted
+                    && $event->job === $expired && $event->exception instanceof TimeoutExceededException
+            ))->once();
+            $this->events->shouldHaveReceived('dispatch')->with(m::on(
+                static fn (object $event): bool => $event instanceof JobProcessed && $event->job === $other
+            ))->once();
+            $this->events->shouldNotHaveReceived('dispatch', [m::type(WorkerStopping::class)]);
+            $this->exceptionHandler->shouldHaveReceived('report')->with(m::type(TimeoutExceededException::class))->once();
+        } finally {
+            $expiredGate->close();
+            $otherGate->close();
+            Coroutine::join($coroutines, 5);
+        }
+    }
+
+    public function testTimeoutScanDoesNotCancelCompletedCleanupOrTimeoutAnotherFinishedJob(): void
+    {
+        Worker::$killOnTimeout = false;
+        $timer = new QueueWorkerTimer;
+        $firstGate = new Channel(1);
+        $secondGate = new Channel(1);
+        $cleanupGate = new Channel(1);
+        $cleanupStarted = false;
+        $cleanupFinished = false;
+        $first = m::mock(WorkerFakeJob::class, [static function () use ($firstGate, $cleanupGate, &$cleanupStarted, &$cleanupFinished): void {
+            Coroutine::defer(static function () use ($cleanupGate, &$cleanupStarted, &$cleanupFinished): void {
+                $cleanupStarted = true;
+                $cleanupGate->pop(5);
+                $cleanupFinished = true;
+            });
+            $firstGate->pop(5);
+        }])->makePartial();
+        $first->shouldReceive('timeout')->andReturn(5);
+        $second = m::mock(WorkerFakeJob::class, [static fn (): mixed => $secondGate->pop(5)])->makePartial();
+        $second->shouldReceive('timeout')->andReturn(5);
+        $worker = new KillTestWorker(...$this->workerDependencies('default', ['queue' => [$first, $second]], timer: $timer));
+        $worker->currentTime = 100;
+        $options = new WorkerOptions;
+        $worker->startMonitorForTest($options);
+        $this->events->shouldReceive('dispatch')->with(m::type(JobTimedOut::class))->once()->andReturnUsing(
+            static function () use ($firstGate, $secondGate): void {
+                $firstGate->push(true);
+                $secondGate->push(true);
+            }
+        );
+        $coroutines = [];
+
+        try {
+            $coroutines[] = Coroutine::create(static fn (): null => $worker->runNextJob('default', 'queue', $options));
+            $coroutines[] = Coroutine::create(static fn (): null => $worker->runNextJob('default', 'queue', $options));
+            $worker->currentTime = 105;
+            $timer->fire(1);
+
+            $this->assertTrue($cleanupStarted);
+            $this->assertFalse($cleanupFinished);
+            $this->assertTrue(EngineCoroutine::exists($coroutines[0]));
+            $this->assertSame([], $worker->runningJobsForTest());
+            $this->assertFalse($worker->hasTimeoutJobsForTest());
+            $this->assertFalse($first->released);
+            $this->assertFalse($second->failed);
+            $cleanupGate->push(true);
+            Coroutine::join($coroutines, 5);
+            $this->assertTrue($cleanupFinished);
+            $this->events->shouldHaveReceived('dispatch')->with(m::on(
+                static fn (object $event): bool => $event instanceof JobProcessed && $event->job === $second
+            ))->once();
+            $this->exceptionHandler->shouldNotHaveReceived('report');
+        } finally {
+            $firstGate->close();
+            $secondGate->close();
+            $cleanupGate->close();
+            Coroutine::join($coroutines, 5);
+        }
     }
 
     public function testTimeoutMonitorRunsInAnOwnedCoroutineWithWorkerContextAndStoppingDetails(): void

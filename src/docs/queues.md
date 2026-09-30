@@ -2995,6 +2995,16 @@ Hypervel monitors running jobs using a coroutine timer. The `--monitor-interval`
 php artisan queue:work --monitor-interval=1
 ```
 
+By default, a timeout stops the worker process, including its other running jobs. To cancel only the timed-out job, set the following property during application boot:
+
+```php
+use Hypervel\Queue\Worker;
+
+Worker::$killOnTimeout = false;
+```
+
+In this mode, the job receives a `Swoole\Coroutine\CanceledException`, allowing its `finally` blocks to release resources. The worker then handles the timeout using the job's normal retry, backoff, and failure settings, reporting a `Hypervel\Queue\TimeoutExceededException`. Other jobs continue running. Do not swallow cancellation: a job that continues running keeps its concurrency slot. Cancellation requires the job to yield; CPU-bound code cannot be interrupted by the coroutine timer.
+
 > [!WARNING]
 > The `--timeout` value should always be at least several seconds shorter than your `retry_after` configuration value. This will ensure that a worker processing a frozen job is always terminated before the job is retried. If your `--timeout` option is longer than your `retry_after` configuration value, your jobs may be processed twice.
 

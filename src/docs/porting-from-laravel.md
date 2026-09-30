@@ -675,6 +675,8 @@ Queue connections include `database`, `redis`, `sqs`, `beanstalkd`, `failover`, 
 
 Hypervel stores job batches in a relational database. Laravel's DynamoDB batch repository and DynamoDB failed-job provider are not available. Supported failed-job drivers are `database`, `database-uuids`, `file`, and `null`. See the [queue documentation](/docs/{{version}}/queues) for connection and worker configuration.
 
+With `Worker::$killOnTimeout = false`, a timeout interrupts job code with `Swoole\Coroutine\CanceledException`; catching `TimeoutExceededException` inside the job does not catch it. Use `finally` for cleanup and rethrow cancellation if caught. Failure callbacks and worker reporting still receive `TimeoutExceededException`. See [worker timeouts](/docs/{{version}}/queues#worker-timeouts).
+
 When a Laravel package offers optional support for an unsupported driver, remove that integration from the Hypervel port unless the package can safely provide it through a separate optional dependency.
 
 <a name="testing-ports"></a>
