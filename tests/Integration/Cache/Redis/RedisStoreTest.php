@@ -226,15 +226,17 @@ class RedisStoreTest extends TestCase
 
         Cache::store('redis')->tags(['people'])->put('person-1', 'Sally', 1);
         $tagged = Cache::store('redis')->tags(['people']);
-        $this->assertTrue($tagged->touch('person-1', 5));
+        $before = time();
+        $this->assertTrue($tagged->touch('person-1', 30));
+        $after = time();
 
         $store = Cache::store('redis')->getStore();
         $score = (int) $store->connection()->zScore(
             $store->getPrefix() . $tagged->getTags()->tagIds()[0],
             $tagged->taggedItemKey('person-1'),
         );
-        $this->assertGreaterThan(time() + 3, $score);
-        $this->assertLessThanOrEqual(time() + 6, $score);
+        $this->assertGreaterThanOrEqual($before + 30, $score);
+        $this->assertLessThanOrEqual($after + 31, $score);
 
         sleep(2);
 
