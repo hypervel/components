@@ -150,10 +150,10 @@ class DatabaseEloquentInverseRelationTest extends TestCase
         }
     }
 
-    public function testProvidesPossibleInverseRelationBasedOnParent()
+    public function testProvidesPossibleInverseRelationBasedOnParent(): void
     {
         $builder = m::mock(Builder::class);
-        $builder->shouldReceive('getModel')->andReturn(new InverseRelationChildModel);
+        $builder->shouldReceive('getModel')->andReturn(new HasInverseRelationRelatedStub);
 
         $relation = (new HasInverseRelationStub($builder, new HasInverseRelationParentStub));
 
@@ -388,12 +388,4 @@ class HasInverseRelationStub extends Relation
     {
         return $this->applyInverseRelationToCollection($models, $parent);
     }
-}
-
-/**
- * Local stub for InverseRelationChildModel (originally from DatabaseEloquentInverseRelationHasOneTest).
- */
-class InverseRelationChildModel extends Model
-{
-    protected ?string $table = 'test_child';
 }

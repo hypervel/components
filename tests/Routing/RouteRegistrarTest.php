@@ -10,8 +10,6 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Http\Request;
 use Hypervel\Routing\CallableDispatcher;
 use Hypervel\Routing\Contracts\CallableDispatcher as CallableDispatcherContract;
-use Hypervel\Routing\Contracts\ControllerDispatcher as ControllerDispatcherContract;
-use Hypervel\Routing\ControllerDispatcher;
 use Hypervel\Routing\Route;
 use Hypervel\Routing\Router;
 use Hypervel\Routing\RouteRegistrar;
@@ -32,9 +30,8 @@ class RouteRegistrarTest extends RoutingTestCase
     {
         parent::setUp();
 
-        $container = Container::getInstance();
-        $container->singleton(CallableDispatcherContract::class, fn ($app) => new CallableDispatcher($app));
-        $container->singleton(ControllerDispatcherContract::class, fn ($app) => new ControllerDispatcher($app));
+        $container = new Container;
+        $container->bind(CallableDispatcherContract::class, fn (Container $app): CallableDispatcher => new CallableDispatcher($app));
 
         $this->router = new Router(m::mock(Dispatcher::class), $container);
     }

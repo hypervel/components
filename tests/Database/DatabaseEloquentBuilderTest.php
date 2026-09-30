@@ -1835,7 +1835,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         // alias has a dynamic hash, so replace with a static string for comparison
         $alias = 'self_alias_hash';
-        $aliasRegex = '/\b(hypervel_reserved_\d)(\b|$)/i';
+        $aliasRegex = '/\b(hypervel_reserved_\d+)(\b|$)/i';
 
         $sql = preg_replace($aliasRegex, $alias, $sql);
 
@@ -2043,7 +2043,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         // alias has a dynamic hash, so replace with a static string for comparison
         $alias = 'self_alias_hash';
-        $aliasRegex = '/\b(hypervel_reserved_\d)(\b|$)/i';
+        $aliasRegex = '/\b(hypervel_reserved_\d+)(\b|$)/i';
 
         $sql = preg_replace($aliasRegex, $alias, $sql);
 
@@ -2361,7 +2361,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         // alias has a dynamic hash, so replace with a static string for comparison
         $alias = 'self_alias_hash';
-        $aliasRegex = '/\b(hypervel_reserved_\d)(\b|$)/i';
+        $aliasRegex = '/\b(hypervel_reserved_\d+)(\b|$)/i';
 
         $nestedSql = preg_replace($aliasRegex, $alias, $nestedSql);
         $dotSql = preg_replace($aliasRegex, $alias, $dotSql);
@@ -2377,7 +2377,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
         // alias has a dynamic hash, so replace with a static string for comparison
         $alias = 'self_alias_hash';
-        $aliasRegex = '/\b(hypervel_reserved_\d)(\b|$)/i';
+        $aliasRegex = '/\b(hypervel_reserved_\d+)(\b|$)/i';
 
         $sql = preg_replace($aliasRegex, $alias, $sql);
 

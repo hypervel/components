@@ -2635,13 +2635,15 @@ class DatabaseEloquentModelTest extends TestCase
 
     public function testWithoutEventDispatcher(): void
     {
+        // Boot the model before the dispatcher is set so booting events aren't dispatched.
+        new SaveStub;
+
         $events = m::mock(Dispatcher::class);
-        $events->expects('dispatch')->with('eloquent.booting: ' . SaveStub::class, m::type(SaveStub::class));
-        $events->expects('dispatch')->with('eloquent.booted: ' . SaveStub::class, m::type(SaveStub::class));
         $events->expects('listen')->with('eloquent.creating: Hypervel\Tests\Database\DatabaseEloquentModelTest\SaveStub', TestObserverStub::class . '@creating');
         $events->expects('listen')->with('eloquent.saved: Hypervel\Tests\Database\DatabaseEloquentModelTest\SaveStub', TestObserverStub::class . '@saved');
         SaveStub::setEventDispatcher($events);
         $events->shouldNotReceive('until');
+        $events->shouldNotReceive('dispatch');
         $events->shouldReceive('forget');
         SaveStub::observe(TestObserverStub::class);
 

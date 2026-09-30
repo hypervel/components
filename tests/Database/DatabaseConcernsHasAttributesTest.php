@@ -47,6 +47,8 @@ class DatabaseConcernsHasAttributesTest extends TestCase
 
     public function testCastingEmptyStringToArrayDoesNotError(): void
     {
+        json_decode('[]');
+
         $instance = new HasAttributesWithArrayCast;
         $this->assertEquals(['foo' => null], $instance->attributesToArray());
 

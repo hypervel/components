@@ -5,20 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\DatabaseEloquentRelationTest;
 
 use Exception;
-use Hypervel\Database\Connection;
-use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Casts\Attribute;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\HasOne;
 use Hypervel\Database\Eloquent\Relations\Relation;
-use Hypervel\Database\Query\Builder as QueryBuilder;
-use Hypervel\Database\Query\Grammars\Grammar;
-use Hypervel\Database\Query\Processors\Processor;
+use Hypervel\Database\SQLiteConnection;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PDO;
 
 class DatabaseEloquentRelationTest extends TestCase
 {
@@ -314,23 +311,15 @@ class DatabaseEloquentRelationTest extends TestCase
         $this->assertTrue($model->relationLoaded('bam'));
     }
 
-    public function testMacroable()
+    public function testMacroable(): void
     {
         Relation::macro('foo', function () {
             return 'foo';
         });
 
         $model = new ResetModelStub;
-        $model->setConnectionResolver($resolver = m::mock(ConnectionResolverInterface::class));
-        $resolver->shouldReceive('connection')->andReturn($connection = m::mock(Connection::class));
-        $connection->shouldReceive('getQueryGrammar')->andReturn($grammar = m::mock(Grammar::class));
-        $grammar->shouldReceive('getBitwiseOperators')->andReturn([]);
-        $connection->shouldReceive('getPostProcessor')->andReturn($processor = m::mock(Processor::class));
-        $connection->shouldReceive('query')->andReturnUsing(function () use ($connection, $grammar, $processor) {
-            return new QueryBuilder($connection, $grammar, $processor);
-        });
-
-        $relation = new RelationStub($model->newQuery(), $model);
+        $builder = (new Builder((new SQLiteConnection(new PDO('sqlite::memory:')))->query()))->setModel($model);
+        $relation = new RelationStub($builder, $model);
 
         $result = $relation->foo();
         $this->assertSame('foo', $result);
