@@ -121,6 +121,8 @@ assertType('array<string>', Str::numbers(['(555) 123-4567']));
 
 assertType('numeric-string', Str::password(letters: false, symbols: false, spaces: false));
 assertType('string', Str::password());
+assertType("''", Str::password(0, letters: false, symbols: false, spaces: false));
+assertType("''", Str::password(-2));
 
 assertType('int', Str::position('Taylor Otwell', ''));
 assertType('int', Str::position('', ''));

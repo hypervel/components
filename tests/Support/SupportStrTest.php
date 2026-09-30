@@ -14,6 +14,7 @@ use Hypervel\Support\Json;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Support\Fixtures\StringableObjectStub;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
@@ -1586,6 +1587,10 @@ class SupportStrTest extends TestCase
 
         $this->assertSame('foo1Bar', Str::camel('foo1_bar'));
         $this->assertSame('1FooBar', Str::camel('1 foo bar'));
+
+        $this->assertSame('überUns', Str::camel('Über uns'));
+        $this->assertSame('émileZola', Str::camel('émile_zola'));
+        $this->assertSame('élanVital', Str::camel('Élan-vital'));
     }
 
     public function testCharAt(): void
@@ -2291,6 +2296,26 @@ class SupportStrTest extends TestCase
         $this->assertTrue(
             Str::of(Str::password())->contains(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'])
         );
+    }
+
+    public function testPasswordReturnsExactLengthWhenBelowPoolCount(): void
+    {
+        $this->assertSame(1, strlen(Str::password(1)));
+        $this->assertSame(2, strlen(Str::password(2)));
+        $this->assertSame(3, strlen(Str::password(3)));
+    }
+
+    public function testPasswordWithZeroOrNegativeLengthReturnsEmptyString(): void
+    {
+        $this->assertSame('', Str::password(0));
+        $this->assertSame('', Str::password(-2));
+    }
+
+    public function testPasswordThrowsWhenNoPoolsEnabled(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        Str::password(32, false, false, false, false);
     }
 
     public function testToBase64(): void
