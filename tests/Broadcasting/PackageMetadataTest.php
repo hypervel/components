@@ -47,7 +47,7 @@ class PackageMetadataTest extends TestCase
         $this->assertArrayNotHasKey('hypervel/auth', $composer['require']);
         $this->assertArrayNotHasKey('hypervel/cache', $composer['require']);
 
-        foreach (['hypervel/redis', 'ably/ably-php', 'pusher/pusher-php-server'] as $dependency) {
+        foreach (['hypervel/redis', 'ably/ably-php', 'pusher/pusher-php-server', 'symfony/http-client', 'symfony/mercure', 'web-token/jwt-library'] as $dependency) {
             $this->assertArrayHasKey($dependency, $composer['suggest']);
             $this->assertIsString($composer['suggest'][$dependency]);
             $this->assertNotSame('', trim($composer['suggest'][$dependency]));

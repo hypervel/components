@@ -9,7 +9,9 @@ Documentation: https://hypervel.org/docs/broadcasting
 
 The outgoing channel formatter and incoming channel authorizer are also worker-wide and should be configured during worker boot.
 
-Built-in broadcast drivers use their SDK clients directly. Custom drivers may opt into Hypervel's connection pooling through the broadcast manager.
+Custom drivers may opt into Hypervel's connection pooling through the broadcast manager.
+
+Mercure uses a standalone HTTP hub. FrankenPHP's in-process `mercure_publish()` integration is not available under Swoole.
 
 The broadcast service provider does not implement Laravel's `DeferrableProvider` marker because Hypervel has no deferred service provider mechanism.
 

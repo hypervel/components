@@ -44,7 +44,10 @@
     "suggest": {
         "ably/ably-php": "Required to use the Ably broadcast driver (^1.1.10).",
         "hypervel/redis": "Required to use the Redis broadcast driver (^0.4).",
-        "pusher/pusher-php-server": "Required to use the Pusher broadcast driver (^7.2)."
+        "pusher/pusher-php-server": "Required to use the Pusher broadcast driver (^7.2).",
+        "symfony/http-client": "Required to use the Mercure broadcast driver (^8.1).",
+        "symfony/mercure": "Required to use the Mercure broadcast driver (^0.8).",
+        "web-token/jwt-library": "Required to use the Mercure broadcast driver (^4.1)."
     },
     "autoload": {
         "psr-4": {

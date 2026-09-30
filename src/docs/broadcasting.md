@@ -6,10 +6,12 @@
     - [Reverb](#reverb)
     - [Pusher Channels](#pusher-channels)
     - [Ably](#ably)
+    - [Mercure](#mercure)
 - [Client Side Installation](#client-side-installation)
     - [Reverb](#client-reverb)
     - [Pusher Channels](#client-pusher-channels)
     - [Ably](#client-ably)
+    - [Mercure](#client-mercure)
 - [Concept Overview](#concept-overview)
     - [Using an Example Application](#using-example-application)
 - [Defining Broadcast Events](#defining-broadcast-events)
@@ -54,14 +56,14 @@ In many modern web applications, WebSockets are used to implement realtime, live
 
 For example, imagine your application is able to export a user's data to a CSV file and email it to them. However, creating this CSV file takes several minutes so you choose to create and mail the CSV within a [queued job](/docs/{{version}}/queues). When the CSV has been created and mailed to the user, we can use event broadcasting to dispatch an `App\Events\UserDataExported` event that is received by our application's JavaScript. Once the event is received, we can display a message to the user that their CSV has been emailed to them without them ever needing to refresh the page.
 
-To assist you in building these types of features, Hypervel makes it easy to "broadcast" your server-side Hypervel [events](/docs/{{version}}/events) over a WebSocket connection. Broadcasting your Hypervel events allows you to share the same event names and data between your server-side Hypervel application and your client-side JavaScript application.
+To assist you in building these types of features, Hypervel makes it easy to "broadcast" your server-side Hypervel [events](/docs/{{version}}/events) over WebSockets or server-sent events. Broadcasting your Hypervel events allows you to share the same event names and data between your server-side Hypervel application and your client-side JavaScript application.
 
 The core concepts behind broadcasting are simple: clients connect to named channels on the frontend, while your Hypervel application broadcasts events to these channels on the backend. These events can contain any additional data you wish to make available to the frontend.
 
 <a name="supported-drivers"></a>
 #### Supported Drivers
 
-By default, Hypervel includes three server-side broadcasting drivers for you to choose from: [Hypervel Reverb](/docs/{{version}}/reverb), [Pusher Channels](https://pusher.com/channels), and [Ably](https://ably.com).
+By default, Hypervel includes four server-side broadcasting drivers for you to choose from: [Hypervel Reverb](/docs/{{version}}/reverb), [Pusher Channels](https://pusher.com/channels), [Ably](https://ably.com), and [Mercure](https://mercure.rocks).
 
 > [!NOTE]
 > Before diving into event broadcasting, make sure you have read Hypervel's documentation on [events and listeners](/docs/{{version}}/events).
@@ -203,10 +205,47 @@ BROADCAST_CONNECTION=ably
 
 Finally, you are ready to install and configure [Laravel Echo](#client-side-installation), which will receive the broadcast events on the client-side.
 
+<a name="mercure"></a>
+### Mercure
+
+[Mercure](https://mercure.rocks) is a real-time protocol that uses server-sent events. Hypervel publishes to a standalone Mercure hub over HTTP. Install the server-side dependencies using Composer:
+
+```shell
+composer require symfony/mercure symfony/http-client web-token/jwt-library
+```
+
+To broadcast events through a Mercure hub, configure the `mercure` connection in your application's `.env` file:
+
+```ini
+BROADCAST_CONNECTION=mercure
+
+MERCURE_URL=https://mercure.example.com/.well-known/mercure
+MERCURE_PUBLIC_URL=https://mercure.example.com/.well-known/mercure
+MERCURE_JWT_SECRET=<your-mercure-jwt-secret>
+```
+
+The `MERCURE_URL` value is the URL Hypervel uses to publish updates, while `MERCURE_PUBLIC_URL` is the URL that browser clients use to subscribe. Your Mercure hub must be configured with the same JWT secret and trust your application's issuer (`MERCURE_JWT_ISSUER`, or `APP_URL` when omitted). The default HS256 signing algorithm requires a secret of at least 32 bytes.
+
+Relative hub URLs resolve against the current request's origin, or `APP_URL` outside an HTTP request. Because the request's `Host` header then determines where Hypervel sends its publisher credentials, configure [trusted hosts](/docs/{{version}}/requests#configuring-trusted-hosts) when using request-relative URLs. The default JWT audience follows the resolved public hub URL; an explicit `claims.aud` value in the connection configuration remains unchanged.
+
+For private channels and presence channels, serve the hub under the application's domain or a subdomain so the authorization cookie can reach it. Enable the hub's `subscriptions` directive for presence events and allow your application's origin with `publish_origins` for client events. Configure the hub's CORS settings when browsers connect across origins. For plain-HTTP development, set `MERCURE_COOKIE_NAME=mercureAuthorization` and configure the hub to use the same cookie name; the default cookie requires HTTPS.
+
+To use end-to-end encrypted private channels, configure a base64-encoded 32-byte `MERCURE_ENCRYPTION_KEY` environment variable. You may generate a key with:
+
+```shell
+php -r "echo base64_encode(random_bytes(32));"
+```
+
+```ini
+MERCURE_ENCRYPTION_KEY=<your-base64-encoded-encryption-key>
+```
+
+Mercure publishing uses pooled HTTP clients so concurrent coroutines do not share an active connection. Network waits yield to other coroutines. You may set Symfony HTTP client options through the connection's `client_options` array and bound concurrent publishing through its [pool configuration](/docs/{{version}}/pools#object-pool-options). Configure the connection during worker boot, not per request.
+
 <a name="client-side-installation"></a>
 ## Client Side Installation
 
-[Laravel Echo](https://github.com/laravel/echo) is the client-side library used by Hypervel broadcasting. Echo is backend-agnostic and speaks the Pusher protocol, so the `laravel-echo`, `@laravel/echo-react`, `@laravel/echo-vue`, and `@laravel/echo-svelte` packages work with Hypervel as-is.
+[Laravel Echo](https://github.com/laravel/echo) is the client-side library used by Hypervel broadcasting. Echo is backend-agnostic and supports the Pusher and Mercure protocols, so the `laravel-echo`, `@laravel/echo-react`, `@laravel/echo-vue`, and `@laravel/echo-svelte` packages work with Hypervel as-is.
 
 <a name="client-reverb"></a>
 ### Reverb
@@ -502,10 +541,60 @@ npm run dev
 > [!NOTE]
 > To learn more about compiling your application's JavaScript assets, please consult the documentation on [Vite](/docs/{{version}}/vite).
 
+<a name="client-mercure"></a>
+### Mercure
+
+To use Mercure with Laravel Echo, install the `laravel-echo` package:
+
+```shell
+npm install --save-dev laravel-echo
+```
+
+Next, create an Echo instance with the `mercure` broadcaster. The `host` option defaults to `/.well-known/mercure` on the current origin:
+
+```js tab=JavaScript
+import Echo from 'laravel-echo';
+
+window.Echo = new Echo({
+    broadcaster: 'mercure',
+    host: import.meta.env.VITE_MERCURE_HUB_URL,
+});
+```
+
+```js tab=React
+import { configureEcho } from "@laravel/echo-react";
+
+configureEcho({
+    broadcaster: "mercure",
+});
+```
+
+```js tab=Vue
+import { configureEcho } from "@laravel/echo-vue";
+
+configureEcho({
+    broadcaster: "mercure",
+});
+```
+
+```js tab=Svelte
+import { configureEcho } from "@laravel/echo-svelte";
+
+configureEcho({
+    broadcaster: "mercure",
+});
+```
+
+Define the hub URL in your `.env` file:
+
+```ini
+VITE_MERCURE_HUB_URL="${MERCURE_PUBLIC_URL}"
+```
+
 <a name="concept-overview"></a>
 ## Concept Overview
 
-Hypervel's event broadcasting allows you to broadcast your server-side Hypervel events to your client-side JavaScript application using a driver-based approach to WebSockets. Currently, Hypervel ships with [Hypervel Reverb](/docs/{{version}}/reverb), [Pusher Channels](https://pusher.com/channels), and [Ably](https://ably.com) drivers. The events may be easily consumed on the client-side using the [Laravel Echo](#client-side-installation) JavaScript package.
+Hypervel's event broadcasting allows you to broadcast your server-side Hypervel events to your client-side JavaScript application using a driver-based approach. Currently, Hypervel ships with [Hypervel Reverb](/docs/{{version}}/reverb), [Pusher Channels](https://pusher.com/channels), [Ably](https://ably.com), and [Mercure](https://mercure.rocks) drivers. The events may be easily consumed on the client-side using the [Laravel Echo](#client-side-installation) JavaScript package.
 
 Events are broadcast over "channels", which may be specified as public or private. Any visitor to your application may subscribe to a public channel without any authentication or authorization; however, in order to subscribe to a private channel, a user must be authenticated and authorized to listen on that channel.
 
