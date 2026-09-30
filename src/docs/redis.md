@@ -92,6 +92,8 @@ REDIS_URL="tcp://127.0.0.1:6379?database=0"
 REDIS_CACHE_URL="tls://user:password@127.0.0.1:6380?database=0"
 ```
 
+URLs may also use the `redis` or `valkey` scheme for TCP connections and the `rediss` or `valkeys` scheme for TLS connections.
+
 <a name="configuring-the-connection-scheme"></a>
 #### Configuring the Connection Scheme
 
