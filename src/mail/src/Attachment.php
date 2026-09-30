@@ -25,7 +25,7 @@ class Attachment
     public ?string $as = null;
 
     /**
-     * The attached file's mime type.
+     * The attached file's MIME type.
      */
     public ?string $mime = null;
 
@@ -140,7 +140,7 @@ class Attachment
     }
 
     /**
-     * Set the attached file's mime type.
+     * Set the attached file's MIME type.
      */
     public function withMime(string $mime): static
     {
