@@ -57,7 +57,6 @@ jobs:
 
       - name: Execute integration tests
         env:
-          RUN_MEILISEARCH_INTEGRATION_TESTS: true
           MEILISEARCH_HOST: meilisearch
           MEILISEARCH_PORT: 7700
           MEILISEARCH_KEY: secret
@@ -105,7 +104,6 @@ jobs:
 
       - name: Execute integration tests
         env:
-          RUN_TYPESENSE_INTEGRATION_TESTS: true
           TYPESENSE_HOST: typesense
           TYPESENSE_PORT: 8108
           TYPESENSE_API_KEY: secret
@@ -157,7 +155,6 @@ jobs:
       - name: Execute integration tests
         if: steps.creds.outputs.present == 'true'
         env:
-          RUN_ALGOLIA_INTEGRATION_TESTS: true
           ALGOLIA_APP_ID: ${{ secrets.ALGOLIA_APP_ID }}
           ALGOLIA_SECRET: ${{ secrets.ALGOLIA_SECRET }}
         run: vendor/bin/paratest tests/Integration/Scout/Algolia
