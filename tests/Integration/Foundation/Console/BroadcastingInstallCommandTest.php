@@ -975,20 +975,21 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         Process::assertNothingRan();
     }
 
-    public function testDriverPackagesSkipInstalledPackagesAndKeepVersionConstraints(): void
+    public function testDriverPackagesSkipOnlyInstalledUnconstrainedPackagesAndKeepVersionConstraints(): void
     {
         Process::fake();
         $this->createdFiles[] = $this->app->basePath('routes/channels.php');
         $this->createdFiles[] = $this->app->resourcePath('js/echo.js');
         $command = new class extends TestableBroadcastingInstallCommand {
             /**
-             * Packages covering installed, unconstrained, and constrained dependencies.
+             * Packages covering installed and missing dependencies, with and without constraints.
              *
              * @var array<string, array<string, string>>
              */
             protected array $driverPackages = [
                 'mercure' => [
                     'symfony/mercure' => '^0.8',
+                    'symfony/http-client' => '*',
                     'hypervel-test/missing' => '*',
                     'hypervel-test/constrained' => '^1.0',
                 ],
@@ -1002,7 +1003,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertSame(0, $tester->getStatusCode());
         $this->assertSame([[
             'composer' => 'global',
-            'packages' => ['hypervel-test/missing', 'hypervel-test/constrained:^1.0'],
+            'packages' => ['symfony/mercure:^0.8', 'hypervel-test/missing', 'hypervel-test/constrained:^1.0'],
             'pretend' => true,
         ]], TestableBroadcastingInstallCommand::$composerRequireCalls);
     }

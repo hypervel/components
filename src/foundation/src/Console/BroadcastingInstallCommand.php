@@ -243,8 +243,9 @@ class BroadcastingInstallCommand extends Command
     {
         $packages = array_filter(
             $this->driverPackages[$this->driver] ?? [],
-            fn (string $package): bool => ! InstalledVersions::isInstalled($package),
-            ARRAY_FILTER_USE_KEY,
+            // Composer enforces explicit constraints, since an installed version may be incompatible.
+            fn (string $constraint, string $package): bool => $constraint !== '*' || ! InstalledVersions::isInstalled($package),
+            ARRAY_FILTER_USE_BOTH,
         );
 
         if ($packages === []) {
