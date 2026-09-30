@@ -136,9 +136,11 @@
         "symfony/filesystem": "^8.1",
         "symfony/http-client": "^8.1",
         "symfony/mailgun-mailer": "^8.1",
+        "symfony/mercure": "^0.8",
         "symfony/postmark-mailer": "^8.1",
         "symfony/yaml": "^8.1",
-        "typesense/typesense-php": "^5.2"
+        "typesense/typesense-php": "^5.2",
+        "web-token/jwt-library": "^4.1"
     },
     "replace": {
         "hypervel/api-client": "self.version",

@@ -483,6 +483,15 @@ class FoundationConfigTest extends TestCase
         $this->assertSame('/socket', $config['connections']['reverb']['options']['path']);
     }
 
+    public function testMercureBroadcastingConfigPreservesFractionalMinutes(): void
+    {
+        $config = $this->withEnvironmentValue('MERCURE_SUBSCRIBE_EXPIRATION', '0.5', function (): array {
+            return require dirname(__DIR__, 2) . '/src/foundation/config/broadcasting.php';
+        });
+
+        $this->assertSame(0.5, $config['connections']['mercure']['subscribe_expiration']);
+    }
+
     public function testBroadcastingConfigDisablesJsonpAndDoesNotShipSdkPools(): void
     {
         $config = require dirname(__DIR__, 2) . '/src/foundation/config/broadcasting.php';

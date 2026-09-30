@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Throwable;
 use Typesense\Client as TypesenseClient;
 
 /**
@@ -60,11 +59,9 @@ trait InteractsWithTypesense
 
         try {
             $this->cleanupTypesenseCollections();
-        } catch (Throwable) {
-            // Ignore cleanup errors
+        } finally {
+            $this->typesense = null;
         }
-
-        $this->typesense = null;
     }
 
     /**
@@ -115,16 +112,12 @@ trait InteractsWithTypesense
             return;
         }
 
-        try {
-            $collections = $this->typesense->collections->retrieve();
+        $collections = $this->typesense->collections->retrieve();
 
-            foreach ($collections as $collection) {
-                if (str_starts_with($collection['name'], $this->typesenseTestPrefix)) {
-                    $this->typesense->collections[$collection['name']]->delete();
-                }
+        foreach ($collections as $collection) {
+            if (str_starts_with($collection['name'], $this->typesenseTestPrefix)) {
+                $this->typesense->collections[$collection['name']]->delete();
             }
-        } catch (Throwable) {
-            // Ignore errors during cleanup
         }
     }
 }

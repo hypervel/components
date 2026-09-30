@@ -25,7 +25,7 @@
 
 Hypervel provides object pools for general-purpose reusable objects and connection pools for packages that manage database, network, or other protocol connections. Both pool types limit how many resources may exist and ensure that one borrowed resource is not shared by concurrent operations.
 
-Most applications interact with pools through features such as the database, Redis, filesystem, mail, and queue services, or through broadcasting drivers explicitly marked as poolable. However, you may also use the pool components directly when building an application service or package.
+Most applications interact with pools through features such as the database, Redis, filesystem, mail, and queue services, Mercure publishing, or custom broadcasting drivers explicitly marked as poolable. However, you may also use the pool components directly when building an application service or package.
 
 <a name="choosing-a-pool"></a>
 ### Choosing a Pool
@@ -246,7 +246,7 @@ These examples show how framework consumers use the shared pooling APIs and how 
 
 Hypervel does not provide a generic magic proxy for object pools. A proxy cannot know whether a result is complete or is a lazy stream, iterator, promise, or another object that still needs the borrowed resource. Consumer proxies should list their synchronous methods and use the protected `PoolProxy::invoke()` method. Deferred methods should keep a `Lease` until their work is finished.
 
-Framework managers for filesystems, mail, and queues build definitions from the actual construction input, expose normalized `pool` configuration, and distinguish cache-only forgetting from pool-invalidating purge operations. Broadcasting does the same only for drivers explicitly marked as poolable. Prefer those manager APIs when using a framework resource instead of creating definitions directly.
+Framework managers for filesystems, mail, and queues build definitions from the actual construction input, expose normalized `pool` configuration, and distinguish cache-only forgetting from pool-invalidating purge operations. Broadcasting does the same for custom drivers explicitly marked as poolable; Mercure also pools its HTTP clients internally. Prefer those manager APIs when using a framework resource instead of creating definitions directly.
 
 For example, a custom broadcasting driver can opt into pooling during service provider boot, before it is resolved:
 

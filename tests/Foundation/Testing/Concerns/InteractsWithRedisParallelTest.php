@@ -9,10 +9,12 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Foundation\Testing\RedisTestConfiguration;
 use Hypervel\Foundation\Testing\RedisTestDatabases;
+use Hypervel\Redis\Pool\PoolManager;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Support\Env;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
+use Mockery as m;
 use RuntimeException;
 
 class InteractsWithRedisParallelTest extends TestCase
@@ -470,6 +472,22 @@ class InteractsWithRedisParallelTest extends TestCase
         }
     }
 
+    public function testTeardownClosesPoolsAndPropagatesAFlushFailure(): void
+    {
+        $pools = m::mock(PoolManager::class);
+        $pools->expects('purgeAll');
+        $this->app->instance(PoolManager::class, $pools);
+        $harness = $this->harness();
+        $harness->flushFailure = new RuntimeException('Redis flush failed.');
+
+        try {
+            $harness->runTearDown();
+            $this->fail('The flush failure was swallowed.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($harness->flushFailure, $exception);
+        }
+    }
+
     /**
      * Get an InteractsWithRedis harness.
      */
@@ -552,6 +570,8 @@ class InteractsWithRedisHarness
 
     public int $flushRedisCalls = 0;
 
+    public ?RuntimeException $flushFailure = null;
+
     public function __construct(
         protected ?ApplicationContract $app = null
     ) {
@@ -582,6 +602,14 @@ class InteractsWithRedisHarness
     }
 
     /**
+     * Run Redis teardown.
+     */
+    public function runTearDown(): void
+    {
+        $this->tearDownInteractsWithRedis();
+    }
+
+    /**
      * Determine if the harness uses Redis Cluster.
      */
     public function usesCluster(): bool
@@ -605,5 +633,9 @@ class InteractsWithRedisHarness
     protected function flushRedis(): void
     {
         ++$this->flushRedisCalls;
+
+        if ($this->flushFailure !== null) {
+            throw $this->flushFailure;
+        }
     }
 }

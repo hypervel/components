@@ -19,6 +19,7 @@ use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactoryContract;
  * @method static string getDefaultDriver()
  * @method static array getPoolableDrivers()
  * @method static \Closure|null getReleaseCallback(string $driver)
+ * @method static \Symfony\Component\Mercure\HubInterface mercure(array $config)
  * @method static \Hypervel\Broadcasting\AnonymousEvent on(\Hypervel\Broadcasting\Channel|array|string $channels)
  * @method static \Hypervel\Broadcasting\AnonymousEvent presence(string $channel)
  * @method static \Hypervel\Broadcasting\AnonymousEvent private(string $channel)
