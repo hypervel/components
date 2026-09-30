@@ -178,14 +178,14 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
 
         $results = [];
 
-        foreach ($this->items as $key => $values) {
+        foreach ($this->items as $values) {
             if ($values instanceof Enumerable) {
                 $values = $values->all();
             } elseif (! is_array($values)) {
                 continue;
             }
 
-            $results[$key] = $values;
+            $results[] = $values;
         }
 
         if (! $results) {
@@ -333,8 +333,9 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @template TMapValue
      *
      * @param null|(callable(TValue): TMapValue)|string $callback
+     * @return static<TKey, ($callback is null ? TValue : ($callback is string ? mixed : TMapValue))>
      */
-    public function duplicates(callable|string|null $callback = null, bool $strict = false): static
+    public function duplicates(callable|string|null $callback = null, bool $strict = false): Collection
     {
         $items = $this->map($this->valueRetriever($callback));
 
@@ -362,8 +363,9 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @template TMapValue
      *
      * @param null|(callable(TValue): TMapValue)|string $callback
+     * @return static<TKey, ($callback is null ? TValue : ($callback is string ? mixed : TMapValue))>
      */
-    public function duplicatesStrict(callable|string|null $callback = null): static
+    public function duplicatesStrict(callable|string|null $callback = null): Collection
     {
         return $this->duplicates($callback, true);
     }
@@ -490,8 +492,11 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      *
      * @template TGetOrPutValue
      *
+     * @param null|TKey $key
      * @param (Closure(): TGetOrPutValue)|TGetOrPutValue $value
      * @return TGetOrPutValue|TValue
+     *
+     * @phpstan-this-out ($key is null ? static<TKey|int, TValue|TGetOrPutValue> : static<TKey, TValue|TGetOrPutValue>)
      */
     public function getOrPut(mixed $key, mixed $value): mixed
     {
@@ -1002,8 +1007,10 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * Push an item onto the beginning of the collection.
      *
      * @param TValue $value
-     * @param TKey $key
+     * @param null|TKey $key
      * @return $this
+     *
+     * @phpstan-this-out ($key is null ? static<TKey|int, TValue> : $this)
      */
     public function prepend(mixed $value, mixed $key = null): static
     {
@@ -1017,6 +1024,8 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      *
      * @param TValue ...$values
      * @return $this
+     *
+     * @phpstan-this-out static<TKey|int, TValue>
      */
     public function push(mixed ...$values): static
     {
@@ -1032,6 +1041,8 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      *
      * @param TValue ...$values
      * @return $this
+     *
+     * @phpstan-this-out static<TKey|int, TValue>
      */
     public function unshift(mixed ...$values): static
     {
@@ -1077,9 +1088,13 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Put an item in the collection by key.
      *
-     * @param TKey $key
-     * @param TValue $value
+     * @template TPutValue
+     *
+     * @param null|TKey $key
+     * @param TPutValue $value
      * @return $this
+     *
+     * @phpstan-this-out ($key is null ? static<TKey|int, TValue|TPutValue> : static<TKey, TValue|TPutValue>)
      */
     public function put(mixed $key, mixed $value): static
     {
@@ -1319,6 +1334,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
             return $this->newInstance();
         }
 
+        /** @var static<int, static<TKey, TValue>> $groups */
         $groups = $this->newInstance();
 
         $groupSize = (int) floor($this->count() / $numberOfGroups);
@@ -1460,14 +1476,17 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      */
     public function chunkWhile(callable $callback): static
     {
+        /** @var static<int, static<TKey, TValue>> $chunks */
         $chunks = $this->newInstance();
 
+        /** @var static<TKey, TValue> $chunk */
         $chunk = $this->newInstance();
 
         foreach ($this->items as $key => $value) {
             if ($chunk->isNotEmpty() && ! $callback($value, $key, $chunk)) {
                 $chunks->push($chunk);
 
+                /** @var static<TKey, TValue> $chunk */
                 $chunk = $this->newInstance();
             }
 
@@ -1851,6 +1870,8 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      *
      * @param TValue $item
      * @return $this
+     *
+     * @phpstan-this-out static<TKey|int, TValue>
      */
     public function add(mixed $item): static
     {

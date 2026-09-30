@@ -151,36 +151,36 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
         $class = static::class;
 
         if (! isset(static::$attributeConfiguration[$class])) {
-            $reflection = new ReflectionClass($this);
-
             $config = [];
 
-            if ($reflection->getAttributes(StopOnFirstFailure::class) !== []) {
+            if ($this->nearestClassWithAttribute([StopOnFirstFailure::class], ['stopOnFirstFailure'])) {
                 $config['stopOnFirstFailure'] = true;
             }
 
-            $failOnUnknownFields = $reflection->getAttributes(FailOnUnknownFields::class);
-
-            if ($failOnUnknownFields !== []) {
-                $config['failOnUnknownFields'] = $failOnUnknownFields[0]->newInstance()->value;
+            if ($reflection = $this->nearestClassWithAttribute([FailOnUnknownFields::class])) {
+                $config['failOnUnknownFields'] = $reflection->getAttributes(FailOnUnknownFields::class)[0]->newInstance()->value;
             }
 
-            $errorBag = $reflection->getAttributes(ErrorBag::class);
-
-            if ($errorBag !== []) {
-                $config['errorBag'] = $errorBag[0]->newInstance()->name;
+            if ($reflection = $this->nearestClassWithAttribute([ErrorBag::class], ['errorBag'])) {
+                $config['errorBag'] = $reflection->getAttributes(ErrorBag::class)[0]->newInstance()->name;
             }
 
-            $redirectTo = $reflection->getAttributes(RedirectTo::class);
+            $reflection = $this->nearestClassWithAttribute(
+                [RedirectTo::class, RedirectToRoute::class],
+                ['redirect', 'redirectRoute', 'redirectAction']
+            );
 
-            if ($redirectTo !== []) {
-                $config['redirect'] = $redirectTo[0]->newInstance()->url;
-            }
+            if ($reflection) {
+                $redirectTo = $reflection->getAttributes(RedirectTo::class);
 
-            $redirectToRoute = $reflection->getAttributes(RedirectToRoute::class);
+                // A null URI stops an inherited $redirect from outranking a nearer route attribute.
+                $config['redirect'] = $redirectTo !== [] ? $redirectTo[0]->newInstance()->url : null;
 
-            if ($redirectToRoute !== []) {
-                $config['redirectRoute'] = $redirectToRoute[0]->newInstance()->route;
+                $redirectToRoute = $reflection->getAttributes(RedirectToRoute::class);
+
+                if ($redirectToRoute !== []) {
+                    $config['redirectRoute'] = $redirectToRoute[0]->newInstance()->route;
+                }
             }
 
             static::$attributeConfiguration[$class] = $config;
@@ -196,7 +196,7 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
             $this->errorBag = $config['errorBag'];
         }
 
-        if (isset($config['redirect'])) {
+        if (array_key_exists('redirect', $config)) {
             $this->redirect = $config['redirect'];
         }
 
@@ -368,6 +368,35 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
     public function attributes(): array
     {
         return [];
+    }
+
+    /**
+     * Get the nearest class in the request's hierarchy that applies any of the given attributes.
+     *
+     * @param array<int, class-string> $attributes
+     * @param array<int, string> $properties
+     * @return null|ReflectionClass<FormRequest>
+     */
+    protected function nearestClassWithAttribute(array $attributes, array $properties = []): ?ReflectionClass
+    {
+        $reflection = new ReflectionClass($this);
+
+        do {
+            foreach ($attributes as $attribute) {
+                if ($reflection->getAttributes($attribute) !== []) {
+                    return $reflection;
+                }
+            }
+
+            foreach ($properties as $property) {
+                if ($reflection->hasProperty($property)
+                    && $reflection->getProperty($property)->class === $reflection->name) {
+                    return null;
+                }
+            }
+        } while (($reflection = $reflection->getParentClass()) && $reflection->name !== self::class);
+
+        return null;
     }
 
     /**

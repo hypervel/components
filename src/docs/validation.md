@@ -587,6 +587,8 @@ class LoginRequest extends FormRequest
 }
 ```
 
+Form request attributes are inherited from parent request classes. A child attribute or an explicitly declared configuration property takes precedence over the corresponding parent attribute.
+
 <a name="authorizing-form-requests"></a>
 ### Authorizing Form Requests
 

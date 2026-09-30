@@ -4,11 +4,23 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
+use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\RetrievesMultipleKeys;
 use Hypervel\Tests\TestCase;
 
 class CacheRetrievesMultipleKeysTest extends TestCase
 {
+    public function testManyNormalizesEnumKeysOnTheStore(): void
+    {
+        $store = new ArrayStore;
+        $store->put('value', 'stored', 60);
+
+        $this->assertSame(['value' => 'stored', 'missing' => null], $store->many([
+            RetrievesMultipleKeysTestKey::Value,
+            'missing',
+        ]));
+    }
+
     public function testPutManyReturnsTrueForEmptyInput(): void
     {
         $store = new RetrievesMultipleKeysPutManyProbe;
@@ -39,6 +51,11 @@ class CacheRetrievesMultipleKeysTest extends TestCase
         ], 60));
         $this->assertSame(['first', 'second'], $store->calls);
     }
+}
+
+enum RetrievesMultipleKeysTestKey: string
+{
+    case Value = 'value';
 }
 
 class RetrievesMultipleKeysPutManyProbe

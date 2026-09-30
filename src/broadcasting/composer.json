@@ -47,7 +47,7 @@
         "pusher/pusher-php-server": "Required to use the Pusher broadcast driver (^7.2).",
         "symfony/http-client": "Required to use the Mercure broadcast driver (^8.1).",
         "symfony/mercure": "Required to use the Mercure broadcast driver (^0.8).",
-        "web-token/jwt-library": "Required to use the Mercure broadcast driver (^4.1)."
+        "web-token/jwt-library": "Required to use the Mercure broadcast driver (^4.2.3)."
     },
     "autoload": {
         "psr-4": {

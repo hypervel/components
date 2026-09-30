@@ -130,6 +130,33 @@ class FoundationDevCommandsTest extends TestCase
         $this->assertSame('one', $commands[0]['name']);
     }
 
+    public function testOrderSortsCommands(): void
+    {
+        DevCommands::register('echo one', 'one');
+        DevCommands::register('echo two', 'two');
+        DevCommands::register('echo three', 'three');
+
+        DevCommands::order(['three', 'one', 'two']);
+
+        $commands = DevCommands::commands();
+
+        $this->assertSame(['three', 'one', 'two'], array_column($commands, 'name'));
+    }
+
+    public function testOrderLeavesUnnamedCommandsInRegistrationOrder(): void
+    {
+        DevCommands::register('echo one', 'one');
+        DevCommands::register('echo two', 'two');
+        DevCommands::register('echo three', 'three');
+        DevCommands::register('echo four', 'four');
+
+        DevCommands::order(['four']);
+
+        $commands = DevCommands::commands();
+
+        $this->assertSame(['four', 'one', 'two', 'three'], array_column($commands, 'name'));
+    }
+
     public function testCommandsGetAutoAssignedColors(): void
     {
         DevCommands::register('echo one', 'one');
@@ -499,6 +526,7 @@ class FoundationDevCommandsTest extends TestCase
         DevCommands::commands();
         DevCommands::only('processes');
         DevCommands::except('server');
+        DevCommands::order(['processes']);
         DevCommands::inline();
         DevCommands::withTimestamps();
         DevCommands::disableAutoRestart();
@@ -516,6 +544,7 @@ class FoundationDevCommandsTest extends TestCase
         $this->assertSame([], $reflection->getProperty('commands')->getValue());
         $this->assertSame([], $reflection->getProperty('only')->getValue());
         $this->assertSame([], $reflection->getProperty('except')->getValue());
+        $this->assertSame([], $reflection->getProperty('order')->getValue());
         $this->assertSame(DevCommandMode::TABS, DevCommands::mode());
         $this->assertFalse(DevCommands::shouldIncludeTimestamps());
         $this->assertTrue(DevCommands::shouldAutoRestart());

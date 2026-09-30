@@ -35,7 +35,6 @@ use JsonException;
 use JsonSerializable;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\Attributes\IgnoreDeprecations;
 use ReflectionClass;
 use SortDirection;
 use stdClass;
@@ -2034,6 +2033,17 @@ class SupportCollectionTest extends TestCase
 
         $data = new $collection([new LazyCollection(['a' => '1a', 'b' => '1b']), ['b' => '2b', 'c' => '2c'], 'drop']);
         $this->assertSame(['a' => '1a', 'b' => '2b', 'c' => '2c'], $data->collapseWithKeys()->all());
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testCollapseWithKeysWithStringKeys(string $collection): void
+    {
+        $data = new $collection(['first' => ['a' => 1, 'b' => 2], 'second' => ['c' => 3]]);
+        $this->assertSame(['a' => 1, 'b' => 2, 'c' => 3], $data->collapseWithKeys()->all());
+
+        // Case with mixed integer and string keys
+        $data = new $collection([5 => ['a' => 1], 'second' => new $collection(['b' => 2, 'a' => 3])]);
+        $this->assertSame(['a' => 3, 'b' => 2], $data->collapseWithKeys()->all());
     }
 
     #[DataProvider('collectionClassProvider')]
@@ -4727,7 +4737,6 @@ class SupportCollectionTest extends TestCase
         $this->assertSame([], $c->forPage(3, 2)->all());
     }
 
-    #[IgnoreDeprecations]
     public function testPrepend(): void
     {
         $c = new Collection(['one', 'two', 'three', 'four']);
@@ -4744,13 +4753,13 @@ class SupportCollectionTest extends TestCase
 
         $c = new Collection(['one' => 1, 'two' => 2]);
         $this->assertEquals(
-            [null => 0, 'one' => 1, 'two' => 2],
+            ['' => 0, 'one' => 1, 'two' => 2],
             $c->prepend(0, null)->all()
         );
 
         $c = new Collection(['one' => 1, 'two' => 2]);
         $this->assertEquals(
-            [null => 0, 'one' => 1, 'two' => 2],
+            ['' => 0, 'one' => 1, 'two' => 2],
             $c->prepend(0, '')->all()
         );
     }

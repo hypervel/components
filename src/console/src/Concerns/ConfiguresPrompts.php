@@ -321,7 +321,7 @@ trait ConfiguresPrompts
     {
         $answer = $this->components->ask(
             $prompt->label,
-            $prompt->default === '' ? null : $prompt->default,
+            $prompt->default === '' ? null : (string) $prompt->default,
         ) ?? '';
 
         return NumberPrompt::parseInteger((string) $answer) ?? (string) $answer;

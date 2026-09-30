@@ -6,6 +6,7 @@
         - [Masking Bindings in Exception Messages](#masking-bindings-in-exception-messages)
         - [Lock Timeouts](#lock-timeouts)
         - [PostgreSQL Keepalives](#postgresql-keepalives)
+        - [PostgreSQL Server Options](#postgresql-server-options)
     - [Read and Write Connections](#read-and-write-connections)
     - [Connection Pooling](#connection-pooling)
     - [Configuring Database Session State](#configuring-database-session-state)
@@ -120,6 +121,20 @@ PostgreSQL's client library enables TCP keepalives by default. You may adjust th
 The idle and interval values are in seconds; the count limits unanswered probes. Set `keepalives` to `0` to disable keepalives. Omitting these options or setting them to `null` leaves the PostgreSQL client's defaults unchanged; `0` uses the system default for idle, interval, and count.
 
 These options apply to TCP connections, not Unix-domain sockets. See PostgreSQL's [connection parameter documentation](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-PARAMKEYWORDS) for platform support.
+
+<a name="postgresql-server-options"></a>
+#### PostgreSQL Server Options
+
+Use `server_options` to send PostgreSQL settings when a connection opens. This is useful for settings that a proxy or pooler must receive before the first query:
+
+```php
+'server_options' => [
+    'statement_timeout' => '5s',
+    'synchronous_commit' => 'off',
+],
+```
+
+These options may also be placed inside a connection's `read` or `write` configuration. Dedicated configuration keys, such as `search_path`, `timezone`, `isolation_level`, `lock_timeout`, `synchronous_commit`, `application_name`, and `charset`, take precedence over their corresponding server options. Use strings such as `'on'` and `'off'` for boolean PostgreSQL settings.
 
 <a name="configuration-using-urls"></a>
 #### Configuration Using URLs

@@ -82,6 +82,59 @@ class KernelTest extends TestCase
         ], $kernel->getMiddlewarePriority());
     }
 
+    public function testAddToMiddlewarePriorityAfterFirstMiddleware(): void
+    {
+        $kernel = $this->getKernel();
+
+        $kernel->addToMiddlewarePriorityAfter(
+            \Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
+            \Hypervel\Routing\Middleware\ValidateSignature::class,
+        );
+
+        $this->assertEquals([
+            \Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
+            \Hypervel\Routing\Middleware\ValidateSignature::class,
+            \Hypervel\Cookie\Middleware\EncryptCookies::class,
+            \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+            \Hypervel\Session\Middleware\StartSession::class,
+            \Hypervel\View\Middleware\ShareErrorsFromSession::class,
+            \Hypervel\Auth\Middleware\UseGuard::class,
+            \Hypervel\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            \Hypervel\Routing\Middleware\ThrottleRequests::class,
+            \Hypervel\Contracts\Session\Middleware\AuthenticatesSessions::class,
+            \Hypervel\Routing\Middleware\SubstituteBindings::class,
+            \Hypervel\Auth\Middleware\Authorize::class,
+        ], $kernel->getMiddlewarePriority());
+    }
+
+    public function testAddToMiddlewarePriorityAfterAdjacentMiddleware(): void
+    {
+        $kernel = $this->getKernel();
+
+        $kernel->addToMiddlewarePriorityAfter(
+            [
+                \Hypervel\Cookie\Middleware\EncryptCookies::class,
+                \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+            ],
+            \Hypervel\Routing\Middleware\ValidateSignature::class,
+        );
+
+        $this->assertEquals([
+            \Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
+            \Hypervel\Cookie\Middleware\EncryptCookies::class,
+            \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+            \Hypervel\Routing\Middleware\ValidateSignature::class,
+            \Hypervel\Session\Middleware\StartSession::class,
+            \Hypervel\View\Middleware\ShareErrorsFromSession::class,
+            \Hypervel\Auth\Middleware\UseGuard::class,
+            \Hypervel\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            \Hypervel\Routing\Middleware\ThrottleRequests::class,
+            \Hypervel\Contracts\Session\Middleware\AuthenticatesSessions::class,
+            \Hypervel\Routing\Middleware\SubstituteBindings::class,
+            \Hypervel\Auth\Middleware\Authorize::class,
+        ], $kernel->getMiddlewarePriority());
+    }
+
     public function testAddToMiddlewarePriorityBefore(): void
     {
         $kernel = $this->getKernel();
@@ -110,7 +163,7 @@ class KernelTest extends TestCase
         ], $kernel->getMiddlewarePriority());
     }
 
-    public function testAddToMiddlewarePriorityAfterWithSingleMiddleware()
+    public function testAddToMiddlewarePriorityAfterWithSingleMiddleware(): void
     {
         $kernel = $this->getKernel();
         $kernel->setMiddlewarePriority([
@@ -126,41 +179,6 @@ class KernelTest extends TestCase
             'middleware_b',
             'new_middleware',
             'middleware_c',
-        ], $kernel->getMiddlewarePriority());
-
-        $kernel->setMiddlewarePriority([
-            'middleware_a',
-            'middleware_b',
-        ]);
-
-        $kernel->addToMiddlewarePriorityAfter('middleware_a', 'new_middleware');
-
-        $this->assertSame([
-            'middleware_a',
-            'new_middleware',
-            'middleware_b',
-        ], $kernel->getMiddlewarePriority());
-    }
-
-    public function testAddToMiddlewarePriorityAfterWithArrayOfMiddleware()
-    {
-        $kernel = $this->getKernel();
-        $kernel->setMiddlewarePriority([
-            'middleware_a',
-            'middleware_b',
-            'middleware_c',
-            'middleware_d',
-        ]);
-
-        // When array is given, it inserts after the LAST found middleware in the array
-        $kernel->addToMiddlewarePriorityAfter(['middleware_b', 'middleware_c'], 'new_middleware');
-
-        $this->assertSame([
-            'middleware_a',
-            'middleware_b',
-            'middleware_c',
-            'new_middleware',
-            'middleware_d',
         ], $kernel->getMiddlewarePriority());
     }
 

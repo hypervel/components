@@ -420,15 +420,23 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable, Transi
         return $this->passthru(__FUNCTION__, func_get_args());
     }
 
+    /**
+     * Retrieve duplicate items from the collection.
+     */
     #[Override]
     public function duplicates(callable|string|null $callback = null, bool $strict = false): static
     {
+        // @phpstan-ignore return.type (passthru loses generic type info)
         return $this->passthru(__FUNCTION__, func_get_args());
     }
 
+    /**
+     * Retrieve duplicate items from the collection using strict comparison.
+     */
     #[Override]
     public function duplicatesStrict(callable|string|null $callback = null): static
     {
+        // @phpstan-ignore return.type (passthru loses generic type info)
         return $this->passthru(__FUNCTION__, func_get_args());
     }
 

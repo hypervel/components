@@ -9,6 +9,7 @@ use Hypervel\Support\Fluent;
 /**
  * @method ForeignKeyDefinition deferrable(bool $value = true) Set the foreign key as deferrable (PostgreSQL)
  * @method ForeignKeyDefinition initiallyImmediate(bool $value = true) Set the default time to check the constraint (PostgreSQL)
+ * @method ForeignKeyDefinition inplace(bool $value = true) Specify that algorithm=inplace should be used for the foreign key operation, which requires foreign key checks to be disabled (MySQL)
  * @method ForeignKeyDefinition lock(('default'|'exclusive'|'none'|'shared') $value) Specify the DDL lock mode for the foreign key operation (MySQL)
  * @method ForeignKeyDefinition on(string $table) Specify the referenced table
  * @method ForeignKeyDefinition onDelete(string $action) Add an ON DELETE action

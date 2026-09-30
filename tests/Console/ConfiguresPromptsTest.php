@@ -10,6 +10,7 @@ use Hypervel\Console\OutputStyle;
 use Hypervel\Console\View\Components\Factory;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Foundation\Application as FoundationApplication;
 use Hypervel\Prompts\PausePrompt;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\TextPrompt;
@@ -17,9 +18,11 @@ use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionMethod;
 use RuntimeException;
 use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\NullOutput;
 
 use function Hypervel\Prompts\autocomplete;
@@ -38,108 +41,55 @@ use function Hypervel\Prompts\textarea;
 class ConfiguresPromptsTest extends TestCase
 {
     #[DataProvider('selectDataProvider')]
-    public function testSelectFallback($prompt, $expectedOptions, $expectedDefault, $return, $expectedReturn)
+    public function testSelectFallback(Closure $prompt, string $answer, string|int $expectedReturn): void
     {
-        Prompt::fallbackWhen(true);
-
-        $command = new class($prompt) extends Command {
-            public mixed $answer = null;
-
-            public function __construct(protected mixed $prompt)
-            {
-                parent::__construct();
-            }
-
-            public function handle()
-            {
-                $this->answer = ($this->prompt)();
-            }
-        };
-
-        $this->runCommand(
-            $command,
-            fn ($components) => $components
-                ->expects('choice')
-                ->with('Test', $expectedOptions, $expectedDefault)
-                ->andReturn($return)
-        );
-
-        $this->assertSame($expectedReturn, $command->answer);
+        $this->assertSame($expectedReturn, $this->answer($prompt, $answer));
     }
 
-    public static function selectDataProvider()
+    public static function selectDataProvider(): array
     {
         return [
-            'list with no default' => [fn () => select('Test', ['a', 'b', 'c']), ['a', 'b', 'c'], null, 'b', 'b'],
-            'numeric keys with no default' => [fn () => select('Test', [1 => 'a', 2 => 'b', 3 => 'c']), [1 => 'a', 2 => 'b', 3 => 'c'], null, '2', 2],
-            'assoc with no default' => [fn () => select('Test', ['a' => 'A', 'b' => 'B', 'c' => 'C']), ['a' => 'A', 'b' => 'B', 'c' => 'C'], null, 'b', 'b'],
-            'list with default' => [fn () => select('Test', ['a', 'b', 'c'], 'b'), ['a', 'b', 'c'], 'b', 'b', 'b'],
-            'numeric keys with default' => [fn () => select('Test', [1 => 'a', 2 => 'b', 3 => 'c'], 2), [1 => 'a', 2 => 'b', 3 => 'c'], 2, '2', 2],
-            'assoc with default' => [fn () => select('Test', ['a' => 'A', 'b' => 'B', 'c' => 'C'], 'b'), ['a' => 'A', 'b' => 'B', 'c' => 'C'], 'b', 'b', 'b'],
+            'list with no default' => [fn (): string|int => select('Test', ['a', 'b', 'c']), 'b', 'b'],
+            'numeric keys with no default' => [fn (): string|int => select('Test', [1 => 'a', 2 => 'b', 3 => 'c']), '2', 2],
+            'assoc with no default' => [fn (): string|int => select('Test', ['a' => 'A', 'b' => 'B', 'c' => 'C']), 'b', 'b'],
+            'list with default' => [fn (): string|int => select('Test', ['a', 'b', 'c'], 'b'), 'b', 'b'],
+            'numeric keys with default' => [fn (): string|int => select('Test', [1 => 'a', 2 => 'b', 3 => 'c'], 2), '2', 2],
+            'assoc with default' => [fn (): string|int => select('Test', ['a' => 'A', 'b' => 'B', 'c' => 'C'], 'b'), 'b', 'b'],
         ];
     }
 
     #[DataProvider('multiselectDataProvider')]
-    public function testMultiselectFallback($prompt, $expectedOptions, $expectedDefault, $return, $expectedReturn)
+    public function testMultiselectFallback(Closure $prompt, string $answer, array $expectedReturn): void
     {
-        Prompt::fallbackWhen(true);
-
-        $command = new class($prompt) extends Command {
-            public mixed $answer = null;
-
-            public function __construct(protected mixed $prompt)
-            {
-                parent::__construct();
-            }
-
-            public function handle()
-            {
-                $this->answer = ($this->prompt)();
-            }
-        };
-
-        $this->runCommand(
-            $command,
-            fn ($components) => $components
-                ->expects('choice')
-                ->with('Test', $expectedOptions, $expectedDefault, null, true)
-                ->andReturn($return)
-        );
-
-        $this->assertSame($expectedReturn, $command->answer);
+        $this->assertSame($expectedReturn, $this->answer($prompt, $answer));
     }
 
-    public static function multiselectDataProvider()
+    public static function multiselectDataProvider(): array
     {
         return [
-            'list with no default' => [fn () => multiselect('Test', ['a', 'b', 'c']), ['None', 'a', 'b', 'c'], 'None', ['None'], []],
-            'numeric keys with no default' => [fn () => multiselect('Test', [1 => 'a', 2 => 'b', 3 => 'c']), ['' => 'None', 1 => 'a', 2 => 'b', 3 => 'c'], 'None', [''], []],
-            'assoc with no default' => [fn () => multiselect('Test', ['a' => 'A', 'b' => 'B', 'c' => 'C']), ['' => 'None', 'a' => 'A', 'b' => 'B', 'c' => 'C'], 'None', [''], []],
-            'list with default' => [fn () => multiselect('Test', ['a', 'b', 'c'], ['b', 'c']), ['None', 'a', 'b', 'c'], 'b,c', ['b', 'c'], ['b', 'c']],
-            'numeric keys with default' => [fn () => multiselect('Test', [1 => 'a', 2 => 'b', 3 => 'c'], [2, 3]), ['' => 'None', 1 => 'a', 2 => 'b', 3 => 'c'], '2,3', ['2', '3'], [2, 3]],
-            'assoc with default' => [fn () => multiselect('Test', ['a' => 'A', 'b' => 'B', 'c' => 'C'], ['b', 'c']), ['' => 'None', 'a' => 'A', 'b' => 'B', 'c' => 'C'], 'b,c', ['b', 'c'], ['b', 'c']],
-            'required list with no default' => [fn () => multiselect('Test', ['a', 'b', 'c'], required: true), ['a', 'b', 'c'], null, ['b', 'c'], ['b', 'c']],
-            'required numeric keys with no default' => [fn () => multiselect('Test', [1 => 'a', 2 => 'b', 3 => 'c'], required: true), [1 => 'a', 2 => 'b', 3 => 'c'], null, ['2', '3'], [2, 3]],
-            'required assoc with no default' => [fn () => multiselect('Test', ['a' => 'A', 'b' => 'B', 'c' => 'C'], required: true), ['a' => 'A', 'b' => 'B', 'c' => 'C'], null, ['b', 'c'], ['b', 'c']],
-            'required list with default' => [fn () => multiselect('Test', ['a', 'b', 'c'], ['b', 'c'], required: true), ['a', 'b', 'c'], 'b,c', ['b', 'c'], ['b', 'c']],
-            'required numeric keys with default' => [fn () => multiselect('Test', [1 => 'a', 2 => 'b', 3 => 'c'], [2, 3], required: true), [1 => 'a', 2 => 'b', 3 => 'c'], '2,3', ['2', '3'], [2, 3]],
-            'required assoc with default' => [fn () => multiselect('Test', ['a' => 'A', 'b' => 'B', 'c' => 'C'], ['b', 'c'], required: true), ['a' => 'A', 'b' => 'B', 'c' => 'C'], 'b,c', ['b', 'c'], ['b', 'c']],
+            'list with no default' => [fn (): array => multiselect('Test', ['a', 'b', 'c']), '', []],
+            'numeric keys with no default' => [fn (): array => multiselect('Test', [1 => 'a', 2 => 'b', 3 => 'c']), '', []],
+            'assoc with no default' => [fn (): array => multiselect('Test', ['a' => 'A', 'b' => 'B', 'c' => 'C']), '', []],
+            'list with default' => [fn (): array => multiselect('Test', ['a', 'b', 'c'], ['b', 'c']), 'b,c', ['b', 'c']],
+            'numeric keys with default' => [fn (): array => multiselect('Test', [1 => 'a', 2 => 'b', 3 => 'c'], [2, 3]), '2,3', [2, 3]],
+            'assoc with default' => [fn (): array => multiselect('Test', ['a' => 'A', 'b' => 'B', 'c' => 'C'], ['b', 'c']), 'b,c', ['b', 'c']],
+            'required list with no default' => [fn (): array => multiselect('Test', ['a', 'b', 'c'], required: true), 'b,c', ['b', 'c']],
+            'required numeric keys with no default' => [fn (): array => multiselect('Test', [1 => 'a', 2 => 'b', 3 => 'c'], required: true), '2,3', [2, 3]],
+            'required assoc with no default' => [fn (): array => multiselect('Test', ['a' => 'A', 'b' => 'B', 'c' => 'C'], required: true), 'b,c', ['b', 'c']],
+            'required list with default' => [fn (): array => multiselect('Test', ['a', 'b', 'c'], ['b', 'c'], required: true), 'b,c', ['b', 'c']],
+            'required numeric keys with default' => [fn (): array => multiselect('Test', [1 => 'a', 2 => 'b', 3 => 'c'], [2, 3], required: true), '2,3', [2, 3]],
+            'required assoc with default' => [fn (): array => multiselect('Test', ['a' => 'A', 'b' => 'B', 'c' => 'C'], ['b', 'c'], required: true), 'b,c', ['b', 'c']],
         ];
     }
 
-    public function testNumberFallback(): void
+    #[TestWith([5, '12', 12])]
+    #[TestWith([0, '', 0])]
+    public function testNumberFallback(int $default, string $answer, int $expected): void
     {
-        Prompt::fallbackWhen(true);
-
-        $answer = $this->runPrompt(
-            fn () => number('How many?', default: '5'),
-            fn ($components) => $components
-                ->expects('ask')
-                ->with('How many?', '5')
-                ->andReturn('12')
-        );
-
-        $this->assertSame(12, $answer);
+        $this->assertSame($expected, $this->answer(
+            fn (): int => number('How many?', default: $default),
+            $answer,
+        ));
     }
 
     public function testNumberFallbackRunsNumberValidation(): void
@@ -279,11 +229,6 @@ class ConfiguresPromptsTest extends TestCase
                 fn () => textarea('Test', default: '0'),
                 fn ($components) => $components->expects('ask')->with('Test', '0', multiline: true)->andReturn('answer'),
                 'answer',
-            ],
-            'number' => [
-                fn () => number('Test', default: 0),
-                fn ($components) => $components->expects('ask')->with('Test', 0)->andReturn('1'),
-                1,
             ],
             'suggest' => [
                 fn () => suggest('Test', ['answer'], default: '0'),
@@ -669,6 +614,32 @@ class ConfiguresPromptsTest extends TestCase
         $this->assertSame(ConfiguresPromptsNestedParentCommand::class, CoroutineContext::get('__test.console.prompt_owner'));
     }
 
+    /**
+     * Run the given prompt behind a real command, feeding it the given typed answer
+     * through a real input stream, and return what the prompt resolved to.
+     */
+    protected function answer(Closure $prompt, string $answer): mixed
+    {
+        Prompt::fallbackWhen(true);
+
+        $command = $this->makePromptCommand($prompt);
+        $command->setHypervel(new FoundationApplication(__DIR__));
+        $input = new ArrayInput([]);
+        $stream = fopen('php://memory', 'w+');
+
+        try {
+            fwrite($stream, $answer . "\n");
+            rewind($stream);
+            $input->setStream($stream);
+
+            $command->run($input, new BufferedOutput);
+
+            return $command->answer;
+        } finally {
+            fclose($stream);
+        }
+    }
+
     protected function runPrompt(Closure $prompt, Closure $expectations, bool $runningUnitTests = false): mixed
     {
         $command = $this->makePromptCommand($prompt);
@@ -683,12 +654,12 @@ class ConfiguresPromptsTest extends TestCase
         return new class($prompt) extends Command {
             public mixed $answer = null;
 
-            public function __construct(protected mixed $prompt)
+            public function __construct(protected Closure $prompt)
             {
                 parent::__construct();
             }
 
-            public function handle()
+            public function handle(): void
             {
                 $this->answer = ($this->prompt)();
             }

@@ -168,6 +168,10 @@ class AuthenticationTest extends TestCase
         );
         $this->assertInstanceOf(AuthTestUser::class, $this->app->make('auth')->user());
         $this->assertTrue($this->app->make('auth')->check());
+        $this->assertSame(
+            $this->app->make('auth')->guard()->hashPasswordForCookie($this->app->make('auth')->user()->getAuthPassword()),
+            $this->app->make('session')->get('password_hash_web')
+        );
 
         Event::assertDispatched(Attempting::class, function (Attempting $event): bool {
             $this->assertSame('web', $event->guard);
@@ -231,6 +235,10 @@ class AuthenticationTest extends TestCase
         $this->assertEquals(1, $user->id);
 
         $this->app->make('auth')->logoutOtherDevices('password');
+        $this->assertSame(
+            $this->app->make('auth')->guard()->hashPasswordForCookie($user->getAuthPassword()),
+            $this->app->make('session')->get('password_hash_web')
+        );
         $this->assertEquals(1, $user->id);
 
         Event::assertDispatched(OtherDeviceLogout::class, function (OtherDeviceLogout $event): bool {

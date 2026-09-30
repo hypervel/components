@@ -63,7 +63,7 @@ function test(
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Builder\User>', $query->findOrFail([1]));
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Builder\User>', $query->findOrNew([1]));
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Builder\User>', $query->find([1]));
-    assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Builder\User>', $query->findOr([1], callback: fn () => 42));
+    assertType('42|Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Builder\User>', $query->findOr([1], callback: fn () => 42));
     assertType('Hypervel\Types\Builder\User', $query->findOrFail(1));
     assertType('Hypervel\Types\Builder\User|null', $query->find(1));
     assertType('Hypervel\Types\Builder\User|null', $query->find($user));

@@ -285,14 +285,20 @@ class AuthDatabaseUserProviderTest extends TestCase
         $table->expects('where')->with('id', 1)->andReturnSelf();
         $table->expects('update')->with(['password_attribute' => 'rehashed']);
 
-        $user = m::mock(Authenticatable::class);
-        $user->expects('getAuthIdentifierName')->andReturn('id');
-        $user->expects('getAuthIdentifier')->andReturn(1);
-        $user->expects('getAuthPassword')->andReturn('hash');
-        $user->expects('getAuthPasswordName')->andReturn('password_attribute');
+        $user = new class(['id' => 1, 'password_attribute' => 'hash']) extends GenericUser {
+            /**
+             * Get the custom password attribute name.
+             */
+            public function getAuthPasswordName(): string
+            {
+                return 'password_attribute';
+            }
+        };
 
         $provider = new DatabaseUserProvider($conn, $hasher, 'foo');
         $provider->rehashPasswordIfRequired($user, ['password' => 'plain']);
+
+        $this->assertSame('rehashed', $user->getAuthPassword());
     }
 
     public function testDontRehashPasswordIfNotRequired(): void

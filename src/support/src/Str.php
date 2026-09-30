@@ -8,6 +8,7 @@ use Closure;
 use Countable;
 use DateTimeInterface;
 use Hypervel\Support\Traits\Macroable;
+use InvalidArgumentException;
 use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\ExtensionInterface;
 use League\CommonMark\Extension\GithubFlavoredMarkdownExtension;
@@ -190,7 +191,7 @@ class Str
      */
     public static function camel(string $value): string
     {
-        return lcfirst(static::studly($value));
+        return static::lcfirst(static::studly($value));
     }
 
     /**
@@ -912,7 +913,7 @@ class Str
     /**
      * Generate a random, secure password.
      *
-     * @return ($letters is false ? ($numbers is true ? ($symbols is false ? ($spaces is false ? numeric-string : string) : string) : string) : string)
+     * @return ($length is positive-int ? ($letters is false ? ($numbers is true ? ($symbols is false ? ($spaces is false ? numeric-string : string) : string) : string) : string) : '')
      */
     public static function password(int $length = 32, bool $letters = true, bool $numbers = true, bool $symbols = true, bool $spaces = false): string
     {
@@ -936,14 +937,22 @@ class Str
             ] : null,
             'spaces' => $spaces === true ? [' '] : null,
         ]))
-            ->filter()
-            ->each(fn ($c) => $password->push($c[random_int(0, count($c) - 1)]))
-            ->flatten();
+            ->filter();
 
-        $length = $length - $password->count();
+        if ($options->isEmpty()) {
+            throw new InvalidArgumentException('At least one character pool must be enabled.');
+        }
 
-        return $password->merge($options->pipe(
-            fn ($c) => Collection::times($length, fn () => $c[random_int(0, $c->count() - 1)])
+        $allCharacters = $options->flatten();
+
+        $options->shuffle()
+            ->take(max(0, $length))
+            ->each(fn (array $c): Collection => $password->push($c[random_int(0, count($c) - 1)]));
+
+        $length = max(0, $length - $password->count());
+
+        return $password->merge($allCharacters->pipe(
+            fn (Collection $c): Collection => Collection::times($length, fn (): string => $c[random_int(0, $c->count() - 1)])
         ))->shuffle()->implode('');
     }
 

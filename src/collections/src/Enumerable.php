@@ -219,16 +219,22 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Retrieve duplicate items.
      *
-     * @param null|(callable(TValue): bool)|string $callback
+     * @template TMapValue
+     *
+     * @param null|(callable(TValue): TMapValue)|string $callback
+     * @return static<TKey, ($callback is null ? TValue : ($callback is string ? mixed : TMapValue))>
      */
-    public function duplicates(callable|string|null $callback = null, bool $strict = false): static;
+    public function duplicates(callable|string|null $callback = null, bool $strict = false): Collection|static;
 
     /**
      * Retrieve duplicate items using strict comparison.
      *
-     * @param null|(callable(TValue): bool)|string $callback
+     * @template TMapValue
+     *
+     * @param null|(callable(TValue): TMapValue)|string $callback
+     * @return static<TKey, ($callback is null ? TValue : ($callback is string ? mixed : TMapValue))>
      */
-    public function duplicatesStrict(callable|string|null $callback = null): static;
+    public function duplicatesStrict(callable|string|null $callback = null): Collection|static;
 
     /**
      * Execute a callback over each item.
@@ -968,7 +974,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @template TReturnType
      *
      * @param null|(callable(TValue, TKey): TReturnType)|string $callback
-     * @return ($callback is callable ? float|int|TReturnType : mixed)
+     * @return ($callback is string ? mixed : ($callback is callable ? float|int|TReturnType : mixed))
      */
     public function sum(callable|int|string|null $callback = null): mixed;
 

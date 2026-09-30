@@ -1208,6 +1208,12 @@ DevCommands::withoutVendorCommands();
 DevCommands::withoutDefaultCommands();
 ```
 
+To place selected processes first, configure their order during boot. Processes not listed retain their registration order after them:
+
+```php
+DevCommands::order(['vite', 'server', 'queue']);
+```
+
 <a name="stub-customization"></a>
 ## Stub Customization
 

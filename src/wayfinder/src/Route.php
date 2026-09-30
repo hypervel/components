@@ -148,6 +148,7 @@ class Route
      */
     private function resolveParameterDefaults(Collection $rawDefaults): Collection
     {
+        /** @var Collection<string, null|bool|float|int|string> $defaults */
         $defaults = collect();
 
         foreach ($this->base->parameterNames() as $name) {

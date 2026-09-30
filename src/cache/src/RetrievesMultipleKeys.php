@@ -6,6 +6,8 @@ namespace Hypervel\Cache;
 
 use Hypervel\Support\Collection;
 
+use function Hypervel\Support\enum_value;
+
 /**
  * Fallback implementations for stores without native multi-key operations.
  *
@@ -25,7 +27,7 @@ trait RetrievesMultipleKeys
         $return = [];
 
         $keys = (new Collection($keys))
-            ->mapWithKeys(fn ($value, $key) => [is_string($key) ? $key : $value => is_string($key) ? $value : null])
+            ->mapWithKeys(fn ($value, $key) => [is_string($key) ? $key : enum_value($value) => is_string($key) ? $value : null])
             ->all();
 
         foreach ($keys as $key => $default) {

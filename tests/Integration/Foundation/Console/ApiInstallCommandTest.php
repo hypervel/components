@@ -530,7 +530,10 @@ class TestableApiInstallCommand extends ApiInstallCommand
     /** @var list<array{composer: string, packages: array<int, string>}> */
     public static array $composerRequireCalls = [];
 
-    protected function requireComposerPackages(string $composer, array $packages): void
+    /**
+     * Record dependency installation without running Composer.
+     */
+    protected function requireComposerPackages(string $composer, array $packages, bool $pretend = false): void
     {
         static::$composerRequireCalls[] = ['composer' => $composer, 'packages' => $packages];
     }

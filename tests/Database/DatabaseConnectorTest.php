@@ -16,8 +16,12 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use PDO;
+use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\TestWith;
+use Swoole\Coroutine\CanceledException;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 class DatabaseConnectorTest extends TestCase
 {
@@ -51,9 +55,9 @@ class DatabaseConnectorTest extends TestCase
         ];
     }
 
-    public function testMySqlAndMariaDbConnectTimeoutUsesCeilingUnlessThePdoOptionIsExplicit(): void
+    public function testConnectTimeoutUsesCeilingUnlessThePdoOptionIsExplicit(): void
     {
-        foreach ([new MySqlConnector, new MariaDbConnector] as $connector) {
+        foreach ([new MySqlConnector, new MariaDbConnector, new PostgresConnector] as $connector) {
             $this->assertSame(2, $connector->getOptions([
                 'connect_timeout' => 1.25,
             ])[PDO::ATTR_TIMEOUT]);
@@ -63,6 +67,60 @@ class DatabaseConnectorTest extends TestCase
                 'options' => [PDO::ATTR_TIMEOUT => 7],
             ])[PDO::ATTR_TIMEOUT]);
         }
+    }
+
+    #[TestWith(['pgsql'])]
+    #[TestWith(['mysql'])]
+    public function testConnectionCancellationEscapesWithoutRetrying(string $driver): void
+    {
+        if (SWOOLE_VERSION_ID <= 60203) {
+            $this->markTestSkipped('Swoole 6.2.3 and earlier mask PDO connection cancellation with PDOException.');
+        }
+
+        $result = $this->runUnresponsiveConnection($driver, 'cancel', true);
+
+        $this->assertSame(CanceledException::class, $result['exception']);
+    }
+
+    #[TestWith([true])]
+    #[TestWith([false])]
+    public function testPostgresConnectionTimeoutStopsAnUnresponsiveHandshake(bool $hooked): void
+    {
+        if (SWOOLE_VERSION_ID <= 60203) {
+            $this->markTestSkipped('Swoole 6.2.3 and earlier do not enforce the PostgreSQL connection deadline.');
+        }
+
+        $result = $this->runUnresponsiveConnection('pgsql', 'timeout', $hooked);
+
+        $this->assertSame(PDOException::class, $result['exception']);
+        $this->assertStringContainsString('timeout', strtolower($result['message']));
+        $this->assertGreaterThanOrEqual(0.8, $result['elapsed']);
+        $this->assertLessThan(4.0, $result['elapsed']);
+    }
+
+    /**
+     * Exercise native connection setup in a process with a hard deadline.
+     *
+     * @return array{exception: ?class-string<Throwable>, message: ?string, elapsed: float}
+     */
+    protected function runUnresponsiveConnection(string $driver, string $operation, bool $hooked): array
+    {
+        if (! extension_loaded('pdo_' . $driver)) {
+            $this->markTestSkipped('The PDO ' . $driver . ' extension is required.');
+        }
+
+        $process = new Process([
+            PHP_BINARY,
+            __DIR__ . '/Fixtures/ConnectToUnresponsiveServer.php',
+            dirname(__DIR__, 2) . '/vendor/autoload.php',
+            $driver,
+            $operation,
+            $hooked ? 'yes' : 'no',
+        ]);
+        $process->setTimeout(5.0);
+        $process->mustRun();
+
+        return json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR);
     }
 
     public function testMySqlEscapesBackticksInTheSelectedDatabaseName(): void
@@ -154,20 +212,6 @@ class DatabaseConnectorTest extends TestCase
         $this->assertSame($result, $connection);
     }
 
-    public function testPostgresConnectTimeoutIsBakedIntoDsn(): void
-    {
-        $dsn = "pgsql:host=foo;dbname='bar';connect_timeout=2";
-        $config = ['host' => 'foo', 'database' => 'bar', 'connect_timeout' => 1.25];
-        $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
-        $connection = m::mock(PDO::class);
-        $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);
-        $connector->expects($this->once())->method('createConnection')->with($this->equalTo($dsn), $this->equalTo($config), $this->equalTo(['options']))->willReturn($connection);
-
-        $result = $connector->connect($config);
-
-        $this->assertSame($result, $connection);
-    }
-
     public function testPostgresLockTimeoutIsBakedIntoDsn(): void
     {
         $dsn = "pgsql:host=foo;dbname='bar';options='-c lock_timeout=2s'";
@@ -199,9 +243,8 @@ class DatabaseConnectorTest extends TestCase
     public function testPostgresSearchPathIsSet(array|string $searchPath, string $expectedSearchPath): void
     {
         $config = ['host' => 'foo', 'database' => 'bar', 'search_path' => $searchPath, 'charset' => 'utf8'];
-        // Two backslashes land in the DSN; PDO consumes one while parsing the
-        // single-quoted options value, leaving libpq with a single backslash
-        // that escapes the following space.
+        // libpq first unquotes the connection value; the server then splits
+        // the options arguments, requiring a second escaping layer for spaces.
         $escaped = str_replace(' ', '\\\ ', $expectedSearchPath);
         $dsn = "pgsql:host=foo;dbname='bar';client_encoding='utf8';options='-c search_path={$escaped}'";
 
@@ -280,6 +323,10 @@ class DatabaseConnectorTest extends TestCase
                 ['public', '$user'],
                 '"public", "$user"',
             ],
+            'array with embedded quote' => [
+                ['team"reports'],
+                '"team""reports"',
+            ],
             'array with delimiter characters' => [
                 ['public', '"user"', "'test'", 'spaced schema'],
                 '"public", "user", "test", "spaced schema"',
@@ -338,6 +385,65 @@ class DatabaseConnectorTest extends TestCase
         $result = $connector->connect($config);
 
         $this->assertSame($result, $connection);
+    }
+
+    public function testPostgresServerOptionsAreSet(): void
+    {
+        $dsn = 'pgsql:host=foo;dbname=\'bar\';port=111;options=\'-c statement_timeout=5s -c search_path=public\'';
+        $config = ['host' => 'foo', 'database' => 'bar', 'port' => 111, 'server_options' => ['statement_timeout' => '5s', 'search_path' => 'public']];
+        $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
+        $connection = m::mock(PDO::class);
+        $connector->expects($this->once())->method('getOptions')->with($config)->willReturn(['options']);
+        $connector->expects($this->once())->method('createConnection')->with($dsn, $config, ['options'])->willReturn($connection);
+        $result = $connector->connect($config);
+
+        $this->assertSame($result, $connection);
+    }
+
+    public function testPostgresServerOptionsAreOmittedWhenNotConfigured(): void
+    {
+        $dsn = 'pgsql:host=foo;dbname=\'bar\';port=111';
+        $config = ['host' => 'foo', 'database' => 'bar', 'port' => 111, 'server_options' => []];
+        $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
+        $connection = m::mock(PDO::class);
+        $connector->expects($this->once())->method('getOptions')->with($config)->willReturn(['options']);
+        $connector->expects($this->once())->method('createConnection')->with($dsn, $config, ['options'])->willReturn($connection);
+        $result = $connector->connect($config);
+
+        $this->assertSame($result, $connection);
+    }
+
+    public function testPostgresServerOptionValuesAreEscaped(): void
+    {
+        $dsn = 'pgsql:host=foo;dbname=\'bar\';port=111;options=\'-c application_name=my\\\ app -c custom.tag=o\\\'clock\'';
+        $config = ['host' => 'foo', 'database' => 'bar', 'port' => 111, 'server_options' => ['application_name' => 'my app', 'custom.tag' => "o'clock"]];
+        $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
+        $connection = m::mock(PDO::class);
+        $connector->expects($this->once())->method('getOptions')->with($config)->willReturn(['options']);
+        $connector->expects($this->once())->method('createConnection')->with($dsn, $config, ['options'])->willReturn($connection);
+        $result = $connector->connect($config);
+
+        $this->assertSame($result, $connection);
+    }
+
+    public function testPostgresConnectionValuesAreQuoted(): void
+    {
+        $config = [
+            'database' => "team's\\database",
+            'application_name' => "team's\\app",
+            'charset' => 'utf8',
+            'sslcert' => '/tmp/client cert.pem',
+            'sslkey' => '/tmp/client key.pem',
+            'sslrootcert' => '/tmp/root ca.pem',
+        ];
+        $dsn = <<<'DSN'
+            pgsql:dbname='team\'s\\database';client_encoding='utf8';application_name='team\'s\\app';sslcert='/tmp/client cert.pem';sslkey='/tmp/client key.pem';sslrootcert='/tmp/root ca.pem'
+            DSN;
+        $connection = m::mock(PDO::class);
+        $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection'])->getMock();
+        $connector->expects($this->once())->method('createConnection')->with($dsn, $config, $connector->getOptions($config))->willReturn($connection);
+
+        $this->assertSame($connection, $connector->connect($config));
     }
 
     public function testPostgresApplicationUseAlternativeDatabaseName(): void
@@ -420,9 +526,10 @@ class DatabaseConnectorTest extends TestCase
 
     public function testPostgresCombinesMultipleStartupParamsInDsn()
     {
-        $dsn = 'pgsql:host=foo;dbname=\'bar\';options=\'-c search_path="public" -c TimeZone=UTC -c default_transaction_isolation=SERIALIZABLE -c lock_timeout=2s -c synchronous_commit=on\'';
+        $dsn = 'pgsql:host=foo;dbname=\'bar\';options=\'-c statement_timeout=5s -c TimeZone=Asia/Tokyo -c search_path="public" -c TimeZone=UTC -c default_transaction_isolation=SERIALIZABLE -c lock_timeout=2s -c synchronous_commit=on\'';
         $config = [
             'host' => 'foo',
+            'server_options' => ['statement_timeout' => '5s', 'TimeZone' => 'Asia/Tokyo'],
             'database' => 'bar',
             'search_path' => 'public',
             'timezone' => 'UTC',
@@ -430,19 +537,6 @@ class DatabaseConnectorTest extends TestCase
             'lock_timeout' => 2,
             'synchronous_commit' => 'on',
         ];
-        $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
-        $connection = m::mock(PDO::class);
-        $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);
-        $connector->expects($this->once())->method('createConnection')->with($this->equalTo($dsn), $this->equalTo($config), $this->equalTo(['options']))->willReturn($connection);
-        $result = $connector->connect($config);
-
-        $this->assertSame($result, $connection);
-    }
-
-    public function testPostgresNoStartupParamsOmitsOptionsFromDsn()
-    {
-        $dsn = 'pgsql:host=foo;dbname=\'bar\'';
-        $config = ['host' => 'foo', 'database' => 'bar'];
         $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
         $connection = m::mock(PDO::class);
         $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);

@@ -80,8 +80,8 @@ class HttpClientStreamingTest extends TestCase
 
     public function testBufferedFirstRecordArrivesBeforeTheNextServerWrite(): void
     {
-        if (SWOOLE_VERSION_ID <= 60202) {
-            $this->markTestSkipped('Buffered stream reads require https://github.com/swoole/swoole-src/pull/6235.');
+        if (SWOOLE_VERSION_ID <= 60203) {
+            $this->markTestSkipped('Swoole 6.2.3 and earlier lack the buffered-read fix: https://github.com/swoole/swoole-src/pull/6235.');
         }
 
         $this->withStreamingServer('buffered', function (string $address): void {
@@ -121,8 +121,8 @@ class HttpClientStreamingTest extends TestCase
 
     public function testIdleStreamingReadTimeoutRaisesTheStreamReadError(): void
     {
-        if (SWOOLE_VERSION_ID <= 60202) {
-            $this->markTestSkipped('Stream read timeout errors require https://github.com/swoole/swoole-src/pull/6236.');
+        if (SWOOLE_VERSION_ID <= 60203) {
+            $this->markTestSkipped('Swoole 6.2.3 and earlier lack the read-timeout fix: https://github.com/swoole/swoole-src/pull/6236.');
         }
 
         $this->withStreamingServer('delayed', function (string $address): void {

@@ -529,16 +529,29 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertSame([1 => $two, 2 => $three], $duplicates);
     }
 
-    public function testCollectionReturnsDuplicatesUsingCallbackValues(): void
+    public function testCollectionDuplicatesWithKey(): void
     {
-        $first = (new CollectionModel)->forceFill(['id' => 1]);
-        $second = (new CollectionModel)->forceFill(['id' => 1]);
-        $third = (new CollectionModel)->forceFill(['id' => 2]);
+        $one = new CollectionModel;
+        $two = new CollectionModel;
+        $three = new CollectionModel;
 
-        $this->assertSame(
-            [1 => 1],
-            Collection::make([$first, $second, $third])->duplicates('id')->all()
+        $one->someAttribute = '1';
+        $two->someAttribute = '2';
+        $three->someAttribute = '1';
+
+        $duplicates = Collection::make([$one, $two, $three])->duplicates('someAttribute');
+        $this->assertSame([2 => '1'], $duplicates->all());
+        $this->assertSame(BaseCollection::class, $duplicates::class);
+
+        $duplicates = Collection::make([$one, $two, $three])->duplicatesStrict('someAttribute');
+        $this->assertSame([2 => '1'], $duplicates->all());
+        $this->assertSame(BaseCollection::class, $duplicates::class);
+
+        $duplicates = Collection::make([$one, $two, $three])->duplicates(
+            static fn (CollectionModel $model): int => (int) $model->someAttribute
         );
+        $this->assertSame([2 => 1], $duplicates->all());
+        $this->assertSame(BaseCollection::class, $duplicates::class);
     }
 
     public function testCollectionIntersectWithNull(): void
