@@ -18,13 +18,6 @@ class SchemaStateTest extends SqliteTestCase
         'database/schema/*',
     ];
 
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        remote('migrate:install');
-    }
-
     protected function tearDown(): void
     {
         remote('db:wipe')->mustRun();
