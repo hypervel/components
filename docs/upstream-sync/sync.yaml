@@ -15,9 +15,9 @@
 
 laravel/framework:
   branch: master
-  checked_through: d9ea91ac0d5f09aa56fb17711f90235af6ee2299
-  last_reviewed_pr: 61140
-  sync_date: '2026-09-27'
+  checked_through: 588c1c948c36443a6110c44a07bb58c463e98d27
+  last_reviewed_pr: 61778
+  sync_date: '2026-09-30'
 
 laravel/prompts:
   branch: main
