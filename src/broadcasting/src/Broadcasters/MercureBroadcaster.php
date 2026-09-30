@@ -12,6 +12,7 @@ use Hypervel\Cookie\Middleware\EncryptCookies;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
+use InvalidArgumentException;
 use JsonException;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Cookie;
@@ -327,9 +328,13 @@ class MercureBroadcaster extends Broadcaster
      * static [RFC 9068](https://www.rfc-editor.org/rfc/rfc9068.html) claims
      * come from the hub's factory.
      *
+     * Browsers enforce prefixes case-insensitively, including path and domain
+     * requirements; Symfony checks only exact-case prefixes against the scheme.
+     *
      * @param Grant[] $grants
      *
      * @throws BroadcastException
+     * @throws InvalidArgumentException
      */
     protected function makeAuthorizationCookie(Request $request, array $grants, mixed $user = null): Cookie
     {
@@ -340,11 +345,24 @@ class MercureBroadcaster extends Broadcaster
         }
 
         try {
-            return (new Authorization(new HubRegistry($this->hub), $this->expiration))
+            $cookie = (new Authorization(new HubRegistry($this->hub), $this->expiration))
                 ->createCookie($request, $grants, null, $claims);
         } catch (RuntimeException $e) {
             throw new BroadcastException(sprintf('Mercure error: %s. Adjust the Mercure "public_url" configuration value so the hub [%s] shares a registrable domain with the application host [%s].', rtrim($e->getMessage(), '.'), $this->hub->getPublicUrl(), $request->getHost()), 0, $e);
         }
+
+        $name = strtolower($cookie->getName());
+        $hasHostPrefix = str_starts_with($name, '__host-');
+
+        if (($hasHostPrefix || str_starts_with($name, '__secure-')) && ! $cookie->isSecure()) {
+            throw new InvalidArgumentException(sprintf('The Mercure "%s" cookie requires HTTPS. Use HTTPS or a prefix-less "cookie_name" for plain-HTTP development.', $cookie->getName()));
+        }
+
+        if ($hasHostPrefix && ($cookie->getPath() !== '/' || $cookie->getDomain() !== null)) {
+            throw new InvalidArgumentException(sprintf('The Mercure "%s" cookie requires Path=/ and no Domain attribute. Use a "__Secure-" cookie name for a hub path or shared domain.', $cookie->getName()));
+        }
+
+        return $cookie;
     }
 
     /**

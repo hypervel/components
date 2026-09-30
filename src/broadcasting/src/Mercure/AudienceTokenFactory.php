@@ -25,7 +25,11 @@ class AudienceTokenFactory implements TokenFactoryInterface
      */
     public function create(array $grants = [], array $additionalClaims = []): string
     {
-        return $this->factory->create($grants, $additionalClaims + ['aud' => $this->getAudience()]);
+        if (! array_key_exists('aud', $additionalClaims)) {
+            $additionalClaims['aud'] = $this->getAudience();
+        }
+
+        return $this->factory->create($grants, $additionalClaims);
     }
 
     /**

@@ -13,6 +13,7 @@ use Hypervel\Cookie\Middleware\EncryptCookies;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Jose\Component\Core\AlgorithmManager;
 use Jose\Component\Core\JWK;
 use Jose\Component\Encryption\Algorithm\ContentEncryption\A256GCM;
@@ -21,6 +22,7 @@ use Jose\Component\Encryption\JWEDecrypter;
 use Jose\Component\Encryption\Serializer\CompactSerializer;
 use Mockery as m;
 use Mockery\MockInterface;
+use PHPUnit\Framework\Attributes\TestWith;
 use ReflectionClass;
 use RuntimeException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -215,16 +217,21 @@ class MercureBroadcasterTest extends TestCase
         ], $detail['topics']);
     }
 
-    public function testAuthSetsTheCookieProvidedByTheHub(): void
+    #[TestWith(['https://localhost/.well-known/mercure', '__Secure-mercure_access_token', '/.well-known/mercure'])]
+    #[TestWith(['https://localhost/', '__Host-mercure', '/'])]
+    public function testAuthSetsTheCookieProvidedByTheHub(string $publicUrl, string $cookieName, string $path): void
     {
-        $this->broadcaster->channel('room.1', static fn (): bool => true);
+        $broadcaster = $this->broadcasterForHub($publicUrl, $cookieName);
+        $broadcaster->channel('room.1', static fn (): bool => true);
 
-        $response = $this->broadcaster->auth($this->requestFor(['private-room.1'], 42));
+        $response = $broadcaster->auth($this->requestFor(['private-room.1'], 42));
 
         $cookie = $response->headers->getCookies()[0];
 
-        $this->assertSame('__Secure-mercure_access_token', $cookie->getName());
-        $this->assertSame('/.well-known/mercure', $cookie->getPath());
+        $this->assertSame($cookieName, $cookie->getName());
+        $this->assertSame($path, $cookie->getPath());
+        $this->assertNull($cookie->getDomain());
+        $this->assertTrue($cookie->isSecure());
         $this->assertTrue($cookie->isHttpOnly());
         $this->assertSame('strict', $cookie->getSameSite());
     }
@@ -641,6 +648,19 @@ class MercureBroadcasterTest extends TestCase
         $broadcaster->auth($this->requestFor(['news'], null));
     }
 
+    #[TestWith(['https://localhost/.well-known/mercure', '__host-mercure', 'Path=/'])]
+    #[TestWith(['https://hub.localhost/', '__Host-mercure', 'no Domain'])]
+    #[TestWith(['http://localhost/.well-known/mercure', '__secure-mercure', 'HTTPS'])]
+    public function testAuthRejectsInvalidPrefixedCookieAttributes(string $publicUrl, string $cookieName, string $message): void
+    {
+        $broadcaster = $this->broadcasterForHub($publicUrl, $cookieName);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage($message);
+
+        $broadcaster->auth($this->requestFor(['news'], null));
+    }
+
     public function testAuthRejectsAHubOnADifferentSecondLevelDomain(): void
     {
         $broadcaster = $this->broadcasterForHub('https://hub.other.com/.well-known/mercure');
@@ -698,11 +718,11 @@ class MercureBroadcasterTest extends TestCase
     /**
      * Create a broadcaster for a public hub URL.
      */
-    protected function broadcasterForHub(string $publicUrl): MercureBroadcaster
+    protected function broadcasterForHub(string $publicUrl, string $cookieName = '__Secure-mercure_access_token'): MercureBroadcaster
     {
         $hub = m::mock(HubInterface::class);
         $hub->shouldReceive('getPublicUrl')->andReturn($publicUrl);
-        $hub->shouldReceive('getCookieName')->andReturn('__Secure-mercure_access_token');
+        $hub->shouldReceive('getCookieName')->andReturn($cookieName);
         $hub->shouldReceive('getFactory')->andReturn($this->tokenFactory());
 
         return new MercureBroadcaster(new Container, $hub);

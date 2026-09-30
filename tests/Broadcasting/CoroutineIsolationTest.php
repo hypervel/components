@@ -180,12 +180,14 @@ class CoroutineIsolationTest extends TestCase
             $this->assertSame(0, $pool->getManagedCount());
         } finally {
             $release->push(true);
-            $finished->pop(3);
+            $serverFinished = $finished->pop(3);
             Coroutine::join([$publisher], 1);
             $received->close();
             $release->close();
             $finished->close();
         }
+
+        $this->assertTrue($serverFinished);
     }
 
     /**

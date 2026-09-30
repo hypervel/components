@@ -984,7 +984,9 @@ class BroadcastManagerTest extends TestCase
     {
         $hub = (new BroadcastManager($this->getApp([])))->mercure($this->mercureConfig(['publish_expiration' => 0.5]));
 
-        $this->assertNotNull($hub->getProvider()->getJwt());
+        $claims = $this->decodeJwtClaims($hub->getProvider()->getJwt());
+
+        $this->assertEqualsWithDelta(30, $claims['exp'] - $claims['iat'], 1);
     }
 
     public function testMercureRejectsANonPositiveSubscribeExpiration(): void
@@ -1032,12 +1034,15 @@ class BroadcastManagerTest extends TestCase
         $manager->connection('mercure');
     }
 
-    public function testMercureRejectsASecurePrefixedCookieOverAPlainHttpPublicUrl(): void
+    #[TestWith([null])]
+    #[TestWith(['__host-mercure'])]
+    public function testMercureRejectsASecurePrefixedCookieOverAPlainHttpPublicUrl(?string $cookieName): void
     {
         $manager = new BroadcastManager($this->getApp([
             'broadcasting' => ['connections' => ['mercure' => $this->mercureConfig([
                 'driver' => 'mercure',
                 'public_url' => 'http://localhost/.well-known/mercure',
+                'cookie_name' => $cookieName,
             ])]],
         ]));
 
@@ -1047,13 +1052,15 @@ class BroadcastManagerTest extends TestCase
         $manager->connection('mercure');
     }
 
-    public function testMercureAcceptsAPlainHttpPublicUrlWithAnUnprefixedCookieName(): void
+    #[TestWith(['mercureAuthorization'])]
+    #[TestWith(['__mercure'])]
+    public function testMercureAcceptsAPlainHttpPublicUrlWithAnUnprefixedCookieName(string $cookieName): void
     {
         $manager = new BroadcastManager($this->getApp([
             'broadcasting' => ['connections' => ['mercure' => $this->mercureConfig([
                 'driver' => 'mercure',
                 'public_url' => 'http://localhost/.well-known/mercure',
-                'cookie_name' => 'mercureAuthorization',
+                'cookie_name' => $cookieName,
             ])]],
         ]));
 
@@ -1215,6 +1222,19 @@ class BroadcastManagerTest extends TestCase
         $this->assertSame('https://hub.test/events', $hub->getPublicUrl());
         $this->assertSame('https://hub.test/events', $this->decodeJwtClaims($hub->getFactory()->create())['aud']);
         $this->assertSame('https://hub.test/events', $this->decodeJwtClaims($hub->getProvider()->getJwt())['aud']);
+    }
+
+    public function testExplicitMercureTokenAudienceDoesNotResolveTheDefaultUrl(): void
+    {
+        $application = $this->getApp([]);
+        $urls = m::mock(UrlGeneratorContract::class);
+        $urls->shouldNotReceive('to');
+        $application->instance('url', $urls);
+        $hub = (new BroadcastManager($application))->mercure($this->mercureConfig(['url' => '/.well-known/mercure']));
+
+        $claims = $this->decodeJwtClaims($hub->getFactory()->create([], ['aud' => 'urn:mercure:custom']));
+
+        $this->assertSame('urn:mercure:custom', $claims['aud']);
     }
 
     public function testRelativeMercureUrlsAndAudienceFollowTheCurrentOrigin(): void
