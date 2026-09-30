@@ -41,6 +41,21 @@ class PostgresConnector extends Connector implements ConnectorInterface
     }
 
     /**
+     * Get the PDO options based on the configuration.
+     */
+    public function getOptions(array $config): array
+    {
+        $options = parent::getOptions($config);
+
+        if (isset($config['connect_timeout'])
+            && ! array_key_exists(PDO::ATTR_TIMEOUT, $config['options'] ?? [])) {
+            $options[PDO::ATTR_TIMEOUT] = (int) ceil($config['connect_timeout']);
+        }
+
+        return $options;
+    }
+
+    /**
      * Create a DSN string from a configuration.
      */
     protected function getDsn(array $config): string
@@ -58,7 +73,7 @@ class PostgresConnector extends Connector implements ConnectorInterface
         $database = $connect_via_database ?? $database ?? null;
         $port = $connect_via_port ?? $port ?? null;
 
-        $dsn = "pgsql:{$host}dbname='{$database}'";
+        $dsn = "pgsql:{$host}dbname=" . $this->quoteConnectionValue((string) $database);
 
         // If a port was specified, we will add it to this Postgres DSN connections
         // format. Once we have done that we are ready to return this connection
@@ -67,43 +82,35 @@ class PostgresConnector extends Connector implements ConnectorInterface
             $dsn .= ";port={$port}";
         }
 
-        if (isset($connect_timeout)) {
-            $connectTimeout = (int) ceil($connect_timeout);
-            $dsn .= ";connect_timeout={$connectTimeout}";
-        }
-
         if (isset($charset)) {
-            $dsn .= ";client_encoding='{$charset}'";
+            $dsn .= ';client_encoding=' . $this->quoteConnectionValue($charset);
         }
 
         // Postgres allows an application_name to be set by the user and this name is
         // used when monitoring the application with pg_stat_activity. So we'll
         // determine if the option has been specified and add it to the DSN.
         if (isset($application_name)) {
-            $dsn .= ";application_name='" . str_replace("'", "\\'", $application_name) . "'";
+            $dsn .= ';application_name=' . $this->quoteConnectionValue($application_name);
         }
 
-        $startupOptions = $this->buildStartupOptions($config);
-
-        if ($startupOptions !== null) {
-            $dsn .= ";options='{$startupOptions}'";
-        }
-
-        return $this->addKeepaliveOptions($this->addSslOptions($dsn, $config), $config);
+        return $this->addServerOptions(
+            $this->addKeepaliveOptions($this->addSslOptions($dsn, $config), $config),
+            $config
+        );
     }
 
     /**
-     * Build the libpq "options" parameter value from startup settings.
-     *
-     * Returns null when no startup settings are configured. Each setting is
-     * expressed as a "-c key=value" flag, space-separated. Values containing
-     * spaces (e.g. "read committed") are backslash-escaped so libpq preserves
-     * them as a single token when it splits the options string on whitespace.
+     * Add the server options to the DSN.
      */
-    protected function buildStartupOptions(array $config): ?string
+    protected function addServerOptions(string $dsn, array $config): string
     {
         $parts = [];
 
+        foreach ($config['server_options'] ?? [] as $name => $value) {
+            $parts[] = '-c ' . $name . '=' . $this->escapeStartupOptionValue((string) $value);
+        }
+
+        // Dedicated settings take precedence over their server_options equivalents.
         if (isset($config['search_path']) || isset($config['schema'])) {
             $searchPath = $this->quoteSearchPath(
                 $this->parseSearchPath($config['search_path'] ?? $config['schema'])
@@ -130,27 +137,23 @@ class PostgresConnector extends Connector implements ConnectorInterface
             $parts[] = '-c synchronous_commit=' . $this->escapeStartupOptionValue((string) $config['synchronous_commit']);
         }
 
-        return $parts !== [] ? implode(' ', $parts) : null;
+        return $parts !== [] ? $dsn . ';options=' . $this->quoteConnectionValue(implode(' ', $parts)) : $dsn;
     }
 
     /**
-     * Escape a startup option value for use inside libpq's options parameter.
-     *
-     * libpq splits the options string on unescaped whitespace, so spaces that
-     * belong to a single value (like the space in "read committed") must be
-     * backslash-escaped to stay part of that value rather than being treated
-     * as a token separator.
-     *
-     * The replacement emits two backslashes before each space. PDO's DSN
-     * parser consumes one level of backslash-escaping when it extracts the
-     * single-quoted options value, so a single backslash in the DSN source
-     * is stripped before libpq sees it — leaving libpq to split on the
-     * unescaped space. Doubling the backslash survives PDO's unescape and
-     * arrives at libpq as a single `\ ` (escaped space).
+     * Escape a value for the server's options argument splitter.
      */
     protected function escapeStartupOptionValue(string $value): string
     {
-        return str_replace(' ', '\\\ ', $value);
+        return str_replace(['\\', ' '], ['\\\\', '\ '], $value);
+    }
+
+    /**
+     * Quote a value for libpq's connection-string parser.
+     */
+    protected function quoteConnectionValue(string $value): string
+    {
+        return "'" . str_replace(['\\', "'"], ['\\\\', "\\'"], $value) . "'";
     }
 
     /**
@@ -160,7 +163,7 @@ class PostgresConnector extends Connector implements ConnectorInterface
     {
         foreach (['sslmode', 'sslcert', 'sslkey', 'sslrootcert'] as $option) {
             if (isset($config[$option])) {
-                $dsn .= ";{$option}={$config[$option]}";
+                $dsn .= ";{$option}=" . $this->quoteConnectionValue((string) $config[$option]);
             }
         }
 
@@ -186,6 +189,6 @@ class PostgresConnector extends Connector implements ConnectorInterface
      */
     protected function quoteSearchPath(array $searchPath): string
     {
-        return count($searchPath) === 1 ? '"' . $searchPath[0] . '"' : '"' . implode('", "', $searchPath) . '"';
+        return '"' . implode('", "', str_replace('"', '""', $searchPath)) . '"';
     }
 }
