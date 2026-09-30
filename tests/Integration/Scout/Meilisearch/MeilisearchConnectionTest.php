@@ -31,7 +31,8 @@ class MeilisearchConnectionTest extends MeilisearchIntegrationTestCase
         $this->assertSame($indexName, $index->getUid());
 
         // Delete it
-        $this->meilisearch->deleteIndex($indexName);
+        $task = $this->meilisearch->deleteIndex($indexName);
+        $this->waitForMeilisearchTask($task['taskUid']);
     }
 
     public function testCanIndexAndSearchDocuments(): void
@@ -56,8 +57,5 @@ class MeilisearchConnectionTest extends MeilisearchIntegrationTestCase
 
         $this->assertCount(1, $results->getHits());
         $this->assertSame('Hello World', $results->getHits()[0]['title']);
-
-        // Cleanup
-        $this->meilisearch->deleteIndex($indexName);
     }
 }
