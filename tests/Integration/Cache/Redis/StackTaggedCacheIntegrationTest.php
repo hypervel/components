@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hypervel\Cache\Exceptions\NotSupportedException;
 use Hypervel\Cache\FileStore;
+use Hypervel\Cache\MemoizedStore;
 use Hypervel\Cache\Repository as CacheRepository;
 use Hypervel\Cache\StackStore;
 use Hypervel\Cache\StackStoreProxy;
@@ -102,6 +103,36 @@ class StackTaggedCacheIntegrationTest extends RedisCacheIntegrationTestCase
             'value' => 'from-redis',
             'expiration' => $expiration,
         ], $file->get('stack-key'));
+    }
+
+    public function testMemoizedTagsReadThroughTheStackAndShareItsPlainKeys(): void
+    {
+        $this->setTagMode(TagMode::Any);
+
+        $file = $this->fileStore();
+        $stack = $this->stackCache(file: $file);
+        $memoized = new CacheRepository(new MemoizedStore('stack', $stack));
+
+        $expiration = time() + 30;
+
+        $this->cache()->tags(['stack-tag'])->put('stack-key', [
+            'value' => 'from-redis',
+            'expiration' => $expiration,
+        ], 30);
+
+        $this->assertSame('from-redis', $memoized->tags(['stack-tag'])->remember('stack-key', 30, fn (): string => 'unused'));
+        $this->assertSame([
+            'value' => 'from-redis',
+            'expiration' => $expiration,
+        ], $file->get('stack-key'));
+
+        $stack->put('stack-key', 'plain', 30);
+
+        $this->assertSame('from-redis', $memoized->get('stack-key'));
+
+        $memoized->tags(['stack-tag'])->put('stack-key', 'tagged', 30);
+
+        $this->assertSame('tagged', $memoized->get('stack-key'));
     }
 
     public function testPlainForgetPreventsTagFlushFromDeletingReusedStackKey(): void

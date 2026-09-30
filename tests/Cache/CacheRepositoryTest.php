@@ -908,6 +908,16 @@ class CacheRepositoryTest extends TestCase
         $this->assertTrue($repo->add('foo', 'bar'));
     }
 
+    public function testAddTreatsACachedNullAsPresent(): void
+    {
+        $repository = new Repository(new ArrayStore);
+        $repository->rememberNullable('foo', 60, fn (): null => null);
+
+        $this->assertFalse($repository->add('foo', 'bar', 60));
+        $this->assertFalse($repository->add('foo', 'bar'));
+        $this->assertSame(NullSentinel::VALUE, $repository->getRaw('foo'));
+    }
+
     public function testAddWithDatetimeInPastOrZeroSecondsReturnsImmediately()
     {
         $repo = $this->getRepository();

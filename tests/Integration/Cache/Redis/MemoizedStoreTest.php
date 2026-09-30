@@ -425,28 +425,31 @@ class MemoizedStoreTest extends TestCase
         $firstCoroutineMemoized = new Channel(1);
 
         Cache::put('name', 'Tim', 60);
+        Cache::tags(['people'])->put('name', 'Tim', 60);
 
         [$firstCoroutine, $secondCoroutine] = parallel([
-            function () use ($firstCoroutineMemoized) {
-                $first = Cache::memo()->get('name');
+            function () use ($firstCoroutineMemoized): array {
+                $first = [Cache::memo()->get('name'), Cache::memo()->tags(['people'])->get('name')];
                 $firstCoroutineMemoized->push(true);
 
                 usleep(10000);
 
-                return [$first, Cache::memo()->get('name')];
+                return [$first, [Cache::memo()->get('name'), Cache::memo()->tags(['people'])->get('name')]];
             },
-            function () use ($firstCoroutineMemoized) {
+            function () use ($firstCoroutineMemoized): array {
                 $firstCoroutineMemoized->pop();
 
                 Cache::put('name', 'Taylor', 60);
+                Cache::tags(['people'])->put('name', 'Taylor', 60);
 
-                return Cache::memo()->get('name');
+                return [Cache::memo()->get('name'), Cache::memo()->tags(['people'])->get('name')];
             },
         ]);
 
-        $this->assertSame(['Tim', 'Tim'], $firstCoroutine);
-        $this->assertSame('Taylor', $secondCoroutine);
+        $this->assertSame([['Tim', 'Tim'], ['Tim', 'Tim']], $firstCoroutine);
+        $this->assertSame(['Taylor', 'Taylor'], $secondCoroutine);
         $this->assertSame('Taylor', Cache::get('name'));
+        $this->assertSame('Taylor', Cache::tags(['people'])->get('name'));
     }
 
     public function testItThrowsWhenUnderlyingStoreDoesNotSupportLocks()

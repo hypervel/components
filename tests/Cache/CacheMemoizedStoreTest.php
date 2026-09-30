@@ -15,12 +15,14 @@ use Hypervel\Cache\NullStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\StackStore;
 use Hypervel\Cache\StackStoreProxy;
+use Hypervel\Cache\TagMode;
 use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
 
 class CacheMemoizedStoreTest extends TestCase
@@ -157,6 +159,88 @@ class CacheMemoizedStoreTest extends TestCase
         $this->assertSame('old', $store->get('foo'));
         $this->assertTrue($store->putMany(['foo' => 'new'], 60));
         $this->assertSame('new', $store->get('foo'));
+    }
+
+    #[DataProvider('addTtls')]
+    public function testAddDoesNotOverwriteAValueHiddenByAMemoizedMiss(?int $ttl): void
+    {
+        $repository = new Repository(new ArrayStore);
+        $memoized = new Repository(new MemoizedStore('memoized', $repository));
+
+        $this->assertNull($memoized->get('key'));
+        $repository->put('key', 'other-writer', 60);
+
+        $this->assertFalse($memoized->add('key', 'replacement', $ttl));
+        $this->assertSame('other-writer', $repository->get('key'));
+        $this->assertSame('other-writer', $memoized->get('key'));
+    }
+
+    #[DataProvider('addTtls')]
+    public function testAddStoresAValueHiddenByAStaleMemoizedHit(?int $ttl): void
+    {
+        $repository = new Repository(new ArrayStore);
+        $memoized = new Repository(new MemoizedStore('memoized', $repository));
+
+        $repository->put('key', 'stale', 60);
+        $this->assertSame('stale', $memoized->get('key'));
+        $repository->forget('key');
+
+        $this->assertTrue($memoized->add('key', 'replacement', $ttl));
+        $this->assertSame('replacement', $repository->get('key'));
+        $this->assertSame('replacement', $memoized->get('key'));
+    }
+
+    /**
+     * Provide omitted and finite add TTLs.
+     */
+    public static function addTtls(): array
+    {
+        return [
+            'without ttl' => [null],
+            'with ttl' => [60],
+        ];
+    }
+
+    public function testTagSupportDelegatesToTheUnderlyingStore(): void
+    {
+        $taggable = new MemoizedStore('array', new Repository(new ArrayStore));
+        $nonTaggable = new MemoizedStore('test', new Repository(m::mock(Store::class)));
+
+        $this->assertTrue($taggable->supportsTags());
+        $this->assertSame(TagMode::All, $taggable->getTagMode());
+        $this->assertFalse($nonTaggable->supportsTags());
+
+        $this->expectException(BadMethodCallException::class);
+        $this->expectExceptionMessage('This cache store does not support tagging.');
+
+        $nonTaggable->getTagMode();
+    }
+
+    public function testWarmTaggedMemoDoesNotReadTagVersions(): void
+    {
+        $store = new class extends ArrayStore {
+            public array $reads = [];
+
+            /**
+             * Record the key, then retrieve the item from the cache.
+             */
+            public function get(string $key): mixed
+            {
+                $this->reads[] = $key;
+
+                return parent::get($key);
+            }
+        };
+        $repository = new Repository($store);
+        $memoized = new Repository(new MemoizedStore('array', $repository));
+
+        $repository->tags(['foo', 'bar'])->put('name', 'Tim', 60);
+        $this->assertSame('Tim', $memoized->tags(['foo', 'bar'])->get('name'));
+
+        $store->reads = [];
+
+        $this->assertSame('Tim', $memoized->tags(['foo', 'bar'])->get('name'));
+        $this->assertSame([], $store->reads);
     }
 
     public function testMemoizedStoreCanWrapStackStore(): void

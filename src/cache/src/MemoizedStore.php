@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use BadMethodCallException;
+use Closure;
+use DateInterval;
+use DateTimeInterface;
+use Hypervel\Cache\Exceptions\NotSupportedException;
 use Hypervel\Contracts\Cache\AuthoritativeRawReadable;
 use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\Lock as LockContract;
@@ -15,7 +19,7 @@ use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
-class MemoizedStore implements AuthoritativeRawReadable, CanFlushLocks, LockProvider, RawReadable, Store
+class MemoizedStore extends TaggableStore implements AuthoritativeRawReadable, CanFlushLocks, LockProvider, RawReadable
 {
     /**
      * The memoized cache values.
@@ -23,6 +27,13 @@ class MemoizedStore implements AuthoritativeRawReadable, CanFlushLocks, LockProv
      * @var array<string, mixed>
      */
     protected array $cache = [];
+
+    /**
+     * The memoized tagged cache instances.
+     *
+     * @var array<string, MemoizedTaggedCache>
+     */
+    protected array $taggedCaches = [];
 
     /**
      * Create a new memoized cache instance.
@@ -44,16 +55,17 @@ class MemoizedStore implements AuthoritativeRawReadable, CanFlushLocks, LockProv
     /**
      * Retrieve an item from the cache by key.
      *
-     * Store contract method — returns the value with sentinels unwrapped to null,
-     * matching the pre-refactor behavior (which returned whatever the inner
-     * Repository's get() returned, i.e., unwrapped). Memoizes the raw value so
-     * subsequent getRaw() calls see the sentinel.
+     * Cached null sentinels are unwrapped to null. The raw value is memoized,
+     * so later getRaw() calls still see the sentinel.
      */
     public function get(string $key): mixed
     {
         return NullSentinel::unwrap($this->getRaw($key));
     }
 
+    /**
+     * Retrieve an item from the cache without unwrapping sentinels.
+     */
     public function getRaw(UnitEnum|string $key): mixed
     {
         $stringKey = (string) (is_object($key) ? enum_value($key) : $key);
@@ -64,6 +76,22 @@ class MemoizedStore implements AuthoritativeRawReadable, CanFlushLocks, LockProv
         }
 
         return $this->cache[$prefixedKey] = $this->repository->getRaw($stringKey);
+    }
+
+    /**
+     * Get a memoized raw value, resolving a miss with the given callback.
+     *
+     * @param Closure(): mixed $callback
+     */
+    public function memoize(string $key, Closure $callback): mixed
+    {
+        $prefixedKey = $this->prefix($key);
+
+        if (array_key_exists($prefixedKey, $this->cache)) {
+            return $this->cache[$prefixedKey];
+        }
+
+        return $this->cache[$prefixedKey] = $callback();
     }
 
     /**
@@ -85,10 +113,13 @@ class MemoizedStore implements AuthoritativeRawReadable, CanFlushLocks, LockProv
     {
         return array_map(
             NullSentinel::unwrap(...),
-            $this->manyRaw(array_map(fn ($k) => (string) $k, $keys))
+            $this->manyRaw(array_map(fn ($key) => (string) $key, $keys))
         );
     }
 
+    /**
+     * Retrieve multiple items from the cache without unwrapping sentinels.
+     */
     public function manyRaw(array $keys): array
     {
         [$memoized, $missing] = [[], []];
@@ -141,6 +172,19 @@ class MemoizedStore implements AuthoritativeRawReadable, CanFlushLocks, LockProv
         }
 
         return $this->repository->putMany($values, $seconds);
+    }
+
+    /**
+     * Store an item in the cache if the key does not exist.
+     *
+     * The underlying repository decides whether the key exists, because a
+     * memoized value may be stale.
+     */
+    public function add(string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
+    {
+        unset($this->cache[$this->prefix($key)]);
+
+        return $this->repository->add($key, $value, $ttl);
     }
 
     /**
@@ -251,6 +295,52 @@ class MemoizedStore implements AuthoritativeRawReadable, CanFlushLocks, LockProv
     }
 
     /**
+     * Begin executing a new tags operation.
+     *
+     * @throws BadMethodCallException
+     * @throws NotSupportedException
+     */
+    public function tags(mixed $names): MemoizedTaggedCache
+    {
+        $names = is_array($names) ? $names : func_get_args();
+
+        $key = serialize($names);
+
+        if (isset($this->taggedCaches[$key])) {
+            return $this->taggedCaches[$key];
+        }
+
+        return $this->taggedCaches[$key] = new MemoizedTaggedCache(
+            $this->repository->tags($names),
+            $this
+        );
+    }
+
+    /**
+     * Determine if the underlying store currently supports tags.
+     */
+    public function supportsTags(): bool
+    {
+        return $this->repository->supportsTags();
+    }
+
+    /**
+     * Get the tag mode of the underlying store.
+     *
+     * @throws BadMethodCallException
+     */
+    public function getTagMode(): TagMode
+    {
+        $store = $this->getInnerStore();
+
+        if (! $store instanceof TaggableStore) {
+            throw new BadMethodCallException('This cache store does not support tagging.');
+        }
+
+        return $store->getTagMode();
+    }
+
+    /**
      * Remove an item from the cache.
      */
     public function forget(string $key): bool
@@ -261,13 +351,45 @@ class MemoizedStore implements AuthoritativeRawReadable, CanFlushLocks, LockProv
     }
 
     /**
+     * Forget a memoized value without changing the underlying cache.
+     */
+    public function forgetMemoized(string $key): void
+    {
+        unset($this->cache[$this->prefix($key)]);
+    }
+
+    /**
      * Remove all items from the cache.
      */
     public function flush(): bool
     {
         $this->cache = [];
 
-        return $this->repository->flush();
+        $result = $this->repository->flush();
+
+        $this->flushTagged();
+
+        return $result;
+    }
+
+    /**
+     * Remove all memoized items from the tagged caches.
+     */
+    public function flushTagged(): void
+    {
+        foreach ($this->taggedCaches as $taggedCache) {
+            $taggedCache->flushMemoized();
+        }
+    }
+
+    /**
+     * Forget all memoized values without changing the underlying cache.
+     */
+    public function flushMemoized(): void
+    {
+        $this->cache = [];
+
+        $this->flushTagged();
     }
 
     /**
