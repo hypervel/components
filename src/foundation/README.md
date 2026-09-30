@@ -38,6 +38,8 @@ Laravel's deprecated `HandleExceptions::forgetApp()` is omitted. Use `HandleExce
 
 Laravel Mix and the `mix()` helper are not ported; use Vite instead.
 
+Laravel's `docs` command is not ported because it searches and opens the Laravel documentation. The Hypervel documentation is available at https://hypervel.org/docs.
+
 `FailOnUnknownFields` accepts the contents of an `array` field without child rules. Define child rules or allowed array keys to restrict those contents.
 
 Ported from: https://github.com/laravel/framework
