@@ -24,8 +24,8 @@ trait DatabaseMigrations
         $this->refreshTestDatabase();
         $this->afterRefreshingDatabase();
 
-        $this->beforeApplicationDestroyed(function () {
-            $this->command('migrate:rollback');
+        $this->beforeApplicationDestroyed(function (): void {
+            $this->artisan('migrate:rollback');
 
             RefreshDatabaseState::$migrated = false;
         });
