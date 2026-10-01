@@ -73,6 +73,14 @@ class ShutdownOnInterruptListenerTest extends TestCase
             }
 
             $this->waitForLines($process, ['application signal received' => $workerNum]);
+
+            // Replacement workers that handle SIGINT must still be stopped through the manager on shutdown.
+            posix_kill(-$pid, SIGINT);
+            $process->wait();
+
+            $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput());
+            $this->assertStringContainsString('server shutdown', $process->getOutput());
+            $this->assertFalse(posix_kill(-$pid, 0), 'Server processes were left running after shutdown.');
         } finally {
             posix_kill(-$pid, SIGKILL);
             $process->stop(0);
