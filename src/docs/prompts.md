@@ -1273,7 +1273,7 @@ callout('Server Health Check', [
 ]);
 ```
 
-If no label is provided, the URL itself will be displayed as the link text.
+If no label is provided, the URL itself will be displayed as the link text. Links are underlined by default; you may pass `underline: false` to remove the underline.
 
 <a name="tables"></a>
 ## Tables

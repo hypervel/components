@@ -199,7 +199,7 @@ class CalloutRenderer extends Renderer
     protected function renderLink(Link $part): string
     {
         $text = $part->underline
-            ? "\e[4;36m{$part->label}\e[0m"
+            ? $this->underline($this->cyan($part->label))
             : $this->cyan($part->label);
 
         return "\e]8;;{$part->url}\e\\{$text}\e]8;;\e\\";
@@ -212,11 +212,12 @@ class CalloutRenderer extends Renderer
     {
         $text = preg_replace('/`([^`]+)`/', $this->cyan('`$1`'), $text);
 
-        return preg_replace_callback('/\e\]8;;(.+?)\e\\\(.*?)\e\]8;;\e\\\/', function ($matches) {
+        return preg_replace_callback('/\e\]8;;(.+?)\e\\\(.*?)\e\]8;;\e\\\/', function (array $matches): string {
             $visibleText = $this->stripEscapeSequences($matches[2]);
             $hadUnderline = str_contains($matches[2], "\e[4m");
+            // Reset only the link's own attributes so text after it keeps the surrounding style.
             $styled = $hadUnderline
-                ? "\e[4;36m{$visibleText}\e[0m"
+                ? $this->underline($this->cyan($visibleText))
                 : $this->cyan($visibleText);
 
             return "\e]8;;{$matches[1]}\e\\{$styled}\e]8;;\e\\";
