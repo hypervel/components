@@ -13,6 +13,7 @@ use Hypervel\Foundation\Http\HealthCheckController;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Env;
+use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
@@ -72,6 +73,8 @@ class Workbench
      * Start Workbench.
      *
      * @internal
+     *
+     * @param array<int, class-string<ServiceProvider>|string> $providers
      *
      * @codeCoverageIgnore
      */

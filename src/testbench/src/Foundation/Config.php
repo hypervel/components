@@ -254,6 +254,7 @@ class Config extends Fluent implements ConfigContract
      * Add additional service providers.
      *
      * @param array<int, class-string<ServiceProvider>> $providers
+     * @return $this
      */
     public function addProviders(array $providers): static
     {

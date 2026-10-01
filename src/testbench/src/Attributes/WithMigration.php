@@ -22,11 +22,17 @@ use function Hypervel\Testbench\load_migration_paths;
 final class WithMigration implements Invokable
 {
     /**
+     * The target types.
+     *
      * @var array<int, string>
      */
     public readonly array $types;
 
     /**
+     * Construct a new attribute.
+     *
+     * @no-named-arguments
+     *
      * @param string ...$types Named Testbench migration sets to load
      */
     public function __construct(string ...$types)

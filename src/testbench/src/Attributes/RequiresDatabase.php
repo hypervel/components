@@ -25,6 +25,8 @@ final class RequiresDatabase implements Actionable
     public readonly ?bool $default;
 
     /**
+     * Construct a new attribute.
+     *
      * @param array<string>|string $driver The required database driver(s)
      * @param null|string $versionRequirement Optional version requirement (e.g., ">=8.0")
      * @param null|string $connection Optional connection name to check

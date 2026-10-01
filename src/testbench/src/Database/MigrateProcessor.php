@@ -22,6 +22,8 @@ class MigrateProcessor
     protected int $afterBatch = 0;
 
     /**
+     * Construct a new schema migrator.
+     *
      * @param array<string, mixed> $options
      */
     public function __construct(
@@ -33,6 +35,8 @@ class MigrateProcessor
 
     /**
      * Run migration.
+     *
+     * @return $this
      */
     public function up(): static
     {
@@ -61,6 +65,8 @@ class MigrateProcessor
 
     /**
      * Rollback migration.
+     *
+     * @return $this
      */
     public function rollback(): static
     {

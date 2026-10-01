@@ -34,7 +34,7 @@ final class ProcessDecorator
     /**
      * Handle dynamic calls to the process instance.
      *
-     * @return $this|ProcessResult
+     * @param array<array-key, mixed> $parameters
      */
     public function __call(string $method, array $parameters): mixed
     {

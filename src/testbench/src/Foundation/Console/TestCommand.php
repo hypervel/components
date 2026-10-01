@@ -41,6 +41,9 @@ class TestCommand extends TestCommandBase
      */
     protected string $description = 'Run the package tests';
 
+    /**
+     * Configure the current command.
+     */
     #[Override]
     public function configure(): void
     {

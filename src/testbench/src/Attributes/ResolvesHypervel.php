@@ -12,12 +12,17 @@ use Hypervel\Testbench\Contracts\Attributes\Actionable;
 #[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD | Attribute::IS_REPEATABLE)]
 final class ResolvesHypervel implements Actionable
 {
+    /**
+     * Construct a new attribute.
+     */
     public function __construct(
         public readonly string $method
     ) {
     }
 
     /**
+     * Handle the attribute.
+     *
      * @param Closure(string, array<int, mixed>):void $action
      */
     public function handle(ApplicationContract $app, Closure $action): mixed

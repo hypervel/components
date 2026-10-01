@@ -13,6 +13,9 @@ use function Hypervel\Filesystem\join_paths;
 use function Hypervel\Prompts\confirm;
 use function Hypervel\Testbench\transform_realpath_to_relative;
 
+/**
+ * @api
+ */
 class EnsureDirectoryExists
 {
     /**

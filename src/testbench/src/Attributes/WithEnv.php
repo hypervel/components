@@ -20,6 +20,9 @@ use function Hypervel\Testbench\parse_environment_variables;
 #[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD | Attribute::IS_REPEATABLE)]
 final class WithEnv implements Invokable
 {
+    /**
+     * Construct a new attribute.
+     */
     public function __construct(
         public readonly string $key,
         public readonly ?string $value
@@ -28,6 +31,8 @@ final class WithEnv implements Invokable
 
     /**
      * Handle the attribute.
+     *
+     * @return Closure():void
      */
     public function __invoke(ApplicationContract $app): Closure
     {

@@ -14,6 +14,16 @@ use Hypervel\Testbench\Foundation\Bootstrap\EnsuresDefaultConfiguration;
 use Hypervel\Testbench\Foundation\Bootstrap\LoadEnvironmentVariablesFromArray;
 use Throwable;
 
+/**
+ * @api
+ *
+ * @phpstan-import-type TOptionalExtraConfig from Config
+ *
+ * @phpstan-type TConfig array{
+ *   extra?: TOptionalExtraConfig,
+ *   load_environment_variables?: bool
+ * }
+ */
 class Application
 {
     use CreatesApplication {
@@ -73,7 +83,7 @@ class Application
      * Create a new application resolver.
      *
      * @param null|callable(ApplicationContract):void $resolvingCallback
-     * @param array<string, mixed> $options
+     * @param TConfig $options
      */
     public static function make(?string $basePath = null, ?callable $resolvingCallback = null, array $options = []): static
     {
@@ -84,7 +94,7 @@ class Application
      * Create a new application resolver from configuration.
      *
      * @param null|callable(ApplicationContract):void $resolvingCallback
-     * @param array<string, mixed> $options
+     * @param TConfig $options
      */
     public static function makeFromConfig(ConfigContract $config, ?callable $resolvingCallback = null, array $options = []): static
     {
@@ -100,7 +110,7 @@ class Application
      * Create a new application instance.
      *
      * @param null|callable(ApplicationContract):void $resolvingCallback
-     * @param array<string, mixed> $options
+     * @param TConfig $options
      */
     public static function create(?string $basePath = null, ?callable $resolvingCallback = null, array $options = []): ApplicationContract
     {
@@ -111,7 +121,7 @@ class Application
      * Create a new application instance from configuration.
      *
      * @param null|callable(ApplicationContract):void $resolvingCallback
-     * @param array<string, mixed> $options
+     * @param TConfig $options
      */
     public static function createFromConfig(ConfigContract $config, ?callable $resolvingCallback = null, array $options = []): ApplicationContract
     {
@@ -161,7 +171,7 @@ class Application
     /**
      * Configure the application options.
      *
-     * @param array<string, mixed> $options
+     * @param TConfig $options
      * @return $this
      */
     public function configure(array $options): static
@@ -194,6 +204,8 @@ class Application
 
     /**
      * Ignore package discovery from.
+     *
+     * @api
      *
      * @return array<int, string>
      */
@@ -306,6 +318,8 @@ class Application
     /**
      * Get the package providers.
      *
+     * @api
+     *
      * @return array<int, class-string>
      */
     protected function getPackageProviders(ApplicationContract $app): array
@@ -315,6 +329,8 @@ class Application
 
     /**
      * Get the package bootstrappers.
+     *
+     * @api
      *
      * @return array<int, class-string>
      */
@@ -331,6 +347,8 @@ class Application
 
     /**
      * Resolve the application's base path.
+     *
+     * @api
      */
     protected function getApplicationBasePath(): string
     {
@@ -339,6 +357,8 @@ class Application
 
     /**
      * Resolve application core environment variables implementation.
+     *
+     * @internal
      */
     protected function resolveApplicationEnvironmentVariables(ApplicationContract $app): void
     {
@@ -357,6 +377,8 @@ class Application
 
     /**
      * Load configuration and register package providers/aliases.
+     *
+     * @internal
      */
     protected function resolveApplicationConfiguration(ApplicationContract $app): void
     {
@@ -366,6 +388,8 @@ class Application
 
     /**
      * Resolve application console kernel implementation.
+     *
+     * @api
      */
     protected function resolveApplicationConsoleKernel(ApplicationContract $app): void
     {
@@ -378,6 +402,8 @@ class Application
 
     /**
      * Resolve application HTTP kernel implementation.
+     *
+     * @api
      */
     protected function resolveApplicationHttpKernel(ApplicationContract $app): void
     {

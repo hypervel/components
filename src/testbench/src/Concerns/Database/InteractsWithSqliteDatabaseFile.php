@@ -119,6 +119,8 @@ trait InteractsWithSqliteDatabaseFile
      * Drop Sqlite database.
      *
      * @api
+     *
+     * @param callable():void $callback
      */
     protected function withoutSqliteDatabase(callable $callback): void
     {
@@ -204,6 +206,8 @@ trait InteractsWithSqliteDatabaseFile
      * Drop and create a new Sqlite database.
      *
      * @api
+     *
+     * @param callable():void $callback
      */
     protected function withSqliteDatabase(callable $callback): void
     {

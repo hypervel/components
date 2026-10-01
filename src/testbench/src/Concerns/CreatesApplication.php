@@ -55,6 +55,9 @@ use function Hypervel\Testbench\refresh_router_lookups;
  * RegisterProviders and BootProviders. The testbench Console Kernel
  * returns an empty bootstrapper list, so the final bootstrap() call
  * only sets hasBeenBootstrapped and loads commands.
+ *
+ * @property null|bool $enablesPackageDiscoveries
+ * @property null|bool $loadEnvironmentVariables
  */
 trait CreatesApplication
 {
@@ -64,6 +67,8 @@ trait CreatesApplication
 
     /**
      * Get the base path for the application.
+     *
+     * @api
      */
     public static function applicationBasePath(): string
     {
@@ -72,6 +77,8 @@ trait CreatesApplication
 
     /**
      * Ignore package discovery from.
+     *
+     * @api
      *
      * @return array<int, string>
      */
@@ -82,6 +89,8 @@ trait CreatesApplication
 
     /**
      * Resolve the application's base path.
+     *
+     * @internal
      */
     protected function getApplicationBasePath(): string
     {
@@ -90,6 +99,8 @@ trait CreatesApplication
 
     /**
      * Get package providers.
+     *
+     * @api
      *
      * @return array<int, class-string>
      */
@@ -100,6 +111,8 @@ trait CreatesApplication
 
     /**
      * Get package bootstrappers.
+     *
+     * @api
      *
      * @return array<int, class-string>
      */
@@ -114,6 +127,8 @@ trait CreatesApplication
      * Override in test classes to filter the default provider list before
      * registration. For example, to remove SessionServiceProvider.
      *
+     * @api
+     *
      * @return array<int, class-string>
      */
     protected function getApplicationProviders(ApplicationContract $app): array
@@ -123,6 +138,8 @@ trait CreatesApplication
 
     /**
      * Get the application timezone.
+     *
+     * @api
      */
     protected function getApplicationTimezone(ApplicationContract $app): ?string
     {
@@ -135,6 +152,8 @@ trait CreatesApplication
      * Return a map of provider class names to replacements. Set a provider
      * to `false` to remove it entirely, or to another class name to replace it.
      *
+     * @api
+     *
      * @return array<class-string, class-string|false>
      */
     protected function overrideApplicationProviders(ApplicationContract $app): array
@@ -145,6 +164,8 @@ trait CreatesApplication
     /**
      * Get package aliases.
      *
+     * @api
+     *
      * @return array<string, class-string>
      */
     protected function getPackageAliases(ApplicationContract $app): array
@@ -154,6 +175,8 @@ trait CreatesApplication
 
     /**
      * Override application bindings.
+     *
+     * @api
      *
      * @return array<class-string|string, class-string|string>
      */
@@ -167,6 +190,8 @@ trait CreatesApplication
      *
      * Override in subclasses to modify config before providers boot.
      * This is where test classes set database drivers, cache stores, etc.
+     *
+     * @api
      */
     protected function defineEnvironment(ApplicationContract $app): void
     {
@@ -180,6 +205,8 @@ trait CreatesApplication
      * Testbench's createApplication), rather than via kernel->bootstrap(),
      * so defineEnvironment() can be called between RegisterProviders and
      * BootProviders.
+     *
+     * @internal
      */
     public function createApplication(): ApplicationContract
     {
@@ -232,6 +259,8 @@ trait CreatesApplication
 
     /**
      * Resolve the application instance.
+     *
+     * @api
      */
     protected function resolveApplication(): ApplicationContract
     {
@@ -254,6 +283,8 @@ trait CreatesApplication
 
     /**
      * Resolve application bindings.
+     *
+     * @internal
      */
     protected function resolveApplicationBindings(ApplicationContract $app): void
     {
@@ -264,6 +295,8 @@ trait CreatesApplication
 
     /**
      * Resolve application HTTP exception handler.
+     *
+     * @api
      */
     protected function resolveApplicationExceptionHandler(ApplicationContract $app): void
     {
@@ -272,6 +305,8 @@ trait CreatesApplication
 
     /**
      * Resolve application core environment.
+     *
+     * @internal
      */
     protected function resolveApplicationCore(ApplicationContract $app): void
     {
@@ -282,6 +317,8 @@ trait CreatesApplication
 
     /**
      * Resolve application environment variables.
+     *
+     * @internal
      */
     protected function resolveApplicationEnvironmentVariables(ApplicationContract $app): void
     {
@@ -376,6 +413,8 @@ trait CreatesApplication
 
     /**
      * Resolve application HTTP kernel implementation.
+     *
+     * @api
      */
     protected function resolveApplicationHttpKernel(ApplicationContract $app): void
     {
@@ -384,6 +423,8 @@ trait CreatesApplication
 
     /**
      * Resolve application HTTP default middlewares.
+     *
+     * @internal
      */
     protected function resolveApplicationHttpMiddlewares(ApplicationContract $app): void
     {
@@ -415,6 +456,8 @@ trait CreatesApplication
 
     /**
      * Resolve application console kernel implementation.
+     *
+     * @api
      */
     protected function resolveApplicationConsoleKernel(ApplicationContract $app): void
     {
@@ -429,6 +472,8 @@ trait CreatesApplication
      * Equivalent to Orchestral's resolveApplicationConfiguration(): loads
      * config files, then sets app.providers and app.aliases in config
      * BEFORE RegisterProviders reads them.
+     *
+     * @internal
      */
     protected function resolveApplicationConfiguration(ApplicationContract $app): void
     {
@@ -477,6 +522,8 @@ trait CreatesApplication
      *
      * Merges package providers, then applies overrides (replacements/removals)
      * before writing the final list to config for RegisterProviders to use.
+     *
+     * @internal
      */
     protected function resolveApplicationProviders(ApplicationContract $app): void
     {
@@ -507,6 +554,8 @@ trait CreatesApplication
      * Run bootstrappers individually with defineEnvironment() inserted.
      *
      * Equivalent to Orchestral's resolveApplicationBootstrappers().
+     *
+     * @internal
      */
     protected function resolveApplicationBootstrappers(ApplicationContract $app): void
     {
@@ -567,6 +616,8 @@ trait CreatesApplication
      * ensures names are refreshed both immediately and lazily — the after_resolving
      * callback catches routes defined inside test methods (after boot) by firing
      * whenever app('url') is resolved.
+     *
+     * @internal
      */
     protected function refreshApplicationRouteNameLookups(ApplicationContract $app): void
     {

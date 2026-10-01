@@ -61,7 +61,15 @@ function after_resolving(ApplicationContract $app, string $name, ?Closure $callb
  * @api
  *
  * @param null|callable(ApplicationContract):void $resolvingCallback
- * @param array<string, mixed> $options
+ * @param array{
+ *   extra?: array{
+ *     env?: array,
+ *     providers?: array<int, class-string>,
+ *     dont-discover?: array<int, string>,
+ *     bootstrappers?: null|array<int, class-string>|class-string
+ *   },
+ *   load_environment_variables?: bool
+ * } $options
  */
 function container(
     ?string $basePath = null,

@@ -20,6 +20,7 @@ interface Config extends ArrayAccess
      * Add additional service providers.
      *
      * @param array<int, class-string<ServiceProvider>> $providers
+     * @return $this
      */
     public function addProviders(array $providers): static;
 

@@ -15,6 +15,9 @@ use Hypervel\Testbench\Contracts\Attributes\Actionable;
 #[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD | Attribute::IS_REPEATABLE)]
 final class DefineEnvironment implements Actionable
 {
+    /**
+     * Construct a new attribute.
+     */
     public function __construct(
         public readonly string $method
     ) {

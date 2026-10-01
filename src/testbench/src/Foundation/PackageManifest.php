@@ -77,6 +77,8 @@ class PackageManifest extends FoundationPackageManifest
 
     /**
      * Require packages even when discovery is disabled.
+     *
+     * @return $this
      */
     public function requires(string ...$packages): static
     {

@@ -18,6 +18,8 @@ use function Hypervel\Testbench\join_paths;
 final class HandleExceptions extends \Hypervel\Foundation\Bootstrap\HandleExceptions
 {
     /**
+     * Report a deprecation to the "deprecations" logger.
+     *
      * @throws DeprecatedException
      */
     #[Override]
@@ -37,6 +39,9 @@ final class HandleExceptions extends \Hypervel\Foundation\Bootstrap\HandleExcept
         }
     }
 
+    /**
+     * Ensure the "deprecations" logger is configured.
+     */
     #[Override]
     protected function ensureDeprecationLoggerIsConfigured(ConfigRepository $config): void
     {
@@ -64,6 +69,9 @@ final class HandleExceptions extends \Hypervel\Foundation\Bootstrap\HandleExcept
         ]);
     }
 
+    /**
+     * Determine if deprecation errors should be ignored.
+     */
     #[Override]
     protected function shouldIgnoreDeprecationErrors(): bool
     {

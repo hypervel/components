@@ -9,6 +9,8 @@ use Hypervel\Support\Collection;
 
 /**
  * Collection for deferred testing feature callbacks.
+ *
+ * @internal
  */
 final class FeaturesCollection extends Collection
 {

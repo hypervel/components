@@ -32,8 +32,6 @@ use Throwable;
  * @method void beginDatabaseTransaction()
  * @method void disableMiddlewareForAllTests()
  * @method void disableEventsForAllTests()
- *
- * @internal
  */
 class TestCase extends BaseTestCase implements Contracts\TestCase
 {

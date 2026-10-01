@@ -63,6 +63,8 @@ class Bootstrapper
 
     /**
      * Get the configuration attributes as an array.
+     *
+     * @return array<string, mixed>
      */
     public static function getConfig(): array
     {
@@ -91,6 +93,11 @@ class Bootstrapper
         return static::$filesystem = new Filesystem;
     }
 
+    /**
+     * Load and cache the configuration from the Yaml file.
+     *
+     * @param array<string, mixed> $defaults
+     */
     protected static function loadConfigFromYaml(string $workingPath, ?string $filename = 'testbench.yaml', array $defaults = []): void
     {
         static::$configuration = Config::cacheFromYaml($workingPath, $filename, $defaults);
