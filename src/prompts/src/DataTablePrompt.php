@@ -97,7 +97,7 @@ class DataTablePrompt extends Prompt
             Key::UP, Key::UP_ARROW, Key::CTRL_P => $this->highlightPrevious($total),
             Key::DOWN, Key::DOWN_ARROW, Key::CTRL_N => $this->highlightNext($total),
             Key::PAGE_UP => $this->highlight(max(0, $this->highlighted - $this->scroll)),
-            Key::PAGE_DOWN => $this->highlight(min($total - 1, $this->highlighted + $this->scroll)),
+            Key::PAGE_DOWN => $this->highlight(max(0, min($total - 1, $this->highlighted + $this->scroll))),
             Key::oneOf([Key::HOME, Key::CTRL_A], $key) => $this->highlight(0),
             Key::oneOf([Key::END, Key::CTRL_E], $key) => $this->highlight(max(0, $total - 1)),
             Key::ENTER => $total > 0 ? $this->submit() : null,
@@ -165,7 +165,6 @@ class DataTablePrompt extends Prompt
     /**
      * Get the search-invariant natural column metrics.
      *
-     * @internal
      * @return array{columns: int, widths: list<int>}
      */
     public function naturalColumnMetrics(): array
@@ -298,7 +297,7 @@ class DataTablePrompt extends Prompt
     /**
      * Get the value of the prompt.
      */
-    public function value(): mixed
+    public function value(): int|string|null
     {
         if ($this->highlighted === null) {
             return null;
