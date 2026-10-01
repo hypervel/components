@@ -50,8 +50,11 @@ class NewPasswordController extends Controller
             function (Authenticatable&CanResetPassword&Model $user) use ($request): void {
                 $user->forceFill([
                     'password' => Hash::make($request->password), // @phpstan-ignore property.notFound
-                    'remember_token' => Str::random(60),
-                ])->save();
+                ]);
+
+                // The model names its remember token column, or has none.
+                $user->setRememberToken(Str::random(60));
+                $user->save();
 
                 if (Event::hasListeners(PasswordReset::class)) {
                     event(new PasswordReset($user));

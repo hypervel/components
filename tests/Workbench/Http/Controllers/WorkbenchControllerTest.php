@@ -14,6 +14,7 @@ use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Factories\UserFactory;
 use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Workbench\Fixtures\MakesBrowserRequests;
 use Hypervel\Workbench\WorkbenchServiceProvider;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -22,6 +23,7 @@ use PHPUnit\Framework\Attributes\Test;
 #[WithMigration]
 class WorkbenchControllerTest extends TestCase
 {
+    use MakesBrowserRequests;
     use RefreshDatabase;
 
     /**
@@ -96,6 +98,22 @@ class WorkbenchControllerTest extends TestCase
 
         $this->assertAuthenticated('web')
             ->assertAuthenticatedAs($user);
+    }
+
+    #[Test]
+    public function itReturnsNotFoundForAnUnknownUserWithoutEndingTheCurrentSession(): void
+    {
+        $user = UserFactory::new()->create();
+
+        $response = $this->get("/_workbench/login/{$user->getKey()}/web")->assertRedirect('/');
+
+        $this->withSessionCookieFrom($response)
+            ->get('/_workbench/login/missing@example.com/web')
+            ->assertNotFound();
+
+        $this->withSessionCookieFrom($response)
+            ->get('/_workbench/user/web')
+            ->assertExactJson(['id' => $user->getKey(), 'className' => $user::class]);
     }
 
     #[Test]

@@ -34,7 +34,10 @@ class WorkbenchServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->booted(function (): void {
+        // Testbench discovers the package's Workbench routes once the application has
+        // booted. Loading after them lets a package fallback answer "/" before the
+        // root fallback in this file.
+        $this->app->booted(function (): void {
             $this->loadRoutesFrom((string) realpath(join_paths(__DIR__, '..', 'routes', 'workbench.php')));
         });
 

@@ -7,7 +7,9 @@ namespace Hypervel\Tests\Workbench\Integrations\Auth;
 use Hypervel\Auth\Events\Lockout;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Hash;
 use Hypervel\Testbench\Attributes\WithConfig;
+use Hypervel\Tests\Workbench\Fixtures\Member;
 use Hypervel\Tests\Workbench\Integrations\TestCase;
 use Workbench\Database\Factories\UserFactory;
 
@@ -54,6 +56,22 @@ class AuthenticationTest extends TestCase
         $response = $this->actingAs($user)->post('/logout');
 
         $this->assertGuest();
+        $response->assertRedirect('/');
+    }
+
+    public function testUsersAreLoggedOutOfTheDefaultGuard(): void
+    {
+        $this->useMembersGuard();
+
+        $member = Member::forceCreate([
+            'name' => 'Member',
+            'email' => 'member@example.com',
+            'password' => Hash::make('password'),
+        ]);
+
+        $response = $this->actingAs($member)->post('/logout');
+
+        $this->assertGuest('members');
         $response->assertRedirect('/');
     }
 

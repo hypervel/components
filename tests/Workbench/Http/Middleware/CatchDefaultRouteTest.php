@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Workbench\Http\Middleware;
 
-use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Http\Request;
@@ -18,7 +17,7 @@ use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Factories\UserFactory;
 use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Testing\TestResponse;
+use Hypervel\Tests\Workbench\Fixtures\MakesBrowserRequests;
 use Hypervel\Workbench\WorkbenchServiceProvider;
 use PHPUnit\Framework\Attributes\Test;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -27,6 +26,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 #[WithMigration]
 class CatchDefaultRouteTest extends TestCase
 {
+    use MakesBrowserRequests;
     use RefreshDatabase;
 
     /**
@@ -148,9 +148,9 @@ class CatchDefaultRouteTest extends TestCase
 
         $this->assertFalse($reached);
 
-        $response = $this->getAsNewRequest('/_workbench', $response)->assertRedirect('/');
+        $response = $this->withSessionCookieFrom($response)->get('/_workbench')->assertRedirect('/');
 
-        $this->getAsNewRequest('/', $response)->assertOk()->assertSee('Protected root');
+        $this->withSessionCookieFrom($response)->get('/')->assertOk()->assertSee('Protected root');
         $this->assertTrue($reached);
     }
 
@@ -160,9 +160,9 @@ class CatchDefaultRouteTest extends TestCase
         $this->usePreviewUser(start: '/', guard: 'web');
 
         $response = $this->get('/')->assertRedirect('/_workbench');
-        $response = $this->getAsNewRequest('/_workbench', $response)->assertRedirect('/');
+        $response = $this->withSessionCookieFrom($response)->get('/_workbench')->assertRedirect('/');
 
-        $this->getAsNewRequest('/', $response)->assertOk()->assertSee('Hello Hypervel!');
+        $this->withSessionCookieFrom($response)->get('/')->assertOk()->assertSee('Hello Hypervel!');
     }
 
     #[Test]
@@ -171,9 +171,9 @@ class CatchDefaultRouteTest extends TestCase
         $this->usePreviewUser(start: '/dashboard', guard: 'web');
 
         $response = $this->get('/')->assertRedirect('/_workbench');
-        $response = $this->getAsNewRequest('/_workbench', $response)->assertRedirect('/dashboard');
+        $response = $this->withSessionCookieFrom($response)->get('/_workbench')->assertRedirect('/dashboard');
 
-        $this->getAsNewRequest('/', $response)->assertRedirect('/dashboard');
+        $this->withSessionCookieFrom($response)->get('/')->assertRedirect('/dashboard');
     }
 
     #[Test]
@@ -187,9 +187,9 @@ class CatchDefaultRouteTest extends TestCase
         $this->usePreviewUser(start: '/', guard: 'admin');
 
         $response = $this->get('/')->assertRedirect('/_workbench');
-        $response = $this->getAsNewRequest('/_workbench', $response)->assertRedirect('/');
+        $response = $this->withSessionCookieFrom($response)->get('/_workbench')->assertRedirect('/');
 
-        $this->getAsNewRequest('/', $response)->assertOk()->assertSee('Admin root');
+        $this->withSessionCookieFrom($response)->get('/')->assertOk()->assertSee('Admin root');
     }
 
     #[Test]
@@ -219,6 +219,27 @@ class CatchDefaultRouteTest extends TestCase
         $this->assertMatchedRoutes(root: '{fallbackPlaceholder}', missing: '{fallbackPlaceholder}');
     }
 
+    #[Test]
+    #[DefineEnvironment('registerDiscoveredFallback')]
+    public function itKeepsAPackageFallbackDiscoveredOnceTheApplicationHasBooted(): void
+    {
+        $this->get('/')->assertOk()->assertSee('Application fallback');
+        $this->get('/missing')->assertOk()->assertSee('Application fallback');
+        $this->assertMatchedRoutes(root: '{fallbackPlaceholder}', missing: '{fallbackPlaceholder}');
+    }
+
+    #[Test]
+    #[DefineEnvironment('registerNotFoundApplicationRootRoute')]
+    public function itKeepsANotFoundResponseFromAnApplicationRootRoute(): void
+    {
+        $this->instance(ConfigContract::class, new Config([
+            'workbench' => ['start' => '/', 'install' => true, 'welcome' => true],
+        ]));
+
+        $this->get('/')->assertNotFound()->assertDontSee('Hello Hypervel!');
+        $this->assertMatchedRoutes(root: '/', missing: null);
+    }
+
     /**
      * Define a second session guard.
      */
@@ -246,6 +267,27 @@ class CatchDefaultRouteTest extends TestCase
     }
 
     /**
+     * Register an application fallback the way Testbench discovers Workbench routes.
+     *
+     * Route discovery registers its callback before the providers boot and loads
+     * workbench/routes/web.php once the application has booted.
+     */
+    protected function registerDiscoveredFallback(ApplicationContract $app): void
+    {
+        $app->booted(function (ApplicationContract $app): void {
+            $this->registerApplicationFallback($app);
+        });
+    }
+
+    /**
+     * Register an application route for "/" that responds with a 404.
+     */
+    protected function registerNotFoundApplicationRootRoute(ApplicationContract $app): void
+    {
+        $app->make(Router::class)->middleware('web')->get('/', static fn (): never => abort(404));
+    }
+
+    /**
      * Configure Workbench to log in a preview user.
      */
     private function usePreviewUser(string $start, string $guard): void
@@ -255,25 +297,6 @@ class CatchDefaultRouteTest extends TestCase
         $this->instance(ConfigContract::class, new Config([
             'workbench' => ['start' => $start, 'user' => $user->getKey(), 'guard' => $guard, 'install' => true],
         ]));
-    }
-
-    /**
-     * Send a request the way a browser would, with only the previous response's session cookie.
-     *
-     * Test requests otherwise inherit the previous request's started session and
-     * authenticated users, which hides middleware that runs before the session loads.
-     */
-    private function getAsNewRequest(string $uri, TestResponse $previous): TestResponse
-    {
-        foreach ([...$this->sessionContextKeys(), ...$this->authenticationContextKeys()] as $key) {
-            CoroutineContext::forget($key);
-        }
-
-        $cookie = $previous->getCookie(config('session.cookie'), decrypt: false);
-
-        $this->assertNotNull($cookie);
-
-        return $this->withUnencryptedCookie($cookie->getName(), (string) $cookie->getValue())->get($uri);
     }
 
     /**

@@ -32,9 +32,11 @@ Route::group([
 });
 
 // An unmatched "/" never reaches the web group, where CatchDefaultRoute applies the
-// start and welcome settings. The parameter constraint matches nothing, so this
-// fallback only answers "/". Routes for "/" and earlier fallbacks take precedence.
+// start and welcome settings when this route matched. The parameter constraint
+// matches nothing, so this fallback only answers "/". Routes for "/" and earlier
+// fallbacks take precedence.
 Route::get('{workbenchRoot?}', static fn (): never => abort(404))
     ->where('workbenchRoot', '(?!)')
     ->middleware('web')
-    ->fallback();
+    ->fallback()
+    ->name('workbench.root');

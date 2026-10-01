@@ -9,7 +9,6 @@ use Hypervel\Http\Request;
 use Hypervel\Support\Facades\Response;
 use Hypervel\Workbench\Workbench;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class CatchDefaultRoute
 {
@@ -32,7 +31,9 @@ class CatchDefaultRoute
             return $response;
         }
 
-        if (property_exists($response, 'exception') && ! \is_null($response->exception) && $response->exception instanceof NotFoundHttpException) {
+        // Only Workbench's root fallback means nothing else handles "/". An application
+        // route for "/" keeps its own response, including a deliberate 404.
+        if ($request->routeIs('workbench.root')) {
             if ($workbench['start'] !== '/') {
                 return redirect($workbench['start']);
             }

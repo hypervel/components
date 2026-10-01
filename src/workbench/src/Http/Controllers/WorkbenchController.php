@@ -25,8 +25,6 @@ class WorkbenchController extends Controller
             return $this->logout($workbench['guard']);
         }
 
-        $request->session()->flush();
-
         return $this->login((string) $workbench['user'], $workbench['guard']);
     }
 
@@ -65,6 +63,12 @@ class WorkbenchController extends Controller
             ? $provider->retrieveByCredentials(['email' => $userId])
             : $provider->retrieveById($userId);
 
+        abort_if($user === null, 404);
+
+        // Start the new user with a fresh session, so nothing from the previous
+        // user, such as a password confirmation, carries over.
+        Session::flush();
+
         /* @phpstan-ignore method.notFound */
         Auth::guard($guard)->login($user);
 
@@ -81,7 +85,9 @@ class WorkbenchController extends Controller
         /* @phpstan-ignore method.notFound */
         Auth::guard($guard)->logout();
 
-        Session::forget('password_hash_' . $guard);
+        Session::invalidate();
+
+        Session::regenerateToken();
 
         return redirect(Workbench::config('start'));
     }
