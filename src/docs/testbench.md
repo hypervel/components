@@ -300,7 +300,7 @@ The supported top-level keys are:
 | `bootstrappers` | Additional bootstrappers to run after Hypervel's providers have booted. |
 | `env` | Environment variables for the Testbench CLI application. |
 | `migrations` | Migration paths that should be registered for the Testbench application. |
-| `seeders` | Seeder classes that should run after the database is refreshed. |
+| `seeders` | Seeder classes that should run after the database is refreshed. Use `true` to run the default `Database\Seeders\DatabaseSeeder` class. |
 | `purge` | Files and directories that should be removed by `package:purge-skeleton`. |
 | `workbench` | Workbench-specific configuration. |
 

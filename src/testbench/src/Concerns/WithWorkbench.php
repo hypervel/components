@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Concerns;
 
+use Database\Seeders\DatabaseSeeder;
 use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
@@ -72,9 +73,11 @@ trait WithWorkbench
 
         $testCaseSeeder = $testCaseSeeder !== false
             ? $testCaseSeeder
-            : \Database\Seeders\DatabaseSeeder::class;
+            : DatabaseSeeder::class;
 
-        $seeders = (new Collection($seeders))
+        // `seeders: true` runs db:seed's default seeder, which the refresh may already run.
+        $seeders = (new Collection($seeders === true ? DatabaseSeeder::class : $seeders))
+            ->flatten()
             ->reject(static fn (mixed $seeder): bool => $seeder === $testCaseSeeder)
             ->values();
 

@@ -240,7 +240,7 @@ PHP,
     public function itCanMergeSeedersWithHypervelDatabaseRefresh(
         bool $seed,
         string|false $seeder,
-        array|false $workbenchSeeders,
+        array|bool $workbenchSeeders,
         array|false $expected
     ): void {
         $stub = new MergeSeedersTestStub($seed, $seeder);
@@ -258,5 +258,8 @@ PHP,
         yield [false, 'Database\Seeders\DatabaseSeeder', ['Workbench\Database\Seeders\DatabaseSeeder'], false];
         yield [true, 'Database\Seeders\DatabaseSeeder', ['Database\Seeders\DatabaseSeeder', 'Workbench\Database\Seeders\DatabaseSeeder'], ['Workbench\Database\Seeders\DatabaseSeeder']];
         yield [true, 'Workbench\Database\Seeders\DatabaseSeeder', ['Workbench\Database\Seeders\DatabaseSeeder'], false];
+        yield [true, false, true, false];
+        yield [true, 'Workbench\Database\Seeders\DatabaseSeeder', true, ['Database\Seeders\DatabaseSeeder']];
+        yield [true, 'Workbench\Database\Seeders\DatabaseSeeder', ['seeders' => ['Workbench\Database\Seeders\DatabaseSeeder', 'Database\Seeders\DatabaseSeeder']], ['Database\Seeders\DatabaseSeeder']];
     }
 }
