@@ -158,6 +158,10 @@ Do not add upstream links for inspiration or historical lineage. Omit them when 
 
 `Differences From Laravel` is only for deliberate, lasting public contract differences that developers must account for. Bug fixes, correctness or safety fixes, performance improvements, and internal implementation differences do not qualify merely because they make Hypervel behave differently from Laravel. Omit the section when none apply.
 
+When porting upstream updates, keep the package’s differences section accurate for the code being examined: add missing public-contract differences, correct stale descriptions, and remove entries that no longer qualify. Briefly explain the affected usage, why it differs, and the Hypervel equivalent where applicable. Apply this equally to first-party and third-party upstreams; link to detailed documentation rather than repeating it.
+
+Documented differences record current decisions, not permanent requirements. Preserve supported enhancements, but reassess limitations when upstream changes or a clean, performant implementation make them unnecessary; follow the existing approval rules for API changes.
+
 ### Avoid overengineering
 
 Build complete, long-term solutions, not MVPs or local workarounds. A broad change is correct when the root cause is in shared code, but every added mechanism must solve a real problem.
