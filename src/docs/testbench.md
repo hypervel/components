@@ -59,7 +59,7 @@ You may install Testbench into your package using Composer:
 composer require hypervel/testbench --dev
 ```
 
-Your package's `phpunit.xml` file should bootstrap Composer's autoloader and point PHPUnit at your package tests:
+Your package's `phpunit.xml` file should bootstrap Composer's autoloader, point PHPUnit at your package tests, and register Hypervel's PHPUnit extension, which [resets framework state](/docs/{{version}}/testing#test-state-cleanup) after each test:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -69,6 +69,9 @@ Your package's `phpunit.xml` file should bootstrap Composer's autoloader and poi
             <directory>tests</directory>
         </testsuite>
     </testsuites>
+    <extensions>
+        <bootstrap class="Hypervel\Testing\PHPUnit\AfterEachTestExtension" />
+    </extensions>
 </phpunit>
 ```
 

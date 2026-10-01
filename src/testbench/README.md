@@ -19,6 +19,8 @@ Hypervel includes root package discovery metadata when a `package:test` worker b
 
 Hypervel's `serve` command creates and removes the Workbench `sync` links itself, while Orchestra applies them through the optional Workbench package. Each command gets its own copy of the default skeleton, so `package:sync-skeleton` only syncs custom skeletons. An existing file or directory that isn't a symlink is never replaced at a `to` path outside that copy; Orchestra deletes it. Existing symlinks are still replaced. See [Syncing Workbench Directories](https://hypervel.org/docs/testbench#syncing-workbench-directories).
 
+Orchestra Testbench resets framework static state from its test case. Hypervel resets it after each test from the `Hypervel\Testing\PHPUnit\AfterEachTestExtension` PHPUnit extension, so a package's `phpunit.xml` file needs to register it. See [Test State Cleanup](https://hypervel.org/docs/testing#test-state-cleanup).
+
 Pest integration is not supported in Hypervel 0.4. Use PHPUnit test classes; `WithFixtures` does not resolve Pest test files. See the [testing documentation](https://hypervel.org/docs/testing#using-pest).
 
 Ported from:

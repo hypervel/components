@@ -724,6 +724,8 @@ abstract class TestCase extends BaseTestCase
 }
 ```
 
+Add Hypervel's PHPUnit extension to the package's `phpunit.xml` file. Orchestra Testbench resets framework state from its test case, while Hypervel resets it from this extension. See [Test State Cleanup](/docs/{{version}}/testing#test-state-cleanup).
+
 For package testing details, see the [Testbench documentation](/docs/{{version}}/testbench).
 
 <a name="testing-coroutine-isolation"></a>
@@ -762,7 +764,7 @@ The `usleep` call gives the runtime an opportunity to switch between coroutines 
 
 When porting an application, start from a fresh Hypervel application skeleton and move code over intentionally. Hypervel has a familiar application structure, but it is not a drop-in replacement for a Laravel `public/index.php` application.
 
-Do not replace the Hypervel skeleton's `composer.json`, `bootstrap/app.php`, `config` directory, or `.env.example` with their Laravel counterparts. Move application providers into `bootstrap/providers.php`, move routes into Hypervel's `routes` files, and configure middleware through the Hypervel `bootstrap/app.php` file. Transfer environment values into the corresponding Hypervel configuration keys instead of copying the Laravel environment file unchanged.
+Do not replace the Hypervel skeleton's `composer.json`, `bootstrap/app.php`, `config` directory, `.env.example`, or `phpunit.xml` with their Laravel counterparts. Move application providers into `bootstrap/providers.php`, move routes into Hypervel's `routes` files, and configure middleware through the Hypervel `bootstrap/app.php` file. Transfer environment values into the corresponding Hypervel configuration keys instead of copying the Laravel environment file unchanged.
 
 Hypervel runs its Swoole HTTP server using `php artisan serve` and does not use `public/index.php` as its HTTP entry point. Review the [deployment documentation](/docs/{{version}}/deployment) before adapting web server or process-monitor configuration.
 
