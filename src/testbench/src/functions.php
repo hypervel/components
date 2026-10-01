@@ -550,6 +550,17 @@ function package_version_compare(string $package, string $version, ?string $oper
     $prettyVersion = InstalledVersions::getPrettyVersion($package);
 
     if ($prettyVersion === null) {
+        // Composer constraints do not accept the word operators that version_compare() allows.
+        $operator = match ($operator) {
+            'lt' => '<',
+            'le' => '<=',
+            'gt' => '>',
+            'ge' => '>=',
+            'eq' => '==',
+            'ne' => '!=',
+            default => $operator,
+        };
+
         return InstalledVersions::satisfies($versionParser, $package, ($operator ?? '=') . $version);
     }
 

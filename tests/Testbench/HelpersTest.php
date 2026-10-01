@@ -75,7 +75,16 @@ class HelpersTest extends TestCase
         $this->assertFalse(package_version_compare('hypervel/support', $version, '<'));
         $this->assertFalse(package_version_compare('hypervel/support', $version, '>'));
 
+        $this->assertTrue(package_version_compare('hypervel/support', $version, 'eq'));
+        $this->assertTrue(package_version_compare('hypervel/support', $version, 'le'));
+        $this->assertTrue(package_version_compare('hypervel/support', $version, 'ge'));
+
+        $this->assertFalse(package_version_compare('hypervel/support', $version, 'lt'));
+        $this->assertFalse(package_version_compare('hypervel/support', $version, 'gt'));
+        $this->assertFalse(package_version_compare('hypervel/support', $version, 'ne'));
+
         $this->assertTrue(package_version_compare('psr/http-message-implementation', '1.0', '>='));
+        $this->assertTrue(package_version_compare('psr/http-message-implementation', '1.0', 'ge'));
     }
 
     #[Test]
