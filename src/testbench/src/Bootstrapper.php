@@ -82,6 +82,22 @@ class Bootstrapper
     }
 
     /**
+     * Determine if the given path is the disposable runtime copy created by this process.
+     *
+     * Remote child processes and predefined base paths use a runtime they do not own.
+     */
+    public static function ownsRuntimePath(string $path): bool
+    {
+        if (static::$runtimePath === null) {
+            return false;
+        }
+
+        $runtimePath = realpath(static::$runtimePath);
+
+        return $runtimePath !== false && realpath($path) === $runtimePath;
+    }
+
+    /**
      * Get the filesystem instance.
      */
     protected static function getFilesystem(): Filesystem

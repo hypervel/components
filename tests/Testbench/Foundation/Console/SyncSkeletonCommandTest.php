@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Testbench\Foundation\Console;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Console\SyncSkeletonCommand;
 use Hypervel\Testbench\Foundation\Console\TerminatingConsole;
@@ -18,6 +19,7 @@ use PHPUnit\Framework\Attributes\Depends;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\TestWith;
+use ReflectionProperty;
 use Symfony\Component\Console\Application as SymfonyApplication;
 use Symfony\Component\Console\Tester\ApplicationTester;
 
@@ -94,7 +96,16 @@ class SyncSkeletonCommandTest extends TestCase
         $this->deletePath($environmentFile);
         $this->deletePath($symlinkPath);
 
-        $this->artisan('package:sync-skeleton')->assertOk();
+        // A persistent skeleton is one this process did not create.
+        $runtimePath = new ReflectionProperty(Bootstrapper::class, 'runtimePath');
+        $ownedRuntimePath = $runtimePath->getValue();
+        $runtimePath->setValue(null, null);
+
+        try {
+            $this->artisan('package:sync-skeleton')->assertOk();
+        } finally {
+            $runtimePath->setValue(null, $ownedRuntimePath);
+        }
 
         $this->assertFileExists($testbenchCacheFile);
         $this->assertFileExists($environmentFile);
@@ -106,6 +117,45 @@ class SyncSkeletonCommandTest extends TestCase
         TerminatingConsole::handle();
 
         $this->assertFalse($terminatingCallbackCalled);
+    }
+
+    #[Test]
+    public function itRejectsSyncingTheRuntimeSkeletonOwnedByTheProcess(): void
+    {
+        $config = $this->app->make(ConfigContract::class);
+        $terminatingCallbackCalled = false;
+
+        TerminatingConsole::before(function () use (&$terminatingCallbackCalled): void {
+            $terminatingCallbackCalled = true;
+        });
+
+        $config['workbench'] = [
+            'sync' => [
+                [
+                    'from' => 'src/testbench/workbench/storage',
+                    'to' => 'public/testbench-storage',
+                ],
+            ],
+        ];
+
+        $testbenchCacheFile = $this->app->basePath(join_paths('bootstrap', 'cache', 'testbench.yaml'));
+        $symlinkPath = $this->app->basePath(join_paths('public', 'testbench-storage'));
+
+        $this->deletePath($testbenchCacheFile);
+        $this->deletePath($symlinkPath);
+
+        $this->assertTrue(Bootstrapper::ownsRuntimePath($this->app->basePath()));
+
+        $this->artisan('package:sync-skeleton')
+            ->expectsOutputToContain('The serve command creates the configured links while it runs.')
+            ->assertFailed();
+
+        $this->assertFileDoesNotExist($testbenchCacheFile);
+        $this->assertFalse(is_link($symlinkPath));
+
+        TerminatingConsole::handle();
+
+        $this->assertTrue($terminatingCallbackCalled);
     }
 
     #[Test]
@@ -137,13 +187,7 @@ class SyncSkeletonCommandTest extends TestCase
 
         $this->assertTrue($config->getWorkbenchAttributes()['discovers']['web']);
         $this->assertTrue($config->getWorkbenchAttributes()['discovers']['api']);
-        $this->assertSame([
-            [
-                'from' => 'storage',
-                'to' => 'workbench/storage',
-                'reverse' => true,
-            ],
-        ], $config->getWorkbenchAttributes()['sync']);
+        $this->assertSame([], $config->getWorkbenchAttributes()['sync']);
     }
 
     /**

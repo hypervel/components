@@ -48,6 +48,42 @@ class BootstrapperTest extends TestCase
     }
 
     #[Test]
+    public function itOwnsOnlyTheRuntimeCopyCreatedByThisProcess(): void
+    {
+        $filesystem = new Filesystem;
+        $reflection = new ReflectionClass(Bootstrapper::class);
+        $runtimePath = ParallelTesting::tempDir('BootstrapperOwnedRuntime');
+        $otherPath = ParallelTesting::tempDir('BootstrapperOtherRuntime');
+        $missingPath = $runtimePath . '-missing';
+        $previousRuntimePath = $reflection->getStaticPropertyValue('runtimePath');
+
+        $filesystem->deleteDirectory($runtimePath);
+        $filesystem->deleteDirectory($otherPath);
+        $filesystem->makeDirectory($runtimePath, recursive: true);
+        $filesystem->makeDirectory($otherPath, recursive: true);
+
+        try {
+            $reflection->setStaticPropertyValue('runtimePath', $runtimePath);
+
+            $this->assertTrue(Bootstrapper::ownsRuntimePath($runtimePath . '/'));
+            $this->assertFalse(Bootstrapper::ownsRuntimePath($otherPath));
+
+            // A remote child or a predefined base path never records a runtime copy.
+            $reflection->setStaticPropertyValue('runtimePath', null);
+
+            $this->assertFalse(Bootstrapper::ownsRuntimePath($runtimePath));
+
+            $reflection->setStaticPropertyValue('runtimePath', $missingPath);
+
+            $this->assertFalse(Bootstrapper::ownsRuntimePath($missingPath));
+        } finally {
+            $reflection->setStaticPropertyValue('runtimePath', $previousRuntimePath);
+            $filesystem->deleteDirectory($runtimePath);
+            $filesystem->deleteDirectory($otherPath);
+        }
+    }
+
+    #[Test]
     public function itRethrowsRuntimeDirectoryDeletionFailuresWhenTheDirectoryRemains(): void
     {
         $filesystem = new RuntimeDirectoryStillPresentFilesystem;

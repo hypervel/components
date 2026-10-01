@@ -1,11 +1,12 @@
 packages:
   - 'src/*'
-  # Exclude legacy standalone-UI packages that ship their own Vite/Vue
-  # build chains. They're maintained independently and pulling their
+  # Exclude standalone-UI packages that ship their own Vite build
+  # chains. They're maintained independently and pulling their
   # deps into the workspace install would bloat `pnpm install` for
   # contributors who only need the TS test infrastructure.
   - '!src/horizon'
   - '!src/telescope'
+  - '!src/workbench'
 
 # Supply-chain defense: require packages to be at least 7 days old before
 # install. Compromised packages typically get yanked within hours, so this

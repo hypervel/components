@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Concerns;
 
-use Hypervel\Auth\AuthServiceProvider;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Support\Arr;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Workbench\Workbench;
+use Hypervel\Workbench\AuthServiceProvider;
 
 /**
  * @internal

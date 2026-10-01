@@ -95,8 +95,12 @@ class InstallCommandTest extends TestCase
         $this->assertSame(['workbench/database/migrations'], $config['migrations']);
         $this->assertSame(['Workbench\Database\Seeders\DatabaseSeeder'], $config['seeders']);
         $this->assertSame([
+            'start' => '/',
+            'user' => null,
+            'guard' => null,
             'install' => true,
             'auth' => true,
+            'welcome' => null,
             'health' => true,
             'sync' => [
                 [
@@ -134,8 +138,12 @@ class InstallCommandTest extends TestCase
         $config = Config::loadFromYaml($this->workingPath);
 
         $this->assertSame([
+            'start' => '/',
+            'user' => null,
+            'guard' => null,
             'install' => true,
             'auth' => true,
+            'welcome' => null,
             'health' => null,
             'sync' => [],
             'discovers' => [

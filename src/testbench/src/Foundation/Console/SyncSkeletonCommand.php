@@ -6,6 +6,7 @@ namespace Hypervel\Testbench\Foundation\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Console\Concerns\CopyTestbenchFiles;
 use Hypervel\Testbench\Workbench\Actions\AddAssetSymlinkFolders;
@@ -28,6 +29,14 @@ class SyncSkeletonCommand extends Command
      */
     public function handle(Filesystem $filesystem, ConfigContract $config): int
     {
+        if (Bootstrapper::ownsRuntimePath($this->hypervel->basePath())) {
+            $this->components->error(
+                'The default skeleton is recreated for every command and deleted when the command exits, so it cannot be synced. The serve command creates the configured links while it runs.'
+            );
+
+            return self::FAILURE;
+        }
+
         TerminatingConsole::flush();
 
         $this->copyTestbenchConfigurationFile(

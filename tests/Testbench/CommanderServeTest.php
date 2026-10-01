@@ -92,32 +92,9 @@ class CommanderServeTest extends TestCase
         );
         $filesystem->put($workingPath . '/.env', "APP_NAME=Interrupted\n");
 
-        $this->registerShutdownSafetyNet();
         $serverPort = $this->servePort();
-        $process = new ProcessDecorator(new Process(
-            [
-                php_binary(),
-                package_path('tests/Testbench/Fixtures/new-session.php'),
-                package_path('src/testbench/bin/testbench'),
-                'serve',
-                '--host=127.0.0.1',
-                "--port={$serverPort}",
-                '--no-ansi',
-            ],
-            cwd: $workingPath,
-            env: [
-                'APP_BASE_PATH' => false,
-                'APP_DEBUG' => 'true',
-                'APP_ENV' => 'workbench',
-                'TESTBENCH_BASE_PATH' => false,
-                'TESTBENCH_WORKING_PATH' => $workingPath,
-            ],
-        ), 'serve');
-
-        $process->setTimeout(30);
-        $process->start();
+        $process = $this->startServeProcessIn($workingPath, $serverPort);
         $pid = $process->getPid();
-        static::$activeServePid = $pid;
 
         try {
             $this->waitForServeStartup($process, $serverPort);
@@ -148,6 +125,136 @@ class CommanderServeTest extends TestCase
             static::$activeServePid = null;
             $filesystem->deleteDirectory($workingPath);
         }
+    }
+
+    #[Test]
+    #[RequiresPhpExtension('pcntl')]
+    public function itServesTheWorkbenchAuthenticationPagesWithTheirAssetsAndSyncLinks(): void
+    {
+        $filesystem = new Filesystem;
+        $workingPath = ParallelTesting::tempDir('CommanderServeWorkbench');
+        $reverseLink = $workingPath . '/runtime-storage';
+
+        $filesystem->deleteDirectory($workingPath);
+        $filesystem->makeDirectory($workingPath . '/shared', recursive: true);
+        $filesystem->put($workingPath . '/shared/greeting.txt', 'Synced from the package');
+        $filesystem->link(package_path('vendor'), $workingPath . '/vendor');
+        $filesystem->put($workingPath . '/testbench.yaml', implode("\n", [
+            'dont-discover:',
+            '  - hypervel/components',
+            'providers:',
+            '  - ' . ServeMasterReadyServiceProvider::class,
+            'workbench:',
+            '  auth: true',
+            '  sync:',
+            '    - from: shared',
+            '      to: public/shared',
+            '    - from: storage',
+            '      to: runtime-storage',
+            '      reverse: true',
+        ]));
+
+        $serverPort = $this->servePort();
+        $process = $this->startServeProcessIn($workingPath, $serverPort);
+        $pid = $process->getPid();
+
+        try {
+            $this->waitForServeStartup($process, $serverPort);
+            $this->waitForServeMasterReady($process);
+
+            [$status, , $page] = $this->fetchFromServe($serverPort, '/login');
+
+            $this->assertSame(200, $status, $page . $this->combinedOutput($process));
+            $this->assertSame(1, preg_match('#/vendor/workbench/build/assets/app-[^"]+\.css#', $page, $stylesheet));
+            $this->assertSame(1, preg_match('#/vendor/workbench/build/assets/app-[^"]+\.js#', $page, $script));
+            $this->assertStringContainsString('/vendor/workbench/build/hypervel.png', $page);
+
+            foreach ([[$stylesheet[0], 'text/css'], [$script[0], 'javascript'], ['/vendor/workbench/build/hypervel.png', 'image/png']] as [$asset, $contentType]) {
+                [$status, $headers] = $this->fetchFromServe($serverPort, $asset);
+
+                $this->assertSame(200, $status, $asset);
+                $this->assertStringContainsString($contentType, $headers['content-type'] ?? '');
+            }
+
+            [$status, , $greeting] = $this->fetchFromServe($serverPort, '/shared/greeting.txt');
+
+            $this->assertSame(200, $status);
+            $this->assertSame('Synced from the package', $greeting);
+            $this->assertTrue(is_link($reverseLink));
+
+            posix_kill(-$pid, SIGINT);
+            $process->wait();
+
+            $this->assertSame(0, $process->getExitCode(), $this->combinedOutput($process));
+
+            // The serve process removed the link, so drop this process's cached link status.
+            clearstatcache();
+
+            $this->assertFalse(is_link($reverseLink));
+        } finally {
+            posix_kill(-$pid, SIGKILL);
+            $process->stop(0);
+            static::$activeServePid = null;
+            $filesystem->deleteDirectory($workingPath);
+        }
+    }
+
+    /**
+     * Start serve as a new command line process leading its own process group.
+     */
+    private function startServeProcessIn(string $workingPath, int $serverPort): ProcessDecorator
+    {
+        $this->registerShutdownSafetyNet();
+
+        $process = new ProcessDecorator(new Process(
+            [
+                php_binary(),
+                package_path('tests/Testbench/Fixtures/new-session.php'),
+                package_path('src/testbench/bin/testbench'),
+                'serve',
+                '--host=127.0.0.1',
+                "--port={$serverPort}",
+                '--no-ansi',
+            ],
+            cwd: $workingPath,
+            env: [
+                'APP_BASE_PATH' => false,
+                'APP_DEBUG' => 'true',
+                'APP_ENV' => 'workbench',
+                'TESTBENCH_BASE_PATH' => false,
+                'TESTBENCH_WORKING_PATH' => $workingPath,
+            ],
+        ), 'serve');
+
+        $process->setTimeout(30);
+        $process->start();
+        static::$activeServePid = $process->getPid();
+
+        return $process;
+    }
+
+    /**
+     * Fetch a path from the serve subprocess.
+     *
+     * @return array{0: int, 1: array<string, string>, 2: string}
+     */
+    private function fetchFromServe(int $serverPort, string $path): array
+    {
+        $body = (string) file_get_contents(
+            "http://127.0.0.1:{$serverPort}{$path}",
+            context: stream_context_create(['http' => ['ignore_errors' => true, 'timeout' => 5]]),
+        );
+
+        $responseHeaders = http_get_last_response_headers() ?? [];
+        $status = (int) (explode(' ', $responseHeaders[0] ?? '')[1] ?? 0);
+        $headers = [];
+
+        foreach (array_slice($responseHeaders, 1) as $header) {
+            [$name, $value] = array_pad(explode(':', $header, 2), 2, '');
+            $headers[strtolower(trim($name))] = trim($value);
+        }
+
+        return [$status, $headers, $body];
     }
 
     /**

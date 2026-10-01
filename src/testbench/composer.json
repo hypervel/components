@@ -55,6 +55,9 @@
         "hypervel/support": "^0.4",
         "hypervel/testing": "^0.4"
     },
+    "suggest": {
+        "hypervel/workbench": "Required for the Workbench authentication pages and preview login helpers (^0.4)."
+    },
     "autoload": {
         "files": [
             "src/functions.php"
