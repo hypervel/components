@@ -1239,6 +1239,15 @@ callout('Deployment Summary', [
 ]);
 ```
 
+Bulleted and numbered lists accept a `spaced` argument, which adds a blank line between items:
+
+```php
+Element::bulletedList([
+    'Redis cache hit rate dropped to 42%',
+    'Queue worker memory usage exceeding 256MB',
+], spaced: true);
+```
+
 You may also use `Element::keyValueList` to display labeled data:
 
 ```php

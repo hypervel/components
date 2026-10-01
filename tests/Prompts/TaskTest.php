@@ -101,15 +101,35 @@ class TaskTest extends TestCase
         Prompt::assertStrippedOutputContains('✔ My Task');
     }
 
+    public function testProcessSettlementPrintsCompletionLineOnlyAfterSuccess(): void
+    {
+        Prompt::fake();
+        $originalAsync = pcntl_async_signals();
+        $originalHandler = pcntl_signal_get_handler(SIGINT);
+
+        try {
+            (new Task(label: 'Failed Task', keepSummary: true))->applyMessage('reset', "\x00");
+            (new Task(label: 'Succeeded Task', keepSummary: true))->applyMessage('reset', "\x01");
+        } finally {
+            pcntl_async_signals($originalAsync);
+            pcntl_signal(SIGINT, $originalHandler);
+        }
+
+        Prompt::assertStrippedOutputDoesntContain('✔ Failed Task');
+        Prompt::assertStrippedOutputContains('✔ Succeeded Task');
+    }
+
     public function testUndecoratedTaskWritesPlainStartAndCompletionLines(): void
     {
         Prompt::fake();
         Prompt::setOutput(new BufferedConsoleOutput(decorated: false));
 
-        $result = (new Task(label: 'My Task', keepSummary: true))
-            ->run(fn (Logger $logger): string => 'done');
+        $task = new Task(label: 'My Task', keepSummary: true);
+
+        $result = $task->run(fn (Logger $logger): string => 'done');
 
         $this->assertSame('done', $result);
+        $this->assertTrue($task->static);
         $this->assertSame(2, substr_count(Prompt::content(), 'My Task'));
         $this->assertStringEndsWith(' ✔ My Task' . PHP_EOL, Prompt::content());
         $this->assertStringNotContainsString("\e", Prompt::content());

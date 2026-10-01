@@ -40,7 +40,7 @@ class SpinnerTest extends TestCase
         $result = spin(fn () => 'done', 'Running...');
 
         $this->assertSame('done', $result);
-        $this->assertStringContainsString('Running...', $output->content());
+        $this->assertStringContainsString('⠶ Running...', $output->content());
         $this->assertStringNotContainsString("\e", $output->content());
     }
 
