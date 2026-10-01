@@ -30,7 +30,7 @@ orchestral/testbench-core:
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: The upstream laravel/ skeleton maps to src/testbench/hypervel/, whose config files keep only Testbench overrides; compare upstream skeleton config changes with src/foundation/config, which is merged underneath.
+  notes: The upstream laravel/ skeleton maps to src/testbench/hypervel/, whose config files keep only Testbench overrides; compare upstream skeleton config changes with src/foundation/config, which is merged underneath. The skeleton has no copy of Laravel's welcome page; the welcome route uses the minimal view in src/testbench/workbench/resources/views.
 
 orchestral/testbench:
   branch: 12.x
