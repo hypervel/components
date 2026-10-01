@@ -564,7 +564,7 @@ class QueueWorkerTest extends TestCase
         $cancellation = null;
         $expired = m::mock(WorkerFakeJob::class, [static function () use ($expiredGate, &$unwound, &$cancellation): void {
             try {
-                $expiredGate->pop(5);
+                $expiredGate->pop();
             } catch (CanceledException $exception) {
                 $cancellation = $exception;
 
@@ -576,7 +576,7 @@ class QueueWorkerTest extends TestCase
         $expired->shouldReceive('timeout')->andReturn(5);
         $expired->maxExceptions = 2;
         $expired->backoff = 7;
-        $other = m::mock(WorkerFakeJob::class, [static fn (): mixed => $otherGate->pop(5)])->makePartial();
+        $other = m::mock(WorkerFakeJob::class, [static fn (): mixed => $otherGate->pop()])->makePartial();
         $other->shouldReceive('timeout')->andReturn(0);
         $worker = new KillTestWorker(...$this->workerDependencies('default', ['queue' => [$expired, $other]], timer: $timer));
         $worker->setCache($cache = new Repository(new WorkerArrayStore));
@@ -647,13 +647,13 @@ class QueueWorkerTest extends TestCase
         $first = m::mock(WorkerFakeJob::class, [static function () use ($firstGate, $cleanupGate, &$cleanupStarted, &$cleanupFinished): void {
             Coroutine::defer(static function () use ($cleanupGate, &$cleanupStarted, &$cleanupFinished): void {
                 $cleanupStarted = true;
-                $cleanupGate->pop(5);
+                $cleanupGate->pop();
                 $cleanupFinished = true;
             });
-            $firstGate->pop(5);
+            $firstGate->pop();
         }])->makePartial();
         $first->shouldReceive('timeout')->andReturn(5);
-        $second = m::mock(WorkerFakeJob::class, [static fn (): mixed => $secondGate->pop(5)])->makePartial();
+        $second = m::mock(WorkerFakeJob::class, [static fn (): mixed => $secondGate->pop()])->makePartial();
         $second->shouldReceive('timeout')->andReturn(5);
         $worker = new KillTestWorker(...$this->workerDependencies('default', ['queue' => [$first, $second]], timer: $timer));
         $worker->currentTime = 100;
