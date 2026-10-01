@@ -42,7 +42,7 @@ if ($mode === 'process') {
 
 $server->on('managerStart', static function (Server $server) use ($listener): void {
     $listener->handle(new OnManagerStart($server));
-    fwrite(STDOUT, 'manager started' . PHP_EOL);
+    fwrite(STDOUT, 'manager started ' . posix_getpid() . PHP_EOL);
 });
 $server->on('workerStart', static function (Server $server, int $workerId) use ($listener, $signals, $application): void {
     // Configured signal handlers share the worker's registry and register during BeforeWorkerStart,
@@ -56,7 +56,7 @@ $server->on('workerStart', static function (Server $server, int $workerId) use (
 
     $listener->handle(new AfterWorkerStart($server, $workerId));
 
-    fwrite(STDOUT, 'worker started' . PHP_EOL);
+    fwrite(STDOUT, 'worker started ' . posix_getpid() . PHP_EOL);
 });
 $server->on('workerExit', static function (Server $server, int $workerId) use ($listener, $signals, $application): void {
     $listener->handle(new OnWorkerExit($server, $workerId));

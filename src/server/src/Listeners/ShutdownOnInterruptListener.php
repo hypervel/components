@@ -44,6 +44,15 @@ class ShutdownOnInterruptListener
             return;
         }
 
+        // The PROCESS manager also receives the terminal's SIGINT. It must survive it so the master's
+        // shutdown can stop and reap the workers through it; otherwise workers that handle SIGINT are orphaned.
+        if ($event instanceof OnManagerStart && $server->mode === SWOOLE_PROCESS) {
+            Process::signal(SIGINT, static function (): void {
+            });
+
+            return;
+        }
+
         // A BASE server without a manager runs as a single worker process. Process::signal would
         // block the coroutine signal waits that worker signal handlers and Artisan traps share.
         if ($server->mode !== SWOOLE_BASE || $server->manager_pid !== 0) {

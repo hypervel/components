@@ -29,16 +29,51 @@ class ShutdownOnInterruptListenerTest extends TestCase
             $this->waitForLines($process, $readyLines);
             $this->assertSame($pid, posix_getpgid($pid));
 
+            // Worker signal handlers still receive SIGINT next to the coordinator's handler.
+            foreach ($this->processIds($process, 'worker started') as $workerPid) {
+                posix_kill($workerPid, SIGINT);
+            }
+
+            $this->waitForLines($process, ['application interrupt received' => $workerNum]);
+
             posix_kill(-$pid, SIGINT);
             $process->wait();
 
             $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput());
             $this->assertStringContainsString('server shutdown', $process->getOutput());
-            // Worker signal handlers still receive the signal next to the coordinator's handler.
-            $this->assertStringContainsString('application interrupt received', $process->getOutput());
+            // Workers that handle SIGINT themselves must still be stopped instead of being orphaned.
+            $this->assertFalse(posix_kill(-$pid, 0), 'Server processes were left running after shutdown.');
         } finally {
-            // Only the fixture can lead a group with its PID, and leftover workers stay in that
-            // group after the master exits, so this reaps every remaining process.
+            // Only the fixture can lead a group with its PID, so this kills anything a failed test left in it.
+            posix_kill(-$pid, SIGKILL);
+            $process->stop(0);
+        }
+    }
+
+    #[DataProvider('coordinatorModes')]
+    public function testReplacementWorkersKeepTheirSignalHandlers(string $mode, int $workerNum, array $readyLines): void
+    {
+        if (SWOOLE_VERSION_ID <= 60203) {
+            $this->markTestSkipped('Swoole 6.2.3 and earlier leave workers forked after a manager signal registration unable to wait for signals.');
+        }
+
+        $process = $this->startServer($mode, $workerNum, 'coroutine');
+        $pid = $process->getPid();
+
+        try {
+            $this->waitForLines($process, $readyLines);
+            $initialWorkerPids = $this->processIds($process, 'worker started');
+
+            // A reload forks replacement workers after the manager has registered its SIGINT handler.
+            posix_kill($this->processIds($process, 'manager started')[0], SIGUSR1);
+            $this->waitForLines($process, ['worker started' => $workerNum * 2]);
+
+            foreach (array_diff($this->processIds($process, 'worker started'), $initialWorkerPids) as $workerPid) {
+                posix_kill($workerPid, SIGUSR2);
+            }
+
+            $this->waitForLines($process, ['application signal received' => $workerNum]);
+        } finally {
             posix_kill(-$pid, SIGKILL);
             $process->stop(0);
         }
@@ -52,7 +87,7 @@ class ShutdownOnInterruptListenerTest extends TestCase
     public static function coordinatorModes(): array
     {
         return [
-            'process mode master' => ['process', 1, ['master started' => 1, 'worker started' => 1]],
+            'process mode master' => ['process', 1, ['master started' => 1, 'manager started' => 1, 'worker started' => 1]],
             'base mode manager' => ['base', 2, ['manager started' => 1, 'worker started' => 2]],
         ];
     }
@@ -131,12 +166,24 @@ class ShutdownOnInterruptListenerTest extends TestCase
             }
 
             if (! $process->isRunning()) {
-                $this->fail("The server exited before it was ready.\n{$output}{$process->getErrorOutput()}");
+                $this->fail("The server exited before printing the expected lines.\n{$output}{$process->getErrorOutput()}");
             }
 
             usleep(50_000);
         } while (microtime(true) < $deadline);
 
-        $this->fail("The server was not ready in time.\n{$output}{$process->getErrorOutput()}");
+        $this->fail("The server did not print the expected lines in time.\n{$output}{$process->getErrorOutput()}");
+    }
+
+    /**
+     * Get the process IDs the fixture printed after the given line.
+     *
+     * @return list<int>
+     */
+    private function processIds(Process $process, string $line): array
+    {
+        preg_match_all('/^' . preg_quote($line, '/') . ' (\d+)$/m', $process->getOutput(), $matches);
+
+        return array_map(intval(...), $matches[1]);
     }
 }

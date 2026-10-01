@@ -40,6 +40,7 @@
 
 ## HTTP Server
 
+- Require a Swoole release that resets signal-listener state in forked server workers before releasing Hypervel 0.4. In Swoole 6.2.3 and earlier, a worker forked after the manager calls `Process::signal()` inherits the listener count, so `Coroutine\System::waitSignal()` fails in it. Hypervel's SIGINT shutdown handling registers a manager callback in both server modes, so after a reload, `max_request` recycling or a crash restart, replacement workers stop receiving configured signal handlers and Artisan traps. Once a fixed release is verified, raise the `ext-swoole` constraint and remove the version skip from `ShutdownOnInterruptListenerTest::testReplacementWorkersKeepTheirSignalHandlers()`.
 - Remove trailer-stream one-chunk lookahead once the minimum supported Swoole release includes [swoole-src#6124](https://github.com/swoole/swoole-src/pull/6124). Current releases send an empty `END_STREAM` DATA frame before trailer HEADERS when `end()` receives no body after `write()`, so `ResponseBridge` retains the final chunk for `end($chunk)` and delays delivery by one chunk. Once fixed, raise the `ext-swoole` constraint, write every chunk immediately, emit trailers, call bare `end()`, invert the deterministic bridge ordering tests, and add real gRPC incremental-delivery coverage.
 
 ## Routing
