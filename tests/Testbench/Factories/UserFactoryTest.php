@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Testbench\Factories;
 
 use Carbon\CarbonInterface;
+use Hypervel\Foundation\Auth\User as FoundationUser;
 use Hypervel\Testbench\Concerns\WithWorkbench;
 use Hypervel\Testbench\Factories\UserFactory;
+use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionClass;
@@ -21,6 +23,22 @@ class UserFactoryTest extends TestCase
     {
         $this->assertSame(User::class, config('auth.providers.users.model'));
         $this->assertNull(env('AUTH_MODEL'));
+    }
+
+    #[Test]
+    public function itFallsBackToTheAuthModelEnvironmentVariable(): void
+    {
+        config(['auth.providers.users' => ['driver' => 'database', 'table' => 'users']]);
+
+        $this->assertSame(FoundationUser::class, UserFactory::new()->modelName());
+
+        try {
+            Env::set('AUTH_MODEL', User::class);
+
+            $this->assertSame(User::class, UserFactory::new()->modelName());
+        } finally {
+            Env::forget('AUTH_MODEL');
+        }
     }
 
     #[Test]

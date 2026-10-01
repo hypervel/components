@@ -15,6 +15,7 @@ use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionMethod;
+use Workbench\App\Models\User as WorkbenchUser;
 
 class DefaultConfigurationTest extends TestCase
 {
@@ -198,5 +199,19 @@ class DefaultConfigurationTest extends TestCase
     public function itResolvesTheDefaultUserModel(): void
     {
         $this->assertSame(User::class, $this->app->make('config')->string('auth.providers.users.model'));
+    }
+
+    #[Test]
+    public function itResolvesTheUserModelFromTheEnvironment(): void
+    {
+        Env::set('AUTH_MODEL', WorkbenchUser::class);
+
+        try {
+            (new TestbenchLoadConfiguration)->bootstrap($this->app);
+
+            $this->assertSame(WorkbenchUser::class, config('auth.providers.users.model'));
+        } finally {
+            Env::forget('AUTH_MODEL');
+        }
     }
 }
