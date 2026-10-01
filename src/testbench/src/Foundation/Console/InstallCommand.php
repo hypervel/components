@@ -15,6 +15,7 @@ use LogicException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 use function Hypervel\Filesystem\join_paths;
+use function Hypervel\Prompts\confirm;
 use function Hypervel\Prompts\select;
 use function Hypervel\Testbench\package_path;
 
@@ -55,6 +56,7 @@ class InstallCommand extends Command
         $this->copyTestbenchConfigurationFile($filesystem, $workingPath, $namespaces);
         $this->copyWorkbenchFiles($filesystem, $workingPath, $namespaces);
         $this->copyWorkbenchDotEnvFile($filesystem, $workingPath);
+        $this->copyWorkbenchBootstrapFiles($filesystem, $workingPath);
 
         if ($this->call('package:create-sqlite-db', ['--force' => true, '--pretend' => $pretending]) !== self::SUCCESS) {
             return self::FAILURE;
@@ -174,6 +176,7 @@ class InstallCommand extends Command
         $directories = [
             join_paths('workbench', 'app', 'Models'),
             join_paths('workbench', 'app', 'Providers'),
+            join_paths('workbench', 'bootstrap'),
             join_paths('workbench', 'database', 'factories'),
             join_paths('workbench', 'database', 'migrations'),
             join_paths('workbench', 'database', 'seeders'),
@@ -307,6 +310,29 @@ class InstallCommand extends Command
             '.env.example',
             '.env.dist',
         ];
+    }
+
+    /**
+     * Copy the Workbench bootstrap files.
+     */
+    protected function copyWorkbenchBootstrapFiles(Filesystem $filesystem, string $workingPath): void
+    {
+        if (! $this->input->isInteractive()) {
+            return;
+        }
+
+        foreach (['app' => true, 'providers' => false] as $bootstrap => $default) {
+            if (! confirm("Generate `workbench/bootstrap/{$bootstrap}.php` file?", default: $default)) {
+                continue;
+            }
+
+            // The basic scaffold has no route files for the application bootstrap to load.
+            $stub = $bootstrap === 'app' && $this->option('basic') === true
+                ? 'bootstrap.app.basic.stub'
+                : "bootstrap.{$bootstrap}.stub";
+
+            $this->copyStub($filesystem, $stub, join_paths($workingPath, 'workbench', 'bootstrap', "{$bootstrap}.php"), $workingPath);
+        }
     }
 
     /**

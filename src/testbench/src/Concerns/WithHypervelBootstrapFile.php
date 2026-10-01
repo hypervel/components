@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Concerns;
 
+use Hypervel\Testbench\Foundation\Application as Testbench;
+
 use function Hypervel\Testbench\join_paths;
 use function Hypervel\Testbench\uses_default_skeleton;
 use function Hypervel\Testbench\workbench_path;
@@ -29,7 +31,7 @@ trait WithHypervelBootstrapFile
         $bootstrapFile = realpath(join_paths($this->getApplicationBasePath(), 'bootstrap', $filename));
 
         if ($this->usesTestbenchDefaultSkeleton()) {
-            if (static::usesTestingConcern(WithWorkbench::class)) {
+            if (static::usesTestingConcern(WithWorkbench::class) || $this instanceof Testbench) {
                 return is_file($workbenchFile = workbench_path('bootstrap', $filename)) ? (string) realpath($workbenchFile) : false;
             }
 

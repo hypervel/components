@@ -74,6 +74,8 @@ class InstallCommandTest extends TestCase
         $this->assertFileExists($this->path('workbench/database/factories/UserFactory.php'));
         $this->assertFileExists($this->path('workbench/database/migrations/.gitkeep'));
         $this->assertFileExists($this->path('workbench/database/seeders/DatabaseSeeder.php'));
+        $this->assertFileExists($this->path('workbench/bootstrap/.gitkeep'));
+        $this->assertFileDoesNotExist($this->path('workbench/bootstrap/app.php'));
         $this->assertFileExists($this->path('workbench/routes/web.php'));
         $this->assertFileExists($this->path('workbench/routes/api.php'));
         $this->assertFileExists($this->path('workbench/routes/console.php'));
@@ -135,6 +137,7 @@ class InstallCommandTest extends TestCase
         $this->assertFileExists($this->path('workbench/app/Models/User.php'));
         $this->assertFileExists($this->path('workbench/database/factories/UserFactory.php'));
         $this->assertFileExists($this->path('workbench/database/seeders/DatabaseSeeder.php'));
+        $this->assertFileExists($this->path('workbench/bootstrap/.gitkeep'));
         $this->assertDirectoryDoesNotExist($this->path('workbench/config'));
         $this->assertDirectoryDoesNotExist($this->path('workbench/resources'));
         $this->assertDirectoryDoesNotExist($this->path('workbench/routes'));
@@ -260,7 +263,8 @@ class InstallCommandTest extends TestCase
     {
         $this->filesystem->put($this->path('.env.example'), 'APP_NAME=Workbench');
 
-        $this->runEnvironmentFileCopyCommand(
+        $this->runInstallCommandStep(
+            'copyWorkbenchDotEnvFile',
             [],
             fn (Factory $components) => $components
                 ->expects('choice')
@@ -283,7 +287,8 @@ class InstallCommandTest extends TestCase
     {
         $this->filesystem->put($this->path('.env.example'), 'APP_NAME=Workbench');
 
-        $this->runEnvironmentFileCopyCommand(
+        $this->runInstallCommandStep(
+            'copyWorkbenchDotEnvFile',
             [],
             fn (Factory $components) => $components
                 ->expects('choice')
@@ -304,7 +309,8 @@ class InstallCommandTest extends TestCase
     {
         $this->filesystem->put($this->path('.env.example'), 'APP_NAME=Workbench');
 
-        $this->runEnvironmentFileCopyCommand(
+        $this->runInstallCommandStep(
+            'copyWorkbenchDotEnvFile',
             ['--pretend' => true],
             fn (Factory $components) => $components
                 ->expects('choice')
@@ -329,7 +335,8 @@ class InstallCommandTest extends TestCase
         $this->filesystem->put($this->path('workbench/.env.example'), 'existing .env.example');
         $this->filesystem->put($this->path('workbench/.env.dist'), 'existing .env.dist');
 
-        $this->runEnvironmentFileCopyCommand(
+        $this->runInstallCommandStep(
+            'copyWorkbenchDotEnvFile',
             [],
             fn (Factory $components) => $components
                 ->expects('twoColumnDetail')
@@ -348,7 +355,8 @@ class InstallCommandTest extends TestCase
         $this->filesystem->ensureDirectoryExists($this->path('workbench'));
         $this->filesystem->put($this->path('workbench/.env.dist'), 'existing .env.dist');
 
-        $this->runEnvironmentFileCopyCommand(
+        $this->runInstallCommandStep(
+            'copyWorkbenchDotEnvFile',
             ['--force' => true],
             fn (Factory $components) => $components
                 ->expects('choice')
@@ -362,6 +370,58 @@ class InstallCommandTest extends TestCase
         );
 
         $this->assertSame('APP_NAME=Workbench', $this->filesystem->get($this->path('workbench/.env.dist')));
+    }
+
+    #[Test]
+    public function itGeneratesTheSelectedWorkbenchBootstrapFiles(): void
+    {
+        $this->filesystem->ensureDirectoryExists($this->path('workbench/bootstrap'));
+
+        $this->runInstallCommandStep(
+            'copyWorkbenchBootstrapFiles',
+            [],
+            function (Factory $components): void {
+                $components->expects('confirm')->with('Generate `workbench/bootstrap/app.php` file?', true)->andReturn(true);
+                $components->expects('confirm')->with('Generate `workbench/bootstrap/providers.php` file?', false)->andReturn(true);
+            }
+        );
+
+        $this->assertFileEquals(
+            $this->componentPath('src/testbench/src/Foundation/Console/stubs/bootstrap.app.stub'),
+            $this->path('workbench/bootstrap/app.php')
+        );
+        $this->assertFileEquals(
+            $this->componentPath('src/testbench/src/Foundation/Console/stubs/bootstrap.providers.stub'),
+            $this->path('workbench/bootstrap/providers.php')
+        );
+    }
+
+    #[Test]
+    public function itGeneratesABasicWorkbenchApplicationBootstrapThatBootsWithoutRouteFiles(): void
+    {
+        $this->filesystem->ensureDirectoryExists($this->path('workbench/bootstrap'));
+
+        $this->runInstallCommandStep(
+            'copyWorkbenchBootstrapFiles',
+            ['--basic' => true],
+            function (Factory $components): void {
+                $components->expects('confirm')->with('Generate `workbench/bootstrap/app.php` file?', true)->andReturn(true);
+                $components->expects('confirm')->with('Generate `workbench/bootstrap/providers.php` file?', false)->andReturn(false);
+            }
+        );
+
+        $this->assertFileEquals(
+            $this->componentPath('src/testbench/src/Foundation/Console/stubs/bootstrap.app.basic.stub'),
+            $this->path('workbench/bootstrap/app.php')
+        );
+        $this->assertFileDoesNotExist($this->path('workbench/bootstrap/providers.php'));
+        $this->assertDirectoryDoesNotExist($this->path('workbench/routes'));
+
+        (new Process(
+            [php_binary(), $this->componentPath('src/testbench/bin/testbench'), 'list'],
+            $this->workingPath,
+            ['TESTBENCH_WORKING_PATH' => $this->workingPath],
+        ))->setTimeout(null)->mustRun();
     }
 
     #[Test]
@@ -445,17 +505,19 @@ class InstallCommandTest extends TestCase
     }
 
     /**
-     * Run the command branch that copies the Workbench environment file.
+     * Run one interactive install step against the temporary package.
      *
+     * @param 'copyWorkbenchBootstrapFiles'|'copyWorkbenchDotEnvFile' $step
      * @param array<string, mixed> $input
      * @param Closure(Factory): void $expectations
      */
-    private function runEnvironmentFileCopyCommand(array $input, Closure $expectations): void
+    private function runInstallCommandStep(string $step, array $input, Closure $expectations): void
     {
-        $command = new class($this->filesystem, $this->workingPath) extends InstallCommand {
+        $command = new class($this->filesystem, $this->workingPath, $step) extends InstallCommand {
             public function __construct(
                 private readonly Filesystem $filesystem,
-                private readonly string $workingPath
+                private readonly string $workingPath,
+                private readonly string $step
             ) {
                 parent::__construct();
             }
@@ -465,7 +527,7 @@ class InstallCommandTest extends TestCase
              */
             public function handle(Filesystem $filesystem, Composer $composer): int
             {
-                $this->copyWorkbenchDotEnvFile($this->filesystem, $this->workingPath);
+                $this->{$this->step}($this->filesystem, $this->workingPath);
 
                 return self::SUCCESS;
             }
@@ -583,6 +645,10 @@ class InstallCommandFailureHarness extends InstallCommand
     }
 
     protected function copyWorkbenchDotEnvFile(Filesystem $filesystem, string $workingPath): void
+    {
+    }
+
+    protected function copyWorkbenchBootstrapFiles(Filesystem $filesystem, string $workingPath): void
     {
     }
 }
