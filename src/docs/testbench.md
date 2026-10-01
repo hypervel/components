@@ -521,7 +521,7 @@ protected function defineEnvironment(Application $app): void
 }
 ```
 
-Configuration set with `#[WithConfig]` is always applied before service providers register. This keeps process-global configuration fixed during startup for Hypervel's long-lived Swoole workers. If a test needs a post-boot value, set it explicitly in the test body using `config()->set()`.
+Configuration set with `#[WithConfig]` is always applied before service providers register. This keeps process-global configuration fixed during startup for Hypervel's long-lived Swoole workers. When a package provider uses shallow configuration merging, a nested key such as `courier.session.driver` replaces the package's default `session` options instead of merging with them. If a test needs a post-boot value, or a nested value alongside the package defaults, set it explicitly in the test body using `config()->set()`.
 
 <a name="using-attributes"></a>
 ### Using Attributes

@@ -7,7 +7,7 @@ Documentation: https://hypervel.org/docs/testbench
 
 ## Differences From Laravel
 
-Hypervel applies every `#[WithConfig]` value before service providers register. Orchestra's deferred mode is intentionally omitted because configuration is process-global state shared by Hypervel's long-lived Swoole worker. Tests that need a post-boot value should set it explicitly in the test body.
+Hypervel applies every `#[WithConfig]` value before service providers register. Orchestra's deferred mode is intentionally omitted because configuration is process-global state shared by Hypervel's long-lived Swoole worker. When a package provider uses shallow configuration merging, a nested key replaces that package option's defaults. Tests that need a post-boot value, or a nested value alongside the package defaults, should set it explicitly in the test body.
 
 Hypervel does not forward the parent Testbench CLI application's full runtime environment to `package:test` subprocesses. In package-test mode, package and workbench environment files are copied into the child runtime application, while shell or CI environment variables, PHPUnit XML values, and Testbench YAML `env` values continue to reach package-test child processes through their normal channels.
 
