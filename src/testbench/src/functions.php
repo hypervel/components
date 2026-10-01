@@ -162,8 +162,8 @@ function load_migration_paths(ApplicationContract $app, array|string $paths): vo
 /**
  * Get the path to the default skeleton application.
  *
- * Returns the path to the runtime copy of the workbench app used for testing.
- * This is set by Bootstrapper::bootstrap() via the BASE_PATH constant.
+ * Returns a path inside the active runtime skeleton, which Bootstrapper::bootstrap()
+ * sets through the BASE_PATH constant.
  *
  * @api
  *

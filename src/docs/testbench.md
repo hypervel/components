@@ -1271,7 +1271,7 @@ Testbench provides several helpers for package tests and command-line tooling:
 | `package_path()` | Resolve a path relative to the package root. |
 | `testbench_path()` | Resolve a path relative to the installed Testbench package. |
 | `workbench_path()` | Resolve a path relative to the package's Workbench directory. |
-| `default_skeleton_path()` | Resolve a path inside the active runtime skeleton copy. |
+| `default_skeleton_path()` | Resolve a path inside the active runtime skeleton. |
 | `default_migration_path()` | Resolve one of Testbench's default migration paths. |
 | `artisan()` | Run an Artisan command against a Testbench application or test case. |
 | `remote()` | Run a Testbench CLI command in a subprocess. |
