@@ -279,7 +279,7 @@ return [
     |
     | This array of class aliases will be registered when this application
     | is started. You may add any additional class aliases which should
-    | be loaded to the array. For speed, all aliases are lazy loaded.
+    | be loaded to the array.
     |
     */
 

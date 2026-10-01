@@ -87,210 +87,208 @@ foreach ($defaults as $key => $value) {
 }
 
 // Boot a fully bootstrapped Hypervel app with Reverb enabled.
-$app = TestbenchApplication::create(
-    resolvingCallback: function ($app) use ($workerNum) {
-        $config = $app->make('config');
+$app = TestbenchApplication::create();
 
-        // Clear the default HTTP server entry — the test server only needs the
-        // Reverb WebSocket server. Must happen before the provider registers so
-        // registerWebSocketServer() appends to an empty array.
-        $config->set('server.servers', []);
+$config = $app->make('config');
 
-        // Register Reverb provider (register + boot fires immediately since app is booted).
-        // registerWebSocketServer() appends the Reverb server entry using the port
-        // from REVERB_SERVER_PORT (set above via env vars → config).
-        $app->register(ReverbServiceProvider::class);
+// Clear the default HTTP server entry — the test server only needs the
+// Reverb WebSocket server. Must happen before the provider registers so
+// registerWebSocketServer() appends to an empty array.
+$config->set('server.servers', []);
 
-        $baseApplication = $config->array('reverb.apps.apps.0');
-        $disabledRateLimiting = array_replace($baseApplication['rate_limiting'], ['enabled' => false]);
-        $disabledWebhooks = array_replace($baseApplication['webhooks'], ['url' => null]);
+// Register Reverb provider (register + boot fires immediately since app is booted).
+// registerWebSocketServer() appends the Reverb server entry using the port
+// from REVERB_SERVER_PORT (set above via env vars → config).
+$app->register(ReverbServiceProvider::class);
 
-        // Webhook inspection only works with worker_num=1 (no fork).
-        // Queue::fake() creates an in-memory fake that doesn't survive forking.
-        if ($workerNum === 1) {
-            $config->set('reverb.apps.apps.0.webhooks', array_replace($baseApplication['webhooks'], [
-                'url' => 'https://example.com/webhook',
-                'events' => ['channel_occupied', 'channel_vacated', 'member_added', 'member_removed', 'client_event'],
-                'disconnect_smoothing_ms' => 0,
-                'batching' => array_replace($baseApplication['webhooks']['batching'], ['enabled' => false]),
+$baseApplication = $config->array('reverb.apps.apps.0');
+$disabledRateLimiting = array_replace($baseApplication['rate_limiting'], ['enabled' => false]);
+$disabledWebhooks = array_replace($baseApplication['webhooks'], ['url' => null]);
+
+// Webhook inspection only works with worker_num=1 (no fork).
+// Queue::fake() creates an in-memory fake that doesn't survive forking.
+if ($workerNum === 1) {
+    $config->set('reverb.apps.apps.0.webhooks', array_replace($baseApplication['webhooks'], [
+        'url' => 'https://example.com/webhook',
+        'events' => ['channel_occupied', 'channel_vacated', 'member_added', 'member_removed', 'client_event'],
+        'disconnect_smoothing_ms' => 0,
+        'batching' => array_replace($baseApplication['webhooks']['batching'], ['enabled' => false]),
+    ]));
+
+    Queue::fake([WebhookDeliveryJob::class]);
+}
+
+// Add additional test apps (env vars only support one app).
+// Boot-time configuration mutations are tracked automatically and survive
+// the worker-start configuration rebuild.
+$config->set('reverb.apps.apps.1', array_replace($baseApplication, [
+    'key' => 'reverb-key-2',
+    'secret' => 'reverb-secret-2',
+    'app_id' => '654321',
+    'allowed_origins' => ['*'],
+    'ping_interval' => 10,
+    'activity_timeout' => 30,
+    'max_message_size' => 1_000_000,
+    'max_connections' => 1,
+    'accept_client_events_from' => 'members',
+    'rate_limiting' => $disabledRateLimiting,
+    'webhooks' => $disabledWebhooks,
+]));
+
+$config->set('reverb.apps.apps.2', array_replace($baseApplication, [
+    'key' => 'reverb-key-3',
+    'secret' => 'reverb-secret-3',
+    'app_id' => '987654',
+    'allowed_origins' => ['laravel.com'],
+    'ping_interval' => 10,
+    'activity_timeout' => 30,
+    'max_message_size' => 1,
+    'max_connections' => null,
+    'accept_client_events_from' => 'members',
+    'rate_limiting' => $disabledRateLimiting,
+    'webhooks' => $disabledWebhooks,
+]));
+
+// Wrap the ApplicationProvider with a dynamic resolver for parallel test
+// isolation. Each paratest worker derives unique app credentials from
+// TEST_TOKEN — the wrapper recognizes the pattern and creates apps on
+// demand without pre-registering a fixed list.
+$app->instance(
+    ApplicationProvider::class,
+    new ParallelTestApplicationProvider(
+        $app->make(ApplicationProvider::class),
+    ),
+);
+
+// Test-only route: age connections for a specific app and ping inactive ones.
+// Scoped by app ID so parallel workers don't interfere. Runs the ping
+// logic directly for this app rather than delegating to the job (which
+// iterates all() apps and wouldn't find dynamically-resolved parallel apps).
+$app->make(ReverbRouter::class)->post('/_test/ping-inactive/{appId}', function (\Hypervel\Http\Request $request, string $appId) use ($app) {
+    $channelManager = $app->make(\Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager::class);
+    $application = $app->make(ApplicationProvider::class)->findById($appId);
+    $pusher = new \Hypervel\Reverb\Protocols\Pusher\EventHandler($channelManager);
+
+    foreach ($channelManager->for($application)->connections() as $connection) {
+        $connection->connection()->setLastSeenAt(time() - 600);
+    }
+
+    foreach ($channelManager->for($application)->connections() as $connection) {
+        if (! $connection->isActive()) {
+            $pusher->ping($connection->connection());
+        }
+    }
+
+    return new \Hypervel\Http\JsonResponse(['ok' => true]);
+});
+
+// Test-only route: prune stale connections for a specific app.
+// Mirrors PruneStaleConnections — only disconnect, don't unsubscribeFromAll.
+// The onClose → Server::close() path handles channel cleanup and slot release.
+$app->make(ReverbRouter::class)->post('/_test/prune-stale/{appId}', function (\Hypervel\Http\Request $request, string $appId) use ($app) {
+    $channelManager = $app->make(\Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager::class);
+    $application = $app->make(ApplicationProvider::class)->findById($appId);
+
+    foreach ($channelManager->for($application)->connections() as $connection) {
+        if ($connection->connection()->isStale()) {
+            $connection->connection()->send(json_encode([
+                'event' => 'pusher:error',
+                'data' => json_encode([
+                    'code' => 4201,
+                    'message' => 'Pong reply not received in time',
+                ]),
             ]));
 
-            Queue::fake([WebhookDeliveryJob::class]);
+            $connection->connection()->disconnect();
         }
+    }
 
-        // Add additional test apps (env vars only support one app).
-        // Boot-time configuration mutations are tracked automatically and survive
-        // the worker-start configuration rebuild.
-        $config->set('reverb.apps.apps.1', array_replace($baseApplication, [
-            'key' => 'reverb-key-2',
-            'secret' => 'reverb-secret-2',
-            'app_id' => '654321',
-            'allowed_origins' => ['*'],
-            'ping_interval' => 10,
-            'activity_timeout' => 30,
-            'max_message_size' => 1_000_000,
-            'max_connections' => 1,
-            'accept_client_events_from' => 'members',
-            'rate_limiting' => $disabledRateLimiting,
-            'webhooks' => $disabledWebhooks,
-        ]));
+    return new \Hypervel\Http\JsonResponse(['ok' => true]);
+});
 
-        $config->set('reverb.apps.apps.2', array_replace($baseApplication, [
-            'key' => 'reverb-key-3',
-            'secret' => 'reverb-secret-3',
-            'app_id' => '987654',
-            'allowed_origins' => ['laravel.com'],
-            'ping_interval' => 10,
-            'activity_timeout' => 30,
-            'max_message_size' => 1,
-            'max_connections' => null,
-            'accept_client_events_from' => 'members',
-            'rate_limiting' => $disabledRateLimiting,
-            'webhooks' => $disabledWebhooks,
-        ]));
+// Webhook test routes — only available on single-worker servers.
+if ($workerNum === 1) {
+    $app->make(ReverbRouter::class)->post('/_test/queue-reset', function () {
+        Queue::fake([WebhookDeliveryJob::class]);
 
-        // Wrap the ApplicationProvider with a dynamic resolver for parallel test
-        // isolation. Each paratest worker derives unique app credentials from
-        // TEST_TOKEN — the wrapper recognizes the pattern and creates apps on
-        // demand without pre-registering a fixed list.
-        $app->instance(
-            ApplicationProvider::class,
-            new ParallelTestApplicationProvider(
-                $app->make(ApplicationProvider::class),
-            ),
-        );
+        return new \Hypervel\Http\JsonResponse(['ok' => true]);
+    });
 
-        // Test-only route: age connections for a specific app and ping inactive ones.
-        // Scoped by app ID so parallel workers don't interfere. Runs the ping
-        // logic directly for this app rather than delegating to the job (which
-        // iterates all() apps and wouldn't find dynamically-resolved parallel apps).
-        $app->make(ReverbRouter::class)->post('/_test/ping-inactive/{appId}', function (\Hypervel\Http\Request $request, string $appId) use ($app) {
-            $channelManager = $app->make(\Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager::class);
-            $application = $app->make(ApplicationProvider::class)->findById($appId);
-            $pusher = new \Hypervel\Reverb\Protocols\Pusher\EventHandler($channelManager);
+    $app->make(ReverbRouter::class)->get('/_test/queued-jobs', function () {
+        /** @var QueueFake $fake */
+        $fake = Queue::getFacadeRoot();
 
-            foreach ($channelManager->for($application)->connections() as $connection) {
-                $connection->connection()->setLastSeenAt(time() - 600);
-            }
+        $jobs = $fake->pushed(WebhookDeliveryJob::class)->map(function (WebhookDeliveryJob $job) {
+            $event = $job->payload->events[0] ?? [];
 
-            foreach ($channelManager->for($application)->connections() as $connection) {
-                if (! $connection->isActive()) {
-                    $pusher->ping($connection->connection());
-                }
-            }
+            return [
+                'event' => $event['name'] ?? null,
+                'channel' => $event['channel'] ?? null,
+                'url' => $job->url,
+                'appKey' => $job->appKey,
+                'webhookId' => $job->payload->webhookId,
+            ];
+        })->values()->all();
 
-            return new \Hypervel\Http\JsonResponse(['ok' => true]);
-        });
+        return new \Hypervel\Http\JsonResponse(['jobs' => $jobs]);
+    });
+}
 
-        // Test-only route: prune stale connections for a specific app.
-        // Mirrors PruneStaleConnections — only disconnect, don't unsubscribeFromAll.
-        // The onClose → Server::close() path handles channel cleanup and slot release.
-        $app->make(ReverbRouter::class)->post('/_test/prune-stale/{appId}', function (\Hypervel\Http\Request $request, string $appId) use ($app) {
-            $channelManager = $app->make(\Hypervel\Reverb\Protocols\Pusher\Contracts\ChannelManager::class);
-            $application = $app->make(ApplicationProvider::class)->findById($appId);
+// Test-only: observe the production shared-state contract from any worker.
+$app->make(ReverbRouter::class)->get('/_test/subscriptions/{appId}/{channel}', function (
+    \Hypervel\Http\Request $request,
+    string $appId,
+    string $channel,
+) use ($app) {
+    $sharedState = $app->make(\Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState::class);
 
-            foreach ($channelManager->for($application)->connections() as $connection) {
-                if ($connection->connection()->isStale()) {
-                    $connection->connection()->send(json_encode([
-                        'event' => 'pusher:error',
-                        'data' => json_encode([
-                            'code' => 4201,
-                            'message' => 'Pong reply not received in time',
-                        ]),
+    return new \Hypervel\Http\JsonResponse([
+        'count' => $sharedState->getSubscriptionCount($appId, $channel),
+    ]);
+});
+
+// Test-only: drain all connections on this worker using the production drain method.
+$app->make(ReverbRouter::class)->post('/_test/drain-connections', function () use ($app) {
+    $app->getProvider(ReverbServiceProvider::class)->drainConnections();
+
+    return new \Hypervel\Http\JsonResponse(['ok' => true]);
+});
+
+// Override Swoole settings for test determinism.
+if ($workerNum > 1) {
+    $config->set('server.mode', SWOOLE_PROCESS);
+} else {
+    $config->set('server.mode', SWOOLE_BASE);
+}
+$config->set('server.settings.' . \Swoole\Constant::OPTION_WORKER_NUM, $workerNum);
+// Disable HTTP compression so Content-Length headers reflect the raw body
+// size, allowing integration tests to assert exact Content-Length values.
+$config->set('server.settings.' . \Swoole\Constant::OPTION_HTTP_COMPRESSION, false);
+
+// Test-only: extend WebSocketHandler to intercept pusher:test_worker_id.
+// Responds with the worker ID of the worker that owns the connection.
+// Used by multi-worker tests to verify cross-worker distribution.
+$app->singleton(\Hypervel\Reverb\Servers\Hypervel\WebSocketHandler::class, function ($app) {
+    return new class($app->make(\Hypervel\Contracts\Container\Container::class), $app->make(\Hypervel\Reverb\Protocols\Pusher\Server::class), $app->make(ApplicationProvider::class)) extends \Hypervel\Reverb\Servers\Hypervel\WebSocketHandler {
+        public function onMessage(\Swoole\WebSocket\Server $server, \Swoole\WebSocket\Frame $frame): void
+        {
+            if ($frame->opcode === WEBSOCKET_OPCODE_TEXT) {
+                $data = json_decode($frame->data, true);
+
+                if (($data['event'] ?? null) === 'pusher:test_worker_id') {
+                    $server->push($frame->fd, json_encode([
+                        'event' => 'pusher:test_worker_id',
+                        'data' => json_encode(['worker_id' => $server->worker_id]),
                     ]));
 
-                    $connection->connection()->disconnect();
+                    return;
                 }
             }
 
-            return new \Hypervel\Http\JsonResponse(['ok' => true]);
-        });
-
-        // Webhook test routes — only available on single-worker servers.
-        if ($workerNum === 1) {
-            $app->make(ReverbRouter::class)->post('/_test/queue-reset', function () {
-                Queue::fake([WebhookDeliveryJob::class]);
-
-                return new \Hypervel\Http\JsonResponse(['ok' => true]);
-            });
-
-            $app->make(ReverbRouter::class)->get('/_test/queued-jobs', function () {
-                /** @var QueueFake $fake */
-                $fake = Queue::getFacadeRoot();
-
-                $jobs = $fake->pushed(WebhookDeliveryJob::class)->map(function (WebhookDeliveryJob $job) {
-                    $event = $job->payload->events[0] ?? [];
-
-                    return [
-                        'event' => $event['name'] ?? null,
-                        'channel' => $event['channel'] ?? null,
-                        'url' => $job->url,
-                        'appKey' => $job->appKey,
-                        'webhookId' => $job->payload->webhookId,
-                    ];
-                })->values()->all();
-
-                return new \Hypervel\Http\JsonResponse(['jobs' => $jobs]);
-            });
+            parent::onMessage($server, $frame);
         }
-
-        // Test-only: observe the production shared-state contract from any worker.
-        $app->make(ReverbRouter::class)->get('/_test/subscriptions/{appId}/{channel}', function (
-            \Hypervel\Http\Request $request,
-            string $appId,
-            string $channel,
-        ) use ($app) {
-            $sharedState = $app->make(\Hypervel\Reverb\Servers\Hypervel\Contracts\SharedState::class);
-
-            return new \Hypervel\Http\JsonResponse([
-                'count' => $sharedState->getSubscriptionCount($appId, $channel),
-            ]);
-        });
-
-        // Test-only: drain all connections on this worker using the production drain method.
-        $app->make(ReverbRouter::class)->post('/_test/drain-connections', function () use ($app) {
-            $app->getProvider(ReverbServiceProvider::class)->drainConnections();
-
-            return new \Hypervel\Http\JsonResponse(['ok' => true]);
-        });
-
-        // Override Swoole settings for test determinism.
-        if ($workerNum > 1) {
-            $config->set('server.mode', SWOOLE_PROCESS);
-        } else {
-            $config->set('server.mode', SWOOLE_BASE);
-        }
-        $config->set('server.settings.' . \Swoole\Constant::OPTION_WORKER_NUM, $workerNum);
-        // Disable HTTP compression so Content-Length headers reflect the raw body
-        // size, allowing integration tests to assert exact Content-Length values.
-        $config->set('server.settings.' . \Swoole\Constant::OPTION_HTTP_COMPRESSION, false);
-
-        // Test-only: extend WebSocketHandler to intercept pusher:test_worker_id.
-        // Responds with the worker ID of the worker that owns the connection.
-        // Used by multi-worker tests to verify cross-worker distribution.
-        $app->singleton(\Hypervel\Reverb\Servers\Hypervel\WebSocketHandler::class, function ($app) {
-            return new class($app->make(\Hypervel\Contracts\Container\Container::class), $app->make(\Hypervel\Reverb\Protocols\Pusher\Server::class), $app->make(ApplicationProvider::class)) extends \Hypervel\Reverb\Servers\Hypervel\WebSocketHandler {
-                public function onMessage(\Swoole\WebSocket\Server $server, \Swoole\WebSocket\Frame $frame): void
-                {
-                    if ($frame->opcode === WEBSOCKET_OPCODE_TEXT) {
-                        $data = json_decode($frame->data, true);
-
-                        if (($data['event'] ?? null) === 'pusher:test_worker_id') {
-                            $server->push($frame->fd, json_encode([
-                                'event' => 'pusher:test_worker_id',
-                                'data' => json_encode(['worker_id' => $server->worker_id]),
-                            ]));
-
-                            return;
-                        }
-                    }
-
-                    parent::onMessage($server, $frame);
-                }
-            };
-        });
-    },
-);
+    };
+});
 
 $port = env('REVERB_SERVER_PORT', 19510);
 

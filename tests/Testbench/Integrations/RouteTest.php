@@ -20,6 +20,7 @@ class RouteTest extends TestCase
     {
         $router->middleware('web')->get('web/test', fn () => 'Test using web');
         $router->middleware('api')->get('api/test', fn () => 'Test using api');
+        $router->middleware(['api', 'throttle:api'])->get('api/throttled', fn (): string => 'Test using api throttle');
 
         $router->domain('api.localhost')
             ->group(function (Router $router) {
@@ -53,6 +54,16 @@ class RouteTest extends TestCase
         $crawler = $this->call('GET', 'api/test');
 
         $this->assertEquals('Test using api', $crawler->getContent());
+    }
+
+    #[Test]
+    #[WithConfig('rate-limiter.default', 'worker-array')]
+    public function itDefinesTheDefaultApiRateLimiter(): void
+    {
+        $this->get('api/throttled')
+            ->assertOk()
+            ->assertSee('Test using api throttle')
+            ->assertHeader('X-RateLimit-Limit', '60');
     }
 
     #[Test]

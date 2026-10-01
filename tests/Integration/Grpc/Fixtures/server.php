@@ -31,41 +31,34 @@ $certificate = env('GRPC_TEST_SERVER_CERT');
 $privateKey = env('GRPC_TEST_SERVER_KEY');
 $compression = env('GRPC_TEST_SERVER_COMPRESSION');
 
-$app = TestbenchApplication::create(
-    resolvingCallback: function ($app) use (
-        $port,
-        $certificate,
-        $privateKey,
-        $compression,
-    ): void {
-        $config = $app->make('config');
-        $config->set('server.servers', []);
+$app = TestbenchApplication::create();
 
-        // Merge package defaults while the gRPC listener is still disabled, then
-        // register the enabled provider after its test-only route path is known.
-        (new GrpcServiceProvider($app))->register();
-        $config->set('grpc.server', array_replace_recursive(
-            $config->array('grpc.server'),
-            [
-                'enabled' => true,
-                'name' => 'grpc-test',
-                'host' => '127.0.0.1',
-                'port' => $port,
-                'routes' => __DIR__ . '/routes.php',
-                'compression' => $compression,
-                'tls' => [
-                    'local_cert' => $certificate ?: null,
-                    'local_pk' => $privateKey ?: null,
-                ],
-            ],
-        ));
-        $app->instance(HealthStatusProvider::class, new TestHealthStatusProvider);
-        $app->register(GrpcServiceProvider::class);
+$config = $app->make('config');
+$config->set('server.servers', []);
 
-        $config->set('server.mode', SWOOLE_BASE);
-        $config->set('server.settings.' . Constant::OPTION_WORKER_NUM, 1);
-    },
-);
+// Merge package defaults while the gRPC listener is still disabled, then
+// register the enabled provider after its test-only route path is known.
+(new GrpcServiceProvider($app))->register();
+$config->set('grpc.server', array_replace_recursive(
+    $config->array('grpc.server'),
+    [
+        'enabled' => true,
+        'name' => 'grpc-test',
+        'host' => '127.0.0.1',
+        'port' => $port,
+        'routes' => __DIR__ . '/routes.php',
+        'compression' => $compression,
+        'tls' => [
+            'local_cert' => $certificate ?: null,
+            'local_pk' => $privateKey ?: null,
+        ],
+    ],
+));
+$app->instance(HealthStatusProvider::class, new TestHealthStatusProvider);
+$app->register(GrpcServiceProvider::class);
+
+$config->set('server.mode', SWOOLE_BASE);
+$config->set('server.settings.' . Constant::OPTION_WORKER_NUM, 1);
 
 echo "Starting Hypervel gRPC test server on 127.0.0.1:{$port}...\n";
 

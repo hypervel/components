@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Foundation;
 
+use Hypervel\Auth\AuthenticationException;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
@@ -11,6 +12,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Foundation\Http\Kernel as HttpKernel;
+use Hypervel\Http\Request;
 use Hypervel\Testbench\Foundation\Application as TestbenchApplication;
 use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\Foundation\Env;
@@ -112,6 +114,61 @@ class ApplicationTest extends TestCase
     }
 
     #[Test]
+    public function itRunsTheResolvingCallbackBeforeTheApplicationBoots(): void
+    {
+        $bootingCallbackRan = false;
+
+        $app = TestbenchApplication::create(
+            (string) default_skeleton_path(),
+            static function (ApplicationContract $app) use (&$bootingCallbackRan): void {
+                $app->booting(static function () use (&$bootingCallbackRan): void {
+                    $bootingCallbackRan = true;
+                });
+            },
+        );
+
+        try {
+            $this->assertTrue($bootingCallbackRan);
+        } finally {
+            try {
+                $app->terminate();
+            } finally {
+                $app->flush();
+            }
+        }
+    }
+
+    /**
+     * @param array<string, bool> $options
+     * @param array<int, string> $expected
+     */
+    #[Test]
+    #[DataProvider('packageDiscoveryOptions')]
+    public function itAppliesThePackageDiscoveryOption(array $options, array $expected): void
+    {
+        $testbench = TestbenchApplication::make(options: [
+            ...$options,
+            'extra' => ['dont-discover' => ['vendor/package']],
+        ]);
+
+        $this->assertSame($expected, $testbench->ignorePackageDiscoveriesFrom());
+    }
+
+    /**
+     * Get package discovery options and the packages they ignore.
+     *
+     * @return array<string, array{array<string, bool>, array<int, string>}>
+     */
+    public static function packageDiscoveryOptions(): array
+    {
+        return [
+            'not set' => [[], ['vendor/package']],
+            'enabled' => [['enables_package_discoveries' => true], []],
+            'disabled' => [['enables_package_discoveries' => false], ['*']],
+        ];
+    }
+
+    #[Test]
     public function itScopesBootstrapFileSelectionToEachApplicationObject(): void
     {
         $fixturesPath = dirname(__DIR__) . '/Fixtures';
@@ -155,6 +212,26 @@ class ApplicationTest extends TestCase
             $this->assertSame(ConsoleKernel::class, get_class($app->make(ConsoleKernelContract::class)));
             $this->assertSame(0, $app->frameworkBootstrapCount);
             $this->assertTrue($app->hasBeenBootstrapped());
+        } finally {
+            try {
+                $app->terminate();
+            } finally {
+                $app->flush();
+            }
+        }
+    }
+
+    #[Test]
+    public function itPreservesTheCustomApplicationMiddlewareConfiguration(): void
+    {
+        $app = TestbenchApplication::create($this->customApplicationPath);
+
+        try {
+            $kernel = $app->make(HttpKernelContract::class);
+
+            $this->assertArrayHasKey('fixture-alias', $kernel->getMiddlewareAliases());
+            $this->assertContains('fixture-alias', $kernel->getMiddlewareGroups()['web']);
+            $this->assertSame('/fixture-login', (new AuthenticationException)->redirectTo(Request::create('/')));
         } finally {
             try {
                 $app->terminate();

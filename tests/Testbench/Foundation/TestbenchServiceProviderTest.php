@@ -6,6 +6,9 @@ namespace Hypervel\Tests\Testbench\Foundation;
 
 use Hypervel\Contracts\Console\Kernel as ConsoleKernel;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Testbench\Attributes\ResolvesHypervel;
+use Hypervel\Testbench\Contracts\Config as ConfigContract;
+use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\Foundation\Console\CreateSqliteDbCommand;
 use Hypervel\Testbench\Foundation\Console\DropSqliteDbCommand;
 use Hypervel\Testbench\Foundation\Console\InstallCommand;
@@ -15,12 +18,17 @@ use Hypervel\Testbench\Foundation\Console\SyncSkeletonCommand;
 use Hypervel\Testbench\Foundation\Console\TestCommand;
 use Hypervel\Testbench\Foundation\Console\VendorPublishCommand;
 use Hypervel\Testbench\TestbenchServiceProvider;
+use Hypervel\Testbench\Workbench\Workbench;
 use Hypervel\Tests\Testbench\TestCase;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
 
+use function Hypervel\Testbench\workbench;
+
 class TestbenchServiceProviderTest extends TestCase
 {
+    protected ?Config $suppliedConfiguration = null;
+
     /**
      * Get package providers.
      *
@@ -33,6 +41,28 @@ class TestbenchServiceProviderTest extends TestCase
         return [
             TestbenchServiceProvider::class,
         ];
+    }
+
+    /**
+     * Start Workbench with a supplied configuration before providers register.
+     */
+    public function startWorkbenchWithSuppliedConfiguration(Application $app): void
+    {
+        Workbench::start($app, $this->suppliedConfiguration = new Config(['workbench' => ['auth' => true]]));
+    }
+
+    #[Test]
+    public function itProvidesTheWorkbenchConfigurationByDefault(): void
+    {
+        $this->assertSame(Workbench::configuration(), $this->app->make(ConfigContract::class));
+    }
+
+    #[Test]
+    #[ResolvesHypervel('startWorkbenchWithSuppliedConfiguration')]
+    public function itKeepsAnExplicitlySuppliedWorkbenchConfiguration(): void
+    {
+        $this->assertSame($this->suppliedConfiguration, $this->app->make(ConfigContract::class));
+        $this->assertTrue(workbench()['auth']);
     }
 
     #[Test]
