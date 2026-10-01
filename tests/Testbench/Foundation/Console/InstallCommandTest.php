@@ -78,6 +78,7 @@ class InstallCommandTest extends TestCase
         $this->assertFileExists($this->path('workbench/routes/api.php'));
         $this->assertFileExists($this->path('workbench/routes/console.php'));
         $this->assertFileDoesNotExist($this->path('workbench/.env'));
+        $this->assertGeneratedWorkbenchClasses();
 
         // The configured sync link owns workbench/storage.
         $this->assertDirectoryDoesNotExist($this->path('workbench/storage'));
@@ -231,9 +232,8 @@ class InstallCommandTest extends TestCase
             'Database\Factories\\' => 'workbench/database/factories/',
             'Database\Seeders\\' => 'workbench/database/seeders/',
         ], $this->composerAutoloadDevNamespaces());
-        $this->assertStringContainsString('namespace App\Providers;', $this->filesystem->get($this->path('workbench/app/Providers/WorkbenchServiceProvider.php')));
         $this->assertStringContainsString('App\Providers\WorkbenchServiceProvider', $this->filesystem->get($this->path('testbench.yaml')));
-        $this->assertStringContainsString('use Database\Factories\UserFactory;', $this->filesystem->get($this->path('workbench/database/seeders/DatabaseSeeder.php')));
+        $this->assertGeneratedWorkbenchClasses(prefix: false);
     }
 
     #[Test]
@@ -375,6 +375,40 @@ class InstallCommandTest extends TestCase
 
         $this->assertSame(InstallCommand::FAILURE, $command->handle($this->filesystem, $composer));
         $this->assertSame(['package:create-sqlite-db'], $command->calls);
+    }
+
+    /**
+     * Assert the generated Workbench classes use the installed namespaces.
+     */
+    private function assertGeneratedWorkbenchClasses(bool $prefix = true): void
+    {
+        $namespace = $prefix ? 'Workbench\\' : '';
+        $otherNamespace = $prefix ? '' : 'Workbench\\';
+
+        $user = $this->filesystem->get($this->path('workbench/app/Models/User.php'));
+        $provider = $this->filesystem->get($this->path('workbench/app/Providers/WorkbenchServiceProvider.php'));
+        $factory = $this->filesystem->get($this->path('workbench/database/factories/UserFactory.php'));
+        $seeder = $this->filesystem->get($this->path('workbench/database/seeders/DatabaseSeeder.php'));
+
+        $this->assertStringContainsString(sprintf('namespace %sApp\Models;', $namespace), $user);
+        $this->assertStringContainsString(sprintf('use %sDatabase\Factories\UserFactory;', $namespace), $user);
+        $this->assertStringContainsString('class User extends Authenticatable', $user);
+        $this->assertStringContainsString('@use HasFactory<UserFactory>', $user);
+        $this->assertStringNotContainsString(sprintf('use %sDatabase\Factories\UserFactory;', $otherNamespace), $user);
+
+        $this->assertStringContainsString(sprintf('namespace %sApp\Providers;', $namespace), $provider);
+        $this->assertStringContainsString('class WorkbenchServiceProvider extends ServiceProvider', $provider);
+
+        $this->assertStringContainsString(sprintf('namespace %sDatabase\Factories;', $namespace), $factory);
+        $this->assertStringContainsString(sprintf('use %sApp\Models\User;', $namespace), $factory);
+        $this->assertStringContainsString('class UserFactory extends Factory', $factory);
+        $this->assertStringNotContainsString(sprintf('use %sApp\Models\User;', $otherNamespace), $factory);
+
+        $this->assertStringContainsString(sprintf('namespace %sDatabase\Seeders;', $namespace), $seeder);
+        $this->assertStringContainsString(sprintf('use %sDatabase\Factories\UserFactory;', $namespace), $seeder);
+        $this->assertStringContainsString('class DatabaseSeeder extends Seeder', $seeder);
+        $this->assertStringContainsString('// UserFactory::new()->times(10)->create();', $seeder);
+        $this->assertStringContainsString('UserFactory::new()->create([', $seeder);
     }
 
     /**
