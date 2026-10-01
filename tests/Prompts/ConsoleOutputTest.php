@@ -26,7 +26,7 @@ class ConsoleOutputTest extends TestCase
         $this->assertSame(2, $ref->getValue($output));
     }
 
-    public function testCorrectlyCountsTrailingNewlinesWithWindowsLineEndings()
+    public function testCorrectlyCountsTrailingNewlinesWithWindowsLineEndings(): void
     {
         $output = $this->createSilentOutput();
         $ref = new ReflectionProperty($output, 'newLinesWritten');
@@ -41,6 +41,11 @@ class ConsoleOutputTest extends TestCase
 
         // Regardless of platform, a single writeln should count as 1 trailing newline
         $this->assertSame(1, $count);
+
+        // Write CRLF endings explicitly so this case runs on every platform.
+        $ref->setValue($output, 0);
+        $output->write("Hello\r\n\r\n");
+        $this->assertSame(2, $ref->getValue($output));
     }
 
     public function testAccumulatesNewlinesForBlankLines()
