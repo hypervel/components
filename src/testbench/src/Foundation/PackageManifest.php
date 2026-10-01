@@ -51,20 +51,18 @@ class PackageManifest extends FoundationPackageManifest
      */
     public static function swap(ApplicationContract $app, ?object $testbench = null): void
     {
-        /** @var FoundationPackageManifest $base */
-        $base = $app->make(FoundationPackageManifest::class);
-
         FoundationPackageManifest::ignorePackageDiscoveriesFrom([]);
 
-        $manifest = new static(
-            $base->files,
-            $base->basePath,
-            $base->manifestPath,
+        // Built on first use because the swap runs before environment variables load,
+        // and APP_PACKAGES_CACHE may come from .env, Testbench env values or #[WithEnv].
+        $app->singleton(FoundationPackageManifest::class, static fn (ApplicationContract $app): static => new static(
+            new Filesystem,
+            $app->basePath(),
+            $app->getCachedPackagesPath(),
             $testbench
-        );
+        ));
 
-        $app->instance(FoundationPackageManifest::class, $manifest);
-        $app->instance(self::class, $manifest);
+        $app->alias(FoundationPackageManifest::class, self::class);
     }
 
     /**

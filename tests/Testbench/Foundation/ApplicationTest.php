@@ -14,6 +14,7 @@ use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Foundation\Http\Kernel as HttpKernel;
 use Hypervel\Http\Request;
 use Hypervel\Testbench\Foundation\Application as TestbenchApplication;
+use Hypervel\Testbench\Foundation\Bootstrap\LoadMigrationsFromArray;
 use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\PHPUnit\TestCase;
@@ -28,6 +29,7 @@ use Symfony\Component\Process\Process;
 use Throwable;
 
 use function Hypervel\Support\php_binary;
+use function Hypervel\Testbench\default_migration_path;
 use function Hypervel\Testbench\default_skeleton_path;
 use function Hypervel\Testbench\package_path;
 
@@ -136,6 +138,50 @@ class ApplicationTest extends TestCase
                 $app->flush();
             }
         }
+    }
+
+    /**
+     * @param array<int, string> $environment
+     */
+    #[Test]
+    #[DataProvider('defaultMigrationEnvironments')]
+    public function itReadsTheDefaultMigrationsSettingFromEnvironmentLoadedAfterTheResolvingCallback(
+        array $environment,
+        bool $includesDefaultMigrations,
+    ): void {
+        $app = TestbenchApplication::create(
+            (string) default_skeleton_path(),
+            static function (ApplicationContract $app): void {
+                (new LoadMigrationsFromArray([]))->bootstrap($app);
+            },
+            ['extra' => ['env' => $environment]],
+        );
+
+        try {
+            $this->assertSame(
+                $includesDefaultMigrations,
+                in_array(default_migration_path(), $app->make('migrator')->paths(), true),
+            );
+        } finally {
+            Env::forget('TESTBENCH_WITHOUT_DEFAULT_MIGRATIONS');
+
+            try {
+                $app->terminate();
+            } finally {
+                $app->flush();
+            }
+        }
+    }
+
+    /**
+     * Get environment values and whether default migrations load with them.
+     *
+     * @return iterable<string, array{array<int, string>, bool}>
+     */
+    public static function defaultMigrationEnvironments(): iterable
+    {
+        yield 'default migrations' => [[], true];
+        yield 'without default migrations' => [['TESTBENCH_WITHOUT_DEFAULT_MIGRATIONS=(true)'], false];
     }
 
     /**
