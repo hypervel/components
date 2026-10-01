@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Testbench;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Support\Providers\RouteServiceProvider;
 use Hypervel\Routing\Router;
+use Hypervel\Testbench\Concerns\WithFixtures;
 use Hypervel\Testbench\Concerns\WithWorkbench;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Config;
@@ -14,7 +15,7 @@ use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testbench\Workbench\Workbench;
 use Hypervel\Testing\ParallelTesting;
-use Hypervel\Tests\Testbench\Fixtures\MergeSeedersTestStub;
+use Hypervel\Tests\Testbench\WithWorkbenchTest\MergeSeedersTestStub;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionClass;
@@ -25,6 +26,7 @@ use function Hypervel\Testbench\package_path;
 
 class WithWorkbenchTest extends TestCase
 {
+    use WithFixtures;
     use WithWorkbench;
 
     private string $temporaryDirectory;

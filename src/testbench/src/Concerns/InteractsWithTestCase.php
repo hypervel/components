@@ -160,10 +160,15 @@ trait InteractsWithTestCase
     }
 
     /**
-     * Execute BeforeAll lifecycle attributes.
+     * Load test fixtures and execute BeforeAll lifecycle attributes.
      */
     public static function setUpBeforeClassUsingTestCase(): void
     {
+        if (static::usesTestingConcern(WithFixtures::class)) {
+            /* @phpstan-ignore-next-line */
+            static::setupWithFixturesForTestingEnvironment();
+        }
+
         static::resolvePhpUnitAttributesForMethod(static::class)
             ->flatten()
             ->filter(static fn ($instance) => $instance instanceof BeforeAll)

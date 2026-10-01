@@ -15,4 +15,6 @@ Hypervel does not use Orchestra's `TESTBENCH_APP_BASE_PATH` channel. Each proces
 
 Hypervel includes root package discovery metadata when a `package:test` worker builds the Testbench package manifest. Orchestra's persistent skeleton can be seeded by the parent Testbench CLI process, while Hypervel's per-worker runtime skeletons may build their manifests directly inside PHPUnit / ParaTest workers.
 
+Pest integration is not supported in Hypervel 0.4. Use PHPUnit test classes; `WithFixtures` does not resolve Pest test files. See the [testing documentation](https://hypervel.org/docs/testing#using-pest).
+
 Ported from: https://github.com/orchestral/testbench-core

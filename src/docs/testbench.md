@@ -5,6 +5,7 @@
 - [Getting Started](#getting-started)
     - [Unit Tests Without an Application](#unit-tests-without-an-application)
     - [PHPUnit Test Suites](#phpunit-test-suites)
+    - [Test Fixture Files](#test-fixture-files)
 - [How Testbench Works](#how-testbench-works)
     - [Runtime Skeleton Copies](#runtime-skeleton-copies)
     - [Configuration Lifecycle](#configuration-lifecycle)
@@ -164,6 +165,47 @@ Run a single suite with PHPUnit's `--testsuite` option:
 
 ```shell
 ./vendor/bin/phpunit --testsuite=Feature
+```
+
+<a name="test-fixture-files"></a>
+### Test Fixture Files
+
+Sometimes a single test needs its own helper classes, such as a custom model. Instead of declaring these classes in the test file, you may add the `Hypervel\Testbench\Concerns\WithFixtures` trait to your test and place them in a fixtures file next to it. The fixtures file uses the test's file name with a `.fixtures.php` suffix and is loaded before the test case runs:
+
+```php
+<?php
+
+namespace Courier\Tests\Feature;
+
+use Courier\Tests\TestCase;
+use Hypervel\Testbench\Concerns\WithFixtures;
+
+class AuthenticateUserTest extends TestCase
+{
+    use WithFixtures;
+
+    public function test_user_can_authenticate(): void
+    {
+        $user = new AuthenticateUserTest\User;
+
+        // ...
+    }
+}
+```
+
+The `tests/Feature/AuthenticateUserTest.fixtures.php` file may then declare the `User` class. Using a namespace named after the test keeps its fixtures from colliding with classes of the same name declared for other tests:
+
+```php
+<?php
+
+namespace Courier\Tests\Feature\AuthenticateUserTest;
+
+use Hypervel\Foundation\Auth\User as Authenticatable;
+
+class User extends Authenticatable
+{
+    //
+}
 ```
 
 <a name="how-testbench-works"></a>

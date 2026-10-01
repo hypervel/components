@@ -28,6 +28,7 @@ use OutOfBoundsException;
 use PHPUnit\Framework\TestCase as PHPUnitTestCase;
 use PHPUnit\Runner\ShutdownHandler;
 use PHPUnit\Runner\Version;
+use ReflectionClass;
 
 use function Hypervel\Filesystem\join_paths as filesystem_join_paths;
 use function Hypervel\Support\php_binary as support_php_binary;
@@ -213,6 +214,22 @@ function is_symlink(string $path): bool
     }
 
     return is_link($path);
+}
+
+/**
+ * Resolve filename from classname.
+ *
+ * @param class-string $className
+ */
+function filename_from_classname(string $className): string|false
+{
+    if (! class_exists($className, false)) {
+        return false;
+    }
+
+    $classFileName = (new ReflectionClass($className))->getFileName();
+
+    return $classFileName === false ? false : realpath($classFileName);
 }
 
 /**
