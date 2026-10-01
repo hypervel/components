@@ -47,6 +47,7 @@
         "hypervel/http": "^0.4",
         "hypervel/log": "^0.4",
         "hypervel/process": "^0.4",
+        "hypervel/prompts": "^0.4",
         "hypervel/queue": "^0.4",
         "hypervel/rate-limiter": "^0.4",
         "hypervel/routing": "^0.4",
