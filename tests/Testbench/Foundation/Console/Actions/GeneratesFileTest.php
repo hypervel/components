@@ -77,6 +77,26 @@ class GeneratesFileTest extends TestCase
     }
 
     #[Test]
+    public function itCanPretendToGenerateFile(): void
+    {
+        $filesystem = m::mock(Filesystem::class);
+        $components = m::mock(ComponentsFactory::class);
+
+        $filesystem->shouldReceive('exists')->once()->with('a')->andReturnTrue()
+            ->shouldReceive('exists')->once()->with('b')->andReturnFalse()
+            ->shouldReceive('copy')->never()
+            ->shouldReceive('delete')->never();
+
+        $components->shouldReceive('task')->once()->with('File [b] generated');
+
+        (new GeneratesFile(
+            filesystem: $filesystem,
+            components: $components,
+            pretending: true,
+        ))->handle('a', 'b');
+    }
+
+    #[Test]
     public function itCannotGeneratesFileWhenSourceFileDoesNotExists(): void
     {
         $filesystem = m::mock(Filesystem::class);

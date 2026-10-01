@@ -8,10 +8,13 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Concerns\Database\InteractsWithSqliteDatabaseFile;
 use Hypervel\Testbench\TestbenchServiceProvider;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Testbench\TestCase;
 use Override;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\Test;
+
+use function Hypervel\Filesystem\join_paths;
 
 #[RequiresOperatingSystem('Linux|Darwin')]
 class CreateSqliteDbCommandTest extends TestCase
@@ -50,6 +53,28 @@ class CreateSqliteDbCommandTest extends TestCase
                 ->expectsOutputToContain('File [@hypervel/database/database.sqlite] already exists')
                 ->assertOk();
         });
+    }
+
+    #[Test]
+    public function itCanPretendToGenerateDatabaseUsingCommand(): void
+    {
+        $filesystem = new Filesystem;
+        $temporaryPath = ParallelTesting::tempDir('CreateSqliteDbCommandTest');
+        $databasePath = join_paths($temporaryPath, 'database');
+        $originalDatabasePath = database_path();
+        $filesystem->deleteDirectory($temporaryPath);
+        $this->app->useDatabasePath($databasePath);
+
+        try {
+            $this->artisan('package:create-sqlite-db', ['--pretend' => true])
+                ->expectsOutputToContain('database.sqlite] generated')
+                ->assertOk();
+
+            $this->assertDirectoryDoesNotExist($databasePath);
+        } finally {
+            $this->app->useDatabasePath($originalDatabasePath);
+            $filesystem->deleteDirectory($temporaryPath);
+        }
     }
 
     #[Test]

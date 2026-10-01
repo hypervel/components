@@ -20,6 +20,7 @@ use Override;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\Test;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
+use Symfony\Component\Console\Input\ArrayInput;
 
 use function Hypervel\Filesystem\join_paths;
 use function Hypervel\Testbench\package_path;
@@ -157,6 +158,48 @@ class PurgeSkeletonCommandTest extends TestCase
     }
 
     #[Test]
+    public function itCanPretendToPurgeTheSkeleton(): void
+    {
+        $config = $this->app->make(ConfigContract::class);
+        $config['purge'] = ['files' => ['purge-me.txt'], 'directories' => ['purge-dir']];
+        $config['workbench'] = [
+            'sync' => [
+                [
+                    'from' => 'src/testbench/workbench/storage',
+                    'to' => join_paths('public', 'build'),
+                ],
+            ],
+        ];
+
+        $environmentFile = $this->app->basePath('.env');
+        $purgeFile = $this->app->basePath('purge-me.txt');
+        $purgeDirectory = $this->app->basePath('purge-dir');
+        $syncLink = $this->app->basePath(join_paths('public', 'build'));
+        $vendorSymlink = $this->app->basePath('vendor');
+
+        $this->writeFile($environmentFile, 'APP_ENV=testing');
+        $this->writeFile($purgeFile, 'purge');
+        $this->writeFile(join_paths($purgeDirectory, 'file.txt'), 'purge-directory');
+        $this->deletePath($syncLink);
+        symlink(package_path(join_paths('src', 'testbench', 'workbench', 'storage')), $syncLink);
+        $this->deletePath($vendorSymlink);
+        symlink(package_path('vendor'), $vendorSymlink);
+
+        $this->artisan('package:purge-skeleton', ['--pretend' => true])
+            ->expectsOutputToContain('Command [config:clear] executed')
+            ->expectsOutputToContain('File [@hypervel/purge-me.txt] has been deleted')
+            ->expectsOutputToContain('Directory [@hypervel/purge-dir] has been deleted')
+            ->assertOk();
+        TerminatingConsole::handle();
+
+        $this->assertFileExists($environmentFile);
+        $this->assertFileExists($purgeFile);
+        $this->assertDirectoryExists($purgeDirectory);
+        $this->assertTrue(is_link($syncLink));
+        $this->assertTrue(is_link($vendorSymlink));
+    }
+
+    #[Test]
     public function itRunsEveryClearCommandAndLaterCleanupAfterACommandFails(): void
     {
         $purgeFile = join_paths($this->commandPath, 'purge.txt');
@@ -167,6 +210,7 @@ class PurgeSkeletonCommandTest extends TestCase
         ]);
         $command = new PurgeSkeletonCommandHarness(['config:clear' => PurgeSkeletonCommand::FAILURE]);
         $command->setHypervel(new Application($this->commandPath));
+        $command->setInput(new ArrayInput([], $command->getDefinition()));
 
         $this->assertSame(PurgeSkeletonCommand::FAILURE, $command->handle($this->filesystem, $config));
         $this->assertSame(
@@ -190,6 +234,7 @@ class PurgeSkeletonCommandTest extends TestCase
         ]);
         $command = new PurgeSkeletonCommandHarness([]);
         $command->setHypervel(new Application($this->commandPath));
+        $command->setInput(new ArrayInput([], $command->getDefinition()));
 
         $this->assertSame(PurgeSkeletonCommand::FAILURE, $command->handle($filesystem, $config));
         $this->assertFileExists($environmentFile);

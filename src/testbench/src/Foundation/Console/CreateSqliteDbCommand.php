@@ -20,7 +20,8 @@ class CreateSqliteDbCommand extends Command
      */
     protected ?string $signature = 'package:create-sqlite-db
                                 {--database=database.sqlite : Set the database name}
-                                {--force : Overwrite the database file}';
+                                {--force : Overwrite the database file}
+                                {--pretend : Outputs the operations but will not execute anything}';
 
     /**
      * Execute the console command.
@@ -32,7 +33,12 @@ class CreateSqliteDbCommand extends Command
         /** @var bool $force */
         $force = $this->option('force');
 
-        $filesystem->ensureDirectoryExists($databasePath);
+        /** @var bool $pretending */
+        $pretending = $this->option('pretend');
+
+        if (! $pretending) {
+            $filesystem->ensureDirectoryExists($databasePath);
+        }
 
         $from = $filesystem->exists(join_paths($databasePath, 'database.sqlite.example'))
             ? join_paths($databasePath, 'database.sqlite.example')
@@ -44,6 +50,7 @@ class CreateSqliteDbCommand extends Command
             filesystem: $filesystem,
             components: $this->components,
             force: $force,
+            pretending: $pretending,
         ))->handle($from, $to);
 
         return self::SUCCESS;

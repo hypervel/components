@@ -47,8 +47,18 @@ class WorkbenchServiceProvider extends ServiceProvider
             ->appendMiddlewareToGroup('web', CatchDefaultRoute::class)
             ->addToMiddlewarePriorityBefore(AuthenticatesRequests::class, CatchDefaultRoute::class);
 
-        // REMOVED: Testbench provides the SQLite, purge and sync commands and syncs
-        // configured directories while serving. Hypervel's schedule:run replaces
-        // schedule:work, and the build, devtool and install commands are excluded.
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                // REMOVED: The build command is excluded.
+                Console\CreateSqliteDbCommand::class,
+                Console\DropSqliteDbCommand::class,
+                // REMOVED: The install and devtool commands are excluded; Testbench's package:install sets up Workbench.
+                Console\PurgeSkeletonCommand::class,
+                // REMOVED: Hypervel's schedule:run replaces schedule:work.
+                Console\SyncSkeletonCommand::class,
+            ]);
+        }
+
+        // REMOVED: Testbench syncs configured directories while serving.
     }
 }

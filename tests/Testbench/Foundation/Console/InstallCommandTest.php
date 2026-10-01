@@ -186,6 +186,30 @@ class InstallCommandTest extends TestCase
     }
 
     #[Test]
+    public function itCanPretendToInstallTheWorkbenchScaffold(): void
+    {
+        $runtimeBasePath = $this->path('runtime-hypervel');
+        $testbenchYaml = "# {{ WorkbenchServiceProvider }}\nworkbench:\n  install: false\n";
+
+        $this->filesystem->copyDirectory($this->componentPath('src/testbench/hypervel'), $runtimeBasePath);
+        $this->filesystem->put($this->path('testbench.yaml'), $testbenchYaml);
+        $composer = $this->filesystem->get($this->path('composer.json'));
+
+        $process = $this->runInstallCommand(['--pretend', '--force', '--no-interaction'], [
+            'TESTBENCH_BASE_PATH' => $runtimeBasePath,
+            'TESTBENCH_PACKAGE_REMOTE' => '(true)',
+        ]);
+
+        $this->assertStringContainsString('testbench.yaml] generated', $process->getOutput());
+        $this->assertStringContainsString('database.sqlite] generated', $process->getOutput());
+        $this->assertSame($testbenchYaml, $this->filesystem->get($this->path('testbench.yaml')));
+        $this->assertSame($composer, $this->filesystem->get($this->path('composer.json')));
+        $this->assertDirectoryDoesNotExist($this->path('workbench'));
+        $this->assertDirectoryDoesNotExist($this->path('vendor'));
+        $this->assertFileDoesNotExist(join_paths($runtimeBasePath, 'database', 'database.sqlite'));
+    }
+
+    #[Test]
     public function itUsesExistingWorkbenchAutoloadNamespaces(): void
     {
         $this->writeComposerJson([
@@ -276,6 +300,27 @@ class InstallCommandTest extends TestCase
     }
 
     #[Test]
+    public function itDoesNotExportTheWorkbenchEnvironmentFileWhenPretending(): void
+    {
+        $this->filesystem->put($this->path('.env.example'), 'APP_NAME=Workbench');
+
+        $this->runEnvironmentFileCopyCommand(
+            ['--pretend' => true],
+            fn (Factory $components) => $components
+                ->expects('choice')
+                ->with("Export '.env' file as?", [
+                    'skip' => 'Skip exporting .env',
+                    '.env' => '.env',
+                    '.env.example' => '.env.example',
+                    '.env.dist' => '.env.dist',
+                ], null)
+                ->andReturn('.env')
+        );
+
+        $this->assertFileDoesNotExist($this->path('workbench/.env'));
+    }
+
+    #[Test]
     public function itSkipsEnvironmentExportWhenEveryEnvironmentFileAlreadyExists(): void
     {
         $this->filesystem->put($this->path('.env.example'), 'APP_NAME=Workbench');
@@ -323,6 +368,7 @@ class InstallCommandTest extends TestCase
     public function itStopsWhenSqliteDatabaseCreationFails(): void
     {
         $command = new InstallCommandFailureHarness;
+        $command->setInput(new ArrayInput([], $command->getDefinition()));
         $composer = m::mock(Composer::class);
         $composer->shouldNotReceive('setWorkingPath');
         $composer->shouldNotReceive('dumpAutoloads');
@@ -485,7 +531,7 @@ class InstallCommandFailureHarness extends InstallCommand
         return self::FAILURE;
     }
 
-    protected function configureComposerAutoloads(Composer $composer, string $workingPath): array
+    protected function configureComposerAutoloads(Composer $composer, Filesystem $filesystem, string $workingPath): array
     {
         return ['app' => 'Workbench\App\\', 'factories' => 'Workbench\Database\Factories\\', 'seeders' => 'Workbench\Database\Seeders\\'];
     }

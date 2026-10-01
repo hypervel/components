@@ -959,6 +959,12 @@ Existing files are not overwritten unless you pass the `--force` option. To gene
 vendor/bin/testbench package:install --basic
 ```
 
+To see what the command would do without changing any files, pass the `--pretend` option:
+
+```shell
+vendor/bin/testbench package:install --pretend
+```
+
 > [!NOTE]
 > Hypervel Testbench does not include Orchestra Workbench's devtool, build, Canvas, or asset-scaffolding commands. Use normal Hypervel frontend tooling alongside the Testbench CLI.
 
@@ -1187,7 +1193,7 @@ Both commands accept a `--database` option:
 vendor/bin/testbench package:create-sqlite-db --database=courier.sqlite
 ```
 
-The `package:create-sqlite-db` command also accepts `--force`, and the `package:drop-sqlite-db` command accepts `--all`.
+The `package:create-sqlite-db` command also accepts `--force`, and the `package:drop-sqlite-db` command accepts `--all`. Both commands accept `--pretend` to show the changes without making them.
 
 <a name="purging-the-skeleton"></a>
 ### Purging the Skeleton
@@ -1198,7 +1204,7 @@ The `package:purge-skeleton` command clears generated files from the runtime ske
 vendor/bin/testbench package:purge-skeleton
 ```
 
-It clears cached configuration, events, routes, views, configured purge files and directories, runtime SQLite databases, and Workbench symlinks.
+It clears cached configuration, events, routes, views, configured purge files and directories, runtime SQLite databases, and Workbench symlinks. Pass the `--pretend` option to preview the purge without changing anything.
 
 <a name="testing-published-files"></a>
 ## Testing Published Files

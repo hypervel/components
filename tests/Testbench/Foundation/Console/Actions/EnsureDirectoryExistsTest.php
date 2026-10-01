@@ -43,6 +43,27 @@ class EnsureDirectoryExistsTest extends TestCase
     }
 
     #[Test]
+    public function itCanPretendToEnsureDirectoryExists(): void
+    {
+        $filesystem = m::mock(Filesystem::class);
+        $components = m::mock(ComponentsFactory::class);
+
+        $filesystem->shouldReceive('isDirectory')->once()->with('a')->andReturnFalse()
+            ->shouldReceive('isDirectory')->once()->with('b')->andReturnTrue()
+            ->shouldReceive('ensureDirectoryExists')->never()
+            ->shouldReceive('copy')->never();
+
+        $components->shouldReceive('task')->once()->with('Prepare [a] directory')->andReturnNull()
+            ->shouldReceive('twoColumnDetail')->once()->with('Directory [b] already exists', '<fg=yellow;options=bold>SKIPPED</>')->andReturnNull();
+
+        (new EnsureDirectoryExists(
+            filesystem: $filesystem,
+            components: $components,
+            pretending: true,
+        ))->handle(['a', 'b']);
+    }
+
+    #[Test]
     public function itFailsWhenThePlaceholderCannotBeCopied(): void
     {
         $filesystem = m::mock(Filesystem::class);
