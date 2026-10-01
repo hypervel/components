@@ -30,7 +30,7 @@ orchestral/testbench-core:
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: The upstream laravel/ skeleton maps to src/testbench/hypervel/, whose config files keep only Testbench overrides; compare upstream skeleton config changes with src/foundation/config, which is merged underneath. The skeleton has no copy of Laravel's welcome page; the welcome route uses the minimal view in src/testbench/workbench/resources/views.
+  notes: The upstream laravel/ skeleton maps to src/testbench/hypervel/, whose config files keep only Testbench overrides; compare upstream skeleton config changes with src/foundation/config, which is merged underneath. The skeleton and the workbench fixtures each keep a minimal welcome view instead of Laravel's welcome page.
 
 orchestral/testbench:
   branch: 12.x
@@ -38,6 +38,13 @@ orchestral/testbench:
   last_reviewed_pr: null
   sync_date: null
   notes: Composer package is orchestra/testbench; core code is tracked separately above.
+
+orchestral/workbench:
+  branch: 12.x
+  checked_through: null
+  last_reviewed_pr: null
+  sync_date: null
+  notes: Upstream's serve listeners map to Testbench's ServeCommand, and its asset-publish recipe maps to the Listeners/PublishAssets serve listener. Rebuild public/build with npm in src/workbench after upstream asset or view changes; Tailwind scans the monorepo's pagination and skeleton views instead of vendor paths.
 
 laravel/facade-documenter:
   branch: main

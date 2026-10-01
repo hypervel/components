@@ -31,6 +31,7 @@
     - [Workbench Configuration](#workbench-configuration)
     - [Discovering Workbench Files](#discovering-workbench-files)
     - [Serving the Workbench Application](#serving-the-workbench-application)
+    - [Workbench Authentication](#workbench-authentication)
     - [Syncing Workbench Directories](#syncing-workbench-directories)
 - [Command Line](#command-line)
     - [Running Package Tests](#running-package-tests)
@@ -502,6 +503,8 @@ public static function applicationBasePath(): string
 
 Relative paths in `testbench.yaml` are resolved from the package root.
 
+Tests run on a disposable copy of the skeleton set by the `hypervel` key, just like the default one, while commands you run with `vendor/bin/testbench`, such as `serve` and `package:sync-skeleton`, use it directly. An `applicationBasePath` override or the `APP_BASE_PATH` environment variable is always used directly.
+
 <a name="defining-the-environment"></a>
 ## Defining the Environment
 
@@ -966,16 +969,22 @@ The supported `workbench` keys are:
 
 | Key | Description |
 | --- | --- |
+| `start` | The path that `/` redirects to while serving. Defaults to `/`. |
+| `user` | The ID or email address of a user to log in automatically when a guest opens `/` while serving. |
+| `guard` | The authentication guard used to log in the `user`. Defaults to the application's default guard. |
 | `install` | Whether Hypervel's default testing migrations should be included when Workbench migrations are loaded. |
-| `auth` | Whether Workbench should include Hypervel's auth service provider when available. |
+| `auth` | Whether Workbench should register the [authentication pages](#workbench-authentication) from the `hypervel/workbench` package. |
+| `welcome` | Whether the welcome page should be shown when nothing handles `/` while serving. By default, it is shown when `install` is enabled. |
 | `health` | Whether Workbench should register the `/up` health route. |
-| `sync` | Directory symlinks that should be created by `package:sync-skeleton`. |
+| `sync` | Directory symlinks that should be created while `serve` runs. |
 | `discovers` | Workbench files that should be discovered automatically. |
 
 For example:
 
 ```yaml
 workbench:
+  start: /dashboard
+  user: taylor@example.com
   install: true
   auth: true
   health: true
@@ -1044,7 +1053,7 @@ If your package defines a Composer script, you may run it through Composer:
 composer run serve
 ```
 
-The `serve` command uses Hypervel's normal server configuration and starts the same Swoole server used by a Hypervel application.
+The `serve` command uses Hypervel's normal server configuration and starts the same Swoole server used by a Hypervel application. Like Laravel's `serve` command, it listens on `127.0.0.1` unless you set the `SERVER_HOST` environment variable.
 
 You may pass `--host` and `--port` to temporarily override the configured HTTP server address for the current process:
 
@@ -1052,8 +1061,38 @@ You may pass `--host` and `--port` to temporarily override the configured HTTP s
 vendor/bin/testbench serve --host=127.0.0.1 --port=8001
 ```
 
-> [!NOTE]
-> Unlike Orchestra Testbench, Hypervel's `serve` command does not provide preview-only conveniences such as a welcome page or automatic login.
+When the `hypervel/workbench` package is installed, `serve` also provides a few preview conveniences. If the `user` option is set, opening `/` as a guest logs that user in and redirects to the `start` path. If nothing handles `/`, it redirects to the `start` path, or shows the application's `welcome` view when `start` is `/` and the `welcome` option allows it. You may also switch users while serving:
+
+| Route | Description |
+| --- | --- |
+| `/_workbench` | Log in the configured `user`, or log out when no user is configured, then redirect to `start`. |
+| `/_workbench/login/{user}/{guard?}` | Log in the user with the given ID or email address, then redirect to `start`. |
+| `/_workbench/logout/{guard?}` | Log out the current user, then redirect to `start`. |
+| `/_workbench/user/{guard?}` | Return the authenticated user's ID and class name as JSON. |
+
+<a name="workbench-authentication"></a>
+### Workbench Authentication
+
+The `hypervel/workbench` package provides login, registration, password reset, email verification, password confirmation, profile, and dashboard pages for packages that need an authenticated user while previewing. Install it as a development dependency:
+
+```shell
+composer require hypervel/workbench --dev
+```
+
+Then enable the `auth` option in your `testbench.yaml` file:
+
+```yaml
+workbench:
+  auth: true
+```
+
+The pages are available when serving and in test cases that use the `WithWorkbench` concern. After logging in or registering, users are sent to the dashboard, or to the `start` path when it is not `/`. New users are created with your Workbench user model.
+
+The pages use prebuilt styles and scripts. When `serve` runs the default skeleton, Workbench copies them to `public/vendor/workbench/build` automatically. When serving a [custom skeleton](#custom-application-skeletons), publish them yourself:
+
+```shell
+vendor/bin/testbench vendor:publish --provider="Hypervel\Workbench\AuthServiceProvider" --tag=hypervel-assets
+```
 
 <a name="syncing-workbench-directories"></a>
 ### Syncing Workbench Directories
@@ -1068,13 +1107,17 @@ workbench:
       reverse: true
 ```
 
-Run `package:sync-skeleton` to copy the Testbench configuration into the runtime skeleton and create configured symlinks:
+The `serve` command creates these symlinks when it starts and removes them when it stops. If you use a [custom skeleton](#custom-application-skeletons) that persists between commands, you may also run `package:sync-skeleton` to copy the Testbench configuration into the skeleton and create the configured symlinks:
 
 ```shell
 vendor/bin/testbench package:sync-skeleton
 ```
 
+The default skeleton is recreated for every command and deleted when the command exits, so `package:sync-skeleton` does not sync it.
+
 The `reverse` option changes the direction of the symlink. When `reverse` is `false` or omitted, `from` is resolved from the package root and `to` is resolved from the runtime skeleton. When `reverse` is `true`, `from` is resolved from the runtime skeleton and `to` is resolved from the package root.
+
+An existing symlink at a `to` path is always replaced. An existing file or directory that isn't a symlink is only replaced inside the disposable runtime copy. Anywhere else, such as in your package or a custom skeleton, the command stops with an error naming the path, so you can move or remove it first.
 
 <a name="command-line"></a>
 ## Command Line

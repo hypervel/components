@@ -238,6 +238,101 @@ class TestCommandTest extends TestCase
         }
     }
 
+    #[Test]
+    public function itRunsPackageTestsOnACopyOfAConfiguredSkeleton(): void
+    {
+        $packagePath = $this->createConfiguredSkeletonPackage();
+        $skeletonPath = (string) realpath($packagePath . '/skeleton');
+
+        try {
+            // PHP only fills $_ENV from the process environment when variables_order
+            // includes "E", which is also when an inherited APP_BASE_PATH reaches it.
+            $process = new Process([
+                PHP_BINARY,
+                package_path('src/testbench/bin/testbench'),
+                'package:test',
+                '--without-tty',
+            ], env: [
+                'TESTBENCH_WORKING_PATH' => $packagePath,
+                'PHP_INI_SCAN_DIR' => PATH_SEPARATOR . $packagePath . '/ini',
+            ]);
+            $process->setTimeout(60);
+            $process->run();
+            $output = $process->getOutput() . $process->getErrorOutput();
+
+            $this->assertSame(0, $process->getExitCode(), $output);
+
+            $basePath = file_get_contents($packagePath . '/worker-base-path');
+
+            $this->assertNotSame($skeletonPath, $basePath);
+            $this->assertSame('linked', file_get_contents($packagePath . '/worker-vendor'));
+            $this->assertFileDoesNotExist($skeletonPath . '/storage/configured-skeleton-probe');
+        } finally {
+            (new Filesystem)->deleteDirectory($packagePath);
+        }
+    }
+
+    /**
+     * Create a package that configures its own skeleton and records where its test runs.
+     */
+    private function createConfiguredSkeletonPackage(): string
+    {
+        $packagePath = ParallelTesting::tempDir('TestbenchConfiguredSkeletonPackage');
+        $filesystem = new Filesystem;
+
+        $filesystem->deleteDirectory($packagePath);
+        $filesystem->makeDirectory($packagePath . '/tests', 0700, true);
+        $filesystem->makeDirectory($packagePath . '/ini', 0700, true);
+        $this->assertTrue($filesystem->copyDirectory(package_path('src/testbench/hypervel'), $packagePath . '/skeleton'));
+        $this->assertTrue(symlink(package_path('vendor'), $packagePath . '/vendor'));
+
+        $filesystem->put($packagePath . '/ini/variables-order.ini', "variables_order=EGPCS\n");
+        $filesystem->put($packagePath . '/composer.json', json_encode([
+            'name' => 'hypervel/tests-configured-skeleton-fixture',
+        ], JSON_THROW_ON_ERROR));
+        $filesystem->put($packagePath . '/testbench.yaml', "hypervel: ./skeleton\ndont-discover: []\n");
+        $filesystem->put($packagePath . '/phpunit.xml', sprintf(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="vendor/autoload.php">
+    <testsuites>
+        <testsuite name="Skeleton">
+            <directory>tests</directory>
+        </testsuite>
+    </testsuites>
+    <php>
+        <env name="HYPERVEL_SKELETON_FIXTURE_PATH" value="%s" force="true"/>
+    </php>
+</phpunit>
+XML,
+            htmlspecialchars($packagePath, ENT_QUOTES | ENT_XML1),
+        ));
+        $filesystem->put($packagePath . '/tests/ConfiguredSkeletonTest.php', <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\Test;
+
+final class ConfiguredSkeletonTest extends TestCase
+{
+    #[Test]
+    public function recordsWhereItRuns(): void
+    {
+        $fixturePath = getenv('HYPERVEL_SKELETON_FIXTURE_PATH');
+
+        file_put_contents($fixturePath . '/worker-base-path', base_path());
+        file_put_contents($fixturePath . '/worker-vendor', is_link(base_path('vendor')) ? 'linked' : 'copied');
+
+        $this->assertSame(strlen('written'), file_put_contents(base_path('storage/configured-skeleton-probe'), 'written'));
+    }
+}
+PHP);
+
+        return $packagePath;
+    }
+
     /**
      * Create a tiny package whose two profile tests occupy separate workers.
      */

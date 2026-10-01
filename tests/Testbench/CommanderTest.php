@@ -32,6 +32,7 @@ use Throwable;
 use function Hypervel\Support\php_binary;
 use function Hypervel\Testbench\package_path;
 use function Hypervel\Testbench\remote;
+use function Hypervel\Testbench\uses_default_skeleton;
 
 #[RequiresOperatingSystem('Linux|Darwin')]
 class CommanderTest extends TestCase
@@ -110,6 +111,92 @@ class CommanderTest extends TestCase
 
             $this->assertStringContainsString('rest', $process->getOutput());
         });
+    }
+
+    #[Test]
+    public function itRunsCommandsOnTheConfiguredSkeletonWithoutCopyingIt(): void
+    {
+        $this->createPackage("hypervel: ./skeleton\n");
+        $skeletonPath = $this->createSkeleton('skeleton');
+
+        [$basePath, $applicationBasePath] = $this->remoteBasePaths();
+
+        $this->assertSame($skeletonPath, $basePath);
+        $this->assertSame($skeletonPath, $applicationBasePath);
+    }
+
+    #[Test]
+    public function itPrefersAnExplicitApplicationBasePathOverTheConfiguredSkeleton(): void
+    {
+        $this->createPackage("hypervel: ./skeleton\n");
+        $this->createSkeleton('skeleton');
+        $explicitPath = $this->createSkeleton('explicit');
+
+        [$basePath, $applicationBasePath] = $this->remoteBasePaths(['APP_BASE_PATH' => $explicitPath]);
+
+        $this->assertSame($explicitPath, $basePath);
+        $this->assertSame($explicitPath, $applicationBasePath);
+    }
+
+    #[Test]
+    public function itRunsCommandsOnACopyOfTheDefaultSkeletonForTheTestbenchAlias(): void
+    {
+        $this->createPackage("hypervel: '@testbench'\n");
+
+        // The child starts its own runtime instead of sharing this test's copy.
+        [$basePath, $applicationBasePath, $usesDefaultSkeleton] = $this->remoteBasePaths(['TESTBENCH_BASE_PATH' => false]);
+
+        $this->assertSame($basePath, $applicationBasePath);
+        $this->assertNotSame(BASE_PATH, $basePath);
+        $this->assertNotSame(realpath(package_path('src/testbench/hypervel')), $basePath);
+        $this->assertTrue($usesDefaultSkeleton);
+    }
+
+    /**
+     * Create a package in the temporary directory with the given Testbench configuration.
+     */
+    private function createPackage(string $configuration): void
+    {
+        $filesystem = new Filesystem;
+        $filesystem->link(package_path('vendor'), $this->tempDir . '/vendor');
+        $filesystem->put($this->tempDir . '/testbench.yaml', $configuration . "dont-discover:\n  - hypervel/components\n");
+    }
+
+    /**
+     * Copy the default skeleton into the temporary package and return its path.
+     */
+    private function createSkeleton(string $directory): string
+    {
+        $path = $this->tempDir . '/' . $directory;
+
+        $this->assertTrue((new Filesystem)->copyDirectory(package_path('src/testbench/hypervel'), $path));
+
+        return (string) realpath($path);
+    }
+
+    /**
+     * Get BASE_PATH, the application base path and whether the default skeleton is used in a remote command.
+     *
+     * @param array<string, false|string> $env
+     * @return array{0: string, 1: string, 2: bool}
+     */
+    private function remoteBasePaths(array $env = []): array
+    {
+        $paths = [];
+
+        $this->withoutSqliteDatabase(function () use ($env, &$paths): void {
+            $process = remote(
+                static fn (): array => [BASE_PATH, base_path(), uses_default_skeleton(base_path())],
+                ['TESTBENCH_WORKING_PATH' => $this->tempDir, ...$env],
+            );
+
+            // A bootstrap that never finishes fails here instead of hanging the test.
+            $process->setTimeout(20);
+
+            $paths = $process->mustRun()->output();
+        });
+
+        return $paths;
     }
 
     #[Test]

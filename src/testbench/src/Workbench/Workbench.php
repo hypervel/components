@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Workbench;
 
-use Hypervel\Auth\AuthServiceProvider;
 use Hypervel\Console\Application as Artisan;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Auth\Authenticatable as AuthenticatableContract;
@@ -19,6 +18,8 @@ use Hypervel\Support\Str;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Config;
+use Hypervel\Workbench\AuthServiceProvider;
+use Hypervel\Workbench\WorkbenchServiceProvider;
 use ReflectionClass;
 use Symfony\Component\Finder\Finder;
 
@@ -103,6 +104,7 @@ class Workbench
 
         static::start($app, $config, array_filter([
             $hasAuthentication === true ? AuthServiceProvider::class : null,
+            WorkbenchServiceProvider::class,
         ]));
     }
 

@@ -78,6 +78,9 @@ class InstallCommandTest extends TestCase
         $this->assertFileExists($this->path('workbench/routes/api.php'));
         $this->assertFileExists($this->path('workbench/routes/console.php'));
         $this->assertFileDoesNotExist($this->path('workbench/.env'));
+
+        // The configured sync link owns workbench/storage.
+        $this->assertDirectoryDoesNotExist($this->path('workbench/storage'));
         $this->assertFileExists(join_paths($runtimeBasePath, 'database', 'database.sqlite'));
 
         $this->assertSame([
@@ -95,8 +98,12 @@ class InstallCommandTest extends TestCase
         $this->assertSame(['workbench/database/migrations'], $config['migrations']);
         $this->assertSame(['Workbench\Database\Seeders\DatabaseSeeder'], $config['seeders']);
         $this->assertSame([
+            'start' => '/',
+            'user' => null,
+            'guard' => null,
             'install' => true,
             'auth' => true,
+            'welcome' => null,
             'health' => true,
             'sync' => [
                 [
@@ -134,8 +141,12 @@ class InstallCommandTest extends TestCase
         $config = Config::loadFromYaml($this->workingPath);
 
         $this->assertSame([
+            'start' => '/',
+            'user' => null,
+            'guard' => null,
             'install' => true,
             'auth' => true,
+            'welcome' => null,
             'health' => null,
             'sync' => [],
             'discovers' => [

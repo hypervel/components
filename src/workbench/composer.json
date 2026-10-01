@@ -1,0 +1,63 @@
+{
+    "name": "hypervel/workbench",
+    "description": "Workbench companion for Hypervel package development.",
+    "license": "MIT",
+    "type": "library",
+    "keywords": [
+        "php",
+        "testing",
+        "workbench",
+        "swoole",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "require": {
+        "php": "^8.4",
+        "composer-runtime-api": "^2.2",
+        "hypervel/auth": "^0.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/container": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/database": "^0.4",
+        "hypervel/events": "^0.4",
+        "hypervel/filesystem": "^0.4",
+        "hypervel/foundation": "^0.4",
+        "hypervel/hashing": "^0.4",
+        "hypervel/http": "^0.4",
+        "hypervel/rate-limiter": "^0.4",
+        "hypervel/routing": "^0.4",
+        "hypervel/session": "^0.4",
+        "hypervel/support": "^0.4",
+        "hypervel/testbench": "^0.4",
+        "hypervel/validation": "^0.4",
+        "hypervel/view": "^0.4",
+        "symfony/http-foundation": "^8.1",
+        "symfony/http-kernel": "^8.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Workbench\\": "src/"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        }
+    }
+}

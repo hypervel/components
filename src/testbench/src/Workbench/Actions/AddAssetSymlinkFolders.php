@@ -6,6 +6,7 @@ namespace Hypervel\Testbench\Workbench\Actions;
 
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
+use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use RuntimeException;
 use Throwable;
@@ -71,6 +72,12 @@ final class AddAssetSymlinkFolders
      */
     private function publish(string $from, string $to): void
     {
+        // Replacing real content permanently deletes it, which is only harmless inside
+        // this process's disposable runtime copy.
+        if (! is_symlink($to) && $this->files->exists($to) && ! $this->isInsideOwnedRuntime($to)) {
+            throw new RuntimeException("Unable to replace [{$to}] because it is not a symlink.");
+        }
+
         $directory = dirname($to);
 
         $this->files->ensureDirectoryExists($directory);
@@ -151,6 +158,23 @@ final class AddAssetSymlinkFolders
         if (is_symlink($staged) || $this->files->exists($staged)) {
             throw new RuntimeException("Unable to clear staged symlink [{$staged}].");
         }
+    }
+
+    /**
+     * Determine whether an existing path resolves strictly inside this process's runtime copy.
+     *
+     * The resolved path is compared, so a linked parent directory or ".." cannot reach
+     * persistent content through the runtime copy.
+     */
+    private function isInsideOwnedRuntime(string $path): bool
+    {
+        $runtimePath = realpath(base_path());
+        $resolvedPath = realpath($path);
+
+        return $runtimePath !== false
+            && $resolvedPath !== false
+            && Bootstrapper::ownsRuntimePath($runtimePath)
+            && str_starts_with($resolvedPath, $runtimePath . DIRECTORY_SEPARATOR);
     }
 
     /**

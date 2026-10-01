@@ -7,6 +7,7 @@ namespace Hypervel\Testbench\Foundation\Process;
 use Closure;
 use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Support\ProcessUtils;
+use Hypervel\Testbench\Bootstrapper;
 use Laravel\SerializableClosure\SerializableClosure;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\StringInput;
@@ -49,9 +50,21 @@ final class RemoteCommand
 
         $env['TESTBENCH_PACKAGE_REMOTE'] = '(true)';
 
-        if (defined('BASE_PATH') && $this->resolveCommandName($command) !== 'serve') {
+        $basePathSupplied = array_key_exists('TESTBENCH_BASE_PATH', $env);
+
+        if (! $basePathSupplied && $this->resolveCommandName($command) === 'serve') {
+            // Serve creates its own runtime copy, even when this process inherited a base path.
+            $env['TESTBENCH_BASE_PATH'] = false;
+        } elseif (defined('BASE_PATH')) {
             $env['TESTBENCH_BASE_PATH'] ??= BASE_PATH;
         }
+
+        // Decided for each child, so an inherited value never vouches for another path.
+        $env['TESTBENCH_RUNTIME_COPY'] = ! $basePathSupplied
+            && is_string($env['TESTBENCH_BASE_PATH'] ?? null)
+            && Bootstrapper::isRuntimeCopy($env['TESTBENCH_BASE_PATH'])
+                ? '(true)'
+                : false;
 
         if (! array_key_exists('APP_ENV', $env)) {
             unset($definedEnvironmentVariables['APP_ENV']);

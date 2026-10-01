@@ -219,7 +219,8 @@
         "hypervel/view": "self.version",
         "hypervel/watcher": "self.version",
         "hypervel/wayfinder": "self.version",
-        "hypervel/websocket-server": "self.version"
+        "hypervel/websocket-server": "self.version",
+        "hypervel/workbench": "self.version"
     },
     "conflict": {
         "intervention/image": "<4.0 || >=5.0"
@@ -305,7 +306,8 @@
             "Hypervel\\View\\": "src/view/src/",
             "Hypervel\\Watcher\\": "src/watcher/src/",
             "Hypervel\\Wayfinder\\": "src/wayfinder/src/",
-            "Hypervel\\WebSocketServer\\": "src/websocket-server/src/"
+            "Hypervel\\WebSocketServer\\": "src/websocket-server/src/",
+            "Hypervel\\Workbench\\": "src/workbench/src/"
         },
         "files": [
             "src/coordinator/src/functions.php",

@@ -5,13 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Testbench\Workbench;
 
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testbench\Workbench\Actions\AddAssetSymlinkFolders;
 use Hypervel\Testbench\Workbench\Actions\RemoveAssetSymlinkFolders;
+use Hypervel\Testing\ParallelTesting;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
+use ReflectionProperty;
 use RuntimeException;
 
 use function Hypervel\Testbench\is_symlink;
@@ -98,6 +101,75 @@ class ActionsTest extends TestCase
         $this->assertFileExists(join_paths($this->destinationPath, 'original.txt'));
         $this->assertFileDoesNotExist($this->stagedPath());
         $this->assertFileDoesNotExist($this->backupPath());
+    }
+
+    #[Test]
+    public function itOnlyReplacesRealContentInsideTheOwnedRuntimeCopy(): void
+    {
+        $this->filesystem->ensureDirectoryExists($this->destinationPath);
+        $this->filesystem->put(join_paths($this->destinationPath, 'original.txt'), 'original');
+
+        // Treat the destination as part of a persistent custom skeleton.
+        $runtimePath = new ReflectionProperty(Bootstrapper::class, 'runtimePath');
+        $ownedRuntimePath = $runtimePath->getValue();
+        $runtimePath->setValue(null, null);
+
+        try {
+            (new AddAssetSymlinkFolders($this->filesystem, $this->configuration()))->handle();
+            $this->fail('Expected the persistent destination to be refused.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame("Unable to replace [{$this->destinationPath}] because it is not a symlink.", $exception->getMessage());
+        } finally {
+            $runtimePath->setValue(null, $ownedRuntimePath);
+        }
+
+        $this->assertFalse(is_symlink($this->destinationPath));
+        $this->assertSame('original', file_get_contents(join_paths($this->destinationPath, 'original.txt')));
+        $this->assertFileDoesNotExist($this->stagedPath());
+
+        // The same content inside this process's own copy is disposable.
+        (new AddAssetSymlinkFolders($this->filesystem, $this->configuration()))->handle();
+
+        $this->assertTrue(is_symlink($this->destinationPath));
+        $this->assertSame(realpath($this->sourcePath), realpath($this->destinationPath));
+        $this->assertFileDoesNotExist($this->backupPath());
+    }
+
+    #[Test]
+    public function itDoesNotReplaceContentReachedThroughALinkOutOfTheRuntimeCopy(): void
+    {
+        $externalPath = ParallelTesting::tempDir('ActionsTestExternalAssets');
+        $linkPath = base_path('public/testbench-external');
+        $destinationPath = base_path('public/testbench-external/assets');
+
+        $this->filesystem->deleteDirectory($externalPath);
+        $this->filesystem->ensureDirectoryExists(join_paths($externalPath, 'assets'));
+        $this->filesystem->put(join_paths($externalPath, 'assets', 'original.txt'), 'original');
+        $this->filesystem->link($externalPath, $linkPath);
+
+        try {
+            try {
+                (new AddAssetSymlinkFolders($this->filesystem, new Config([
+                    'workbench' => [
+                        'sync' => [[
+                            'from' => workbench_relative_path('resources'),
+                            'to' => 'public/testbench-external/assets',
+                        ]],
+                    ],
+                ])))->handle();
+                $this->fail('Expected the destination outside the runtime copy to be refused.');
+            } catch (RuntimeException $exception) {
+                $this->assertSame("Unable to replace [{$destinationPath}] because it is not a symlink.", $exception->getMessage());
+            }
+
+            $this->assertSame('original', file_get_contents(join_paths($externalPath, 'assets', 'original.txt')));
+        } finally {
+            if (is_symlink($linkPath)) {
+                windows_os() ? @rmdir($linkPath) : $this->filesystem->delete($linkPath);
+            }
+
+            $this->filesystem->deleteDirectory($externalPath);
+        }
     }
 
     #[Test]
@@ -194,11 +266,19 @@ class ActionsTest extends TestCase
     {
         $this->filesystem->ensureDirectoryExists(dirname($this->destinationPath));
         $this->filesystem->link($this->sourcePath, $this->destinationPath);
+        $this->filesystem->link($this->sourcePath, $this->secondDestinationPath());
 
         try {
             (new RemoveAssetSymlinkFolders(
                 new FailingAssetSymlinkDeleteFilesystem($this->destinationPath),
-                $this->configuration(),
+                new Config([
+                    'workbench' => [
+                        'sync' => [
+                            ['from' => workbench_relative_path('resources'), 'to' => 'public/testbench-assets'],
+                            ['from' => workbench_relative_path('resources'), 'to' => 'public/testbench-assets-second'],
+                        ],
+                    ],
+                ]),
             ))->handle();
             $this->fail('Expected asset symlink removal to fail.');
         } catch (RuntimeException $exception) {
@@ -210,6 +290,9 @@ class ActionsTest extends TestCase
 
         $this->assertTrue(is_symlink($this->destinationPath));
         $this->assertSame(realpath($this->sourcePath), realpath($this->destinationPath));
+
+        // One failed removal doesn't leave the remaining links behind.
+        $this->assertFalse(is_symlink($this->secondDestinationPath()));
     }
 
     /**
@@ -225,6 +308,14 @@ class ActionsTest extends TestCase
                 ]],
             ],
         ]);
+    }
+
+    /**
+     * Get a second published asset path.
+     */
+    protected function secondDestinationPath(): string
+    {
+        return base_path('public/testbench-assets-second');
     }
 
     /**
@@ -248,7 +339,7 @@ class ActionsTest extends TestCase
      */
     protected function cleanupPublishedPaths(): void
     {
-        foreach ([$this->destinationPath, $this->stagedPath(), $this->backupPath()] as $path) {
+        foreach ([$this->destinationPath, $this->secondDestinationPath(), $this->stagedPath(), $this->backupPath()] as $path) {
             if (is_symlink($path)) {
                 windows_os() ? @rmdir($path) : $this->filesystem->delete($path);
             } elseif ($this->filesystem->isDirectory($path)) {

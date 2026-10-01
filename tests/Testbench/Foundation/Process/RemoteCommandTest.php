@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Foundation\Process;
 
+use Closure;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Testbench\Attributes\WithConfig;
+use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Concerns\Database\InteractsWithSqliteDatabaseFile;
 use Hypervel\Testbench\Foundation\Process\ProcessDecorator;
 use Hypervel\Testbench\Foundation\Process\ProcessResult;
@@ -14,6 +16,7 @@ use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionClass;
+use ReflectionProperty;
 use Stringable;
 use Symfony\Component\Process\Process as SymfonyProcess;
 
@@ -87,17 +90,58 @@ class RemoteCommandTest extends TestCase
                 ['--no-ansi', 'serve', '--help'],
             ];
 
-            foreach ($serveCommands as $serveCommand) {
-                $this->assertArrayNotHasKey(
-                    'TESTBENCH_BASE_PATH',
-                    $this->processEnvironment(remote($serveCommand)),
-                    'Forwarded the parent runtime copy to ' . json_encode($serveCommand) . '.'
-                );
-            }
+            // Values this process inherited from a parent remote process must be removed.
+            $this->withInheritedEnvironment([
+                'TESTBENCH_BASE_PATH' => BASE_PATH,
+                'TESTBENCH_RUNTIME_COPY' => '(true)',
+            ], function () use ($serveCommands): void {
+                foreach ($serveCommands as $serveCommand) {
+                    $environment = $this->processEnvironment(remote($serveCommand));
+                    $description = 'Forwarded the parent runtime copy to ' . json_encode($serveCommand) . '.';
+
+                    $this->assertFalse($environment['TESTBENCH_BASE_PATH'], $description);
+                    $this->assertFalse($environment['TESTBENCH_RUNTIME_COPY'], $description);
+                }
+            });
 
             $aboutEnvironment = $this->processEnvironment(remote('about --json'));
 
             $this->assertSame(BASE_PATH, $aboutEnvironment['TESTBENCH_BASE_PATH'] ?? null);
+            $this->assertSame('(true)', $aboutEnvironment['TESTBENCH_RUNTIME_COPY']);
+        });
+    }
+
+    #[Test]
+    public function itOnlyMarksABasePathItKnowsIsADisposableCopy(): void
+    {
+        $this->withoutSqliteDatabase(function (): void {
+            $runtimePath = new ReflectionProperty(Bootstrapper::class, 'runtimePath');
+            $ownedRuntimePath = $runtimePath->getValue();
+
+            $this->withInheritedEnvironment(['TESTBENCH_RUNTIME_COPY' => '(true)'], function () use ($runtimePath, $ownedRuntimePath): void {
+                // A caller-supplied path has no known origin, whatever this process inherited.
+                $environment = $this->processEnvironment(remote('about --json', ['TESTBENCH_BASE_PATH' => BASE_PATH]));
+
+                $this->assertSame(BASE_PATH, $environment['TESTBENCH_BASE_PATH']);
+                $this->assertFalse($environment['TESTBENCH_RUNTIME_COPY']);
+
+                // A base path this process neither created nor borrowed as a copy is persistent.
+                $runtimePath->setValue(null, null);
+
+                try {
+                    $this->assertFalse($this->processEnvironment(remote('about --json'))['TESTBENCH_RUNTIME_COPY']);
+
+                    // A remote child passes on the copy it borrowed from its parent.
+                    $this->withInheritedEnvironment([
+                        'TESTBENCH_PACKAGE_REMOTE' => '(true)',
+                        'TESTBENCH_BASE_PATH' => BASE_PATH,
+                    ], function (): void {
+                        $this->assertSame('(true)', $this->processEnvironment(remote('about --json'))['TESTBENCH_RUNTIME_COPY']);
+                    });
+                } finally {
+                    $runtimePath->setValue(null, $ownedRuntimePath);
+                }
+            });
         });
     }
 
@@ -141,9 +185,37 @@ class RemoteCommandTest extends TestCase
     }
 
     /**
+     * Run the callback with the given $_SERVER values, restoring the originals afterwards.
+     *
+     * @param array<string, string> $values
+     * @param Closure(): void $callback
+     */
+    private function withInheritedEnvironment(array $values, Closure $callback): void
+    {
+        $originals = [];
+
+        foreach ($values as $key => $value) {
+            $originals[$key] = [array_key_exists($key, $_SERVER), $_SERVER[$key] ?? null];
+            $_SERVER[$key] = $value;
+        }
+
+        try {
+            $callback();
+        } finally {
+            foreach ($originals as $key => [$existed, $original]) {
+                if ($existed) {
+                    $_SERVER[$key] = $original;
+                } else {
+                    unset($_SERVER[$key]);
+                }
+            }
+        }
+    }
+
+    /**
      * Get the configured environment variables for the wrapped Symfony process.
      *
-     * @return array<string, null|string|Stringable>
+     * @return array<string, null|false|string|Stringable>
      */
     private function processEnvironment(ProcessDecorator $process): array
     {

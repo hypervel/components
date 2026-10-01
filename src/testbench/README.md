@@ -15,6 +15,8 @@ Hypervel does not use Orchestra's `TESTBENCH_APP_BASE_PATH` channel. Each proces
 
 Hypervel includes root package discovery metadata when a `package:test` worker builds the Testbench package manifest. Orchestra's persistent skeleton can be seeded by the parent Testbench CLI process, while Hypervel's per-worker runtime skeletons may build their manifests directly inside PHPUnit / ParaTest workers.
 
+Hypervel's `serve` command creates and removes the Workbench `sync` links itself, while Orchestra applies them through the optional Workbench package. Each command gets its own copy of the default skeleton, so `package:sync-skeleton` only syncs custom skeletons. An existing file or directory that isn't a symlink is never replaced at a `to` path outside that copy; Orchestra deletes it. Existing symlinks are still replaced. See [Syncing Workbench Directories](https://hypervel.org/docs/testbench#syncing-workbench-directories).
+
 Pest integration is not supported in Hypervel 0.4. Use PHPUnit test classes; `WithFixtures` does not resolve Pest test files. See the [testing documentation](https://hypervel.org/docs/testing#using-pest).
 
 Ported from: https://github.com/orchestral/testbench-core

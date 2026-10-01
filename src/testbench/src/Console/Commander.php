@@ -13,6 +13,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application as HypervelApplication;
 use Hypervel\Foundation\Bootstrap\HandleExceptions;
 use Hypervel\Support\ServiceProvider;
+use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Foundation\Application as Testbench;
 use Hypervel\Testbench\Foundation\Bootstrap\LoadMigrationsFromArray;
 use Hypervel\Testbench\Foundation\Config;
@@ -30,7 +31,6 @@ use Throwable;
 use function Hypervel\Testbench\is_symlink;
 use function Hypervel\Testbench\join_paths;
 use function Hypervel\Testbench\package_path;
-use function Hypervel\Testbench\transform_relative_path;
 
 /**
  * @phpstan-import-type TOptionalConfig from Config
@@ -297,16 +297,8 @@ class Commander
      */
     protected function getApplicationBasePath(): string
     {
-        $path = $this->config['hypervel'] ?? null;
-
-        if ($path !== null && ! isset($_ENV['APP_BASE_PATH'])) {
-            $resolved = transform_relative_path($path, $this->workingPath) ?? $path;
-            $_ENV['APP_BASE_PATH'] = $resolved;
-
-            return $resolved;
-        }
-
-        return static::applicationBasePath();
+        return Bootstrapper::commandApplicationBasePath($this->config, $this->workingPath)
+            ?? static::applicationBasePath();
     }
 
     /**

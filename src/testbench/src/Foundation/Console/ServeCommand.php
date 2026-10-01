@@ -8,9 +8,14 @@ use Composer\Config as ComposerConfig;
 use Hypervel\Console\OutputStyle;
 use Hypervel\Console\View\Components\Factory;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Server\Commands\ServerStartCommand as Command;
+use Hypervel\Support\Env;
+use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Events\ServeCommandEnded;
 use Hypervel\Testbench\Foundation\Events\ServeCommandStarted;
+use Hypervel\Testbench\Workbench\Actions\AddAssetSymlinkFolders;
+use Hypervel\Testbench\Workbench\Actions\RemoveAssetSymlinkFolders;
 use Override;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
@@ -22,6 +27,20 @@ use function Hypervel\Testbench\package_path;
 #[AsCommand(name: 'serve', description: 'Start Hypervel servers.')]
 class ServeCommand extends Command
 {
+    /**
+     * Configure the console command.
+     */
+    #[Override]
+    protected function configure(): void
+    {
+        parent::configure();
+
+        // Like Laravel's development server, listen on the loopback address unless
+        // SERVER_HOST or --host says otherwise. The framework default listens on
+        // every interface, which would expose the Workbench login helpers.
+        $this->getDefinition()->getOption('host')->setDefault(Env::get('SERVER_HOST', '127.0.0.1'));
+    }
+
     /**
      * Execute the console command.
      */
@@ -45,23 +64,41 @@ class ServeCommand extends Command
 
         /** @var Dispatcher $events */
         $events = app('events');
+        $files = $this->application->make(Filesystem::class);
+        $config = $this->application->make(ConfigContract::class);
+        $exitCode = self::FAILURE;
+        $failure = null;
 
-        if ($events->hasListeners(ServeCommandStarted::class)) {
-            $events->dispatch(new ServeCommandStarted($input, $styledOutput, $components));
+        try {
+            if ($events->hasListeners(ServeCommandStarted::class)) {
+                $events->dispatch(new ServeCommandStarted($input, $styledOutput, $components));
+            }
+
+            // Started listeners publish into the runtime skeleton before any sync
+            // link exists, so they never write through a link into the package.
+            (new AddAssetSymlinkFolders($files, $config))->handle();
+
+            $exitCode = $this->startServer($input);
+        } catch (Throwable $throwable) {
+            $failure = $throwable;
         }
 
         try {
-            $exitCode = $this->startServer($input);
+            (new RemoveAssetSymlinkFolders($files, $config))->handle();
         } catch (Throwable $throwable) {
-            if ($events->hasListeners(ServeCommandEnded::class)) {
-                $events->dispatch(new ServeCommandEnded($input, $styledOutput, $components, self::FAILURE));
-            }
-
-            throw $throwable;
+            $failure ??= $throwable;
         }
 
-        if ($events->hasListeners(ServeCommandEnded::class)) {
-            $events->dispatch(new ServeCommandEnded($input, $styledOutput, $components, $exitCode));
+        try {
+            if ($events->hasListeners(ServeCommandEnded::class)) {
+                $events->dispatch(new ServeCommandEnded($input, $styledOutput, $components, $failure === null ? $exitCode : self::FAILURE));
+            }
+        } catch (Throwable $throwable) {
+            $failure ??= $throwable;
+        }
+
+        if ($failure !== null) {
+            throw $failure;
         }
 
         return $exitCode;
