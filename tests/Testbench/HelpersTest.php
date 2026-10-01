@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Testbench;
 
 use Composer\InstalledVersions;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Testbench\Exceptions\ApplicationNotAvailableException;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
 use OutOfBoundsException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -18,10 +20,12 @@ use Symfony\Component\Process\Process;
 use function Hypervel\Support\php_binary;
 use function Hypervel\Testbench\hypervel_or_fail;
 use function Hypervel\Testbench\hypervel_version_compare;
+use function Hypervel\Testbench\join_paths;
 use function Hypervel\Testbench\package_path;
 use function Hypervel\Testbench\package_version_compare;
 use function Hypervel\Testbench\php_version_compare;
 use function Hypervel\Testbench\phpunit_version_compare;
+use function Hypervel\Testbench\uses_default_skeleton;
 
 class HelpersTest extends TestCase
 {
@@ -134,6 +138,29 @@ class HelpersTest extends TestCase
         $this->expectExceptionMessage(sprintf('Application is not available to run [%s]', __METHOD__));
 
         hypervel_or_fail(null);
+    }
+
+    #[Test]
+    public function itDetectsTheDefaultSkeletonFromTheApplicationBasePath(): void
+    {
+        $filesystem = new Filesystem;
+        $defaultBasePath = $this->app->basePath();
+        $customBasePath = ParallelTesting::tempDir('HelpersTest');
+        $filesystem->deleteDirectory($customBasePath);
+        $filesystem->makeDirectory(join_paths($customBasePath, 'bootstrap'), 0700, recursive: true);
+
+        try {
+            $this->assertTrue(uses_default_skeleton());
+            $this->assertFalse(uses_default_skeleton($customBasePath));
+
+            $this->app->setBasePath($customBasePath);
+
+            $this->assertFalse(uses_default_skeleton());
+            $this->assertTrue(uses_default_skeleton($defaultBasePath));
+        } finally {
+            $this->app->setBasePath($defaultBasePath);
+            $filesystem->deleteDirectory($customBasePath);
+        }
     }
 
     #[Test]

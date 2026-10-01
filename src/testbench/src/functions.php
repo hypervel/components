@@ -187,11 +187,7 @@ function default_skeleton_path(array|string $path = ''): string|false
  */
 function uses_default_skeleton(?string $basePath = null): bool
 {
-    $basePath ??= default_skeleton_path() ?: null;
-
-    if ($basePath === null) {
-        return false;
-    }
+    $basePath ??= base_path();
 
     return realpath(join_paths($basePath, 'bootstrap', '.testbench-default-skeleton')) !== false;
 }
