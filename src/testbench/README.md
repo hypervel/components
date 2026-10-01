@@ -7,6 +7,8 @@ Documentation: https://hypervel.org/docs/testbench
 
 ## Differences From Laravel
 
+Laravel packages require `orchestra/testbench`, which installs Orchestra Testbench Core, Workbench and Sidekick. `hypervel/testbench` contains Testbench Core itself under the `Hypervel\Testbench` namespace. The Sidekick helpers that Testbench relies on are provided by Testbench or the framework; Sidekick's other helpers are not ported. Testbench Core's Workbench support is included, while Orchestra Workbench's authentication pages, preview login helpers and `workbench:*` command aliases are in the separate `hypervel/workbench` package, which Testbench suggests but does not install.
+
 Hypervel applies every `#[WithConfig]` value before service providers register. Orchestra's deferred mode is intentionally omitted because configuration is process-global state shared by Hypervel's long-lived Swoole worker. When a package provider uses shallow configuration merging, a nested key replaces that package option's defaults. Tests that need a post-boot value, or a nested value alongside the package defaults, should set it explicitly in the test body.
 
 Hypervel does not forward the parent Testbench CLI application's full runtime environment to `package:test` subprocesses. In package-test mode, package and workbench environment files are copied into the child runtime application, while shell or CI environment variables, PHPUnit XML values, and Testbench YAML `env` values continue to reach package-test child processes through their normal channels.
@@ -19,4 +21,7 @@ Hypervel's `serve` command creates and removes the Workbench `sync` links itself
 
 Pest integration is not supported in Hypervel 0.4. Use PHPUnit test classes; `WithFixtures` does not resolve Pest test files. See the [testing documentation](https://hypervel.org/docs/testing#using-pest).
 
-Ported from: https://github.com/orchestral/testbench-core
+Ported from:
+
+- https://github.com/orchestral/testbench-core
+- https://github.com/orchestral/testbench

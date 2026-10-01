@@ -1136,7 +1136,7 @@ vendor/bin/testbench about
 vendor/bin/testbench migrate
 ```
 
-Testbench also provides commands specifically for package development.
+Testbench also provides commands specifically for package development. When the `hypervel/workbench` package is installed, the `workbench:create-sqlite-db`, `workbench:drop-sqlite-db`, `workbench:purge-skeleton`, and `workbench:sync-skeleton` commands are also available as aliases of the matching `package:*` commands.
 
 <a name="running-package-tests"></a>
 ### Running Package Tests
@@ -1291,4 +1291,4 @@ The `remote` helper reuses the active Testbench runtime skeleton so subprocesses
 <a name="credits"></a>
 ## Credits
 
-Hypervel Testbench began as a port of [Orchestra Testbench Core](https://github.com/orchestral/testbench-core) and has been adapted for Hypervel's framework architecture and coroutine runtime.
+Hypervel Testbench and Workbench began as ports of [Orchestra Testbench Core](https://github.com/orchestral/testbench-core) and [Orchestra Workbench](https://github.com/orchestral/workbench), and have been adapted for Hypervel's framework architecture and coroutine runtime.

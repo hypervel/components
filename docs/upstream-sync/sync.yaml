@@ -30,7 +30,7 @@ orchestral/testbench-core:
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: The upstream laravel/ skeleton maps to src/testbench/hypervel/, whose config files keep only Testbench overrides; compare upstream skeleton config changes with src/foundation/config, which is merged underneath. The skeleton and the workbench fixtures each keep a minimal welcome view instead of Laravel's welcome page.
+  notes: The upstream laravel/ skeleton maps to src/testbench/hypervel/, whose config files keep only Testbench overrides; compare upstream skeleton config changes with src/foundation/config, which is merged underneath. The skeleton and the workbench fixtures each keep a minimal welcome view instead of Laravel's welcome page. orchestra/sidekick is not tracked separately; the helpers Testbench uses are ported into Hypervel\Testbench or the framework, so reconcile them with the Sidekick release whenever the target raises its Sidekick constraint or relies on changed Sidekick behavior.
 
 orchestral/testbench:
   branch: 12.x
