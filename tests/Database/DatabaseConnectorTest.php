@@ -73,10 +73,6 @@ class DatabaseConnectorTest extends TestCase
     #[TestWith(['mysql'])]
     public function testConnectionCancellationEscapesWithoutRetrying(string $driver): void
     {
-        if (SWOOLE_VERSION_ID <= 60203) {
-            $this->markTestSkipped('Swoole 6.2.3 and earlier mask PDO connection cancellation with PDOException.');
-        }
-
         $result = $this->runUnresponsiveConnection($driver, 'cancel', true);
 
         $this->assertSame(CanceledException::class, $result['exception']);
