@@ -14,6 +14,7 @@ use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Server\ServerFactory;
+use Hypervel\Server\ServerInterface;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\Foundation\Console\ServeCommand;
@@ -31,10 +32,10 @@ use function Hypervel\Testbench\workbench_relative_path;
 
 class ServeCommandTest extends TestCase
 {
-    private const string WORKING_PATH_ENV = 'TESTBENCH_WORKING_PATH';
+    private const array ENVIRONMENT_VARIABLES = ['TESTBENCH_WORKING_PATH', 'SERVER_HOST'];
 
-    /** @var array{process: false|string, environment_exists: bool, environment: mixed, server_exists: bool, server: mixed} */
-    private array $workingPathState;
+    /** @var array<string, array{process: false|string, environment_exists: bool, environment: mixed, server_exists: bool, server: mixed}> */
+    private array $environmentState = [];
 
     private int $processTimeout;
 
@@ -49,13 +50,19 @@ class ServeCommandTest extends TestCase
 
         $this->filesystem = new Filesystem;
         $this->processTimeout = ProcessExecutor::getTimeout();
-        $this->workingPathState = [
-            'process' => getenv(self::WORKING_PATH_ENV),
-            'environment_exists' => array_key_exists(self::WORKING_PATH_ENV, $_ENV),
-            'environment' => $_ENV[self::WORKING_PATH_ENV] ?? null,
-            'server_exists' => array_key_exists(self::WORKING_PATH_ENV, $_SERVER),
-            'server' => $_SERVER[self::WORKING_PATH_ENV] ?? null,
-        ];
+
+        foreach (self::ENVIRONMENT_VARIABLES as $name) {
+            $this->environmentState[$name] = [
+                'process' => getenv($name),
+                'environment_exists' => array_key_exists($name, $_ENV),
+                'environment' => $_ENV[$name] ?? null,
+                'server_exists' => array_key_exists($name, $_SERVER),
+                'server' => $_SERVER[$name] ?? null,
+            ];
+        }
+
+        // The serve command reads SERVER_HOST for its default host when it is created.
+        $this->setServerHost(null);
     }
 
     /**
@@ -64,21 +71,20 @@ class ServeCommandTest extends TestCase
     protected function tearDown(): void
     {
         try {
-            $processValue = $this->workingPathState['process'];
-            putenv($processValue === false
-                ? self::WORKING_PATH_ENV
-                : self::WORKING_PATH_ENV . "={$processValue}");
+            foreach ($this->environmentState as $name => $state) {
+                putenv($state['process'] === false ? $name : "{$name}={$state['process']}");
 
-            if ($this->workingPathState['environment_exists']) {
-                $_ENV[self::WORKING_PATH_ENV] = $this->workingPathState['environment'];
-            } else {
-                unset($_ENV[self::WORKING_PATH_ENV]);
-            }
+                if ($state['environment_exists']) {
+                    $_ENV[$name] = $state['environment'];
+                } else {
+                    unset($_ENV[$name]);
+                }
 
-            if ($this->workingPathState['server_exists']) {
-                $_SERVER[self::WORKING_PATH_ENV] = $this->workingPathState['server'];
-            } else {
-                unset($_SERVER[self::WORKING_PATH_ENV]);
+                if ($state['server_exists']) {
+                    $_SERVER[$name] = $state['server'];
+                } else {
+                    unset($_SERVER[$name]);
+                }
             }
 
             $this->removeSyncPaths();
@@ -97,19 +103,12 @@ class ServeCommandTest extends TestCase
         $serverFactory = m::mock(ServerFactory::class);
         $serverFactory->shouldReceive('setEventDispatcher')->once()->andReturnSelf();
         $serverFactory->shouldReceive('setLogger')->once()->andReturnSelf();
-        $serverFactory->shouldReceive('configure')->once()->with(['http' => ['port' => 8000]]);
+        $serverFactory->shouldReceive('configure')->once();
         $serverFactory->shouldReceive('start')->once()->andReturnUsing(function () use (&$linkedWhileServing): void {
             $linkedWhileServing = is_link($this->syncLinkPath());
         });
 
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('array')->once()->with('server')->andReturn(['http' => ['port' => 8000]]);
-
-        $logger = m::mock(StdoutLoggerInterface::class);
-
-        $this->app->instance(ServerFactory::class, $serverFactory);
-        $this->app->instance(StdoutLoggerInterface::class, $logger);
-        $this->app->instance('config', $config);
+        $this->bindServer($serverFactory);
         $this->app->instance(ConfigContract::class, $this->syncConfiguration());
 
         $startedEvents = [];
@@ -155,15 +154,10 @@ class ServeCommandTest extends TestCase
         $serverFactory = m::mock(ServerFactory::class);
         $serverFactory->shouldReceive('setEventDispatcher')->once()->andReturnSelf();
         $serverFactory->shouldReceive('setLogger')->once()->andReturnSelf();
-        $serverFactory->shouldReceive('configure')->once()->with(['http' => ['port' => 8000]]);
+        $serverFactory->shouldReceive('configure')->once();
         $serverFactory->shouldReceive('start')->once();
 
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('array')->once()->with('server')->andReturn(['http' => ['port' => 8000]]);
-
-        $this->app->instance(ServerFactory::class, $serverFactory);
-        $this->app->instance(StdoutLoggerInterface::class, m::mock(StdoutLoggerInterface::class));
-        $this->app->instance('config', $config);
+        $this->bindServer($serverFactory);
         $this->app->instance(ConfigContract::class, new Config);
 
         $observedEvents = [];
@@ -185,6 +179,17 @@ class ServeCommandTest extends TestCase
 
         $this->assertSame(0, (new ServeCommand($this->app))->run(new ArrayInput([]), new NullOutput));
         $this->assertSame([], $observedEvents);
+    }
+
+    #[Test]
+    public function itListensOnTheLoopbackAddressUnlessAnotherHostIsGiven(): void
+    {
+        $this->assertSame('127.0.0.1', $this->servedHost([]));
+        $this->assertSame('192.0.2.10', $this->servedHost(['--host' => '192.0.2.10']));
+
+        $this->setServerHost('0.0.0.0');
+
+        $this->assertSame('0.0.0.0', $this->servedHost([]));
     }
 
     #[Test]
@@ -235,12 +240,7 @@ class ServeCommandTest extends TestCase
             throw $failure;
         });
 
-        $config = m::mock(Repository::class);
-        $config->shouldReceive('array')->once()->with('server')->andReturn(['http' => ['port' => 8000]]);
-
-        $this->app->instance(ServerFactory::class, $serverFactory);
-        $this->app->instance(StdoutLoggerInterface::class, m::mock(StdoutLoggerInterface::class));
-        $this->app->instance('config', $config);
+        $this->bindServer($serverFactory);
         $this->app->instance(ConfigContract::class, $this->syncConfiguration());
 
         $endedEvents = [];
@@ -337,6 +337,68 @@ class ServeCommandTest extends TestCase
         }
 
         $this->assertFalse(is_link($this->syncLinkPath()));
+    }
+
+    /**
+     * Bind the server factory and an HTTP server configured to listen on every interface.
+     */
+    private function bindServer(ServerFactory $serverFactory): void
+    {
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')->once()->with('server')->andReturn([
+            'servers' => [
+                ['name' => 'http', 'type' => ServerInterface::SERVER_HTTP, 'host' => '0.0.0.0', 'port' => 9501],
+            ],
+        ]);
+        $config->shouldReceive('set')->once()->with('server.servers', m::type('array'));
+
+        $this->app->instance(ServerFactory::class, $serverFactory);
+        $this->app->instance(StdoutLoggerInterface::class, m::mock(StdoutLoggerInterface::class));
+        $this->app->instance('config', $config);
+    }
+
+    /**
+     * Run the serve command and return the host the HTTP server was configured with.
+     *
+     * @param array<string, string> $input
+     */
+    private function servedHost(array $input): string
+    {
+        $host = null;
+
+        $serverFactory = m::mock(ServerFactory::class);
+        $serverFactory->shouldReceive('setEventDispatcher')->once()->andReturnSelf();
+        $serverFactory->shouldReceive('setLogger')->once()->andReturnSelf();
+        $serverFactory->shouldReceive('configure')->once()->andReturnUsing(static function (array $config) use (&$host): void {
+            $host = $config['servers'][0]['host'];
+        });
+        $serverFactory->shouldReceive('start')->once();
+
+        $this->bindServer($serverFactory);
+        $this->app->instance(ConfigContract::class, new Config);
+
+        Application::getInstance()->setRunningInConsole(false);
+
+        $this->assertSame(0, (new ServeCommand($this->app))->run(new ArrayInput($input), new NullOutput));
+
+        return $host;
+    }
+
+    /**
+     * Set or clear the SERVER_HOST environment variable.
+     */
+    private function setServerHost(?string $host): void
+    {
+        if ($host === null) {
+            putenv('SERVER_HOST');
+            unset($_ENV['SERVER_HOST'], $_SERVER['SERVER_HOST']);
+
+            return;
+        }
+
+        putenv("SERVER_HOST={$host}");
+        $_ENV['SERVER_HOST'] = $host;
+        $_SERVER['SERVER_HOST'] = $host;
     }
 
     /**

@@ -10,6 +10,7 @@ use Hypervel\Console\View\Components\Factory;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Server\Commands\ServerStartCommand as Command;
+use Hypervel\Support\Env;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Events\ServeCommandEnded;
 use Hypervel\Testbench\Foundation\Events\ServeCommandStarted;
@@ -26,6 +27,20 @@ use function Hypervel\Testbench\package_path;
 #[AsCommand(name: 'serve', description: 'Start Hypervel servers.')]
 class ServeCommand extends Command
 {
+    /**
+     * Configure the console command.
+     */
+    #[Override]
+    protected function configure(): void
+    {
+        parent::configure();
+
+        // Like Laravel's development server, listen on the loopback address unless
+        // SERVER_HOST or --host says otherwise. The framework default listens on
+        // every interface, which would expose the Workbench login helpers.
+        $this->getDefinition()->getOption('host')->setDefault(Env::get('SERVER_HOST', '127.0.0.1'));
+    }
+
     /**
      * Execute the console command.
      */

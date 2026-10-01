@@ -29,9 +29,9 @@ class SyncSkeletonCommand extends Command
      */
     public function handle(Filesystem $filesystem, ConfigContract $config): int
     {
-        if (Bootstrapper::ownsRuntimePath($this->hypervel->basePath())) {
+        if (Bootstrapper::isRuntimeCopy($this->hypervel->basePath())) {
             $this->components->error(
-                'The default skeleton is recreated for every command and deleted when the command exits, so it cannot be synced. The serve command creates the configured links while it runs.'
+                'The skeleton is a disposable copy that is deleted when its command exits, so it cannot be synced. The serve command creates the configured links while it runs.'
             );
 
             return self::FAILURE;

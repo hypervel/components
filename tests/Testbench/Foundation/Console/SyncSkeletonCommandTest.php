@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Foundation\Console;
 
+use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Bootstrapper;
@@ -159,6 +160,34 @@ class SyncSkeletonCommandTest extends TestCase
     }
 
     #[Test]
+    public function itRejectsSyncingARuntimeCopyBorrowedFromTheParentProcess(): void
+    {
+        $testbenchCacheFile = $this->app->basePath(join_paths('bootstrap', 'cache', 'testbench.yaml'));
+        $this->deletePath($testbenchCacheFile);
+
+        $this->asRemoteChild(borrowsRuntimeCopy: true, callback: function (): void {
+            $this->artisan('package:sync-skeleton')
+                ->expectsOutputToContain('The serve command creates the configured links while it runs.')
+                ->assertFailed();
+        });
+
+        $this->assertFileDoesNotExist($testbenchCacheFile);
+    }
+
+    #[Test]
+    public function itSyncsAPersistentSkeletonSharedByTheParentProcess(): void
+    {
+        $testbenchCacheFile = $this->app->basePath(join_paths('bootstrap', 'cache', 'testbench.yaml'));
+        $this->deletePath($testbenchCacheFile);
+
+        $this->asRemoteChild(borrowsRuntimeCopy: false, callback: function (): void {
+            $this->artisan('package:sync-skeleton')->assertOk();
+        });
+
+        $this->assertFileExists($testbenchCacheFile);
+    }
+
+    #[Test]
     #[TestWith([['command' => 'list']])]
     #[TestWith([['command' => 'help', 'command_name' => 'package:sync-skeleton']])]
     public function itPreservesTerminatingCallbacksForReadOnlyConsoleActions(array $input): void
@@ -197,6 +226,47 @@ class SyncSkeletonCommandTest extends TestCase
     {
         foreach ($this->syncSkeletonArtifactPaths() as $path) {
             $this->deletePath($path);
+        }
+    }
+
+    /**
+     * Run the callback as a remote child sharing its parent's base path.
+     *
+     * The parent reports whether that path is its disposable runtime copy.
+     *
+     * @param Closure(): void $callback
+     */
+    private function asRemoteChild(bool $borrowsRuntimeCopy, Closure $callback): void
+    {
+        $runtimePath = new ReflectionProperty(Bootstrapper::class, 'runtimePath');
+        $ownedRuntimePath = $runtimePath->getValue();
+        $values = [
+            'TESTBENCH_PACKAGE_REMOTE' => '(true)',
+            'TESTBENCH_BASE_PATH' => $this->app->basePath(),
+            'TESTBENCH_RUNTIME_COPY' => $borrowsRuntimeCopy ? '(true)' : null,
+        ];
+        $originals = [];
+
+        foreach ($values as $key => $value) {
+            $originals[$key] = $_SERVER[$key] ?? null;
+            $_SERVER[$key] = $value;
+        }
+
+        // This process no longer owns the copy; it only shares its parent's base path.
+        $runtimePath->setValue(null, null);
+
+        try {
+            $callback();
+        } finally {
+            $runtimePath->setValue(null, $ownedRuntimePath);
+
+            foreach ($originals as $key => $original) {
+                if ($original === null) {
+                    unset($_SERVER[$key]);
+                } else {
+                    $_SERVER[$key] = $original;
+                }
+            }
         }
     }
 

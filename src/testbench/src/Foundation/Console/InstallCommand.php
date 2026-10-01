@@ -161,7 +161,6 @@ class InstallCommand extends Command
             join_paths('workbench', 'database', 'factories'),
             join_paths('workbench', 'database', 'migrations'),
             join_paths('workbench', 'database', 'seeders'),
-            join_paths('workbench', 'storage'),
         ];
 
         if ($this->option('basic') === false) {

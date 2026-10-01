@@ -503,6 +503,8 @@ public static function applicationBasePath(): string
 
 Relative paths in `testbench.yaml` are resolved from the package root.
 
+Tests run on a disposable copy of the skeleton set by the `hypervel` key, just like the default one, while commands you run with `vendor/bin/testbench`, such as `serve` and `package:sync-skeleton`, use it directly. An `applicationBasePath` override or the `APP_BASE_PATH` environment variable is always used directly.
+
 <a name="defining-the-environment"></a>
 ## Defining the Environment
 
@@ -1051,7 +1053,7 @@ If your package defines a Composer script, you may run it through Composer:
 composer run serve
 ```
 
-The `serve` command uses Hypervel's normal server configuration and starts the same Swoole server used by a Hypervel application.
+The `serve` command uses Hypervel's normal server configuration and starts the same Swoole server used by a Hypervel application. Like Laravel's `serve` command, it listens on `127.0.0.1` unless you set the `SERVER_HOST` environment variable.
 
 You may pass `--host` and `--port` to temporarily override the configured HTTP server address for the current process:
 

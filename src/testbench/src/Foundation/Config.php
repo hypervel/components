@@ -231,9 +231,11 @@ class Config extends Fluent implements ConfigContract
                 $config = $parsed;
             }
 
+            // "@testbench" means the default skeleton. Resolving it here would bootstrap
+            // Testbench again while it is still loading this file.
             $config['hypervel'] = transform(
                 Arr::get($config, 'hypervel'),
-                static fn (?string $path): ?string => transform_relative_path($path, $workingPath)
+                static fn (?string $path): ?string => $path === '@testbench' ? null : transform_relative_path($path, $workingPath)
             );
 
             if (isset($config['env']) && \is_array($config['env']) && Arr::isAssoc($config['env'])) {

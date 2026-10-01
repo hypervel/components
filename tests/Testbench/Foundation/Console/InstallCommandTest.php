@@ -78,6 +78,9 @@ class InstallCommandTest extends TestCase
         $this->assertFileExists($this->path('workbench/routes/api.php'));
         $this->assertFileExists($this->path('workbench/routes/console.php'));
         $this->assertFileDoesNotExist($this->path('workbench/.env'));
+
+        // The configured sync link owns workbench/storage.
+        $this->assertDirectoryDoesNotExist($this->path('workbench/storage'));
         $this->assertFileExists(join_paths($runtimeBasePath, 'database', 'database.sqlite'));
 
         $this->assertSame([

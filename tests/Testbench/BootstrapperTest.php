@@ -361,6 +361,45 @@ class BootstrapperTest extends TestCase
     }
 
     #[Test]
+    public function itSharesTheSkeletonVendorLinkAndCopiesEverythingElse(): void
+    {
+        $packagePath = $this->temporaryDirectory('vendor-link-package');
+        $sourcePath = $this->temporaryDirectory('vendor-link-source');
+        $runtimePath = null;
+
+        mkdir($packagePath . '/vendor/dependency', 0777, true);
+        mkdir($sourcePath . '/config', 0777, true);
+        file_put_contents($packagePath . '/vendor/dependency/file.php', 'dependency');
+        file_put_contents($sourcePath . '/config/app.php', 'config');
+        file_put_contents($sourcePath . '/artisan', 'artisan');
+
+        // A relative link only resolves from the skeleton itself, not from the copy.
+        $this->assertSame(dirname($sourcePath), dirname($packagePath));
+        $relativeVendorTarget = '../' . basename($packagePath) . '/vendor';
+        symlink($relativeVendorTarget, $sourcePath . '/vendor');
+
+        try {
+            $this->withRuntimeCopyEnvironment('bootstrapper-vendor-link', false, function () use ($sourcePath, $packagePath, &$runtimePath): void {
+                $runtimePath = $this->createRuntimeCopy($sourcePath, $packagePath);
+
+                $this->assertTrue(is_link($runtimePath . '/vendor'));
+                $this->assertSame(realpath($packagePath . '/vendor'), readlink($runtimePath . '/vendor'));
+                $this->assertFileExists($runtimePath . '/vendor/dependency/file.php');
+
+                $this->assertFalse(is_link($runtimePath . '/config'));
+                $this->assertSame('config', file_get_contents($runtimePath . '/config/app.php'));
+                $this->assertSame('artisan', file_get_contents($runtimePath . '/artisan'));
+            });
+
+            $this->assertSame($relativeVendorTarget, readlink($sourcePath . '/vendor'));
+        } finally {
+            $this->deleteDirectory($runtimePath);
+            $this->deleteDirectory($sourcePath);
+            $this->deleteDirectory($packagePath);
+        }
+    }
+
+    #[Test]
     public function itCopiesThePackageEnvironmentFileIntoTheRuntimeCopy(): void
     {
         $packagePath = $this->temporaryDirectory('package-env');

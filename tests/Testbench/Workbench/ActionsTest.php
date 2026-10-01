@@ -194,11 +194,19 @@ class ActionsTest extends TestCase
     {
         $this->filesystem->ensureDirectoryExists(dirname($this->destinationPath));
         $this->filesystem->link($this->sourcePath, $this->destinationPath);
+        $this->filesystem->link($this->sourcePath, $this->secondDestinationPath());
 
         try {
             (new RemoveAssetSymlinkFolders(
                 new FailingAssetSymlinkDeleteFilesystem($this->destinationPath),
-                $this->configuration(),
+                new Config([
+                    'workbench' => [
+                        'sync' => [
+                            ['from' => workbench_relative_path('resources'), 'to' => 'public/testbench-assets'],
+                            ['from' => workbench_relative_path('resources'), 'to' => 'public/testbench-assets-second'],
+                        ],
+                    ],
+                ]),
             ))->handle();
             $this->fail('Expected asset symlink removal to fail.');
         } catch (RuntimeException $exception) {
@@ -210,6 +218,9 @@ class ActionsTest extends TestCase
 
         $this->assertTrue(is_symlink($this->destinationPath));
         $this->assertSame(realpath($this->sourcePath), realpath($this->destinationPath));
+
+        // One failed removal doesn't leave the remaining links behind.
+        $this->assertFalse(is_symlink($this->secondDestinationPath()));
     }
 
     /**
@@ -225,6 +236,14 @@ class ActionsTest extends TestCase
                 ]],
             ],
         ]);
+    }
+
+    /**
+     * Get a second published asset path.
+     */
+    protected function secondDestinationPath(): string
+    {
+        return base_path('public/testbench-assets-second');
     }
 
     /**
@@ -248,7 +267,7 @@ class ActionsTest extends TestCase
      */
     protected function cleanupPublishedPaths(): void
     {
-        foreach ([$this->destinationPath, $this->stagedPath(), $this->backupPath()] as $path) {
+        foreach ([$this->destinationPath, $this->secondDestinationPath(), $this->stagedPath(), $this->backupPath()] as $path) {
             if (is_symlink($path)) {
                 windows_os() ? @rmdir($path) : $this->filesystem->delete($path);
             } elseif ($this->filesystem->isDirectory($path)) {
