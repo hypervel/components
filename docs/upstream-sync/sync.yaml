@@ -26,13 +26,13 @@ laravel/prompts:
   sync_date: null
 
 orchestral/testbench-core:
-  branch: 11.x
+  branch: 12.x
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
 
 orchestral/testbench:
-  branch: 11.x
+  branch: 12.x
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
