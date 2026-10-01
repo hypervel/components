@@ -9,11 +9,14 @@ use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
 use Hypervel\Prompts\Key;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 use function Hypervel\Prompts\autocomplete;
 
 class AutoCompletePromptTest extends TestCase
 {
+    private const string LONG_OPTION = 'App\Http\Controllers\Admin\Reporting\QuarterlyRevenueSummaryExportController';
+
     public function testAcceptsAnyInput()
     {
         Prompt::fake(['B', 'l', 'a', 'c', 'k', Key::ENTER]);
@@ -134,6 +137,46 @@ class AutoCompletePromptTest extends TestCase
 
         // Typed "Blue" exactly matches the option, no ghost text. TAB refreshes (no-op), enter submits.
         $this->assertSame('Blue', $result);
+    }
+
+    public function testMatchesNonAsciiOptionsCaseInsensitively(): void
+    {
+        Prompt::fake(['ö', Key::TAB, Key::ENTER]);
+
+        $this->assertSame('Österreich', autocomplete('Country', ['Österreich', 'Deutschland']));
+    }
+
+    /**
+     * @param list<string> $keys
+     */
+    #[DataProvider('longOptionInputProvider')]
+    public function testKeepsGhostTextWithinTheAvailableWidth(array $keys): void
+    {
+        Prompt::fake([...$keys, Key::ENTER]);
+
+        autocomplete('Controller', [self::LONG_OPTION]);
+
+        $widest = max(array_map(
+            fn (string $line): int => mb_strwidth($line),
+            explode(PHP_EOL, Prompt::strippedContent()),
+        ));
+
+        // Box lines in an 80-column terminal have a 79-column budget.
+        $this->assertLessThan(80, $widest);
+    }
+
+    /**
+     * Provide typed input that leaves different amounts of room for ghost text.
+     *
+     * @return array<string, array{list<string>}>
+     */
+    public static function longOptionInputProvider(): array
+    {
+        return [
+            'short value' => [['A']],
+            'cursor inside the value' => [['A', 'p', 'p', Key::LEFT_ARROW]],
+            'no room for ghost text' => [mb_str_split(mb_substr(self::LONG_OPTION, 0, 73))],
+        ];
     }
 
     public function testTransformsValues()

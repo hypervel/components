@@ -113,8 +113,8 @@ class SuggestPrompt extends Prompt
             return $this->matches = array_values($matches instanceof Collection ? $matches->all() : $matches);
         }
 
-        return $this->matches = array_values(array_filter($this->options, function ($option) {
-            return str_starts_with(strtolower($option), strtolower($this->value()));
+        return $this->matches = array_values(array_filter($this->options, function (string $option): bool {
+            return str_starts_with(mb_strtolower($option), mb_strtolower($this->value()));
         }));
     }
 
