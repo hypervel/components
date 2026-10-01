@@ -56,7 +56,7 @@
         "hypervel/support": "^0.4",
         "nesbot/carbon": "^3.13.1",
         "psr/http-message": "^2.0",
-        "symfony/console": "^8.1",
+        "symfony/console": "^8.1.2",
         "symfony/dom-crawler": "^8.1",
         "symfony/finder": "^8.1",
         "symfony/var-dumper": "^8.1"

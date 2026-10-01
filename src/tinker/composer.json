@@ -37,7 +37,7 @@
         "hypervel/foundation": "^0.4",
         "hypervel/support": "^0.4",
         "psy/psysh": "dev-main",
-        "symfony/console": "^8.1",
+        "symfony/console": "^8.1.2",
         "symfony/var-dumper": "^8.1"
     },
     "config": {
