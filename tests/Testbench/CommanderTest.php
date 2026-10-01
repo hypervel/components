@@ -16,6 +16,7 @@ use Hypervel\Testbench\Foundation\Console\TerminatingConsole;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testbench\Workbench\Workbench;
 use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\Testbench\Fixtures\Providers\MergedConfigServiceProvider;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
@@ -88,6 +89,26 @@ class CommanderTest extends TestCase
             $process->mustRun();
 
             $this->assertStringContainsString('INFO  Discovering packages.', $process->getOutput());
+        });
+    }
+
+    #[Test]
+    public function itCanCallCommanderUsingCliWithPackageProvidersThatMergeConfiguration(): void
+    {
+        $filesystem = new Filesystem;
+        $filesystem->link(package_path('vendor'), $this->tempDir . '/vendor');
+        $filesystem->put(
+            $this->tempDir . '/testbench.yaml',
+            "providers:\n  - " . MergedConfigServiceProvider::class . "\ndont-discover:\n  - hypervel/components\n",
+        );
+
+        $this->withoutSqliteDatabase(function (): void {
+            $process = remote('config:show testbench.client --no-ansi', [
+                'TESTBENCH_WORKING_PATH' => $this->tempDir,
+            ]);
+            $process->mustRun();
+
+            $this->assertStringContainsString('rest', $process->getOutput());
         });
     }
 

@@ -333,6 +333,24 @@ class InteractsWithSqliteDatabaseFileTest extends TestCase
         $this->assertFileDoesNotExist($this->activeDatabase);
     }
 
+    #[Test]
+    public function itRunsCallablesThatAreNotClosures(): void
+    {
+        file_put_contents($this->baseDatabase . '.example', 'example');
+        config(['database.connections.sqlite.database' => $this->baseDatabase]);
+        $callback = new SqliteFileTestCallback;
+
+        $this->withoutSqliteDatabase($callback);
+        $this->assertSame(1, $callback->calls);
+
+        $this->withSqliteDatabase($callback);
+        $this->assertSame(2, $callback->calls);
+
+        $this->activeDatabase = $this->baseDatabase;
+        $this->useActiveSqliteDatabasePath($callback);
+        $this->assertSame(3, $callback->calls);
+    }
+
     protected function baseSqliteDatabasePath(): string
     {
         return $this->baseDatabase;
@@ -423,5 +441,18 @@ class SqliteFileTestFilesystem extends Filesystem
         }
 
         return parent::delete($paths);
+    }
+}
+
+class SqliteFileTestCallback
+{
+    public int $calls = 0;
+
+    /**
+     * Record the invocation.
+     */
+    public function __invoke(): void
+    {
+        ++$this->calls;
     }
 }

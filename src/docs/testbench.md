@@ -236,7 +236,7 @@ Testbench builds the application in phases so package tests may customize the ap
 1. Environment attributes such as `#[WithEnv]`, `#[RequiresEnv]`, and `#[RequiresHypervel]` are processed before configuration is loaded.
 2. Early application attributes such as `#[ResolvesHypervel]` and `#[UsesFrameworkConfiguration]` are processed just before configuration is loaded.
 3. Hypervel's default configuration is loaded and package / Workbench configuration files are merged over the defaults.
-4. Package providers, aliases, and provider overrides are written into the application configuration.
+4. Package providers and aliases, along with their overrides, are written into the application configuration.
 5. `#[WithConfig]` attributes are applied after configuration is loaded and before service providers are registered.
 6. Service providers are registered.
 7. `defineEnvironment` and `#[DefineEnvironment]` callbacks run between provider registration and provider booting.
@@ -406,6 +406,8 @@ protected function overrideApplicationProviders(Application $app): array
     ];
 }
 ```
+
+Application aliases may be removed or replaced in the same way by overriding `overrideApplicationAliases`.
 
 You may also override application container bindings before the application is bootstrapped:
 
@@ -891,6 +893,8 @@ class CourierRouteTest extends TestCase
     }
 }
 ```
+
+Testbench defines an `api` rate limiter that allows 60 requests per minute for each user or IP address, so routes using the `throttle:api` middleware work without additional setup. If your test defines its own `api` limiter in `defineEnvironment`, Testbench keeps it. Your package's service providers may also replace the limiter in their `boot` method, or you may override the `resolveApplicationRateLimiting` method on your test case.
 
 <a name="cached-routes"></a>
 ### Cached Routes

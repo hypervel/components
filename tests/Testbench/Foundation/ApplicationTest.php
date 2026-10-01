@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Foundation;
 
+use Hypervel\Auth\AuthenticationException;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernelContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Http\Kernel as HttpKernelContract;
@@ -11,7 +12,9 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Foundation\Http\Kernel as HttpKernel;
+use Hypervel\Http\Request;
 use Hypervel\Testbench\Foundation\Application as TestbenchApplication;
+use Hypervel\Testbench\Foundation\Bootstrap\LoadMigrationsFromArray;
 use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\PHPUnit\TestCase;
@@ -26,6 +29,7 @@ use Symfony\Component\Process\Process;
 use Throwable;
 
 use function Hypervel\Support\php_binary;
+use function Hypervel\Testbench\default_migration_path;
 use function Hypervel\Testbench\default_skeleton_path;
 use function Hypervel\Testbench\package_path;
 
@@ -112,6 +116,105 @@ class ApplicationTest extends TestCase
     }
 
     #[Test]
+    public function itRunsTheResolvingCallbackBeforeTheApplicationBoots(): void
+    {
+        $bootingCallbackRan = false;
+
+        $app = TestbenchApplication::create(
+            (string) default_skeleton_path(),
+            static function (ApplicationContract $app) use (&$bootingCallbackRan): void {
+                $app->booting(static function () use (&$bootingCallbackRan): void {
+                    $bootingCallbackRan = true;
+                });
+            },
+        );
+
+        try {
+            $this->assertTrue($bootingCallbackRan);
+        } finally {
+            try {
+                $app->terminate();
+            } finally {
+                $app->flush();
+            }
+        }
+    }
+
+    /**
+     * @param array<int, string> $environment
+     */
+    #[Test]
+    #[DataProvider('defaultMigrationEnvironments')]
+    public function itReadsTheDefaultMigrationsSettingFromEnvironmentLoadedAfterTheResolvingCallback(
+        array $environment,
+        bool $includesDefaultMigrations,
+    ): void {
+        $app = TestbenchApplication::create(
+            (string) default_skeleton_path(),
+            static function (ApplicationContract $app): void {
+                (new LoadMigrationsFromArray([]))->bootstrap($app);
+            },
+            ['extra' => ['env' => $environment]],
+        );
+
+        try {
+            $this->assertSame(
+                $includesDefaultMigrations,
+                in_array(default_migration_path(), $app->make('migrator')->paths(), true),
+            );
+        } finally {
+            Env::forget('TESTBENCH_WITHOUT_DEFAULT_MIGRATIONS');
+
+            try {
+                $app->terminate();
+            } finally {
+                $app->flush();
+            }
+        }
+    }
+
+    /**
+     * Get environment values and whether default migrations load with them.
+     *
+     * @return iterable<string, array{array<int, string>, bool}>
+     */
+    public static function defaultMigrationEnvironments(): iterable
+    {
+        yield 'default migrations' => [[], true];
+        yield 'without default migrations' => [['TESTBENCH_WITHOUT_DEFAULT_MIGRATIONS=(true)'], false];
+    }
+
+    /**
+     * @param array<string, bool> $options
+     * @param array<int, string> $expected
+     */
+    #[Test]
+    #[DataProvider('packageDiscoveryOptions')]
+    public function itAppliesThePackageDiscoveryOption(array $options, array $expected): void
+    {
+        $testbench = TestbenchApplication::make(options: [
+            ...$options,
+            'extra' => ['dont-discover' => ['vendor/package']],
+        ]);
+
+        $this->assertSame($expected, $testbench->ignorePackageDiscoveriesFrom());
+    }
+
+    /**
+     * Get package discovery options and the packages they ignore.
+     *
+     * @return array<string, array{array<string, bool>, array<int, string>}>
+     */
+    public static function packageDiscoveryOptions(): array
+    {
+        return [
+            'not set' => [[], ['vendor/package']],
+            'enabled' => [['enables_package_discoveries' => true], []],
+            'disabled' => [['enables_package_discoveries' => false], ['*']],
+        ];
+    }
+
+    #[Test]
     public function itScopesBootstrapFileSelectionToEachApplicationObject(): void
     {
         $fixturesPath = dirname(__DIR__) . '/Fixtures';
@@ -155,6 +258,26 @@ class ApplicationTest extends TestCase
             $this->assertSame(ConsoleKernel::class, get_class($app->make(ConsoleKernelContract::class)));
             $this->assertSame(0, $app->frameworkBootstrapCount);
             $this->assertTrue($app->hasBeenBootstrapped());
+        } finally {
+            try {
+                $app->terminate();
+            } finally {
+                $app->flush();
+            }
+        }
+    }
+
+    #[Test]
+    public function itPreservesTheCustomApplicationMiddlewareConfiguration(): void
+    {
+        $app = TestbenchApplication::create($this->customApplicationPath);
+
+        try {
+            $kernel = $app->make(HttpKernelContract::class);
+
+            $this->assertArrayHasKey('fixture-alias', $kernel->getMiddlewareAliases());
+            $this->assertContains('fixture-alias', $kernel->getMiddlewareGroups()['web']);
+            $this->assertSame('/fixture-login', (new AuthenticationException)->redirectTo(Request::create('/')));
         } finally {
             try {
                 $app->terminate();

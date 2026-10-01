@@ -20,7 +20,7 @@ class TestbenchServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(ConfigContract::class, static fn (): ConfigContract => Workbench::configuration());
+        $this->app->singletonIf(ConfigContract::class, static fn (): ConfigContract => Workbench::configuration());
 
         AboutCommand::add('Testbench', fn (): array => array_filter([
             'Skeleton Path' => AboutCommand::format(

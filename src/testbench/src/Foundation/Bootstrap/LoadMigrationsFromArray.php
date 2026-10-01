@@ -9,13 +9,14 @@ use Hypervel\Contracts\Console\Kernel as ConsoleKernel;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Events\DatabaseRefreshed;
+use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Env;
 use InvalidArgumentException;
 use RuntimeException;
 
+use function Hypervel\Testbench\after_resolving;
 use function Hypervel\Testbench\default_migration_path;
-use function Hypervel\Testbench\load_migration_paths;
 use function Hypervel\Testbench\transform_relative_path;
 use function Hypervel\Testbench\workbench;
 
@@ -86,18 +87,21 @@ final class LoadMigrationsFromArray
      */
     private function bootstrapMigrations(Application $app): void
     {
-        $paths = Collection::wrap(
-            ! is_bool($this->migrations) ? $this->migrations : []
-        )->when(
-            $this->includesDefaultMigrations($app),
-            static fn (Collection $migrations): Collection => $migrations->push(default_migration_path()),
-        )->filter(static fn (mixed $migration): bool => is_string($migration))
-            ->transform(static fn (string $migration): ?string => transform_relative_path($migration, $app->basePath()))
-            ->filter(static fn (?string $migration): bool => $migration !== null)
-            ->values()
-            ->all();
-
-        load_migration_paths($app, $paths);
+        // Commander runs this before .env and Testbench env values load, and either may
+        // set TESTBENCH_WITHOUT_DEFAULT_MIGRATIONS, so decide when the migrator resolves.
+        after_resolving($app, 'migrator', function (Migrator $migrator) use ($app): void {
+            Collection::wrap(
+                ! is_bool($this->migrations) ? $this->migrations : []
+            )->when(
+                $this->includesDefaultMigrations($app),
+                static fn (Collection $migrations): Collection => $migrations->push(default_migration_path()),
+            )->filter(static fn (mixed $migration): bool => is_string($migration))
+                ->transform(static fn (string $migration): ?string => transform_relative_path($migration, $app->basePath()))
+                ->filter(static fn (?string $migration): bool => $migration !== null)
+                ->each(static function (string $path) use ($migrator): void {
+                    $migrator->path($path);
+                });
+        });
     }
 
     /**

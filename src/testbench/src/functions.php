@@ -68,7 +68,8 @@ function after_resolving(ApplicationContract $app, string $name, ?Closure $callb
  *     dont-discover?: array<int, string>,
  *     bootstrappers?: null|array<int, class-string>|class-string
  *   },
- *   load_environment_variables?: bool
+ *   load_environment_variables?: bool,
+ *   enables_package_discoveries?: bool
  * } $options
  */
 function container(

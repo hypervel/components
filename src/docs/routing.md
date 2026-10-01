@@ -932,7 +932,7 @@ use Hypervel\Support\Facades\RateLimiter;
 public function boot(): void
 {
     RateLimiter::for('api', function (Request $request) {
-        return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
+        return Limit::perMinute(60)->by($request->user()?->getAuthIdentifier() ?? $request->ip());
     });
 }
 ```
@@ -983,7 +983,7 @@ The optional third argument to `RateLimiter::for` selects a configured store for
 
 ```php
 RateLimiter::for('api', function (Request $request) {
-    return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
+    return Limit::perMinute(60)->by($request->user()?->getAuthIdentifier() ?? $request->ip());
 }, store: 'redis');
 ```
 
@@ -1007,7 +1007,7 @@ To illustrate this feature using another example, we can limit access to the rou
 ```php
 RateLimiter::for('uploads', function (Request $request) {
     return $request->user()
-        ? Limit::perMinute(100)->by($request->user()->id)
+        ? Limit::perMinute(100)->by($request->user()->getAuthIdentifier())
         : Limit::perMinute(10)->by($request->ip());
 });
 ```
@@ -1031,8 +1031,8 @@ Hypervel includes each rate limit's type and algorithm settings in its stored ke
 ```php
 RateLimiter::for('uploads', function (Request $request) {
     return [
-        Limit::perMinute(10)->by($request->user()->id),
-        Limit::perDay(1000)->by($request->user()->id),
+        Limit::perMinute(10)->by($request->user()->getAuthIdentifier()),
+        Limit::perDay(1000)->by($request->user()->getAuthIdentifier()),
     ];
 });
 ```
@@ -1056,7 +1056,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 RateLimiter::for('resource-not-found', function (Request $request) {
     return Limit::perMinute(10)
-        ->by($request->user()?->id ?: $request->ip())
+        ->by($request->user()?->getAuthIdentifier() ?? $request->ip())
         ->after(function (Response $response) {
             // Only count 404 responses toward the rate limit to prevent enumeration...
             return $response->getStatusCode() === 404;

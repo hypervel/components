@@ -17,12 +17,18 @@ use Hypervel\Foundation\Bootstrap\HandleExceptions as FoundationHandleExceptions
 use Hypervel\Foundation\Bootstrap\LoadConfiguration as FoundationLoadConfiguration;
 use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
+use Hypervel\Foundation\Configuration\ApplicationBuilder;
+use Hypervel\Foundation\Configuration\Middleware;
 use Hypervel\Foundation\Support\Providers\RouteServiceProvider;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithParallelDatabase;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Foundation\Testing\TestCase as FoundationTestCase;
+use Hypervel\Http\Request;
+use Hypervel\RateLimiter\Limit;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\Facade;
+use Hypervel\Support\Facades\RateLimiter;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Attributes\RequiresEnv;
 use Hypervel\Testbench\Attributes\RequiresHypervel;
@@ -162,6 +168,30 @@ trait CreatesApplication
     }
 
     /**
+     * Get application aliases.
+     *
+     * @api
+     *
+     * @return array<string, class-string>
+     */
+    protected function getApplicationAliases(ApplicationContract $app): array
+    {
+        return $app->make('config')->array('app.aliases');
+    }
+
+    /**
+     * Override application aliases.
+     *
+     * @api
+     *
+     * @return array<string, class-string|false>
+     */
+    protected function overrideApplicationAliases(ApplicationContract $app): array
+    {
+        return [];
+    }
+
+    /**
      * Get package aliases.
      *
      * @api
@@ -227,6 +257,9 @@ trait CreatesApplication
         }
 
         try {
+            $this->resolveApplicationFacades($app);
+            $this->resolveApplicationResolvingCallback($app);
+
             if ($this instanceof FoundationTestCase) {
                 $this->prepareApplicationForCachedState($app);
             }
@@ -258,6 +291,21 @@ trait CreatesApplication
     }
 
     /**
+     * Create the default application implementation.
+     *
+     * @internal
+     */
+    protected function resolveDefaultApplication(): Application
+    {
+        return (new ApplicationBuilder(new Application($this->getApplicationBasePath())))
+            ->withProviders()
+            ->withMiddleware(static function (Middleware $middleware): void {
+            })
+            ->withCommands()
+            ->create();
+    }
+
+    /**
      * Resolve the application instance.
      *
      * @api
@@ -276,9 +324,31 @@ trait CreatesApplication
             return $app;
         }
 
-        $app = new Application($this->getApplicationBasePath());
+        return $this->resolveDefaultApplication();
+    }
 
-        return $app;
+    /**
+     * Resolve application resolving callback.
+     */
+    protected function resolveApplicationResolvingCallback(ApplicationContract $app): void
+    {
+        $app->bind(
+            FoundationLoadConfiguration::class,
+            static::usesTestingConcern() && ! static::usesTestingConcern(WithWorkbench::class)
+                ? TestbenchLoadConfiguration::class
+                : LoadConfigurationWithWorkbench::class
+        );
+
+        PackageManifest::swap($app, $this);
+    }
+
+    /**
+     * Resolve application facades implementation.
+     */
+    protected function resolveApplicationFacades(ApplicationContract $app): void
+    {
+        Facade::clearResolvedInstances();
+        Facade::setFacadeApplication($app);
     }
 
     /**
@@ -428,9 +498,13 @@ trait CreatesApplication
      */
     protected function resolveApplicationHttpMiddlewares(ApplicationContract $app): void
     {
+        // Applications loaded from a bootstrap file own their middleware configuration.
+        if (is_string($this->applicationBootstrapFile)) {
+            return;
+        }
+
         $app->afterResolving(HttpKernelContract::class, function ($kernel): void {
-            $middleware = (new \Hypervel\Foundation\Configuration\Middleware)
-                ->redirectGuestsTo(fn () => route('login'));
+            $middleware = new Middleware;
 
             $kernel->setGlobalMiddleware($middleware->getGlobalMiddleware());
             $kernel->setMiddlewareGroups($middleware->getMiddlewareGroups());
@@ -477,12 +551,6 @@ trait CreatesApplication
      */
     protected function resolveApplicationConfiguration(ApplicationContract $app): void
     {
-        $loadConfiguration = static::usesTestingConcern() && ! static::usesTestingConcern(WithWorkbench::class)
-            ? TestbenchLoadConfiguration::class
-            : LoadConfigurationWithWorkbench::class;
-
-        $app->bind(FoundationLoadConfiguration::class, $loadConfiguration);
-
         TestingFeature::run(
             testCase: $this,
             attribute: function () use ($app) {
@@ -508,8 +576,10 @@ trait CreatesApplication
             TestbenchRegisterProviders::merge([], $bootstrapProviderPath);
         }
 
-        $this->resolveApplicationProviders($app);
-        $this->registerPackageAliases($app);
+        $app->make('config')->set([
+            'app.aliases' => $this->resolveApplicationAliases($app),
+            'app.providers' => $this->resolveApplicationProviders($app),
+        ]);
 
         TestingFeature::run(
             testCase: $this,
@@ -518,14 +588,40 @@ trait CreatesApplication
     }
 
     /**
+     * Resolve application aliases.
+     *
+     * @internal
+     *
+     * @return array<string, class-string>
+     */
+    protected function resolveApplicationAliases(ApplicationContract $app): array
+    {
+        $aliases = (new Collection(
+            $this->getApplicationAliases($app)
+        ))->merge($this->getPackageAliases($app));
+
+        if (! empty($overrides = $this->overrideApplicationAliases($app))) {
+            $aliases->transform(static function (string $alias, string $name) use ($overrides): ?string {
+                return with($overrides[$name] ?? $alias, static function (string|false $alias): ?string {
+                    return $alias !== false ? $alias : null;
+                });
+            });
+        }
+
+        return $aliases->filter()->all();
+    }
+
+    /**
      * Resolve the final application provider list.
      *
      * Merges package providers, then applies overrides (replacements/removals)
-     * before writing the final list to config for RegisterProviders to use.
+     * to produce the list RegisterProviders uses.
      *
      * @internal
+     *
+     * @return array<int, class-string>
      */
-    protected function resolveApplicationProviders(ApplicationContract $app): void
+    protected function resolveApplicationProviders(ApplicationContract $app): array
     {
         $providers = (new Collection(TestbenchRegisterProviders::mergeAdditionalProvidersForTestbench(
             $this->getApplicationProviders($app)
@@ -547,7 +643,7 @@ trait CreatesApplication
             })->filter()->values();
         }
 
-        $app->make('config')->set('app.providers', $providers->all());
+        return $providers->all();
     }
 
     /**
@@ -565,10 +661,6 @@ trait CreatesApplication
                 : FoundationHandleExceptions::class
         )->bootstrap($app);
 
-        // Must be swapped BEFORE RegisterFacades and RegisterProviders, which both
-        // read from the package manifest during bootstrap.
-        PackageManifest::swap($app, $this);
-
         $app->make(RegisterFacades::class)->bootstrap($app);
         $app->make(TestbenchRegisterProviders::class)->bootstrap($app);
         $app->make(GenerateProxies::class)->bootstrap($app);
@@ -580,6 +672,8 @@ trait CreatesApplication
             default: fn () => $this->defineEnvironment($app),
             attribute: fn () => $this->parseTestMethodAttributes($app, DefineEnvironment::class), /* @phpstan-ignore method.notFound */
         );
+
+        $this->resolveApplicationRateLimiting($app);
 
         if (static::usesTestingConcern(WithWorkbench::class)) {
             $this->bootDiscoverRoutesForWorkbench($app); /* @phpstan-ignore method.notFound */
@@ -632,19 +726,21 @@ trait CreatesApplication
     }
 
     /**
-     * Register package aliases into config.
+     * Resolve application rate limiting configuration.
+     *
+     * @api
      */
-    protected function registerPackageAliases(ApplicationContract $app): void
+    protected function resolveApplicationRateLimiting(ApplicationContract $app): void
     {
-        $aliases = $this->getPackageAliases($app);
-
-        if (empty($aliases)) {
-            return;
+        // Upstream defers this until the cache store resolves. Hypervel's rate limiter
+        // does not use the cache store, so deferring would leave the limiter undefined.
+        // Keep an api limiter the test has already defined in defineEnvironment().
+        if (RateLimiter::limiter('api') === null) {
+            RateLimiter::for(
+                'api',
+                static fn (Request $request): Limit => Limit::perMinute(60)->by($request->user()?->getAuthIdentifier() ?? $request->ip())
+            );
         }
-
-        $config = $app->make('config');
-        $existing = $config->array('app.aliases');
-        $config->set('app.aliases', array_merge($existing, $aliases));
     }
 
     /**

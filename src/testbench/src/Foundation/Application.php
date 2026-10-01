@@ -21,13 +21,15 @@ use Throwable;
  *
  * @phpstan-type TConfig array{
  *   extra?: TOptionalExtraConfig,
- *   load_environment_variables?: bool
+ *   load_environment_variables?: bool,
+ *   enables_package_discoveries?: bool
  * }
  */
 class Application
 {
     use CreatesApplication {
         createApplication as protected createApplicationFromTrait;
+        resolveApplicationResolvingCallback as protected resolveApplicationResolvingCallbackFromTrait;
         resolveApplicationConfiguration as protected resolveApplicationConfigurationFromTrait;
         resolveApplicationConsoleKernel as protected resolveApplicationConsoleKernelFromTrait;
         resolveApplicationHttpKernel as protected resolveApplicationHttpKernelFromTrait;
@@ -180,6 +182,10 @@ class Application
             $this->loadEnvironmentVariables = $options['load_environment_variables'];
         }
 
+        if (isset($options['enables_package_discoveries']) && \is_bool($options['enables_package_discoveries'])) {
+            Arr::set($options, 'extra.dont-discover', $options['enables_package_discoveries'] ? [] : ['*']);
+        }
+
         $config = Arr::only($options['extra'] ?? [], array_keys($this->config));
 
         /** @var array{
@@ -220,29 +226,12 @@ class Application
     public function createApplication(): ApplicationContract
     {
         $restoreEnvironment = $this->maskInheritedStandaloneEnvironment();
-        $originalTimezone = date_default_timezone_get();
 
         try {
-            $app = $this->createApplicationFromTrait();
+            return $this->createApplicationFromTrait();
         } finally {
             $restoreEnvironment();
         }
-
-        $this->app = $app;
-
-        try {
-            if (\is_callable($this->resolvingCallback)) {
-                \call_user_func($this->resolvingCallback, $app);
-            }
-        } catch (Throwable $exception) {
-            static::terminateAndFlushApplication($app);
-            date_default_timezone_set($originalTimezone);
-            $this->app = null;
-
-            throw $exception;
-        }
-
-        return $app;
     }
 
     /**
@@ -343,6 +332,20 @@ class Application
         }
 
         return Arr::wrap($bootstrappers);
+    }
+
+    /**
+     * Resolve application resolving callback.
+     *
+     * @internal
+     */
+    protected function resolveApplicationResolvingCallback(ApplicationContract $app): void
+    {
+        $this->resolveApplicationResolvingCallbackFromTrait($app);
+
+        if (\is_callable($this->resolvingCallback)) {
+            \call_user_func($this->resolvingCallback, $app);
+        }
     }
 
     /**

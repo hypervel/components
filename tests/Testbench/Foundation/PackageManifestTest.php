@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Testbench\Foundation;
 
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\PackageManifest as FoundationPackageManifest;
+use Hypervel\Testbench\Attributes\WithEnv;
 use Hypervel\Testbench\Foundation\PackageManifest;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Testbench\TestCase;
@@ -289,5 +290,19 @@ class PackageManifestTest extends TestCase
 
         $this->assertInstanceOf(PackageManifest::class, $manifest);
         $this->assertSame($manifest, $this->app->make(PackageManifest::class));
+    }
+
+    #[Test]
+    #[WithEnv('APP_PACKAGES_CACHE', 'bootstrap/cache/testbench-custom-packages.php')]
+    public function itUsesThePackageCachePathFromTheTestEnvironment(): void
+    {
+        $path = $this->app->basePath('bootstrap/cache/testbench-custom-packages.php');
+
+        // Registered after TestCase's manifest cache restore, which treats this file
+        // as pre-existing because the application generated it while booting.
+        $this->beforeApplicationDestroyed(fn (): bool => $this->filesystem->delete($path));
+
+        $this->assertSame($path, $this->app->make(FoundationPackageManifest::class)->manifestPath);
+        $this->assertFileExists($path);
     }
 }

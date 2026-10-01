@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Workbench;
 
+use Hypervel\Auth\AuthServiceProvider;
 use Hypervel\Console\Application as Artisan;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Auth\Authenticatable as AuthenticatableContract;
@@ -98,15 +99,11 @@ class Workbench
      */
     public static function startWithProviders(ApplicationContract $app, ConfigContract $config): void
     {
-        $providers = $config->getExtraAttributes()['providers'];
+        $hasAuthentication = $config->getWorkbenchAttributes()['auth'];
 
-        if ($config->getWorkbenchAttributes()['auth'] === true
-            && class_exists(\Hypervel\Auth\AuthServiceProvider::class)
-            && ! in_array(\Hypervel\Auth\AuthServiceProvider::class, $providers, true)) {
-            $providers[] = \Hypervel\Auth\AuthServiceProvider::class;
-        }
-
-        static::start($app, $config, $providers);
+        static::start($app, $config, array_filter([
+            $hasAuthentication === true ? AuthServiceProvider::class : null,
+        ]));
     }
 
     /**

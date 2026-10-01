@@ -79,6 +79,8 @@ trait InteractsWithSqliteDatabaseFile
 
     /**
      * Temporarily point the sqlite connection at the active runtime database file.
+     *
+     * @param callable():void $callback
      */
     protected function useActiveSqliteDatabasePath(callable $callback): void
     {
@@ -87,7 +89,7 @@ trait InteractsWithSqliteDatabaseFile
         $activeDatabase = $this->activeSqliteDatabasePath();
 
         if ($originalDatabase === $activeDatabase) {
-            value($callback);
+            $callback();
 
             return;
         }
@@ -97,7 +99,7 @@ trait InteractsWithSqliteDatabaseFile
 
         try {
             $this->purgeSqliteConnection();
-            value($callback);
+            $callback();
         } catch (Throwable $throwable) {
             $failure = $throwable;
         }
@@ -162,7 +164,7 @@ trait InteractsWithSqliteDatabaseFile
                 $backups[$database] = $backup;
             }
 
-            value($callback);
+            $callback();
         } catch (Throwable $throwable) {
             $failure = $throwable;
         } finally {
