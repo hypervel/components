@@ -7,11 +7,15 @@ namespace Hypervel\Tests\Testbench;
 use Hypervel\Foundation\Application;
 use Hypervel\Testbench\Exceptions\ApplicationNotAvailableException;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Runner\Version;
+use Symfony\Component\Process\Process;
 
+use function Hypervel\Support\php_binary;
 use function Hypervel\Testbench\hypervel_or_fail;
 use function Hypervel\Testbench\hypervel_version_compare;
+use function Hypervel\Testbench\package_path;
 use function Hypervel\Testbench\phpunit_version_compare;
 
 class HelpersTest extends TestCase
@@ -48,5 +52,36 @@ class HelpersTest extends TestCase
         $this->expectExceptionMessage(sprintf('Application is not available to run [%s]', __METHOD__));
 
         hypervel_or_fail(null);
+    }
+
+    #[Test]
+    #[DataProvider('terminationStatuses')]
+    public function itCanTerminateWithStatus(string|int $status, int $exitCode, string $output): void
+    {
+        $process = new Process([
+            php_binary(),
+            '-r',
+            sprintf(
+                'require %s; Hypervel\Testbench\terminate(null, %s);',
+                var_export(package_path('vendor', 'autoload.php'), true),
+                var_export($status, true),
+            ),
+        ]);
+
+        $process->run();
+
+        $this->assertSame($exitCode, $process->getExitCode());
+        $this->assertSame($output, $process->getOutput());
+    }
+
+    /**
+     * Get termination statuses with their expected exit codes and output.
+     *
+     * @return iterable<string, array{int|string, int, string}>
+     */
+    public static function terminationStatuses(): iterable
+    {
+        yield 'integer' => [3, 3, ''];
+        yield 'string' => ['Stopped', 0, 'Stopped'];
     }
 }

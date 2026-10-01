@@ -87,9 +87,9 @@ function artisan(TestCaseContract|ApplicationContract $context, string $command,
  * Resets PHPUnit's shutdown handler message to prevent
  * "PHPUnit did not exit cleanly" warnings on process exit.
  */
-function bail(?object $testCase, int $status = 0): never
+function bail(?object $testCase, string|int $status = 0): never
 {
-    if ($testCase instanceof PHPUnitTestCase && phpunit_version_compare('12.3.5', '>=')) {
+    if ($testCase instanceof PHPUnitTestCase) {
         ShutdownHandler::resetMessage();
     }
 
@@ -99,7 +99,7 @@ function bail(?object $testCase, int $status = 0): never
 /**
  * Exit cleanly from a test process.
  */
-function terminate(?object $testCase, int $status = 0): never
+function terminate(?object $testCase, string|int $status = 0): never
 {
     bail($testCase, $status);
 }
