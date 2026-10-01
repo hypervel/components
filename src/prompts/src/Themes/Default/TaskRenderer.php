@@ -23,6 +23,7 @@ class TaskRenderer extends Renderer
 
         $stableMessages = array_slice($task->stableMessages, -$task->maxStableMessages);
 
+        // Static tasks also collect stable messages, so a kept summary takes precedence over the static frame.
         if ($task->finished && $task->keepSummary && count($stableMessages) > 0) {
             $this->line(" {$this->cyan('•')} {$this->truncate($task->label, $labelMaxWidth)}");
 
