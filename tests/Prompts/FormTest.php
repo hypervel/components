@@ -16,7 +16,7 @@ use function Hypervel\Prompts\text;
 
 class FormTest extends TestCase
 {
-    public function testCanRunMultipleSteps()
+    public function testCanRunMultipleSteps(): void
     {
         Prompt::fake([
             'L',
@@ -34,14 +34,14 @@ class FormTest extends TestCase
             ->confirm('Are you sure?')
             ->submit();
 
-        $this->assertEquals([
+        $this->assertSame([
             'Luke',
             'PHP',
             true,
         ], $responses);
     }
 
-    public function testCanRevertSteps()
+    public function testCanRevertSteps(): void
     {
         Prompt::fake([
             'L',
@@ -69,7 +69,7 @@ class FormTest extends TestCase
             ->confirm('Are you sure?')
             ->submit();
 
-        $this->assertEquals([
+        $this->assertSame([
             'Jess',
             'JS',
             true,
@@ -191,16 +191,16 @@ class FormTest extends TestCase
         Prompt::assertOutputContains('This cannot be reverted.');
     }
 
-    public function testDoesNotAllowRevertingTheFirstStep()
+    public function testDoesNotAllowRevertingTheFirstStep(): void
     {
         Prompt::fake([Key::CTRL_U, Key::ENTER]);
 
         $responses = form()->confirm('Are you sure?')->submit();
 
-        $this->assertEquals([true], $responses);
+        $this->assertSame([true], $responses);
     }
 
-    public function testSkipStepsOverStepsThatHaveNoUserInputWhenReverting()
+    public function testSkipStepsOverStepsThatHaveNoUserInputWhenReverting(): void
     {
         Prompt::fake([
             '3',
@@ -218,10 +218,10 @@ class FormTest extends TestCase
             ->confirm('Are you sure?')
             ->submit();
 
-        $this->assertEquals(['30', null, null, true], $responses);
+        $this->assertSame(['30', null, null, true], $responses);
     }
 
-    public function testWillNotSkipOverTheFirstStepWhenReverting()
+    public function testWillNotSkipOverTheFirstStepWhenReverting(): void
     {
         Prompt::fake([
             Key::CTRL_U,
@@ -233,10 +233,10 @@ class FormTest extends TestCase
             ->confirm('Are you sure?')
             ->submit();
 
-        $this->assertEquals([null, true], $responses);
+        $this->assertSame([null, true], $responses);
     }
 
-    public function testPrefillsExistingResponsesWhenReverting()
+    public function testPrefillsExistingResponsesWhenReverting(): void
     {
         Prompt::fake([
             'J',
@@ -254,7 +254,7 @@ class FormTest extends TestCase
             ->confirm('Are you sure?')
             ->submit();
 
-        $this->assertEquals('Jess', $responses[0]);
+        $this->assertSame('Jess', $responses[0]);
     }
 
     public function testStopStepsAtTheMomentOfReverting()
@@ -282,7 +282,7 @@ class FormTest extends TestCase
         Prompt::assertOutputDoesntContain('This should not appear!');
     }
 
-    public function testCanRevertStepsWithConditions()
+    public function testCanRevertStepsWithConditions(): void
     {
         Prompt::fake([
             'L',
@@ -309,7 +309,7 @@ class FormTest extends TestCase
             ->confirm('Are you sure?')
             ->submit();
 
-        $this->assertEquals([
+        $this->assertSame([
             'Luke',
             'PHP',
             '8.3',
@@ -317,7 +317,7 @@ class FormTest extends TestCase
         ], $responses);
     }
 
-    public function testLeavesSkippedConditionalFieldEmpty()
+    public function testLeavesSkippedConditionalFieldEmpty(): void
     {
         Prompt::fake([
             'L',
@@ -337,7 +337,7 @@ class FormTest extends TestCase
             ->confirm('Are you sure?')
             ->submit();
 
-        $this->assertEquals([
+        $this->assertSame([
             'Luke',
             'JS',
             null,

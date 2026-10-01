@@ -13,7 +13,7 @@ use function Hypervel\Prompts\multisearch;
 
 class MultiSearchPromptTest extends TestCase
 {
-    public function testSupportsDefaultResults()
+    public function testSupportsDefaultResults(): void
     {
         $promptFake = function () {
             Prompt::fake([
@@ -53,7 +53,7 @@ class MultiSearchPromptTest extends TestCase
             },
         );
 
-        $assertPrompt = function () {
+        $assertPrompt = function (): void {
             Prompt::assertStrippedOutputContains(<<<'OUTPUT'
          ┌ What are your favorite colors? ──────────────────────────────┐
          │ Search...                                                    │
@@ -124,6 +124,13 @@ class MultiSearchPromptTest extends TestCase
          │   ◼ Green                                                  │ │
          │   ◻ Blue                                                   │ │
          └────────────────────────────────────────────────── 2 selected ┘
+        OUTPUT);
+
+            Prompt::assertStrippedOutputContains(<<<'OUTPUT'
+         ┌ What are your favorite colors? ──────────────────────────────┐
+         │ Violet                                                       │
+         │ Green                                                        │
+         └──────────────────────────────────────────────────────────────┘
         OUTPUT);
         };
 
