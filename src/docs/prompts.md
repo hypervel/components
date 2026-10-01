@@ -641,7 +641,7 @@ $name = suggest(
     label: 'What is your name?',
     options: fn ($value) => collect(['Taylor', 'Dayle'])
         ->filter(fn ($name) => Str::contains($name, $value, ignoreCase: true))
-)
+);
 ```
 
 You may also include placeholder text, a default value, and an informational hint:
@@ -659,13 +659,13 @@ $name = suggest(
 <a name="suggest-info"></a>
 #### Secondary Information
 
-The `info` argument may be used to display additional information about the currently highlighted option. When a closure is provided, it will receive the value of the currently highlighted option and should return a string or `null`:
+The `info` argument may be used to display additional information about the currently highlighted option. When a closure is provided, it will receive the value of the currently highlighted option, or `null` while no option is highlighted, and should return a string or `null`:
 
 ```php
 $name = suggest(
     label: 'What is your name?',
     options: ['Taylor', 'Dayle'],
-    info: fn (string $value) => match ($value) {
+    info: fn (?string $value) => match ($value) {
         'Taylor' => 'Administrator',
         'Dayle' => 'Contributor',
         default => null,
@@ -785,7 +785,7 @@ $id = search(
 <a name="search-info"></a>
 #### Secondary Information
 
-The `info` argument may be used to display additional information about the currently highlighted option. When a closure is provided, it will receive the value of the currently highlighted option and should return a string or `null`:
+The `info` argument may be used to display additional information about the currently highlighted option. When a closure is provided, it will receive the value of the currently highlighted option, or `null` while no option is highlighted, and should return a string or `null`:
 
 ```php
 $id = search(
@@ -793,7 +793,7 @@ $id = search(
     options: fn (string $value) => strlen($value) > 0
         ? User::whereLike('name', "%{$value}%")->pluck('name', 'id')->all()
         : [],
-    info: fn (int $userId) => User::find($userId)?->email
+    info: fn (?int $userId) => $userId === null ? null : User::find($userId)?->email
 );
 ```
 
@@ -880,7 +880,7 @@ $ids = multisearch(
 <a name="multisearch-info"></a>
 #### Secondary Information
 
-The `info` argument may be used to display additional information about the currently highlighted option. When a closure is provided, it will receive the value of the currently highlighted option and should return a string or `null`:
+The `info` argument may be used to display additional information about the currently highlighted option. When a closure is provided, it will receive the value of the currently highlighted option, or `null` while no option is highlighted, and should return a string or `null`:
 
 ```php
 $ids = multisearch(
@@ -888,7 +888,7 @@ $ids = multisearch(
     options: fn (string $value) => strlen($value) > 0
         ? User::whereLike('name', "%{$value}%")->pluck('name', 'id')->all()
         : [],
-    info: fn (int $userId) => User::find($userId)?->email
+    info: fn (?int $userId) => $userId === null ? null : User::find($userId)?->email
 );
 ```
 

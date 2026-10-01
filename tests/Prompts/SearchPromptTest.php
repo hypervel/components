@@ -110,6 +110,22 @@ class SearchPromptTest extends TestCase
         $this->assertSame(3, $result);
     }
 
+    public function testRendersInfoForTheHighlightedOption(): void
+    {
+        Prompt::fake([Key::DOWN, Key::DOWN, Key::ENTER]);
+
+        $result = search(
+            label: 'What is your favorite color?',
+            options: fn (string $value): array => ['red' => 'Red', 'blue' => 'Blue'],
+            info: fn (int|string|null $value): string => $value === null ? 'Nothing highlighted' : "Key: {$value}",
+        );
+
+        $this->assertSame('blue', $result);
+        Prompt::assertStrippedOutputContains('Nothing highlighted');
+        Prompt::assertStrippedOutputContains('Key: red');
+        Prompt::assertStrippedOutputContains('Key: blue');
+    }
+
     public function testTransformsValues(): void
     {
         Prompt::fake(['u', 'e', Key::DOWN, Key::ENTER]);

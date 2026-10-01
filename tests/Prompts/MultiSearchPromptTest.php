@@ -300,6 +300,20 @@ class MultiSearchPromptTest extends TestCase
         $this->assertSame(['RED', 'GREEN', 'BLUE'], $result);
     }
 
+    public function testRendersInfoForTheHighlightedOptionWithTheSelectionCount(): void
+    {
+        Prompt::fake([Key::DOWN, Key::SPACE, Key::DOWN, Key::ENTER]);
+
+        multisearch(
+            label: 'What are your favorite colors?',
+            options: fn (): array => ['red' => 'Red', 'green' => 'Green'],
+            info: fn (int|string|null $value): string => $value === null ? '' : "Key: {$value}",
+        );
+
+        Prompt::assertStrippedOutputContains('Key: red · 1 selected');
+        Prompt::assertStrippedOutputContains('Key: green · 1 selected');
+    }
+
     public function testValidates()
     {
         Prompt::fake(['a', Key::DOWN, Key::SPACE, Key::ENTER, Key::DOWN, Key::SPACE, Key::ENTER]);
