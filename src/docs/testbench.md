@@ -1117,6 +1117,8 @@ The default skeleton is recreated for every command and deleted when the command
 
 The `reverse` option changes the direction of the symlink. When `reverse` is `false` or omitted, `from` is resolved from the package root and `to` is resolved from the runtime skeleton. When `reverse` is `true`, `from` is resolved from the runtime skeleton and `to` is resolved from the package root.
 
+An existing symlink at a `to` path is always replaced. An existing file or directory that isn't a symlink is only replaced inside the disposable runtime copy. Anywhere else, such as in your package or a custom skeleton, the command stops with an error naming the path, so you can move or remove it first.
+
 <a name="command-line"></a>
 ## Command Line
 
