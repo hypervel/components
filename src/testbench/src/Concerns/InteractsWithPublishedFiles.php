@@ -63,11 +63,15 @@ trait InteractsWithPublishedFiles
      */
     protected function cacheExistingMigrationsFiles(): void
     {
-        $this->cachedExistingMigrationsFiles ??= (new Collection(
-            $this->app->make('files')->files($this->app->databasePath('migrations'))
-        ))->map($this->publishedFilePath(...))
-            ->filter(static fn (string $file) => str_ends_with($file, '.php'))
-            ->all();
+        $filesystem = $this->app->make('files');
+        $migrationPath = $this->app->databasePath('migrations');
+
+        $this->cachedExistingMigrationsFiles ??= $filesystem->isDirectory($migrationPath)
+            ? (new Collection($filesystem->files($migrationPath)))
+                ->map($this->publishedFilePath(...))
+                ->filter(static fn (string $file) => str_ends_with($file, '.php'))
+                ->all()
+            : [];
     }
 
     /**
@@ -293,7 +297,13 @@ trait InteractsWithPublishedFiles
     protected function cleanUpPublishedMigrationFiles(): void
     {
         $filesystem = $this->app->make(Filesystem::class);
-        $files = (new Collection($filesystem->files($this->app->databasePath('migrations'))))
+        $migrationPath = $this->app->databasePath('migrations');
+
+        if (! $filesystem->isDirectory($migrationPath)) {
+            return;
+        }
+
+        $files = (new Collection($filesystem->files($migrationPath)))
             ->map($this->publishedFilePath(...))
             ->reject(fn (string $file) => in_array($file, $this->cachedExistingMigrationsFiles, true))
             ->filter(static fn (string $file) => str_ends_with($file, '.php'))
