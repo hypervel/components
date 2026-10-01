@@ -35,7 +35,7 @@
         "php": "^8.4",
         "ext-mbstring": "*",
         "composer-runtime-api": "^2.2",
-        "symfony/console": "^8.1",
+        "symfony/console": "^8.1.2",
         "symfony/process": "^8.1",
         "hypervel/collections": "^0.4",
         "hypervel/context": "^0.4",

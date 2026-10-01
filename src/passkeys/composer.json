@@ -44,7 +44,7 @@
         "hypervel/validation": "^0.4",
         "nesbot/carbon": "^3.13.1",
         "paragonie/constant_time_encoding": "^3.1",
-        "symfony/console": "^8.1",
+        "symfony/console": "^8.1.2",
         "symfony/http-foundation": "^8.1",
         "symfony/http-kernel": "^8.1",
         "symfony/serializer": "^8.1",

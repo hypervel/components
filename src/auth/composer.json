@@ -41,7 +41,7 @@
         "hypervel/session": "^0.4",
         "hypervel/support": "^0.4",
         "nesbot/carbon": "^3.13.1",
-        "symfony/console": "^8.1",
+        "symfony/console": "^8.1.2",
         "symfony/http-foundation": "^8.1",
         "symfony/http-kernel": "^8.1"
     },
