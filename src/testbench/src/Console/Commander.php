@@ -106,7 +106,10 @@ class Commander
             $hypervel = $this->hypervel();
             $kernel = $hypervel->make(ConsoleKernel::class);
 
-            $this->prepareCommandSignals();
+            // Serve runs Swoole's native server loop, which owns process signals and never dispatches these PCNTL handlers.
+            if (ConsoleApplication::resolveCommandName($input) !== 'serve') {
+                $this->prepareCommandSignals();
+            }
 
             $status = $kernel->handle($input, $output);
 
@@ -218,13 +221,15 @@ class Commander
 
     /**
      * Run every command cleanup phase.
+     *
+     * @param null|int $signal The signal that is terminating the command
      */
-    private function cleanUpCommand(): ?Throwable
+    private function cleanUpCommand(?int $signal = null): ?Throwable
     {
         $failure = null;
 
         try {
-            TerminatingConsole::handle();
+            TerminatingConsole::handle($signal);
         } catch (Throwable $throwable) {
             $failure = $throwable;
         }
@@ -373,7 +378,7 @@ class Commander
                     default => 128 + $signal,
                 };
 
-                if (($failure = $this->cleanUpCommand()) !== null) {
+                if (($failure = $this->cleanUpCommand($signal)) !== null) {
                     try {
                         $this->handleException(new ConsoleOutput, $failure);
                     } catch (Throwable) {
