@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Concerns;
 
 use Hypervel\Auth\AuthServiceProvider;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Support\Arr;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
@@ -54,7 +55,7 @@ trait InteractsWithWorkbench
      *
      * @return null|array<int, class-string>
      */
-    protected function getPackageBootstrappersUsingWorkbench(object $app): ?array
+    protected function getPackageBootstrappersUsingWorkbench(ApplicationContract $app): ?array
     {
         if (empty($bootstrappers = static::cachedConfigurationForWorkbench()?->getExtraAttributes()['bootstrappers'] ?? null)) {
             return null;
@@ -72,7 +73,7 @@ trait InteractsWithWorkbench
      *
      * @return null|array<int, class-string<ServiceProvider>>
      */
-    protected function getPackageProvidersUsingWorkbench(object $app): ?array
+    protected function getPackageProvidersUsingWorkbench(ApplicationContract $app): ?array
     {
         $config = static::cachedConfigurationForWorkbench();
 
@@ -99,7 +100,7 @@ trait InteractsWithWorkbench
      *
      * @internal
      */
-    protected function applicationConsoleKernelUsingWorkbench(object $app): string
+    protected function applicationConsoleKernelUsingWorkbench(ApplicationContract $app): string
     {
         if (static::usesTestingConcern(WithWorkbench::class)) {
             return Workbench::applicationConsoleKernel() ?? \Hypervel\Testbench\Console\Kernel::class;
@@ -113,7 +114,7 @@ trait InteractsWithWorkbench
      *
      * @internal
      */
-    protected function applicationHttpKernelUsingWorkbench(object $app): string
+    protected function applicationHttpKernelUsingWorkbench(ApplicationContract $app): string
     {
         if (static::usesTestingConcern(WithWorkbench::class)) {
             return Workbench::applicationHttpKernel() ?? \Hypervel\Testbench\Http\Kernel::class;
@@ -127,7 +128,7 @@ trait InteractsWithWorkbench
      *
      * @internal
      */
-    protected function applicationExceptionHandlerUsingWorkbench(object $app): string
+    protected function applicationExceptionHandlerUsingWorkbench(ApplicationContract $app): string
     {
         if (static::usesTestingConcern(WithWorkbench::class)) {
             return Workbench::applicationExceptionHandler() ?? \Hypervel\Testbench\Exceptions\Handler::class;
@@ -137,7 +138,7 @@ trait InteractsWithWorkbench
     }
 
     /**
-     * Define or get the cached uses for test case.
+     * Get the cached Workbench configuration.
      */
     public static function cachedConfigurationForWorkbench(): ?ConfigContract
     {

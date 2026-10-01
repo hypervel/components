@@ -29,6 +29,7 @@ use PHPUnit\Framework\TestCase as PHPUnitTestCase;
 use PHPUnit\Runner\ShutdownHandler;
 use PHPUnit\Runner\Version;
 use ReflectionClass;
+use UnexpectedValueException;
 
 use function Hypervel\Filesystem\join_paths as filesystem_join_paths;
 use function Hypervel\Support\php_binary as support_php_binary;
@@ -37,6 +38,13 @@ use function Hypervel\Support\php_binary as support_php_binary;
  * Register after resolving callback.
  *
  * Calls the callback when the given abstract is resolved, or immediately if already resolved.
+ *
+ * @api
+ *
+ * @template THypervel of ApplicationContract
+ *
+ * @param THypervel $app
+ * @param null|(Closure(object, THypervel): mixed) $callback
  */
 function after_resolving(ApplicationContract $app, string $name, ?Closure $callback = null): void
 {
@@ -49,6 +57,8 @@ function after_resolving(ApplicationContract $app, string $name, ?Closure $callb
 
 /**
  * Create Hypervel application instance.
+ *
+ * @api
  *
  * @param null|callable(ApplicationContract):void $resolvingCallback
  * @param array<string, mixed> $options
@@ -68,6 +78,10 @@ function container(
 
 /**
  * Run artisan command.
+ *
+ * @api
+ *
+ * @param array<string, mixed> $parameters
  */
 function artisan(TestCaseContract|ApplicationContract $context, string $command, array $parameters = []): int
 {
@@ -110,6 +124,8 @@ function terminate(?object $testCase, string|int $status = 0): never
  *
  * Route names set via fluent ->name() after RouteCollection::add() are not
  * indexed until refreshNameLookups() runs. This function triggers that refresh.
+ *
+ * @api
  */
 function refresh_router_lookups(Router $router): void
 {
@@ -120,6 +136,8 @@ function refresh_router_lookups(Router $router): void
  * Load migration paths.
  *
  * Registers the given paths with the migrator so they're included when running migrations.
+ *
+ * @api
  *
  * @param array<int, string>|string $paths
  */
@@ -137,6 +155,8 @@ function load_migration_paths(ApplicationContract $app, array|string $paths): vo
  *
  * Returns the path to the runtime copy of the workbench app used for testing.
  * This is set by Bootstrapper::bootstrap() via the BASE_PATH constant.
+ *
+ * @api
  *
  * @no-named-arguments
  *
@@ -172,6 +192,8 @@ function uses_default_skeleton(?string $basePath = null): bool
  *
  * Returns the path to framework test migrations in the testbench package.
  * These are separate from the workbench app's migrations (which use database_path()).
+ *
+ * @api
  *
  * @throws InvalidArgumentException
  */
@@ -260,6 +282,8 @@ function testbench_path(array|string $path = ''): string
 /**
  * Get the path to the package root folder.
  *
+ * @api
+ *
  * @no-named-arguments
  *
  * @param array<int, string>|string ...$path
@@ -299,6 +323,8 @@ function package_path(array|string $path = ''): string
  * variables must be strings. This prevents "Array to string conversion"
  * errors when tests pollute $_SERVER with array values.
  *
+ * @api
+ *
  * @return array<string, null|bool|float|int|string>
  */
 function defined_environment_variables(): array
@@ -316,6 +342,8 @@ function defined_environment_variables(): array
 
 /**
  * Get default environment variables.
+ *
+ * @api
  *
  * @param iterable<string, mixed> $variables
  * @return array<int, string>
@@ -355,6 +383,8 @@ function quote_environment_value(string $value): string
 
 /**
  * Determine if the Hypervel application's vendor directory already matches the working vendor path.
+ *
+ * @api
  */
 function hypervel_vendor_exists(ApplicationContract $app, ?string $workingPath = null): bool
 {
@@ -369,6 +399,8 @@ function hypervel_vendor_exists(ApplicationContract $app, ?string $workingPath =
 
 /**
  * Transform realpath to alias path.
+ *
+ * @api
  */
 function transform_realpath_to_relative(string $path, ?string $workingPath = null, string $prefix = ''): string
 {
@@ -414,6 +446,8 @@ function transform_relative_path(?string $path, string $workingPath): ?string
 /**
  * Get the workbench configuration.
  *
+ * @api
+ *
  * @return array<string, mixed>
  */
 function workbench(): array
@@ -428,6 +462,8 @@ function workbench(): array
 
 /**
  * Get the path to the workbench folder.
+ *
+ * @api
  *
  * @no-named-arguments
  *
@@ -498,7 +534,15 @@ function workbench_relative_path(array|string $path = ''): string
  * returns whether those ranges satisfy the comparison, using equality when no
  * operator is given.
  *
+ * @api
+ *
+ * @template TOperator of null|string
+ *
+ * @param TOperator $operator
+ * @return (TOperator is null ? bool|int : bool)
+ *
  * @throws OutOfBoundsException
+ * @throws UnexpectedValueException
  */
 function package_version_compare(string $package, string $version, ?string $operator = null): int|bool
 {
@@ -521,6 +565,15 @@ function package_version_compare(string $package, string $version, ?string $oper
 
 /**
  * Compare the installed Hypervel framework version.
+ *
+ * @api
+ *
+ * @template TOperator of null|string
+ *
+ * @param TOperator $operator
+ * @return (TOperator is null ? int : bool)
+ *
+ * @throws UnexpectedValueException
  */
 function hypervel_version_compare(string $version, ?string $operator = null): int|bool
 {
@@ -537,6 +590,13 @@ function hypervel_version_compare(string $version, ?string $operator = null): in
 
 /**
  * Compare the installed PHPUnit version.
+ *
+ * @api
+ *
+ * @template TOperator of null|string
+ *
+ * @param TOperator $operator
+ * @return (TOperator is null ? int : bool)
  */
 function phpunit_version_compare(string $version, ?string $operator = null): int|bool
 {
@@ -556,8 +616,12 @@ function phpunit_version_compare(string $version, ?string $operator = null): int
 
 /**
  * Ensure the provided application is available or throw an exception.
+ *
+ * @internal
+ *
+ * @throws ApplicationNotAvailableException
  */
-function hypervel_or_fail(mixed $app, ?string $caller = null): Application
+function hypervel_or_fail(?ApplicationContract $app, ?string $caller = null): Application
 {
     if ($app instanceof Application) {
         return $app;
@@ -593,6 +657,8 @@ function is_testbench_cli(?bool $dusk = null): bool
 
 /**
  * Determine the PHP binary.
+ *
+ * @api
  */
 function php_binary(bool $escape = false): string
 {
@@ -606,6 +672,8 @@ function php_binary(bool $escape = false): string
  *
  * Spawns a subprocess to run a console command, useful for testing scenarios
  * that require process isolation (e.g., queue workers with job timeouts).
+ *
+ * @api
  *
  * @param array<int, string>|Closure|string $command The command to run
  * @param array<string, mixed>|string $env Environment variables or APP_ENV value

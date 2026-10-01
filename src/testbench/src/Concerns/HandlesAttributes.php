@@ -12,6 +12,8 @@ use Hypervel\Testbench\Features\FeaturesCollection;
 
 /**
  * Handles parsing and executing test method attributes.
+ *
+ * @internal
  */
 trait HandlesAttributes
 {
@@ -24,6 +26,7 @@ trait HandlesAttributes
      * @internal
      *
      * @param class-string $attribute
+     * @return FeaturesCollection<int, mixed>
      */
     protected function parseTestMethodAttributes(ApplicationContract $app, string $attribute): FeaturesCollection
     {

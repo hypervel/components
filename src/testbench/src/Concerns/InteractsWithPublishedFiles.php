@@ -73,6 +73,8 @@ trait InteractsWithPublishedFiles
     /**
      * Assert file contains the given strings.
      *
+     * @api
+     *
      * @param array<int, string> $contains
      */
     protected function assertFileContains(array $contains, string $file, string $message = ''): void
@@ -90,6 +92,8 @@ trait InteractsWithPublishedFiles
 
     /**
      * Assert file does not contain the given strings.
+     *
+     * @api
      *
      * @param array<int, string> $contains
      */
@@ -109,6 +113,8 @@ trait InteractsWithPublishedFiles
     /**
      * Assert file does not contain the given strings.
      *
+     * @api
+     *
      * @param array<int, string> $contains
      */
     protected function assertFileNotContains(array $contains, string $file, string $message = ''): void
@@ -118,6 +124,8 @@ trait InteractsWithPublishedFiles
 
     /**
      * Assert migration file contains the given strings.
+     *
+     * @api
      *
      * @param array<int, string> $contains
      */
@@ -137,6 +145,8 @@ trait InteractsWithPublishedFiles
     /**
      * Assert migration file does not contain the given strings.
      *
+     * @api
+     *
      * @param array<int, string> $contains
      */
     protected function assertMigrationFileDoesNotContains(array $contains, string $file, string $message = '', ?string $directory = null): void
@@ -155,6 +165,8 @@ trait InteractsWithPublishedFiles
     /**
      * Assert migration file does not contain the given strings.
      *
+     * @api
+     *
      * @param array<int, string> $contains
      */
     protected function assertMigrationFileNotContains(array $contains, string $file, string $message = '', ?string $directory = null): void
@@ -164,6 +176,8 @@ trait InteractsWithPublishedFiles
 
     /**
      * Assert filename exists.
+     *
+     * @api
      */
     protected function assertFilenameExists(string $file): void
     {
@@ -174,6 +188,8 @@ trait InteractsWithPublishedFiles
 
     /**
      * Assert filename does not exist.
+     *
+     * @api
      */
     protected function assertFilenameDoesNotExists(string $file): void
     {
@@ -184,6 +200,8 @@ trait InteractsWithPublishedFiles
 
     /**
      * Assert filename does not exist.
+     *
+     * @api
      */
     protected function assertFilenameNotExists(string $file): void
     {
@@ -192,6 +210,8 @@ trait InteractsWithPublishedFiles
 
     /**
      * Assert migration filename exists.
+     *
+     * @api
      */
     protected function assertMigrationFileExists(string $file, ?string $directory = null): void
     {
@@ -202,6 +222,8 @@ trait InteractsWithPublishedFiles
 
     /**
      * Assert migration filename does not exist.
+     *
+     * @api
      */
     protected function assertMigrationFileDoesNotExists(string $file, ?string $directory = null): void
     {
@@ -212,6 +234,8 @@ trait InteractsWithPublishedFiles
 
     /**
      * Assert migration filename does not exist.
+     *
+     * @api
      */
     protected function assertMigrationFileNotExists(string $file, ?string $directory = null): void
     {
@@ -249,6 +273,8 @@ trait InteractsWithPublishedFiles
 
     /**
      * Find the first published migration file matching the filename.
+     *
+     * @api
      */
     protected function findFirstPublishedMigrationFile(string $filename, ?string $directory = null): ?string
     {

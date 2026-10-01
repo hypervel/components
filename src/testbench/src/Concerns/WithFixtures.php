@@ -8,6 +8,9 @@ use Hypervel\Support\Str;
 
 use function Hypervel\Testbench\filename_from_classname;
 
+/**
+ * @api
+ */
 trait WithFixtures
 {
     /**

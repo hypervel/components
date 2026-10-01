@@ -12,6 +12,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application as HypervelApplication;
 use Hypervel\Foundation\Bootstrap\HandleExceptions;
+use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\Foundation\Application as Testbench;
 use Hypervel\Testbench\Foundation\Bootstrap\LoadMigrationsFromArray;
 use Hypervel\Testbench\Foundation\Config;
@@ -31,6 +32,9 @@ use function Hypervel\Testbench\join_paths;
 use function Hypervel\Testbench\package_path;
 use function Hypervel\Testbench\transform_relative_path;
 
+/**
+ * @phpstan-import-type TOptionalConfig from Config
+ */
 class Commander
 {
     use CopyTestbenchFiles;
@@ -60,7 +64,7 @@ class Commander
     /**
      * List of providers.
      *
-     * @var array<int, class-string>
+     * @var array<int, class-string<ServiceProvider>>
      */
     protected array $providers = [
         TestbenchServiceProvider::class,
@@ -80,6 +84,8 @@ class Commander
 
     /**
      * Construct a new Commander.
+     *
+     * @param Config|TOptionalConfig $config
      */
     public function __construct(
         Config|array $config,
@@ -286,6 +292,8 @@ class Commander
 
     /**
      * Resolve the application's base path.
+     *
+     * @api
      */
     protected function getApplicationBasePath(): string
     {
@@ -303,6 +311,8 @@ class Commander
 
     /**
      * Get the application's base path.
+     *
+     * @api
      */
     public static function applicationBasePath(): string
     {

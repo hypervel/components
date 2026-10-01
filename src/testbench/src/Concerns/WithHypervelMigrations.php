@@ -12,6 +12,8 @@ trait WithHypervelMigrations
     use InteractsWithWorkbench;
 
     /**
+     * Bootstrap with Hypervel migrations.
+     *
      * @internal
      */
     protected function prepareHypervelMigrations(): void
