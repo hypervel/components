@@ -20,14 +20,8 @@ class TableRenderer extends Renderer
             ->setHorizontalBorderChars('─')
             ->setVerticalBorderChars('│', '│')
             ->setCellHeaderFormat($this->dim('<fg=default>%s</>'))
-            ->setCellRowFormat('<fg=default>%s</>');
-
-        if (empty($table->headers)) {
-            // Symfony used the top-bottom crossings for headerless tables before 8.1.2, so configure both top states.
-            $tableStyle->setCrossingChars('┼', '<fg=gray>┌', '┬', '┐', '┤', '┘</>', '┴', '└', '├', '<fg=gray>┌', '┬', '┐');
-        } else {
-            $tableStyle->setCrossingChars('┼', '<fg=gray>┌', '┬', '┐', '┤', '┘</>', '┴', '└', '├');
-        }
+            ->setCellRowFormat('<fg=default>%s</>')
+            ->setCrossingChars('┼', '<fg=gray>┌', '┬', '┐', '┤', '┘</>', '┴', '└', '├');
 
         $buffered = new BufferedConsoleOutput;
 

@@ -41,8 +41,7 @@ class GridRenderer extends Renderer
             ->setHorizontalBorderChars('─')
             ->setVerticalBorderChars('│', '│')
             ->setCellRowFormat('<fg=default>%s</>')
-            // Symfony used the top-bottom crossings for headerless tables before 8.1.2, so configure both top states.
-            ->setCrossingChars('┼', '┌', '┬', '┐', '┤', '┘', '┴', '└', '├', '┌', '┬', '┐');
+            ->setCrossingChars('┼', '┌', '┬', '┐', '┤', '┘', '┴', '└', '├');
 
         $buffered = new BufferedConsoleOutput;
 
