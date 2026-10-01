@@ -894,7 +894,7 @@ class CourierRouteTest extends TestCase
 }
 ```
 
-Testbench defines an `api` rate limiter that allows 60 requests per minute for each user or IP address, so routes using the `throttle:api` middleware work without additional setup. Your package's service providers may define their own `api` limiter in their `boot` method, or you may override the `resolveApplicationRateLimiting` method on your test case.
+Testbench defines an `api` rate limiter that allows 60 requests per minute for each user or IP address, so routes using the `throttle:api` middleware work without additional setup. If your test defines its own `api` limiter in `defineEnvironment`, Testbench keeps it. Your package's service providers may also replace the limiter in their `boot` method, or you may override the `resolveApplicationRateLimiting` method on your test case.
 
 <a name="cached-routes"></a>
 ### Cached Routes

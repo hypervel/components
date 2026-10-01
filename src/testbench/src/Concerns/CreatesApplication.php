@@ -734,10 +734,13 @@ trait CreatesApplication
     {
         // Upstream defers this until the cache store resolves. Hypervel's rate limiter
         // does not use the cache store, so deferring would leave the limiter undefined.
-        RateLimiter::for(
-            'api',
-            static fn (Request $request): Limit => Limit::perMinute(60)->by($request->user()?->id ?: $request->ip())
-        );
+        // Keep an api limiter the test has already defined in defineEnvironment().
+        if (RateLimiter::limiter('api') === null) {
+            RateLimiter::for(
+                'api',
+                static fn (Request $request): Limit => Limit::perMinute(60)->by($request->user()?->getAuthIdentifier() ?? $request->ip())
+            );
+        }
     }
 
     /**
