@@ -18,13 +18,6 @@ class SchemaStateTest extends SqliteTestCase
         'database/schema/*',
     ];
 
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        remote('migrate:install');
-    }
-
     protected function tearDown(): void
     {
         remote('db:wipe')->mustRun();
@@ -100,5 +93,30 @@ class SchemaStateTest extends SqliteTestCase
         $this->assertFileNotContains([
             'INSERT INTO "migrations"',
         ], 'database/schema/sqlite-schema.sql');
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testSchemaDumpWithFullTextSearchTableCanBeLoadedOnSqlite(): void
+    {
+        if (! is_executable('/usr/bin/sqlite3') && ! shell_exec('which sqlite3')) {
+            $this->markTestSkipped('sqlite3 CLI tool is not available');
+        }
+
+        if ($this->usesSqliteInMemoryDatabaseConnection()) {
+            $this->markTestSkipped('Test cannot be run using :in-memory: database connection');
+        }
+
+        $connection = DB::connection();
+        $connection->getSchemaBuilder()->createDatabase($connection->getConfig('database'));
+
+        $connection->statement('CREATE VIRTUAL TABLE posts USING fts5(body);');
+
+        $this->app->make('files')->ensureDirectoryExists(database_path('schema'));
+
+        $connection->getSchemaState()->dump($connection, database_path('schema/sqlite-schema.sql'));
+        $connection->getSchemaBuilder()->dropAllTables();
+        $connection->getSchemaState()->load(database_path('schema/sqlite-schema.sql'));
+
+        $this->assertTrue($connection->getSchemaBuilder()->hasTable('posts'));
     }
 }

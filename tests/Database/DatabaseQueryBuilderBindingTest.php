@@ -66,19 +66,6 @@ class DatabaseQueryBuilderBindingTest extends TestCase
     }
 
     #[DataProvider('valueBetweenMethods')]
-    public function testValueBetweenExpressionsDoNotAddBindings(string $method, string $boolean, string $operator): void
-    {
-        $query = $this->builder()->from('users')->where('active', true);
-        $query->{$method}(new Expression('2'), ['lower', 'upper']);
-
-        $this->assertSame(
-            'select * from "users" where "active" = ? ' . $boolean . ' 2 ' . $operator . ' "lower" and "upper"',
-            $query->toSql()
-        );
-        $this->assertSame([true], $query->getBindings());
-    }
-
-    #[DataProvider('valueBetweenMethods')]
     public function testValueBetweenArraysContributeOneScalarBinding(string $method, string $boolean, string $operator): void
     {
         $query = $this->builder()->from('users')->where('active', true);

@@ -54,6 +54,14 @@ dump its exit code and captured output:
 $this->artisan('users:all')->dd();
 ```
 
+If your test disables console output mocking using the `withoutMockingConsoleOutput` method, the `artisan` method runs the command immediately and returns its exit code. To choose the behavior regardless of this setting, you may use the `mockArtisan` method to receive a pending command you can make assertions against, or the `realArtisan` method to run the command and receive its exit code:
+
+```php
+$this->mockArtisan('about')->assertSuccessful();
+
+$exitCode = $this->realArtisan('about');
+```
+
 <a name="input-output-expectations"></a>
 ## Input / Output Expectations
 

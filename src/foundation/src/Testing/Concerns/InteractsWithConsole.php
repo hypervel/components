@@ -50,32 +50,38 @@ trait InteractsWithConsole
     public array $expectedChoices = [];
 
     /**
-     * Alias of `command` method.
+     * Invoke an Artisan command and return a mocked pending command or exit code.
      */
     public function artisan(string $command, array $parameters = []): int|PendingCommand
     {
-        return $this->command($command, $parameters);
+        return $this->mockConsoleOutput
+            ? $this->mockArtisan($command, $parameters)
+            : $this->realArtisan($command, $parameters);
     }
 
     /**
-     * Call Hypervel command and return code.
+     * Invoke an Artisan command and return a mocked pending command.
      */
-    public function command(string $command, array $parameters = []): int|PendingCommand
+    public function mockArtisan(string $command, array $parameters = []): PendingCommand
     {
-        if (! $this->mockConsoleOutput) {
-            return $this->app
-                ->get(KernelContract::class)
-                ->call($command, $parameters);
-        }
-
         return new PendingCommand($this, $this->app, $command, $parameters);
+    }
+
+    /**
+     * Invoke an Artisan command and return the exit code.
+     */
+    public function realArtisan(string $command, array $parameters = []): int
+    {
+        return $this->app
+            ->get(KernelContract::class)
+            ->call($command, $parameters);
     }
 
     /**
      * Disable mocking the console output.
      *
      * When using this with traits like DatabaseMigrations, call this in setUp()
-     * BEFORE parent::setUp() to ensure mock output is never bound.
+     * before parent::setUp() to ensure mock output is never bound.
      */
     protected function withoutMockingConsoleOutput(): static
     {

@@ -65,7 +65,7 @@ class NotPwnedVerifier implements UncompromisedVerifier
     {
         try {
             $response = $this->factory->withHeaders([
-                'Add-Padding' => true,
+                'Add-Padding' => 'true',
             ])->timeout($this->timeout)->get(
                 'https://api.pwnedpasswords.com/range/' . $hashPrefix
             );

@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Contracts\Encryption\DecryptException;
 use Hypervel\Contracts\Encryption\Encrypter;
+use Hypervel\Database\Eloquent\Attributes\Refreshes;
 use Hypervel\Database\Eloquent\Casts\ArrayObject;
 use Hypervel\Database\Eloquent\Casts\AsEncryptedArrayObject;
 use Hypervel\Database\Eloquent\Casts\AsEncryptedCollection;
@@ -16,6 +17,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Crypt;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Fluent;
+use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
 
 class EloquentModelEncryptedCastingTest extends DatabaseTestCase
@@ -342,13 +344,17 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
         $this->assertNull($subject->fresh()->secret_array);
     }
 
-    public function testChangedEncryptedArrayObjectMatchesStoredValueAtUpdatedEvent(): void
+    /**
+     * @param class-string<EncryptedCast> $model
+     */
+    #[DataProvider('encryptedCastModels')]
+    public function testChangedEncryptedArrayObjectMatchesStoredValueAtUpdatedEvent(string $model): void
     {
         $encrypter = new RealEncrypter(str_repeat('a', 16));
         Crypt::swap($encrypter);
         Model::encryptUsing($encrypter);
 
-        $subject = new EncryptedCast;
+        $subject = new $model;
         $subject->mergeCasts(['secret_array' => AsEncryptedArrayObject::class]);
         $subject->secret_array = ['key1' => 'value1'];
         $subject->save();
@@ -358,7 +364,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
         $subject->secret_array['key2'] = 'value2';
         $updatedState = null;
 
-        EncryptedCast::updated(function (EncryptedCast $updated) use (&$updatedState): void {
+        $model::updated(function (EncryptedCast $updated) use (&$updatedState): void {
             $updatedState = [
                 'changed' => $updated->getChanges()['secret_array'],
                 'stored' => $updated->newQuery()
@@ -375,6 +381,19 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
             '{"key1":"value1","key2":"value2"}',
             $encrypter->decryptString($updatedState['stored'])
         );
+    }
+
+    /**
+     * Provide models with and without attributes refreshed after writes.
+     *
+     * @return array<string, array{class-string<EncryptedCast>}>
+     */
+    public static function encryptedCastModels(): array
+    {
+        return [
+            'plain model' => [EncryptedCast::class],
+            'refreshing model' => [RefreshingEncryptedCast::class],
+        ];
     }
 
     public function testValidAssignmentCanReplaceDecryptableMalformedJson(): void
@@ -474,4 +493,10 @@ class EncryptedCast extends Model
         'secret_object' => 'encrypted:object',
         'secret_collection' => 'encrypted:collection',
     ];
+}
+
+#[Refreshes('secret')]
+class RefreshingEncryptedCast extends EncryptedCast
+{
+    protected ?string $table = 'encrypted_casts';
 }

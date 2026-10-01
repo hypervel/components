@@ -71,7 +71,7 @@ class AllTaggedCache extends NamespacedTaggedCache
         }
 
         // Null TTL: non-atomic get + forever (matches Repository::add behavior)
-        if (is_null($this->get($key))) {
+        if (is_null($this->getRaw($key))) {
             return $this->forever($key, $value);
         }
 

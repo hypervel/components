@@ -277,7 +277,7 @@ class ArtisanCommandTest extends TestCase
         });
     }
 
-    public function testPendingCommandCanBeRapped(): void
+    public function testPendingCommandCanBeTapped(): void
     {
         Artisan::command('new-england', function () {
             $this->line('The region of New England consists of the following states:');
@@ -306,6 +306,31 @@ class ArtisanCommandTest extends TestCase
                 }
             })
             ->assertExitCode(0);
+    }
+
+    public function testConsoleCommandReturnsCodeWithDisabledMocking(): void
+    {
+        Artisan::command('exit {code}', fn (): int => (int) $this->argument('code'));
+
+        $this->withoutMockingConsoleOutput();
+
+        $this->assertSame(0, $this->artisan('exit', ['code' => 0]));
+    }
+
+    public function testMockConsoleCommandReturnsPendingCommandWithDisabledMocking(): void
+    {
+        Artisan::command('exit {code}', fn (): int => (int) $this->argument('code'));
+
+        $this->withoutMockingConsoleOutput();
+
+        $this->mockArtisan('exit', ['code' => 0])->assertOk();
+    }
+
+    public function testRealConsoleCommandReturnsCodeWithEnabledMocking(): void
+    {
+        Artisan::command('exit {code}', fn (): int => (int) $this->argument('code'));
+
+        $this->assertSame(0, $this->realArtisan('exit', ['code' => 0]));
     }
 
     /**

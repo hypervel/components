@@ -8,12 +8,16 @@ use DateTimeInterface;
 use Exception;
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Eloquent\Attributes\Refreshes;
 use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Casts\AsArrayObject;
+use Hypervel\Database\Eloquent\Casts\Attribute;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Concerns\HasUuids;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Eloquent\Relations\MorphPivot;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Eloquent\Relations\Relation;
@@ -73,6 +77,30 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->schema('default')->create('with_json', function ($table) {
             $table->increments('id');
             $table->text('json')->default(json_encode([]));
+        });
+
+        $this->schema('default')->create('generated_users', function (Blueprint $table): void {
+            $table->increments('id');
+            $table->string('first_name');
+            $table->string('last_name');
+            $table->string('name')->virtualAs("first_name || ' ' || last_name");
+        });
+
+        $this->schema('default')->create('generated_totals', function (Blueprint $table): void {
+            $table->increments('id');
+            $table->integer('price');
+            $table->integer('quantity');
+            $table->string('note')->nullable();
+            $table->text('options')->nullable();
+            $table->integer('total')->virtualAs('price * quantity');
+        });
+
+        $this->schema('default')->create('generated_memberships', function (Blueprint $table): void {
+            $table->integer('user_id');
+            $table->integer('team_id');
+            $table->integer('price');
+            $table->integer('quantity');
+            $table->integer('total')->virtualAs('price * quantity');
         });
 
         $this->schema('second_connection')->create('test_items', function ($table) {
@@ -260,6 +288,165 @@ class DatabaseEloquentIntegrationTest extends TestCase
         foreach ($records as $record) {
             $this->assertEquals(1, $record->id);
         }
+    }
+
+    public function testConfiguredAttributesAreRefreshedAfterInsertAndUpdate(): void
+    {
+        $user = GeneratedUser::create([
+            'first_name' => 'Taylor',
+            'last_name' => 'Otwell',
+        ]);
+
+        $this->assertSame('Taylor Otwell', $user->name);
+        $this->assertSame('Taylor Otwell', GeneratedUser::$createdName);
+
+        $user->update(['first_name' => 'Abigail']);
+
+        $this->assertSame('Abigail Otwell', $user->name);
+        $this->assertSame('Abigail Otwell', GeneratedUser::$updatedName);
+        $this->assertTrue($user->wasChanged('name'));
+
+        $user->update(['id' => 10, 'first_name' => 'Jess']);
+
+        $this->assertSame(10, $user->id);
+        $this->assertSame('Jess Otwell', $user->name);
+        $this->assertSame('Jess Otwell', GeneratedUser::$updatedName);
+        $this->assertSame('Jess Otwell', GeneratedUser::find(10)->name);
+    }
+
+    public function testRefreshedAttributesAreNotWrittenBackAfterIncrements(): void
+    {
+        $item = GeneratedTotal::create(['price' => 2, 'quantity' => 3, 'options' => ['color' => 'red']]);
+
+        $this->assertSame(6, $item->summary->total);
+        $item->options['size'] = 'large';
+
+        $item->increment('quantity');
+
+        $this->assertSame(8, $item->total);
+        $this->assertSame(8, $item->summary->total);
+        $this->assertTrue($item->wasChanged('total'));
+        $this->assertFalse($item->isDirty('total'));
+        $this->assertSame('large', $item->options['size']);
+
+        $item->options['size'] = 'small';
+
+        $item->incrementEach(['price' => 1, 'quantity' => 1]);
+
+        $this->assertSame(15, $item->total);
+        $this->assertSame(15, $item->summary->total);
+        $this->assertFalse($item->isDirty('total'));
+        $this->assertSame('small', $item->options['size']);
+
+        $item->update(['note' => 'restocked']);
+
+        $item = $item->fresh();
+
+        $this->assertSame('restocked', $item->note);
+        $this->assertSame(['color' => 'red', 'size' => 'small'], $item->options->getArrayCopy());
+    }
+
+    public function testIncrementsTrackTheValuesTheyStore(): void
+    {
+        $this->connection()->statement(
+            'create trigger uppercase_generated_total_notes after update of note on generated_totals '
+            . 'begin update generated_totals set note = upper(new.note) where id = new.id; end'
+        );
+
+        $item = IncrementedGeneratedTotal::create(['price' => 2, 'quantity' => 3]);
+        $id = $item->id;
+
+        $item->id = 50;
+        $item->increment('quantity');
+
+        $this->assertSame(8, $item->total);
+        $this->assertTrue($item->isDirty('id'));
+        $this->assertSame(4, GeneratedTotal::find($id)->quantity);
+
+        $item->id = $id;
+        IncrementedGeneratedTotal::$updatingKey = 61;
+        $item->increment('quantity', 1, ['id' => 60, 'note' => 'restocked']);
+
+        $this->assertSame(10, $item->total);
+        $this->assertSame('RESTOCKED', $item->note);
+        $this->assertFalse($item->isDirty('note'));
+        $this->assertSame(60, $item->getOriginal('id'));
+        $this->assertSame(61, $item->id);
+        $this->assertNull(GeneratedTotal::find($id));
+
+        $item->id = 60;
+        $item->update(['price' => 3]);
+
+        $this->assertSame(15, GeneratedTotal::find(60)->total);
+
+        $item->incrementEach(['quantity' => 1], ['id' => 70]);
+
+        $this->assertSame(18, $item->total);
+        $this->assertFalse($item->isDirty());
+
+        $item->update(['price' => 4]);
+
+        $this->assertSame(24, GeneratedTotal::find(70)->total);
+    }
+
+    public function testRefreshedAttributesSelectKeylessPivotsByTheirStoredKeys(): void
+    {
+        $pivot = GeneratedMembership::fromAttributes(new GeneratedUser, [
+            'user_id' => 1,
+            'team_id' => 2,
+            'price' => 2,
+            'quantity' => 3,
+        ], 'generated_memberships')->setPivotKeys('user_id', 'team_id');
+
+        $pivot->save();
+
+        $this->assertSame(6, $pivot->total);
+
+        $pivot->update(['quantity' => 4]);
+
+        $this->assertSame(8, $pivot->total);
+
+        $pivot->increment('quantity', 1, ['team_id' => 3]);
+
+        $this->assertSame(10, $pivot->total);
+        $this->assertFalse($pivot->isDirty('team_id'));
+
+        $pivot->update(['price' => 3]);
+
+        $this->assertSame(15, $pivot->total);
+    }
+
+    public function testRefreshedAttributesReplaceCachedCastValuesAfterUpdate(): void
+    {
+        $item = GeneratedTotal::create(['price' => 2, 'quantity' => 3]);
+
+        $this->assertSame(6, $item->summary->total);
+
+        $item->update(['price' => 4]);
+
+        $this->assertSame(12, $item->total);
+        $this->assertSame(12, $item->summary->total);
+        $this->assertFalse($item->isDirty());
+    }
+
+    public function testRefreshingAttributesOnlySelectsTheConfiguredColumns(): void
+    {
+        $retrieved = 0;
+
+        GeneratedTotalWithPosts::retrieved(function () use (&$retrieved): void {
+            ++$retrieved;
+        });
+
+        $this->connection()->enableQueryLog();
+
+        $item = GeneratedTotalWithPosts::create(['price' => 2, 'quantity' => 3]);
+
+        $this->assertSame(6, $item->total);
+        $this->assertSame(
+            ['select "total" from "generated_totals" where "id" = ? limit 1'],
+            array_slice(array_column($this->connection()->getQueryLog(), 'query'), 1)
+        );
+        $this->assertSame(0, $retrieved);
     }
 
     public function testBasicModelCollectionRetrieval()
@@ -3142,6 +3329,99 @@ class WithJSON extends Eloquent
     protected array $casts = [
         'json' => 'array',
     ];
+}
+
+#[Refreshes('name')]
+class GeneratedUser extends Eloquent
+{
+    public bool $timestamps = false;
+
+    public static ?string $createdName = null;
+
+    public static ?string $updatedName = null;
+
+    protected ?string $table = 'generated_users';
+
+    protected array $guarded = [];
+
+    /**
+     * Record the name seen by the created and updated events.
+     */
+    protected function fireModelEvent(string $event, bool $halt = true): mixed
+    {
+        if ($event === 'created') {
+            static::$createdName = $this->name;
+        } elseif ($event === 'updated') {
+            static::$updatedName = $this->name;
+        }
+
+        return parent::fireModelEvent($event, $halt);
+    }
+}
+
+#[Refreshes('total')]
+class GeneratedTotal extends Eloquent
+{
+    public bool $timestamps = false;
+
+    protected ?string $table = 'generated_totals';
+
+    protected array $guarded = [];
+
+    protected array $casts = [
+        'options' => AsArrayObject::class,
+    ];
+
+    /**
+     * Get the cached summary of the total.
+     */
+    protected function summary(): Attribute
+    {
+        return Attribute::make(
+            get: fn (mixed $value, array $attributes): object => (object) ['total' => $attributes['total']],
+            set: fn (object $value): array => ['total' => $value->total],
+        );
+    }
+}
+
+class GeneratedTotalWithPosts extends GeneratedTotal
+{
+    protected array $with = ['posts'];
+
+    /**
+     * Get the posts eager loaded with the total.
+     */
+    public function posts(): HasMany
+    {
+        return $this->hasMany(Post::class, 'user_id');
+    }
+}
+
+#[Refreshes(['total', 'note'])]
+class IncrementedGeneratedTotal extends GeneratedTotal
+{
+    public static ?int $updatingKey = null;
+
+    /**
+     * Change the key once while the model is updating.
+     */
+    protected function fireModelEvent(string $event, bool $halt = true): mixed
+    {
+        if ($event === 'updating' && static::$updatingKey !== null) {
+            $this->id = static::$updatingKey;
+            static::$updatingKey = null;
+        }
+
+        return parent::fireModelEvent($event, $halt);
+    }
+}
+
+#[Refreshes('total')]
+class GeneratedMembership extends Pivot
+{
+    public bool $timestamps = false;
+
+    protected ?string $table = 'generated_memberships';
 }
 
 class FriendPivot extends Pivot

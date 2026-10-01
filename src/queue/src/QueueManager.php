@@ -204,7 +204,7 @@ class QueueManager implements FactoryContract, MonitorContract
     {
         $queue = $queue instanceof UnitEnum ? (string) enum_value($queue) : $queue;
         $connection = $connection instanceof UnitEnum ? (string) enum_value($connection) : $connection;
-        $connection ??= $this->getDefaultDriver();
+        $connection = $connection === null || $connection === '' ? $this->getDefaultDriver() : $connection;
 
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
         $this->app->make('cache')
@@ -226,7 +226,7 @@ class QueueManager implements FactoryContract, MonitorContract
     {
         $queue = $queue instanceof UnitEnum ? (string) enum_value($queue) : $queue;
         $connection = $connection instanceof UnitEnum ? (string) enum_value($connection) : $connection;
-        $connection ??= $this->getDefaultDriver();
+        $connection = $connection === null || $connection === '' ? $this->getDefaultDriver() : $connection;
 
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
         $this->app->make('cache')
@@ -266,7 +266,7 @@ class QueueManager implements FactoryContract, MonitorContract
     {
         $queue = $queue instanceof UnitEnum ? (string) enum_value($queue) : $queue;
         $connection = $connection instanceof UnitEnum ? (string) enum_value($connection) : $connection;
-        $connection ??= $this->getDefaultDriver();
+        $connection = $connection === null || $connection === '' ? $this->getDefaultDriver() : $connection;
 
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
         $this->app->make('cache')
@@ -306,7 +306,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function isPaused(string $queue, ?string $connection = null): bool
     {
-        $connection ??= $this->getDefaultDriver();
+        $connection = $connection === null || $connection === '' ? $this->getDefaultDriver() : $connection;
 
         // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
         $cache = $this->app->make('cache')->store();
@@ -320,7 +320,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function getPausedQueues(array $queues, ?string $connection = null): array
     {
-        $connection ??= $this->getDefaultDriver();
+        $connection = $connection === null || $connection === '' ? $this->getDefaultDriver() : $connection;
 
         $cache = $this->app->make('cache')->store();
 

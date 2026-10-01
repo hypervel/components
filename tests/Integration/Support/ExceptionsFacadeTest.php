@@ -39,6 +39,24 @@ class ExceptionsFacadeTest extends TestCase
         $this->assertSame($thrownException, $reported[0]);
     }
 
+    public function testFakeUsesTheUnderlyingHandlerToBuildExceptionContext(): void
+    {
+        Exceptions::fake([InvalidArgumentException::class]);
+
+        $e = new class('Order failed') extends RuntimeException {
+            /**
+             * Get the exception's context information.
+             */
+            public function context(): array
+            {
+                return ['order_id' => 42];
+            }
+        };
+
+        $this->assertSame(42, Exceptions::buildContextForException($e)['order_id'] ?? null);
+        $this->assertFalse(Exceptions::isReporting($e));
+    }
+
     public function testFakeAssertReportedCount(): void
     {
         Exceptions::fake();

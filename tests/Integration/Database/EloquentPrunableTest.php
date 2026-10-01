@@ -54,6 +54,7 @@ class EloquentPrunableTest extends DatabaseTestCase
 
     public function testPrunesRecords(): void
     {
+        Exceptions::fake()->throwOnReport();
         Event::fake();
 
         collect(range(1, 1050))->map(function ($id) {
