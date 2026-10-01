@@ -40,7 +40,7 @@
         "hypervel/macroable": "^0.4",
         "hypervel/support": "^0.4",
         "hypervel/translation": "^0.4",
-        "symfony/console": "^8.1",
+        "symfony/console": "^8.1.2",
         "symfony/http-foundation": "^8.1"
     },
     "suggest": {
