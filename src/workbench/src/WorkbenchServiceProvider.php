@@ -20,7 +20,7 @@ class WorkbenchServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        // REMOVED: The Composer, recipe manager and Canvas preset bindings serve the excluded build and generator commands.
+        // REMOVED: The Composer, recipe manager and Canvas preset bindings serve the excluded build, devtool and generator commands.
 
         AboutCommand::add('Workbench', static fn (): array => array_filter([
             'Version' => InstalledVersions::isInstalled('hypervel/workbench')
