@@ -290,7 +290,7 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
     }
 
     /**
-     * Separate the given mimetypes from extensions and return an array of correct rules to validate against.
+     * Separate the given MIME types from extensions and return an array of correct rules to validate against.
      */
     protected function buildMimetypes(): array
     {

@@ -9,7 +9,6 @@ use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\PHPUnit\AttributeParser;
 use PHPUnit\Framework\TestCase as PHPUnitTestCase;
-use PHPUnit\Metadata\Annotation\Parser\Registry as PHPUnitRegistry;
 use ReflectionClass;
 
 /**
@@ -51,6 +50,8 @@ trait InteractsWithPHPUnit
 
     /**
      * Determine if the object is running as a PHPUnit test case.
+     *
+     * @api
      */
     public function isRunningTestCase(): bool
     {
@@ -59,6 +60,8 @@ trait InteractsWithPHPUnit
 
     /**
      * Resolve the PHPUnit test class name.
+     *
+     * @internal
      *
      * @return null|class-string
      */
@@ -75,6 +78,8 @@ trait InteractsWithPHPUnit
 
     /**
      * Resolve the PHPUnit test method name.
+     *
+     * @internal
      */
     public function resolvePhpUnitTestMethodName(): ?string
     {
@@ -87,6 +92,8 @@ trait InteractsWithPHPUnit
 
     /**
      * Resolve and cache PHPUnit attributes for current test.
+     *
+     * @internal
      *
      * @return Collection<class-string, Collection<int, object>>
      */
@@ -104,6 +111,8 @@ trait InteractsWithPHPUnit
 
     /**
      * Resolve attributes for class (and optionally method).
+     *
+     * @internal
      *
      * @param class-string $className
      * @return Collection<class-string, Collection<int, object>>
@@ -124,11 +133,13 @@ trait InteractsWithPHPUnit
             static::$testCaseMethodTestingFeatures,
             $methodName !== null ? static::$cachedTestCaseMethodAttributes["{$className}:{$methodName}"] : [],
         )))->groupBy('key')
-            ->map(static fn ($attrs) => $attrs->pluck('instance'));
+            ->map(static fn (Collection $attributes): Collection => $attributes->pluck('instance'));
     }
 
     /**
      * Define the setUp environment using callback.
+     *
+     * @internal
      *
      * @param Closure(Closure):void $setUp
      */
@@ -140,6 +151,8 @@ trait InteractsWithPHPUnit
     /**
      * Define the tearDown environment using callback.
      *
+     * @internal
+     *
      * @param Closure(Closure):void $tearDown
      */
     public function tearDownTheEnvironmentUsing(Closure $tearDown): void
@@ -149,6 +162,8 @@ trait InteractsWithPHPUnit
 
     /**
      * Cache uses for test case before class runs.
+     *
+     * @internal
      */
     public static function setUpBeforeClassUsingPHPUnit(): void
     {
@@ -157,18 +172,13 @@ trait InteractsWithPHPUnit
 
     /**
      * Clear PHPUnit caches after class teardown.
+     *
+     * @internal
      */
     public static function tearDownAfterClassUsingPHPUnit(): void
     {
         static::$cachedTestCaseUses = [];
         static::$cachedTestCaseClassAttributes = [];
         static::$cachedTestCaseMethodAttributes = [];
-
-        if (class_exists(PHPUnitRegistry::class)) {
-            (function () {
-                $this->classDocBlocks = [];
-                $this->methodDocBlocks = [];
-            })->call(PHPUnitRegistry::getInstance());
-        }
     }
 }

@@ -48,7 +48,7 @@
         "hypervel/reflection": "^0.4",
         "hypervel/view": "^0.4",
         "laravel/serializable-closure": "^2.0.11",
-        "league/commonmark": "^2.10",
+        "league/commonmark": "^2.10.3",
         "league/uri": "^7.5.1",
         "nesbot/carbon": "^3.13.1",
         "phpoption/phpoption": "^1.9",

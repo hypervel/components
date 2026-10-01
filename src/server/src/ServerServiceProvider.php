@@ -7,10 +7,12 @@ namespace Hypervel\Server;
 use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Core\Events\OnManagerStart;
 use Hypervel\Core\Events\OnStart;
+use Hypervel\Core\Events\OnWorkerExit;
 use Hypervel\Server\Commands\ServerReloadCommand;
 use Hypervel\Server\Commands\ServerStartCommand;
 use Hypervel\Server\Listeners\AfterWorkerStartListener;
 use Hypervel\Server\Listeners\InitProcessTitleListener;
+use Hypervel\Server\Listeners\ShutdownOnInterruptListener;
 use Hypervel\ServerProcess\Events\BeforeProcessHandle;
 use Hypervel\Support\ServiceProvider;
 use Swoole\Server as SwooleServer;
@@ -55,6 +57,22 @@ class ServerServiceProvider extends ServiceProvider
 
         $events->listen(BeforeProcessHandle::class, function (BeforeProcessHandle $event) {
             $this->app->make(InitProcessTitleListener::class)->handle($event);
+        });
+
+        $events->listen(OnStart::class, function (OnStart $event): void {
+            $this->app->make(ShutdownOnInterruptListener::class)->handle($event);
+        });
+
+        $events->listen(OnManagerStart::class, function (OnManagerStart $event): void {
+            $this->app->make(ShutdownOnInterruptListener::class)->handle($event);
+        });
+
+        $events->listen(AfterWorkerStart::class, function (AfterWorkerStart $event): void {
+            $this->app->make(ShutdownOnInterruptListener::class)->handle($event);
+        });
+
+        $events->listen(OnWorkerExit::class, function (OnWorkerExit $event): void {
+            $this->app->make(ShutdownOnInterruptListener::class)->handle($event);
         });
     }
 }

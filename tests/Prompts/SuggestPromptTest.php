@@ -86,6 +86,27 @@ class SuggestPromptTest extends TestCase
         $this->assertSame('Blue', $result);
     }
 
+    public function testMatchesNonAsciiOptionsCaseInsensitively(): void
+    {
+        Prompt::fake(['ö', Key::TAB, Key::ENTER]);
+
+        $this->assertSame('Österreich', suggest('Country', ['Österreich', 'Deutschland']));
+    }
+
+    public function testRendersInfoForTheHighlightedOption(): void
+    {
+        Prompt::fake(['b', Key::DOWN, Key::ENTER]);
+
+        suggest(
+            label: 'What is your favorite color?',
+            options: ['Red', 'Blue', 'Black'],
+            info: fn (?string $value): string => $value === null ? 'Nothing highlighted' : "Value: {$value}",
+        );
+
+        Prompt::assertStrippedOutputContains('Nothing highlighted');
+        Prompt::assertStrippedOutputContains('Value: Blue');
+    }
+
     public function testTransformsValues(): void
     {
         Prompt::fake([Key::SPACE, 'J', 'e', 's', 's', Key::TAB, Key::ENTER]);

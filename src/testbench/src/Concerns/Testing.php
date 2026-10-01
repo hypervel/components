@@ -10,6 +10,8 @@ namespace Hypervel\Testbench\Concerns;
  * Hypervel's base testing lifecycle already owns application refresh and
  * callback execution, so this trait primarily restores the upstream public
  * surface and concern grouping.
+ *
+ * @api
  */
 trait Testing
 {
@@ -24,6 +26,8 @@ trait Testing
 
     /**
      * Reload the application instance.
+     *
+     * @api
      */
     protected function reloadApplication(): void
     {

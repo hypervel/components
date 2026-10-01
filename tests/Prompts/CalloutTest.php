@@ -7,12 +7,14 @@ namespace Hypervel\Tests\Prompts;
 use Hypervel\Prompts\Callout;
 use Hypervel\Prompts\Elements\BulletedList;
 use Hypervel\Prompts\Elements\Element;
+use Hypervel\Prompts\Elements\ElementContract;
 use Hypervel\Prompts\Elements\KeyValueList;
 use Hypervel\Prompts\Elements\NumberedList;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\Support\Utils;
 use Hypervel\Prompts\Themes\Default\CalloutRenderer;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 
 use function Hypervel\Prompts\callout;
 
@@ -223,6 +225,29 @@ class CalloutTest extends TestCase
         callout('Details', [Element::keyValueList([])]);
 
         Prompt::assertOutputContains('Details');
+    }
+
+    public function testRejectsUnsupportedContentElements(): void
+    {
+        Prompt::fake();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Unsupported callout content part: ' . ElementContract::class . '@anonymous');
+
+        callout('Details', [new class implements ElementContract {
+        }]);
+    }
+
+    public function testInlineLinksAreHighlightedWithoutResettingTheSurroundingStyle(): void
+    {
+        Prompt::fake();
+
+        callout('Info', [
+            Element::heading('See ' . Element::link('https://example.com', 'docs') . ' first'),
+        ]);
+
+        Prompt::assertOutputContains("\e[4m\e[36mdocs");
+        Prompt::assertOutputContains("\e[1m first");
     }
 
     public function testSparseBulletedListsUseDisplayOrderForSpacing(): void

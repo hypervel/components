@@ -5,6 +5,7 @@
 - [Getting Started](#getting-started)
     - [Unit Tests Without an Application](#unit-tests-without-an-application)
     - [PHPUnit Test Suites](#phpunit-test-suites)
+    - [Test Fixture Files](#test-fixture-files)
 - [How Testbench Works](#how-testbench-works)
     - [Runtime Skeleton Copies](#runtime-skeleton-copies)
     - [Configuration Lifecycle](#configuration-lifecycle)
@@ -166,6 +167,47 @@ Run a single suite with PHPUnit's `--testsuite` option:
 ./vendor/bin/phpunit --testsuite=Feature
 ```
 
+<a name="test-fixture-files"></a>
+### Test Fixture Files
+
+Sometimes a single test needs its own helper classes, such as a custom model. Instead of declaring these classes in the test file, you may add the `Hypervel\Testbench\Concerns\WithFixtures` trait to your test and place them in a fixtures file next to it. The fixtures file uses the test's file name with a `.fixtures.php` suffix and is loaded before the test case runs:
+
+```php
+<?php
+
+namespace Courier\Tests\Feature;
+
+use Courier\Tests\TestCase;
+use Hypervel\Testbench\Concerns\WithFixtures;
+
+class AuthenticateUserTest extends TestCase
+{
+    use WithFixtures;
+
+    public function test_user_can_authenticate(): void
+    {
+        $user = new AuthenticateUserTest\User;
+
+        // ...
+    }
+}
+```
+
+The `tests/Feature/AuthenticateUserTest.fixtures.php` file may then declare the `User` class. Using a namespace named after the test keeps its fixtures from colliding with classes of the same name declared for other tests:
+
+```php
+<?php
+
+namespace Courier\Tests\Feature\AuthenticateUserTest;
+
+use Hypervel\Foundation\Auth\User as Authenticatable;
+
+class User extends Authenticatable
+{
+    //
+}
+```
+
 <a name="how-testbench-works"></a>
 ## How Testbench Works
 
@@ -258,7 +300,7 @@ The supported top-level keys are:
 | `bootstrappers` | Additional bootstrappers to run after Hypervel's providers have booted. |
 | `env` | Environment variables for the Testbench CLI application. |
 | `migrations` | Migration paths that should be registered for the Testbench application. |
-| `seeders` | Seeder classes that should run after the database is refreshed. |
+| `seeders` | Seeder classes that should run after the database is refreshed. Use `true` to run the default `Database\Seeders\DatabaseSeeder` class. |
 | `purge` | Files and directories that should be removed by `package:purge-skeleton`. |
 | `workbench` | Workbench-specific configuration. |
 
@@ -479,7 +521,7 @@ protected function defineEnvironment(Application $app): void
 }
 ```
 
-Configuration set with `#[WithConfig]` is always applied before service providers register. This keeps process-global configuration fixed during startup for Hypervel's long-lived Swoole workers. If a test needs a post-boot value, set it explicitly in the test body using `config()->set()`.
+Configuration set with `#[WithConfig]` is always applied before service providers register. This keeps process-global configuration fixed during startup for Hypervel's long-lived Swoole workers. When a package provider uses shallow configuration merging, a nested key such as `courier.session.driver` replaces the package's default `session` options instead of merging with them. If a test needs a post-boot value, or a nested value alongside the package defaults, set it explicitly in the test body using `config()->set()`.
 
 <a name="using-attributes"></a>
 ### Using Attributes

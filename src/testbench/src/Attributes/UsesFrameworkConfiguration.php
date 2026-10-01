@@ -13,6 +13,9 @@ use Hypervel\Testbench\Contracts\Attributes\Invokable;
 #[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD)]
 final class UsesFrameworkConfiguration implements Invokable
 {
+    /**
+     * Handle the attribute.
+     */
     public function __invoke(ApplicationContract $app): mixed
     {
         /** @var Application $app */

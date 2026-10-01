@@ -25,8 +25,10 @@ use function Hypervel\Testbench\workbench;
 final class LoadMigrationsFromArray
 {
     /**
+     * Construct a new migrations bootstrapper.
+     *
      * @param array<int, string>|bool|string $migrations
-     * @param array<int, mixed>|bool|string $seeders
+     * @param array<array-key, mixed>|bool|string $seeders
      */
     public function __construct(
         public readonly array|bool|string $migrations = [],

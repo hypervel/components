@@ -137,11 +137,11 @@ class ConfirmPromptTest extends TestCase
         );
     }
 
-    public function testSupportsCustomValidation()
+    public function testSupportsCustomValidation(): void
     {
-        Prompt::validateUsing(function (Prompt $prompt) {
-            $this->assertEquals('Are you sure?', $prompt->label);
-            $this->assertEquals('confirmed', $prompt->validate);
+        Prompt::validateUsing(function (Prompt $prompt): ?string {
+            $this->assertSame('Are you sure?', $prompt->label);
+            $this->assertSame('confirmed', $prompt->validate);
 
             return $prompt->validate === 'confirmed' && ! $prompt->value() ? 'Need to be sure!' : null;
         });
@@ -155,12 +155,12 @@ class ConfirmPromptTest extends TestCase
         Prompt::validateUsing(fn () => null);
     }
 
-    public function testCanFallBack()
+    public function testCanFallBack(): void
     {
         Prompt::fallbackWhen(true);
 
-        ConfirmPrompt::fallbackUsing(function (ConfirmPrompt $prompt) {
-            $this->assertEquals('Would you like to continue?', $prompt->label);
+        ConfirmPrompt::fallbackUsing(function (ConfirmPrompt $prompt): bool {
+            $this->assertSame('Would you like to continue?', $prompt->label);
 
             return true;
         });

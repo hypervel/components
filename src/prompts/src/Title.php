@@ -6,6 +6,9 @@ namespace Hypervel\Prompts;
 
 class Title extends Prompt
 {
+    /**
+     * Create a new Title instance.
+     */
     public function __construct(public string $title)
     {
     }

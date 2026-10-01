@@ -6,19 +6,15 @@ namespace Hypervel\Testbench\Concerns;
 
 use Closure;
 
-/**
- * Provides assertion helpers for test cases.
- */
 trait HandlesAssertions
 {
     /**
      * Mark the test as skipped when condition is not equivalent to true.
      *
-     * @param null|bool|(Closure(): bool) $condition
+     * @param bool|(Closure(): bool) $condition
      */
-    protected function markTestSkippedUnless(bool|Closure|null $condition, string $message): void
+    protected function markTestSkippedUnless(bool|Closure $condition, string $message): void
     {
-        /* @phpstan-ignore argument.type */
         if (! value($condition)) {
             $this->markTestSkipped($message);
         }
@@ -27,11 +23,10 @@ trait HandlesAssertions
     /**
      * Mark the test as skipped when condition is equivalent to true.
      *
-     * @param null|bool|(Closure(): bool) $condition
+     * @param bool|(Closure(): bool) $condition
      */
-    protected function markTestSkippedWhen(bool|Closure|null $condition, string $message): void
+    protected function markTestSkippedWhen(bool|Closure $condition, string $message): void
     {
-        /* @phpstan-ignore argument.type */
         if (value($condition)) {
             $this->markTestSkipped($message);
         }

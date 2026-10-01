@@ -61,7 +61,7 @@
         "hypervel/laminas-mime": "^0.1.0",
         "laravel/serializable-closure": "^2.0.11",
         "lcobucci/jwt": "^5.0",
-        "league/commonmark": "^2.10",
+        "league/commonmark": "^2.10.3",
         "league/flysystem": "^3.25.1",
         "league/flysystem-aws-s3-v3": "^3.25.1",
         "league/flysystem-path-prefixing": "^3.25.1",

@@ -117,6 +117,8 @@ Swoole manages normal worker shutdown through `SIGTERM`. Registering an applicat
 
 Swoole does not handle `SIGINT` in workers. If your application registers a handler for this signal, Hypervel handles an interrupt that would otherwise terminate the worker.
 
+When a `SWOOLE_BASE` server runs as a single worker process without a manager, that process also coordinates server shutdown. Hypervel's built-in `SIGINT` shutdown is registered alongside your handlers in that process, so your handler still runs but does not prevent the server from shutting down.
+
 <a name="server-process-signals"></a>
 ### Server Process Signals
 

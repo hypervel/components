@@ -21,7 +21,6 @@ use Hypervel\Foundation\Testing\WithoutEvents;
 use Hypervel\Foundation\Testing\WithoutMiddleware;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Facades\ParallelTesting;
-use PHPUnit\Metadata\Annotation\Parser\Registry as PHPUnitRegistry;
 use ReflectionClass;
 use Throwable;
 
@@ -250,12 +249,6 @@ trait InteractsWithTestCaseLifecycle
      */
     public static function tearDownAfterClassUsingTestCase(): void
     {
-        if (class_exists(PHPUnitRegistry::class)) {
-            (function () {
-                $this->classDocBlocks = [];
-                $this->methodDocBlocks = [];
-            })->call(PHPUnitRegistry::getInstance());
-        }
     }
 
     /**

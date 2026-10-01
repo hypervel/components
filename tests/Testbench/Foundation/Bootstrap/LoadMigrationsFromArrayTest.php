@@ -46,16 +46,15 @@ class LoadMigrationsFromArrayTest extends TestCase
     #[Test]
     public function itCanSeedDatabaseAfterRefreshed(): void
     {
-        $kernel = m::mock(ConsoleKernel::class);
-        $this->app->instance(ConsoleKernel::class, $kernel);
-
         (new LoadMigrationsFromArray(false, [
-            TestbenchDatabaseSeeder::class,
+            'seeders' => [TestbenchDatabaseSeeder::class],
         ]))->bootstrap($this->app);
 
-        $kernel->shouldReceive('call')->once()->with('db:seed', [
-            '--class' => TestbenchDatabaseSeeder::class,
-        ])->andReturn(0);
+        $this->instance(TestbenchDatabaseSeeder::class, $seeder = m::mock(TestbenchDatabaseSeeder::class));
+
+        $seeder->shouldReceive('setContainer')->once()->with($this->app)->andReturnSelf()
+            ->shouldReceive('setCommand')->once()->andReturnSelf()
+            ->shouldReceive('__invoke')->once()->andReturnNull();
 
         app('events')->dispatch(new DatabaseRefreshed);
     }

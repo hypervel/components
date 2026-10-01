@@ -153,7 +153,18 @@ class DataTablePromptTest extends TestCase
         $this->assertSame('d', $result);
     }
 
-    public function testSupportsHomeAndEndKeys()
+    public function testPageDownWithoutMatchingRowsKeepsTheHighlightInRange(): void
+    {
+        $prompt = new DataTablePrompt(rows: [['Alice'], ['Bob'], ['Charlie']], scroll: 2);
+
+        foreach (['/', 'z', Key::ENTER, Key::PAGE_DOWN, '/'] as $key) {
+            $prompt->emit('key', $key);
+        }
+
+        $this->assertSame([0 => ['Alice'], 1 => ['Bob']], $prompt->visible());
+    }
+
+    public function testSupportsHomeAndEndKeys(): void
     {
         Prompt::fake([Key::END[0], Key::ENTER]);
 
@@ -169,6 +180,21 @@ class DataTablePromptTest extends TestCase
         );
 
         $this->assertSame('c', $result);
+
+        Prompt::fake([Key::DOWN, Key::DOWN, Key::HOME[0], Key::ENTER]);
+
+        $result = datatable(
+            label: 'Pick one',
+            headers: ['Name'],
+            rows: [
+                'a' => ['Alice'],
+                'b' => ['Bob'],
+                'c' => ['Charlie'],
+            ],
+            scroll: 5,
+        );
+
+        $this->assertSame('a', $result);
     }
 
     public function testEntersSearchModeWithSlashAndFiltersRows()
@@ -261,7 +287,7 @@ class DataTablePromptTest extends TestCase
         Prompt::assertStrippedOutputContains('┴');
     }
 
-    public function testShowsSimpleBordersWhenNoResults()
+    public function testShowsSimpleBordersWhenNoResults(): void
     {
         Prompt::fake(['/', 'z', 'z', 'z', Key::ESCAPE, Key::ENTER]);
 
@@ -274,9 +300,16 @@ class DataTablePromptTest extends TestCase
             scroll: 5,
         );
 
-        $content = Prompt::strippedContent();
+        // When showing "No results found", the border should not have column separators
+        $lines = explode("\n", Prompt::strippedContent());
+        $messageLines = array_keys(array_filter($lines, fn (string $line): bool => str_contains($line, 'No results found.')));
 
-        $this->assertStringContainsString('No results found.', $content);
+        $this->assertNotSame([], $messageLines);
+
+        $border = $lines[max($messageLines) - 1];
+
+        $this->assertStringContainsString('├', $border);
+        $this->assertStringNotContainsString('┬', $border);
     }
 
     public function testShowsViewingInfoOnlyWhenScrollingNeeded()
@@ -428,7 +461,7 @@ class DataTablePromptTest extends TestCase
         $this->assertSame('x', $result);
     }
 
-    public function testRendersCancelStateWithStrikethroughData()
+    public function testRendersCancelStateWithStrikethroughData(): void
     {
         Prompt::fake([Key::CTRL_C]);
 
@@ -442,6 +475,7 @@ class DataTablePromptTest extends TestCase
             scroll: 5,
         );
 
+        Prompt::assertOutputContains("\e[9mAlice");
         Prompt::assertOutputContains('Cancelled.');
     }
 
@@ -503,7 +537,7 @@ class DataTablePromptTest extends TestCase
         Prompt::assertStrippedOutputContains('Designer');
     }
 
-    public function testDimsRowsDuringSearch()
+    public function testDimsRowsDuringSearch(): void
     {
         Prompt::fake(['/', Key::ESCAPE, Key::ENTER]);
 
@@ -518,8 +552,7 @@ class DataTablePromptTest extends TestCase
         );
 
         // During search state, rows should be dimmed
-        // We just verify the search mode was entered and exited cleanly
-        Prompt::assertStrippedOutputContains('Alice');
+        Prompt::assertOutputContains("\e[2m Alice");
     }
 
     public function testHandlesBlankCellsInWidthCalculation()
@@ -561,7 +594,7 @@ class DataTablePromptTest extends TestCase
         Prompt::assertOutputContains('Cancelled.');
     }
 
-    public function testMaintainsFixedVisualHeight()
+    public function testMaintainsFixedVisualHeight(): void
     {
         Prompt::fake([Key::ENTER]);
 
@@ -576,26 +609,19 @@ class DataTablePromptTest extends TestCase
         );
 
         // Even with only 2 rows, the data area should be padded to scroll height (5 lines)
-        $content = Prompt::strippedContent();
+        $lines = explode("\n", Prompt::strippedContent());
 
-        // Count lines between the header separator (┼ or ┬) and bottom border (┴)
-        $lines = explode("\n", $content);
-        $dataStart = null;
-        $dataEnd = null;
+        // Count lines between the first frame's header separator and its bottom border
+        $dataEnd = array_find_key($lines, fn (string $line): bool => str_contains($line, '└'));
 
-        foreach ($lines as $i => $line) {
-            if (str_contains($line, '┼') || (str_contains($line, '┬') && $dataStart === null)) {
-                $dataStart = $i;
-            }
-            if (str_contains($line, '┴')) {
-                $dataEnd = $i;
-            }
-        }
+        $this->assertNotNull($dataEnd);
 
-        if ($dataStart !== null && $dataEnd !== null) {
-            $dataLineCount = $dataEnd - $dataStart - 1;
-            $this->assertSame(5, $dataLineCount);
-        }
+        $separators = array_filter(
+            array_slice($lines, 0, $dataEnd, preserve_keys: true),
+            fn (string $line): bool => str_contains($line, '├'),
+        );
+
+        $this->assertSame(5, $dataEnd - array_key_last($separators) - 1);
     }
 
     public function testRestoresBrowseStateAfterANonRevertibleError(): void

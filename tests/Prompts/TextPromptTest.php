@@ -33,6 +33,13 @@ class TextPromptTest extends TestCase
         $this->assertSame('Jess', $result);
     }
 
+    public function testPlacesTheCursorAfterAZeroDefault(): void
+    {
+        Prompt::fake(['1', Key::ENTER]);
+
+        $this->assertSame('01', text(label: 'Version', default: '0'));
+    }
+
     public function testTransformsValues(): void
     {
         Prompt::fake([Key::SPACE, 'J', 'e', 's', 's', Key::TAB, Key::ENTER]);
@@ -120,9 +127,18 @@ class TextPromptTest extends TestCase
 
     public function testMoveToBeginningAndEndOfLine(): void
     {
-        Prompt::fake(['A', 'r', Key::HOME[0], 's', KEY::END[0], 'c', Key::HOME[1], 's', Key::END[1], 'h', Key::HOME[2], 'e', Key::END[2], 'e', Key::HOME[3], 'J', Key::END[3], 'r', Key::ENTER]);
+        Prompt::fake(['A', 'r', Key::HOME[0], 's', Key::END[0], 'c', Key::HOME[1], 's', Key::END[1], 'h', Key::HOME[2], 'e', Key::END[2], 'e', Key::HOME[3], 'J', Key::END[3], 'r', Key::ENTER]);
         $result = text(label: 'What is your name?');
         $this->assertSame('JessArcher', $result);
+    }
+
+    public function testOptionBackspaceDeletesThePreviousWord(): void
+    {
+        Prompt::fake(['f', 'o', 'o', ' ', 'b', 'a', 'r', Key::OPTION_BACKSPACE, Key::ENTER]);
+        $this->assertSame('foo ', text(label: 'Value'));
+
+        Prompt::fake(['a', '.', 'b', Key::OPTION_BACKSPACE, 'c', Key::ENTER]);
+        $this->assertSame('a.c', text(label: 'Value'));
     }
 
     public function testReturnsEmptyStringWhenNonInteractive(): void

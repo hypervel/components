@@ -40,8 +40,25 @@ class SpinnerTest extends TestCase
         $result = spin(fn () => 'done', 'Running...');
 
         $this->assertSame('done', $result);
-        $this->assertStringContainsString('Running...', $output->content());
+        $this->assertStringContainsString('⠶ Running...', $output->content());
         $this->assertStringNotContainsString("\e", $output->content());
+    }
+
+    public function testRestoresThePreviousSignalHandler(): void
+    {
+        Prompt::fake();
+
+        $originalSignalHandler = pcntl_signal_get_handler(SIGINT);
+        $signalHandler = fn (): null => null;
+        pcntl_signal(SIGINT, $signalHandler);
+
+        try {
+            spin(fn (): string => 'done', 'Running...');
+
+            $this->assertSame($signalHandler, pcntl_signal_get_handler(SIGINT));
+        } finally {
+            pcntl_signal(SIGINT, $originalSignalHandler);
+        }
     }
 
     public function testCallbackFailureRemainsPrimaryWhenTerminalRestorationFails(): void

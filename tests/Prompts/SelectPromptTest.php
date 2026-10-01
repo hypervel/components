@@ -63,6 +63,30 @@ class SelectPromptTest extends TestCase
         $this->assertSame(2, $result);
     }
 
+    public function testRendersInfoForTheHighlightedOption(): void
+    {
+        Prompt::fake([Key::DOWN, Key::ENTER]);
+
+        select(
+            label: 'What is your favorite color?',
+            options: ['red' => 'Red', 'blue' => 'Blue'],
+            info: fn (int|string|null $value): string => "Key: {$value}",
+        );
+
+        Prompt::assertStrippedOutputContains('Key: red');
+        Prompt::assertStrippedOutputContains('Key: blue');
+
+        Prompt::fake([Key::DOWN, Key::ENTER]);
+
+        select(
+            label: 'What is your favorite color?',
+            options: ['Red', 'Blue'],
+            info: fn (int|string|null $value): string => "Value: {$value}",
+        );
+
+        Prompt::assertStrippedOutputContains('Value: Blue');
+    }
+
     public function testAcceptsCollection(): void
     {
         Prompt::fake([Key::DOWN, Key::ENTER]);

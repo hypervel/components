@@ -64,16 +64,39 @@ class RemoteCommandTest extends TestCase
     }
 
     #[Test]
+    public function itCanPassQuotedArgumentsInStringCommands(): void
+    {
+        $this->withoutSqliteDatabase(function (): void {
+            $process = remote('about --json --only="environment"')->mustRun();
+
+            /** @var array<string, mixed> $output */
+            $output = json_decode($process->output(), true, flags: JSON_THROW_ON_ERROR);
+
+            $this->assertSame(['environment'], array_keys($output));
+        });
+    }
+
+    #[Test]
     public function itDoesNotForwardTheParentRuntimeCopyToServeCommands(): void
     {
         $this->withoutSqliteDatabase(function (): void {
-            $serveProcess = remote('serve --help');
-            $aboutProcess = remote('about --json');
+            $serveCommands = [
+                'serve --help',
+                '--no-ansi serve --help',
+                '--env workbench serve --help',
+                ['--no-ansi', 'serve', '--help'],
+            ];
 
-            $serveEnvironment = $this->processEnvironment($serveProcess);
-            $aboutEnvironment = $this->processEnvironment($aboutProcess);
+            foreach ($serveCommands as $serveCommand) {
+                $this->assertArrayNotHasKey(
+                    'TESTBENCH_BASE_PATH',
+                    $this->processEnvironment(remote($serveCommand)),
+                    'Forwarded the parent runtime copy to ' . json_encode($serveCommand) . '.'
+                );
+            }
 
-            $this->assertArrayNotHasKey('TESTBENCH_BASE_PATH', $serveEnvironment);
+            $aboutEnvironment = $this->processEnvironment(remote('about --json'));
+
             $this->assertSame(BASE_PATH, $aboutEnvironment['TESTBENCH_BASE_PATH'] ?? null);
         });
     }

@@ -136,6 +136,8 @@ The `serve` command also accepts `--host` and `--port` options for overriding th
 <a name="graceful-shutdown"></a>
 ### Graceful Shutdown
 
+Sending `SIGTERM` or `SIGINT` to the server's main process starts a graceful shutdown. `Ctrl+C` sends `SIGINT` to the entire terminal process group and can interrupt active requests. To allow requests to finish, signal the main process only.
+
 The `SERVER_MAX_WAIT_TIME` environment variable controls Swoole's server-wide graceful shutdown allowance in seconds. It defaults to `3`. Increase this value when long-running requests, WebSocket connections, or server-process cleanup need more time to finish. Swoole may forcefully terminate work that exceeds the configured allowance.
 
 A value of `0` does not provide unlimited shutdown time. Workers receive no graceful drain period, while Swoole's final timeout for custom server processes is disabled.

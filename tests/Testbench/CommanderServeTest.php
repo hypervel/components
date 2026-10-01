@@ -4,11 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench;
 
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Concerns\Database\InteractsWithSqliteDatabaseFile;
 use Hypervel\Testbench\Foundation\Process\ProcessDecorator;
+use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\Testbench\Fixtures\ServeMasterReadyServiceProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
+use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\Attributes\Test;
+use Symfony\Component\Process\Process;
 
+use function Hypervel\Support\php_binary;
+use function Hypervel\Testbench\package_path;
 use function Hypervel\Testbench\remote;
 
 #[RequiresOperatingSystem('Linux|Darwin')]
@@ -64,6 +71,85 @@ class CommanderServeTest extends TestCase
         });
     }
 
+    #[Test]
+    #[RequiresPhpExtension('pcntl')]
+    public function itRestoresACustomSkeletonWhenTheTerminalInterruptsServe(): void
+    {
+        $filesystem = new Filesystem;
+        $workingPath = ParallelTesting::tempDir('CommanderServeInterrupt');
+        $skeletonPath = $workingPath . '/skeleton';
+        $configurationFile = $skeletonPath . '/bootstrap/cache/testbench.yaml';
+        $environmentFile = $skeletonPath . '/.env';
+        $vendorLink = $skeletonPath . '/vendor';
+
+        $filesystem->deleteDirectory($workingPath);
+        $filesystem->copyDirectory(package_path('src/testbench/hypervel'), $skeletonPath);
+        $filesystem->put($configurationFile, "original: true\n");
+        $filesystem->link(package_path('vendor'), $workingPath . '/vendor');
+        $filesystem->put(
+            $workingPath . '/testbench.yaml',
+            "hypervel: ./skeleton\nproviders:\n  - " . ServeMasterReadyServiceProvider::class . "\n",
+        );
+        $filesystem->put($workingPath . '/.env', "APP_NAME=Interrupted\n");
+
+        $this->registerShutdownSafetyNet();
+        $serverPort = $this->servePort();
+        $process = new ProcessDecorator(new Process(
+            [
+                php_binary(),
+                package_path('tests/Testbench/Fixtures/new-session.php'),
+                package_path('src/testbench/bin/testbench'),
+                'serve',
+                '--host=127.0.0.1',
+                "--port={$serverPort}",
+                '--no-ansi',
+            ],
+            cwd: $workingPath,
+            env: [
+                'APP_BASE_PATH' => false,
+                'APP_DEBUG' => 'true',
+                'APP_ENV' => 'workbench',
+                'TESTBENCH_BASE_PATH' => false,
+                'TESTBENCH_WORKING_PATH' => $workingPath,
+            ],
+        ), 'serve');
+
+        $process->setTimeout(30);
+        $process->start();
+        $pid = $process->getPid();
+        static::$activeServePid = $pid;
+
+        try {
+            $this->waitForServeStartup($process, $serverPort);
+            $this->waitForServeMasterReady($process);
+
+            $this->assertSame($pid, posix_getpgid($pid));
+            $this->assertTrue(is_link($vendorLink));
+            $this->assertFileExists($configurationFile . '.backup');
+            $this->assertSame("APP_NAME=Interrupted\n", $filesystem->get($environmentFile));
+
+            posix_kill(-$pid, SIGINT);
+            $process->wait();
+
+            $this->assertSame(0, $process->getExitCode(), $this->combinedOutput($process));
+
+            // The serve process changed these paths, so drop this process's cached link status.
+            clearstatcache();
+
+            $this->assertSame("original: true\n", $filesystem->get($configurationFile));
+            $this->assertFileDoesNotExist($configurationFile . '.backup');
+            $this->assertFileDoesNotExist($environmentFile);
+            $this->assertFalse(is_link($vendorLink));
+        } finally {
+            // Only the serve process can lead a group with its PID, and leftover workers stay in that
+            // group after the master exits, so this reaps every remaining process.
+            posix_kill(-$pid, SIGKILL);
+            $process->stop(0);
+            static::$activeServePid = null;
+            $filesystem->deleteDirectory($workingPath);
+        }
+    }
+
     /**
      * Start the real serve subprocess on a disposable local port.
      *
@@ -111,10 +197,10 @@ class CommanderServeTest extends TestCase
      * Stop the serve subprocess and verify the entire process tree is dead.
      *
      * Kills the process tree directly with SIGKILL rather than using
-     * Symfony's stop() method, which always sends SIGTERM first and waits
-     * the full timeout before escalating. Swoole blocks SIGTERM in the
-     * master process, so SIGTERM never triggers a shutdown — the timeout
-     * just wastes seconds. SIGKILL is immediate and cannot be blocked.
+     * Symfony's stop() method, which sends SIGTERM to the master only.
+     * Swoole consumes SIGTERM through its native graceful shutdown, but
+     * teardown must not depend on the server shutting itself down, and
+     * SIGKILL cannot be caught.
      *
      * Descendants are collected before killing the master because once
      * the master dies, its children are re-parented to PID 1 and can
@@ -201,8 +287,8 @@ class CommanderServeTest extends TestCase
             return;
         }
 
-        // SIGKILL is synchronous — the process is dead by the time
-        // posix_kill(SIGKILL) returns. A brief grace for kernel cleanup.
+        // posix_kill() only delivers SIGKILL; the master is reaped through Symfony
+        // in stopServeProcess(). A brief grace for kernel cleanup.
         usleep(50_000);
 
         if (posix_kill($pid, 0)) {
@@ -286,7 +372,7 @@ class CommanderServeTest extends TestCase
     }
 
     /**
-     * Wait for the serve subprocess to begin accepting connections.
+     * Wait for the serve subprocess to begin answering HTTP requests.
      */
     private function waitForServeStartup(ProcessDecorator $process, int $serverPort): void
     {
@@ -294,17 +380,39 @@ class CommanderServeTest extends TestCase
 
         do {
             if (! $process->isRunning()) {
-                $this->fail("Serve process exited before accepting connections on port {$serverPort}.\n{$this->combinedOutput($process)}");
+                $this->fail("Serve process exited before answering HTTP requests on port {$serverPort}.\n{$this->combinedOutput($process)}");
             }
 
-            if ($this->canConnectToServePort($serverPort)) {
+            if ($this->serveAnswersHttp($serverPort)) {
                 return;
             }
 
             usleep(100_000);
         } while (microtime(true) < $deadline);
 
-        $this->fail("Serve process did not accept connections on port {$serverPort}.\n{$this->combinedOutput($process)}");
+        $this->fail("Serve process did not answer HTTP requests on port {$serverPort}.\n{$this->combinedOutput($process)}");
+    }
+
+    /**
+     * Wait for the serve master to finish its start listeners.
+     */
+    private function waitForServeMasterReady(ProcessDecorator $process): void
+    {
+        $deadline = microtime(true) + 10;
+
+        do {
+            if (str_contains($process->getOutput(), 'serve master ready')) {
+                return;
+            }
+
+            if (! $process->isRunning()) {
+                $this->fail("Serve process exited before its master was ready.\n{$this->combinedOutput($process)}");
+            }
+
+            usleep(50_000);
+        } while (microtime(true) < $deadline);
+
+        $this->fail("Serve master was not ready in time.\n{$this->combinedOutput($process)}");
     }
 
     /**
@@ -320,9 +428,13 @@ class CommanderServeTest extends TestCase
     }
 
     /**
-     * Determine whether the started server is listening on the configured port.
+     * Determine whether the started server answers an HTTP request on the configured port.
+     *
+     * A TCP connect alone is not enough: the listening socket accepts connections before any
+     * worker serves them, and under Swoole's coroutine hooks a just-released port reservation
+     * keeps accepting them until the event loop runs.
      */
-    private function canConnectToServePort(int $serverPort): bool
+    private function serveAnswersHttp(int $serverPort): bool
     {
         $socket = @fsockopen('127.0.0.1', $serverPort, $errorNumber, $errorMessage, 0.2);
 
@@ -330,9 +442,14 @@ class CommanderServeTest extends TestCase
             return false;
         }
 
-        fclose($socket);
+        try {
+            stream_set_timeout($socket, 0, 200_000);
+            fwrite($socket, "GET / HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n");
 
-        return true;
+            return str_starts_with((string) fgets($socket), 'HTTP/');
+        } finally {
+            fclose($socket);
+        }
     }
 
     /**

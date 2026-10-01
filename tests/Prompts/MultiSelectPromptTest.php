@@ -117,6 +117,21 @@ class MultiSelectPromptTest extends TestCase
         $this->assertSame(['Green'], $result);
     }
 
+    public function testRendersInfoForTheHighlightedOptionWithTheSelectionCount(): void
+    {
+        Prompt::fake([Key::SPACE, Key::DOWN, Key::ENTER]);
+
+        multiselect(
+            label: 'What are your favorite colors?',
+            options: ['red' => 'Red', 'green' => 'Green', 'blue' => 'Blue'],
+            scroll: 2,
+            info: fn (int|string|null $value): string => "Key: {$value}",
+        );
+
+        Prompt::assertStrippedOutputContains('Key: red · 0 selected');
+        Prompt::assertStrippedOutputContains('Key: green · 1 selected');
+    }
+
     public function testTransformsValues(): void
     {
         Prompt::fake([Key::DOWN, Key::SPACE, Key::DOWN, Key::SPACE, Key::ENTER]);

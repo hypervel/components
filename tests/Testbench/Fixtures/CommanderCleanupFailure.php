@@ -24,7 +24,7 @@ if (getenv('COMMANDER_FIXTURE_MODE') === 'signal') {
         }
     };
 
-    TerminatingConsole::before(static fn (): never => throw new RuntimeException('Signal cleanup failed.'));
+    TerminatingConsole::before(static fn (?int $signal): never => throw new RuntimeException("Signal {$signal} cleanup failed."));
 
     if (getenv('COMMANDER_FIXTURE_SIGNAL') === 'SIGINT') {
         $commander->useApplication(new Application(dirname(__DIR__, 3)));

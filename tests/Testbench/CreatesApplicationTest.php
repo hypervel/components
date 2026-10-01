@@ -11,6 +11,7 @@ use Hypervel\Testbench\PHPUnit\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 use Throwable;
+use Workbench\App\Providers\WorkbenchServiceProvider;
 
 use function Hypervel\Testbench\default_skeleton_path;
 
@@ -26,6 +27,7 @@ class CreatesApplicationTest extends TestCase
         $this->assertInstanceOf(Application::class, $app);
         $this->assertTrue($app->bound('config'));
         $this->assertTrue($app->bound('view'));
+        $this->assertTrue($app->providerIsLoaded(WorkbenchServiceProvider::class));
     }
 
     #[Test]

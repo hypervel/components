@@ -641,7 +641,7 @@ $name = suggest(
     label: 'What is your name?',
     options: fn ($value) => collect(['Taylor', 'Dayle'])
         ->filter(fn ($name) => Str::contains($name, $value, ignoreCase: true))
-)
+);
 ```
 
 You may also include placeholder text, a default value, and an informational hint:
@@ -659,13 +659,13 @@ $name = suggest(
 <a name="suggest-info"></a>
 #### Secondary Information
 
-The `info` argument may be used to display additional information about the currently highlighted option. When a closure is provided, it will receive the value of the currently highlighted option and should return a string or `null`:
+The `info` argument may be used to display additional information about the currently highlighted option. When a closure is provided, it will receive the value of the currently highlighted option, or `null` while no option is highlighted, and should return a string or `null`:
 
 ```php
 $name = suggest(
     label: 'What is your name?',
     options: ['Taylor', 'Dayle'],
-    info: fn (string $value) => match ($value) {
+    info: fn (?string $value) => match ($value) {
         'Taylor' => 'Administrator',
         'Dayle' => 'Contributor',
         default => null,
@@ -785,7 +785,7 @@ $id = search(
 <a name="search-info"></a>
 #### Secondary Information
 
-The `info` argument may be used to display additional information about the currently highlighted option. When a closure is provided, it will receive the value of the currently highlighted option and should return a string or `null`:
+The `info` argument may be used to display additional information about the currently highlighted option. When a closure is provided, it will receive the value of the currently highlighted option, or `null` while no option is highlighted, and should return a string or `null`:
 
 ```php
 $id = search(
@@ -793,7 +793,7 @@ $id = search(
     options: fn (string $value) => strlen($value) > 0
         ? User::whereLike('name', "%{$value}%")->pluck('name', 'id')->all()
         : [],
-    info: fn (int $userId) => User::find($userId)?->email
+    info: fn (?int $userId) => $userId === null ? null : User::find($userId)?->email
 );
 ```
 
@@ -829,7 +829,7 @@ If you have a lot of searchable options and need the user to be able to select m
 use function Hypervel\Prompts\multisearch;
 
 $ids = multisearch(
-    'Search for the users that should receive the mail',
+    'Search for users who should receive the mail',
     fn (string $value) => strlen($value) > 0
         ? User::whereLike('name', "%{$value}%")->pluck('name', 'id')->all()
         : []
@@ -844,7 +844,7 @@ When filtering an array where you intend to return the value, you should use the
 $names = collect(['Taylor', 'Abigail']);
 
 $selected = multisearch(
-    label: 'Search for the users that should receive the mail',
+    label: 'Search for users who should receive the mail',
     options: fn (string $value) => $names
         ->filter(fn ($name) => Str::contains($name, $value, ignoreCase: true))
         ->values()
@@ -856,7 +856,7 @@ You may also include placeholder text and an informational hint:
 
 ```php
 $ids = multisearch(
-    label: 'Search for the users that should receive the mail',
+    label: 'Search for users who should receive the mail',
     placeholder: 'E.g. Taylor Otwell',
     options: fn (string $value) => strlen($value) > 0
         ? User::whereLike('name', "%{$value}%")->pluck('name', 'id')->all()
@@ -880,7 +880,7 @@ $ids = multisearch(
 <a name="multisearch-info"></a>
 #### Secondary Information
 
-The `info` argument may be used to display additional information about the currently highlighted option. When a closure is provided, it will receive the value of the currently highlighted option and should return a string or `null`:
+The `info` argument may be used to display additional information about the currently highlighted option. When a closure is provided, it will receive the value of the currently highlighted option, or `null` while no option is highlighted, and should return a string or `null`:
 
 ```php
 $ids = multisearch(
@@ -888,7 +888,7 @@ $ids = multisearch(
     options: fn (string $value) => strlen($value) > 0
         ? User::whereLike('name', "%{$value}%")->pluck('name', 'id')->all()
         : [],
-    info: fn (int $userId) => User::find($userId)?->email
+    info: fn (?int $userId) => $userId === null ? null : User::find($userId)?->email
 );
 ```
 
@@ -1239,6 +1239,15 @@ callout('Deployment Summary', [
 ]);
 ```
 
+Bulleted and numbered lists accept a `spaced` argument, which adds a blank line between items:
+
+```php
+Element::bulletedList([
+    'Redis cache hit rate dropped to 42%',
+    'Queue worker memory usage exceeding 256MB',
+], spaced: true);
+```
+
 You may also use `Element::keyValueList` to display labeled data:
 
 ```php
@@ -1264,7 +1273,7 @@ callout('Server Health Check', [
 ]);
 ```
 
-If no label is provided, the URL itself will be displayed as the link text.
+If no label is provided, the URL itself will be displayed as the link text. Links are underlined by default; you may pass `underline: false` to remove the underline.
 
 <a name="tables"></a>
 ## Tables

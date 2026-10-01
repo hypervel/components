@@ -12,6 +12,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application as HypervelApplication;
 use Hypervel\Foundation\Bootstrap\HandleExceptions;
+use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\Foundation\Application as Testbench;
 use Hypervel\Testbench\Foundation\Bootstrap\LoadMigrationsFromArray;
 use Hypervel\Testbench\Foundation\Config;
@@ -31,6 +32,9 @@ use function Hypervel\Testbench\join_paths;
 use function Hypervel\Testbench\package_path;
 use function Hypervel\Testbench\transform_relative_path;
 
+/**
+ * @phpstan-import-type TOptionalConfig from Config
+ */
 class Commander
 {
     use CopyTestbenchFiles;
@@ -60,7 +64,7 @@ class Commander
     /**
      * List of providers.
      *
-     * @var array<int, class-string>
+     * @var array<int, class-string<ServiceProvider>>
      */
     protected array $providers = [
         TestbenchServiceProvider::class,
@@ -80,6 +84,8 @@ class Commander
 
     /**
      * Construct a new Commander.
+     *
+     * @param Config|TOptionalConfig $config
      */
     public function __construct(
         Config|array $config,
@@ -106,7 +112,10 @@ class Commander
             $hypervel = $this->hypervel();
             $kernel = $hypervel->make(ConsoleKernel::class);
 
-            $this->prepareCommandSignals();
+            // Serve runs Swoole's native server loop, which owns process signals and never dispatches these PCNTL handlers.
+            if (ConsoleApplication::resolveCommandName($input) !== 'serve') {
+                $this->prepareCommandSignals();
+            }
 
             $status = $kernel->handle($input, $output);
 
@@ -218,13 +227,15 @@ class Commander
 
     /**
      * Run every command cleanup phase.
+     *
+     * @param null|int $signal The signal that is terminating the command
      */
-    private function cleanUpCommand(): ?Throwable
+    private function cleanUpCommand(?int $signal = null): ?Throwable
     {
         $failure = null;
 
         try {
-            TerminatingConsole::handle();
+            TerminatingConsole::handle($signal);
         } catch (Throwable $throwable) {
             $failure = $throwable;
         }
@@ -281,6 +292,8 @@ class Commander
 
     /**
      * Resolve the application's base path.
+     *
+     * @api
      */
     protected function getApplicationBasePath(): string
     {
@@ -298,6 +311,8 @@ class Commander
 
     /**
      * Get the application's base path.
+     *
+     * @api
      */
     public static function applicationBasePath(): string
     {
@@ -373,7 +388,7 @@ class Commander
                     default => 128 + $signal,
                 };
 
-                if (($failure = $this->cleanUpCommand()) !== null) {
+                if (($failure = $this->cleanUpCommand($signal)) !== null) {
                     try {
                         $this->handleException(new ConsoleOutput, $failure);
                     } catch (Throwable) {

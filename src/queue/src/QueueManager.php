@@ -345,6 +345,8 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Indicate that queue workers should not poll for restart or pause signals.
      *
+     * This prevents the workers from hitting the application cache to determine if they need to pause or restart.
+     *
      * Boot-only. Mutates process-global worker flags; runtime use races across
      * coroutines and changes every concurrent worker pause or restart check.
      */

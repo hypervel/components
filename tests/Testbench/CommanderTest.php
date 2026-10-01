@@ -336,7 +336,7 @@ class CommanderTest extends TestCase
         $process->run();
 
         $this->assertSame(143, $process->getExitCode());
-        $this->assertStringContainsString('Signal cleanup failed.', $process->getErrorOutput());
+        $this->assertStringContainsString('Signal ' . SIGTERM . ' cleanup failed.', $process->getErrorOutput());
     }
 
     #[Test]
@@ -356,7 +356,7 @@ class CommanderTest extends TestCase
         $process->run();
 
         $this->assertSame(0, $process->getExitCode());
-        $this->assertStringContainsString('Signal cleanup failed.', $process->getErrorOutput());
+        $this->assertStringContainsString('Signal ' . SIGINT . ' cleanup failed.', $process->getErrorOutput());
     }
 }
 

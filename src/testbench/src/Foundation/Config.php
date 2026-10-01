@@ -78,7 +78,7 @@ use function Hypervel\Testbench\transform_relative_path;
  *   dont-discover: array<int, string>,
  *   bootstrappers: array<int, class-string>|class-string|null,
  *   migrations: array<int, string>|bool|string,
- *   seeders: array<int, mixed>|bool|string,
+ *   seeders: array<array-key, mixed>|bool|string,
  *   purge: TOptionalPurgeConfig,
  *   workbench: TOptionalWorkbenchConfig
  * }
@@ -89,7 +89,7 @@ use function Hypervel\Testbench\transform_relative_path;
  *   dont-discover?: array<int, string>,
  *   bootstrappers?: array<int, class-string>|class-string|null,
  *   migrations?: array<int, string>|bool|string,
- *   seeders?: array<int, mixed>|bool|string,
+ *   seeders?: array<array-key, mixed>|bool|string,
  *   purge?: TOptionalPurgeConfig|null,
  *   workbench?: TOptionalWorkbenchConfig|null
  * }

@@ -7,17 +7,17 @@
 # checked_through  — full upstream commit SHA reviewed through, inclusive
 # last_reviewed_pr — last PR examined; informational, not a checkpoint
 # sync_date        — date (YYYY-MM-DD) the completed sync finished verification
-# notes            — optional baseline evidence, scope or adaptation pointers;
-#                    detailed package differences belong in package docs
+# notes            — optional package-specific sync instructions, such as unusual
+#                    source mappings or generated files. Omit unless needed; do not
+#                    repeat README differences, code comments or general workflow rules.
 #
 # A null checked_through means no verified commit checkpoint is established.
-# Older release records in notes are evidence to establish one, not coverage claims.
 
 laravel/framework:
   branch: master
-  checked_through: d9ea91ac0d5f09aa56fb17711f90235af6ee2299
-  last_reviewed_pr: 61140
-  sync_date: '2026-09-27'
+  checked_through: 588c1c948c36443a6110c44a07bb58c463e98d27
+  last_reviewed_pr: 61778
+  sync_date: '2026-10-01'
 
 laravel/prompts:
   branch: main
@@ -26,13 +26,14 @@ laravel/prompts:
   sync_date: null
 
 orchestral/testbench-core:
-  branch: 11.x
+  branch: 12.x
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
+  notes: The upstream laravel/ skeleton maps to src/testbench/hypervel/, whose config files keep only Testbench overrides; compare upstream skeleton config changes with src/foundation/config, which is merged underneath. The skeleton has no copy of Laravel's welcome page; the welcome route uses the minimal view in src/testbench/workbench/resources/views.
 
 orchestral/testbench:
-  branch: 11.x
+  branch: 12.x
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
@@ -49,16 +50,13 @@ laravel/fortify:
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: Previous release record was v1.37.2 on 2026-07-02.
 
 laravel/passkeys-server:
   branch: main
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: >-
-    Composer package is laravel/passkeys. Previous release record was v0.2.1
-    on 2026-07-02.
+  notes: Composer package is laravel/passkeys.
 
 laravel/sanctum:
   branch: 4.x
@@ -113,21 +111,19 @@ laravel/wayfinder:
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: Previous release record was v0.1.18 on 2026-05-11.
 
 laravel/docs:
   branch: 13.x
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: Shared Laravel package documentation; adapt to the targeted framework and package APIs.
+  notes: Shared documentation for the framework and Laravel packages.
 
 inertiajs/inertia-laravel:
   branch: 3.x
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: Previous release record was v3.1.0 on 2026-05-11.
 
 inertiajs/docs:
   branch: main
@@ -141,82 +137,65 @@ spatie/laravel-data:
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: >-
-    API and validation differences are documented in src/data/README.md.
-    Previous release record was 4.23.0 on 2026-08-30; the initial port also
-    reviewed main through ce296f22 and the v5 draft at ed630ee1.
 
 spatie/laravel-permission:
   branch: main
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: >-
-    Hypervel adds denied permissions, row partitioning and coroutine-scoped state.
-    Preserve these when adapting upstream changes; see src/permission/README.md.
 
 aimeos/laravel-nestedset:
   branch: master
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: >-
-    Heavily adapted tree APIs and invariants; compare intended behavior rather
-    than replacing Hypervel's implementation. See src/docs/nested-set.md.
 
 PHP-Open-Source-Saver/jwt-auth:
   branch: main
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: >-
-    Heavily adapted around array payloads with several upstream wrappers and
-    integrations omitted. Adapt applicable changes; see src/jwt/README.md.
 
 saloonphp/saloon:
   branch: v4
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: >-
-    Built on Hypervel services with the official plugins integrated. Preserve
-    Hypervel's additional APIs and extension points when adapting upstream
-    changes. See src/saloon/README.md and src/docs/saloon.md.
 
 saloonphp/laravel-plugin:
   branch: v4
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: Integrated into src/saloon; adapt Laravel integration to Hypervel services.
+  notes: Integrated into src/saloon.
 
 saloonphp/cache-plugin:
   branch: v3
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: Integrated into src/saloon; see src/docs/saloon.md.
+  notes: Integrated into src/saloon.
 
 saloonphp/pagination-plugin:
   branch: v2
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: Integrated into src/saloon; see src/docs/saloon.md.
+  notes: Integrated into src/saloon.
 
 saloonphp/rate-limit-plugin:
   branch: v2
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: Integrated into src/saloon; see src/docs/saloon.md.
+  notes: Integrated into src/saloon.
 
 Sammyjo20/saloon-docs:
   branch: v3
   checked_through: null
   last_reviewed_pr: null
   sync_date: null
-  notes: Saloon and plugin documentation; adapt to Hypervel's integrated APIs.
+  notes: Shared documentation for Saloon and its plugins.
 
 getsentry/sentry-laravel:
   branch: master
