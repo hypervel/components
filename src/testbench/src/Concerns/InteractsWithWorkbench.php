@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Concerns;
 
+use Hypervel\Auth\AuthServiceProvider;
 use Hypervel\Support\Arr;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
@@ -79,16 +80,16 @@ trait InteractsWithWorkbench
         $providers = $config?->getExtraAttributes()['providers'] ?? [];
 
         if ($hasAuthentication === true
-            && class_exists(\Hypervel\Auth\AuthServiceProvider::class)
-            && ! in_array(\Hypervel\Auth\AuthServiceProvider::class, $providers, true)) {
-            $providers[] = \Hypervel\Auth\AuthServiceProvider::class;
+            && class_exists(AuthServiceProvider::class)
+            && ! in_array(AuthServiceProvider::class, $providers, true)) {
+            $providers[] = AuthServiceProvider::class;
         }
 
         if (empty($providers)) {
             return null;
         }
 
-        return static::usesTestingConcern(WithWorkbench::class)
+        return static::usesTestingConcern(WithWorkbench::class) || ! static::usesTestingConcern()
             ? Arr::wrap($providers)
             : [];
     }
