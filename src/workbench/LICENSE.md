@@ -1,6 +1,6 @@
 The MIT License (MIT)
 
-Copyright (c) Mior Muhammad Zaki
+Copyright (C) 2023 Mior Muhammad Zaki <https://github.com/crynobone>
 
 Copyright (c) Hypervel
 

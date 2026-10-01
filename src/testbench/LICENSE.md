@@ -1,6 +1,6 @@
 The MIT License (MIT)
 
-Copyright (c) Taylor Otwell
+Copyright (C) 2013 Mior Muhammad Zaki <http://git.io/crynobone>
 
 Copyright (c) Hypervel
 
