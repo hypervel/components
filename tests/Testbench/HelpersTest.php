@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench;
 
+use Composer\InstalledVersions;
 use Hypervel\Foundation\Application;
 use Hypervel\Testbench\Exceptions\ApplicationNotAvailableException;
 use Hypervel\Testbench\TestCase;
+use OutOfBoundsException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Runner\Version;
@@ -16,6 +18,7 @@ use function Hypervel\Support\php_binary;
 use function Hypervel\Testbench\hypervel_or_fail;
 use function Hypervel\Testbench\hypervel_version_compare;
 use function Hypervel\Testbench\package_path;
+use function Hypervel\Testbench\package_version_compare;
 use function Hypervel\Testbench\phpunit_version_compare;
 
 class HelpersTest extends TestCase
@@ -43,6 +46,45 @@ class HelpersTest extends TestCase
 
         $this->assertSame(0, phpunit_version_compare($phpunit));
         $this->assertTrue(phpunit_version_compare($phpunit, '=='));
+    }
+
+    #[Test]
+    public function itCanEvaluatePackageVersion(): void
+    {
+        $version = InstalledVersions::getPrettyVersion('phpunit/phpunit');
+
+        $this->assertSame(0, package_version_compare('phpunit/phpunit', $version));
+        $this->assertTrue(package_version_compare('phpunit/phpunit', $version, '='));
+        $this->assertTrue(package_version_compare('phpunit/phpunit', $version, '<='));
+        $this->assertTrue(package_version_compare('phpunit/phpunit', $version, '>='));
+
+        $this->assertFalse(package_version_compare('phpunit/phpunit', $version, '<'));
+        $this->assertFalse(package_version_compare('phpunit/phpunit', $version, '>'));
+    }
+
+    #[Test]
+    public function itCanEvaluateProvidedPackageVersion(): void
+    {
+        $version = InstalledVersions::getVersionRanges('hypervel/support');
+
+        $this->assertTrue(package_version_compare('hypervel/support', $version));
+        $this->assertTrue(package_version_compare('hypervel/support', $version, '='));
+        $this->assertTrue(package_version_compare('hypervel/support', $version, '<='));
+        $this->assertTrue(package_version_compare('hypervel/support', $version, '>='));
+
+        $this->assertFalse(package_version_compare('hypervel/support', $version, '<'));
+        $this->assertFalse(package_version_compare('hypervel/support', $version, '>'));
+
+        $this->assertTrue(package_version_compare('psr/http-message-implementation', '1.0', '>='));
+    }
+
+    #[Test]
+    public function itThrowsExceptionWhenPackageIsNotInstalled(): void
+    {
+        $this->expectException(OutOfBoundsException::class);
+        $this->expectExceptionMessage('Package "hypervel/is-not-installed" is not installed');
+
+        package_version_compare('hypervel/is-not-installed', '1.0.0', '=');
     }
 
     #[Test]

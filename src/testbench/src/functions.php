@@ -24,10 +24,10 @@ use Hypervel\Testbench\Foundation\Process\ProcessDecorator;
 use Hypervel\Testbench\Foundation\Process\RemoteCommand;
 use Hypervel\Testing\PendingCommand;
 use InvalidArgumentException;
+use OutOfBoundsException;
 use PHPUnit\Framework\TestCase as PHPUnitTestCase;
 use PHPUnit\Runner\ShutdownHandler;
 use PHPUnit\Runner\Version;
-use RuntimeException;
 
 use function Hypervel\Filesystem\join_paths as filesystem_join_paths;
 use function Hypervel\Support\php_binary as support_php_binary;
@@ -476,16 +476,22 @@ function workbench_relative_path(array|string $path = ''): string
 
 /**
  * Compare the installed version of a package.
+ *
+ * Replaced and provided packages only have version ranges, so comparing them
+ * returns whether those ranges satisfy the comparison, using equality when no
+ * operator is given.
+ *
+ * @throws OutOfBoundsException
  */
 function package_version_compare(string $package, string $version, ?string $operator = null): int|bool
 {
+    $versionParser = new VersionParser;
     $prettyVersion = InstalledVersions::getPrettyVersion($package);
 
     if ($prettyVersion === null) {
-        throw new RuntimeException(sprintf('Unable to compare "%s" version', $package));
+        return InstalledVersions::satisfies($versionParser, $package, ($operator ?? '=') . $version);
     }
 
-    $versionParser = new VersionParser;
     $normalizedPackageVersion = $versionParser->normalize($prettyVersion);
     $normalizedVersion = $versionParser->normalize($version);
 
