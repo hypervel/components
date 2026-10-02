@@ -25,12 +25,13 @@ class CheckAbilitiesTest extends TestCase
         $user->expects('currentAccessToken')->andReturn(m::mock(HasAbilities::class));
         $user->expects('tokenCan')->with('foo')->andReturn(true);
         $user->expects('tokenCan')->with('bar')->andReturn(true);
+        $expected = new Response('response');
 
-        $response = $middleware->handle($request, function (): Response {
-            return new Response('response');
+        $response = $middleware->handle($request, function () use ($expected): Response {
+            return $expected;
         }, 'foo', 'bar');
 
-        $this->assertSame('response', $response->getContent());
+        $this->assertSame($expected, $response);
     }
 
     public function testExceptionIsThrownIfTokenDoesntHaveAbility(): void
