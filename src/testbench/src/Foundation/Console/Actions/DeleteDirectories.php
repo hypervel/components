@@ -46,14 +46,17 @@ class DeleteDirectories extends Action
                 $location = transform_realpath_to_relative($directory, $this->workingPath);
 
                 Task::action(fn (): bool => $this->filesystem->deleteDirectory($directory))
-                    ->response(function (bool $deleted) use (&$failures, $location): void {
+                    ->response(function (bool $deleted, bool $pretending) use (&$failures, $location): void {
                         if (! $deleted) {
                             $failures[] = $location;
 
                             return;
                         }
 
-                        $this->components?->task(sprintf('Directory [%s] has been deleted', $location));
+                        $this->components?->task(sprintf(
+                            $pretending ? 'Directory [%s] would be deleted' : 'Directory [%s] has been deleted',
+                            $location,
+                        ));
                     })->requirements(function () use ($directory, $location): bool {
                         if (! $this->filesystem->isDirectory($directory) && ! is_symlink($directory)) {
                             $this->components?->twoColumnDetail(

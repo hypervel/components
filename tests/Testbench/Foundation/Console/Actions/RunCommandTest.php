@@ -36,7 +36,7 @@ class RunCommandTest extends TestCase
         $components = m::mock(ComponentsFactory::class);
 
         $console->shouldReceive('call')->never();
-        $components->shouldReceive('task')->once()->with('Command [config:clear] executed')->andReturnNull();
+        $components->shouldReceive('task')->once()->with('Command [config:clear] would be executed')->andReturnNull();
 
         (new RunCommand(
             console: $console,

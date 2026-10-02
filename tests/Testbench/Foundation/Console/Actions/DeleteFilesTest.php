@@ -70,7 +70,7 @@ class DeleteFilesTest extends TestCase
             ->shouldReceive('isDirectory')->once()->with('b')->andReturnFalse()
             ->shouldReceive('delete')->never();
 
-        $components->shouldReceive('task')->once()->with('File [a] has been deleted')->andReturnNull()
+        $components->shouldReceive('task')->once()->with('File [a] would be deleted')->andReturnNull()
             ->shouldReceive('twoColumnDetail')->once()->with('File [b] doesn\'t exist', '<fg=yellow;options=bold>SKIPPED</>')->andReturnNull();
 
         (new DeleteFiles(

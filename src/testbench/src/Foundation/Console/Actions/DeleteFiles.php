@@ -47,14 +47,17 @@ class DeleteFiles extends Action
                 $location = transform_realpath_to_relative($file, $this->workingPath);
 
                 Task::action(fn (): bool => $this->filesystem->delete($file))
-                    ->response(function (bool $deleted) use (&$failures, $location): void {
+                    ->response(function (bool $deleted, bool $pretending) use (&$failures, $location): void {
                         if (! $deleted) {
                             $failures[] = $location;
 
                             return;
                         }
 
-                        $this->components?->task(sprintf('File [%s] has been deleted', $location));
+                        $this->components?->task(sprintf(
+                            $pretending ? 'File [%s] would be deleted' : 'File [%s] has been deleted',
+                            $location,
+                        ));
                     })->requirements(function () use ($file, $location): bool {
                         if (! $this->filesystem->isFile($file) && ! is_symlink($file)) {
                             $this->components?->twoColumnDetail(

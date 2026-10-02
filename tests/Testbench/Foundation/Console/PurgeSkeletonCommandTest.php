@@ -186,9 +186,9 @@ class PurgeSkeletonCommandTest extends TestCase
         symlink(package_path('vendor'), $vendorSymlink);
 
         $this->artisan('package:purge-skeleton', ['--pretend' => true])
-            ->expectsOutputToContain('Command [config:clear] executed')
-            ->expectsOutputToContain('File [@hypervel/purge-me.txt] has been deleted')
-            ->expectsOutputToContain('Directory [@hypervel/purge-dir] has been deleted')
+            ->expectsOutputToContain('Command [config:clear] would be executed')
+            ->expectsOutputToContain('File [@hypervel/purge-me.txt] would be deleted')
+            ->expectsOutputToContain('Directory [@hypervel/purge-dir] would be deleted')
             ->assertOk();
         TerminatingConsole::handle();
 

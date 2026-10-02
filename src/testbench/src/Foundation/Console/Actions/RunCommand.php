@@ -33,7 +33,7 @@ class RunCommand extends Action
         Task::action(fn (): bool => $this->console->call($name, $parameters) === Command::SUCCESS)
             ->response(function (bool $successful, bool $pretending) use ($name): void {
                 if ($pretending === true) {
-                    $this->components?->task(sprintf('Command [%s] executed', $name));
+                    $this->components?->task(sprintf('Command [%s] would be executed', $name));
 
                     return;
                 }

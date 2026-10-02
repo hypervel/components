@@ -67,7 +67,7 @@ class CreateSqliteDbCommandTest extends TestCase
 
         try {
             $this->artisan('package:create-sqlite-db', ['--pretend' => true])
-                ->expectsOutputToContain('database.sqlite] generated')
+                ->expectsOutputToContain('database.sqlite] would be generated')
                 ->assertOk();
 
             $this->assertDirectoryDoesNotExist($databasePath);

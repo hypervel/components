@@ -55,8 +55,8 @@ class GeneratesFile extends Action
             }
 
             return true;
-        })->response(function () use ($location): void {
-            $this->components?->task(sprintf('File [%s] generated', $location));
+        })->response(function (bool $generated, bool $pretending) use ($location): void {
+            $this->components?->task(sprintf($pretending ? 'File [%s] would be generated' : 'File [%s] generated', $location));
         })->requirements(function () use ($from, $to, $location): bool {
             if (! $this->filesystem->exists($from)) {
                 $this->components?->twoColumnDetail(

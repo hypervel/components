@@ -87,7 +87,7 @@ class GeneratesFileTest extends TestCase
             ->shouldReceive('copy')->never()
             ->shouldReceive('delete')->never();
 
-        $components->shouldReceive('task')->once()->with('File [b] generated');
+        $components->shouldReceive('task')->once()->with('File [b] would be generated');
 
         (new GeneratesFile(
             filesystem: $filesystem,

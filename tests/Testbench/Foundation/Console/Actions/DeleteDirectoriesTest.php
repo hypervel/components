@@ -68,7 +68,7 @@ class DeleteDirectoriesTest extends TestCase
             ->shouldReceive('isDirectory')->once()->with('b')->andReturnFalse()
             ->shouldReceive('deleteDirectory')->never();
 
-        $components->shouldReceive('task')->once()->with('Directory [a] has been deleted')->andReturnNull()
+        $components->shouldReceive('task')->once()->with('Directory [a] would be deleted')->andReturnNull()
             ->shouldReceive('twoColumnDetail')->once()->with('Directory [b] doesn\'t exist', '<fg=yellow;options=bold>SKIPPED</>')->andReturnNull();
 
         (new DeleteDirectories(
