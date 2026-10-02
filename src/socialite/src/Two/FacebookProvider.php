@@ -8,6 +8,7 @@ use Firebase\JWT\JWT;
 use GuzzleHttp\RequestOptions;
 use Hypervel\Socialite\Two\Concerns\InteractsWithJwks;
 use Hypervel\Socialite\Two\Exceptions\InvalidIssuerException;
+use Hypervel\Socialite\Two\Exceptions\InvalidNonceException;
 use Hypervel\Support\Arr;
 use SensitiveParameter;
 
@@ -75,6 +76,18 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
     }
 
     /**
+     * Get a Socialite user instance from a known access token.
+     */
+    public function userFromToken(#[SensitiveParameter] string $token, ?string $nonce = null): User
+    {
+        if ($nonce !== null) {
+            $this->withNonce($nonce);
+        }
+
+        return parent::userFromToken($token);
+    }
+
+    /**
      * Get user based on the OIDC token.
      */
     protected function getUserByOIDCToken(#[SensitiveParameter] string $token): ?array
@@ -98,6 +111,13 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
 
         if (($data['iss'] ?? null) !== 'https://www.facebook.com') {
             throw new InvalidIssuerException;
+        }
+
+        $expectedNonce = $this->getExpectedNonce();
+        $nonce = $data['nonce'] ?? null;
+
+        if ($expectedNonce === null || ! is_string($nonce) || ! hash_equals($expectedNonce, $nonce)) {
+            throw new InvalidNonceException;
         }
 
         $data['id'] = $data['sub'];
@@ -243,6 +263,24 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
         $this->setContext('lastToken', $token);
 
         return $this;
+    }
+
+    /**
+     * Specify the nonce expected when using Facebook Limited Login OIDC tokens.
+     */
+    public function withNonce(string $nonce): static
+    {
+        $this->setContext('expectedNonce', $nonce);
+
+        return $this;
+    }
+
+    /**
+     * Get the expected OIDC token nonce.
+     */
+    protected function getExpectedNonce(): ?string
+    {
+        return $this->getContext('expectedNonce') ?? Arr::get($this->getParameters(), 'nonce');
     }
 
     /**
