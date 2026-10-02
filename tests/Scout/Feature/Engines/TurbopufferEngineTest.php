@@ -30,6 +30,7 @@ use Hypervel\Tests\Scout\Fixtures\Models\SearchableModelWithNativeEmbedding;
 use Hypervel\Tests\Scout\Fixtures\Models\SearchableModelWithPrecomputedEmbedding;
 use Hypervel\Tests\Scout\Fixtures\Models\SoftDeletableSearchableModel;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Throwable;
 
 class TurbopufferEngineTest extends TestCase
@@ -272,13 +273,17 @@ class TurbopufferEngineTest extends TestCase
         Http::assertSent(fn (Request $request): bool => $request->url() === 'https://turbopuffer.test/v2/namespaces/archive');
     }
 
-    public function testDeleteByFilterRejectsAnEmptyFilterBeforeIo(): void
+    /**
+     * @param array<string, mixed> $options
+     */
+    #[DataProvider('emptyDeletionFilters')]
+    public function testDeleteByFilterRejectsAnEmptyFilterBeforeIo(array $options): void
     {
         Http::preventStrayRequests();
         $observer = $this->observeOperations();
 
         try {
-            $this->engine()->deleteByFilter(new Builder(new SearchableModelWithPrecomputedEmbedding, ''));
+            $this->engine()->deleteByFilter((new Builder(new SearchableModelWithPrecomputedEmbedding, ''))->options($options));
 
             $this->fail('Expected filter deletion to reject an empty filter.');
         } catch (InvalidArgumentException $exception) {
@@ -286,6 +291,19 @@ class TurbopufferEngineTest extends TestCase
         }
 
         $this->assertSame([], $observer->operations);
+    }
+
+    /**
+     * Get the deletion options that contain no filter.
+     *
+     * @return array<string, array{array<string, mixed>}>
+     */
+    public static function emptyDeletionFilters(): array
+    {
+        return [
+            'no filters' => [[]],
+            'empty native filters' => [['filters' => []]],
+        ];
     }
 
     public function testDeleteByFilterReportsAFailureAfterPartialCompletion(): void
@@ -589,6 +607,24 @@ class TurbopufferEngineTest extends TestCase
         $this->expectExceptionMessage('10,000');
 
         $this->engine()->paginate(new Builder(new SearchableModelWithPrecomputedEmbedding, 'hypervel'), 100, 101);
+    }
+
+    public function testPaginationReturnsTheFinalPartialPageWithinTurbopufferLimit(): void
+    {
+        Http::fake(function (Request $request): PromiseInterface {
+            if (isset($request['aggregate_by'])) {
+                return Http::response(['aggregations' => ['count' => 12000]]);
+            }
+
+            return Http::response(['rows' => array_map(fn (int $id): array => ['id' => $id], range(1, 10000))]);
+        });
+
+        $results = $this->engine()->paginate(new Builder(new SearchableModelWithPrecomputedEmbedding, 'hypervel'), 15, 667);
+
+        $this->assertSame(range(9991, 10000), array_column($results['rows'], 'id'));
+        $this->assertSame(10000, $results['total']);
+
+        Http::assertSent(fn (Request $request): bool => ! isset($request['aggregate_by']) && $request['limit'] === 10000);
     }
 
     public function testFlushDeletesTheNamespace(): void

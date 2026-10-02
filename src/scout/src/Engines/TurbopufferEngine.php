@@ -261,8 +261,10 @@ class TurbopufferEngine extends Engine implements DeletesByFilter, SupportsSeman
         $perPage = max(1, $perPage);
         $maximum = min($builder->limit ?? 10000, 10000);
         $window = $page * $perPage;
+        $offset = $window - $perPage;
 
-        if ($window > 10000) {
+        // The last page may extend past 10,000 records, so only reject pages that start beyond them.
+        if ($offset >= 10000) {
             throw new ScoutException('Turbopuffer search results may not be paginated beyond 10,000 records.');
         }
 
@@ -270,7 +272,7 @@ class TurbopufferEngine extends Engine implements DeletesByFilter, SupportsSeman
 
         $results['rows'] = array_slice(
             $results['rows'] ?? [],
-            ($page - 1) * $perPage,
+            $offset,
             $perPage
         );
 
@@ -612,7 +614,7 @@ class TurbopufferEngine extends Engine implements DeletesByFilter, SupportsSeman
      */
     protected function combineFilters(?array $nativeFilters, ?array $scoutFilters): ?array
     {
-        if ($nativeFilters === null) {
+        if ($nativeFilters === null || $nativeFilters === []) {
             return $scoutFilters;
         }
 

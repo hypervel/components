@@ -1407,7 +1407,7 @@ $articles = Article::search('staying cool in the summer')
     ->get();
 ```
 
-You may provide a minimum similarity threshold when supported by the selected engine:
+When using Meilisearch or Typesense, you may provide a minimum similarity threshold between `0` and `1`. Turbopuffer does not support similarity thresholds and ignores this argument:
 
 ```php
 $articles = Article::search('renewable energy storage')
