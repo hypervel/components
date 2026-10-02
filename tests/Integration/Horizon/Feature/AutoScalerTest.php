@@ -14,6 +14,7 @@ use Hypervel\Horizon\SystemProcessCounter;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\FakePool;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class AutoScalerTest extends IntegrationTestCase
 {
@@ -300,11 +301,12 @@ class AutoScalerTest extends IntegrationTestCase
         $this->assertSame(1, $supervisor->processPools['fifth']->totalProcessCount());
     }
 
-    public function testLogarithmicScalingAllocatesMoreWorkersToSmallerBusyQueueThanSizeScaling(): void
+    #[DataProvider('busyQueueRuntimes')]
+    public function testLogarithmicScalingAllocatesMoreWorkersToSmallerBusyQueueThanSizeScaling(int $runtime): void
     {
         $queues = [
-            'A' => ['current' => 1, 'size' => 946, 'runtime' => 1],
-            'B' => ['current' => 1, 'size' => 13702, 'runtime' => 1],
+            'A' => ['current' => 1, 'size' => 946, 'runtime' => $runtime],
+            'B' => ['current' => 1, 'size' => 13702, 'runtime' => $runtime],
             'C' => ['current' => 1, 'size' => 0, 'runtime' => 0],
         ];
 
@@ -331,6 +333,17 @@ class AutoScalerTest extends IntegrationTestCase
         $this->assertSame(13, $logSupervisor->processPools['B']->totalProcessCount());
         $this->assertSame(1, $logSupervisor->processPools['C']->totalProcessCount());
         $this->assertSame(25, $logSupervisor->totalProcessCount());
+    }
+
+    /**
+     * Get the runtimes recorded for the busy queues.
+     */
+    public static function busyQueueRuntimes(): array
+    {
+        return [
+            'recorded runtimes' => [1],
+            'no recorded runtimes' => [0],
+        ];
     }
 
     public function testLogarithmicScalingIsBasedOnQueueSizeInsteadOfRuntime(): void

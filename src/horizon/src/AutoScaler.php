@@ -89,7 +89,13 @@ class AutoScaler
             ? $queues->sum(fn (array $queue): float => log1p($queue['size']))
             : 0;
 
-        return $queues->mapWithKeys(function ($timeToClear, $queue) use ($supervisor, $timeToClearAll, $totalJobs, $totalLogJobs) {
+        // The size and log strategies don't use runtimes, so they can balance queued
+        // jobs before any runtime has been recorded.
+        $canBalanceByStrategy = $supervisor->options->autoScaleByNumberOfJobs() || $supervisor->options->autoScaleLogarithmically()
+            ? $totalJobs > 0
+            : $timeToClearAll > 0;
+
+        return $queues->mapWithKeys(function ($timeToClear, $queue) use ($supervisor, $timeToClearAll, $totalJobs, $totalLogJobs, $canBalanceByStrategy) {
             if (! $supervisor->options->balancing()) {
                 $targetProcesses = min(
                     $supervisor->options->maxProcesses,
@@ -99,7 +105,7 @@ class AutoScaler
                 return [$queue => $targetProcesses];
             }
 
-            if ($timeToClearAll > 0
+            if ($canBalanceByStrategy
                 && $supervisor->options->autoScaling()
             ) {
                 if ($supervisor->options->autoScaleByNumberOfJobs()) {
