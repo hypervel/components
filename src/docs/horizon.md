@@ -289,6 +289,7 @@ In addition to `tries`, `timeout`, and `backoff`, each supervisor accepts severa
             'sleep' => 3,
             'rest' => 0,
             'nice' => 0,
+            'json' => false,
         ],
     ],
 ],
@@ -302,6 +303,7 @@ In addition to `tries`, `timeout`, and `backoff`, each supervisor accepts severa
 - `sleep` defines the number of seconds a worker should wait when no job is available before polling the queue for new jobs again. By default, this value is `3`.
 - `rest` defines the number of seconds to pause between processing each job. By default, this value is `0`.
 - `nice` defines the "niceness" (scheduling priority) of the worker processes. A higher value gives the process a lower priority. By default, this value is `0`.
+- `json` determines if worker processes output their job updates and stop information as JSON, like the `queue:work` command's [`--json` option](/docs/{{version}}/queues#the-queue-work-command). By default, this value is `false`.
 
 </div>
 
@@ -398,12 +400,13 @@ For example, you may configure Horizon to maintain at least one process per queu
 ],
 ```
 
-The `autoScalingStrategy` configuration option determines how Horizon will assign more worker processes to queues. You can choose between two strategies:
+The `autoScalingStrategy` configuration option determines how Horizon will assign more worker processes to queues. You can choose between three strategies:
 
 <div class="content-list" markdown="1">
 
 - The `time` strategy will assign workers based on the total estimated amount of time it will take to clear the queue.
 - The `size` strategy will assign workers based on the total number of jobs on the queue.
+- The `log` strategy will assign workers based on the logarithm of the number of jobs on the queue. This prevents a significantly larger queue from receiving a disproportionately large share of workers.
 
 </div>
 
