@@ -89,7 +89,7 @@ class Sanctum
      * @param array<string|UnitEnum> $abilities
      * @return TUser
      */
-    public static function actingAs(Authenticatable $user, array $abilities = [], string $guard = 'sanctum'): Authenticatable
+    public static function actingAs(Authenticatable $user, array $abilities = [], ?string $guard = 'sanctum'): Authenticatable
     {
         $abilities = array_map(enum_value(...), $abilities);
 
