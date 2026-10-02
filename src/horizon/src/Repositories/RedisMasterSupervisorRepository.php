@@ -65,6 +65,10 @@ class RedisMasterSupervisorRepository implements MasterSupervisorRepository
         });
 
         return collect($records)->map(function ($record) {
+            if (! is_array($record)) {
+                return null;
+            }
+
             return $record['name']
                 ? (object) array_merge($record, [
                     'supervisors' => json_decode($record['supervisors'], true),
