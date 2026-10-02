@@ -116,7 +116,7 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
         $expectedNonce = $this->getExpectedNonce();
         $nonce = $data['nonce'] ?? null;
 
-        if ($expectedNonce === null || ! is_string($nonce) || ! hash_equals($expectedNonce, $nonce)) {
+        if ($expectedNonce === null || $expectedNonce === '' || ! is_string($nonce) || ! hash_equals($expectedNonce, $nonce)) {
             throw new InvalidNonceException;
         }
 

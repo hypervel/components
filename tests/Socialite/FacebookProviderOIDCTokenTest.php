@@ -75,6 +75,17 @@ class FacebookProviderOIDCTokenTest extends TestCase
         $provider->userFromToken($this->createSignedToken($key));
     }
 
+    public function testItRejectsFacebookOidcTokensWithAnEmptyExpectedNonce(): void
+    {
+        $provider = $this->getProvider();
+        $key = $this->createRsaKeyPair('current-key');
+
+        $this->expectJwksResponses($provider, [$key]);
+        $this->expectException(InvalidNonceException::class);
+
+        $provider->userFromToken($this->createSignedToken($key, nonce: ''), '');
+    }
+
     public function testItRejectsFacebookOidcTokensWithoutANonceWhenOneIsExpected(): void
     {
         $provider = $this->getProvider();
