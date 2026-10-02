@@ -15,8 +15,8 @@ return Application::configure(basePath: $APP_BASE_PATH ?? default_skeleton_path(
         commands: __DIR__ . '/../routes/console.php',
         health: '/up',
     )
-    ->withMiddleware(function (Middleware $middleware) {
+    ->withMiddleware(function (Middleware $middleware): void {
     })
-    ->withExceptions(function (Exceptions $exceptions) {
+    ->withExceptions(function (Exceptions $exceptions): void {
     })
     ->create();
