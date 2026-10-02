@@ -19,10 +19,10 @@ class ConfigFileTest extends TestCase
             'REVERB_SWOOLE_SHARED_STATE_LOCK_ROWS' => '4096',
             'REVERB_PORT' => '8443',
             'REVERB_APP_PING_INTERVAL' => '45',
-            'REVERB_APP_RATE_LIMIT_ENABLED' => '1',
+            'REVERB_APP_RATE_LIMITING_ENABLED' => '1',
             'REVERB_APP_RATE_LIMIT_MAX_ATTEMPTS' => '120',
             'REVERB_APP_RATE_LIMIT_DECAY_SECONDS' => '30',
-            'REVERB_APP_RATE_LIMIT_TERMINATE_ON_LIMIT' => '0',
+            'REVERB_APP_RATE_LIMIT_TERMINATE' => '1',
             'REVERB_APP_MAX_CONNECTIONS' => '500',
             'REVERB_APP_MAX_MESSAGE_SIZE' => '20000',
             'REVERB_WEBHOOK_SUBSCRIPTION_COUNT' => '1',
@@ -49,7 +49,7 @@ class ConfigFileTest extends TestCase
             $this->assertTrue($config['apps']['apps'][0]['rate_limiting']['enabled']);
             $this->assertSame(120, $config['apps']['apps'][0]['rate_limiting']['max_attempts']);
             $this->assertSame(30, $config['apps']['apps'][0]['rate_limiting']['decay_seconds']);
-            $this->assertFalse($config['apps']['apps'][0]['rate_limiting']['terminate_on_limit']);
+            $this->assertTrue($config['apps']['apps'][0]['rate_limiting']['terminate_on_limit']);
             $this->assertSame(500, $config['apps']['apps'][0]['max_connections']);
             $this->assertSame(20_000, $config['apps']['apps'][0]['max_message_size']);
             $this->assertTrue($config['apps']['apps'][0]['webhooks']['subscription_count']);

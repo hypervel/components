@@ -146,10 +146,10 @@ return [
                 'max_message_size' => (int) env('REVERB_APP_MAX_MESSAGE_SIZE', 10_000),
                 'accept_client_events_from' => env('REVERB_APP_ACCEPT_CLIENT_EVENTS_FROM', 'members'),
                 'rate_limiting' => [
-                    'enabled' => (bool) env('REVERB_APP_RATE_LIMIT_ENABLED', false),
+                    'enabled' => (bool) env('REVERB_APP_RATE_LIMITING_ENABLED', false),
                     'max_attempts' => (int) env('REVERB_APP_RATE_LIMIT_MAX_ATTEMPTS', 60),
                     'decay_seconds' => (int) env('REVERB_APP_RATE_LIMIT_DECAY_SECONDS', 60),
-                    'terminate_on_limit' => (bool) env('REVERB_APP_RATE_LIMIT_TERMINATE_ON_LIMIT', false),
+                    'terminate_on_limit' => (bool) env('REVERB_APP_RATE_LIMIT_TERMINATE', false),
                 ],
             ],
         ],
