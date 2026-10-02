@@ -26,6 +26,8 @@ class RedisQueue extends BaseQueue
 {
     public const string LAST_PUSHED_CONTEXT_KEY = '__horizon.queue.last_pushed';
 
+    protected const string POPPING_QUEUE_CONTEXT_KEY = '__horizon.queue.popping';
+
     /**
      * Get the number of queue jobs that are ready to process.
      */
@@ -161,7 +163,17 @@ class RedisQueue extends BaseQueue
     #[Override]
     public function pop(UnitEnum|string|null $queue = null, int $index = 0): ?Job
     {
-        return tap(parent::pop($queue, $index), function ($result) use ($queue) {
+        $name = $this->getQueue($queue);
+
+        CoroutineContext::set(static::POPPING_QUEUE_CONTEXT_KEY, $name);
+
+        try {
+            $result = parent::pop($queue, $index);
+        } finally {
+            CoroutineContext::forget(static::POPPING_QUEUE_CONTEXT_KEY);
+        }
+
+        return tap($result, function ($result) use ($name) {
             /** @var null|RedisJob $result */
             if ($result && $this->hasEventListeners(JobReserved::class)) {
                 try {
@@ -170,7 +182,7 @@ class RedisQueue extends BaseQueue
                     return;
                 }
 
-                $this->event($this->getQueue($queue), $event);
+                $this->event($name, $event);
             }
         });
     }
@@ -186,7 +198,9 @@ class RedisQueue extends BaseQueue
     {
         return tap(parent::migrateExpiredJobs($from, $to), function ($jobs) use ($to) {
             if ($this->hasEventListeners(JobsMigrated::class)) {
-                $this->event($to, new JobsMigrated($jobs));
+                // Pop migrates through storage keys, which can carry a Cluster hash tag or a
+                // getQueueRedisKey() override, so its events report the resolved queue name.
+                $this->event(CoroutineContext::get(static::POPPING_QUEUE_CONTEXT_KEY, $to), new JobsMigrated($jobs));
             }
         });
     }
