@@ -60,8 +60,8 @@ laravel/fortify:
 
 laravel/passkeys-server:
   branch: main
-  checked_through: 75e7c69373123c60f34a03ec2e13438e5d2ee360
-  last_reviewed_pr: null
+  checked_through: 4f81dfd5f7f983bdfe3ee6b3971c51acaa7844c3
+  last_reviewed_pr: 40
   sync_date: '2026-10-02'
   notes: Composer package is laravel/passkeys.
 
