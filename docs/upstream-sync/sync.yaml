@@ -54,15 +54,15 @@ laravel/facade-documenter:
 
 laravel/fortify:
   branch: 1.x
-  checked_through: null
-  last_reviewed_pr: null
-  sync_date: null
+  checked_through: c456642584c102f6a6aafee9932299542da637b5
+  last_reviewed_pr: 703
+  sync_date: '2026-10-02'
 
 laravel/passkeys-server:
   branch: main
-  checked_through: null
+  checked_through: 75e7c69373123c60f34a03ec2e13438e5d2ee360
   last_reviewed_pr: null
-  sync_date: null
+  sync_date: '2026-10-02'
   notes: Composer package is laravel/passkeys.
 
 laravel/sanctum:
