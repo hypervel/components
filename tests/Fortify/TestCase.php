@@ -13,7 +13,6 @@ use Hypervel\Passkeys\PasskeysServiceProvider;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase as TestbenchTestCase;
 use Hypervel\Tests\Fortify\Fixtures\Admin;
-use Workbench\App\Models\User;
 
 abstract class TestCase extends TestbenchTestCase
 {
@@ -34,7 +33,7 @@ abstract class TestCase extends TestbenchTestCase
     protected function defineEnvironment(ApplicationContract $app): void
     {
         $config = $app->make(Config::class);
-        $userModel = $config->get('auth.providers.users.model', User::class);
+        $userModel = $config->string('auth.providers.users.model');
 
         $config->set([
             'app.key' => 'base64:' . base64_encode(str_repeat('a', 32)),
@@ -87,6 +86,9 @@ abstract class TestCase extends TestbenchTestCase
         });
     }
 
+    /**
+     * Create the admins table.
+     */
     protected function createAdminsTable(): void
     {
         Schema::create('admins', function (Blueprint $table): void {

@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Fortify;
 
-use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Auth\Events\Verified;
 use Hypervel\Foundation\Http\FormRequest;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\URL;
 use Hypervel\Testbench\Attributes\WithMigration;
-use Mockery as m;
 use Workbench\App\Models\User;
 use Workbench\Database\Factories\UserFactory;
 
@@ -50,71 +50,72 @@ class VerifyEmailControllerTest extends TestCase
             ->get($url);
 
         $response->assertRedirect('http://foo.com/bar');
+        $this->assertTrue($user->fresh()->hasVerifiedEmail());
     }
 
     public function testRedirectedIfEmailIsAlreadyVerified(): void
     {
+        Event::fake([Verified::class]);
+
+        $user = User::forceCreate(UserFactory::new()->raw([
+            'email' => 'taylor@hypervel.org',
+        ]));
+
         $url = URL::temporarySignedRoute(
             'verification.verify',
             now()->addMinutes(60),
             [
-                'id' => 1,
-                'hash' => sha1('taylor@laravel.com'),
+                'id' => $user->getKey(),
+                'hash' => sha1('taylor@hypervel.org'),
             ]
         );
-
-        $user = m::mock(Authenticatable::class);
-        $user->shouldReceive('getKey')->andReturn(1);
-        $user->shouldReceive('getAuthIdentifier')->andReturn(1);
-        $user->shouldReceive('getEmailForVerification')->andReturn('taylor@laravel.com');
-        $user->shouldReceive('hasVerifiedEmail')->andReturn(true);
-        $user->shouldReceive('markEmailAsVerified')->never();
 
         $response = $this->actingAs($user)->get($url);
 
         $response->assertStatus(302);
+        Event::assertNotDispatched(Verified::class);
     }
 
     public function testEmailIsNotVerifiedIfIdDoesNotMatch(): void
     {
+        $user = $this->createUnverifiedUser([
+            'email' => 'taylor@hypervel.org',
+        ]);
+
         $url = URL::temporarySignedRoute(
             'verification.verify',
             now()->addMinutes(60),
             [
-                'id' => 2,
-                'hash' => sha1('taylor@laravel.com'),
+                'id' => $user->getKey() + 1,
+                'hash' => sha1('taylor@hypervel.org'),
             ]
         );
-
-        $user = m::mock(Authenticatable::class);
-        $user->shouldReceive('getKey')->andReturn(1);
-        $user->shouldReceive('getAuthIdentifier')->andReturn(1);
-        $user->shouldReceive('getEmailForVerification')->andReturn('taylor@laravel.com');
 
         $response = $this->actingAs($user)->get($url);
 
         $response->assertStatus(403);
+        $this->assertFalse($user->fresh()->hasVerifiedEmail());
     }
 
     public function testEmailIsNotVerifiedIfEmailDoesNotMatch(): void
     {
+        $user = $this->createUnverifiedUser([
+            'email' => 'taylor@hypervel.org',
+        ]);
+
         $url = URL::temporarySignedRoute(
             'verification.verify',
             now()->addMinutes(60),
             [
-                'id' => 1,
-                'hash' => sha1('abigail@laravel.com'),
+                'id' => $user->getKey(),
+                'hash' => sha1('abigail@hypervel.org'),
             ]
         );
-
-        $user = m::mock(Authenticatable::class);
-        $user->shouldReceive('getKey')->andReturn(1);
-        $user->shouldReceive('getAuthIdentifier')->andReturn(1);
-        $user->shouldReceive('getEmailForVerification')->andReturn('taylor@laravel.com');
 
         $response = $this->actingAs($user)->get($url);
 
         $response->assertStatus(403);
+        $this->assertFalse($user->fresh()->hasVerifiedEmail());
     }
 
     /**
