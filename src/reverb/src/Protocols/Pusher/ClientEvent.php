@@ -45,6 +45,8 @@ class ClientEvent
         $rebroadcastEvent = $event;
 
         if ($acceptClientEventsFrom === 'members') {
+            // Anyone can subscribe to a public channel, so membership there doesn't authorize publishing.
+            // As in the Pusher protocol, only authorized private and presence channels accept client events.
             if (! str_starts_with($event['channel'], 'private-') && ! str_starts_with($event['channel'], 'presence-')) {
                 $connection->send(json_encode([
                     'event' => 'pusher:error',
