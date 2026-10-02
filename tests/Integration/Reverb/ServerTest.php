@@ -73,6 +73,7 @@ class ServerTest extends ReverbIntegrationTestCase
         $client->get('/app/' . $this->appKey);
 
         $this->assertSame(426, $client->getStatusCode());
+        $this->assertSame('13', $client->getHeaders()['sec-websocket-version'] ?? null);
 
         $client->close();
     }
