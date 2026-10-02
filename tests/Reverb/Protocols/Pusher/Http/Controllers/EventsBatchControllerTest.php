@@ -44,7 +44,25 @@ class EventsBatchControllerTest extends ReverbTestCase
         $this->assertSame('{"batch":{}}', $response->getContent());
     }
 
-    public function testPublishesARemoteSocketIdFromABatchItem(): void
+    public function testDoesNotFailWhenIgnoringALocalSubscriberInABatchEvent(): void
+    {
+        $connection = $this->subscribeConnection('test-channel-two');
+
+        $response = $this->signedPostRequest('batch_events', ['batch' => [
+            [
+                'name' => 'NewEvent',
+                'channel' => 'test-channel-two',
+                'data' => json_encode(['some' => 'data']),
+                'socket_id' => $connection->id(),
+            ],
+        ]]);
+
+        $response->assertStatus(200);
+        $this->assertSame('{"batch":{}}', $response->getContent());
+        $connection->assertNothingReceived();
+    }
+
+    public function testPublishesTheOriginatingSocketIdForABatchEventOverRedisEvenWhenTheConnectionIsNotLocal(): void
     {
         app(ServerProviderManager::class)->withPublishing();
         $pubSub = m::mock(PubSubProvider::class);
