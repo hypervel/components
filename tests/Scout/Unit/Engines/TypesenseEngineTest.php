@@ -15,12 +15,16 @@ use Hypervel\Scout\EngineOperationRunner;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Engines\TypesenseEngine;
 use Hypervel\Scout\Exceptions\NotSupportedException;
+use Hypervel\Scout\Exceptions\ScoutException;
 use Hypervel\Scout\Jobs\RemoveableScoutCollection;
 use Hypervel\Scout\Scout;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModelWithNativeEmbedding;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModelWithPrecomputedEmbedding;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use Mockery\MockInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use Throwable;
 use Typesense\ApiCall;
@@ -31,7 +35,9 @@ use Typesense\Document;
 use Typesense\Documents;
 use Typesense\Exceptions\ObjectAlreadyExists;
 use Typesense\Exceptions\ObjectNotFound;
+use Typesense\Exceptions\RequestMalformed;
 use Typesense\Exceptions\TypesenseClientError;
+use Typesense\MultiSearch;
 
 class TypesenseEngineTest extends TestCase
 {
@@ -296,6 +302,71 @@ class TypesenseEngineTest extends TestCase
         });
 
         $engine->update(new EloquentCollection([$model]));
+    }
+
+    public function testUpdateAddsPrecomputedEmbeddingsToDocumentsBeforePreparingThem(): void
+    {
+        $client = m::mock(TypesenseClient::class);
+        $collections = m::mock(Collections::class);
+        $collection = m::mock(TypesenseCollection::class);
+        $documents = m::mock(Documents::class);
+        $client->shouldReceive('getCollections')->once()->andReturn($collections);
+        $collections->shouldReceive('offsetGet')->with('table')->once()->andReturn($collection);
+        $collections->shouldReceive('offsetUnset')->with('table')->once();
+        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
+        $documents->shouldReceive('import')
+            ->once()
+            ->with([
+                ['id' => 10, 'name' => 'First', 'embedding' => [0.1, 0.2], 'embedding_vector' => [0.1, 0.2]],
+                ['id' => 20, 'name' => 'Second', 'embedding' => [0.3, 0.4], 'embedding_vector' => [0.3, 0.4]],
+            ], ['action' => 'upsert'])
+            ->andReturn([['success' => true], ['success' => true]]);
+
+        $engine = $this->createSemanticEngine(['attribute' => 'embedding_vector', 'dimensions' => 2], client: $client);
+
+        $first = new SearchableModelWithPrecomputedEmbedding(['id' => 10, 'name' => 'First']);
+        $first->setAttribute('embedding', [0.1, 0.2]);
+
+        $second = new SearchableModelWithPrecomputedEmbedding(['id' => 20, 'name' => 'Second']);
+        $second->setAttribute('embedding', [0.3, 0.4]);
+
+        $preparedVectors = [];
+
+        Scout::prepareSearchableDocumentUsing(function (array $document) use (&$preparedVectors): array {
+            $preparedVectors[] = $document['embedding_vector'];
+
+            return $document;
+        });
+
+        $engine->update($first->newCollection([$first, $second]));
+
+        $this->assertSame([[0.1, 0.2], [0.3, 0.4]], $preparedVectors);
+    }
+
+    public function testUpdateDoesNotGenerateEmbeddingsWhenUsingNativeEmbeddings(): void
+    {
+        $client = m::mock(TypesenseClient::class);
+        $collections = m::mock(Collections::class);
+        $collection = m::mock(TypesenseCollection::class);
+        $documents = m::mock(Documents::class);
+        $client->shouldReceive('getCollections')->once()->andReturn($collections);
+        $collections->shouldReceive('offsetGet')->with('table')->once()->andReturn($collection);
+        $collections->shouldReceive('offsetUnset')->with('table')->once();
+        $collection->shouldReceive('getDocuments')->once()->andReturn($documents);
+        $documents->shouldReceive('import')
+            ->once()
+            ->with([['id' => 1, 'name' => 'Model 1']], ['action' => 'upsert'])
+            ->andReturn([['success' => true]]);
+
+        $engine = $this->createSemanticEngine(
+            ['attribute' => 'embedding', 'driver' => 'typesense'],
+            client: $client,
+            model: SearchableModelWithNativeEmbedding::class,
+        );
+
+        $model = new SearchableModelWithNativeEmbedding(['id' => 1, 'name' => 'Model 1']);
+
+        $engine->update($model->newCollection([$model]));
     }
 
     public function testUpdateCreatesMissingCollectionAndRetriesImportOnce(): void
@@ -867,6 +938,86 @@ class TypesenseEngineTest extends TestCase
         $this->createPartialEngineWithConfig($client)->search($builder);
     }
 
+    public function testSearchesWithVectorQueriesUseTheMultiSearchEndpoint(): void
+    {
+        $multiSearch = m::mock(MultiSearch::class);
+        $engine = $this->createMultiSearchEngine($multiSearch);
+
+        $engine->shouldReceive('buildSearchParameters')->once()->andReturn([
+            'q' => '*',
+            'query_by' => 'name',
+            'vector_query' => 'embedding:([0.1, 0.2])',
+        ]);
+
+        $multiSearch->shouldReceive('perform')
+            ->once()
+            ->with([
+                'searches' => [
+                    [
+                        'q' => '*',
+                        'query_by' => 'name',
+                        'vector_query' => 'embedding:([0.1, 0.2])',
+                        'collection' => 'table',
+                    ],
+                ],
+            ])
+            ->andReturn(['results' => [['found' => 1, 'hits' => [['document' => ['id' => '1']]]]]]);
+
+        $results = $engine->search(new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'));
+
+        $this->assertSame(1, $results['found']);
+        $this->assertSame('1', $results['hits'][0]['document']['id']);
+    }
+
+    public function testMultiSearchErrorsAreConvertedToTypesenseExceptions(): void
+    {
+        $multiSearch = m::mock(MultiSearch::class);
+        $engine = $this->createMultiSearchEngine($multiSearch);
+
+        $engine->shouldReceive('buildSearchParameters')->andReturn([
+            'q' => '*',
+            'query_by' => 'name',
+            'vector_query' => 'embedding:([0.1, 0.2])',
+        ]);
+
+        $multiSearch->shouldReceive('perform')->andReturn([
+            'results' => [['code' => 400, 'error' => 'Query string exceeds max allowed length.']],
+        ]);
+
+        $this->expectException(RequestMalformed::class);
+        $this->expectExceptionMessage('Query string exceeds max allowed length.');
+
+        $engine->search(new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'));
+    }
+
+    public function testMultiSearchCreatesMissingCollectionsAndRetries(): void
+    {
+        $multiSearch = m::mock(MultiSearch::class);
+        $engine = $this->createMultiSearchEngine($multiSearch);
+        $collections = $engine->getTypesenseClient()->getCollections();
+        $collections->shouldReceive('create')
+            ->once()
+            ->with(['name' => 'table'])
+            ->andReturn(['name' => 'table']);
+
+        $engine->shouldReceive('buildSearchParameters')->andReturn([
+            'q' => '*',
+            'query_by' => 'name',
+            'vector_query' => 'embedding:([0.1, 0.2])',
+        ]);
+
+        $multiSearch->shouldReceive('perform')
+            ->twice()
+            ->andReturn(
+                ['results' => [['code' => 404, 'error' => 'Not found.']]],
+                ['results' => [['found' => 0, 'hits' => []]]],
+            );
+
+        $results = $engine->search(new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'));
+
+        $this->assertSame(0, $results['found']);
+    }
+
     public function testLargeTakeUsesFixedPageSizesAndTruthfulMetadata(): void
     {
         $engine = $this->createPartialEngineWithConfig();
@@ -1244,20 +1395,247 @@ class TypesenseEngineTest extends TestCase
         $this->assertSame('', $params['filter_by']);
     }
 
+    public function testSemanticSearchUsesAPrecomputedQueryVector(): void
+    {
+        $engine = $this->createSemanticEngine(['attribute' => 'embedding', 'dimensions' => 2]);
+
+        $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))
+            ->options(['vector' => [0.25, 0.75]])
+            ->semantic(minSimilarity: 0.7);
+
+        $parameters = $engine->buildSearchParameters($builder, 1, 10);
+
+        $this->assertSame('*', $parameters['q']);
+        $this->assertSame('name', $parameters['query_by']);
+        $this->assertSame('embedding:([0.25, 0.75], distance_threshold: 0.3)', $parameters['vector_query']);
+        $this->assertSame('embedding', $parameters['exclude_fields']);
+        $this->assertArrayNotHasKey('vector', $parameters);
+    }
+
+    public function testSemanticSearchWithoutAQueryVectorReportsThatGeneratedEmbeddingsAreUnavailable(): void
+    {
+        $engine = $this->createSemanticEngine(['attribute' => 'embedding', 'dimensions' => 2]);
+
+        $this->expectException(ScoutException::class);
+        $this->expectExceptionMessage('AI-generated embeddings are not available in Hypervel.');
+
+        $engine->buildSearchParameters(
+            (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))->semantic(),
+            1,
+            10,
+        );
+    }
+
+    public function testHybridSearchAcceptsAPrecomputedQueryVectorAndNormalizesWeights(): void
+    {
+        $engine = $this->createSemanticEngine(['attribute' => 'embedding', 'dimensions' => 2]);
+
+        $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'combined query'))
+            ->options(['vector' => [0.4, 0.6]])
+            ->hybrid(textWeight: 1, semanticWeight: 2);
+
+        $parameters = $engine->buildSearchParameters($builder, 2, 5);
+
+        $this->assertSame('combined query', $parameters['q']);
+        $this->assertSame('name', $parameters['query_by']);
+        $this->assertSame('embedding:([0.4, 0.6], alpha: ' . (2 / 3) . ')', $parameters['vector_query']);
+        $this->assertSame('embedding', $parameters['exclude_fields']);
+        $this->assertArrayNotHasKey('vector', $parameters);
+    }
+
+    public function testSemanticSearchWithNativeEmbeddingsQueriesTheEmbeddingField(): void
+    {
+        $engine = $this->createSemanticEngine(['attribute' => 'embedding', 'driver' => 'typesense']);
+
+        $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))->semantic();
+
+        $parameters = $engine->buildSearchParameters($builder, 1, 10);
+
+        $this->assertSame('conceptual query', $parameters['q']);
+        $this->assertSame('embedding', $parameters['query_by']);
+        $this->assertFalse($parameters['prefix']);
+        $this->assertArrayNotHasKey('vector_query', $parameters);
+        $this->assertSame('embedding', $parameters['exclude_fields']);
+    }
+
+    public function testSemanticSearchWithNativeEmbeddingsAppliesADistanceThreshold(): void
+    {
+        $engine = $this->createSemanticEngine(['attribute' => 'embedding', 'driver' => 'typesense']);
+
+        $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))->semantic(minSimilarity: 0.5);
+
+        $parameters = $engine->buildSearchParameters($builder, 1, 10);
+
+        $this->assertSame('embedding', $parameters['query_by']);
+        $this->assertSame('embedding:([], distance_threshold: 0.5)', $parameters['vector_query']);
+    }
+
+    public function testSemanticSearchWithNativeEmbeddingsDropsPerFieldParameters(): void
+    {
+        $engine = $this->createSemanticEngine(['attribute' => 'embedding', 'driver' => 'typesense'], 'name,description');
+
+        $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))
+            ->options(['query_by_weights' => '2,1', 'num_typos' => '2,1', 'infix' => 'off'])
+            ->semantic();
+
+        $parameters = $engine->buildSearchParameters($builder, 1, 10);
+
+        $this->assertSame('embedding', $parameters['query_by']);
+        $this->assertFalse($parameters['prefix']);
+        $this->assertArrayNotHasKey('query_by_weights', $parameters);
+        $this->assertArrayNotHasKey('num_typos', $parameters);
+        $this->assertSame('off', $parameters['infix']);
+    }
+
+    public function testHybridSearchWithNativeEmbeddingsAppendsTheEmbeddingFieldToQueryBy(): void
+    {
+        $engine = $this->createSemanticEngine(['attribute' => 'embedding', 'driver' => 'typesense']);
+
+        $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'combined query'))->hybrid();
+
+        $parameters = $engine->buildSearchParameters($builder, 1, 10);
+
+        $this->assertSame('combined query', $parameters['q']);
+        $this->assertSame('name,embedding', $parameters['query_by']);
+        $this->assertSame('true,false', $parameters['prefix']);
+        $this->assertSame('embedding:([], alpha: 0.5)', $parameters['vector_query']);
+        $this->assertSame('embedding', $parameters['exclude_fields']);
+    }
+
+    public function testHybridSearchWithNativeEmbeddingsExtendsPerFieldParameters(): void
+    {
+        $engine = $this->createSemanticEngine(['attribute' => 'embedding', 'driver' => 'typesense'], 'name,description');
+
+        $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'combined query'))
+            ->options(['query_by_weights' => '2,1', 'num_typos' => '2,1', 'prefix' => 'true,false', 'infix' => 'off'])
+            ->hybrid();
+
+        $parameters = $engine->buildSearchParameters($builder, 1, 10);
+
+        $this->assertSame('name,description,embedding', $parameters['query_by']);
+        $this->assertSame('2,1,0', $parameters['query_by_weights']);
+        $this->assertSame('2,1,0', $parameters['num_typos']);
+        $this->assertSame('true,false,false', $parameters['prefix']);
+        $this->assertSame('off', $parameters['infix']);
+    }
+
+    #[DataProvider('hybridSearchPrefixes')]
+    public function testHybridSearchWithNativeEmbeddingsDisablesPrefixSearchOnAnEmbeddingFieldAlreadyInQueryBy(
+        string $queryBy,
+        bool|string $prefix,
+        bool|string $expected,
+    ): void {
+        $engine = $this->createSemanticEngine(['attribute' => 'embedding', 'driver' => 'typesense'], $queryBy);
+
+        $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'combined query'))
+            ->options(['prefix' => $prefix])
+            ->hybrid();
+
+        $parameters = $engine->buildSearchParameters($builder, 1, 10);
+
+        $this->assertSame($queryBy, $parameters['query_by']);
+        $this->assertSame($expected, $parameters['prefix']);
+    }
+
+    /**
+     * Provide prefix settings for hybrid searches whose "query_by" already includes the embedding field.
+     *
+     * @return array<string, array{string, bool|string, bool|string}>
+     */
+    public static function hybridSearchPrefixes(): array
+    {
+        return [
+            'global prefix' => ['embedding,name', true, 'false,true'],
+            'per-field prefixes' => ['name,embedding,description', 'true,true,false', 'true,false,false'],
+            'disabled prefix' => ['name,embedding', false, false],
+        ];
+    }
+
+    public function testHybridSearchRequiresAKeywordFieldInQueryBy(): void
+    {
+        $engine = $this->createSemanticEngine(['attribute' => 'embedding', 'driver' => 'typesense'], '');
+
+        $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'combined query'))->hybrid();
+
+        $this->expectException(ScoutException::class);
+        $this->expectExceptionMessage('Typesense hybrid searches require at least one keyword field in the [query_by] search parameter.');
+
+        $engine->buildSearchParameters($builder, 1, 10);
+    }
+
+    public function testSemanticSearchCannotBeCombinedWithACustomVectorQueryOption(): void
+    {
+        $engine = $this->createSemanticEngine(['attribute' => 'embedding', 'dimensions' => 2]);
+
+        $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))
+            ->options(['vector_query' => 'embedding:([], k: 10)'])
+            ->semantic();
+
+        $this->expectException(ScoutException::class);
+        $this->expectExceptionMessage('Typesense semantic and hybrid searches cannot be combined with a custom [vector_query] option.');
+
+        $engine->buildSearchParameters($builder, 1, 10);
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    #[DataProvider('invalidSemanticSearchVectors')]
+    public function testSemanticSearchRejectsInvalidVectorQueries(array $options, float $minSimilarity, string $message): void
+    {
+        $engine = $this->createSemanticEngine(['attribute' => 'embedding', 'dimensions' => 2]);
+
+        $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))
+            ->options($options)
+            ->semantic($minSimilarity);
+
+        $this->expectException(ScoutException::class);
+        $this->expectExceptionMessage($message);
+
+        $engine->buildSearchParameters($builder, 1, 10);
+    }
+
+    /**
+     * Provide semantic search vectors and similarities Typesense rejects.
+     *
+     * @return array<string, array{array<string, mixed>, float, string}>
+     */
+    public static function invalidSemanticSearchVectors(): array
+    {
+        return [
+            'empty query vector' => [['vector' => []], 0.5, 'The Typesense query [vector] must be a non-empty embedding array.'],
+            'similarity above one' => [['vector' => [0.1, 0.2]], 1.5, 'The minimum similarity must be between 0 and 1.'],
+        ];
+    }
+
+    public function testSemanticSearchRequiresEmbeddingSettings(): void
+    {
+        $engine = $this->createPartialEngineWithConfig();
+
+        $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))->semantic();
+
+        $this->expectException(ScoutException::class);
+        $this->expectExceptionMessage('No Typesense embedding settings have been configured for [' . SearchableModelWithPrecomputedEmbedding::class . '].');
+
+        $engine->buildSearchParameters($builder, 1, 10);
+    }
+
     /**
      * Create a partial engine mock that stubs getConfig to avoid container dependency.
      *
      * @param array<string, mixed> $config
+     * @param array<string, mixed> $engineConfig
      */
     protected function createPartialEngineWithConfig(
         ?MockInterface $client = null,
         int $maxTotalResults = 1000,
         array $config = [],
+        array $engineConfig = [],
     ): MockInterface&TypesenseEngine {
         $client = $client ?? m::mock(TypesenseClient::class);
 
         /** @var MockInterface&TypesenseEngine */
-        $engine = m::mock(TypesenseEngine::class, [$client, $maxTotalResults])
+        $engine = m::mock(TypesenseEngine::class, [$client, $maxTotalResults, $engineConfig])
             ->shouldAllowMockingProtectedMethods()
             ->makePartial();
 
@@ -1265,6 +1643,45 @@ class TypesenseEngineTest extends TestCase
             ->andReturnUsing(fn (string $key, mixed $default = null): mixed => $config[$key] ?? $default);
 
         return $engine;
+    }
+
+    /**
+     * Create a partial engine with embedding settings and search parameters for the given model.
+     *
+     * @param array<string, mixed> $embedding
+     * @param class-string<Model> $model
+     */
+    protected function createSemanticEngine(
+        array $embedding,
+        string $queryBy = 'name',
+        ?MockInterface $client = null,
+        string $model = SearchableModelWithPrecomputedEmbedding::class,
+    ): MockInterface&TypesenseEngine {
+        return $this->createPartialEngineWithConfig(
+            $client,
+            config: ["typesense.model-settings.{$model}.search-parameters" => ['query_by' => $queryBy]],
+            engineConfig: ['model-settings' => [$model => ['embedding' => $embedding]]],
+        );
+    }
+
+    /**
+     * Create a partial engine whose client performs multi-searches against the "table" collection.
+     */
+    protected function createMultiSearchEngine(MultiSearch $multiSearch): MockInterface&TypesenseEngine
+    {
+        $client = m::mock(TypesenseClient::class);
+        $collections = m::mock(Collections::class);
+        $collection = m::mock(TypesenseCollection::class);
+        $documents = m::mock(Documents::class);
+
+        $client->shouldReceive('getMultiSearch')->andReturn($multiSearch);
+        $client->shouldReceive('getCollections')->andReturn($collections);
+        $collections->shouldReceive('offsetGet')->with('table')->andReturn($collection);
+        $collections->shouldReceive('offsetUnset')->with('table');
+        $collection->shouldReceive('getDocuments')->andReturn($documents);
+        $documents->shouldNotReceive('search');
+
+        return $this->createPartialEngineWithConfig($client);
     }
 }
 

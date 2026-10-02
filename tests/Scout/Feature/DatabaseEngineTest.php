@@ -47,6 +47,16 @@ class DatabaseEngineTest extends ScoutTestCase
         $this->assertCount(3, $results);
     }
 
+    public function testHybridSearchFallsBackToNormalTextSearchWhenVectorsAreNotSupported(): void
+    {
+        $this->createAbigailAndTaylor();
+
+        $models = SearchableModel::search('Taylor')->hybrid()->get();
+
+        $this->assertCount(1, $models);
+        $this->assertSame('Taylor Otwell', $models->first()->title);
+    }
+
     public function testSearchWithWhereClause(): void
     {
         $model1 = SearchableModel::create(['title' => 'Test A', 'body' => 'Body']);

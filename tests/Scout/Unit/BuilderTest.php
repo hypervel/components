@@ -19,6 +19,8 @@ use Hypervel\Scout\EngineOperation;
 use Hypervel\Scout\EngineOperationRunner;
 use Hypervel\Scout\Engines\DatabaseEngine;
 use Hypervel\Scout\Engines\Engine;
+use Hypervel\Scout\Exceptions\NotSupportedException;
+use Hypervel\Scout\Exceptions\ScoutException;
 use Hypervel\Scout\Scout;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
@@ -285,6 +287,88 @@ class BuilderTest extends TestCase
             'operator' => '=',
             'value' => 1,
         ]], $builder->wheres);
+    }
+
+    public function testSemanticSearchCanBeEnabled(): void
+    {
+        $builder = (new Builder(m::mock(Model::class), 'conceptual query'))->semantic(minSimilarity: 0.7);
+
+        $this->assertTrue($builder->semanticSearch);
+        $this->assertNull($builder->hybridSearch);
+        $this->assertSame(0.7, $builder->minimumSimilarity);
+    }
+
+    public function testHybridSearchCanBeEnabledWithWeights(): void
+    {
+        $builder = (new Builder(m::mock(Model::class), 'combined query'))->hybrid(2, 3, minSimilarity: 0.8);
+
+        $this->assertFalse($builder->semanticSearch);
+        $this->assertSame([
+            'text_weight' => 2,
+            'semantic_weight' => 3,
+        ], $builder->hybridSearch);
+        $this->assertSame(0.8, $builder->minimumSimilarity);
+    }
+
+    public function testSemanticAndHybridSearchRequireAQuery(): void
+    {
+        foreach (['semantic', 'hybrid'] as $method) {
+            try {
+                (new Builder(m::mock(Model::class), ''))->{$method}();
+
+                $this->fail("Expected [{$method}] to reject an empty query.");
+            } catch (ScoutException $e) {
+                $this->assertStringContainsString('non-empty query', $e->getMessage());
+            }
+        }
+    }
+
+    public function testHybridSearchRequiresPositiveWeights(): void
+    {
+        $this->expectException(ScoutException::class);
+        $this->expectExceptionMessage('positive numbers');
+
+        (new Builder(m::mock(Model::class), 'query'))->hybrid(1, 0);
+    }
+
+    public function testUnsupportedEnginesRejectSemanticSearch(): void
+    {
+        $model = m::mock(Model::class);
+        $model->shouldReceive('searchableUsing')->andReturn(m::mock(Engine::class));
+
+        $this->expectException(NotSupportedException::class);
+        $this->expectExceptionMessage('does not support semantic search');
+
+        (new Builder($model, 'query'))->semantic()->raw();
+    }
+
+    public function testUnsupportedEnginesRejectSemanticSearchEnabledDuringPreparation(): void
+    {
+        $model = m::mock(Model::class);
+        $engine = m::mock(Engine::class);
+        $model->shouldReceive('searchableUsing')->andReturn($engine);
+        $engine->shouldNotReceive('runSearch');
+
+        Scout::prepareBuilderUsing(function (Builder $builder): void {
+            $builder->semantic();
+        });
+
+        $this->expectException(NotSupportedException::class);
+        $this->expectExceptionMessage('does not support semantic search');
+
+        (new Builder($model, 'query'))->raw();
+    }
+
+    public function testUnsupportedEnginesTreatHybridSearchAsNormalTextSearch(): void
+    {
+        $model = m::mock(Model::class);
+        $engine = m::mock(Engine::class);
+        $model->shouldReceive('searchableUsing')->andReturn($engine);
+        $engine->shouldReceive('runSearch')->once()->andReturn(['results']);
+
+        $results = (new Builder($model, 'query'))->hybrid()->raw();
+
+        $this->assertSame(['results'], $results);
     }
 
     public function testRawCallsEngineSearchEntryPoint(): void

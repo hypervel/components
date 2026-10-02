@@ -12,7 +12,9 @@ use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\DeletesByFilter;
 use Hypervel\Scout\Contracts\SearchableInterface;
+use Hypervel\Scout\Contracts\SupportsSemanticSearch;
 use Hypervel\Scout\Exceptions\NotSupportedException;
+use Hypervel\Scout\Exceptions\ScoutException;
 use Hypervel\Scout\Jobs\RemoveableScoutCollection;
 use Hypervel\Scout\Scout;
 use Hypervel\Support\Collection;
@@ -21,16 +23,21 @@ use InvalidArgumentException;
 use stdClass;
 use Typesense\Client as Typesense;
 use Typesense\Collection as TypesenseCollection;
+use Typesense\Documents;
 use Typesense\Exceptions\ObjectAlreadyExists;
 use Typesense\Exceptions\ObjectNotFound;
+use Typesense\Exceptions\ObjectUnprocessable;
+use Typesense\Exceptions\RequestMalformed;
+use Typesense\Exceptions\RequestUnauthorized;
+use Typesense\Exceptions\ServiceUnavailable;
 use Typesense\Exceptions\TypesenseClientError;
 
 /**
  * Typesense search engine implementation.
  *
- * Provides full-text search using Typesense as the backend.
+ * Provides full-text, semantic, and hybrid search using Typesense as the backend.
  */
-class TypesenseEngine extends Engine implements DeletesByFilter
+class TypesenseEngine extends Engine implements DeletesByFilter, SupportsSemanticSearch
 {
     /**
      * The maximum number of results that can be fetched per page.
@@ -39,10 +46,13 @@ class TypesenseEngine extends Engine implements DeletesByFilter
 
     /**
      * Create a new TypesenseEngine instance.
+     *
+     * @param array<string, mixed> $config
      */
     public function __construct(
         protected Typesense $typesense,
-        protected int $maxTotalResults
+        protected int $maxTotalResults,
+        protected array $config = []
     ) {
     }
 
@@ -65,27 +75,41 @@ class TypesenseEngine extends Engine implements DeletesByFilter
             $models->each->pushSoftDeleteMetadata();
         }
 
-        $objects = $models->map(function (Model $model): ?array {
+        $records = $models->map(function (Model $model): ?array {
             $searchableData = $model->toSearchableArray();
 
             if (empty($searchableData)) {
                 return null;
             }
 
-            $document = array_merge(
-                $searchableData,
-                $model->scoutMetadata(),
-            );
-
-            return Scout::prepareSearchableDocument($document, $model, $this);
+            return [
+                'model' => $model,
+                'object' => array_merge(
+                    $searchableData,
+                    $model->scoutMetadata(),
+                ),
+            ];
         })
             ->filter()
             ->values()
             ->all();
 
-        if (empty($objects)) {
+        if (empty($records)) {
             return;
         }
+
+        $embedding = isset($this->modelSettings($firstModel)['embedding'])
+            ? $this->embeddingSettings($firstModel)
+            : null;
+
+        if ($embedding !== null && ! $this->usesNativeEmbeddings($embedding)) {
+            $records = $this->addEmbeddingsToRecords($records, $embedding);
+        }
+
+        $objects = array_map(
+            fn (array $record): array => Scout::prepareSearchableDocument($record['object'], $record['model'], $this),
+            $records,
+        );
 
         $collectionName = $firstModel->indexableAs();
         $collection = $this->collection($collectionName);
@@ -96,6 +120,55 @@ class TypesenseEngine extends Engine implements DeletesByFilter
             $this->createCollectionFromModel($firstModel, $collectionName);
             $this->importDocuments($collection, $objects);
         }
+    }
+
+    /**
+     * Add embeddings to the given searchable records.
+     *
+     * @param array<int, array{model: Model, object: array<string, mixed>}> $records
+     * @param array<string, mixed> $settings
+     * @return array<int, array{model: Model, object: array<string, mixed>}>
+     */
+    protected function addEmbeddingsToRecords(array $records, array $settings): array
+    {
+        foreach (array_chunk($records, 100, preserve_keys: true) as $batch) {
+            $inputs = [];
+            $vectors = [];
+
+            foreach ($batch as $index => $record) {
+                if (! method_exists($record['model'], 'toSearchableEmbedding')) {
+                    throw new ScoutException('Searchable models using generated embeddings must define a [toSearchableEmbedding] method.');
+                }
+
+                $input = $record['model']->toSearchableEmbedding();
+
+                if (is_array($input)) {
+                    $vectors[$index] = $input;
+
+                    continue;
+                }
+
+                if (! is_string($input) || trim($input) === '') {
+                    throw new ScoutException('The [toSearchableEmbedding] method must return a non-empty string or an embedding array.');
+                }
+
+                $inputs[$index] = $input;
+            }
+
+            if (! empty($inputs)) {
+                $generatedVectors = $this->generateEmbeddings(array_values($inputs), $settings);
+
+                foreach (array_keys($inputs) as $position => $index) {
+                    $vectors[$index] = $generatedVectors[$position];
+                }
+            }
+
+            foreach (array_keys($batch) as $index) {
+                $records[$index]['object'][$settings['attribute']] = $vectors[$index];
+            }
+        }
+
+        return $records;
     }
 
     /**
@@ -244,12 +317,62 @@ class TypesenseEngine extends Engine implements DeletesByFilter
         }
 
         try {
-            return $documents->search($options);
+            return $this->executeSearch($builder, $documents, $options);
         } catch (ObjectNotFound) {
             $this->createCollectionFromModel($builder->model, $collectionName);
 
+            return $this->executeSearch($builder, $documents, $options);
+        }
+    }
+
+    /**
+     * Execute the given search using the appropriate Typesense endpoint.
+     *
+     * @param array<string, mixed> $options
+     * @throws TypesenseClientError
+     */
+    protected function executeSearch(Builder $builder, Documents $documents, array $options): mixed
+    {
+        if (! isset($options['vector_query'])) {
             return $documents->search($options);
         }
+
+        // Serialized embeddings may exceed Typesense's query string length, so send them in a multi-search body.
+        $results = $this->typesense->getMultiSearch()->perform([
+            'searches' => [
+                array_merge($options, [
+                    'collection' => $builder->index ?? $builder->model->searchableAs(),
+                ]),
+            ],
+        ]);
+
+        $result = $results['results'][0] ?? [];
+
+        if (isset($result['error'])) {
+            throw $this->marshalMultiSearchException($result);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Convert a multi-search error result into a Typesense exception.
+     *
+     * @param array{code?: int, error: string} $result
+     */
+    protected function marshalMultiSearchException(array $result): TypesenseClientError
+    {
+        $exception = match ((int) ($result['code'] ?? 500)) {
+            400 => new RequestMalformed,
+            401 => new RequestUnauthorized,
+            404 => new ObjectNotFound,
+            409 => new ObjectAlreadyExists,
+            422 => new ObjectUnprocessable,
+            503 => new ServiceUnavailable,
+            default => new TypesenseClientError,
+        };
+
+        return $exception->setMessage($result['error']);
     }
 
     /**
@@ -356,7 +479,183 @@ class TypesenseEngine extends Engine implements DeletesByFilter
         $parameters['page'] = $page;
         $parameters['per_page'] = $perPage;
 
+        return $this->applySemanticSearchParameters($builder, $parameters);
+    }
+
+    /**
+     * Apply semantic and hybrid search parameters to the search parameters.
+     *
+     * @param array<string, mixed> $parameters
+     * @return array<string, mixed>
+     */
+    protected function applySemanticSearchParameters(Builder $builder, array $parameters): array
+    {
+        if (! $builder->semanticSearch && $builder->hybridSearch === null) {
+            return $parameters;
+        }
+
+        if (array_key_exists('vector_query', $builder->options)) {
+            throw new ScoutException('Typesense semantic and hybrid searches cannot be combined with a custom [vector_query] option.');
+        }
+
+        $settings = $this->embeddingSettings($builder->model);
+
+        unset($parameters['vector']);
+
+        if ($builder->semanticSearch) {
+            $parameters = $this->usesNativeEmbeddings($settings)
+                ? $this->applyNativeSemanticQueryBy($parameters, $settings['attribute'])
+                : array_merge($parameters, ['q' => '*']);
+        } else {
+            $parameters = $this->applyHybridQueryBy($parameters, $settings);
+        }
+
+        if (($vectorQuery = $this->buildVectorQueryParameter($builder, $settings)) !== null) {
+            $parameters['vector_query'] = $vectorQuery;
+        }
+
+        $parameters['exclude_fields'] = $this->appendField($parameters['exclude_fields'] ?? '', $settings['attribute']);
+
         return $parameters;
+    }
+
+    /**
+     * Target the embedding field for a semantic search using native embeddings.
+     *
+     * @param array<string, mixed> $parameters
+     * @return array<string, mixed>
+     */
+    protected function applyNativeSemanticQueryBy(array $parameters, string $attribute): array
+    {
+        $parameters['query_by'] = $attribute;
+
+        // Remote embedders reject prefix searches on embedding fields.
+        $parameters['prefix'] = false;
+
+        unset($parameters['query_by_weights']);
+
+        foreach (['num_typos', 'infix'] as $parameter) {
+            if (isset($parameters[$parameter]) && str_contains((string) $parameters[$parameter], ',')) {
+                unset($parameters[$parameter]);
+            }
+        }
+
+        return $parameters;
+    }
+
+    /**
+     * Prepare the "query_by" fields and their per-field parameters for a hybrid search.
+     *
+     * @param array<string, mixed> $parameters
+     * @param array<string, mixed> $settings
+     * @return array<string, mixed>
+     */
+    protected function applyHybridQueryBy(array $parameters, array $settings): array
+    {
+        $fields = array_filter(array_map('trim', explode(',', (string) ($parameters['query_by'] ?? ''))));
+
+        if (empty(array_diff($fields, [$settings['attribute']]))) {
+            throw new ScoutException('Typesense hybrid searches require at least one keyword field in the [query_by] search parameter.');
+        }
+
+        if (! $this->usesNativeEmbeddings($settings)) {
+            return $parameters;
+        }
+
+        if (! in_array($settings['attribute'], $fields, true)) {
+            $fields[] = $settings['attribute'];
+            $parameters['query_by'] = implode(',', $fields);
+
+            if (isset($parameters['query_by_weights']) && $parameters['query_by_weights'] !== '') {
+                $parameters['query_by_weights'] .= ',0';
+            }
+
+            foreach (['num_typos' => '0', 'infix' => 'off'] as $parameter => $placeholder) {
+                if (isset($parameters[$parameter]) && str_contains((string) $parameters[$parameter], ',')) {
+                    $parameters[$parameter] .= ',' . $placeholder;
+                }
+            }
+        }
+
+        // Remote embedders reject prefix searches on embedding fields, so prefix search must be disabled for that field.
+        if ($parameters['prefix'] === true || $parameters['prefix'] === 'true') {
+            $prefixes = array_fill(0, count($fields), 'true');
+        } elseif (is_string($parameters['prefix']) && str_contains($parameters['prefix'], ',')) {
+            $prefixes = explode(',', $parameters['prefix']);
+        } else {
+            return $parameters;
+        }
+
+        $prefixes[array_search($settings['attribute'], array_values($fields), true)] = 'false';
+        $parameters['prefix'] = implode(',', $prefixes);
+
+        return $parameters;
+    }
+
+    /**
+     * Build the "vector_query" parameter for the search.
+     *
+     * @param array<string, mixed> $settings
+     */
+    protected function buildVectorQueryParameter(Builder $builder, array $settings): ?string
+    {
+        if ($this->usesNativeEmbeddings($settings)) {
+            $vector = [];
+        } else {
+            $vector = $builder->options['vector']
+                ?? $this->generateEmbeddings([$builder->query], $settings)[0];
+
+            if (! is_array($vector) || empty($vector)) {
+                throw new ScoutException('The Typesense query [vector] must be a non-empty embedding array.');
+            }
+        }
+
+        $options = [];
+
+        if ($builder->hybridSearch !== null) {
+            $options[] = 'alpha: ' . ($builder->hybridSearch['semantic_weight'] / array_sum($builder->hybridSearch));
+        }
+
+        if ($builder->minimumSimilarity !== null) {
+            $options[] = 'distance_threshold: ' . $this->distanceThreshold($builder->minimumSimilarity);
+        }
+
+        if (empty($vector) && empty($options)) {
+            return null;
+        }
+
+        return sprintf(
+            '%s:([%s]%s)',
+            $settings['attribute'],
+            implode(', ', $vector),
+            empty($options) ? '' : ', ' . implode(', ', $options)
+        );
+    }
+
+    /**
+     * Get the maximum vector distance for the given minimum similarity.
+     */
+    protected function distanceThreshold(float|int $similarity): float|int
+    {
+        if ($similarity < 0 || $similarity > 1) {
+            throw new ScoutException('The minimum similarity must be between 0 and 1.');
+        }
+
+        return 1 - $similarity;
+    }
+
+    /**
+     * Append a field to a comma-separated field list if not already present.
+     */
+    protected function appendField(string $fields, string $field): string
+    {
+        $fields = array_filter(array_map('trim', explode(',', $fields)));
+
+        if (! in_array($field, $fields, true)) {
+            $fields[] = $field;
+        }
+
+        return implode(',', $fields);
     }
 
     /**
@@ -670,6 +969,78 @@ class TypesenseEngine extends Engine implements DeletesByFilter
         } catch (ObjectAlreadyExists) {
             // Another process created the collection first.
         }
+    }
+
+    /**
+     * Get the configured settings for a model.
+     *
+     * @return array<string, mixed>
+     */
+    protected function modelSettings(Model $model): array
+    {
+        return $this->config['model-settings'][$model::class] ?? [];
+    }
+
+    /**
+     * Get the validated embedding settings for a model.
+     *
+     * @return array<string, mixed>
+     */
+    protected function embeddingSettings(Model $model): array
+    {
+        $settings = $this->modelSettings($model)['embedding'] ?? null;
+
+        if (! is_array($settings)) {
+            throw new ScoutException('No Typesense embedding settings have been configured for [' . $model::class . '].');
+        }
+
+        if (! isset($settings['attribute']) || ! is_string($settings['attribute']) || trim($settings['attribute']) === '') {
+            throw new ScoutException('Typesense embedding settings must contain an [attribute].');
+        }
+
+        $driver = $settings['driver'] ?? 'hypervel-ai';
+
+        if (! in_array($driver, ['hypervel-ai', 'typesense'], true)) {
+            throw new ScoutException("The [{$driver}] Typesense embedding driver is not supported.");
+        }
+
+        $settings['driver'] = $driver;
+
+        if ($this->usesNativeEmbeddings($settings)) {
+            return $settings;
+        }
+
+        if (! isset($settings['dimensions'])
+            || filter_var($settings['dimensions'], FILTER_VALIDATE_INT) === false
+            || $settings['dimensions'] < 1) {
+            throw new ScoutException('Typesense embedding settings must contain positive [dimensions].');
+        }
+
+        $settings['dimensions'] = (int) $settings['dimensions'];
+
+        return $settings;
+    }
+
+    /**
+     * Determine if Typesense should generate embeddings natively.
+     *
+     * @param array<string, mixed> $settings
+     */
+    protected function usesNativeEmbeddings(array $settings): bool
+    {
+        return ($settings['driver'] ?? null) === 'typesense';
+    }
+
+    /**
+     * Generate embeddings for the given inputs.
+     *
+     * @param array<int, string> $inputs
+     * @param array<string, mixed> $settings
+     * @return array<int, array<int, float|int>>
+     */
+    protected function generateEmbeddings(array $inputs, array $settings): array
+    {
+        throw new ScoutException('AI-generated embeddings are not available in Hypervel. Use native or precomputed embeddings instead.');
     }
 
     /**

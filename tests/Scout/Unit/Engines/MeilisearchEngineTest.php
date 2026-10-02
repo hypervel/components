@@ -22,6 +22,8 @@ use Hypervel\Scout\Jobs\RemoveableScoutCollection;
 use Hypervel\Scout\Scout;
 use Hypervel\Scout\Searchable;
 use Hypervel\Support\LazyCollection;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModelWithNativeEmbedding;
+use Hypervel\Tests\Scout\Fixtures\Models\SearchableModelWithPrecomputedEmbedding;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Meilisearch\Client;
@@ -142,6 +144,103 @@ class MeilisearchEngineTest extends TestCase
         });
 
         $engine->update(new EloquentCollection([$model]));
+    }
+
+    public function testUpdateAddsPrecomputedEmbeddingsToVectorsBeforePreparingDocuments(): void
+    {
+        $client = m::mock(Client::class);
+        $engine = $this->engineWithEmbedding($client, ['embedder' => 'default', 'dimensions' => 2]);
+
+        $first = new SearchableModelWithPrecomputedEmbedding(['id' => 10, 'name' => 'First']);
+        $first->setAttribute('embedding', [0.1, 0.2]);
+        $first->setAttribute('_vectors', ['other' => [0.9, 0.8]]);
+
+        $second = new SearchableModelWithPrecomputedEmbedding(['id' => 20, 'name' => 'Second']);
+        $second->setAttribute('embedding', [0.3, 0.4]);
+
+        $preparedVectors = [];
+
+        Scout::prepareSearchableDocumentUsing(function (array $document) use (&$preparedVectors): array {
+            $preparedVectors[] = $document['_vectors'];
+
+            return $document;
+        });
+
+        $client->shouldReceive('index')->once()->with('table')->andReturn($index = m::mock(Indexes::class));
+        $index->shouldReceive('addDocuments')->once()->with([
+            [
+                'id' => 10,
+                'name' => 'First',
+                'embedding' => [0.1, 0.2],
+                '_vectors' => ['other' => [0.9, 0.8], 'default' => [0.1, 0.2]],
+            ],
+            [
+                'id' => 20,
+                'name' => 'Second',
+                'embedding' => [0.3, 0.4],
+                '_vectors' => ['default' => [0.3, 0.4]],
+            ],
+        ], 'id');
+
+        $engine->update($first->newCollection([$first, $second]));
+
+        $this->assertSame([
+            ['other' => [0.9, 0.8], 'default' => [0.1, 0.2]],
+            ['default' => [0.3, 0.4]],
+        ], $preparedVectors);
+    }
+
+    public function testUpdateDoesNotAddVectorsWhenUsingNativeEmbeddings(): void
+    {
+        $client = m::mock(Client::class);
+        $engine = $this->engineWithEmbedding(
+            $client,
+            ['embedder' => 'default', 'driver' => 'meilisearch'],
+            SearchableModelWithNativeEmbedding::class,
+        );
+
+        $model = new SearchableModelWithNativeEmbedding(['id' => 1, 'name' => 'Model 1']);
+
+        $client->shouldReceive('index')->once()->with('table')->andReturn($index = m::mock(Indexes::class));
+        $index->shouldReceive('addDocuments')->once()->with([
+            ['id' => 1, 'name' => 'Model 1'],
+        ], 'id');
+
+        $engine->update($model->newCollection([$model]));
+    }
+
+    public function testUpdatePreservesUserProvidedVectorsWhenUsingNativeEmbeddings(): void
+    {
+        $client = m::mock(Client::class);
+        $engine = $this->engineWithEmbedding(
+            $client,
+            ['embedder' => 'default', 'driver' => 'meilisearch'],
+            SearchableModelWithNativeEmbedding::class,
+        );
+
+        $model = new SearchableModelWithNativeEmbedding(['id' => 1, 'name' => 'Model 1']);
+        $model->setAttribute('_vectors', [
+            'default' => [
+                'embeddings' => [0.1, 0.2],
+                'regenerate' => false,
+            ],
+        ]);
+
+        $client->shouldReceive('index')->once()->with('table')->andReturn($index = m::mock(Indexes::class));
+        $index->shouldReceive('addDocuments')->once()->with([
+            [
+                'id' => 1,
+                'name' => 'Model 1',
+                '_vectors' => [
+                    'default' => [
+                        'embeddings' => [0.1, 0.2],
+                        'regenerate' => false,
+                    ],
+                ],
+            ],
+        ], 'id');
+
+        $engine->update($model->newCollection([$model]));
     }
 
     public function testDeleteRemovesDocumentsFromIndex(): void
@@ -428,6 +527,150 @@ class MeilisearchEngineTest extends TestCase
         $builder = new Builder($model, 'query');
 
         $engine->paginate($builder, 15, 2);
+    }
+
+    public function testSemanticSearchWithNativeEmbeddingsOmitsTheQueryVector(): void
+    {
+        $client = m::mock(Client::class);
+        $engine = $this->engineWithEmbedding(
+            $client,
+            ['embedder' => 'default', 'driver' => 'meilisearch'],
+            SearchableModelWithNativeEmbedding::class,
+        );
+
+        $client->shouldReceive('index')->once()->with('table')->andReturn($index = m::mock(Indexes::class));
+        $index->shouldReceive('rawSearch')->once()->with('conceptual query', m::on(fn (array $parameters): bool => $parameters === [
+            'hitsPerPage' => 10,
+            'hybrid' => [
+                'embedder' => 'default',
+                'semanticRatio' => 1.0,
+            ],
+            'rankingScoreThreshold' => 0,
+            'filter' => 'status="published"',
+        ]))->andReturn(['hits' => []]);
+
+        $builder = (new Builder(new SearchableModelWithNativeEmbedding, 'conceptual query'))
+            ->semantic(minSimilarity: 0)
+            ->where('status', 'published')
+            ->take(10);
+
+        $engine->search($builder);
+    }
+
+    public function testHybridSearchWithNativeEmbeddingsAcceptsAPrecomputedQueryVector(): void
+    {
+        $client = m::mock(Client::class);
+        $engine = $this->engineWithEmbedding(
+            $client,
+            ['embedder' => 'default', 'driver' => 'meilisearch'],
+            SearchableModelWithNativeEmbedding::class,
+        );
+
+        $client->shouldReceive('index')->once()->with('table')->andReturn($index = m::mock(Indexes::class));
+        $index->shouldReceive('rawSearch')->once()->with('combined query', [
+            'vector' => [0.4, 0.6],
+            'hitsPerPage' => 5,
+            'page' => 2,
+            'hybrid' => [
+                'embedder' => 'default',
+                'semanticRatio' => 2 / 3,
+            ],
+        ])->andReturn(['hits' => []]);
+
+        $builder = (new Builder(new SearchableModelWithNativeEmbedding, 'combined query'))
+            ->options(['vector' => [0.4, 0.6]])
+            ->hybrid(textWeight: 1, semanticWeight: 2);
+
+        $engine->paginate($builder, 5, 2);
+    }
+
+    public function testSemanticSearchRejectsAnUnsupportedEmbeddingDriver(): void
+    {
+        $client = m::mock(Client::class);
+        $client->shouldNotReceive('index');
+        $engine = $this->engineWithEmbedding($client, ['embedder' => 'default', 'dimensions' => 2, 'driver' => 'foo']);
+
+        $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))->semantic();
+
+        $this->expectException(ScoutException::class);
+        $this->expectExceptionMessage('The [foo] Meilisearch embedding driver is not supported.');
+
+        $engine->search($builder);
+    }
+
+    public function testHybridSearchAcceptsAPrecomputedQueryVectorAndNormalizesWeights(): void
+    {
+        $client = m::mock(Client::class);
+        $engine = $this->engineWithEmbedding($client, ['embedder' => 'default', 'dimensions' => 2]);
+
+        $client->shouldReceive('index')->once()->with('table')->andReturn($index = m::mock(Indexes::class));
+        $index->shouldReceive('rawSearch')->once()->with('combined query', [
+            'vector' => [0.4, 0.6],
+            'hitsPerPage' => 5,
+            'page' => 2,
+            'hybrid' => [
+                'embedder' => 'default',
+                'semanticRatio' => 2 / 3,
+            ],
+            'rankingScoreThreshold' => 0.5,
+        ])->andReturn(['hits' => []]);
+
+        $builder = (new Builder(new SearchableModelWithPrecomputedEmbedding, 'combined query'))
+            ->options(['vector' => [0.4, 0.6]])
+            ->hybrid(textWeight: 1, semanticWeight: 2, minSimilarity: 0.5);
+
+        $engine->paginate($builder, 5, 2);
+    }
+
+    public function testSemanticSearchWithoutAQueryVectorReportsThatGeneratedEmbeddingsAreUnavailable(): void
+    {
+        $client = m::mock(Client::class);
+        $client->shouldNotReceive('index');
+        $engine = $this->engineWithEmbedding($client, ['embedder' => 'default', 'dimensions' => 2]);
+
+        $this->expectException(ScoutException::class);
+        $this->expectExceptionMessage('AI-generated embeddings are not available in Hypervel.');
+
+        $engine->search((new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))->semantic());
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    #[DataProvider('invalidSemanticSearchOptions')]
+    public function testSemanticSearchRejectsInvalidOptions(array $options, string $message): void
+    {
+        $client = m::mock(Client::class);
+        $client->shouldNotReceive('index');
+        $engine = $this->engineWithEmbedding($client, ['embedder' => 'default', 'dimensions' => 2]);
+
+        $this->expectException(ScoutException::class);
+        $this->expectExceptionMessage($message);
+
+        $engine->search(
+            (new Builder(new SearchableModelWithPrecomputedEmbedding, 'conceptual query'))
+                ->options($options)
+                ->semantic()
+        );
+    }
+
+    /**
+     * Provide semantic search options Meilisearch rejects.
+     *
+     * @return array<string, array{array<string, mixed>, string}>
+     */
+    public static function invalidSemanticSearchOptions(): array
+    {
+        return [
+            'custom hybrid option' => [
+                ['vector' => [0.1, 0.2], 'hybrid' => ['embedder' => 'other']],
+                'Meilisearch semantic and hybrid searches cannot be combined with a custom [hybrid] option.',
+            ],
+            'empty query vector' => [
+                ['vector' => []],
+                'The Meilisearch query [vector] must be a non-empty embedding array.',
+            ],
+        ];
     }
 
     public function testMapIdsReturnsEmptyCollectionIfNoHits(): void
@@ -1158,6 +1401,24 @@ class MeilisearchEngineTest extends TestCase
         return new ApiException(new Response($status), [
             'message' => $code,
             'code' => $code,
+        ]);
+    }
+
+    /**
+     * Create an engine with embedding settings for the given model.
+     *
+     * @param array<string, mixed> $embedding
+     * @param class-string<Model> $model
+     */
+    protected function engineWithEmbedding(
+        Client $client,
+        array $embedding,
+        string $model = SearchableModelWithPrecomputedEmbedding::class
+    ): MeilisearchEngine {
+        return new MeilisearchEngine($client, false, [
+            'model-settings' => [
+                $model => ['embedding' => $embedding],
+            ],
         ]);
     }
 

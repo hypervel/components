@@ -35,7 +35,7 @@ For semantic search that matches results by *meaning* rather than exact keywords
 <a name="introduction-scout-search-engines"></a>
 #### Hypervel Scout Search
 
-For applications that want a `Searchable` trait that automatically keeps search indexes in sync with Eloquent models, [Hypervel Scout](/docs/{{version}}/scout) offers both a built-in database engine and drivers for third-party services like Algolia, Meilisearch, and Typesense.
+For applications that want a `Searchable` trait that automatically keeps search indexes in sync with Eloquent models, [Hypervel Scout](/docs/{{version}}/scout) offers both a built-in database engine and drivers for third-party services like Algolia, Meilisearch, Typesense, and Turbopuffer.
 
 <a name="full-text-search"></a>
 ## Full-Text Search

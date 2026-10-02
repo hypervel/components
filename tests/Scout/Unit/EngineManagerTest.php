@@ -18,7 +18,9 @@ use Hypervel\Scout\Engines\DatabaseEngine;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Engines\MeilisearchEngine;
 use Hypervel\Scout\Engines\NullEngine;
+use Hypervel\Scout\Engines\TurbopufferEngine;
 use Hypervel\Scout\Engines\TypesenseEngine;
+use Hypervel\Scout\Services\Turbopuffer\TurbopufferClient;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
@@ -109,9 +111,16 @@ class EngineManagerTest extends TestCase
 
     public function testResolveMeilisearchEngine(): void
     {
+        $meilisearchConfig = [
+            'model-settings' => [
+                Model::class => ['embedding' => ['embedder' => 'default', 'dimensions' => 2]],
+            ],
+        ];
+
         $container = $this->createMockContainer([
             'driver' => 'meilisearch',
             'soft_delete' => false,
+            'meilisearch' => $meilisearchConfig,
         ]);
 
         $meilisearchClient = m::mock(MeilisearchClient::class);
@@ -123,6 +132,7 @@ class EngineManagerTest extends TestCase
         $engine = $manager->engine('meilisearch');
 
         $this->assertInstanceOf(MeilisearchEngine::class, $engine);
+        $this->assertSame($meilisearchConfig, (new ClassInvoker($engine))->config);
     }
 
     public function testResolveMeilisearchEngineWithSoftDelete(): void
@@ -141,6 +151,7 @@ class EngineManagerTest extends TestCase
         $engine = $manager->engine('meilisearch');
 
         $this->assertInstanceOf(MeilisearchEngine::class, $engine);
+        $this->assertTrue((new ClassInvoker($engine))->softDelete);
     }
 
     public function testResolveDatabaseEngine(): void
@@ -155,9 +166,16 @@ class EngineManagerTest extends TestCase
 
     public function testResolveTypesenseEngine(): void
     {
+        $typesenseConfig = [
+            'model-settings' => [
+                Model::class => ['embedding' => ['attribute' => 'embedding', 'dimensions' => 2]],
+            ],
+        ];
+
         $container = $this->createMockContainerWithTypesense([
             'driver' => 'typesense',
             'soft_delete' => false,
+            'typesense' => $typesenseConfig,
         ]);
 
         $typesenseClient = m::mock(TypesenseClient::class);
@@ -169,6 +187,35 @@ class EngineManagerTest extends TestCase
         $engine = $manager->engine('typesense');
 
         $this->assertInstanceOf(TypesenseEngine::class, $engine);
+        $this->assertSame($typesenseConfig, (new ClassInvoker($engine))->config);
+    }
+
+    public function testResolveTurbopufferEngine(): void
+    {
+        $turbopufferConfig = [
+            'model-settings' => [
+                Model::class => ['searchable-attributes' => ['name' => 1]],
+            ],
+        ];
+
+        $container = $this->createMockContainer([
+            'driver' => 'turbopuffer',
+            'soft_delete' => true,
+            'turbopuffer' => $turbopufferConfig,
+        ]);
+
+        $turbopufferClient = m::mock(TurbopufferClient::class);
+        $container->shouldReceive('make')
+            ->with(TurbopufferClient::class)
+            ->andReturn($turbopufferClient);
+
+        $manager = $this->createManager($container);
+        $engine = $manager->engine('turbopuffer');
+
+        $this->assertInstanceOf(TurbopufferEngine::class, $engine);
+        $this->assertSame($turbopufferClient, (new ClassInvoker($engine))->turbopuffer);
+        $this->assertSame($turbopufferConfig, (new ClassInvoker($engine))->config);
+        $this->assertTrue((new ClassInvoker($engine))->softDelete);
     }
 
     public function testEngineUsesDefaultDriver(): void
@@ -379,6 +426,12 @@ class EngineManagerTest extends TestCase
         $configService->shouldReceive('boolean')
             ->with('scout.soft_delete')
             ->andReturn($config['soft_delete'] ?? false);
+        $configService->shouldReceive('array')
+            ->with('scout.meilisearch', [])
+            ->andReturn($config['meilisearch'] ?? []);
+        $configService->shouldReceive('array')
+            ->with('scout.turbopuffer', [])
+            ->andReturn($config['turbopuffer'] ?? []);
 
         $container->shouldReceive('make')
             ->with('config')
@@ -401,6 +454,9 @@ class EngineManagerTest extends TestCase
         $configService->shouldReceive('integer')
             ->with('scout.typesense.max_total_results', m::any())
             ->andReturn($config['max_total_results'] ?? 1000);
+        $configService->shouldReceive('array')
+            ->with('scout.typesense', [])
+            ->andReturn($config['typesense'] ?? []);
 
         $container->shouldReceive('make')
             ->with('config')

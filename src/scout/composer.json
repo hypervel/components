@@ -12,6 +12,7 @@
         "algolia",
         "meilisearch",
         "typesense",
+        "turbopuffer",
         "database"
     ],
     "authors": [
@@ -47,6 +48,7 @@
         "hypervel/coroutine": "^0.4",
         "hypervel/database": "^0.4",
         "hypervel/foundation": "^0.4",
+        "hypervel/http": "^0.4",
         "hypervel/macroable": "^0.4",
         "hypervel/pagination": "^0.4",
         "hypervel/queue": "^0.4",

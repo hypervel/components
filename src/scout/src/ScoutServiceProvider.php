@@ -13,6 +13,7 @@ use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\HandlerStack;
 use Hypervel\Contracts\Telescope\TelescopeTag;
 use Hypervel\Foundation\Application as HypervelApplication;
+use Hypervel\Http\Client\Factory as HttpFactory;
 use Hypervel\Scout\Console\DeleteAllIndexesCommand;
 use Hypervel\Scout\Console\DeleteIndexCommand;
 use Hypervel\Scout\Console\FlushCommand;
@@ -21,6 +22,7 @@ use Hypervel\Scout\Console\IndexCommand;
 use Hypervel\Scout\Console\QueueImportCommand;
 use Hypervel\Scout\Console\SyncIndexSettingsCommand;
 use Hypervel\Scout\Engines\MeilisearchRetryPolicy;
+use Hypervel\Scout\Services\Turbopuffer\TurbopufferClient;
 use Hypervel\Support\ServiceProvider;
 use Meilisearch\Client as MeilisearchClient;
 use Typesense\Client as TypesenseClient;
@@ -40,6 +42,7 @@ class ScoutServiceProvider extends ServiceProvider
         $this->registerAlgoliaClient();
         $this->registerMeilisearchClient();
         $this->registerTypesenseClient();
+        $this->registerTurbopufferClient();
     }
 
     /**
@@ -158,6 +161,19 @@ class ScoutServiceProvider extends ServiceProvider
             ]);
 
             return new TypesenseClient($settings);
+        });
+    }
+
+    /**
+     * Register the Turbopuffer client.
+     */
+    protected function registerTurbopufferClient(): void
+    {
+        $this->app->singleton(TurbopufferClient::class, function (): TurbopufferClient {
+            return new TurbopufferClient(
+                $this->app->make(HttpFactory::class),
+                $this->app->make('config')->array('scout.turbopuffer', []),
+            );
         });
     }
 
