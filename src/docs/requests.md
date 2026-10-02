@@ -423,6 +423,15 @@ To retrieve input values as integers, you may use the `integer` method. This met
 $perPage = $request->integer('per_page');
 ```
 
+<a name="retrieving-float-input-values"></a>
+#### Retrieving Float Input Values
+
+Similarly, the `float` method retrieves an input value as a float, returning the default value you specify if the input is not present:
+
+```php
+$price = $request->float('price');
+```
+
 <a name="retrieving-clamped-input-values"></a>
 #### Retrieving Clamped Input Values
 
